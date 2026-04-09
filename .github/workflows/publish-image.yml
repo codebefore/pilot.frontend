@@ -72,8 +72,7 @@ jobs:
             DEPLOY_PATH="${{ vars.DEPLOY_PATH }}"
 
             if [ -z "$DEPLOY_PATH" ]; then
-              echo "DEPLOY_PATH repository variable is not set."
-              exit 1
+              DEPLOY_PATH="/root/projects/pilot-deploy"
             fi
 
             cd "$DEPLOY_PATH"
