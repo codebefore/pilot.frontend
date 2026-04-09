@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./lib/api";
+import { getApiBaseUrl, getPublicUrl } from "./lib/api";
 
 const navigationItems = [
   "Adaylar",
@@ -17,6 +17,9 @@ const candidateFields = [
 ];
 
 export default function App() {
+  const apiBaseUrl = getApiBaseUrl();
+  const publicUrl = getPublicUrl();
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -54,7 +57,7 @@ export default function App() {
 
           <div className="endpoint-card">
             <span>API</span>
-            <code>{API_BASE_URL}</code>
+            <code>{apiBaseUrl}</code>
           </div>
         </header>
 
@@ -70,6 +73,9 @@ export default function App() {
               <li>Aday detay</li>
               <li>Aday duzenleme</li>
             </ul>
+            <p>
+              Public URL: <code>{publicUrl}</code>
+            </p>
           </article>
 
           <article className="panel panel-accent">

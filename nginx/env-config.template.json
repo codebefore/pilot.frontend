@@ -1,0 +1,4 @@
+{
+  "apiBaseUrl": "${VITE_API_BASE_URL}",
+  "publicUrl": "${PILOT_FRONTEND_PUBLIC_URL}"
+}
