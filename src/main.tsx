@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 
 import App from "./App";
 import { applyRuntimeConfig } from "./lib/api";
-import "./styles.css";
+import "./styles/index.css";
 
 async function bootstrap() {
   try {

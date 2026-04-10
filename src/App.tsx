@@ -1,98 +1,70 @@
-import { getApiBaseUrl, getPublicUrl } from "./lib/api";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-const navigationItems = [
-  "Adaylar",
-  "Gruplar",
-  "Evrak",
-  "Tahsilat",
-  "MEB Gonderimi"
-];
+import { Header } from "./components/layout/Header";
+import { Sidebar } from "./components/layout/Sidebar";
+import { ToastProvider } from "./components/ui/Toast";
+import { mockInstitutions } from "./mock/institutions";
+import { CandidatesPage } from "./pages/CandidatesPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { DocumentsPage } from "./pages/DocumentsPage";
+import { GroupsPage } from "./pages/GroupsPage";
+import { MebJobsPage } from "./pages/MebJobsPage";
+import { PaymentsPage } from "./pages/PaymentsPage";
+import { PermissionsPage } from "./pages/PermissionsPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { TrainingPage } from "./pages/TrainingPage";
+import { UsersPage } from "./pages/UsersPage";
 
-const candidateFields = [
-  "Ad",
-  "Soyad",
-  "TC",
-  "Telefon",
-  "Dogum Tarihi"
-];
+function AppShell() {
+  const [institutionId, setInstitutionId] = useState<string>(mockInstitutions[0].id);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
 
-export default function App() {
-  const apiBaseUrl = getApiBaseUrl();
-  const publicUrl = getPublicUrl();
+  // Route değişince mobilde sidebar'ı otomatik kapat.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">P</span>
-          <div>
-            <strong>Pilot</strong>
-            <p>Gorev tabanli kurs operasyonu</p>
-          </div>
-        </div>
-
-        <nav className="nav-list">
-          {navigationItems.map((item) => (
-            <button
-              className={item === "Adaylar" ? "nav-item active" : "nav-item"}
-              key={item}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="content">
-        <header className="page-header">
-          <div>
-            <span className="eyebrow">Baslangic Iskeleti</span>
-            <h1>Aday Akisi</h1>
-            <p>
-              Frontend renk ve ekran dili demo referansiyla ilerleyecek. Ilk
-              dikey akis aday CRUD olacak.
-            </p>
-          </div>
-
-          <div className="endpoint-card">
-            <span>API</span>
-            <code>{apiBaseUrl}</code>
-          </div>
-        </header>
-
-        <section className="hero-grid">
-          <article className="panel">
-            <div className="panel-head">
-              <h2>Ilk Ekranlar</h2>
-              <span>React scaffold</span>
-            </div>
-            <ul className="simple-list">
-              <li>Aday liste</li>
-              <li>Yeni aday formu</li>
-              <li>Aday detay</li>
-              <li>Aday duzenleme</li>
-            </ul>
-            <p>
-              Public URL: <code>{publicUrl}</code>
-            </p>
-          </article>
-
-          <article className="panel panel-accent">
-            <div className="panel-head">
-              <h2>Minimum Aday Alanlari</h2>
-              <span>Referans uygulama filtreli</span>
-            </div>
-            <div className="chip-list">
-              {candidateFields.map((field) => (
-                <span className="chip" key={field}>
-                  {field}
-                </span>
-              ))}
-            </div>
-          </article>
-        </section>
+    <>
+      <Header
+        activeInstitutionId={institutionId}
+        onInstitutionChange={setInstitutionId}
+        onMenuToggle={() => setSidebarOpen((v) => !v)}
+        userInitials="MS"
+      />
+      <Sidebar
+        activeInstitutionId={institutionId}
+        onClose={() => setSidebarOpen(false)}
+        onInstitutionChange={setInstitutionId}
+        open={sidebarOpen}
+      />
+      <main className="main">
+        <Routes>
+          <Route element={<DashboardPage />}  path="/" />
+          <Route element={<CandidatesPage />} path="/candidates" />
+          <Route element={<GroupsPage />}     path="/groups" />
+          <Route element={<DocumentsPage />}  path="/documents" />
+          <Route element={<PaymentsPage />}   path="/payments" />
+          <Route element={<TrainingPage />}   path="/training" />
+          <Route element={<MebJobsPage />}    path="/meb-jobs" />
+          <Route element={<SettingsPage />}    path="/settings" />
+          <Route element={<UsersPage />}       path="/users" />
+          <Route element={<PermissionsPage />} path="/permissions" />
+          <Route element={<Navigate replace to="/" />} path="*" />
+        </Routes>
       </main>
-    </div>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <ToastProvider>
+        <AppShell />
+      </ToastProvider>
+    </BrowserRouter>
   );
 }

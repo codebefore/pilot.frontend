@@ -1,0 +1,40 @@
+/* Design tokens — mirrored from pilot.context/04-demo/index.html.
+ * Değişiklik yapmadan önce demoyu ve K008/K015 kararlarını kontrol et. */
+:root {
+  --brand: #22B094;
+  --brand-dark: #1a9478;
+  --brand-light: #e6f7f3;
+  --brand-subtle: #f0faf7;
+
+  --black: #0a0a0a;
+  --white: #ffffff;
+  --gray-900: #1a1a2e;
+  --gray-800: #2d2d3f;
+  --gray-700: #3d3d50;
+  --gray-600: #555;
+  --gray-500: #717185;
+  --gray-400: #9ca3af;
+  --gray-300: #d1d5db;
+  --gray-200: #e5e7eb;
+  --gray-100: #f3f4f6;
+  --gray-50:  #f9fafb;
+
+  --red: #ef4444;
+  --red-light: #fef2f2;
+  --blue: #3b82f6;
+  --blue-light: #eff6ff;
+  --orange: #f59e0b;
+  --orange-light: #fffbeb;
+  --purple: #8b5cf6;
+  --purple-light: #f5f3ff;
+
+  --sidebar-w: 260px;
+  --header-h: 56px;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  --shadow:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.06);
+  --shadow-xl: 0 20px 25px -5px rgba(0,0,0,.1), 0 8px 10px -6px rgba(0,0,0,.1);
+}
