@@ -1,10 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { createGroup } from "../../lib/groups-api";
+import type { LicenseClass } from "../../lib/types";
+import { useToast } from "../ui/Toast";
 import { Modal } from "../ui/Modal";
 
 type NewGroupForm = {
-  className: "B" | "A2" | "C" | "D" | "E";
+  className: LicenseClass;
   term: string;
   capacity: number;
   startDate: string;
@@ -36,6 +39,9 @@ const defaultValues = (): NewGroupForm => ({
 });
 
 export function NewGroupModal({ open, onClose, onSubmit }: NewGroupModalProps) {
+  const { showToast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -48,7 +54,27 @@ export function NewGroupModal({ open, onClose, onSubmit }: NewGroupModalProps) {
     if (!open) reset(defaultValues());
   }, [open, reset]);
 
-  const submit = handleSubmit(() => onSubmit());
+  const submit = handleSubmit(async (data) => {
+    setSubmitting(true);
+    try {
+      await createGroup({
+        title: `${data.className} Sinifi - ${data.term.trim()}`,
+        status: "draft",
+        licenseClass: data.className,
+        termName: data.term,
+        capacity: data.capacity,
+        assignedCandidateCount: 0,
+        startDate: data.startDate || null,
+        endDate: data.endDate || null,
+        mebStatus: null,
+      });
+      onSubmit();
+    } catch {
+      showToast("Grup oluşturulamadı. Lütfen tekrar deneyin.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  });
 
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
     hasError ? `${base} error` : base;
@@ -59,11 +85,11 @@ export function NewGroupModal({ open, onClose, onSubmit }: NewGroupModalProps) {
     <Modal
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose} type="button">
+          <button className="btn btn-secondary" onClick={onClose} type="button" disabled={submitting}>
             İptal
           </button>
-          <button className="btn btn-primary" onClick={submit} type="button">
-            Kaydet
+          <button className="btn btn-primary" onClick={submit} type="button" disabled={submitting}>
+            {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>
       }

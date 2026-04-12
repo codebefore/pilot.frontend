@@ -10,8 +10,15 @@ import { createPortal } from "react-dom";
 
 import { CheckIcon } from "../icons";
 
+type ToastVariant = "success" | "error";
+
+type ToastEntry = {
+  message: string;
+  variant: ToastVariant;
+};
+
 type ToastContextValue = {
-  showToast: (message: string) => void;
+  showToast: (message: string, variant?: ToastVariant) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -19,28 +26,32 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 const TOAST_MS = 2500;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [message, setMessage] = useState<string | null>(null);
+  const [entry, setEntry] = useState<ToastEntry | null>(null);
 
-  const showToast = useCallback((next: string) => {
-    setMessage(next);
+  const showToast = useCallback((message: string, variant: ToastVariant = "success") => {
+    setEntry({ message, variant });
   }, []);
 
   useEffect(() => {
-    if (message === null) return;
-    const timer = window.setTimeout(() => setMessage(null), TOAST_MS);
+    if (entry === null) return;
+    const timer = window.setTimeout(() => setEntry(null), TOAST_MS);
     return () => window.clearTimeout(timer);
-  }, [message]);
+  }, [entry]);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {message !== null &&
+      {entry !== null &&
         createPortal(
-          <div className="toast" role="status">
+          <div className={`toast toast-${entry.variant}`} role="status">
             <span className="toast-icon">
-              <CheckIcon size={14} />
+              {entry.variant === "error" ? (
+                <span style={{ fontWeight: 700, lineHeight: 1 }}>✕</span>
+              ) : (
+                <CheckIcon size={14} />
+              )}
             </span>
-            {message}
+            {entry.message}
           </div>,
           document.body
         )}

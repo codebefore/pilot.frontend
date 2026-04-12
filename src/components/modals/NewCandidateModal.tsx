@@ -1,18 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { assignCandidateGroup, createCandidate } from "../../lib/candidates-api";
+import { ApiError } from "../../lib/http";
+import { getGroups } from "../../lib/groups-api";
+import type { GroupResponse, LicenseClass } from "../../lib/types";
 import { Modal } from "../ui/Modal";
+import { useToast } from "../ui/Toast";
 
 type NewCandidateForm = {
   tc: string;
-  className: "B" | "A2" | "C" | "D" | "E";
+  className: LicenseClass;
   firstName: string;
   lastName: string;
   birthDate: string;
   phone: string;
   email: string;
-  group: string;
-  fee: number;
+  groupId: string;
 };
 
 type NewCandidateModalProps = {
@@ -44,24 +48,117 @@ const defaultValues = (): NewCandidateForm => ({
   birthDate: seventeenYearsAgoISO(),
   phone: "",
   email: "",
-  group: "Nisan",
-  fee: 4800,
+  groupId: "",
 });
 
 export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModalProps) {
+  const { showToast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const [groups, setGroups] = useState<GroupResponse[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+
   const {
     register,
     handleSubmit,
     reset,
+    setError,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<NewCandidateForm>({ defaultValues: defaultValues() });
 
+  const selectedClass = watch("className");
+  const selectedGroupId = watch("groupId");
+  const availableGroups = groups.filter((group) => group.licenseClass === selectedClass);
+  const classRegistration = register("className", {
+    required: true,
+    onChange: () => setValue("groupId", ""),
+  });
+
+  // Reset form when modal closes
   useEffect(() => {
     if (!open) reset(defaultValues());
   }, [open, reset]);
 
-  const submit = handleSubmit(() => {
-    onSubmit();
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+
+    setGroupsLoading(true);
+
+    getGroups({ status: "Aktif", pageSize: 100 }, controller.signal)
+      .then((result) => setGroups(result.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setGroups([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setGroupsLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (
+      selectedGroupId &&
+      !groups.some(
+        (group) => group.id === selectedGroupId && group.licenseClass === selectedClass
+      )
+    ) {
+      setValue("groupId", "");
+    }
+  }, [groups, selectedClass, selectedGroupId, setValue]);
+
+  const submit = handleSubmit(async (data) => {
+    setSubmitting(true);
+    try {
+      const selectedGroup = data.groupId
+        ? groups.find((group) => group.id === data.groupId)
+        : undefined;
+
+      if (data.groupId && selectedGroup?.licenseClass !== data.className) {
+        setError("groupId", {
+          message: "Seçilen grup aday sınıfı ile uyumlu değil",
+        });
+        showToast("Aday sınıfı ile grup sınıfı uyuşmuyor.", "error");
+        return;
+      }
+
+      const candidate = await createCandidate({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        nationalId: data.tc,
+        phoneNumber: data.phone || null,
+        email: data.email || null,
+        birthDate: data.birthDate || null,
+        licenseClass: data.className,
+        status: "new",
+      });
+
+      if (data.groupId) {
+        try {
+          await assignCandidateGroup(candidate.id, data.groupId);
+        } catch {
+          showToast("Aday kaydedildi, ancak grup atanamadı.", "error");
+          onSubmit();
+          return;
+        }
+      }
+
+      showToast("Aday başarıyla kaydedildi");
+      onSubmit();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setError("tc", { message: "Bu TC ile kayıtlı aday zaten mevcut" });
+      } else {
+        showToast("Aday kaydedilemedi. Lütfen tekrar deneyin.", "error");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   });
 
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
@@ -71,11 +168,11 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
     <Modal
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose} type="button">
+          <button className="btn btn-secondary" onClick={onClose} type="button" disabled={submitting}>
             İptal
           </button>
-          <button className="btn btn-primary" onClick={submit} type="button">
-            Kaydet
+          <button className="btn btn-primary" onClick={submit} type="button" disabled={submitting}>
+            {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>
       }
@@ -103,7 +200,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             <label className="form-label">Sınıf</label>
             <select
               className={fieldClass(!!errors.className, "form-select")}
-              {...register("className", { required: true })}
+              {...classRegistration}
             >
               <option value="B">B — Otomobil</option>
               <option value="A2">A2 — Motosiklet</option>
@@ -197,27 +294,19 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
           </div>
           <div className="form-group">
             <label className="form-label">Grup</label>
-            <select className="form-select" {...register("group")}>
-              <option value="Nisan">B Sınıfı — Nisan 2026</option>
-              <option value="A2-Nisan">A2 Sınıfı — Nisan 2026</option>
-              <option value="none">Atanmamış</option>
+            <select
+              className={fieldClass(!!errors.groupId, "form-select")}
+              disabled={groupsLoading}
+              {...register("groupId")}
+            >
+              <option value="">— Atanmamış —</option>
+              {availableGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.title}
+                </option>
+              ))}
             </select>
-          </div>
-        </div>
-
-        <div className="form-row full">
-          <div className="form-group">
-            <label className="form-label">Ücret (TL)</label>
-            <input
-              className={fieldClass(!!errors.fee, "form-input")}
-              type="number"
-              {...register("fee", {
-                required: "Zorunlu alan",
-                valueAsNumber: true,
-                min: { value: 1, message: "Pozitif bir değer girin" },
-              })}
-            />
-            {errors.fee && <div className="form-error">{errors.fee.message}</div>}
+            {errors.groupId && <div className="form-error">{errors.groupId.message}</div>}
           </div>
         </div>
       </form>
