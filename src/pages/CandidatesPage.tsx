@@ -5,6 +5,7 @@ import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
 import { DownloadIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
+import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
@@ -22,8 +23,8 @@ const TABS: { key: CandidateTab; label: string }[] = [
 
 const TAB_STATUS: Record<CandidateTab, string | undefined> = {
   all:       undefined,
-  active:    "Calisiyor",
-  completed: "Tamam",
+  active:    "active",
+  completed: "completed",
 };
 
 const PAGE_SIZE = 10;
@@ -184,29 +185,7 @@ export function CandidatesPage() {
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="pagination" style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0", justifyContent: "flex-end" }}>
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((p) => p - 1)}
-            type="button"
-          >
-            ← Önceki
-          </button>
-          <span style={{ fontSize: 13, color: "var(--gray-600)" }}>
-            {page} / {totalPages}
-          </span>
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={page >= totalPages || loading}
-            onClick={() => setPage((p) => p + 1)}
-            type="button"
-          >
-            Sonraki →
-          </button>
-        </div>
-      )}
+      <Pagination disabled={loading} onChange={setPage} page={page} totalPages={totalPages} />
 
       <CandidateDrawer
         candidateId={selectedId}

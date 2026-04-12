@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 
+import { useT } from "../../lib/i18n";
 import { mockInstitutions } from "../../mock/institutions";
 import { navSections } from "../../nav";
 import { InstitutionSelector } from "./InstitutionSelector";
@@ -17,6 +18,7 @@ export function Sidebar({
   activeInstitutionId,
   onInstitutionChange,
 }: SidebarProps) {
+  const t = useT();
   return (
     <>
       {open && <div className="sidebar-backdrop" onClick={onClose} />}
@@ -29,8 +31,8 @@ export function Sidebar({
           />
         </div>
         {navSections.map((section) => (
-          <div className="sidebar-section" key={section.heading}>
-            <div className="sidebar-heading">{section.heading}</div>
+          <div className="sidebar-section" key={section.headingKey}>
+            <div className="sidebar-heading">{t(section.headingKey)}</div>
             {section.items.map((item) => {
               const { Icon, badge } = item;
               return (
@@ -45,7 +47,7 @@ export function Sidebar({
                   <span className="sidebar-icon">
                     <Icon />
                   </span>
-                  {item.label}
+                  {t(item.labelKey)}
                   {badge && (
                     <span className={`sidebar-badge ${badge.tone ?? ""}`.trim()}>
                       {badge.value}

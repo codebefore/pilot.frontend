@@ -77,6 +77,20 @@
   gap: 10px;
 }
 
+.header-lang {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: border-color .12s, color .12s;
+}
+.header-lang:hover { border-color: var(--brand); color: var(--brand-dark); }
+
 .header-notif {
   position: relative;
   width: 34px; height: 34px;
@@ -304,7 +318,6 @@
   .table-wrap,
   .groups-grid,
   .settings-page { padding-left: 20px; padding-right: 20px; }
-  .jobs-summary { margin-left: 0; margin-right: 0; }
   .dash-header { padding-top: 24px; padding-bottom: 20px; }
   .dash-content { padding-bottom: 32px; }
 }

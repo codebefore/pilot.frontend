@@ -1,26 +1,66 @@
 import type { JobStatus } from "../types";
 
+/* ── Shared select options ── */
+
+export const LICENSE_CLASS_OPTIONS: { value: string; label: string }[] = [
+  { value: "B",  label: "B — Otomobil" },
+  { value: "A2", label: "A2 — Motosiklet" },
+  { value: "C",  label: "C — Kamyon" },
+  { value: "D",  label: "D — Otobüs" },
+  { value: "E",  label: "E — Dorseli" },
+];
+
+export const GROUP_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "draft",       label: "Taslak" },
+  { value: "active",      label: "Aktif" },
+  { value: "closing",     label: "Kapanışta" },
+  { value: "completed",   label: "Tamamlandı" },
+];
+
+export const GROUP_MEB_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "pending",       label: "Bekliyor" },
+  { value: "planned",       label: "Planlandı" },
+  { value: "created",       label: "Oluşturuldu" },
+  { value: "manual_review", label: "Manuel Onay" },
+  { value: "closed",        label: "Kapandı" },
+  { value: "error",         label: "Hata" },
+];
+
+
 /* ── Candidate status ── */
 
+export function normalizeCandidateStatusValue(status: string): string {
+  return status.trim().toLowerCase();
+}
+
+export function normalizeGroupStatusValue(status: string): string {
+  return status.trim().toLowerCase();
+}
+
+export function normalizeGroupMebStatusValue(mebStatus: string | null): string | null {
+  if (!mebStatus) return null;
+  return mebStatus.trim().toLowerCase();
+}
+
 export function candidateStatusToPill(status: string): JobStatus {
-  switch (status.toLowerCase()) {
-    case "tamam":       return "success";
-    case "calisiyor":   return "running";
-    case "bekliyor":    return "queued";
-    case "hata":        return "failed";
-    case "tekrar":      return "retry";
+  switch (normalizeCandidateStatusValue(status)) {
+    case "completed":   return "success";
+    case "active":      return "running";
+    case "pending":     return "queued";
+    case "error":       return "failed";
+    case "retry":       return "retry";
     case "new":         return "queued";
     default:            return "manual";
   }
 }
 
 export function candidateStatusLabel(status: string): string {
-  switch (status.toLowerCase()) {
-    case "tamam":       return "Tamam";
-    case "calisiyor":   return "Çalışıyor";
-    case "bekliyor":    return "Bekliyor";
-    case "hata":        return "Hata";
-    case "tekrar":      return "Tekrar";
+  switch (normalizeCandidateStatusValue(status)) {
+    case "completed":   return "Tamam";
+    case "active":      return "Çalışıyor";
+    case "pending":     return "Bekliyor";
+    case "error":       return "Hata";
+    case "retry":       return "Tekrar";
     case "new":         return "Yeni";
     default:            return status;
   }
@@ -29,23 +69,21 @@ export function candidateStatusLabel(status: string): string {
 /* ── Group status ── */
 
 export function groupStatusToPill(status: string): JobStatus {
-  switch (status.toLowerCase()) {
-    case "aktif":         return "running";
-    case "draft":         return "queued";
-    case "kapanista":     return "manual";
-    case "tamamlandi":    return "success";
-    case "tamamlandı":    return "success";
+  switch (normalizeGroupStatusValue(status)) {
+    case "active":       return "running";
+    case "draft":        return "queued";
+    case "closing":      return "manual";
+    case "completed":    return "success";
     default:              return "manual";
   }
 }
 
 export function groupStatusLabel(status: string): string {
-  switch (status.toLowerCase()) {
-    case "aktif":         return "Aktif";
-    case "draft":         return "Taslak";
-    case "kapanista":     return "Kapanışta";
-    case "tamamlandi":
-    case "tamamlandı":    return "Tamamlandı";
+  switch (normalizeGroupStatusValue(status)) {
+    case "active":       return "Aktif";
+    case "draft":        return "Taslak";
+    case "closing":      return "Kapanışta";
+    case "completed":    return "Tamamlandı";
     default:              return status;
   }
 }
@@ -54,28 +92,26 @@ export function groupStatusLabel(status: string): string {
 
 export function groupMebStatusToPill(mebStatus: string | null): JobStatus {
   if (!mebStatus) return "queued";
-  switch (mebStatus.toLowerCase()) {
-    case "olusturuldu":   return "success";
-    case "oluşturuldu":   return "success";
-    case "kapandi":
-    case "kapandı":       return "success";
-    case "manuel onay":   return "manual";
-    case "hata":          return "failed";
-    case "bekliyor":      return "queued";
+  switch (normalizeGroupMebStatusValue(mebStatus)) {
+    case "planned":       return "queued";
+    case "created":       return "success";
+    case "closed":        return "success";
+    case "manual_review": return "manual";
+    case "error":         return "failed";
+    case "pending":       return "queued";
     default:              return "manual";
   }
 }
 
 export function groupMebStatusLabel(mebStatus: string | null): string {
   if (!mebStatus) return "Atanmamış";
-  switch (mebStatus.toLowerCase()) {
-    case "olusturuldu":
-    case "oluşturuldu":   return "Oluşturuldu";
-    case "kapandi":
-    case "kapandı":       return "Kapandı";
-    case "manuel onay":   return "Manuel Onay";
-    case "hata":          return "Hata";
-    case "bekliyor":      return "Bekliyor";
+  switch (normalizeGroupMebStatusValue(mebStatus)) {
+    case "planned":       return "Planlandı";
+    case "created":       return "Oluşturuldu";
+    case "closed":        return "Kapandı";
+    case "manual_review": return "Manuel Onay";
+    case "error":         return "Hata";
+    case "pending":       return "Bekliyor";
     default:              return mebStatus;
   }
 }

@@ -8,7 +8,12 @@ import {
   updateCandidate,
 } from "../../lib/candidates-api";
 import { getGroups } from "../../lib/groups-api";
-import { candidateStatusLabel, formatDateTR } from "../../lib/status-maps";
+import {
+  candidateStatusLabel,
+  formatDateTR,
+  LICENSE_CLASS_OPTIONS,
+  normalizeCandidateStatusValue,
+} from "../../lib/status-maps";
 import type { CandidateResponse, CandidateUpsertRequest, LicenseClass } from "../../lib/types";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { EditableRow } from "../ui/EditableRow";
@@ -31,20 +36,13 @@ type CandidateDrawerProps = {
   onTakePayment: () => void;
 };
 
-const LICENSE_CLASS_OPTIONS: SelectOption[] = [
-  { value: "B",  label: "B — Otomobil" },
-  { value: "A2", label: "A2 — Motosiklet" },
-  { value: "C",  label: "C — Kamyon" },
-  { value: "D",  label: "D — Otobüs" },
-  { value: "E",  label: "E — Dorseli" },
-];
-
 const STATUS_OPTIONS: SelectOption[] = [
   { value: "new",       label: "Yeni" },
-  { value: "Bekliyor",  label: "Bekliyor" },
-  { value: "Calisiyor", label: "Çalışıyor" },
-  { value: "Tamam",     label: "Tamam" },
-  { value: "Hata",      label: "Hata" },
+  { value: "pending",   label: "Bekliyor" },
+  { value: "active",    label: "Çalışıyor" },
+  { value: "completed", label: "Tamam" },
+  { value: "error",     label: "Hata" },
+  { value: "retry",     label: "Tekrar" },
 ];
 
 export function CandidateDrawer({
@@ -92,7 +90,7 @@ export function CandidateDrawer({
         email: candidate.email,
         birthDate: candidate.birthDate,
         licenseClass: candidate.licenseClass,
-        status: candidate.status,
+        status: normalizeCandidateStatusValue(candidate.status),
         ...patch,
       });
       setCandidate(updated);
@@ -121,7 +119,7 @@ export function CandidateDrawer({
   };
 
   const loadGroupOptions = async (): Promise<SelectOption[]> => {
-    const result = await getGroups({ status: "Aktif", pageSize: 100 });
+    const result = await getGroups({ status: "active", pageSize: 100 });
     const filtered = result.items.filter(
       (g) => !candidate?.licenseClass || g.licenseClass === candidate.licenseClass
     );
@@ -248,7 +246,7 @@ export function CandidateDrawer({
           <DrawerSection title="Durum">
             <EditableRow
               displayValue={candidateStatusLabel(candidate.status)}
-              inputValue={candidate.status}
+              inputValue={normalizeCandidateStatusValue(candidate.status)}
               label="Durum"
               options={STATUS_OPTIONS}
               onSave={(v) => saveField({ status: v })}

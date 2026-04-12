@@ -1,0 +1,397 @@
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+
+export type Language = "tr" | "en";
+
+const STORAGE_KEY = "pilot.lang";
+const DEFAULT_LANG: Language = "tr";
+
+/* ── Dictionaries ─────────────────────────────────────────────── */
+
+const tr = {
+  // Common
+  "common.save": "Kaydet",
+  "common.cancel": "Vazgeç",
+  "common.delete": "Sil",
+  "common.edit": "Düzenle",
+  "common.loading": "Yükleniyor...",
+  "common.noResults": "Sonuç bulunamadı",
+  "common.prev": "← Önceki",
+  "common.next": "Sonraki →",
+  "common.all": "Tümü",
+  "common.close": "Kapat",
+  "common.search": "Ara",
+  "common.clearFilters": "Filtreleri Temizle",
+
+  // Header
+  "header.notifications": "Bildirimler",
+  "header.newNotifications": "{count} yeni bildirim",
+  "header.menu": "Menüyü aç",
+  "header.logout": "Çıkış Yap",
+  "header.languageToggle": "Dili değiştir",
+
+  // Nav / Sidebar
+  "nav.main": "Ana",
+  "nav.operations": "Operasyon",
+  "nav.mebIntegration": "MEB Entegrasyonu",
+  "nav.administration": "Yönetim",
+  "nav.dashboard": "Kontrol Paneli",
+  "nav.candidates": "Adaylar",
+  "nav.groups": "Gruplar / Dönemler",
+  "nav.documents": "Evrak",
+  "nav.payments": "Tahsilat",
+  "nav.training": "Eğitim Planı",
+  "nav.mebJobs": "MEB İşleri",
+  "nav.settings": "Kurum Ayarları",
+  "nav.users": "Kullanıcılar",
+  "nav.permissions": "Yetki Yönetimi",
+  "nav.login": "Giriş",
+
+  // Login
+  "login.title": "Pilot",
+  "login.subtitle": "Sürücü kursu yönetim paneli",
+  "login.email": "E-posta",
+  "login.password": "Şifre",
+  "login.emailPlaceholder": "ornek@pilot.com",
+  "login.submit": "Giriş Yap",
+  "login.submitting": "Giriş yapılıyor...",
+  "login.forgotPassword": "Şifrenizi mi unuttunuz?",
+  "login.errors.emailRequired": "E-posta gerekli",
+  "login.errors.passwordRequired": "Şifre gerekli",
+  "login.errors.failed": "Giriş yapılamadı",
+  "login.errors.credentialsRequired": "E-posta ve şifre gerekli",
+
+  // Forgot password
+  "forgot.title": "Şifremi Unuttum",
+  "forgot.subtitle": "E-posta adresini gir, sıfırlama bağlantısı gönderelim",
+  "forgot.sentTitle": "Sıfırlama bağlantısını gönderdik",
+  "forgot.successBody":
+    "{email} adresine sıfırlama bağlantısı gönderildi. Gelen kutunu kontrol et. Mail gelmediyse spam klasörüne bakmayı unutma.",
+  "forgot.submit": "Sıfırlama Bağlantısı Gönder",
+  "forgot.submitting": "Gönderiliyor...",
+  "forgot.backToLogin": "← Giriş sayfasına dön",
+  "forgot.backToLoginBtn": "Giriş Sayfasına Dön",
+
+  // Groups page
+  "groups.title": "Gruplar / Dönemler",
+  "groups.newGroup": "Yeni Grup",
+  "groups.searchPlaceholder": "Grup ara...",
+  "groups.termNamePlaceholder": "Dönem adı",
+  "groups.filter.allLicenseClasses": "Tüm Sınıflar",
+  "groups.filter.allMebStatuses": "Tüm MEB Durumları",
+  "groups.filter.licenseClass": "Lisans Sınıfı",
+  "groups.filter.termName": "Dönem Adı",
+  "groups.filter.mebStatus": "MEB Durumu",
+  "groups.empty.noGroupsForTab": "Bu sekmede gösterilecek grup yok.",
+  "groups.empty.noMatches": "Filtrelerle eşleşen grup bulunamadı.",
+  "groups.loadFailed": "Gruplar yüklenemedi",
+  "groups.created": "Grup başarıyla oluşturuldu",
+
+  // Group statuses (for tabs + labels)
+  "groupStatus.active": "Aktif",
+  "groupStatus.draft": "Taslak",
+  "groupStatus.closing": "Kapanışta",
+  "groupStatus.completed": "Tamamlandı",
+
+  // Group card fields
+  "groups.card.capacity": "Kontenjan",
+  "groups.card.startDate": "Başlangıç",
+  "groups.card.endDate": "Bitiş",
+  "groups.card.mebStatus": "MEB Durumu",
+
+  // Notifications
+  "notif.title": "Bildirimler",
+  "notif.empty": "Yeni bildirim yok",
+  "notif.markAllRead": "Tümünü okundu işaretle",
+  "notif.viewAll": "Tümünü gör",
+  "notif.mebFailed.title": "MEB işi başarısız",
+  "notif.mebFailed.body": "J-2026-0412 numaralı iş hata ile sonuçlandı.",
+  "notif.paymentReceived.title": "Tahsilat alındı",
+  "notif.paymentReceived.body": "Ayşe Demir — 4.500 ₺ ödeme kayda geçti.",
+  "notif.newCandidate.title": "Yeni aday kaydı",
+  "notif.newCandidate.body": "Mehmet Yılmaz B sınıfı grubuna eklendi.",
+  "notif.time.5m": "5 dk önce",
+  "notif.time.1h": "1 saat önce",
+  "notif.time.3h": "3 saat önce",
+  "notif.time.yesterday": "Dün",
+  "notif.time.2d": "2 gün önce",
+  "notif.time.3d": "3 gün önce",
+  "notif.time.5d": "5 gün önce",
+
+  "notif.documentUploaded.title": "Evrak yüklendi",
+  "notif.documentUploaded.body": "Ayşe Demir — Sağlık raporu yüklendi.",
+  "notif.groupClosing.title": "Grup kapanışa yaklaşıyor",
+  "notif.groupClosing.body": "B Sınıfı - Nisan 2026 grubu kapanışta.",
+  "notif.paymentOverdue.title": "Ödeme vadesi geçti",
+  "notif.paymentOverdue.body": "3 aday için bakiye tahsilatı bekliyor.",
+  "notif.mebApproved.title": "MEB işi onaylandı",
+  "notif.mebApproved.body": "J-2026-0398 numaralı iş başarıyla tamamlandı.",
+  "notif.trainingAssigned.title": "Eğitim planı atandı",
+  "notif.trainingAssigned.body": "Mehmet Yılmaz direksiyon eğitimine atandı.",
+
+  // Notifications page
+  "notifPage.title": "Bildirimler",
+  "notifPage.tab.all": "Tümü",
+  "notifPage.tab.unread": "Okunmamış",
+  "notifPage.tab.read": "Okunmuş",
+  "notifPage.empty.all": "Hiç bildirim yok.",
+  "notifPage.empty.unread": "Okunmamış bildirim yok.",
+  "notifPage.empty.read": "Okunmuş bildirim yok.",
+  "notifPage.markAllRead": "Tümünü okundu işaretle",
+
+  // User menu + profile
+  "userMenu.profile": "Profilim",
+  "userMenu.settings": "Hesap Ayarları",
+  "userMenu.logout": "Çıkış Yap",
+  "profile.title": "Profil",
+  "profile.personal": "Kişisel Bilgiler",
+  "profile.security": "Güvenlik",
+  "profile.preferences": "Tercihler",
+  "profile.fullName": "Ad Soyad",
+  "profile.email": "E-posta",
+  "profile.phone": "Telefon",
+  "profile.role": "Rol",
+  "profile.institution": "Kurum",
+  "profile.joinedAt": "Katılım Tarihi",
+  "profile.language": "Dil",
+  "profile.changePassword": "Şifre Değiştir",
+  "profile.currentPassword": "Mevcut Şifre",
+  "profile.newPassword": "Yeni Şifre",
+  "profile.confirmPassword": "Yeni Şifre (Tekrar)",
+  "profile.updatePassword": "Şifreyi Güncelle",
+  "profile.notLoggedIn": "Profilinizi görmek için giriş yapmalısınız.",
+  "profile.signIn": "Giriş Yap",
+  "profile.saved": "Profil güncellendi",
+  "profile.saveFailed": "Profil güncellenemedi",
+  "profile.passwordUpdated": "Şifre güncellendi",
+  "profile.passwordsDoNotMatch": "Şifreler eşleşmiyor",
+  "profile.role.admin": "Yönetici",
+};
+
+const en: Record<keyof typeof tr, string> = {
+  // Common
+  "common.save": "Save",
+  "common.cancel": "Cancel",
+  "common.delete": "Delete",
+  "common.edit": "Edit",
+  "common.loading": "Loading...",
+  "common.noResults": "No results found",
+  "common.prev": "← Previous",
+  "common.next": "Next →",
+  "common.all": "All",
+  "common.close": "Close",
+  "common.search": "Search",
+  "common.clearFilters": "Clear Filters",
+
+  // Header
+  "header.notifications": "Notifications",
+  "header.newNotifications": "{count} new notifications",
+  "header.menu": "Open menu",
+  "header.logout": "Log Out",
+  "header.languageToggle": "Change language",
+
+  // Nav
+  "nav.main": "Main",
+  "nav.operations": "Operations",
+  "nav.mebIntegration": "MEB Integration",
+  "nav.administration": "Administration",
+  "nav.dashboard": "Dashboard",
+  "nav.candidates": "Candidates",
+  "nav.groups": "Groups / Terms",
+  "nav.documents": "Documents",
+  "nav.payments": "Payments",
+  "nav.training": "Training Plan",
+  "nav.mebJobs": "MEB Jobs",
+  "nav.settings": "Institution Settings",
+  "nav.users": "Users",
+  "nav.permissions": "Permissions",
+  "nav.login": "Sign In",
+
+  // Login
+  "login.title": "Pilot",
+  "login.subtitle": "Driving school management panel",
+  "login.email": "Email",
+  "login.password": "Password",
+  "login.emailPlaceholder": "user@pilot.com",
+  "login.submit": "Sign In",
+  "login.submitting": "Signing in...",
+  "login.forgotPassword": "Forgot your password?",
+  "login.errors.emailRequired": "Email is required",
+  "login.errors.passwordRequired": "Password is required",
+  "login.errors.failed": "Sign in failed",
+  "login.errors.credentialsRequired": "Email and password are required",
+
+  // Forgot password
+  "forgot.title": "Forgot Password",
+  "forgot.subtitle": "Enter your email and we will send a reset link",
+  "forgot.sentTitle": "Reset link sent",
+  "forgot.successBody":
+    "A reset link has been sent to {email}. Check your inbox. If you cannot find it, look in your spam folder.",
+  "forgot.submit": "Send Reset Link",
+  "forgot.submitting": "Sending...",
+  "forgot.backToLogin": "← Back to sign in",
+  "forgot.backToLoginBtn": "Back to Sign In",
+
+  // Groups page
+  "groups.title": "Groups / Terms",
+  "groups.newGroup": "New Group",
+  "groups.searchPlaceholder": "Search groups...",
+  "groups.termNamePlaceholder": "Term name",
+  "groups.filter.allLicenseClasses": "All Classes",
+  "groups.filter.allMebStatuses": "All MEB Statuses",
+  "groups.filter.licenseClass": "License Class",
+  "groups.filter.termName": "Term Name",
+  "groups.filter.mebStatus": "MEB Status",
+  "groups.empty.noGroupsForTab": "No groups to show in this tab.",
+  "groups.empty.noMatches": "No groups match the current filters.",
+  "groups.loadFailed": "Failed to load groups",
+  "groups.created": "Group created successfully",
+
+  // Group statuses
+  "groupStatus.active": "Active",
+  "groupStatus.draft": "Draft",
+  "groupStatus.closing": "Closing",
+  "groupStatus.completed": "Completed",
+
+  // Group card fields
+  "groups.card.capacity": "Capacity",
+  "groups.card.startDate": "Start",
+  "groups.card.endDate": "End",
+  "groups.card.mebStatus": "MEB Status",
+
+  // Notifications
+  "notif.title": "Notifications",
+  "notif.empty": "No new notifications",
+  "notif.markAllRead": "Mark all as read",
+  "notif.viewAll": "View all",
+  "notif.mebFailed.title": "MEB job failed",
+  "notif.mebFailed.body": "Job J-2026-0412 ended with an error.",
+  "notif.paymentReceived.title": "Payment received",
+  "notif.paymentReceived.body": "Ayşe Demir — ₺4,500 payment recorded.",
+  "notif.newCandidate.title": "New candidate",
+  "notif.newCandidate.body": "Mehmet Yılmaz was added to class B.",
+  "notif.time.5m": "5 min ago",
+  "notif.time.1h": "1 hour ago",
+  "notif.time.3h": "3 hours ago",
+  "notif.time.yesterday": "Yesterday",
+  "notif.time.2d": "2 days ago",
+  "notif.time.3d": "3 days ago",
+  "notif.time.5d": "5 days ago",
+
+  "notif.documentUploaded.title": "Document uploaded",
+  "notif.documentUploaded.body": "Ayşe Demir — health report uploaded.",
+  "notif.groupClosing.title": "Group closing soon",
+  "notif.groupClosing.body": "Class B — April 2026 group is closing.",
+  "notif.paymentOverdue.title": "Overdue payment",
+  "notif.paymentOverdue.body": "3 candidates have pending balances.",
+  "notif.mebApproved.title": "MEB job approved",
+  "notif.mebApproved.body": "Job J-2026-0398 completed successfully.",
+  "notif.trainingAssigned.title": "Training assigned",
+  "notif.trainingAssigned.body": "Mehmet Yılmaz was assigned to driving training.",
+
+  // Notifications page
+  "notifPage.title": "Notifications",
+  "notifPage.tab.all": "All",
+  "notifPage.tab.unread": "Unread",
+  "notifPage.tab.read": "Read",
+  "notifPage.empty.all": "No notifications.",
+  "notifPage.empty.unread": "No unread notifications.",
+  "notifPage.empty.read": "No read notifications.",
+  "notifPage.markAllRead": "Mark all as read",
+
+  // User menu + profile
+  "userMenu.profile": "My Profile",
+  "userMenu.settings": "Account Settings",
+  "userMenu.logout": "Log Out",
+  "profile.title": "Profile",
+  "profile.personal": "Personal Info",
+  "profile.security": "Security",
+  "profile.preferences": "Preferences",
+  "profile.fullName": "Full Name",
+  "profile.email": "Email",
+  "profile.phone": "Phone",
+  "profile.role": "Role",
+  "profile.institution": "Institution",
+  "profile.joinedAt": "Joined",
+  "profile.language": "Language",
+  "profile.changePassword": "Change Password",
+  "profile.currentPassword": "Current Password",
+  "profile.newPassword": "New Password",
+  "profile.confirmPassword": "Confirm New Password",
+  "profile.updatePassword": "Update Password",
+  "profile.notLoggedIn": "You need to sign in to view your profile.",
+  "profile.signIn": "Sign In",
+  "profile.saved": "Profile updated",
+  "profile.saveFailed": "Profile update failed",
+  "profile.passwordUpdated": "Password updated",
+  "profile.passwordsDoNotMatch": "Passwords do not match",
+  "profile.role.admin": "Administrator",
+};
+
+export type TranslationKey = keyof typeof tr;
+
+const DICTIONARIES: Record<Language, Record<TranslationKey, string>> = { tr, en };
+
+/* ── Context ──────────────────────────────────────────────────── */
+
+type LanguageContextValue = {
+  lang: Language;
+  setLang: (lang: Language) => void;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+};
+
+const LanguageContext = createContext<LanguageContextValue | null>(null);
+
+function interpolate(template: string, params?: Record<string, string | number>): string {
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (_, key) => {
+    const value = params[key];
+    return value === undefined ? `{${key}}` : String(value);
+  });
+}
+
+function readStoredLang(): Language {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === "tr" || raw === "en") return raw;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_LANG;
+}
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Language>(() => readStoredLang());
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch {
+      /* ignore */
+    }
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const setLang = useCallback((next: Language) => setLangState(next), []);
+
+  const t = useCallback(
+    (key: TranslationKey, params?: Record<string, string | number>) => {
+      const template = DICTIONARIES[lang][key] ?? DICTIONARIES[DEFAULT_LANG][key] ?? key;
+      return interpolate(template, params);
+    },
+    [lang]
+  );
+
+  return (
+    <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>
+  );
+}
+
+export function useLanguage(): LanguageContextValue {
+  const ctx = useContext(LanguageContext);
+  if (!ctx) throw new Error("useLanguage must be used inside LanguageProvider");
+  return ctx;
+}
+
+export function useT() {
+  return useLanguage().t;
+}

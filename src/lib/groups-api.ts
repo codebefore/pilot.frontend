@@ -1,9 +1,18 @@
 import { httpGet, httpPost, httpPut, type QueryParams } from "./http";
-import type { GroupDetailResponse, GroupResponse, GroupUpsertRequest, PagedResponse } from "./types";
+import type {
+  GroupDetailResponse,
+  GroupResponse,
+  GroupUpsertRequest,
+  LicenseClass,
+  PagedResponse,
+} from "./types";
 
-interface GetGroupsParams extends QueryParams {
+export interface GetGroupsParams extends QueryParams {
   search?: string;
   status?: string;
+  mebStatus?: string;
+  licenseClass?: LicenseClass;
+  termName?: string;
   page?: number;
   pageSize?: number;
 }

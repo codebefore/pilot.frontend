@@ -6,74 +6,77 @@ import {
   DocumentsIcon,
   GroupsIcon,
   KeyIcon,
+  LoginIcon,
   MebIcon,
   PaymentsIcon,
   SettingsIcon,
   TrainingIcon,
   UsersIcon,
 } from "./components/icons";
+import type { TranslationKey } from "./lib/i18n";
 import type { NavKey } from "./types";
 
 export type NavItem = {
   key: NavKey;
   path: string;
-  label: string;
+  labelKey: TranslationKey;
   Icon: ComponentType;
   badge?: { value: string | number; tone?: "info" | "warn" | "danger" };
 };
 
 export type NavSection = {
-  heading: string;
+  headingKey: TranslationKey;
   items: NavItem[];
 };
 
 export const navSections: NavSection[] = [
   {
-    heading: "Ana",
+    headingKey: "nav.main",
     items: [
-      { key: "dashboard", path: "/", label: "Kontrol Paneli", Icon: DashboardIcon },
+      { key: "dashboard", path: "/", labelKey: "nav.dashboard", Icon: DashboardIcon },
     ],
   },
   {
-    heading: "Operasyon",
+    headingKey: "nav.operations",
     items: [
       {
         key: "candidates",
         path: "/candidates",
-        label: "Adaylar",
+        labelKey: "nav.candidates",
         Icon: CandidatesIcon,
         badge: { value: 142, tone: "info" },
       },
-      { key: "groups",    path: "/groups",    label: "Gruplar / Dönemler", Icon: GroupsIcon },
+      { key: "groups",    path: "/groups",    labelKey: "nav.groups", Icon: GroupsIcon },
       {
         key: "documents",
         path: "/documents",
-        label: "Evrak",
+        labelKey: "nav.documents",
         Icon: DocumentsIcon,
         badge: { value: 7, tone: "warn" },
       },
-      { key: "payments",  path: "/payments",  label: "Tahsilat",     Icon: PaymentsIcon },
-      { key: "training",  path: "/training",  label: "Eğitim Planı", Icon: TrainingIcon },
+      { key: "payments",  path: "/payments",  labelKey: "nav.payments", Icon: PaymentsIcon },
+      { key: "training",  path: "/training",  labelKey: "nav.training", Icon: TrainingIcon },
     ],
   },
   {
-    heading: "MEB Entegrasyonu",
+    headingKey: "nav.mebIntegration",
     items: [
       {
         key: "mebjobs",
         path: "/meb-jobs",
-        label: "MEB İşleri",
+        labelKey: "nav.mebJobs",
         Icon: MebIcon,
         badge: { value: 3, tone: "danger" },
       },
     ],
   },
   {
-    heading: "Yönetim",
+    headingKey: "nav.administration",
     items: [
-      { key: "settings",    path: "/settings",    label: "Kurum Ayarları",  Icon: SettingsIcon },
-      { key: "users",       path: "/users",       label: "Kullanıcılar",    Icon: UsersIcon },
-      { key: "permissions", path: "/permissions", label: "Yetki Yönetimi",  Icon: KeyIcon },
+      { key: "settings",    path: "/settings",    labelKey: "nav.settings",    Icon: SettingsIcon },
+      { key: "users",       path: "/users",       labelKey: "nav.users",       Icon: UsersIcon },
+      { key: "permissions", path: "/permissions", labelKey: "nav.permissions", Icon: KeyIcon },
+      { key: "login",       path: "/login",       labelKey: "nav.login",       Icon: LoginIcon },
     ],
   },
 ];

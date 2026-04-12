@@ -86,7 +86,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
 
     setGroupsLoading(true);
 
-    getGroups({ status: "Aktif", pageSize: 100 }, controller.signal)
+    getGroups({ status: "active", pageSize: 100 }, controller.signal)
       .then((result) => setGroups(result.items))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;

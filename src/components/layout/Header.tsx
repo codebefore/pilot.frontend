@@ -1,14 +1,15 @@
-import { BellIcon, MenuIcon } from "../icons";
-import { useToast } from "../ui/Toast";
+import { useLanguage } from "../../lib/i18n";
 import { mockInstitutions } from "../../mock/institutions";
+import { MenuIcon } from "../icons";
 import { InstitutionSelector } from "./InstitutionSelector";
+import { NotificationsMenu } from "./NotificationsMenu";
+import { UserMenu } from "./UserMenu";
 
 type HeaderProps = {
   activeInstitutionId: string;
   onInstitutionChange: (id: string) => void;
   userInitials: string;
   onMenuToggle: () => void;
-  hasNotifications?: boolean;
 };
 
 export function Header({
@@ -16,14 +17,15 @@ export function Header({
   onInstitutionChange,
   userInitials,
   onMenuToggle,
-  hasNotifications = true,
 }: HeaderProps) {
-  const { showToast } = useToast();
+  const { lang, setLang, t } = useLanguage();
+
+  const toggleLang = () => setLang(lang === "tr" ? "en" : "tr");
 
   return (
     <header className="header">
       <button
-        aria-label="Menüyü aç"
+        aria-label={t("header.menu")}
         className="header-menu-toggle"
         onClick={onMenuToggle}
         type="button"
@@ -47,15 +49,16 @@ export function Header({
 
       <div className="header-right">
         <button
-          aria-label="Bildirimler"
-          className="header-notif"
-          onClick={() => showToast("3 yeni bildirim")}
+          aria-label={t("header.languageToggle")}
+          className="header-lang"
+          onClick={toggleLang}
+          title={t("header.languageToggle")}
           type="button"
         >
-          <BellIcon />
-          {hasNotifications && <span className="notif-dot" />}
+          {lang === "tr" ? "EN" : "TR"}
         </button>
-        <div className="header-avatar">{userInitials}</div>
+        <NotificationsMenu />
+        <UserMenu userInitials={userInitials} />
       </div>
     </header>
   );

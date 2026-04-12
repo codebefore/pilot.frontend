@@ -214,3 +214,32 @@ export const SettingsIcon = (p?: IconProps) =>
 
 export const UsersIcon = (p?: IconProps) =>
   svg(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />, p);
+
+export const LoginIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />,
+      <polyline key="2" points="10 17 15 12 10 7" />,
+      <line key="3" x1="15" y1="12" x2="3" y2="12" />,
+    ],
+    p
+  );
+
+export const LogoutIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />,
+      <polyline key="2" points="16 17 21 12 16 7" />,
+      <line key="3" x1="21" y1="12" x2="9" y2="12" />,
+    ],
+    p
+  );
+
+export const UserIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />,
+      <circle key="2" cx="12" cy="7" r="4" />,
+    ],
+    p
+  );

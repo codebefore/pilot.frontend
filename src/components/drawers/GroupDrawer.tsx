@@ -10,36 +10,21 @@ import {
   formatDateTR,
   groupMebStatusLabel,
   groupStatusLabel,
+  GROUP_MEB_STATUS_OPTIONS,
+  GROUP_STATUS_OPTIONS,
+  LICENSE_CLASS_OPTIONS,
+  normalizeGroupMebStatusValue,
+  normalizeGroupStatusValue,
 } from "../../lib/status-maps";
 import type { GroupDetailResponse, GroupUpsertRequest, LicenseClass } from "../../lib/types";
 import { PlusIcon, XIcon } from "../icons";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { EditableRow } from "../ui/EditableRow";
-import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
-const LICENSE_CLASS_OPTIONS: SelectOption[] = [
-  { value: "B",  label: "B — Otomobil" },
-  { value: "A2", label: "A2 — Motosiklet" },
-  { value: "C",  label: "C — Kamyon" },
-  { value: "D",  label: "D — Otobüs" },
-  { value: "E",  label: "E — Dorseli" },
-];
-
-const GROUP_STATUS_OPTIONS: SelectOption[] = [
-  { value: "draft",       label: "Taslak" },
-  { value: "Aktif",       label: "Aktif" },
-  { value: "Kapanista",   label: "Kapanışta" },
-  { value: "Tamamlandi",  label: "Tamamlandı" },
-];
-
-const MEB_STATUS_OPTIONS: SelectOption[] = [
-  { value: "",            label: "— Atanmamış —" },
-  { value: "Bekliyor",    label: "Bekliyor" },
-  { value: "Olusturuldu", label: "Oluşturuldu" },
-  { value: "Manuel Onay", label: "Manuel Onay" },
-  { value: "Kapandi",     label: "Kapandı" },
-  { value: "Hata",        label: "Hata" },
+const MEB_STATUS_OPTIONS_WITH_EMPTY = [
+  { value: "", label: "— Atanmamış —" },
+  ...GROUP_MEB_STATUS_OPTIONS,
 ];
 
 type GroupDrawerProps = {
@@ -122,14 +107,14 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
     try {
       const updated = await updateGroup(groupId, {
         title: group.title,
-        status: group.status,
+        status: normalizeGroupStatusValue(group.status),
         licenseClass: group.licenseClass,
         termName: group.termName,
         capacity: group.capacity,
         assignedCandidateCount: group.assignedCandidateCount,
         startDate: group.startDate,
         endDate: group.endDate,
-        mebStatus: group.mebStatus,
+        mebStatus: normalizeGroupMebStatusValue(group.mebStatus),
         ...patch,
       });
       setGroup({ ...updated, activeCandidates: group.activeCandidates });
@@ -170,7 +155,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
 
   if (!groupId) return null;
 
-  const canEdit = !group || ["aktif", "draft"].includes(group.status.toLowerCase());
+  const canEdit = !group || ["active", "draft"].includes(normalizeGroupStatusValue(group.status));
 
   const title = loading
     ? "Grup Detayı"
@@ -225,16 +210,16 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
             />
             <EditableRow
               displayValue={groupStatusLabel(group.status)}
-              inputValue={group.status}
+              inputValue={normalizeGroupStatusValue(group.status)}
               label="Durum"
               options={GROUP_STATUS_OPTIONS}
               onSave={(v) => saveField({ status: v })}
             />
             <EditableRow
               displayValue={groupMebStatusLabel(group.mebStatus)}
-              inputValue={group.mebStatus ?? ""}
+              inputValue={normalizeGroupMebStatusValue(group.mebStatus) ?? ""}
               label="MEB Durumu"
-              options={MEB_STATUS_OPTIONS}
+              options={MEB_STATUS_OPTIONS_WITH_EMPTY}
               onSave={(v) => saveField({ mebStatus: v || null })}
             />
             <DrawerRow label="Kayıt Tarihi">{formatDateTR(group.createdAtUtc)}</DrawerRow>

@@ -4,14 +4,20 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { Header } from "./components/layout/Header";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ToastProvider } from "./components/ui/Toast";
+import { AuthProvider } from "./lib/auth";
+import { LanguageProvider } from "./lib/i18n";
 import { mockInstitutions } from "./mock/institutions";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { GroupsPage } from "./pages/GroupsPage";
+import { LoginPage } from "./pages/LoginPage";
 import { MebJobsPage } from "./pages/MebJobsPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { PermissionsPage } from "./pages/PermissionsPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrainingPage } from "./pages/TrainingPage";
 import { UsersPage } from "./pages/UsersPage";
@@ -49,9 +55,11 @@ function AppShell() {
           <Route element={<PaymentsPage />}   path="/payments" />
           <Route element={<TrainingPage />}   path="/training" />
           <Route element={<MebJobsPage />}    path="/meb-jobs" />
+          <Route element={<NotificationsPage />} path="/notifications" />
           <Route element={<SettingsPage />}    path="/settings" />
           <Route element={<UsersPage />}       path="/users" />
           <Route element={<PermissionsPage />} path="/permissions" />
+          <Route element={<ProfilePage />} path="/profile" />
           <Route element={<Navigate replace to="/" />} path="*" />
         </Routes>
       </main>
@@ -62,9 +70,17 @@ function AppShell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <AppShell />
-      </ToastProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <Routes>
+              <Route element={<LoginPage />} path="/login" />
+              <Route element={<ForgotPasswordPage />} path="/forgot-password" />
+              <Route element={<AppShell />} path="/*" />
+            </Routes>
+          </ToastProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </BrowserRouter>
   );
 }

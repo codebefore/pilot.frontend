@@ -8,7 +8,8 @@ export type NavKey =
   | "mebjobs"
   | "settings"
   | "users"
-  | "permissions";
+  | "permissions"
+  | "login";
 
 export type JobStatus =
   | "success"
