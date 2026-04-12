@@ -86,6 +86,24 @@ export async function httpPost<T>(
   return handleResponse<T>(response);
 }
 
+/**
+ * POST a multipart/form-data request. The browser sets the Content-Type header
+ * (including the multipart boundary) automatically from the FormData body, so
+ * it must not be set manually.
+ */
+export async function httpPostForm<T>(
+  path: string,
+  form: FormData,
+  options?: RequestOptions
+): Promise<T> {
+  const response = await fetch(buildUrl(path), {
+    method: "POST",
+    body: form,
+    signal: options?.signal,
+  });
+  return handleResponse<T>(response);
+}
+
 export async function httpPut<T>(
   path: string,
   body: unknown,

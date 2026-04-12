@@ -104,3 +104,59 @@ export interface GroupUpsertRequest {
   endDate?: string | null;
   mebStatus?: string | null;
 }
+
+/* ── Documents ── */
+
+/** Canonical status of a document / checklist entry (backend values). */
+export type DocumentStatus = "missing" | "pending" | "approved" | "rejected" | "expiring_soon";
+
+/** How urgent the missing/expiring document is. */
+export type DocumentUrgency = "normal" | "soon" | "urgent";
+
+/** Catalog entry describing a document type required for candidates. */
+export interface DocumentTypeResponse {
+  id: string;
+  /** Canonical English code, e.g. "national_id". */
+  code: string;
+  /** Localized display name as served by the backend. */
+  name: string;
+  /** Whether the document is mandatory for every candidate. */
+  required: boolean;
+  /** Optional scope limiting the type to specific license classes. */
+  licenseClassScope: LicenseClass[] | null;
+}
+
+/**
+ * A single entry in the candidate document checklist. Represents one
+ * (candidate, documentType) pair and reflects whether it has been uploaded.
+ */
+export interface DocumentChecklistEntry {
+  candidateId: string;
+  candidateFullName: string;
+  nationalId: string;
+  licenseClass: LicenseClass;
+  documentTypeId: string;
+  documentTypeCode: string;
+  documentTypeName: string;
+  required: boolean;
+  status: DocumentStatus;
+  urgency: DocumentUrgency;
+  dueDate: string | null;
+  documentId: string | null;
+  uploadedAtUtc: string | null;
+}
+
+/** Uploaded document record returned by the upload endpoint. */
+export interface DocumentResponse {
+  id: string;
+  candidateId: string;
+  documentTypeId: string;
+  documentTypeCode: string;
+  documentTypeName: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: DocumentStatus;
+  note: string | null;
+  uploadedAtUtc: string;
+}
