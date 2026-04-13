@@ -32,6 +32,7 @@ export interface CandidateResponse {
   licenseClass: LicenseClass;
   status: string;
   currentGroup: CandidateGroupSummary | null;
+  documentSummary: CandidateDocumentSummaryResponse | null;
   createdAtUtc: string;
   updatedAtUtc: string;
 }
@@ -107,56 +108,65 @@ export interface GroupUpsertRequest {
 
 /* ── Documents ── */
 
-/** Canonical status of a document / checklist entry (backend values). */
-export type DocumentStatus = "missing" | "pending" | "approved" | "rejected" | "expiring_soon";
+export type DocumentStatus = "missing" | "uploaded";
 
-/** How urgent the missing/expiring document is. */
-export type DocumentUrgency = "normal" | "soon" | "urgent";
-
-/** Catalog entry describing a document type required for candidates. */
 export interface DocumentTypeResponse {
   id: string;
-  /** Canonical English code, e.g. "national_id". */
-  code: string;
-  /** Localized display name as served by the backend. */
+  module: string;
+  key: string;
   name: string;
-  /** Whether the document is mandatory for every candidate. */
-  required: boolean;
-  /** Optional scope limiting the type to specific license classes. */
-  licenseClassScope: LicenseClass[] | null;
+  sortOrder: number;
+  isRequired: boolean;
+  isActive: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
 }
 
-/**
- * A single entry in the candidate document checklist. Represents one
- * (candidate, documentType) pair and reflects whether it has been uploaded.
- */
+export interface DocumentTypeUpsertRequest {
+  module: string;
+  key: string;
+  name: string;
+  sortOrder: number;
+  isRequired: boolean;
+  isActive: boolean;
+}
+
+export interface CandidateDocumentSummaryResponse {
+  completedCount: number;
+  missingCount: number;
+  totalRequiredCount: number;
+}
+
 export interface DocumentChecklistEntry {
   candidateId: string;
-  candidateFullName: string;
+  fullName: string;
   nationalId: string;
   licenseClass: LicenseClass;
-  documentTypeId: string;
-  documentTypeCode: string;
-  documentTypeName: string;
-  required: boolean;
-  status: DocumentStatus;
-  urgency: DocumentUrgency;
-  dueDate: string | null;
-  documentId: string | null;
-  uploadedAtUtc: string | null;
+  summary: CandidateDocumentSummaryResponse;
+  missingDocumentKeys: string[];
+  missingDocumentNames: string[];
 }
 
-/** Uploaded document record returned by the upload endpoint. */
 export interface DocumentResponse {
   id: string;
   candidateId: string;
   documentTypeId: string;
-  documentTypeCode: string;
+  documentTypeKey: string;
   documentTypeName: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  status: DocumentStatus;
+  originalFileName: string;
+  contentType: string;
+  fileSizeBytes: number;
   note: string | null;
   uploadedAtUtc: string;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+/* ── Stats ── */
+
+export interface SidebarStatsResponse {
+  candidates: { total: number; active: number };
+  groups: { total: number; active: number };
+  documents: { missingCount: number };
+  mebJobs: { failed: number; manualReview: number };
 }

@@ -21,7 +21,6 @@ export type NavItem = {
   path: string;
   labelKey: TranslationKey;
   Icon: ComponentType;
-  badge?: { value: string | number; tone?: "info" | "warn" | "danger" };
 };
 
 export type NavSection = {
@@ -39,44 +38,27 @@ export const navSections: NavSection[] = [
   {
     headingKey: "nav.operations",
     items: [
-      {
-        key: "candidates",
-        path: "/candidates",
-        labelKey: "nav.candidates",
-        Icon: CandidatesIcon,
-        badge: { value: 142, tone: "info" },
-      },
-      { key: "groups",    path: "/groups",    labelKey: "nav.groups", Icon: GroupsIcon },
-      {
-        key: "documents",
-        path: "/documents",
-        labelKey: "nav.documents",
-        Icon: DocumentsIcon,
-        badge: { value: 7, tone: "warn" },
-      },
-      { key: "payments",  path: "/payments",  labelKey: "nav.payments", Icon: PaymentsIcon },
-      { key: "training",  path: "/training",  labelKey: "nav.training", Icon: TrainingIcon },
+      { key: "candidates", path: "/candidates", labelKey: "nav.candidates", Icon: CandidatesIcon },
+      { key: "groups",     path: "/groups",     labelKey: "nav.groups",     Icon: GroupsIcon },
+      { key: "documents",  path: "/documents",  labelKey: "nav.documents",  Icon: DocumentsIcon },
+      { key: "payments",   path: "/payments",   labelKey: "nav.payments",   Icon: PaymentsIcon },
+      { key: "training",   path: "/training",   labelKey: "nav.training",   Icon: TrainingIcon },
     ],
   },
   {
     headingKey: "nav.mebIntegration",
     items: [
-      {
-        key: "mebjobs",
-        path: "/meb-jobs",
-        labelKey: "nav.mebJobs",
-        Icon: MebIcon,
-        badge: { value: 3, tone: "danger" },
-      },
+      { key: "mebjobs", path: "/meb-jobs", labelKey: "nav.mebJobs", Icon: MebIcon },
     ],
   },
   {
     headingKey: "nav.administration",
     items: [
-      { key: "settings",    path: "/settings",    labelKey: "nav.settings",    Icon: SettingsIcon },
-      { key: "users",       path: "/users",       labelKey: "nav.users",       Icon: UsersIcon },
-      { key: "permissions", path: "/permissions", labelKey: "nav.permissions", Icon: KeyIcon },
-      { key: "login",       path: "/login",       labelKey: "nav.login",       Icon: LoginIcon },
+      { key: "settings",      path: "/settings",      labelKey: "nav.settings",      Icon: SettingsIcon },
+      { key: "documentTypes", path: "/document-types", labelKey: "nav.documentTypes", Icon: DocumentsIcon },
+      { key: "users",         path: "/users",         labelKey: "nav.users",         Icon: UsersIcon },
+      { key: "permissions",   path: "/permissions",   labelKey: "nav.permissions",   Icon: KeyIcon },
+      { key: "login",         path: "/login",         labelKey: "nav.login",         Icon: LoginIcon },
     ],
   },
 ];

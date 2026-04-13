@@ -3,6 +3,7 @@ export type NavKey =
   | "candidates"
   | "groups"
   | "documents"
+  | "documentTypes"
   | "payments"
   | "training"
   | "mebjobs"

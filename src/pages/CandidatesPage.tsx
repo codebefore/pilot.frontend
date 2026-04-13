@@ -5,21 +5,20 @@ import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
 import { DownloadIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
+import { CandidateDocumentBadge } from "../components/ui/CandidateDocumentBadge";
 import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
+import { useT } from "../lib/i18n";
 import { getCandidates } from "../lib/candidates-api";
+import { getDocumentChecklist } from "../lib/documents-api";
 import { candidateStatusLabel, candidateStatusToPill } from "../lib/status-maps";
 import type { CandidateResponse } from "../lib/types";
 
 type CandidateTab = "all" | "active" | "completed";
 
-const TABS: { key: CandidateTab; label: string }[] = [
-  { key: "all",       label: "Tüm Adaylar" },
-  { key: "active",    label: "Aktif Dönem" },
-  { key: "completed", label: "Tamamlanan" },
-];
+const TAB_KEYS: CandidateTab[] = ["all", "active", "completed"];
 
 const TAB_STATUS: Record<CandidateTab, string | undefined> = {
   all:       undefined,
@@ -30,6 +29,9 @@ const TAB_STATUS: Record<CandidateTab, string | undefined> = {
 const PAGE_SIZE = 10;
 
 export function CandidatesPage() {
+  const t = useT();
+  const tabs = TAB_KEYS.map((key) => ({ key, label: t(`candidates.tab.${key}` as const) }));
+
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<CandidateTab>("all");
   const [modalOpen, setModalOpen] = useState(false);
@@ -116,7 +118,7 @@ export function CandidatesPage() {
         title="Adaylar"
       />
 
-      <PageTabs active={tab} onChange={handleTabChange} tabs={TABS} />
+      <PageTabs active={tab} onChange={handleTabChange} tabs={tabs} />
 
       <div className="search-box">
         <SearchInput
@@ -170,7 +172,20 @@ export function CandidatesPage() {
                     <span className="cand-tc">{c.nationalId}</span>
                   </td>
                   <td>{c.currentGroup?.title ?? "—"}</td>
-                  <td>—</td>
+                  <td>
+                    <CandidateDocumentBadge
+                      loadMissingDocumentNames={async () => {
+                        const result = await getDocumentChecklist({
+                          status: "missing",
+                          search: c.nationalId,
+                          page: 1,
+                          pageSize: 1,
+                        });
+                        return result.items[0]?.missingDocumentNames ?? [];
+                      }}
+                      summary={c.documentSummary}
+                    />
+                  </td>
                   <td>—</td>
                   <td>
                     <StatusPill

@@ -120,23 +120,17 @@ export function groupMebStatusLabel(mebStatus: string | null): string {
 
 export function documentStatusToPill(status: string): JobStatus {
   switch (status.toLowerCase()) {
-    case "approved":       return "success";
-    case "pending":        return "queued";
-    case "rejected":       return "failed";
-    case "missing":        return "failed";
-    case "expiring_soon":  return "retry";
-    default:               return "manual";
+    case "uploaded": return "success";
+    case "missing": return "failed";
+    default: return "manual";
   }
 }
 
 export function documentStatusLabel(status: string): string {
   switch (status.toLowerCase()) {
-    case "approved":       return "Onaylı";
-    case "pending":        return "Beklemede";
-    case "rejected":       return "Reddedildi";
-    case "missing":        return "Eksik";
-    case "expiring_soon":  return "Süresi Yaklaşıyor";
-    default:               return status;
+    case "uploaded": return "Yüklendi";
+    case "missing": return "Eksik";
+    default: return status;
   }
 }
 

@@ -430,6 +430,128 @@ textarea.form-input {
   min-height: 76px;
   line-height: 1.5;
 }
+.form-readonly {
+  padding: 9px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--gray-50);
+  color: var(--gray-700);
+}
+
+.toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+  user-select: none;
+}
+.toolbar-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.doc-type-key {
+  font-family: 'SF Mono', 'Fira Code', Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+/* ─── CANDIDATE DOCUMENT BADGE ─── */
+.cand-doc-badge-wrap {
+  position: relative;
+  display: inline-block;
+}
+.cand-doc-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: filter .12s, box-shadow .12s;
+}
+.cand-doc-badge:hover { filter: brightness(0.95); }
+.cand-doc-badge:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.25);
+}
+.cand-doc-badge.complete {
+  background: rgba(34, 176, 148, 0.12);
+  color: var(--brand-dark, #15806c);
+  border-color: rgba(34, 176, 148, 0.3);
+}
+.cand-doc-badge.missing {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.cand-doc-badge-unknown {
+  display: inline-block;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.cand-doc-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 10px 12px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+}
+.cand-doc-popover-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-900);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.cand-doc-popover-body {
+  font-size: 12px;
+  color: var(--gray-600);
+  line-height: 1.45;
+}
+.cand-doc-popover-list {
+  list-style: disc;
+  margin: 0;
+  padding-left: 16px;
+}
+.cand-doc-popover-list li { padding: 1px 0; }
+
+/* List inside a drawer section (e.g. missing documents under the summary). */
+.drawer-row-list {
+  padding: 4px 0 2px;
+}
+.drawer-list {
+  list-style: disc;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+.drawer-list li { padding: 1px 0; }
+
 .form-input.error,
 .form-select.error {
   border-color: var(--red);

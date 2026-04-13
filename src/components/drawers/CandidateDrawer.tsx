@@ -7,6 +7,7 @@ import {
   removeActiveGroupAssignment,
   updateCandidate,
 } from "../../lib/candidates-api";
+import { getDocumentChecklist } from "../../lib/documents-api";
 import { getGroups } from "../../lib/groups-api";
 import {
   candidateStatusLabel,
@@ -15,6 +16,7 @@ import {
   normalizeCandidateStatusValue,
 } from "../../lib/status-maps";
 import type { CandidateResponse, CandidateUpsertRequest, LicenseClass } from "../../lib/types";
+import { UploadDocumentModal } from "../modals/UploadDocumentModal";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { EditableRow } from "../ui/EditableRow";
 import type { SelectOption } from "../ui/EditableRow";
@@ -58,11 +60,14 @@ export function CandidateDrawer({
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [missingDocs, setMissingDocs] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (!candidateId) {
       setCandidate(null);
       setConfirmDelete(false);
+      setMissingDocs(null);
       return;
     }
     const controller = new AbortController();
@@ -78,6 +83,30 @@ export function CandidateDrawer({
       });
     return () => controller.abort();
   }, [candidateId]);
+
+  // Lazy-load missing document names from the checklist endpoint. Skipped when
+  // the candidate has no missing documents to keep the drawer fast.
+  useEffect(() => {
+    if (!candidate || !candidate.documentSummary) {
+      setMissingDocs(null);
+      return;
+    }
+    if (candidate.documentSummary.missingCount === 0) {
+      setMissingDocs([]);
+      return;
+    }
+    const controller = new AbortController();
+    getDocumentChecklist(
+      { status: "missing", search: candidate.nationalId, page: 1, pageSize: 1 },
+      controller.signal
+    )
+      .then((result) => setMissingDocs(result.items[0]?.missingDocumentNames ?? []))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setMissingDocs(null);
+      });
+    return () => controller.abort();
+  }, [candidate]);
 
   const saveField = async (patch: Partial<CandidateUpsertRequest>) => {
     if (!candidate || !candidateId) return;
@@ -164,7 +193,14 @@ export function CandidateDrawer({
     <>
       <button className="btn btn-primary btn-sm" onClick={onStartMebJob} type="button">MEB İşi Başlat</button>
       <button className="btn btn-secondary btn-sm" onClick={onTakePayment} type="button">Tahsilat Al</button>
-      <button className="btn btn-secondary btn-sm" type="button">Evrak Yükle</button>
+      <button
+        className="btn btn-secondary btn-sm"
+        disabled={!candidate}
+        onClick={() => setUploadOpen(true)}
+        type="button"
+      >
+        Evrak Yükle
+      </button>
       <button className="btn btn-danger btn-sm" disabled={loading} onClick={() => setConfirmDelete(true)} type="button">Aday Sil</button>
     </>
   );
@@ -254,8 +290,34 @@ export function CandidateDrawer({
           </DrawerSection>
 
           <DrawerSection title="Evrak Durumu">
-            <DrawerRow label="Tamamlanan">—</DrawerRow>
-            <DrawerRow label="Eksik">—</DrawerRow>
+            {candidate.documentSummary ? (
+              <>
+                <DrawerRow label="Tamamlanan">
+                  {candidate.documentSummary.completedCount} /{" "}
+                  {candidate.documentSummary.totalRequiredCount}
+                </DrawerRow>
+                <DrawerRow
+                  label="Eksik"
+                  tone={candidate.documentSummary.missingCount > 0 ? "danger" : "default"}
+                >
+                  {candidate.documentSummary.missingCount}
+                </DrawerRow>
+                {missingDocs && missingDocs.length > 0 && (
+                  <div className="drawer-row-list">
+                    <ul className="drawer-list">
+                      {missingDocs.map((name) => (
+                        <li key={name}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <DrawerRow label="Tamamlanan">—</DrawerRow>
+                <DrawerRow label="Eksik">—</DrawerRow>
+              </>
+            )}
           </DrawerSection>
 
           <DrawerSection title="Muhasebe">
@@ -269,6 +331,28 @@ export function CandidateDrawer({
           Aday bilgisi yüklenemedi.
         </div>
       )}
+
+      <UploadDocumentModal
+        candidateId={candidate ? candidateId : null}
+        candidateName={candidate ? `${candidate.firstName} ${candidate.lastName}` : undefined}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={async () => {
+          setUploadOpen(false);
+          showToast("Evrak yüklendi");
+          // Refresh the in-drawer candidate so documentSummary + missing list
+          // reflect the upload immediately.
+          if (candidateId) {
+            try {
+              const fresh = await getCandidateById(candidateId);
+              setCandidate(fresh);
+            } catch {
+              /* swallow — parent refresh will still run */
+            }
+          }
+          onUpdated?.();
+        }}
+        open={uploadOpen}
+      />
     </Drawer>
   );
 }

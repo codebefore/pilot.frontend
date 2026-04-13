@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
@@ -7,35 +7,80 @@ import {
   AlertIcon,
   CandidatesIcon,
   DocumentsIcon,
+  GroupsIcon,
   MebIcon,
   PaymentsIcon,
   PlusIcon,
 } from "../components/icons";
 import { Panel } from "../components/ui/Panel";
-import { StatCard } from "../components/ui/StatCard";
+import { StatCard, type StatCardTone } from "../components/ui/StatCard";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TaskItem } from "../components/ui/TaskItem";
 import { useToast } from "../components/ui/Toast";
+import { useT } from "../lib/i18n";
+import { useSidebarStats } from "../lib/sidebar-stats";
 import {
-  dashboardStats,
   pendingTasks,
   recentActivity,
   recentMebJobs,
-  type StatIconKey,
 } from "../mock/dashboard";
 
-const STAT_ICONS: Record<StatIconKey, ComponentType> = {
-  candidates: CandidatesIcon,
-  documents:  DocumentsIcon,
-  payments:   PaymentsIcon,
-  meb:        MebIcon,
+type StatCardConfig = {
+  key: string;
+  label: string;
+  value: number;
+  sub: string;
+  tone: StatCardTone;
+  icon: React.ReactNode;
 };
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const t = useT();
   const { showToast } = useToast();
+  const { stats, loading: statsLoading } = useSidebarStats();
   const [newCandidateOpen, setNewCandidateOpen] = useState(false);
   const [newPaymentOpen, setNewPaymentOpen] = useState(false);
+
+  const mebAttention = stats.mebJobs.failed + stats.mebJobs.manualReview;
+
+  const statCards: StatCardConfig[] = [
+    {
+      key: "candidates",
+      label: t("stats.activeCandidates"),
+      value: stats.candidates.active,
+      sub: t("stats.candidatesSub", { count: stats.candidates.total }),
+      tone: "brand",
+      icon: <CandidatesIcon />,
+    },
+    {
+      key: "documents",
+      label: t("stats.missingDocuments"),
+      value: stats.documents.missingCount,
+      sub: t("stats.documentsSub"),
+      tone: "orange",
+      icon: <DocumentsIcon />,
+    },
+    {
+      key: "groups",
+      label: t("stats.activeGroups"),
+      value: stats.groups.active,
+      sub: t("stats.groupsSub", { count: stats.groups.total }),
+      tone: "blue",
+      icon: <GroupsIcon />,
+    },
+    {
+      key: "mebJobs",
+      label: t("stats.mebJobs"),
+      value: mebAttention,
+      sub: t("stats.mebJobsSub", {
+        failed: stats.mebJobs.failed,
+        manual: stats.mebJobs.manualReview,
+      }),
+      tone: "purple",
+      icon: <MebIcon />,
+    },
+  ];
 
   return (
     <>
@@ -47,26 +92,16 @@ export function DashboardPage() {
       </div>
 
       <div className="dash-stats">
-        {dashboardStats.map((stat) => {
-          const StatIcon = STAT_ICONS[stat.iconKey];
-          return (
-            <StatCard
-              icon={<StatIcon />}
-              key={stat.label}
-              label={stat.label}
-              sub={
-                <>
-                  {stat.trend && stat.trendValue && (
-                    <span className={`trend-${stat.trend}`}>{stat.trendValue}</span>
-                  )}{" "}
-                  {stat.subLabel}
-                </>
-              }
-              tone={stat.tone}
-              value={stat.value}
-            />
-          );
-        })}
+        {statCards.map((card) => (
+          <StatCard
+            icon={card.icon}
+            key={card.key}
+            label={card.label}
+            sub={card.sub}
+            tone={card.tone}
+            value={statsLoading ? "—" : card.value}
+          />
+        ))}
       </div>
 
       <div className="dash-content">

@@ -6,10 +6,12 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { ToastProvider } from "./components/ui/Toast";
 import { AuthProvider } from "./lib/auth";
 import { LanguageProvider } from "./lib/i18n";
+import { SidebarStatsProvider } from "./lib/sidebar-stats";
 import { mockInstitutions } from "./mock/institutions";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
+import { DocumentTypesPage } from "./pages/DocumentTypesPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -33,7 +35,7 @@ function AppShell() {
   }, [location.pathname]);
 
   return (
-    <>
+    <SidebarStatsProvider>
       <Header
         activeInstitutionId={institutionId}
         onInstitutionChange={setInstitutionId}
@@ -52,6 +54,7 @@ function AppShell() {
           <Route element={<CandidatesPage />} path="/candidates" />
           <Route element={<GroupsPage />}     path="/groups" />
           <Route element={<DocumentsPage />}  path="/documents" />
+          <Route element={<DocumentTypesPage />} path="/document-types" />
           <Route element={<PaymentsPage />}   path="/payments" />
           <Route element={<TrainingPage />}   path="/training" />
           <Route element={<MebJobsPage />}    path="/meb-jobs" />
@@ -63,7 +66,7 @@ function AppShell() {
           <Route element={<Navigate replace to="/" />} path="*" />
         </Routes>
       </main>
-    </>
+    </SidebarStatsProvider>
   );
 }
 
