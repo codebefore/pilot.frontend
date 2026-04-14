@@ -3,14 +3,31 @@ import type {
   CandidateGroupAssignmentResponse,
   CandidateResponse,
   CandidateUpsertRequest,
+  LicenseClass,
   PagedResponse,
 } from "./types";
 
-interface GetCandidatesParams extends QueryParams {
+/** Backend-supported sort fields for GET /api/candidates. */
+export type CandidateSortField =
+  | "createdAtUtc"
+  | "name"
+  | "nationalId"
+  | "licenseClass"
+  | "status"
+  | "groupTitle"
+  | "missingDocumentCount";
+
+export type SortDirection = "asc" | "desc";
+
+export interface GetCandidatesParams extends QueryParams {
   search?: string;
   status?: string;
   groupId?: string;
   hasActiveGroup?: boolean;
+  hasMissingDocuments?: boolean;
+  licenseClass?: LicenseClass;
+  sortBy?: CandidateSortField;
+  sortDir?: SortDirection;
   page?: number;
   pageSize?: number;
 }

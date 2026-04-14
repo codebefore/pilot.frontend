@@ -12,7 +12,7 @@ import type { SidebarStatsResponse } from "./types";
 
 const ZERO_STATS: SidebarStatsResponse = {
   candidates: { total: 0, active: 0 },
-  groups: { total: 0, active: 0 },
+  groups: { total: 0 },
   documents: { missingCount: 0 },
   mebJobs: { failed: 0, manualReview: 0 },
 };

@@ -200,6 +200,53 @@
   .groups-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
+.view-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--white);
+}
+.view-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.view-toggle-btn svg {
+  display: block;
+}
+.view-toggle-btn + .view-toggle-btn {
+  border-left: 1px solid var(--gray-200);
+}
+.view-toggle-btn:hover {
+  background: var(--gray-50);
+  color: var(--gray-900);
+}
+.view-toggle-btn.active {
+  background: var(--brand-light);
+  color: var(--brand-dark);
+}
+
+.group-table tbody tr {
+  cursor: pointer;
+}
+.group-table tbody tr:hover {
+  background: var(--brand-subtle);
+}
+.group-table-name {
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
 /* ─── SETTINGS PAGE ─── */
 .settings-page {
   padding: 24px 36px 48px;
@@ -1013,6 +1060,32 @@ textarea.form-input {
   padding: 32px;
 }
 
+/* Sortable table header */
+.sortable-th { padding: 0; }
+.sortable-th-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: color .1s;
+}
+.sortable-th-btn:hover { color: var(--gray-800); }
+.sortable-th-indicator {
+  font-size: 10px;
+  color: var(--gray-400);
+  transition: color .1s;
+}
+.sortable-th.active .sortable-th-btn { color: var(--brand-dark); }
+.sortable-th.active .sortable-th-indicator { color: var(--brand); }
+
 /* Jobs table column helpers */
 .job-type      { font-size: 12px; font-weight: 600; color: var(--gray-800); }
 .job-candidate { font-size: 12px; color: var(--gray-600); }
@@ -1124,6 +1197,31 @@ textarea.form-input {
 .filter-date { min-width: 150px; padding: 8px 10px; }
 .filter-clear {
   flex: 0 0 auto;
+  gap: 4px;
+}
+
+/* Term selector bar above the groups filters. */
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 36px 0;
+}
+.term-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--gray-500);
+}
+.term-bar-select {
+  height: 38px;
+  font-size: 13px;
+  min-width: 260px;
+}
+.term-bar-actions {
+  display: flex;
+  align-items: center;
   gap: 4px;
 }
 

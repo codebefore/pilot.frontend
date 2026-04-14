@@ -4,7 +4,10 @@ import { useForm } from "react-hook-form";
 import { assignCandidateGroup, createCandidate } from "../../lib/candidates-api";
 import { ApiError } from "../../lib/http";
 import { getGroups } from "../../lib/groups-api";
-import type { GroupResponse, LicenseClass } from "../../lib/types";
+import { useLanguage } from "../../lib/i18n";
+import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { getTerms } from "../../lib/terms-api";
+import type { GroupResponse, LicenseClass, TermResponse } from "../../lib/types";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
@@ -53,9 +56,11 @@ const defaultValues = (): NewCandidateForm => ({
 
 export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModalProps) {
   const { showToast } = useToast();
+  const { lang } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
+  const [terms, setTerms] = useState<TermResponse[]>([]);
 
   const {
     register,
@@ -86,7 +91,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
 
     setGroupsLoading(true);
 
-    getGroups({ status: "active", pageSize: 100 }, controller.signal)
+    getGroups({ pageSize: 100 }, controller.signal)
       .then((result) => setGroups(result.items))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -94,6 +99,15 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
       })
       .finally(() => {
         if (!controller.signal.aborted) setGroupsLoading(false);
+      });
+
+    // Fetch the term catalog so group labels can show the right
+    // "Nisan 2026 / 2" disambiguation.
+    getTerms({ pageSize: 200 }, controller.signal)
+      .then((result) => setTerms(result.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setTerms([]);
       });
 
     return () => {
@@ -135,7 +149,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         email: data.email || null,
         birthDate: data.birthDate || null,
         licenseClass: data.className,
-        status: "new",
+        status: "pre_registered",
       });
 
       if (data.groupId) {
@@ -283,11 +297,10 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               placeholder="aday@mail.com"
               type="email"
               {...register("email", {
-                required: "Zorunlu alan",
-                pattern: {
-                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                  message: "Geçersiz e-posta",
-                },
+                validate: (value) =>
+                  !value ||
+                  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ||
+                  "Geçersiz e-posta",
               })}
             />
             {errors.email && <div className="form-error">{errors.email.message}</div>}
@@ -300,11 +313,18 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               {...register("groupId")}
             >
               <option value="">— Atanmamış —</option>
-              {availableGroups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.title}
-                </option>
-              ))}
+              {availableGroups.map((g) => {
+                const termLabel = buildTermLabel(
+                  g.term,
+                  terms.length > 0 ? [...terms].sort(compareTermsDesc) : [g.term],
+                  lang
+                );
+                return (
+                  <option key={g.id} value={g.id}>
+                    {g.title} · {termLabel}
+                  </option>
+                );
+              })}
             </select>
             {errors.groupId && <div className="form-error">{errors.groupId.message}</div>}
           </div>

@@ -35,7 +35,7 @@ describe("Sidebar live stats", () => {
   it("renders nav badges populated from /api/stats/sidebar response", async () => {
     getSidebarStatsMock.mockResolvedValue({
       candidates: { total: 200, active: 142 },
-      groups: { total: 12, active: 7 },
+      groups: { total: 12 },
       documents: { missingCount: 5 },
       mebJobs: { failed: 2, manualReview: 1 },
     });
@@ -70,7 +70,7 @@ describe("Sidebar live stats", () => {
   it("hides documents and meb badges when their counts are zero", async () => {
     getSidebarStatsMock.mockResolvedValue({
       candidates: { total: 5, active: 5 },
-      groups: { total: 1, active: 1 },
+      groups: { total: 1 },
       documents: { missingCount: 0 },
       mebJobs: { failed: 0, manualReview: 0 },
     });

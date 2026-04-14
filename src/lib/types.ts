@@ -15,7 +15,6 @@ export type LicenseClass = "B" | "A2" | "C" | "D" | "E";
 export interface CandidateGroupSummary {
   groupId: string;
   title: string;
-  status: string;
   startDate: string | null;
   assignedAtUtc: string;
 }
@@ -54,11 +53,43 @@ export interface CandidateGroupAssignmentResponse {
   candidateId: string;
   groupId: string;
   groupTitle: string;
-  groupStatus: string;
   groupStartDate: string | null;
   assignedAtUtc: string;
   removedAtUtc: string | null;
   isActive: boolean;
+}
+
+/* ── Terms ── */
+
+export interface TermResponse {
+  id: string;
+  /** ISO date representing the first of the month this term belongs to. */
+  monthDate: string;
+  /** 1-based ordinal within the month when multiple terms share a month. */
+  sequence: number;
+  /** Optional free-form label, e.g. "Ek Donem". */
+  name: string | null;
+  groupCount: number;
+  activeCandidateCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+/** Embedded term reference on a group payload. */
+export interface GroupTermRef {
+  id: string;
+  monthDate: string;
+  sequence: number;
+  name: string | null;
+}
+
+export interface CreateTermRequest {
+  monthDate: string;
+  name?: string | null;
+}
+
+export interface UpdateTermRequest {
+  name?: string | null;
 }
 
 /* ── Groups ── */
@@ -66,14 +97,12 @@ export interface CandidateGroupAssignmentResponse {
 export interface GroupResponse {
   id: string;
   title: string;
-  status: string;
   licenseClass: LicenseClass;
-  termName: string | null;
+  term: GroupTermRef;
   capacity: number;
   assignedCandidateCount: number;
   activeCandidateCount: number;
   startDate: string | null;
-  endDate: string | null;
   mebStatus: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -96,13 +125,10 @@ export interface GroupDetailResponse extends GroupResponse {
 
 export interface GroupUpsertRequest {
   title: string;
-  status: string;
   licenseClass: LicenseClass;
-  termName?: string | null;
+  termId: string;
   capacity: number;
-  assignedCandidateCount: number;
-  startDate?: string | null;
-  endDate?: string | null;
+  startDate: string;
   mebStatus?: string | null;
 }
 
@@ -166,7 +192,7 @@ export interface DocumentResponse {
 
 export interface SidebarStatsResponse {
   candidates: { total: number; active: number };
-  groups: { total: number; active: number };
+  groups: { total: number };
   documents: { missingCount: number };
   mebJobs: { failed: number; manualReview: number };
 }

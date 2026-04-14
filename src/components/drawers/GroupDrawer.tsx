@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   assignCandidateGroup,
@@ -6,20 +6,26 @@ import {
   removeActiveGroupAssignment,
 } from "../../lib/candidates-api";
 import { getGroupById, updateGroup } from "../../lib/groups-api";
+import { useLanguage } from "../../lib/i18n";
 import {
   formatDateTR,
   groupMebStatusLabel,
-  groupStatusLabel,
   GROUP_MEB_STATUS_OPTIONS,
-  GROUP_STATUS_OPTIONS,
   LICENSE_CLASS_OPTIONS,
   normalizeGroupMebStatusValue,
-  normalizeGroupStatusValue,
 } from "../../lib/status-maps";
-import type { GroupDetailResponse, GroupUpsertRequest, LicenseClass } from "../../lib/types";
+import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { getTerms } from "../../lib/terms-api";
+import type {
+  GroupDetailResponse,
+  GroupUpsertRequest,
+  LicenseClass,
+  TermResponse,
+} from "../../lib/types";
 import { PlusIcon, XIcon } from "../icons";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { EditableRow } from "../ui/EditableRow";
+import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
 const MEB_STATUS_OPTIONS_WITH_EMPTY = [
@@ -35,8 +41,10 @@ type GroupDrawerProps = {
 
 export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
   const { showToast } = useToast();
+  const { lang } = useLanguage();
   const [group, setGroup] = useState<GroupDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [terms, setTerms] = useState<TermResponse[]>([]);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,6 +75,35 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
       });
     return () => controller.abort();
   }, [groupId]);
+
+  // Load term catalog lazily so the term selector can build the correct
+  // "Nisan 2026 / 2" style labels and so the user can reassign the group to
+  // another term.
+  useEffect(() => {
+    if (!groupId) return;
+    const controller = new AbortController();
+    getTerms({ pageSize: 200 }, controller.signal)
+      .then((result) => setTerms(result.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setTerms([]);
+      });
+    return () => controller.abort();
+  }, [groupId]);
+
+  const sortedTerms = useMemo(() => [...terms].sort(compareTermsDesc), [terms]);
+
+  const termOptions: SelectOption[] = useMemo(() => {
+    if (sortedTerms.length === 0 && group) {
+      // Ensure the current term is always selectable even before the catalog
+      // finishes loading.
+      return [{ value: group.term.id, label: buildTermLabel(group.term, [group.term], lang) }];
+    }
+    return sortedTerms.map((term) => ({
+      value: term.id,
+      label: buildTermLabel(term, sortedTerms, lang),
+    }));
+  }, [sortedTerms, group, lang]);
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -103,17 +140,14 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
   };
 
   const saveField = async (patch: Partial<GroupUpsertRequest>) => {
-    if (!group || !groupId) return;
+    if (!group || !groupId || !group.startDate) return;
     try {
       const updated = await updateGroup(groupId, {
         title: group.title,
-        status: normalizeGroupStatusValue(group.status),
         licenseClass: group.licenseClass,
-        termName: group.termName,
+        termId: group.term.id,
         capacity: group.capacity,
-        assignedCandidateCount: group.assignedCandidateCount,
         startDate: group.startDate,
-        endDate: group.endDate,
         mebStatus: normalizeGroupMebStatusValue(group.mebStatus),
         ...patch,
       });
@@ -155,12 +189,12 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
 
   if (!groupId) return null;
 
-  const canEdit = !group || ["active", "draft"].includes(normalizeGroupStatusValue(group.status));
+  const canEdit = true;
 
   const title = loading
     ? "Grup Detayı"
     : group
-    ? group.title
+    ? buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass)
     : "Grup Detayı";
 
   return (
@@ -173,19 +207,24 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
         <>
           <DrawerSection title="Grup Bilgileri">
             <EditableRow
-              displayValue={group.termName ?? "—"}
-              inputValue={group.termName ?? ""}
+              displayValue={group.title}
+              inputValue={group.title}
+              label="Başlık"
+              onSave={(v) => saveField({ title: v })}
+            />
+            <EditableRow
+              displayValue={buildTermLabel(group.term, sortedTerms, lang)}
+              inputValue={group.term.id}
               label="Dönem"
-              onSave={(v) => saveField({ termName: v, title: `${group.licenseClass} Sinifi - ${v}` })}
+              options={termOptions}
+              onSave={(v) => saveField({ termId: v })}
             />
             <EditableRow
               displayValue={group.licenseClass}
               inputValue={group.licenseClass}
               label="Sınıf"
               options={LICENSE_CLASS_OPTIONS}
-              onSave={(v) =>
-                saveField({ licenseClass: v as LicenseClass, title: `${v} Sinifi - ${group.termName ?? ""}` })
-              }
+              onSave={(v) => saveField({ licenseClass: v as LicenseClass })}
             />
             <EditableRow
               displayValue={String(group.capacity)}
@@ -199,21 +238,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
               inputType="date"
               inputValue={group.startDate ?? ""}
               label="Başlangıç"
-              onSave={(v) => saveField({ startDate: v || null })}
-            />
-            <EditableRow
-              displayValue={formatDateTR(group.endDate)}
-              inputType="date"
-              inputValue={group.endDate ?? ""}
-              label="Bitiş"
-              onSave={(v) => saveField({ endDate: v || null })}
-            />
-            <EditableRow
-              displayValue={groupStatusLabel(group.status)}
-              inputValue={normalizeGroupStatusValue(group.status)}
-              label="Durum"
-              options={GROUP_STATUS_OPTIONS}
-              onSave={(v) => saveField({ status: v })}
+              onSave={(v) => saveField({ startDate: v })}
             />
             <EditableRow
               displayValue={groupMebStatusLabel(group.mebStatus)}

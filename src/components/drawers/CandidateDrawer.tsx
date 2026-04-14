@@ -9,8 +9,12 @@ import {
 } from "../../lib/candidates-api";
 import { getDocumentChecklist } from "../../lib/documents-api";
 import { getGroups } from "../../lib/groups-api";
+import { useLanguage } from "../../lib/i18n";
+import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { getTerms } from "../../lib/terms-api";
 import {
   candidateStatusLabel,
+  CANDIDATE_STATUS_OPTIONS,
   formatDateTR,
   LICENSE_CLASS_OPTIONS,
   normalizeCandidateStatusValue,
@@ -38,14 +42,7 @@ type CandidateDrawerProps = {
   onTakePayment: () => void;
 };
 
-const STATUS_OPTIONS: SelectOption[] = [
-  { value: "new",       label: "Yeni" },
-  { value: "pending",   label: "Bekliyor" },
-  { value: "active",    label: "Çalışıyor" },
-  { value: "completed", label: "Tamam" },
-  { value: "error",     label: "Hata" },
-  { value: "retry",     label: "Tekrar" },
-];
+const STATUS_OPTIONS: SelectOption[] = CANDIDATE_STATUS_OPTIONS;
 
 export function CandidateDrawer({
   candidateId,
@@ -56,6 +53,7 @@ export function CandidateDrawer({
   onTakePayment,
 }: CandidateDrawerProps) {
   const { showToast } = useToast();
+  const { lang } = useLanguage();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -148,13 +146,24 @@ export function CandidateDrawer({
   };
 
   const loadGroupOptions = async (): Promise<SelectOption[]> => {
-    const result = await getGroups({ status: "active", pageSize: 100 });
-    const filtered = result.items.filter(
+    const [groupsResult, termsResult] = await Promise.all([
+      getGroups({ pageSize: 100 }),
+      getTerms({ pageSize: 200 }).catch(() => ({ items: [] })),
+    ]);
+    const filtered = groupsResult.items.filter(
       (g) => !candidate?.licenseClass || g.licenseClass === candidate.licenseClass
     );
+    const sortedTerms = [...termsResult.items].sort(compareTermsDesc);
     return [
       { value: "", label: "— Atanmamış —" },
-      ...filtered.map((g) => ({ value: g.id, label: g.title })),
+      ...filtered.map((g) => {
+        const termLabel = buildTermLabel(
+          g.term,
+          sortedTerms.length > 0 ? sortedTerms : [g.term],
+          lang
+        );
+        return { value: g.id, label: `${g.title} · ${termLabel}` };
+      }),
     ];
   };
 

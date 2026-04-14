@@ -9,10 +9,9 @@ import type {
 
 export interface GetGroupsParams extends QueryParams {
   search?: string;
-  status?: string;
   mebStatus?: string;
   licenseClass?: LicenseClass;
-  termName?: string;
+  termId?: string;
   page?: number;
   pageSize?: number;
 }

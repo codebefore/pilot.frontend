@@ -10,30 +10,58 @@ import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
-import { useT } from "../lib/i18n";
-import { getCandidates } from "../lib/candidates-api";
+import {
+  getCandidates,
+  type CandidateSortField,
+  type SortDirection,
+} from "../lib/candidates-api";
 import { getDocumentChecklist } from "../lib/documents-api";
-import { candidateStatusLabel, candidateStatusToPill } from "../lib/status-maps";
+import {
+  candidateStatusLabel,
+  candidateStatusToPill,
+  type CandidateStatusValue,
+} from "../lib/status-maps";
 import type { CandidateResponse } from "../lib/types";
 
-type CandidateTab = "all" | "active" | "completed";
+type CandidateTab = CandidateStatusValue;
 
-const TAB_KEYS: CandidateTab[] = ["all", "active", "completed"];
+const TAB_KEYS: CandidateTab[] = [
+  "pre_registered",
+  "active",
+  "parked",
+  "graduated",
+  "dropped",
+];
 
-const TAB_STATUS: Record<CandidateTab, string | undefined> = {
-  all:       undefined,
-  active:    "active",
-  completed: "completed",
-};
+const DEFAULT_TAB: CandidateTab = "active";
 
 const PAGE_SIZE = 10;
+const TEXT_DEBOUNCE_MS = 300;
+
+type SortState = { field: CandidateSortField; direction: SortDirection } | null;
+
+type SortableColumn = {
+  field: CandidateSortField;
+  label: string;
+};
+
+const SORTABLE_COLUMNS: Record<CandidateSortField, SortableColumn> = {
+  name:                  { field: "name",                  label: "Ad Soyad" },
+  nationalId:            { field: "nationalId",            label: "TC Kimlik" },
+  groupTitle:            { field: "groupTitle",            label: "Grup" },
+  missingDocumentCount:  { field: "missingDocumentCount",  label: "Evrak" },
+  status:                { field: "status",                label: "Durum" },
+  createdAtUtc:          { field: "createdAtUtc",          label: "Kayıt Tarihi" },
+  licenseClass:          { field: "licenseClass",          label: "Sınıf" },
+};
 
 export function CandidatesPage() {
-  const t = useT();
-  const tabs = TAB_KEYS.map((key) => ({ key, label: t(`candidates.tab.${key}` as const) }));
+  const tabs = TAB_KEYS.map((key) => ({ key, label: candidateStatusLabel(key) }));
 
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<CandidateTab>("all");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [tab, setTab] = useState<CandidateTab>(DEFAULT_TAB);
+  const [sort, setSort] = useState<SortState>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,37 +73,44 @@ export function CandidatesPage() {
   const selectedId = searchParams.get("selected");
 
   useEffect(() => {
-    const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setLoading(true);
+      setDebouncedSearch(search);
+    }, TEXT_DEBOUNCE_MS);
 
-      getCandidates(
-        {
-          search: search.trim() || undefined,
-          status: TAB_STATUS[tab],
-          page,
-          pageSize: PAGE_SIZE,
-        },
-        controller.signal
-      )
-        .then((result) => {
-          setCandidates(result.items);
-          setTotalPages(result.totalPages);
-        })
-        .catch((err) => {
-          if (err instanceof DOMException && err.name === "AbortError") return;
-          showToast("Adaylar yüklenemedi", "error");
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false);
-        });
-    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+
+    getCandidates(
+      {
+        search: debouncedSearch.trim() || undefined,
+        status: tab,
+        sortBy: sort?.field,
+        sortDir: sort?.direction,
+        page,
+        pageSize: PAGE_SIZE,
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setCandidates(result.items);
+        setTotalPages(result.totalPages);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        showToast("Adaylar yüklenemedi", "error");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
     return () => {
-      window.clearTimeout(timer);
       controller.abort();
     };
-  }, [search, tab, page, refreshKey, showToast]);
+  }, [debouncedSearch, page, refreshKey, showToast, sort, tab]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -85,6 +120,25 @@ export function CandidatesPage() {
   const handleTabChange = (value: CandidateTab) => {
     setTab(value);
     setPage(1);
+  };
+
+  /**
+   * Cycle the sort state for a clicked header:
+   *   unsorted -> asc -> desc -> unsorted
+   * Always resets pagination to page 1 so the first row of the newly sorted
+   * result set is visible.
+   */
+  const handleSortToggle = (field: CandidateSortField) => {
+    setPage(1);
+    setSort((current) => {
+      if (!current || current.field !== field) {
+        return { field, direction: "asc" };
+      }
+      if (current.direction === "asc") {
+        return { field, direction: "desc" };
+      }
+      return null;
+    });
   };
 
   const openDrawer = (id: string) => setSearchParams({ selected: id });
@@ -132,12 +186,32 @@ export function CandidatesPage() {
         <table className="data-table cand-table">
           <thead>
             <tr>
-              <th>Ad Soyad</th>
-              <th>TC Kimlik</th>
-              <th>Grup</th>
-              <th>Evrak</th>
+              <SortableTh
+                field="name"
+                onToggle={handleSortToggle}
+                sort={sort}
+              />
+              <SortableTh
+                field="nationalId"
+                onToggle={handleSortToggle}
+                sort={sort}
+              />
+              <SortableTh
+                field="groupTitle"
+                onToggle={handleSortToggle}
+                sort={sort}
+              />
+              <SortableTh
+                field="missingDocumentCount"
+                onToggle={handleSortToggle}
+                sort={sort}
+              />
               <th>Bakiye</th>
-              <th>MEB Durumu</th>
+              <SortableTh
+                field="status"
+                onToggle={handleSortToggle}
+                sort={sort}
+              />
             </tr>
           </thead>
           <tbody>
@@ -226,5 +300,38 @@ export function CandidatesPage() {
         open={modalOpen}
       />
     </>
+  );
+}
+
+type SortableThProps = {
+  field: CandidateSortField;
+  sort: SortState;
+  onToggle: (field: CandidateSortField) => void;
+};
+
+function SortableTh({ field, sort, onToggle }: SortableThProps) {
+  const column = SORTABLE_COLUMNS[field];
+  const isActive = sort?.field === field;
+  const direction = isActive ? sort!.direction : null;
+  const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
+  const ariaSort: React.AriaAttributes["aria-sort"] = isActive
+    ? direction === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+  const className = isActive ? "sortable-th active" : "sortable-th";
+  return (
+    <th aria-sort={ariaSort} className={className}>
+      <button
+        className="sortable-th-btn"
+        onClick={() => onToggle(field)}
+        type="button"
+      >
+        <span>{column.label}</span>
+        <span className="sortable-th-indicator" aria-hidden="true">
+          {indicator}
+        </span>
+      </button>
+    </th>
   );
 }

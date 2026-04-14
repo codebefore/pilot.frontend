@@ -63,9 +63,9 @@ export function DashboardPage() {
     },
     {
       key: "groups",
-      label: t("stats.activeGroups"),
-      value: stats.groups.active,
-      sub: t("stats.groupsSub", { count: stats.groups.total }),
+      label: t("stats.totalGroups"),
+      value: stats.groups.total,
+      sub: t("stats.groupsSub"),
       tone: "blue",
       icon: <GroupsIcon />,
     },

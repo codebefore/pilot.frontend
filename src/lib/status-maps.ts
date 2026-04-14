@@ -10,13 +10,6 @@ export const LICENSE_CLASS_OPTIONS: { value: string; label: string }[] = [
   { value: "E",  label: "E — Dorseli" },
 ];
 
-export const GROUP_STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "draft",       label: "Taslak" },
-  { value: "active",      label: "Aktif" },
-  { value: "closing",     label: "Kapanışta" },
-  { value: "completed",   label: "Tamamlandı" },
-];
-
 export const GROUP_MEB_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "pending",       label: "Bekliyor" },
   { value: "planned",       label: "Planlandı" },
@@ -29,11 +22,32 @@ export const GROUP_MEB_STATUS_OPTIONS: { value: string; label: string }[] = [
 
 /* ── Candidate status ── */
 
-export function normalizeCandidateStatusValue(status: string): string {
-  return status.trim().toLowerCase();
-}
+/** Canonical English candidate status values sent to / returned by the API. */
+export type CandidateStatusValue =
+  | "pre_registered"
+  | "active"
+  | "parked"
+  | "graduated"
+  | "dropped";
 
-export function normalizeGroupStatusValue(status: string): string {
+export const CANDIDATE_STATUS_VALUES: CandidateStatusValue[] = [
+  "pre_registered",
+  "active",
+  "parked",
+  "graduated",
+  "dropped",
+];
+
+/** Select options for the candidate status field (drawer + modal). */
+export const CANDIDATE_STATUS_OPTIONS: { value: CandidateStatusValue; label: string }[] = [
+  { value: "pre_registered", label: "Onkayit" },
+  { value: "active",         label: "Aktif" },
+  { value: "parked",         label: "Park" },
+  { value: "graduated",      label: "Mezun" },
+  { value: "dropped",        label: "Dosya Yakan" },
+];
+
+export function normalizeCandidateStatusValue(status: string): string {
   return status.trim().toLowerCase();
 }
 
@@ -44,47 +58,23 @@ export function normalizeGroupMebStatusValue(mebStatus: string | null): string |
 
 export function candidateStatusToPill(status: string): JobStatus {
   switch (normalizeCandidateStatusValue(status)) {
-    case "completed":   return "success";
-    case "active":      return "running";
-    case "pending":     return "queued";
-    case "error":       return "failed";
-    case "retry":       return "retry";
-    case "new":         return "queued";
-    default:            return "manual";
+    case "pre_registered": return "queued";
+    case "active":         return "running";
+    case "parked":         return "manual";
+    case "graduated":      return "success";
+    case "dropped":        return "failed";
+    default:               return "manual";
   }
 }
 
 export function candidateStatusLabel(status: string): string {
   switch (normalizeCandidateStatusValue(status)) {
-    case "completed":   return "Tamam";
-    case "active":      return "Çalışıyor";
-    case "pending":     return "Bekliyor";
-    case "error":       return "Hata";
-    case "retry":       return "Tekrar";
-    case "new":         return "Yeni";
-    default:            return status;
-  }
-}
-
-/* ── Group status ── */
-
-export function groupStatusToPill(status: string): JobStatus {
-  switch (normalizeGroupStatusValue(status)) {
-    case "active":       return "running";
-    case "draft":        return "queued";
-    case "closing":      return "manual";
-    case "completed":    return "success";
-    default:              return "manual";
-  }
-}
-
-export function groupStatusLabel(status: string): string {
-  switch (normalizeGroupStatusValue(status)) {
-    case "active":       return "Aktif";
-    case "draft":        return "Taslak";
-    case "closing":      return "Kapanışta";
-    case "completed":    return "Tamamlandı";
-    default:              return status;
+    case "pre_registered": return "Onkayit";
+    case "active":         return "Aktif";
+    case "parked":         return "Park";
+    case "graduated":      return "Mezun";
+    case "dropped":        return "Dosya Yakan";
+    default:               return status;
   }
 }
 

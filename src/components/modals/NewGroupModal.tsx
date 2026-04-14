@@ -1,21 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { createGroup } from "../../lib/groups-api";
-import type { LicenseClass } from "../../lib/types";
-import { useToast } from "../ui/Toast";
+import { ApiError } from "../../lib/http";
+import { getTerms } from "../../lib/terms-api";
+import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { useLanguage, useT } from "../../lib/i18n";
+import type { LicenseClass, TermResponse } from "../../lib/types";
+import { LICENSE_CLASS_OPTIONS } from "../../lib/status-maps";
 import { Modal } from "../ui/Modal";
+import { useToast } from "../ui/Toast";
 
 type NewGroupForm = {
-  className: LicenseClass;
-  term: string;
+  licenseClass: LicenseClass;
+  title: string;
+  termId: string;
   capacity: number;
   startDate: string;
-  endDate: string;
 };
 
 type NewGroupModalProps = {
   open: boolean;
+  /** When provided the form opens with this term already selected. */
+  initialTermId?: string | null;
   onClose: () => void;
   onSubmit: () => void;
 };
@@ -24,53 +31,109 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function plusDaysISO(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-const defaultValues = (): NewGroupForm => ({
-  className: "B",
-  term: "",
+const defaultValues = (initialTermId?: string | null): NewGroupForm => ({
+  licenseClass: "B",
+  title: "",
+  termId: initialTermId ?? "",
   capacity: 20,
   startDate: todayISO(),
-  endDate: plusDaysISO(60),
 });
 
-export function NewGroupModal({ open, onClose, onSubmit }: NewGroupModalProps) {
+export function NewGroupModal({
+  open,
+  initialTermId,
+  onClose,
+  onSubmit,
+}: NewGroupModalProps) {
   const { showToast } = useToast();
+  const t = useT();
+  const { lang } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
+  const [terms, setTerms] = useState<TermResponse[]>([]);
 
   const {
     register,
     handleSubmit,
     reset,
-    watch,
+    setError,
     formState: { errors },
-  } = useForm<NewGroupForm>({ defaultValues: defaultValues() });
+  } = useForm<NewGroupForm>({ defaultValues: defaultValues(initialTermId) });
 
   useEffect(() => {
-    if (!open) reset(defaultValues());
-  }, [open, reset]);
+    if (open) reset(defaultValues(initialTermId));
+  }, [open, initialTermId, reset]);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    getTerms({ pageSize: 200 }, controller.signal)
+      .then((result) => setTerms(result.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setTerms([]);
+      });
+    return () => controller.abort();
+  }, [open]);
+
+  const sortedTerms = useMemo(() => [...terms].sort(compareTermsDesc), [terms]);
+
+  const termLabelById = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const term of sortedTerms) {
+      labels.set(term.id, buildTermLabel(term, sortedTerms, lang));
+    }
+    return labels;
+  }, [lang, sortedTerms]);
 
   const submit = handleSubmit(async (data) => {
     setSubmitting(true);
     try {
       await createGroup({
-        title: `${data.className} Sinifi - ${data.term.trim()}`,
-        status: "draft",
-        licenseClass: data.className,
-        termName: data.term,
+        title: data.title.trim(),
+        licenseClass: data.licenseClass,
+        termId: data.termId,
         capacity: data.capacity,
-        assignedCandidateCount: 0,
-        startDate: data.startDate || null,
-        endDate: data.endDate || null,
+        startDate: data.startDate,
         mebStatus: null,
       });
       onSubmit();
-    } catch {
-      showToast("Grup oluşturulamadı. Lütfen tekrar deneyin.", "error");
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        const startDateError =
+          error.validationErrors.startDate?.[0] ??
+          error.validationErrors.StartDate?.[0];
+
+        if (startDateError) {
+          const selectedTermLabel = termLabelById.get(data.termId);
+          const message = selectedTermLabel
+            ? `Baslangic tarihi secilen donemin ayi icinde olmali: ${selectedTermLabel}.`
+            : "Baslangic tarihi secilen donemin ayi icinde olmali.";
+          setError("startDate", { message });
+          showToast(message, "error");
+          return;
+        }
+
+        const termIdError = error.validationErrors.termId?.[0] ?? error.validationErrors.TermId?.[0];
+        if (termIdError) {
+          setError("termId", { message: termIdError });
+        }
+
+        const titleError = error.validationErrors.title?.[0] ?? error.validationErrors.Title?.[0];
+        if (titleError) {
+          setError("title", { message: titleError });
+        }
+
+        const capacityError =
+          error.validationErrors.capacity?.[0] ?? error.validationErrors.Capacity?.[0];
+        if (capacityError) {
+          setError("capacity", { message: capacityError });
+        }
+
+        showToast("Grup olusturulamadi. Form alanlarini kontrol edin.", "error");
+        return;
+      }
+
+      showToast("Grup olusturulamadi. Lutfen tekrar deneyin.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -79,16 +142,24 @@ export function NewGroupModal({ open, onClose, onSubmit }: NewGroupModalProps) {
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
     hasError ? `${base} error` : base;
 
-  const startDate = watch("startDate");
-
   return (
     <Modal
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose} type="button" disabled={submitting}>
+          <button
+            className="btn btn-secondary"
+            disabled={submitting}
+            onClick={onClose}
+            type="button"
+          >
             İptal
           </button>
-          <button className="btn btn-primary" onClick={submit} type="button" disabled={submitting}>
+          <button
+            className="btn btn-primary"
+            disabled={submitting}
+            onClick={submit}
+            type="button"
+          >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>
@@ -102,27 +173,47 @@ export function NewGroupModal({ open, onClose, onSubmit }: NewGroupModalProps) {
           <div className="form-group">
             <label className="form-label">Sınıf</label>
             <select
-              className={fieldClass(!!errors.className, "form-select")}
-              {...register("className", { required: true })}
+              className={fieldClass(!!errors.licenseClass, "form-select")}
+              {...register("licenseClass", { required: true })}
             >
-              <option value="B">B — Otomobil</option>
-              <option value="A2">A2 — Motosiklet</option>
-              <option value="C">C — Kamyon</option>
-              <option value="D">D — Otobüs</option>
-              <option value="E">E — Dorseli</option>
+              {LICENSE_CLASS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Dönem</label>
+            <label className="form-label">{t("terms.selector.label")}</label>
+            <select
+              className={fieldClass(!!errors.termId, "form-select")}
+              {...register("termId", { required: "Zorunlu alan" })}
+            >
+              <option value="">{t("terms.selector.none")}</option>
+              {sortedTerms.map((term) => (
+                <option key={term.id} value={term.id}>
+                  {buildTermLabel(term, sortedTerms, lang)}
+                </option>
+              ))}
+            </select>
+            {errors.termId && (
+              <div className="form-error">{errors.termId.message}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="form-row full">
+          <div className="form-group">
+            <label className="form-label">Başlık</label>
             <input
-              className={fieldClass(!!errors.term, "form-input")}
-              placeholder="Nisan 2026"
-              {...register("term", {
+              className={fieldClass(!!errors.title, "form-input")}
+              placeholder="1A"
+              {...register("title", {
                 required: "Zorunlu alan",
-                minLength: { value: 3, message: "En az 3 karakter" },
+                minLength: { value: 1, message: "En az 1 karakter" },
               })}
             />
-            {errors.term && <div className="form-error">{errors.term.message}</div>}
+            {errors.title && <div className="form-error">{errors.title.message}</div>}
           </div>
         </div>
 
@@ -151,28 +242,6 @@ export function NewGroupModal({ open, onClose, onSubmit }: NewGroupModalProps) {
             />
             {errors.startDate && (
               <div className="form-error">{errors.startDate.message}</div>
-            )}
-          </div>
-        </div>
-
-        <div className="form-row full">
-          <div className="form-group">
-            <label className="form-label">Bitiş</label>
-            <input
-              className={fieldClass(!!errors.endDate, "form-input")}
-              type="date"
-              {...register("endDate", {
-                required: "Zorunlu alan",
-                validate: (v) => {
-                  if (startDate && v <= startDate) {
-                    return "Bitiş, başlangıçtan sonra olmalı";
-                  }
-                  return true;
-                },
-              })}
-            />
-            {errors.endDate && (
-              <div className="form-error">{errors.endDate.message}</div>
             )}
           </div>
         </div>

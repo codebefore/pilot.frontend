@@ -55,6 +55,30 @@ export const GroupsIcon = (p?: IconProps) =>
     p
   );
 
+export const GridIcon = (p?: IconProps) =>
+  svg(
+    [
+      <rect key="1" x="3" y="3" width="7" height="7" rx="1" />,
+      <rect key="2" x="14" y="3" width="7" height="7" rx="1" />,
+      <rect key="3" x="3" y="14" width="7" height="7" rx="1" />,
+      <rect key="4" x="14" y="14" width="7" height="7" rx="1" />,
+    ],
+    p
+  );
+
+export const ListIcon = (p?: IconProps) =>
+  svg(
+    [
+      <line key="1" x1="8" y1="6" x2="21" y2="6" />,
+      <line key="2" x1="8" y1="12" x2="21" y2="12" />,
+      <line key="3" x1="8" y1="18" x2="21" y2="18" />,
+      <circle key="4" cx="4" cy="6" r="1" fill="currentColor" stroke="none" />,
+      <circle key="5" cx="4" cy="12" r="1" fill="currentColor" stroke="none" />,
+      <circle key="6" cx="4" cy="18" r="1" fill="currentColor" stroke="none" />,
+    ],
+    p
+  );
+
 export const DocumentsIcon = (p?: IconProps) =>
   svg(
     [
