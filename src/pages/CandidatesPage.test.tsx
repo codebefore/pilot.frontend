@@ -370,12 +370,108 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
 
     expect(screen.queryByRole("button", { name: "Yeni Aday" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Dışa Aktar" })).not.toBeInTheDocument();
     expect(screen.getByText("0 seçili")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })
     ).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Ayse Demir seç" })).toBeInTheDocument();
+  });
+
+  it("reveals export actions only inside bulk selection", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "12345678901",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    expect(screen.queryByRole("button", { name: "Dışa Aktar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
+
+    expect(await screen.findByText("Önce en az bir aday seç")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
+
+    expect(screen.queryByRole("button", { name: "Yeni Aday" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CSV İndir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kapat" })).toBeInTheDocument();
+  });
+
+  it("shows a toast when a bulk action is clicked without selecting a candidate", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "12345678901",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
+
+    expect(await screen.findByText("Önce en az bir aday seç")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
   });
 
   it("selects visible rows with the bulk selection header checkbox", async () => {
@@ -487,10 +583,11 @@ describe("CandidatesPage tabs", () => {
     await screen.findByText("Ayse Demir");
     fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
     fireEvent.change(screen.getByLabelText("Toplu durum seç"), {
       target: { value: "parked" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Durumu Uygula" }));
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
 
     await waitFor(() => {
       expect(updateCandidateMock).toHaveBeenCalledWith(
@@ -499,6 +596,64 @@ describe("CandidatesPage tabs", () => {
           status: "parked",
         })
       );
+    });
+  });
+
+  it("hides the current tab status from the bulk status dropdown", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "12345678901",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
+
+    const bulkStatusSelect = screen.getByLabelText("Toplu durum seç");
+    const optionValues = Array.from(
+      (bulkStatusSelect as HTMLSelectElement).querySelectorAll("option")
+    ).map((option) => option.value);
+
+    expect(optionValues).not.toContain("active");
+    expect(optionValues).toEqual(["", "pre_registered", "parked", "graduated", "dropped"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tum" }));
+
+    await waitFor(() => {
+      const allTabOptionValues = Array.from(
+        (screen.getByLabelText("Toplu durum seç") as HTMLSelectElement).querySelectorAll("option")
+      ).map((option) => option.value);
+
+      expect(allTabOptionValues).toContain("active");
     });
   });
 });

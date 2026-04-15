@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
@@ -35,6 +35,7 @@ import type { CandidateResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
+type BulkActionMode = "status" | "export" | null;
 
 const TAB_KEYS: CandidateTab[] = [
   "all",
@@ -327,9 +328,11 @@ export function CandidatesPage() {
   const [sort, setSort] = useState<SortState>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
+  const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkExporting, setBulkExporting] = useState(false);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -340,6 +343,13 @@ export function CandidatesPage() {
   const selectedId = searchParams.get("selected");
 
   const visibleColumns = CANDIDATE_COLUMNS.filter((col) => isVisible(col.id));
+  const visibleBulkStatusOptions = useMemo(
+    () =>
+      tab === "all"
+        ? BULK_STATUS_OPTIONS
+        : BULK_STATUS_OPTIONS.filter((option) => option.value !== tab),
+    [tab]
+  );
 
   const pickerOptions: ColumnOption[] = CANDIDATE_COLUMNS.map((col) => ({
     id: col.id,
@@ -399,6 +409,15 @@ export function CandidatesPage() {
     setPage(1);
   };
 
+  useEffect(() => {
+    if (
+      bulkStatusValue &&
+      !visibleBulkStatusOptions.some((option) => option.value === bulkStatusValue)
+    ) {
+      setBulkStatusValue("");
+    }
+  }, [bulkStatusValue, visibleBulkStatusOptions]);
+
   /**
    * Cycle the sort state for a clicked header:
    *   unsorted -> asc -> desc -> unsorted
@@ -427,10 +446,97 @@ export function CandidatesPage() {
     setRefreshKey((k) => k + 1);
   };
 
+  const exportCandidatesToCsv = (rowsToExport: CandidateResponse[]) => {
+    const rows = rowsToExport.map((candidate) => ({
+      "Ad Soyad": `${candidate.firstName} ${candidate.lastName}`.trim(),
+      "TC Kimlik": candidate.nationalId,
+      Telefon: formatOptionalText(candidate.phoneNumber),
+      "E-posta": formatOptionalText(candidate.email),
+      "Doğum Tarihi": formatDateTR(candidate.birthDate),
+      Cinsiyet: formatOptionalText(candidate.gender),
+      "Ehliyet Tipi": candidate.licenseClass,
+      Grup: formatGroupWithTerm(candidate),
+      "Tamamlanan Evrak": candidate.documentSummary?.completedCount ?? 0,
+      "Eksik Evrak": candidate.documentSummary?.missingCount ?? 0,
+      "MEB Sonucu": candidate.mebExamResult
+        ? candidateMebExamResultLabel(candidate.mebExamResult)
+        : "—",
+      Durum: candidateStatusLabel(candidate.status),
+      "Kayıt Tarihi": formatDateTR(candidate.createdAtUtc),
+    }));
+
+    const headers = [
+      "Ad Soyad",
+      "TC Kimlik",
+      "Telefon",
+      "E-posta",
+      "Doğum Tarihi",
+      "Cinsiyet",
+      "Ehliyet Tipi",
+      "Grup",
+      "Tamamlanan Evrak",
+      "Eksik Evrak",
+      "MEB Sonucu",
+      "Durum",
+      "Kayıt Tarihi",
+    ] as const;
+
+    const escapeCsvValue = (value: string | number) => {
+      const text = String(value);
+      if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+        return `"${text.replaceAll("\"", "\"\"")}"`;
+      }
+      return text;
+    };
+
+    const csvLines = [
+      headers.join(","),
+      ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(",")),
+    ];
+
+    const blob = new Blob(["\uFEFF" + csvLines.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `adaylar-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadSelectedCandidatesCsv = async () => {
+    if (selectedCandidateIds.size === 0) {
+      return;
+    }
+
+    setBulkExporting(true);
+
+    try {
+      const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+      const selectedIds = Array.from(selectedCandidateIds);
+      const selectedCandidates = await Promise.all(
+        selectedIds.map(
+          async (candidateId) => candidateById.get(candidateId) ?? (await getCandidateById(candidateId))
+        )
+      );
+
+      exportCandidatesToCsv(selectedCandidates);
+      setBulkActionMode(null);
+    } catch {
+      showToast("Seçili adaylar dışa aktarılamadı", "error");
+    } finally {
+      setBulkExporting(false);
+    }
+  };
+
   const toggleBulkSelection = () => {
     setBulkSelectEnabled((current) => {
       const next = !current;
       if (!next) {
+        setBulkActionMode(null);
         setSelectedCandidateIds(new Set());
         setBulkStatusValue("");
       }
@@ -461,6 +567,22 @@ export function CandidatesPage() {
       }
       return next;
     });
+  };
+
+  const openBulkStatusAction = () => {
+    if (selectedCandidateIds.size === 0) {
+      showToast("Önce en az bir aday seç", "error");
+      return;
+    }
+    setBulkActionMode("status");
+  };
+
+  const openBulkExportAction = () => {
+    if (selectedCandidateIds.size === 0) {
+      showToast("Önce en az bir aday seç", "error");
+      return;
+    }
+    setBulkActionMode("export");
   };
 
   const buildCandidateUpdatePayload = (
@@ -502,6 +624,7 @@ export function CandidatesPage() {
       );
 
       showToast(`${selectedIds.length} aday güncellendi`);
+      setBulkActionMode(null);
       setSelectedCandidateIds(new Set());
       setBulkStatusValue("");
       setRefreshKey((k) => k + 1);
@@ -519,29 +642,60 @@ export function CandidatesPage() {
           bulkSelectEnabled ? (
             <div className="candidate-bulk-toolbar">
               <span className="candidate-bulk-count">{selectedCount} seçili</span>
-              <CustomSelect
-                aria-label="Toplu durum seç"
-                onChange={(event) =>
-                  setBulkStatusValue(event.target.value as "" | CandidateStatusValue)
-                }
-                size="sm"
-                value={bulkStatusValue}
-              >
-                <option value="">Durum seç</option>
-                {BULK_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CustomSelect>
-              <button
-                className="btn btn-secondary btn-sm"
-                disabled={selectedCount === 0 || !bulkStatusValue || bulkSaving}
-                onClick={applyBulkStatusChange}
-                type="button"
-              >
-                {bulkSaving ? "Güncelleniyor..." : "Uygula"}
-              </button>
+              {bulkActionMode === "status" ? (
+                <>
+                  <CustomSelect
+                    aria-label="Toplu durum seç"
+                    onChange={(event) =>
+                      setBulkStatusValue(event.target.value as "" | CandidateStatusValue)
+                    }
+                    size="sm"
+                    value={bulkStatusValue}
+                  >
+                    <option value="">Durum seç</option>
+                    {visibleBulkStatusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={selectedCount === 0 || !bulkStatusValue || bulkSaving}
+                    onClick={applyBulkStatusChange}
+                    type="button"
+                  >
+                    {bulkSaving ? "Güncelleniyor..." : "Uygula"}
+                  </button>
+                </>
+              ) : bulkActionMode === "export" ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={selectedCount === 0 || bulkExporting}
+                  onClick={downloadSelectedCandidatesCsv}
+                  type="button"
+                >
+                  {bulkExporting ? "İndiriliyor..." : "CSV İndir"}
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={openBulkStatusAction}
+                    type="button"
+                  >
+                    Durum Değiştir
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={openBulkExportAction}
+                    type="button"
+                  >
+                    <DownloadIcon size={14} />
+                    Dışa Aktar
+                  </button>
+                </>
+              )}
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={toggleBulkSelection}
@@ -552,10 +706,6 @@ export function CandidatesPage() {
             </div>
           ) : (
             <>
-              <button className="btn btn-secondary btn-sm" type="button">
-                <DownloadIcon size={14} />
-                Dışa Aktar
-              </button>
               <button
                 aria-pressed={bulkSelectEnabled}
                 className="btn btn-secondary btn-sm"
