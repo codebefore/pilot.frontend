@@ -5,8 +5,10 @@ import {
   getCandidates,
   removeActiveGroupAssignment,
 } from "../../lib/candidates-api";
-import { getGroupById, updateGroup } from "../../lib/groups-api";
+import { deleteGroup, getGroupById, updateGroup } from "../../lib/groups-api";
+import { ApiError } from "../../lib/http";
 import { useLanguage } from "../../lib/i18n";
+import { normalizeTextQuery } from "../../lib/search";
 import {
   formatDateTR,
   groupMebStatusLabel,
@@ -28,18 +30,14 @@ import { EditableRow } from "../ui/EditableRow";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
-const MEB_STATUS_OPTIONS_WITH_EMPTY = [
-  { value: "", label: "— Atanmamış —" },
-  ...GROUP_MEB_STATUS_OPTIONS,
-];
-
 type GroupDrawerProps = {
   groupId: string | null;
   onClose: () => void;
   onUpdated?: () => void;
+  onDeleted?: () => void;
 };
 
-export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
+export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -53,6 +51,8 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -61,6 +61,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
       setSearchOpen(false);
       setSearchQuery("");
       setSearchResults([]);
+      setConfirmDelete(false);
       return;
     }
     const controller = new AbortController();
@@ -108,14 +109,16 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    if (!searchQuery.trim()) {
+    const normalizedSearchQuery = normalizeTextQuery(searchQuery);
+    if (!normalizedSearchQuery) {
       setSearchResults([]);
+      setSearchLoading(false);
       return;
     }
     searchTimerRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const result = await getCandidates({ search: searchQuery, pageSize: 20 });
+        const result = await getCandidates({ search: normalizedSearchQuery, pageSize: 20 });
         const activeCandidateIds = new Set(group?.activeCandidates.map((c) => c.candidateId) ?? []);
         setSearchResults(
           result.items
@@ -188,6 +191,32 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
     }
   };
 
+  const handleDeleteConfirm = async () => {
+    if (!groupId) return;
+    setDeleting(true);
+    try {
+      await deleteGroup(groupId);
+      showToast("Grup silindi");
+      onDeleted?.();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const message =
+          error.validationErrors?.group?.[0] ??
+          error.validationErrors?.Group?.[0];
+        if (message) {
+          showToast(message, "error");
+        } else {
+          showToast("Grup silinemedi", "error");
+        }
+      } else {
+        showToast("Grup silinemedi", "error");
+      }
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!groupId) return null;
 
   const canEdit = true;
@@ -197,9 +226,41 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
     : group
     ? buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass)
     : "Grup Detayı";
+  const effectiveSearchQuery = normalizeTextQuery(searchQuery);
+
+  const actions = confirmDelete ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+      <span style={{ fontSize: 13, color: "var(--gray-600)", flex: 1 }}>Emin misiniz?</span>
+      <button
+        className="btn btn-secondary btn-sm"
+        disabled={deleting}
+        onClick={() => setConfirmDelete(false)}
+        type="button"
+      >
+        Vazgeç
+      </button>
+      <button
+        className="btn btn-danger btn-sm"
+        disabled={deleting}
+        onClick={handleDeleteConfirm}
+        type="button"
+      >
+        {deleting ? "Siliniyor..." : "Evet, Sil"}
+      </button>
+    </div>
+  ) : (
+    <button
+      className="btn btn-danger btn-sm"
+      disabled={loading}
+      onClick={() => setConfirmDelete(true)}
+      type="button"
+    >
+      Grup Sil
+    </button>
+  );
 
   return (
-    <Drawer onClose={onClose} open title={title}>
+    <Drawer actions={actions} onClose={onClose} open title={title}>
       {loading ? (
         <div style={{ padding: "24px 0", textAlign: "center", color: "var(--gray-500)", fontSize: 13 }}>
           Yükleniyor...
@@ -246,8 +307,8 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
               displayValue={groupMebStatusLabel(group.mebStatus)}
               inputValue={normalizeGroupMebStatusValue(group.mebStatus) ?? ""}
               label="MEB Durumu"
-              options={MEB_STATUS_OPTIONS_WITH_EMPTY}
-              onSave={(v) => saveField({ mebStatus: v || null })}
+              options={GROUP_MEB_STATUS_OPTIONS}
+              onSave={(v) => saveField({ mebStatus: v })}
             />
             <DrawerRow label="Kayıt Tarihi">{formatDateTR(group.createdAtUtc)}</DrawerRow>
           </DrawerSection>
@@ -330,7 +391,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
                       ))}
                     </ul>
                   )}
-                  {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
+                  {!searchLoading && effectiveSearchQuery && searchResults.length === 0 && (
                     <div className="candidate-search-hint">Sonuç bulunamadı.</div>
                   )}
                 </div>

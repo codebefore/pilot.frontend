@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
 import { DownloadIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
 import { CandidateDocumentBadge } from "../components/ui/CandidateDocumentBadge";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
+import { tagColorIndex } from "../components/ui/CandidateTagsInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { Pagination } from "../components/ui/Pagination";
@@ -14,24 +16,35 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import {
+  EMPTY_CANDIDATE_FILTERS,
+  countActiveCandidateFilters,
+  filtersToQuery,
+  type CandidateFilterState,
+} from "../lib/candidate-filters";
+import {
   getCandidates,
   getCandidateById,
+  createCandidateTag,
+  searchCandidateTags,
   type CandidateSortField,
   type SortDirection,
   updateCandidate,
 } from "../lib/candidates-api";
 import { getDocumentChecklist } from "../lib/documents-api";
-import { useT } from "../lib/i18n";
+import { useLanguage, useT } from "../lib/i18n";
 import {
+  candidateGenderLabel,
   candidateMebExamResultLabel,
   candidateMebExamResultToPill,
   CANDIDATE_STATUS_OPTIONS,
   candidateStatusLabel,
   candidateStatusToPill,
   formatDateTR,
+  normalizeCandidateGender,
   type CandidateStatusValue,
 } from "../lib/status-maps";
-import type { CandidateResponse } from "../lib/types";
+import { normalizeTextQuery } from "../lib/search";
+import type { CandidateResponse, CandidateTag } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
@@ -45,7 +58,6 @@ const TAB_KEYS: CandidateTab[] = [
   "graduated",
   "dropped",
 ];
-
 const DEFAULT_TAB: CandidateTab = "active";
 
 const PAGE_SIZE = 10;
@@ -68,6 +80,7 @@ type CandidateColumnId =
   | "documents"
   | "missingDocuments"
   | "mebExamResult"
+  | "examFeePaid"
   | "balance"
   | "status"
   | "createdAtUtc"
@@ -89,10 +102,12 @@ type CandidateColumnDef = {
     | "candidates.col.documents"
     | "candidates.col.missingDocuments"
     | "candidates.col.mebExamResult"
+    | "candidates.col.examFeePaid"
     | "candidates.col.balance"
     | "candidates.col.status"
     | "candidates.col.createdAtUtc"
     | "candidates.col.updatedAtUtc";
+  headerLabel?: React.ReactNode;
   /** When set, this column is sortable via the given backend field. */
   sortField?: CandidateSortField;
   headerClassName?: string;
@@ -155,6 +170,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "photo",
     labelKey: "candidates.col.photo",
+    headerLabel: "",
     headerClassName: "cand-photo-th",
     cellClassName: "cand-photo-td",
     renderCell: (c) => (
@@ -201,7 +217,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "gender",
     labelKey: "candidates.col.gender",
-    renderCell: (c) => formatOptionalText(c.gender),
+    renderCell: (c) => formatOptionalText(candidateGenderLabel(c.gender)),
     skeletonWidth: 72,
   },
   {
@@ -254,16 +270,24 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "mebExamResult",
     labelKey: "candidates.col.mebExamResult",
-    renderCell: (c) =>
-      c.mebExamResult ? (
-        <StatusPill
-          label={candidateMebExamResultLabel(c.mebExamResult)}
-          status={candidateMebExamResultToPill(c.mebExamResult)}
-        />
-      ) : (
-        "—"
-      ),
+    renderCell: (c) => (
+      <StatusPill
+        label={candidateMebExamResultLabel(c.mebExamResult)}
+        status={candidateMebExamResultToPill(c.mebExamResult)}
+      />
+    ),
     skeletonWidth: 72,
+  },
+  {
+    id: "examFeePaid",
+    labelKey: "candidates.col.examFeePaid",
+    renderCell: (c) => (
+      <StatusPill
+        label={c.examFeePaid ? "Ödendi" : "Ödenmedi"}
+        status={c.examFeePaid ? "success" : "failed"}
+      />
+    ),
+    skeletonWidth: 88,
   },
   {
     id: "balance",
@@ -306,18 +330,20 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
   "group",
   "documents",
   "mebExamResult",
+  "examFeePaid",
   "status",
 ];
 
 export function CandidatesPage() {
   const t = useT();
+  useLanguage();
   const tabs = TAB_KEYS.map((key) => ({
     key,
     label: key === "all" ? "Tum" : candidateStatusLabel(key),
   }));
 
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "candidates.columns.v7",
+    "candidates.columns.v8",
     CANDIDATE_COLUMN_IDS,
     DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS
   );
@@ -338,6 +364,21 @@ export function CandidatesPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [allTags, setAllTags] = useState<CandidateTag[]>([]);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [newTagDraft, setNewTagDraft] = useState("");
+  const newTagInputRef = useRef<HTMLInputElement | null>(null);
+  const [filters, setFilters] = useState<CandidateFilterState>(
+    EMPTY_CANDIDATE_FILTERS
+  );
+  const [debouncedFilters, setDebouncedFilters] = useState<CandidateFilterState>(
+    EMPTY_CANDIDATE_FILTERS
+  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = countActiveCandidateFilters(filters);
+  const lastFetchKeyRef = useRef<string | null>(null);
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("selected");
@@ -367,19 +408,40 @@ export function CandidatesPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  // Debounce the full filter object: text inputs (firstName, nationalId, ...)
+  // trigger this at every keystroke, so we coalesce them before kicking off a
+  // backend fetch. Tri-state selects and date pickers pay the same 300 ms tax
+  // but that's imperceptible for discrete controls.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, TEXT_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [filters]);
+
   useEffect(() => {
     const controller = new AbortController();
+    const requestParams = {
+      search: normalizeTextQuery(debouncedSearch),
+      status: tab === "all" ? undefined : tab,
+      tags: activeTags.length > 0 ? activeTags : undefined,
+      ...filtersToQuery(debouncedFilters),
+      sortBy: sort?.field,
+      sortDir: sort?.direction,
+      page,
+      pageSize: PAGE_SIZE,
+    };
+    const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
+    if (lastFetchKeyRef.current === fetchKey) {
+      return () => controller.abort();
+    }
+
+    lastFetchKeyRef.current = fetchKey;
     setLoading(true);
 
     getCandidates(
-      {
-        search: debouncedSearch.trim() || undefined,
-        status: tab === "all" ? undefined : tab,
-        sortBy: sort?.field,
-        sortDir: sort?.direction,
-        page,
-        pageSize: PAGE_SIZE,
-      },
+      requestParams,
       controller.signal
     )
       .then((result) => {
@@ -397,7 +459,31 @@ export function CandidatesPage() {
     return () => {
       controller.abort();
     };
-  }, [debouncedSearch, page, refreshKey, showToast, sort, tab]);
+  }, [activeTags, debouncedFilters, debouncedSearch, page, refreshKey, showToast, sort, tab]);
+
+  // Load the full tag catalog for the filter bar. Refetched on refreshKey
+  // bumps so newly created tags surface after create/edit flows.
+  useEffect(() => {
+    const controller = new AbortController();
+    searchCandidateTags("", 200, controller.signal)
+      .then((result) => setAllTags(result))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setAllTags([]);
+      });
+    return () => controller.abort();
+  }, [refreshKey]);
+
+  // If any of the active filter tags disappear (deleted or renamed elsewhere),
+  // drop them so the candidate list is not stuck filtered-to-nothing.
+  useEffect(() => {
+    if (activeTags.length === 0) return;
+    const known = new Set(allTags.map((tag) => tag.name));
+    const filtered = activeTags.filter((name) => known.has(name));
+    if (filtered.length !== activeTags.length) {
+      setActiveTags(filtered);
+    }
+  }, [activeTags, allTags]);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -407,6 +493,101 @@ export function CandidatesPage() {
   const handleTabChange = (value: CandidateTab) => {
     setTab(value);
     setPage(1);
+  };
+
+  const handleTagFilterToggle = (name: string) => {
+    setPage(1);
+    setActiveTags((current) =>
+      current.includes(name)
+        ? current.filter((value) => value !== name)
+        : [...current, name]
+    );
+  };
+
+  const handleFilterChange = <K extends keyof CandidateFilterState>(
+    key: K,
+    value: CandidateFilterState[K]
+  ) => {
+    setPage(1);
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const clearAllFilters = () => {
+    setPage(1);
+    setFilters(EMPTY_CANDIDATE_FILTERS);
+    setDebouncedFilters(EMPTY_CANDIDATE_FILTERS);
+    setActiveTags([]);
+  };
+
+  const openAddTagInput = () => {
+    setNewTagDraft("");
+    setIsAddingTag(true);
+    window.setTimeout(() => newTagInputRef.current?.focus(), 0);
+  };
+
+  const closeAddTagInput = () => {
+    if (isCreatingTag) return;
+    setIsAddingTag(false);
+    setNewTagDraft("");
+  };
+
+  const upsertTagCatalog = (tag: CandidateTag) => {
+    setAllTags((current) => {
+      const next = current.some((item) => item.id === tag.id || item.name === tag.name)
+        ? current.map((item) => (item.id === tag.id || item.name === tag.name ? tag : item))
+        : [...current, tag];
+      return next.slice().sort((left, right) => left.name.localeCompare(right.name, "tr"));
+    });
+  };
+
+  const commitNewTag = async () => {
+    const name = newTagDraft.trim();
+    if (!name) {
+      closeAddTagInput();
+      return;
+    }
+
+    const normalized = name.toLocaleLowerCase("tr-TR");
+    const existing = allTags.find(
+      (tag) => tag.name.toLocaleLowerCase("tr-TR") === normalized
+    );
+    if (existing) {
+      setActiveTags((current) =>
+        current.includes(existing.name) ? current : [...current, existing.name]
+      );
+      setPage(1);
+      setIsAddingTag(false);
+      setNewTagDraft("");
+      return;
+    }
+
+    setIsCreatingTag(true);
+    try {
+      const createdTag = await createCandidateTag(name);
+      upsertTagCatalog(createdTag);
+      setActiveTags((current) =>
+        current.includes(createdTag.name) ? current : [...current, createdTag.name]
+      );
+      setPage(1);
+      setIsAddingTag(false);
+      setNewTagDraft("");
+    } catch {
+      showToast("Etiket oluşturulamadı", "error");
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
+
+  const handleNewTagKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitNewTag();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAddTagInput();
+    }
   };
 
   useEffect(() => {
@@ -453,14 +634,13 @@ export function CandidatesPage() {
       Telefon: formatOptionalText(candidate.phoneNumber),
       "E-posta": formatOptionalText(candidate.email),
       "Doğum Tarihi": formatDateTR(candidate.birthDate),
-      Cinsiyet: formatOptionalText(candidate.gender),
+      Cinsiyet: formatOptionalText(candidateGenderLabel(candidate.gender)),
       "Ehliyet Tipi": candidate.licenseClass,
       Grup: formatGroupWithTerm(candidate),
       "Tamamlanan Evrak": candidate.documentSummary?.completedCount ?? 0,
       "Eksik Evrak": candidate.documentSummary?.missingCount ?? 0,
-      "MEB Sonucu": candidate.mebExamResult
-        ? candidateMebExamResultLabel(candidate.mebExamResult)
-        : "—",
+      "MEB Durumu": candidateMebExamResultLabel(candidate.mebExamResult),
+      "Sınav Ücreti": candidate.examFeePaid ? "Ödendi" : "Ödenmedi",
       Durum: candidateStatusLabel(candidate.status),
       "Kayıt Tarihi": formatDateTR(candidate.createdAtUtc),
     }));
@@ -476,7 +656,8 @@ export function CandidatesPage() {
       "Grup",
       "Tamamlanan Evrak",
       "Eksik Evrak",
-      "MEB Sonucu",
+      "MEB Durumu",
+      "Sınav Ücreti",
       "Durum",
       "Kayıt Tarihi",
     ] as const;
@@ -484,7 +665,7 @@ export function CandidatesPage() {
     const escapeCsvValue = (value: string | number) => {
       const text = String(value);
       if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
-        return `"${text.replaceAll("\"", "\"\"")}"`;
+        return `"${text.replace(/"/g, "\"\"")}"`;
       }
       return text;
     };
@@ -535,7 +716,11 @@ export function CandidatesPage() {
   const toggleBulkSelection = () => {
     setBulkSelectEnabled((current) => {
       const next = !current;
-      if (!next) {
+      if (next) {
+        // Filtreler toggle butonu bulk modunda toolbardan kayboluyor; açık
+        // kalmış paneli beraber kapatıp orphan state'i engelliyoruz.
+        setFiltersOpen(false);
+      } else {
         setBulkActionMode(null);
         setSelectedCandidateIds(new Set());
         setBulkStatusValue("");
@@ -595,14 +780,16 @@ export function CandidatesPage() {
     phoneNumber: candidate.phoneNumber,
     email: candidate.email,
     birthDate: candidate.birthDate,
-    gender: candidate.gender,
+    gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
     existingLicenseType: candidate.existingLicenseType,
     existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
     existingLicenseNumber: candidate.existingLicenseNumber,
     existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
     existingLicensePre2016: candidate.existingLicensePre2016,
+    examFeePaid: candidate.examFeePaid ?? false,
     status,
+    tags: candidate.tags?.map((tag) => tag.name) ?? [],
   });
 
   const applyBulkStatusChange = async () => {
@@ -641,7 +828,9 @@ export function CandidatesPage() {
         actions={
           bulkSelectEnabled ? (
             <div className="candidate-bulk-toolbar">
-              <span className="candidate-bulk-count">{selectedCount} seçili</span>
+              {selectedCount > 0 ? (
+                <span className="candidate-bulk-count">{selectedCount} seçili</span>
+              ) : null}
               {bulkActionMode === "status" ? (
                 <>
                   <CustomSelect
@@ -706,6 +895,20 @@ export function CandidatesPage() {
             </div>
           ) : (
             <>
+              <label className="switch-toggle cand-filters-switch">
+                <input
+                  aria-controls="cand-filters-panel"
+                  aria-label={t("candidates.filters.button")}
+                  checked={filtersOpen}
+                  onChange={(event) => setFiltersOpen(event.target.checked)}
+                  type="checkbox"
+                />
+                <span className="switch-toggle-control" aria-hidden="true" />
+                <span>{t("candidates.filters.button")}</span>
+                {activeFilterCount > 0 && !filtersOpen && (
+                  <span className="cand-filters-badge">{activeFilterCount}</span>
+                )}
+              </label>
               <button
                 aria-pressed={bulkSelectEnabled}
                 className="btn btn-secondary btn-sm"
@@ -739,6 +942,61 @@ export function CandidatesPage() {
         </div>
       </div>
 
+      <CandidateFilterPanel
+        activeFilterCount={activeFilterCount}
+        filters={filters}
+        hasAnyActiveFilter={activeFilterCount > 0 || activeTags.length > 0}
+        onChange={handleFilterChange}
+        onClearAll={clearAllFilters}
+        onClose={() => setFiltersOpen(false)}
+        open={filtersOpen}
+      />
+
+
+      <div className="tag-filter-bar" role="toolbar" aria-label={t("candidates.tags.label")}>
+        {allTags.map((tag) => {
+          const isActive = activeTags.includes(tag.name);
+          return (
+            <button
+              aria-pressed={isActive}
+              className={`tag-filter-chip color-${tagColorIndex(tag.name)}${
+                isActive ? " active" : ""
+              }`}
+              key={tag.id}
+              onClick={() => handleTagFilterToggle(tag.name)}
+              type="button"
+            >
+              {tag.name}
+            </button>
+          );
+        })}
+        {isAddingTag ? (
+          <input
+            aria-label={t("candidates.tags.newFilterPlaceholder")}
+            className="tag-filter-new-input"
+            disabled={isCreatingTag}
+            onBlur={() => {
+              void commitNewTag();
+            }}
+            onChange={(event) => setNewTagDraft(event.target.value)}
+            onKeyDown={handleNewTagKeyDown}
+            placeholder={t("candidates.tags.newFilterPlaceholder")}
+            ref={newTagInputRef}
+            type="text"
+            value={newTagDraft}
+          />
+        ) : (
+          <button
+            aria-label={t("candidates.tags.addFilter")}
+            className="tag-filter-add"
+            onClick={openAddTagInput}
+            type="button"
+          >
+            + {t("candidates.tags.addFilter")}
+          </button>
+        )}
+      </div>
+
       <div className="table-wrap spaced">
         <table className="data-table cand-table">
           <thead>
@@ -766,8 +1024,12 @@ export function CandidatesPage() {
                     sort={sort}
                   />
                 ) : (
-                  <th className={col.headerClassName} key={col.id}>
-                    {t(col.labelKey)}
+                  <th
+                    aria-label={t(col.labelKey)}
+                    className={col.headerClassName}
+                    key={col.id}
+                  >
+                    {col.headerLabel ?? t(col.labelKey)}
                   </th>
                 )
               )}

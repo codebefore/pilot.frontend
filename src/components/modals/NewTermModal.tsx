@@ -1,65 +1,118 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { createTerm } from "../../lib/terms-api";
-import { useT } from "../../lib/i18n";
+import { createTerm, updateTerm } from "../../lib/terms-api";
+import { ApiError } from "../../lib/http";
+import { useLanguage, useT } from "../../lib/i18n";
 import type { TermResponse } from "../../lib/types";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { useToast } from "../ui/Toast";
 import { Modal } from "../ui/Modal";
 
 type NewTermForm = {
-  /** HTML `month` input value, e.g. "2026-04" */
-  month: string;
+  /** ISO date snapped to the first day of the month, e.g. "2026-04-01". */
+  monthDate: string;
   name: string;
 };
 
 type NewTermModalProps = {
   open: boolean;
   onClose: () => void;
-  onCreated: (term: TermResponse) => void;
+  onSaved: (term: TermResponse) => void;
+  term?: TermResponse | null;
 };
 
-function currentMonth(): string {
+/** Return the first-of-month ISO date ("YYYY-MM-01") for the given ISO date. */
+function toMonthStart(iso: string): string {
+  return iso.length >= 7 ? `${iso.slice(0, 7)}-01` : iso;
+}
+
+function currentMonthStart(): string {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+  return `${y}-${m}-01`;
 }
 
 const defaultValues = (): NewTermForm => ({
-  month: currentMonth(),
+  monthDate: currentMonthStart(),
   name: "",
 });
 
-export function NewTermModal({ open, onClose, onCreated }: NewTermModalProps) {
+function termValues(term?: TermResponse | null): NewTermForm {
+  if (!term) {
+    return defaultValues();
+  }
+
+  return {
+    monthDate: toMonthStart(term.monthDate.slice(0, 10)),
+    name: term.name ?? "",
+  };
+}
+
+export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps) {
   const t = useT();
+  const { lang } = useLanguage();
+  const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const isEditMode = Boolean(term);
+  const nameInputId = useId();
 
   const {
     register,
     handleSubmit,
     reset,
+    setError,
+    setValue,
+    watch,
     formState: { errors },
-  } = useForm<NewTermForm>({ defaultValues: defaultValues() });
+  } = useForm<NewTermForm>({ defaultValues: termValues(term) });
+  const monthDate = watch("monthDate");
+  const monthDateRegistration = register("monthDate", {
+    required: t("terms.form.monthRequired"),
+  });
 
   useEffect(() => {
-    if (open) reset(defaultValues());
-  }, [open, reset]);
+    if (open) reset(termValues(term));
+  }, [open, reset, term]);
 
   const submit = handleSubmit(async (data) => {
     setSubmitting(true);
     try {
-      // HTML month input gives "YYYY-MM"; backend expects a full ISO date.
-      const monthDate = `${data.month}-01`;
-      const created = await createTerm({
-        monthDate,
-        name: data.name.trim() || null,
-      });
-      showToast(t("terms.created"));
-      onCreated(created);
-    } catch {
-      showToast(t("terms.createFailed"), "error");
+      const normalizedMonthDate = toMonthStart(data.monthDate);
+      const saved = isEditMode && term
+        ? await updateTerm(term.id, {
+            monthDate: normalizedMonthDate,
+            name: data.name.trim() || null,
+          })
+        : await createTerm({
+            monthDate: normalizedMonthDate,
+            name: data.name.trim() || null,
+          });
+      showToast(t(isEditMode ? "terms.updated" : "terms.created"));
+      onSaved(saved);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        const monthError =
+          error.validationErrors.monthDate?.[0] ??
+          error.validationErrors.MonthDate?.[0];
+        if (monthError) {
+          setError("monthDate", { message: monthError });
+        }
+
+        const nameError =
+          error.validationErrors.name?.[0] ??
+          error.validationErrors.Name?.[0];
+        if (nameError) {
+          setError("name", { message: nameError });
+        }
+
+        showToast(t(isEditMode ? "terms.updateFailed" : "terms.createFailed"), "error");
+        return;
+      }
+
+      showToast(t(isEditMode ? "terms.updateFailed" : "terms.createFailed"), "error");
     } finally {
       setSubmitting(false);
     }
@@ -92,21 +145,30 @@ export function NewTermModal({ open, onClose, onCreated }: NewTermModalProps) {
       }
       onClose={onClose}
       open={open}
-      title={t("terms.form.create")}
+      title={t(isEditMode ? "terms.form.edit" : "terms.form.create")}
     >
       <form onSubmit={submit}>
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label">{t("terms.form.month")}</label>
-            <input
-              className={fieldClass(!!errors.month, "form-input")}
-              type="month"
-              {...register("month", {
-                required: t("terms.form.monthRequired"),
-              })}
+            <LocalizedDateInput
+              ariaLabel={t("terms.form.month")}
+              className={fieldClass(!!errors.monthDate, "form-input")}
+              inputRef={monthDateRegistration.ref}
+              lang={dateInputLang}
+              mode="month"
+              name={monthDateRegistration.name}
+              onBlur={monthDateRegistration.onBlur}
+              onChange={(value) =>
+                setValue("monthDate", toMonthStart(value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              value={monthDate}
             />
-            {errors.month ? (
-              <div className="form-error">{errors.month.message}</div>
+            {errors.monthDate ? (
+              <div className="form-error">{errors.monthDate.message}</div>
             ) : (
               <div className="form-hint">{t("terms.form.monthHelp")}</div>
             )}
@@ -115,12 +177,18 @@ export function NewTermModal({ open, onClose, onCreated }: NewTermModalProps) {
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("terms.form.name")}</label>
+            <label className="form-label" htmlFor={nameInputId}>{t("terms.form.name")}</label>
             <input
-              className="form-input"
+              className={fieldClass(!!errors.name, "form-input")}
+              id={nameInputId}
               placeholder={t("terms.form.namePlaceholder")}
               {...register("name")}
             />
+            {errors.name ? (
+              <div className="form-error">{errors.name.message}</div>
+            ) : (
+              <div className="form-hint">Ayni ayda baska donem varsa ad zorunlu.</div>
+            )}
           </div>
         </div>
       </form>

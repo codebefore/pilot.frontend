@@ -118,13 +118,46 @@ describe("NewCandidateModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
+        expect(createCandidateMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            firstName: "Ada",
+            lastName: "Yilmaz",
+            nationalId: "11111111111",
+            gender: "male",
+            licenseClass: "B",
+            status: "pre_registered",
+          })
+        );
+    });
+  });
+
+  it("allows overriding default gender before submit", async () => {
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    fireEvent.change(screen.getByPlaceholderText("11 haneli TC"), {
+      target: { value: "11111111111" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Adı"), {
+      target: { value: "Ada" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
+      target: { value: "Yilmaz" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("5XXXXXXXXX"), {
+      target: { value: "5551234567" },
+    });
+    const genderSelect = document.querySelector('select[name="gender"]');
+    expect(genderSelect).not.toBeNull();
+    fireEvent.change(genderSelect!, {
+      target: { value: "female" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
       expect(createCandidateMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          firstName: "Ada",
-          lastName: "Yilmaz",
-          nationalId: "11111111111",
-          licenseClass: "B",
-          status: "pre_registered",
+          gender: "female",
         })
       );
     });

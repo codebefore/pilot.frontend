@@ -1,4 +1,5 @@
 import type { JobStatus } from "../types";
+import type { CandidateGenderValue } from "./types";
 
 /* ── Shared select options ── */
 
@@ -151,12 +152,8 @@ export const TURKEY_PROVINCE_OPTIONS: { value: string; label: string }[] = TURKE
 );
 
 export const GROUP_MEB_STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: "pending",       label: "Bekliyor" },
-  { value: "planned",       label: "Planlandı" },
-  { value: "created",       label: "Oluşturuldu" },
-  { value: "manual_review", label: "Manuel Onay" },
-  { value: "closed",        label: "Kapandı" },
-  { value: "error",         label: "Hata" },
+  { value: "not_sent", label: "Gönderilmedi" },
+  { value: "sent",     label: "Gönderildi" },
 ];
 
 
@@ -196,6 +193,86 @@ export function normalizeGroupMebStatusValue(mebStatus: string | null): string |
   return mebStatus.trim().toLowerCase();
 }
 
+/* ── Gender ─────────────────────────────────────────────────────
+ *
+ * Backend now only accepts the three canonical English values below. The
+ * helpers in this section map any legacy / user-facing / stale value onto
+ * that canonical set so the UI can stay in Turkish while payloads sent to
+ * the API are always one of `female | male | unspecified` (or null).
+ */
+
+export const CANDIDATE_GENDER_VALUES: readonly CandidateGenderValue[] = [
+  "female",
+  "male",
+  "unspecified",
+];
+export type { CandidateGenderValue };
+
+/** Turkish display labels — intentionally hardcoded (task requirement). */
+const CANDIDATE_GENDER_LABELS_TR: Record<CandidateGenderValue, string> = {
+  female: "Kadın",
+  male: "Erkek",
+  unspecified: "Seçilmemiş",
+};
+
+/** Select options for the gender field (filter panel, future forms). */
+export const CANDIDATE_GENDER_OPTIONS: { value: CandidateGenderValue; label: string }[] =
+  CANDIDATE_GENDER_VALUES.map((value) => ({
+    value,
+    label: CANDIDATE_GENDER_LABELS_TR[value],
+  }));
+
+/**
+ * Legacy alias map. Keys are already lowercased (Turkish locale) before
+ * lookup, so we store them that way. This covers:
+ *   - canonical English: female / male / unspecified
+ *   - Turkish words:     kadin / kadın / erkek / secilmemis / seçilmemiş
+ *   - legacy numeric:    -1, 0, 1 (ISO 5218-ish, plus old forms)
+ * Unknown / untrusted input → null, so it never leaks to the backend.
+ */
+const CANDIDATE_GENDER_ALIASES: Record<string, CandidateGenderValue> = {
+  female: "female",
+  male: "male",
+  unspecified: "unspecified",
+  kadin: "female",
+  "kadın": "female",
+  k: "female",
+  erkek: "male",
+  e: "male",
+  secilmemis: "unspecified",
+  "seçilmemiş": "unspecified",
+  belirsiz: "unspecified",
+  "0": "female",
+  "1": "male",
+  "-1": "unspecified",
+};
+
+/**
+ * Map any legacy / user / stale gender value onto canonical English.
+ * Returns `null` for empty/unknown input so callers can decide whether to
+ * omit the field entirely.
+ */
+export function normalizeCandidateGender(
+  value: string | null | undefined
+): CandidateGenderValue | null {
+  if (value === null || value === undefined) return null;
+  const key = String(value).trim().toLocaleLowerCase("tr-TR");
+  if (key === "") return null;
+  return CANDIDATE_GENDER_ALIASES[key] ?? null;
+}
+
+/**
+ * Turkish display label for a gender value (canonical or legacy). Returns
+ * an empty string for null/unknown so the caller can decide how to render
+ * the empty state (e.g. an em-dash).
+ */
+export function candidateGenderLabel(
+  value: string | null | undefined
+): string {
+  const canonical = normalizeCandidateGender(value);
+  return canonical ? CANDIDATE_GENDER_LABELS_TR[canonical] : "";
+}
+
 export function candidateStatusToPill(status: string): JobStatus {
   switch (normalizeCandidateStatusValue(status)) {
     case "pre_registered": return "queued";
@@ -228,21 +305,13 @@ export function normalizeCandidateMebExamResultValue(
 export function candidateMebExamResultToPill(
   result: string | null | undefined
 ): JobStatus {
-  switch (normalizeCandidateMebExamResultValue(result)) {
-    case "passed": return "success";
-    case "failed": return "failed";
-    default:       return "queued";
-  }
+  return normalizeCandidateMebExamResultValue(result) ? "success" : "failed";
 }
 
 export function candidateMebExamResultLabel(
   result: string | null | undefined
 ): string {
-  switch (normalizeCandidateMebExamResultValue(result)) {
-    case "passed": return "Gecti";
-    case "failed": return "Kaldi";
-    default:       return "—";
-  }
+  return normalizeCandidateMebExamResultValue(result) ? "Gönderildi" : "Gönderilmedi";
 }
 
 /* ── Group MEB status ── */
@@ -250,25 +319,17 @@ export function candidateMebExamResultLabel(
 export function groupMebStatusToPill(mebStatus: string | null): JobStatus {
   if (!mebStatus) return "queued";
   switch (normalizeGroupMebStatusValue(mebStatus)) {
-    case "planned":       return "queued";
-    case "created":       return "success";
-    case "closed":        return "success";
-    case "manual_review": return "manual";
-    case "error":         return "failed";
-    case "pending":       return "queued";
+    case "not_sent": return "queued";
+    case "sent":     return "success";
     default:              return "manual";
   }
 }
 
 export function groupMebStatusLabel(mebStatus: string | null): string {
-  if (!mebStatus) return "Atanmamış";
+  if (!mebStatus) return "Gönderilmedi";
   switch (normalizeGroupMebStatusValue(mebStatus)) {
-    case "planned":       return "Planlandı";
-    case "created":       return "Oluşturuldu";
-    case "closed":        return "Kapandı";
-    case "manual_review": return "Manuel Onay";
-    case "error":         return "Hata";
-    case "pending":       return "Bekliyor";
+    case "not_sent": return "Gönderilmedi";
+    case "sent":     return "Gönderildi";
     default:              return mebStatus;
   }
 }

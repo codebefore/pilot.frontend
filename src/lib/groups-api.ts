@@ -1,4 +1,4 @@
-import { httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   GroupDetailResponse,
   GroupResponse,
@@ -33,4 +33,8 @@ export function createGroup(body: GroupUpsertRequest): Promise<GroupResponse> {
 
 export function updateGroup(id: string, body: GroupUpsertRequest): Promise<GroupResponse> {
   return httpPut<GroupResponse>(`/api/groups/${id}`, body);
+}
+
+export function deleteGroup(id: string): Promise<void> {
+  return httpDelete(`/api/groups/${id}`);
 }

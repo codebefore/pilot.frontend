@@ -238,8 +238,7 @@
   flex-wrap: nowrap;
   flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
 }
 .candidate-bulk-toolbar {
   display: flex;
@@ -249,11 +248,13 @@
   min-width: 0;
   min-height: 30px;
   padding: 0 6px;
+  position: relative;
+  z-index: 2;
 }
 .candidate-bulk-count {
   font-size: 12px;
   font-weight: 600;
-  color: var(--gray-600);
+  color: var(--brand);
   margin-right: 4px;
   white-space: nowrap;
   flex: 0 0 auto;
@@ -268,6 +269,23 @@
 .candidate-bulk-toolbar .btn {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+.documents-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.documents-toolbar-search {
+  flex: 0 1 360px;
+  min-width: 240px;
+  padding: 0;
+  margin: 0;
+}
+.documents-toolbar-search .search-input {
+  min-width: 0;
 }
 
 .page-tabs {
@@ -389,6 +407,7 @@
   .jobs-toolbar,
   .table-wrap,
   .groups-grid,
+  .tag-filter-bar,
   .settings-page { padding-left: 20px; padding-right: 20px; }
   .dash-header { padding-top: 24px; padding-bottom: 20px; }
   .dash-content { padding-bottom: 32px; }

@@ -63,6 +63,7 @@ export function NewGroupModal({
     watch,
     formState: { errors },
   } = useForm<NewGroupForm>({ defaultValues: defaultValues(initialTermId) });
+  const licenseClass = watch("licenseClass");
   const startDate = watch("startDate");
   const startDateRegistration = register("startDate", { required: "Zorunlu alan" });
 
@@ -101,7 +102,7 @@ export function NewGroupModal({
         termId: data.termId,
         capacity: data.capacity,
         startDate: data.startDate,
-        mebStatus: null,
+        mebStatus: "not_sent",
       });
       onSubmit();
     } catch (error) {
@@ -178,9 +179,10 @@ export function NewGroupModal({
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Sınıf</label>
+            <label className="form-label">Ehliyet Tipi</label>
             <CustomSelect
               className={fieldClass(!!errors.licenseClass, "form-select")}
+              value={licenseClass}
               {...register("licenseClass", { required: true })}
             >
               {LICENSE_CLASS_OPTIONS.map((opt) => (

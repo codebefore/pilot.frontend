@@ -1,7 +1,9 @@
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
+  CandidateGenderValue,
   CandidateGroupAssignmentResponse,
   CandidateResponse,
+  CandidateTag,
   CandidateUpsertRequest,
   LicenseClass,
   PagedResponse,
@@ -23,9 +25,36 @@ export interface GetCandidatesParams extends QueryParams {
   search?: string;
   status?: string;
   groupId?: string;
+  groupTitle?: string;
+  groupStartDateFrom?: string;
+  groupStartDateTo?: string;
   hasActiveGroup?: boolean;
   hasMissingDocuments?: boolean;
+  hasPhoto?: boolean;
+  hasMebExamResult?: boolean;
+  examFeePaid?: boolean;
   licenseClass?: LicenseClass;
+  firstName?: string;
+  lastName?: string;
+  nationalId?: string;
+  phoneNumber?: string;
+  email?: string;
+  /** Query param is strict canonical English — map legacy values first. */
+  gender?: CandidateGenderValue;
+  birthDateFrom?: string;
+  birthDateTo?: string;
+  createdAtFrom?: string;
+  createdAtTo?: string;
+  updatedAtFrom?: string;
+  updatedAtTo?: string;
+  missingDocumentCountMin?: number;
+  missingDocumentCountMax?: number;
+  /**
+   * Filter candidates by one or more tag names. Sent as repeated query
+   * params (?tags=A&tags=B) — backend reads as `string[] tags`.
+   * Multi-tag semantics on backend: AND (candidates must carry every tag).
+   */
+  tags?: readonly string[];
   sortBy?: CandidateSortField;
   sortDir?: SortDirection;
   page?: number;
@@ -65,6 +94,22 @@ export function deleteCandidate(id: string): Promise<void> {
 
 export function removeActiveGroupAssignment(candidateId: string): Promise<void> {
   return httpDelete(`/api/candidates/${candidateId}/group-assignments/active`);
+}
+
+export function searchCandidateTags(
+  search?: string,
+  limit = 20,
+  signal?: AbortSignal
+): Promise<CandidateTag[]> {
+  return httpGet<CandidateTag[]>(
+    "/api/candidates/tags",
+    { search: search?.trim() || undefined, limit },
+    { signal }
+  );
+}
+
+export function createCandidateTag(name: string): Promise<CandidateTag> {
+  return httpPost<CandidateTag>("/api/candidates/tags", { name });
 }
 
 export function assignCandidateGroup(

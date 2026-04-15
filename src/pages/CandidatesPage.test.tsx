@@ -8,6 +8,7 @@ import { renderWithProviders } from "../test/render-with-providers";
 const getCandidatesMock = vi.fn();
 const getCandidateByIdMock = vi.fn();
 const updateCandidateMock = vi.fn();
+const searchCandidateTagsMock = vi.fn();
 
 vi.mock("../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/candidates-api")>(
@@ -25,6 +26,8 @@ vi.mock("../lib/candidates-api", async () => {
     deleteCandidate: vi.fn(),
     assignCandidateGroup: vi.fn(),
     removeActiveGroupAssignment: vi.fn(),
+    searchCandidateTags: (...args: Parameters<typeof actual.searchCandidateTags>) =>
+      searchCandidateTagsMock(...args),
   };
 });
 
@@ -62,6 +65,8 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockReset();
     getCandidateByIdMock.mockReset();
     updateCandidateMock.mockReset();
+    searchCandidateTagsMock.mockReset();
+    searchCandidateTagsMock.mockResolvedValue([]);
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
@@ -116,13 +121,13 @@ describe("CandidatesPage tabs", () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(screen.getByRole("columnheader", { name: /Durum/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
     fireEvent.click(screen.getByLabelText("Durum"));
 
     await waitFor(() => {
-      expect(screen.queryByRole("columnheader", { name: /Durum/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("columnheader", { name: /^Durum$/i })).not.toBeInTheDocument();
     });
   });
 
@@ -194,6 +199,35 @@ describe("CandidatesPage tabs", () => {
 
     // And the clear-filters button should not be present either.
     expect(screen.queryByRole("button", { name: /Filtreleri Temizle/i })).not.toBeInTheDocument();
+  });
+
+  it("does not send the main search query until the second character", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+    expect(getCandidatesMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC)"), {
+      target: { value: "A" },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(getCandidatesMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC)"), {
+      target: { value: "Ay" },
+    });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenCalledTimes(2);
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          search: "Ay",
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
   });
 
   it("keeps optional candidate columns hidden by default but lists them in the picker", async () => {
@@ -328,6 +362,66 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByText("MK")).toBeInTheDocument();
   });
 
+  it("renders meb status as sent or not sent instead of blank", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "12345678901",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+        {
+          id: "cand-2",
+          firstName: "Mehmet",
+          lastName: "Kaya",
+          nationalId: "12345678902",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: "passed",
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 2,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Gönderilmedi")).toBeInTheDocument();
+    expect(screen.getByText("Gönderildi")).toBeInTheDocument();
+  });
+
   it("keeps bulk selection hidden until toggled from the toolbar", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [
@@ -370,7 +464,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
 
     expect(screen.queryByRole("button", { name: "Yeni Aday" })).not.toBeInTheDocument();
-    expect(screen.getByText("0 seçili")).toBeInTheDocument();
+    expect(screen.queryByText("0 seçili")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
@@ -472,6 +566,49 @@ describe("CandidatesPage tabs", () => {
 
     expect(await screen.findByText("Önce en az bir aday seç")).toBeInTheDocument();
     expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
+  });
+
+  it("opens the bulk status dropdown after switching to status mode", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "12345678901",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum seç" }));
+
+    expect(await screen.findByRole("option", { name: "Park" })).toBeInTheDocument();
   });
 
   it("selects visible rows with the bulk selection header checkbox", async () => {
@@ -662,6 +799,8 @@ describe("CandidatesPage sorting", () => {
   beforeEach(() => {
     localStorage.clear();
     getCandidatesMock.mockReset();
+    searchCandidateTagsMock.mockReset();
+    searchCandidateTagsMock.mockResolvedValue([]);
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
@@ -779,6 +918,404 @@ describe("CandidatesPage sorting", () => {
           page: 1,
         }),
         expect.any(AbortSignal)
+      );
+    });
+  });
+});
+
+describe("CandidatesPage filter panel", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    getCandidatesMock.mockReset();
+    searchCandidateTagsMock.mockReset();
+    searchCandidateTagsMock.mockResolvedValue([]);
+    getCandidatesMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 10,
+      totalCount: 0,
+      totalPages: 1,
+    });
+  });
+
+  it("is collapsed by default and opens when the Filtreler button is clicked", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    // Inputs inside the panel are not rendered while collapsed.
+    expect(screen.queryByLabelText(/^Ad$/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+
+    // After toggling the panel, individual inputs become available.
+    expect(
+      screen.getAllByText("Ad", { selector: ".form-label" }).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Soyad", { selector: ".form-label" }).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("TC Kimlik", { selector: ".form-label" }).length
+    ).toBeGreaterThan(0);
+  });
+
+  it("sends firstName to the candidates query when typed into the filter input", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+
+    const firstNameLabel = screen
+      .getAllByText("Ad", { selector: ".form-label" })[0];
+    const firstNameInput = firstNameLabel.parentElement?.querySelector(
+      "input"
+    ) as HTMLInputElement;
+    expect(firstNameInput).toBeTruthy();
+
+    fireEvent.change(firstNameInput, { target: { value: "Ayse" } });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          firstName: "Ayse",
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("does not send a text filter until the second character", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+
+    const firstNameLabel = screen
+      .getAllByText("Ad", { selector: ".form-label" })[0];
+    const firstNameInput = firstNameLabel.parentElement?.querySelector(
+      "input"
+    ) as HTMLInputElement;
+    expect(firstNameInput).toBeTruthy();
+
+    fireEvent.change(firstNameInput, { target: { value: "A" } });
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    let lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+    expect(lastCall.firstName).toBeUndefined();
+
+    fireEvent.change(firstNameInput, { target: { value: "Ay" } });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          firstName: "Ay",
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("sends tri-state hasPhoto=true when selected from the filter dropdown", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+
+    const hasPhotoSelect = screen.getByLabelText(
+      "Fotoğrafı Var"
+    ) as HTMLSelectElement;
+    fireEvent.change(hasPhotoSelect, { target: { value: "true" } });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          hasPhoto: true,
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("resets to page 1 when a filter changes after navigating to a later page", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [],
+      page: 2,
+      pageSize: 10,
+      totalCount: 25,
+      totalPages: 3,
+    });
+
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    // Navigate to page 2 via the pager.
+    fireEvent.click(screen.getByRole("button", { name: /Sonraki/ }));
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+        expect.any(AbortSignal)
+      );
+    });
+
+    // Open the panel and change a filter — page should reset to 1.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    const nationalIdLabel = screen
+      .getAllByText("TC Kimlik", { selector: ".form-label" })[0];
+    const nationalIdInput = nationalIdLabel.parentElement?.querySelector(
+      "input"
+    ) as HTMLInputElement;
+    fireEvent.change(nationalIdInput, { target: { value: "123" } });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          nationalId: "123",
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("clears all text filters when the clear button is clicked", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+
+    const firstNameLabel = screen
+      .getAllByText("Ad", { selector: ".form-label" })[0];
+    const firstNameInput = firstNameLabel.parentElement?.querySelector(
+      "input"
+    ) as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: "Ayse" } });
+
+    // Clear button only appears once a filter is active.
+    const clearButton = await screen.findByRole("button", {
+      name: /Filtreleri Temizle/i,
+    });
+    fireEvent.click(clearButton);
+
+    await waitFor(() => {
+      const lastCall =
+        getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+      expect(lastCall.firstName).toBeUndefined();
+    });
+  });
+
+  it("sends canonical English gender as the query param when selected", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+
+    // The filter panel exposes the gender select via an accessible name that
+    // matches the Turkish column header ("Cinsiyet").
+    const genderSelect = screen.getByLabelText("Cinsiyet") as HTMLSelectElement;
+
+    fireEvent.change(genderSelect, { target: { value: "female" } });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          gender: "female",
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+
+    fireEvent.change(genderSelect, { target: { value: "male" } });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          gender: "male",
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+
+    // Clearing the select drops the query param entirely — never sends
+    // an empty string or a legacy value.
+    fireEvent.change(genderSelect, { target: { value: "" } });
+
+    await waitFor(() => {
+      const lastCall =
+        getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+      expect(lastCall.gender).toBeUndefined();
+    });
+  });
+});
+
+describe("CandidatesPage gender rendering", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    getCandidatesMock.mockReset();
+    searchCandidateTagsMock.mockReset();
+    searchCandidateTagsMock.mockResolvedValue([]);
+  });
+
+  it("maps canonical backend gender onto Turkish labels in the table", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "11111111111",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: "female",
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+        {
+          id: "cand-2",
+          firstName: "Mehmet",
+          lastName: "Kaya",
+          nationalId: "22222222222",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: "male",
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+        {
+          id: "cand-3",
+          firstName: "Ali",
+          lastName: "Veli",
+          nationalId: "33333333333",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: "unspecified",
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 3,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Ayse Demir")).toBeInTheDocument();
+
+    // Gender column is optional / hidden by default — enable it via the
+    // column picker so its cells render.
+    fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
+    fireEvent.click(screen.getByLabelText("Cinsiyet"));
+
+    expect(screen.getByText("Kadın")).toBeInTheDocument();
+    expect(screen.getByText("Erkek")).toBeInTheDocument();
+    expect(screen.getByText("Seçilmemiş")).toBeInTheDocument();
+  });
+});
+
+describe("CandidatesPage bulk status update", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    getCandidatesMock.mockReset();
+    updateCandidateMock.mockReset();
+    searchCandidateTagsMock.mockReset();
+    searchCandidateTagsMock.mockResolvedValue([]);
+  });
+
+  it("normalizes legacy gender values to canonical English in update payloads", async () => {
+    const candidates = [
+      {
+        id: "cand-1",
+        firstName: "Ayse",
+        lastName: "Demir",
+        nationalId: "12345678901",
+        phoneNumber: null,
+        email: null,
+        birthDate: null,
+        // A stale/legacy Turkish value that may still exist in memory from
+        // older sessions — must be normalized to "female" before sending.
+        gender: "kadın",
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        currentGroup: null,
+        documentSummary: null,
+        mebExamResult: null,
+        createdAtUtc: "2026-04-01T10:00:00Z",
+        updatedAtUtc: "2026-04-02T10:00:00Z",
+      },
+    ];
+
+    getCandidatesMock.mockResolvedValue({
+      items: candidates,
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    updateCandidateMock.mockResolvedValue(candidates[0]);
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
+    fireEvent.change(screen.getByLabelText("Toplu durum seç"), {
+      target: { value: "parked" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "cand-1",
+        expect.objectContaining({
+          status: "parked",
+          gender: "female",
+        })
       );
     });
   });

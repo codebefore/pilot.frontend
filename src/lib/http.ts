@@ -18,7 +18,8 @@ export class ApiError extends Error {
   }
 }
 
-export type QueryParamValue = string | number | boolean | undefined | null;
+export type QueryParamPrimitive = string | number | boolean | undefined | null;
+export type QueryParamValue = QueryParamPrimitive | readonly QueryParamPrimitive[];
 export type QueryParams = Record<string, QueryParamValue>;
 
 type RequestOptions = {
@@ -36,7 +37,15 @@ function buildUrl(path: string, params?: QueryParams): string {
   const url = new URL(rawUrl, window.location.origin);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && value !== null) {
+      if (value === undefined || value === null) continue;
+      if (Array.isArray(value)) {
+        // Arrays become repeated query params: ?key=a&key=b (handled natively
+        // by ASP.NET model binding into List<string>/string[] parameters).
+        for (const item of value) {
+          if (item === undefined || item === null || item === "") continue;
+          url.searchParams.append(key, String(item));
+        }
+      } else {
         url.searchParams.set(key, String(value));
       }
     }

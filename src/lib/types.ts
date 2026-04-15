@@ -24,6 +24,11 @@ export interface CandidatePhotoSummary {
   kind: string;
 }
 
+export interface CandidateTag {
+  id: string;
+  name: string;
+}
+
 export interface CandidateResponse {
   id: string;
   firstName: string;
@@ -32,7 +37,7 @@ export interface CandidateResponse {
   phoneNumber: string | null;
   email: string | null;
   birthDate: string | null;
-  gender: string | null;
+  gender: CandidateGenderValue | null;
   licenseClass: LicenseClass;
   existingLicenseType: string | null;
   existingLicenseIssuedAt: string | null;
@@ -41,12 +46,21 @@ export interface CandidateResponse {
   existingLicensePre2016: boolean;
   status: string;
   mebExamResult?: string | null;
+  examFeePaid?: boolean;
   currentGroup: CandidateGroupSummary | null;
   documentSummary: CandidateDocumentSummaryResponse | null;
   photo?: CandidatePhotoSummary | null;
+  tags?: CandidateTag[];
   createdAtUtc: string;
   updatedAtUtc: string;
 }
+
+/**
+ * Canonical gender values accepted by the backend. See `status-maps.ts` for
+ * the label map + `normalizeCandidateGender` helper that maps legacy strings
+ * onto this set.
+ */
+export type CandidateGenderValue = "female" | "male" | "unspecified";
 
 export interface CandidateUpsertRequest {
   firstName: string;
@@ -55,7 +69,8 @@ export interface CandidateUpsertRequest {
   phoneNumber?: string | null;
   email?: string | null;
   birthDate?: string | null;
-  gender?: string | null;
+  /** Write-boundary is strict: only canonical English (or null / omitted). */
+  gender?: CandidateGenderValue | null;
   licenseClass: LicenseClass;
   existingLicenseType?: string | null;
   existingLicenseIssuedAt?: string | null;
@@ -63,6 +78,9 @@ export interface CandidateUpsertRequest {
   existingLicenseIssuedProvince?: string | null;
   existingLicensePre2016?: boolean;
   status: string;
+  examFeePaid?: boolean;
+  /** Names only — backend resolves or creates tags by name. */
+  tags?: string[];
 }
 
 export interface CandidateGroupAssignmentResponse {
@@ -106,6 +124,7 @@ export interface CreateTermRequest {
 }
 
 export interface UpdateTermRequest {
+  monthDate?: string;
   name?: string | null;
 }
 
@@ -121,8 +140,16 @@ export interface GroupResponse {
   activeCandidateCount: number;
   startDate: string | null;
   mebStatus: string | null;
+  candidatePreview?: GroupCandidatePreview[];
   createdAtUtc: string;
   updatedAtUtc: string;
+}
+
+export interface GroupCandidatePreview {
+  candidateId: string;
+  firstName: string;
+  lastName: string;
+  photo?: CandidatePhotoSummary | null;
 }
 
 export interface GroupCandidateResponse {
@@ -132,6 +159,7 @@ export interface GroupCandidateResponse {
   nationalId: string;
   phoneNumber: string | null;
   email: string | null;
+  photo?: CandidatePhotoSummary | null;
   status: string;
   assignedAtUtc: string;
 }
@@ -183,7 +211,7 @@ export interface CandidateDocumentSummaryResponse {
 export interface DocumentChecklistEntry {
   candidateId: string;
   fullName: string;
-  nationalId: string;
+  phoneNumber: string | null;
   licenseClass: LicenseClass;
   summary: CandidateDocumentSummaryResponse;
   photo?: CandidatePhotoSummary | null;

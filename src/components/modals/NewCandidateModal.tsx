@@ -4,11 +4,16 @@ import { useForm } from "react-hook-form";
 import { assignCandidateGroup, createCandidate } from "../../lib/candidates-api";
 import { ApiError } from "../../lib/http";
 import { getGroups } from "../../lib/groups-api";
-import { useLanguage } from "../../lib/i18n";
-import { EXISTING_LICENSE_TYPE_OPTIONS, TURKEY_PROVINCE_OPTIONS } from "../../lib/status-maps";
+import { useLanguage, useT } from "../../lib/i18n";
+import {
+  CANDIDATE_GENDER_OPTIONS,
+  EXISTING_LICENSE_TYPE_OPTIONS,
+  TURKEY_PROVINCE_OPTIONS,
+} from "../../lib/status-maps";
 import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
-import type { GroupResponse, LicenseClass, TermResponse } from "../../lib/types";
+import type { CandidateGenderValue, GroupResponse, LicenseClass, TermResponse } from "../../lib/types";
+import { CandidateTagsInput } from "../ui/CandidateTagsInput";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
@@ -20,9 +25,11 @@ type NewCandidateForm = {
   firstName: string;
   lastName: string;
   birthDate: string;
+  gender: CandidateGenderValue;
   phone: string;
   email: string;
   groupId: string;
+  tags: string[];
   hasExistingLicense: boolean;
   existingLicenseType: string;
   existingLicenseIssuedAt: string;
@@ -62,9 +69,11 @@ const defaultValues = (): NewCandidateForm => ({
   firstName: "",
   lastName: "",
   birthDate: seventeenYearsAgoISO(),
+  gender: "male",
   phone: "",
   email: "",
   groupId: "",
+  tags: [],
   hasExistingLicense: false,
   existingLicenseType: "",
   existingLicenseIssuedAt: "",
@@ -76,6 +85,7 @@ const defaultValues = (): NewCandidateForm => ({
 export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModalProps) {
   const { showToast } = useToast();
   const { lang } = useLanguage();
+  const t = useT();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const today = todayISO();
   const [submitting, setSubmitting] = useState(false);
@@ -95,10 +105,12 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   } = useForm<NewCandidateForm>({ defaultValues: defaultValues() });
 
   const selectedClass = watch("className");
+  const selectedGender = watch("gender");
   const selectedGroupId = watch("groupId");
   const hasExistingLicense = watch("hasExistingLicense");
   const birthDate = watch("birthDate");
   const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
+  const tags = watch("tags");
   const availableGroups = groups.filter((group) => group.licenseClass === selectedClass);
   const classRegistration = register("className", {
     required: true,
@@ -200,6 +212,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         phoneNumber: data.phone || null,
         email: data.email || null,
         birthDate: data.birthDate || null,
+        gender: data.gender,
         licenseClass: data.className,
         existingLicenseType: data.hasExistingLicense ? data.existingLicenseType || null : null,
         existingLicenseIssuedAt: data.hasExistingLicense
@@ -211,6 +224,8 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
           : null,
         existingLicensePre2016: data.hasExistingLicense ? data.existingLicensePre2016 : false,
         status: "pre_registered",
+        examFeePaid: false,
+        tags: data.tags,
       });
 
       if (data.groupId) {
@@ -332,6 +347,23 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             {errors.birthDate && <div className="form-error">{errors.birthDate.message}</div>}
           </div>
           <div className="form-group">
+            <label className="form-label">Cinsiyet</label>
+            <CustomSelect
+              className={fieldClass(!!errors.gender, "form-select")}
+              value={selectedGender}
+              {...register("gender")}
+            >
+              {CANDIDATE_GENDER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </CustomSelect>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
             <label className="form-label">Telefon</label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
@@ -348,9 +380,6 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
           </div>
-        </div>
-
-        <div className="form-row">
           <div className="form-group">
             <label className="form-label">E-posta</label>
             <input
@@ -388,6 +417,19 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               })}
             </CustomSelect>
             {errors.groupId && <div className="form-error">{errors.groupId.message}</div>}
+          </div>
+        </div>
+
+        <div className="form-row full">
+          <div className="form-group">
+            <label className="form-label">{t("candidates.tags.label")}</label>
+            <CandidateTagsInput
+              ariaLabel={t("candidates.tags.label")}
+              onChange={(next) =>
+                setValue("tags", next, { shouldDirty: true, shouldValidate: true })
+              }
+              value={tags}
+            />
           </div>
         </div>
 

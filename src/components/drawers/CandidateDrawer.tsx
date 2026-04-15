@@ -9,10 +9,13 @@ import {
 } from "../../lib/candidates-api";
 import { getDocumentChecklist } from "../../lib/documents-api";
 import { getGroups } from "../../lib/groups-api";
-import { useLanguage } from "../../lib/i18n";
+import { useLanguage, useT } from "../../lib/i18n";
+import { buildWhatsAppUrl, formatPhoneNumber } from "../../lib/phone";
 import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import {
+  candidateGenderLabel,
+  CANDIDATE_GENDER_OPTIONS,
   candidateMebExamResultLabel,
   candidateStatusLabel,
   CANDIDATE_STATUS_OPTIONS,
@@ -20,13 +23,19 @@ import {
   existingLicenseTypeLabel,
   formatDateTR,
   LICENSE_CLASS_OPTIONS,
+  normalizeCandidateGender,
   normalizeCandidateStatusValue,
   TURKEY_PROVINCE_OPTIONS,
 } from "../../lib/status-maps";
-import type { CandidateResponse, CandidateUpsertRequest, LicenseClass } from "../../lib/types";
+import type {
+  CandidateResponse,
+  CandidateUpsertRequest,
+  LicenseClass,
+} from "../../lib/types";
 import { UploadDocumentModal } from "../modals/UploadDocumentModal";
 import { WhatsAppIcon } from "../icons";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
+import { CandidateTagsInput } from "../ui/CandidateTagsInput";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { EditableRow } from "../ui/EditableRow";
@@ -82,43 +91,6 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatPhoneNumber(raw: string | null | undefined): string {
-  const digits = (raw ?? "").replace(/\D/g, "");
-  const localDigits =
-    digits.length === 11 && digits.startsWith("0")
-      ? digits.slice(1)
-      : digits.length === 12 && digits.startsWith("90")
-        ? digits.slice(2)
-        : digits;
-
-  if (localDigits.length !== 10) {
-    return raw?.trim() || "—";
-  }
-
-  return `0 ${localDigits.slice(0, 3)} ${localDigits.slice(3, 6)} ${localDigits.slice(
-    6,
-    8
-  )} ${localDigits.slice(8, 10)}`;
-}
-
-function buildWhatsAppUrl(raw: string | null | undefined): string | null {
-  const digits = (raw ?? "").replace(/\D/g, "");
-
-  if (digits.length === 10) {
-    return `https://wa.me/90${digits}`;
-  }
-
-  if (digits.length === 11 && digits.startsWith("0")) {
-    return `https://wa.me/90${digits.slice(1)}`;
-  }
-
-  if (digits.length === 12 && digits.startsWith("90")) {
-    return `https://wa.me/${digits}`;
-  }
-
-  return null;
-}
-
 /* ── Drawer ── */
 
 type CandidateDrawerProps = {
@@ -138,6 +110,10 @@ const EXISTING_LICENSE_EDIT_OPTIONS: SelectOption[] = [
 const BOOLEAN_OPTIONS: SelectOption[] = [
   { value: "true", label: "Evet" },
   { value: "false", label: "Hayir" },
+];
+const EXAM_FEE_OPTIONS: SelectOption[] = [
+  { value: "true", label: "Ödendi" },
+  { value: "false", label: "Ödenmedi" },
 ];
 
 type ExistingLicenseDraft = {
@@ -170,6 +146,7 @@ export function CandidateDrawer({
 }: CandidateDrawerProps) {
   const { showToast } = useToast();
   const { lang } = useLanguage();
+  const t = useT();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const today = todayISO();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
@@ -246,6 +223,7 @@ export function CandidateDrawer({
         phoneNumber: candidate.phoneNumber,
         email: candidate.email,
         birthDate: candidate.birthDate,
+        gender: normalizeCandidateGender(candidate.gender),
         licenseClass: candidate.licenseClass,
         existingLicenseType: candidate.existingLicenseType,
         existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
@@ -253,6 +231,8 @@ export function CandidateDrawer({
         existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
         existingLicensePre2016: candidate.existingLicensePre2016,
         status: normalizeCandidateStatusValue(candidate.status),
+        examFeePaid: candidate.examFeePaid ?? false,
+        tags: candidate.tags?.map((tag) => tag.name) ?? [],
         ...patch,
       });
       setCandidate(updated);
@@ -552,6 +532,17 @@ export function CandidateDrawer({
               onSave={(v) => saveField({ birthDate: v || null })}
             />
             <EditableRow
+              displayValue={candidateGenderLabel(candidate.gender)}
+              inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
+              label="Cinsiyet"
+              options={CANDIDATE_GENDER_OPTIONS}
+              onSave={(v) =>
+                saveField({
+                  gender: normalizeCandidateGender(v),
+                })
+              }
+            />
+            <EditableRow
               displayValue={candidate.phoneNumber ?? ""}
               inputType="tel"
               inputValue={candidate.phoneNumber ?? ""}
@@ -565,6 +556,18 @@ export function CandidateDrawer({
               label="E-posta"
               onSave={(v) => saveField({ email: v || null })}
             />
+          </DrawerSection>
+
+          <DrawerSection title={t("candidates.tags.label")}>
+            <div className="drawer-form">
+              <CandidateTagsInput
+                ariaLabel={t("candidates.tags.label")}
+                onChange={(names) => {
+                  void saveField({ tags: names });
+                }}
+                value={candidate.tags?.map((tag) => tag.name) ?? []}
+              />
+            </div>
           </DrawerSection>
 
           <DrawerSection title="Kayıt Bilgileri">
@@ -673,104 +676,102 @@ export function CandidateDrawer({
                   <span>Mevcut sürücü belgesi var</span>
                 </label>
 
-                {existingLicenseDraft.enabled ? (
-                <>
-                  <div className="form-group">
-                    <label className="form-label">Mevcut Belge</label>
-                    <CustomSelect
-                      aria-label="Mevcut Belge"
-                      className="form-select"
-                      onChange={(event) =>
-                        setExistingLicenseDraft((current) => ({
-                          ...current,
-                          type: event.target.value,
-                        }))
-                      }
-                      value={existingLicenseDraft.type}
-                    >
-                      <option value="">Belge seçin</option>
-                      {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </CustomSelect>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Belge Tarihi</label>
-                    <LocalizedDateInput
-                      ariaLabel="Belge Tarihi"
-                      defaultOnOpen={today}
-                      lang={dateInputLang}
-                      onChange={(value) =>
-                        setExistingLicenseDraft((current) => ({
-                          ...current,
-                          issuedAt: value,
-                        }))
-                      }
-                      value={existingLicenseDraft.issuedAt}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Belge No</label>
-                    <input
-                      aria-label="Belge No"
-                      className="form-input"
-                      onChange={(event) =>
-                        setExistingLicenseDraft((current) => ({
-                          ...current,
-                          number: event.target.value,
-                        }))
-                      }
-                      placeholder="Örn. ABC-12345"
-                      value={existingLicenseDraft.number}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Belge Veriliş İli</label>
-                    <CustomSelect
-                      aria-label="Belge Veriliş İli"
-                      className="form-select"
-                      onChange={(event) =>
-                        setExistingLicenseDraft((current) => ({
-                          ...current,
-                          issuedProvince: event.target.value,
-                        }))
-                      }
-                      value={existingLicenseDraft.issuedProvince}
-                    >
-                      <option value="">İl seçin</option>
-                      {TURKEY_PROVINCE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </CustomSelect>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="switch-toggle">
-                      <input
-                        checked={existingLicenseDraft.pre2016}
+                {existingLicenseDraft.enabled && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Mevcut Belge</label>
+                      <CustomSelect
+                        aria-label="Mevcut Belge"
+                        className="form-select"
                         onChange={(event) =>
                           setExistingLicenseDraft((current) => ({
                             ...current,
-                            pre2016: event.target.checked,
+                            type: event.target.value,
                           }))
                         }
-                        type="checkbox"
+                        value={existingLicenseDraft.type}
+                      >
+                        <option value="">Belge seçin</option>
+                        {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </CustomSelect>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Belge Tarihi</label>
+                      <LocalizedDateInput
+                        ariaLabel="Belge Tarihi"
+                        defaultOnOpen={today}
+                        lang={dateInputLang}
+                        onChange={(value) =>
+                          setExistingLicenseDraft((current) => ({
+                            ...current,
+                            issuedAt: value,
+                          }))
+                        }
+                        value={existingLicenseDraft.issuedAt}
                       />
-                      <span className="switch-toggle-control" aria-hidden="true" />
-                      <span>2016 Ocak öncesi</span>
-                    </label>
-                  </div>
-                </>
-              ) : (
-                <DrawerRow label="Mevcut Belge">{existingLicenseTypeLabel(null)}</DrawerRow>
-              )}
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Belge No</label>
+                      <input
+                        aria-label="Belge No"
+                        className="form-input"
+                        onChange={(event) =>
+                          setExistingLicenseDraft((current) => ({
+                            ...current,
+                            number: event.target.value,
+                          }))
+                        }
+                        placeholder="Örn. ABC-12345"
+                        value={existingLicenseDraft.number}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Belge Veriliş İli</label>
+                      <CustomSelect
+                        aria-label="Belge Veriliş İli"
+                        className="form-select"
+                        onChange={(event) =>
+                          setExistingLicenseDraft((current) => ({
+                            ...current,
+                            issuedProvince: event.target.value,
+                          }))
+                        }
+                        value={existingLicenseDraft.issuedProvince}
+                      >
+                        <option value="">İl seçin</option>
+                        {TURKEY_PROVINCE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </CustomSelect>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-toggle">
+                        <input
+                          checked={existingLicenseDraft.pre2016}
+                          onChange={(event) =>
+                            setExistingLicenseDraft((current) => ({
+                              ...current,
+                              pre2016: event.target.checked,
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span className="switch-toggle-control" aria-hidden="true" />
+                        <span>2016 Ocak öncesi</span>
+                      </label>
+                    </div>
+                  </>
+                )}
 
                 {existingLicenseError && (
                   <div className="drawer-form-error">{existingLicenseError}</div>
@@ -800,7 +801,7 @@ export function CandidateDrawer({
               options={STATUS_OPTIONS}
               onSave={(v) => saveField({ status: v })}
             />
-            <DrawerRow label="MEB Sinav Sonucu">
+            <DrawerRow label="MEB Durumu">
               {candidateMebExamResultLabel(candidate.mebExamResult)}
             </DrawerRow>
           </DrawerSection>
@@ -839,6 +840,13 @@ export function CandidateDrawer({
           </DrawerSection>
 
           <DrawerSection title="Muhasebe">
+            <EditableRow
+              displayValue={candidate.examFeePaid ? "Ödendi" : "Ödenmedi"}
+              inputValue={candidate.examFeePaid ? "true" : "false"}
+              label="Sınav Ücreti"
+              options={EXAM_FEE_OPTIONS}
+              onSave={(value) => saveField({ examFeePaid: value === "true" })}
+            />
             <DrawerRow label="Toplam Ücret">—</DrawerRow>
             <DrawerRow label="Ödenen">—</DrawerRow>
             <DrawerRow label="Kalan Bakiye">—</DrawerRow>

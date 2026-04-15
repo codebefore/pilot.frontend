@@ -97,6 +97,36 @@ describe("DocumentsPage", () => {
     });
   });
 
+  it("does not send the document search query until the second character", async () => {
+    renderWithProviders(<DocumentsPage />);
+
+    await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalled());
+    expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
+      target: { value: "A" },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
+      target: { value: "Ay" },
+    });
+
+    await waitFor(() => {
+      expect(getDocumentChecklistMock).toHaveBeenCalledTimes(2);
+      expect(getDocumentChecklistMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          search: "Ay",
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
   it("loads document types once for the upload modal", async () => {
     renderWithProviders(<DocumentsPage />);
     await waitFor(() => expect(getDocumentTypesMock).toHaveBeenCalledTimes(1));
@@ -118,7 +148,7 @@ describe("DocumentsPage", () => {
         {
           candidateId: "cand-1",
           fullName: "Ayse Demir",
-          nationalId: "12345678901",
+          phoneNumber: "05321234567",
           licenseClass: "B",
           summary: {
             completedCount: 1,
@@ -141,5 +171,9 @@ describe("DocumentsPage", () => {
     expect(screen.getByLabelText("Sağlık Raporu")).toBeInTheDocument();
     expect(screen.getByLabelText("Nüfus Cüzdanı: var")).toBeInTheDocument();
     expect(screen.getByLabelText("Sağlık Raporu: yok, yukle")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "0 532 123 45 67" })).toHaveAttribute(
+      "href",
+      "https://wa.me/905321234567"
+    );
   });
 });

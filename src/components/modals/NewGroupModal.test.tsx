@@ -25,6 +25,31 @@ vi.mock("../../lib/terms-api", async () => {
 });
 
 describe("NewGroupModal", () => {
+  it("defaults license class to B and shows the license type label", async () => {
+    getTermsMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 200,
+      totalCount: 0,
+      totalPages: 0,
+    });
+
+    renderWithProviders(
+      <NewGroupModal
+        initialTermId={null}
+        onClose={() => {}}
+        onSubmit={() => {}}
+        open
+      />
+    );
+
+    expect(screen.getByText("Ehliyet Tipi")).toBeInTheDocument();
+    const licenseClassSelect = document.querySelector('select[name="licenseClass"]');
+    expect(licenseClassSelect).not.toBeNull();
+    expect((licenseClassSelect as HTMLSelectElement).value).toBe("B");
+    expect(document.querySelector(".custom-select-trigger-text")?.textContent).toBe("B — Otomobil");
+  });
+
   it("shows a clear field error when start date is outside the selected term month", async () => {
     getTermsMock.mockResolvedValue({
       items: [

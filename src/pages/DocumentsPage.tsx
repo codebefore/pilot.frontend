@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CheckIcon, PlusIcon, XIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
@@ -10,6 +10,8 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { useToast } from "../components/ui/Toast";
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
 import { useT } from "../lib/i18n";
+import { buildWhatsAppUrl, formatPhoneNumber } from "../lib/phone";
+import { normalizeTextQuery } from "../lib/search";
 import type { DocumentChecklistEntry, DocumentTypeResponse } from "../lib/types";
 
 type Filters = {
@@ -67,6 +69,27 @@ function toAvatarCandidate(entry: DocumentChecklistEntry) {
   };
 }
 
+function renderPhoneNumber(entry: DocumentChecklistEntry) {
+  const phoneNumber = formatPhoneNumber(entry.phoneNumber);
+  const whatsappUrl = buildWhatsAppUrl(entry.phoneNumber);
+
+  if (!whatsappUrl) {
+    return <div className="cand-secondary-text">{phoneNumber}</div>;
+  }
+
+  return (
+    <a
+      className="documents-phone-link"
+      href={whatsappUrl}
+      onClick={(event) => event.stopPropagation()}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {phoneNumber}
+    </a>
+  );
+}
+
 export function DocumentsPage() {
   const t = useT();
   const { showToast } = useToast();
@@ -81,6 +104,7 @@ export function DocumentsPage() {
   const [entries, setEntries] = useState<DocumentChecklistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const lastFetchKeyRef = useRef<string | null>(null);
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>([]);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
@@ -106,16 +130,20 @@ export function DocumentsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const requestParams = {
+      search: normalizeTextQuery(debouncedSearch),
+      page,
+      pageSize: PAGE_SIZE,
+    };
+    const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
+    if (lastFetchKeyRef.current === fetchKey) {
+      return () => controller.abort();
+    }
+
+    lastFetchKeyRef.current = fetchKey;
     setLoading(true);
 
-    getDocumentChecklist(
-      {
-        search: debouncedSearch.trim() || undefined,
-        page,
-        pageSize: PAGE_SIZE,
-      },
-      controller.signal
-    )
+    getDocumentChecklist(requestParams, controller.signal)
       .then((result) => {
         setEntries(result.items);
         setTotalPages(result.totalPages);
@@ -201,40 +229,39 @@ export function DocumentsPage() {
     <>
       <PageToolbar
         actions={
-          <button className="btn btn-primary btn-sm" onClick={() => openUpload()} type="button">
-            <PlusIcon size={12} />
-            {t("documents.action.upload")}
-          </button>
+          <div className="documents-toolbar-actions">
+            <button className="btn btn-primary btn-sm" onClick={() => openUpload()} type="button">
+              <PlusIcon size={12} />
+              {t("documents.action.upload")}
+            </button>
+            <div className="search-box documents-toolbar-search">
+              <SearchInput
+                onChange={(value) => patchFilters({ search: value })}
+                placeholder={t("documents.searchPlaceholder")}
+                value={filters.search}
+              />
+              {hasAnyFilter && (
+                <button
+                  className="btn btn-secondary btn-sm filter-clear"
+                  onClick={handleClearFilters}
+                  type="button"
+                >
+                  <XIcon size={12} />
+                  {t("common.clearFilters")}
+                </button>
+              )}
+            </div>
+          </div>
         }
         title={t("documents.title")}
       />
-
-      <div className="tabs-search-row">
-        <div className="search-box">
-          <SearchInput
-            onChange={(value) => patchFilters({ search: value })}
-            placeholder={t("documents.searchPlaceholder")}
-            value={filters.search}
-          />
-          {hasAnyFilter && (
-            <button
-              className="btn btn-secondary btn-sm filter-clear"
-              onClick={handleClearFilters}
-              type="button"
-            >
-              <XIcon size={12} />
-              {t("common.clearFilters")}
-            </button>
-          )}
-        </div>
-      </div>
 
       <div className="table-wrap spaced documents-table-wrap">
         <Panel>
           <table className="data-table documents-table">
             <thead>
               <tr>
-                <th className="cand-photo-th">Resim</th>
+                <th aria-label="Resim" className="cand-photo-th" />
                 <SortableTh
                   field="name"
                   label={t("documents.col.candidate")}
@@ -297,7 +324,7 @@ export function DocumentsPage() {
                       </td>
                       <td>
                         <div className="cand-name">{entry.fullName}</div>
-                        <div className="cand-tc">{entry.nationalId}</div>
+                        {renderPhoneNumber(entry)}
                       </td>
                       {requiredDocumentTypes.map((documentType) => {
                         const hasDocument = !entry.missingDocumentKeys.includes(documentType.key);

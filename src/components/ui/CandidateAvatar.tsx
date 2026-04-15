@@ -1,8 +1,11 @@
 import { getApiBaseUrl } from "../../lib/api";
+import { normalizeCandidateGender } from "../../lib/status-maps";
 import type { CandidateResponse } from "../../lib/types";
 
 type CandidateAvatarProps = {
-  candidate: Pick<CandidateResponse, "id" | "firstName" | "lastName" | "photo">;
+  candidate: Pick<CandidateResponse, "id" | "firstName" | "lastName" | "photo"> & {
+    gender?: string | null;
+  };
   className?: string;
   size?: number;
 };
@@ -34,7 +37,11 @@ export function CandidateAvatar({
   size = 34,
 }: CandidateAvatarProps) {
   const imageUrl = buildCandidatePhotoUrl(candidate);
-  const rootClassName = ["candidate-avatar", className].filter(Boolean).join(" ");
+  const genderToneClass =
+    normalizeCandidateGender(candidate.gender) === "male"
+      ? "candidate-avatar-male"
+      : "candidate-avatar-female";
+  const rootClassName = ["candidate-avatar", genderToneClass, className].filter(Boolean).join(" ");
 
   return (
     <span

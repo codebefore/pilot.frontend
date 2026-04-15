@@ -1,54 +1,146 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { GroupDrawer } from "../components/drawers/GroupDrawer";
-import { GridIcon, ListIcon, PencilIcon, PlusIcon, XIcon } from "../components/icons";
+import { GridIcon, ListIcon, PlusIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { NewGroupModal } from "../components/modals/NewGroupModal";
 import { NewTermModal } from "../components/modals/NewTermModal";
+import { CandidateAvatar } from "../components/ui/CandidateAvatar";
+import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
+import { CustomSelect } from "../components/ui/CustomSelect";
 import { Pagination } from "../components/ui/Pagination";
-import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { getGroups } from "../lib/groups-api";
+import { ApiError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import {
   formatDateTR,
   groupMebStatusLabel,
   groupMebStatusToPill,
-  GROUP_MEB_STATUS_OPTIONS,
 } from "../lib/status-maps";
-import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../lib/term-label";
-import { deleteTerm, getTerms, updateTerm } from "../lib/terms-api";
+import {
+  buildGroupHeading,
+  buildTermLabel,
+  compareTermsDesc,
+  pickDefaultTermId,
+} from "../lib/term-label";
+import { deleteTerm, getTerms } from "../lib/terms-api";
 import type { GroupResponse, TermResponse } from "../lib/types";
-
-type Filters = {
-  search: string;
-  mebStatus: string;
-};
+import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type GroupViewMode = "cards" | "list";
+type GroupColumnId =
+  | "name"
+  | "licenseClass"
+  | "capacity"
+  | "activeCandidates"
+  | "startDate"
+  | "mebStatus"
+  | "createdAtUtc"
+  | "updatedAtUtc";
 
-const INITIAL_FILTERS: Filters = {
-  search: "",
-  mebStatus: "",
+type GroupColumnDef = {
+  id: GroupColumnId;
+  labelKey:
+    | "groups.table.name"
+    | "groups.table.licenseClass"
+    | "groups.table.capacity"
+    | "groups.table.activeCandidates"
+    | "groups.table.startDate"
+    | "groups.table.mebStatus"
+    | "groups.table.createdAtUtc"
+    | "groups.table.updatedAtUtc";
+  headerClassName?: string;
+  cellClassName?: string;
+  skeletonWidth: number;
+  renderCell: (group: GroupResponse, sortedTerms: TermResponse[], lang: "tr" | "en") => ReactNode;
 };
 
 const PAGE_SIZE = 12;
-const TEXT_DEBOUNCE_MS = 300;
+const GROUP_COLUMNS: GroupColumnDef[] = [
+  {
+    id: "name",
+    labelKey: "groups.table.name",
+    cellClassName: "group-table-name",
+    skeletonWidth: 190,
+    renderCell: (group, sortedTerms, lang) =>
+      buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass),
+  },
+  {
+    id: "licenseClass",
+    labelKey: "groups.table.licenseClass",
+    skeletonWidth: 54,
+    renderCell: (group) => group.licenseClass,
+  },
+  {
+    id: "capacity",
+    labelKey: "groups.table.capacity",
+    skeletonWidth: 64,
+    renderCell: (group) => `${group.assignedCandidateCount} / ${group.capacity}`,
+  },
+  {
+    id: "activeCandidates",
+    labelKey: "groups.table.activeCandidates",
+    skeletonWidth: 44,
+    renderCell: (group) => group.activeCandidateCount,
+  },
+  {
+    id: "startDate",
+    labelKey: "groups.table.startDate",
+    skeletonWidth: 84,
+    renderCell: (group) => formatDateTR(group.startDate),
+  },
+  {
+    id: "mebStatus",
+    labelKey: "groups.table.mebStatus",
+    skeletonWidth: 76,
+    renderCell: (group) => (
+      <StatusPill
+        label={groupMebStatusLabel(group.mebStatus)}
+        status={groupMebStatusToPill(group.mebStatus)}
+      />
+    ),
+  },
+  {
+    id: "createdAtUtc",
+    labelKey: "groups.table.createdAtUtc",
+    skeletonWidth: 88,
+    renderCell: (group) => formatDateTR(group.createdAtUtc),
+  },
+  {
+    id: "updatedAtUtc",
+    labelKey: "groups.table.updatedAtUtc",
+    skeletonWidth: 88,
+    renderCell: (group) => formatDateTR(group.updatedAtUtc),
+  },
+];
+const GROUP_COLUMN_IDS: GroupColumnId[] = GROUP_COLUMNS.map((column) => column.id);
+const DEFAULT_VISIBLE_GROUP_COLUMN_IDS: GroupColumnId[] = [
+  "name",
+  "capacity",
+  "startDate",
+  "mebStatus",
+];
 
 export function GroupsPage() {
   const { showToast } = useToast();
   const t = useT();
   const { lang } = useLanguage();
+  const { isVisible, toggle: toggleColumn } = useColumnVisibility(
+    "groups.columns.v1",
+    GROUP_COLUMN_IDS,
+    DEFAULT_VISIBLE_GROUP_COLUMN_IDS
+  );
 
   const [terms, setTerms] = useState<TermResponse[]>([]);
   const [termsLoading, setTermsLoading] = useState(true);
   const [termRefreshKey, setTermRefreshKey] = useState(0);
   const [selectedTermId, setSelectedTermId] = useState<string>("");
-  const [termModalOpen, setTermModalOpen] = useState(false);
+  const [termModalState, setTermModalState] = useState<{ mode: "create" | "edit"; term: TermResponse | null } | null>(null);
+  const [confirmDeleteTermId, setConfirmDeleteTermId] = useState<string | null>(null);
+  const [deletingTerm, setDeletingTerm] = useState(false);
 
-  const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
 
   const [page, setPage] = useState(1);
@@ -60,6 +152,11 @@ export function GroupsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const visibleColumns = GROUP_COLUMNS.filter((column) => isVisible(column.id));
+  const pickerOptions: ColumnOption[] = GROUP_COLUMNS.map((column) => ({
+    id: column.id,
+    label: t(column.labelKey),
+  }));
 
   /* ── Terms ───────────────────────────────────────────── */
 
@@ -70,8 +167,7 @@ export function GroupsPage() {
       .then((result) => {
         const sorted = [...result.items].sort(compareTermsDesc);
         setTerms(sorted);
-        // Default-select the most recent term on first load.
-        setSelectedTermId((prev) => (prev ? prev : sorted[0]?.id ?? ""));
+        setSelectedTermId((prev) => (prev ? prev : pickDefaultTermId(sorted) ?? ""));
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -90,45 +186,43 @@ export function GroupsPage() {
   );
 
   const handleTermCreated = (term: TermResponse) => {
-    setTermModalOpen(false);
+    setTermModalState(null);
     setSelectedTermId(term.id);
     setPage(1);
     setTermRefreshKey((k) => k + 1);
   };
 
-  const handleTermRename = async (term: TermResponse) => {
-    const next = window.prompt(t("terms.form.name"), term.name ?? "");
-    if (next === null) return;
-    try {
-      await updateTerm(term.id, { name: next.trim() || null });
-      showToast(t("terms.updated"));
-      setTermRefreshKey((k) => k + 1);
-    } catch {
-      showToast(t("terms.updateFailed"), "error");
-    }
+  const handleTermSaved = (term: TermResponse) => {
+    setTermModalState(null);
+    setSelectedTermId(term.id);
+    setPage(1);
+    setTermRefreshKey((k) => k + 1);
   };
 
-  const handleTermDelete = async (term: TermResponse) => {
-    if (!window.confirm(t("terms.confirmDelete"))) return;
+  const handleTermRename = (term: TermResponse) => {
+    setTermModalState({ mode: "edit", term });
+  };
+
+  const handleTermDeleteConfirm = async (term: TermResponse) => {
+    setDeletingTerm(true);
     try {
       await deleteTerm(term.id);
       showToast(t("terms.deleted"));
       if (selectedTermId === term.id) setSelectedTermId("");
       setTermRefreshKey((k) => k + 1);
-    } catch {
+      setConfirmDeleteTermId(null);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors?.term?.length) {
+        showToast(t("terms.deleteBlockedActiveGroups"), "error");
+        return;
+      }
       showToast(t("terms.deleteFailed"), "error");
+    } finally {
+      setDeletingTerm(false);
     }
   };
 
   /* ── Groups (scoped to the selected term) ────────────── */
-
-  useEffect(() => {
-    const timer = window.setTimeout(
-      () => setDebouncedSearch(filters.search),
-      TEXT_DEBOUNCE_MS
-    );
-    return () => window.clearTimeout(timer);
-  }, [filters.search]);
 
   useEffect(() => {
     if (!selectedTermId) {
@@ -143,8 +237,6 @@ export function GroupsPage() {
     getGroups(
       {
         termId: selectedTermId,
-        search: debouncedSearch.trim() || undefined,
-        mebStatus: filters.mebStatus || undefined,
         page,
         pageSize: PAGE_SIZE,
       },
@@ -165,27 +257,11 @@ export function GroupsPage() {
     return () => controller.abort();
   }, [
     selectedTermId,
-    debouncedSearch,
-    filters.mebStatus,
     page,
     refreshKey,
     showToast,
     t,
   ]);
-
-  const patchFilters = (patch: Partial<Filters>) => {
-    setFilters((f) => ({ ...f, ...patch }));
-    setPage(1);
-  };
-
-  const handleClearFilters = () => {
-    setFilters(INITIAL_FILTERS);
-    setPage(1);
-  };
-
-  const hasAnyFilter =
-    filters.search !== INITIAL_FILTERS.search ||
-    filters.mebStatus !== INITIAL_FILTERS.mebStatus;
 
   const handleGroupCreated = () => {
     setModalOpen(false);
@@ -199,10 +275,14 @@ export function GroupsPage() {
     setTermRefreshKey((k) => k + 1);
   };
 
+  const handleGroupDeleted = () => {
+    setSelectedGroupId(null);
+    setRefreshKey((k) => k + 1);
+    setTermRefreshKey((k) => k + 1);
+  };
+
   const emptyMessage = !selectedTermId
     ? t("groups.empty.noTermSelected")
-    : hasAnyFilter
-    ? t("groups.empty.noMatches")
     : t("groups.empty.noGroupsForTab");
 
   return (
@@ -212,7 +292,7 @@ export function GroupsPage() {
           <>
             <button
               className="btn btn-secondary btn-sm"
-              onClick={() => setTermModalOpen(true)}
+              onClick={() => setTermModalState({ mode: "create", term: null })}
               type="button"
             >
               <PlusIcon size={14} />
@@ -227,20 +307,58 @@ export function GroupsPage() {
               <PlusIcon size={14} />
               {t("groups.newGroup")}
             </button>
+            {selectedTerm && (
+              confirmDeleteTermId === selectedTerm.id ? (
+                <>
+                  <span style={{ fontSize: 13, color: "var(--gray-600)" }}>
+                    {t("terms.confirmDelete")}
+                  </span>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={deletingTerm}
+                    onClick={() => setConfirmDeleteTermId(null)}
+                    type="button"
+                  >
+                    {t("common.cancel")}
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={deletingTerm}
+                    onClick={() => handleTermDeleteConfirm(selectedTerm)}
+                    type="button"
+                  >
+                    {t("terms.delete")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleTermRename(selectedTerm)}
+                    type="button"
+                  >
+                    {t("terms.edit")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setConfirmDeleteTermId(selectedTerm.id)}
+                    type="button"
+                  >
+                    {t("terms.delete")}
+                  </button>
+                </>
+              )
+            )}
           </>
         }
         title={t("groups.title")}
       />
 
       <div className="term-bar">
-        <label className="term-bar-label" htmlFor="term-selector">
-          {t("terms.selector.label")}
-        </label>
-        <select
+        <CustomSelect
           aria-label={t("terms.selector.label")}
           className="form-select term-bar-select"
           disabled={termsLoading}
-          id="term-selector"
           onChange={(e) => {
             setSelectedTermId(e.target.value);
             setPage(1);
@@ -255,59 +373,8 @@ export function GroupsPage() {
               {t("terms.groupCount", { count: term.groupCount })}
             </option>
           ))}
-        </select>
+        </CustomSelect>
 
-        {selectedTerm && (
-          <div className="term-bar-actions">
-            <button
-              className="icon-btn"
-              onClick={() => handleTermRename(selectedTerm)}
-              title={t("terms.edit")}
-              type="button"
-            >
-              <PencilIcon size={13} />
-            </button>
-            <button
-              className="icon-btn"
-              onClick={() => handleTermDelete(selectedTerm)}
-              title={t("terms.delete")}
-              type="button"
-            >
-              <XIcon size={13} />
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="search-box">
-        <SearchInput
-          onChange={(v) => patchFilters({ search: v })}
-          placeholder={t("groups.searchPlaceholder")}
-          value={filters.search}
-        />
-        <select
-          aria-label={t("groups.filter.mebStatus")}
-          className="form-select filter-select"
-          onChange={(e) => patchFilters({ mebStatus: e.target.value })}
-          value={filters.mebStatus}
-        >
-          <option value="">{t("groups.filter.allMebStatuses")}</option>
-          {GROUP_MEB_STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        {hasAnyFilter && (
-          <button
-            className="btn btn-secondary btn-sm filter-clear"
-            onClick={handleClearFilters}
-            type="button"
-          >
-            <XIcon size={12} />
-            {t("common.clearFilters")}
-          </button>
-        )}
         <div className="view-toggle" role="group" aria-label={t("groups.view.label")}>
           <button
             aria-pressed={viewMode === "cards"}
@@ -357,19 +424,35 @@ export function GroupsPage() {
             <table className="data-table group-table">
               <thead>
                 <tr>
-                  <th>{t("groups.table.name")}</th>
-                  <th>{t("groups.table.capacity")}</th>
-                  <th>{t("groups.table.startDate")}</th>
-                  <th>{t("groups.table.mebStatus")}</th>
+                  {visibleColumns.map((column) => (
+                    <th className={column.headerClassName} key={column.id}>
+                      {t(column.labelKey)}
+                    </th>
+                  ))}
+                  <th className="col-picker-th">
+                    <ColumnPicker
+                      columns={pickerOptions}
+                      isVisible={isVisible}
+                      onToggle={toggleColumn}
+                      triggerTitle={t("groups.columns.button")}
+                    />
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: PAGE_SIZE }, (_, i) => (
                   <tr key={i} style={{ pointerEvents: "none" }}>
-                    <td><span className="skeleton" style={{ width: `${170 + (i * 37) % 70}px` }} /></td>
-                    <td><span className="skeleton" style={{ width: "64px" }} /></td>
-                    <td><span className="skeleton" style={{ width: "84px" }} /></td>
-                    <td><span className="skeleton skeleton-pill" style={{ width: "76px" }} /></td>
+                    {visibleColumns.map((column) => (
+                      <td className={column.cellClassName} key={column.id}>
+                        <span
+                          className={
+                            column.id === "mebStatus" ? "skeleton skeleton-pill" : "skeleton"
+                          }
+                          style={{ width: `${column.skeletonWidth + (i * 9) % 28}px` }}
+                        />
+                      </td>
+                    ))}
+                    <td className="col-picker-td" />
                   </tr>
                 ))}
               </tbody>
@@ -383,15 +466,13 @@ export function GroupsPage() {
       ) : viewMode === "cards" ? (
         <div className="groups-grid">
           {groups.map((group) => (
-            <div
-              className="panel group-card"
-              key={group.id}
-              onClick={() => setSelectedGroupId(group.id)}
-            >
-              <div className="panel-header">
-                <span className="panel-title">
-                  {buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass)}
-                </span>
+            <div className="panel group-card" key={group.id} onClick={() => setSelectedGroupId(group.id)}>
+              <div className="panel-header group-card-header">
+                <div className="group-card-heading">
+                  <span className="panel-title">
+                    {buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass)}
+                  </span>
+                </div>
                 <StatusPill
                   label={groupMebStatusLabel(group.mebStatus)}
                   status={groupMebStatusToPill(group.mebStatus)}
@@ -409,6 +490,28 @@ export function GroupsPage() {
                   <span className="value">{formatDateTR(group.startDate)}</span>
                 </div>
               </div>
+              {(group.candidatePreview?.length ?? 0) > 0 && (
+                <div className="group-card-avatar-stack">
+                  {(group.candidatePreview ?? []).map((candidate) => (
+                    <CandidateAvatar
+                      candidate={{
+                        id: candidate.candidateId,
+                        firstName: candidate.firstName,
+                        lastName: candidate.lastName,
+                        photo: candidate.photo ?? null,
+                      }}
+                      className="group-card-avatar"
+                      key={candidate.candidateId}
+                      size={28}
+                    />
+                  ))}
+                  {group.activeCandidateCount > (group.candidatePreview?.length ?? 0) && (
+                    <span className="group-card-avatar-overflow">
+                      +{group.activeCandidateCount - (group.candidatePreview?.length ?? 0)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -417,10 +520,19 @@ export function GroupsPage() {
           <table className="data-table group-table">
             <thead>
               <tr>
-                <th>{t("groups.table.name")}</th>
-                <th>{t("groups.table.capacity")}</th>
-                <th>{t("groups.table.startDate")}</th>
-                <th>{t("groups.table.mebStatus")}</th>
+                {visibleColumns.map((column) => (
+                  <th className={column.headerClassName} key={column.id}>
+                    {t(column.labelKey)}
+                  </th>
+                ))}
+                <th className="col-picker-th">
+                  <ColumnPicker
+                    columns={pickerOptions}
+                    isVisible={isVisible}
+                    onToggle={toggleColumn}
+                    triggerTitle={t("groups.columns.button")}
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -429,19 +541,12 @@ export function GroupsPage() {
                   key={group.id}
                   onClick={() => setSelectedGroupId(group.id)}
                 >
-                  <td className="group-table-name">
-                    {buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass)}
-                  </td>
-                  <td>
-                    {group.assignedCandidateCount} / {group.capacity}
-                  </td>
-                  <td>{formatDateTR(group.startDate)}</td>
-                  <td>
-                    <StatusPill
-                      label={groupMebStatusLabel(group.mebStatus)}
-                      status={groupMebStatusToPill(group.mebStatus)}
-                    />
-                  </td>
+                  {visibleColumns.map((column) => (
+                    <td className={column.cellClassName} key={column.id}>
+                      {column.renderCell(group, sortedTerms, lang)}
+                    </td>
+                  ))}
+                  <td className="col-picker-td" />
                 </tr>
               ))}
             </tbody>
@@ -459,14 +564,16 @@ export function GroupsPage() {
       />
 
       <NewTermModal
-        onClose={() => setTermModalOpen(false)}
-        onCreated={handleTermCreated}
-        open={termModalOpen}
+        onClose={() => setTermModalState(null)}
+        onSaved={termModalState?.mode === "edit" ? handleTermSaved : handleTermCreated}
+        open={termModalState !== null}
+        term={termModalState?.mode === "edit" ? termModalState.term : null}
       />
 
       <GroupDrawer
         groupId={selectedGroupId}
         onClose={() => setSelectedGroupId(null)}
+        onDeleted={handleGroupDeleted}
         onUpdated={handleGroupUpdated}
       />
     </>

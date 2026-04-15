@@ -116,8 +116,12 @@ describe("CandidateDrawer", () => {
 
     await screen.findByRole("heading", { name: "Ada Yilmaz" });
 
-    const editButtons = screen.getAllByRole("button", { name: "Düzenle" });
-    fireEvent.click(editButtons[editButtons.length - 1]!);
+    const statusLabel = screen.getAllByText("Durum").find(
+      (node) => node.classList.contains("label")
+    );
+    const statusRow = statusLabel?.closest(".drawer-row");
+    expect(statusRow).not.toBeNull();
+    fireEvent.click(statusRow!.querySelector('button[title="Düzenle"]') as HTMLButtonElement);
 
     const statusSelect = await screen.findByDisplayValue("Aktif");
     fireEvent.change(statusSelect, { target: { value: "graduated" } });
@@ -128,6 +132,68 @@ describe("CandidateDrawer", () => {
         "candidate-1",
         expect.objectContaining({
           status: "graduated",
+        })
+      );
+    });
+  });
+
+  it("saves canonical english gender values and renders the Turkish label", async () => {
+    getCandidateByIdMock.mockResolvedValue({
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "11111111111",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      // Canonical value from the backend — must render as "Kadın".
+      gender: "female",
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+        onStartMebJob={() => {}}
+        onTakePayment={() => {}}
+      />
+    );
+
+    await screen.findByRole("heading", { name: "Ada Yilmaz" });
+
+    // Turkish label is rendered for the canonical "female" value.
+    expect(screen.getByText("Kadın")).toBeInTheDocument();
+
+    const genderLabel = screen
+      .getAllByText("Cinsiyet")
+      .find((node) => node.classList.contains("label"));
+    const genderRow = genderLabel?.closest(".drawer-row");
+    expect(genderRow).not.toBeNull();
+    fireEvent.click(
+      genderRow!.querySelector('button[title="Düzenle"]') as HTMLButtonElement
+    );
+
+    const genderSelect = await screen.findByDisplayValue("Kadın");
+    fireEvent.change(genderSelect, { target: { value: "male" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "candidate-1",
+        expect.objectContaining({
+          gender: "male",
         })
       );
     });
@@ -289,6 +355,7 @@ describe("CandidateDrawer", () => {
     );
 
     await screen.findByRole("heading", { name: "Ada Yilmaz" });
+    expect(screen.queryByLabelText("Mevcut Belge")).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Mevcut sürücü belgesi var" })

@@ -18,6 +18,8 @@ type LocalizedDateInputProps = {
   defaultOnOpen?: string;
   disabled?: boolean;
   lang?: string;
+  /** "day" shows a day grid (default); "month" shows a 12-month grid and snaps value to the first of the selected month. */
+  mode?: "day" | "month";
   name?: string;
   onBlur?: FocusEventHandler<HTMLInputElement>;
   placeholder?: string;
@@ -28,6 +30,14 @@ type LocalizedDateInputProps = {
 type CalendarCell =
   | { key: string; kind: "empty" }
   | { key: string; kind: "day"; iso: string; label: number; isSelected: boolean; isToday: boolean };
+
+type MonthCell = {
+  key: string;
+  iso: string;
+  label: string;
+  isSelected: boolean;
+  isCurrent: boolean;
+};
 
 function todayISO(): string {
   const date = new Date();
@@ -87,7 +97,21 @@ function formatLocalizedDate(value: string, lang?: string): string {
   return `${year}-${month}-${day}`;
 }
 
-function defaultPlaceholder(lang?: string): string {
+function formatLocalizedMonth(value: string, lang?: string): string {
+  const date = parseIsoDate(value);
+  if (!date) return "";
+  const locale = lang === "tr-TR" ? "tr-TR" : "en-US";
+  return new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function defaultPlaceholder(lang?: string, mode: "day" | "month" = "day"): string {
+  if (mode === "month") {
+    return lang === "tr-TR" ? "aa/yyyy" : "mmm yyyy";
+  }
   return lang === "tr-TR" ? "dd/mm/yyyy" : "yyyy-mm-dd";
 }
 
@@ -106,6 +130,21 @@ function monthLabel(date: Date, lang?: string): string {
   }).format(date);
 }
 
+function shortMonthNames(lang?: string): string[] {
+  const locale = lang === "tr-TR" ? "tr-TR" : "en-US";
+  const formatter = new Intl.DateTimeFormat(locale, {
+    month: "short",
+    timeZone: "UTC",
+  });
+  return Array.from({ length: 12 }, (_, i) =>
+    formatter.format(new Date(Date.UTC(2000, i, 1)))
+  );
+}
+
+function addYears(date: Date, years: number): Date {
+  return new Date(Date.UTC(date.getUTCFullYear() + years, date.getUTCMonth(), 1));
+}
+
 export function LocalizedDateInput({
   value,
   onChange,
@@ -114,12 +153,14 @@ export function LocalizedDateInput({
   defaultOnOpen,
   disabled = false,
   lang,
+  mode = "day",
   name,
   onBlur,
   placeholder,
   size = "md",
   inputRef,
 }: LocalizedDateInputProps) {
+  const isMonthMode = mode === "month";
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -239,13 +280,34 @@ export function LocalizedDateInput({
     return items;
   }, [today, value, visibleMonth]);
 
+  const monthNames = useMemo(() => shortMonthNames(lang), [lang]);
+  const monthCells = useMemo<MonthCell[]>(() => {
+    const selectedMonthIso = value ? `${value.slice(0, 7)}-01` : "";
+    const currentMonthIso = `${today.slice(0, 7)}-01`;
+    const year = visibleMonth.getUTCFullYear();
+    return monthNames.map((label, i) => {
+      const iso = toIsoDate(new Date(Date.UTC(year, i, 1)));
+      return {
+        key: iso,
+        iso,
+        label,
+        isSelected: iso === selectedMonthIso,
+        isCurrent: iso === currentMonthIso,
+      };
+    });
+  }, [monthNames, today, value, visibleMonth]);
+
   const triggerClassName = [
     className ?? (size === "sm" ? "form-input-sm" : "form-input"),
     "localized-date-trigger",
   ]
     .filter(Boolean)
     .join(" ");
-  const displayValue = value ? formatLocalizedDate(value, lang) : "";
+  const displayValue = value
+    ? isMonthMode
+      ? formatLocalizedMonth(value, lang)
+      : formatLocalizedDate(value, lang)
+    : "";
 
   return (
     <div className={`localized-date-field ${size === "sm" ? "small" : ""}`} ref={rootRef}>
@@ -275,7 +337,7 @@ export function LocalizedDateInput({
               openCalendar();
             }
           }}
-          placeholder={placeholder || defaultPlaceholder(lang)}
+          placeholder={placeholder || defaultPlaceholder(lang, mode)}
           readOnly
           type="text"
           value={displayValue}
@@ -308,38 +370,43 @@ export function LocalizedDateInput({
           <div className="localized-date-popover-header">
             <button
               className="localized-date-nav-btn"
-              onClick={() => setVisibleMonth((current) => addMonths(current, -1))}
+              onClick={() =>
+                setVisibleMonth((current) =>
+                  isMonthMode ? addYears(current, -1) : addMonths(current, -1)
+                )
+              }
               type="button"
             >
               ‹
             </button>
-            <div className="localized-date-month-label">{monthLabel(visibleMonth, lang)}</div>
+            <div className="localized-date-month-label">
+              {isMonthMode
+                ? String(visibleMonth.getUTCFullYear())
+                : monthLabel(visibleMonth, lang)}
+            </div>
             <button
               className="localized-date-nav-btn"
-              onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+              onClick={() =>
+                setVisibleMonth((current) =>
+                  isMonthMode ? addYears(current, 1) : addMonths(current, 1)
+                )
+              }
               type="button"
             >
               ›
             </button>
           </div>
 
-          <div className="localized-date-weekdays">
-            {weekdayNames.map((dayName) => (
-              <span key={dayName}>{dayName}</span>
-            ))}
-          </div>
-
-          <div className="localized-date-grid">
-            {cells.map((cell) =>
-              cell.kind === "empty" ? (
-                <span key={cell.key} className="localized-date-day empty" />
-              ) : (
+          {isMonthMode ? (
+            <div className="localized-date-grid localized-month-grid">
+              {monthCells.map((cell) => (
                 <button
                   key={cell.key}
                   className={[
                     "localized-date-day",
+                    "localized-month-cell",
                     cell.isSelected ? "selected" : "",
-                    cell.isToday ? "today" : "",
+                    cell.isCurrent ? "today" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -348,17 +415,56 @@ export function LocalizedDateInput({
                 >
                   {cell.label}
                 </button>
-              )
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="localized-date-weekdays">
+                {weekdayNames.map((dayName) => (
+                  <span key={dayName}>{dayName}</span>
+                ))}
+              </div>
+
+              <div className="localized-date-grid">
+                {cells.map((cell) =>
+                  cell.kind === "empty" ? (
+                    <span key={cell.key} className="localized-date-day empty" />
+                  ) : (
+                    <button
+                      key={cell.key}
+                      className={[
+                        "localized-date-day",
+                        cell.isSelected ? "selected" : "",
+                        cell.isToday ? "today" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      onClick={() => selectDate(cell.iso)}
+                      type="button"
+                    >
+                      {cell.label}
+                    </button>
+                  )
+                )}
+              </div>
+            </>
+          )}
 
           <div className="localized-date-popover-footer">
             <button
               className="localized-date-footer-btn"
-              onClick={() => selectDate(today)}
+              onClick={() =>
+                selectDate(isMonthMode ? `${today.slice(0, 7)}-01` : today)
+              }
               type="button"
             >
-              {lang === "tr-TR" ? "Bugun" : "Today"}
+              {isMonthMode
+                ? lang === "tr-TR"
+                  ? "Bu ay"
+                  : "This month"
+                : lang === "tr-TR"
+                ? "Bugun"
+                : "Today"}
             </button>
           </div>
         </div>

@@ -124,3 +124,25 @@ export function compareTermsDesc(a: TermLike, b: TermLike): number {
   }
   return b.sequence - a.sequence;
 }
+
+/**
+ * Prefer the term that belongs to the current month/year. If no term exists
+ * for the current month, fall back to the newest known term.
+ */
+export function pickDefaultTermId(
+  terms: TermLike[],
+  now: Date = new Date()
+): string | undefined {
+  if (terms.length === 0) {
+    return undefined;
+  }
+
+  const sortedTerms = [...terms].sort(compareTermsDesc);
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const currentMonthKey = `${now.getFullYear()}-${month}`;
+
+  return (
+    sortedTerms.find((term) => term.monthDate.slice(0, 7) === currentMonthKey)?.id ??
+    sortedTerms[0]?.id
+  );
+}

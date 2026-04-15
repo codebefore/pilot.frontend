@@ -316,6 +316,43 @@
 
 .group-card { cursor: pointer; transition: box-shadow .15s, transform .15s; }
 .group-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.group-card-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+.group-card-heading {
+  min-width: 0;
+  flex: 1;
+}
+.group-card-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 20px 16px;
+  margin-top: 0;
+  border-top: 1px solid var(--gray-100);
+  min-height: 44px;
+}
+.group-card-avatar {
+  display: inline-flex;
+  margin-top: 12px;
+}
+.group-card-avatar-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 12px;
+}
 
 .group-body { padding: 16px 20px; }
 .group-actions {
@@ -374,6 +411,10 @@
   justify-content: center;
   align-items: flex-start;
   padding: 60px 20px;
+  /* Overlay scrolls so the modal itself can stay overflow:visible — this lets
+     absolutely-positioned popovers (e.g. LocalizedDateInput calendar) escape
+     the modal bounds without getting clipped. */
+  overflow-y: auto;
   backdrop-filter: blur(2px);
 }
 .modal {
@@ -382,8 +423,6 @@
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 640px;
-  max-height: 80vh;
-  overflow-y: auto;
   animation: modalIn .2s ease-out;
 }
 @keyframes modalIn {
@@ -1361,12 +1400,356 @@ textarea.form-input {
 .localized-date-day.empty {
   pointer-events: none;
 }
+.localized-date-grid.localized-month-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.localized-month-cell {
+  height: 44px;
+  font-size: 12px;
+  text-transform: capitalize;
+}
 .localized-date-popover-footer {
   display: flex;
   justify-content: flex-end;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--gray-100);
+}
+
+/* ─── TAG INPUT (candidate tags) ─── */
+.tag-input-root {
+  position: relative;
+  width: 100%;
+}
+.tag-input-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 37px;
+  padding: 6px 10px;
+  cursor: text;
+}
+.tag-input-field.open {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.12);
+}
+.tag-input-field.disabled {
+  background: var(--gray-50);
+  cursor: not-allowed;
+}
+.tag-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  background: var(--brand-light);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  max-width: 100%;
+}
+.tag-input-chip.color-0 { background: var(--brand-light);  color: var(--brand-dark); }
+.tag-input-chip.color-1 { background: var(--blue-light);   color: var(--blue); }
+.tag-input-chip.color-2 { background: var(--orange-light); color: #b45309; }
+.tag-input-chip.color-3 { background: var(--purple-light); color: var(--purple); }
+.tag-input-chip.color-4 { background: #fce7f3;             color: #be185d; }
+.tag-input-chip.color-5 { background: #ecfeff;             color: #0e7490; }
+.tag-input-chip-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.tag-input-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.tag-input-chip-remove:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+}
+.tag-input-chip-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.tag-input-inner {
+  flex: 1 1 120px;
+  min-width: 80px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  padding: 2px 0;
+}
+.tag-input-inner:disabled {
+  cursor: not-allowed;
+}
+.tag-input-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 130;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+}
+.tag-input-menu-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--gray-500);
+  text-align: center;
+}
+.tag-input-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-800);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.tag-input-menu-item:hover,
+.tag-input-menu-item.active {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+.tag-input-menu-item.create {
+  color: var(--brand-dark);
+}
+.tag-input-menu-item.create.active,
+.tag-input-menu-item.create:hover {
+  background: var(--brand-light);
+}
+.tag-input-menu-create-prefix {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.tag-input-menu-create-name {
+  font-weight: 600;
+}
+
+/* ─── TAG FILTER BAR (candidates page) ─── */
+.tag-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* Match the 36px horizontal padding used by .page-toolbar / .tabs-search-row
+     / .table-wrap so the row lines up with the tabs above and the table below.
+     Bottom padding is left to 0 so .table-wrap.spaced's own 16px padding-top
+     provides the single gap between this row and the table. The mobile
+     fallback to 20px is handled in layout.css alongside the other page-level
+     wrappers. */
+  padding: 12px 36px 0;
+}
+.tag-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--brand-light);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.12s ease;
+}
+.tag-filter-chip:hover {
+  transform: translateY(-1px);
+}
+.tag-filter-chip.active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
+}
+.tag-filter-chip.color-0 { background: var(--brand-light);  color: var(--brand-dark); }
+.tag-filter-chip.color-1 { background: var(--blue-light);   color: var(--blue); }
+.tag-filter-chip.color-2 { background: var(--orange-light); color: #b45309; }
+.tag-filter-chip.color-3 { background: var(--purple-light); color: var(--purple); }
+.tag-filter-chip.color-4 { background: #fce7f3;             color: #be185d; }
+.tag-filter-chip.color-5 { background: #ecfeff;             color: #0e7490; }
+.tag-filter-add {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--gray-300);
+  background: transparent;
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.tag-filter-add:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: var(--brand-subtle);
+}
+.tag-filter-new-input {
+  min-width: 140px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--brand);
+  background: var(--white);
+  color: var(--gray-900);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.12);
+}
+.tag-filter-new-input::placeholder {
+  color: var(--gray-400);
+  font-weight: 500;
+}
+/* ─── CANDIDATE FILTER PANEL ─── */
+.cand-filters-switch {
+  /* Mevcut .switch-toggle pattern'i + badge için küçük layout tweak. */
+  gap: 8px;
+}
+.cand-filters-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+/*
+ * Filter "sidebar": Filtreler toggle açıkken sol nav'ın TAM aynı slot'unda
+ * (aynı width, aynı top/bottom) onun üstüne yapışır — ana nav'ı gizler, main
+ * content hiç kaymadığı için tablo daralmaz.
+ */
+.cand-filters-panel {
+  position: fixed;
+  top: var(--header-h);
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-w);
+  z-index: 160; /* .sidebar (150) üstünde */
+  background: var(--white);
+  border-right: 1px solid var(--gray-200);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
+  overflow-y: auto;
+  padding: 16px 16px 24px;
+  animation: filtersSidebarIn 0.18s ease-out;
+}
+@keyframes filtersSidebarIn {
+  from { transform: translateX(-8px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.cand-filters-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.cand-filters-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.cand-filters-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cand-filters-panel-close:hover {
+  background: var(--gray-200);
+  color: var(--gray-900);
+}
+.cand-filters-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.cand-filters-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cand-filters-grid .form-group {
+  min-width: 0;
+  margin-bottom: 0;
+}
+.cand-filters-grid .form-label {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.cand-filters-backdrop {
+  /* Desktop'ta görünmez — sol nav her zaman görünür kalır, ikisinden hangisi
+     üstte ise o etkileşir. Mobile'da (sol nav zaten drawer olduğu için) filter
+     sidebar'ın dışına tıklamayı yakalar. */
+  display: none;
+}
+@media (max-width: 860px) {
+  /* Mobile: sol nav drawer olduğunda filter sidebar da sabit sol yapışık
+     overlay olarak kalsın. Genişlik biraz daha rahat. */
+  .cand-filters-panel {
+    width: min(320px, 100%);
+  }
+  .cand-filters-backdrop {
+    display: block;
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(1px);
+    z-index: 159; /* .cand-filters-panel (160) hemen altında */
+  }
 }
 .localized-date-footer-btn {
   font-size: 12px;
@@ -1692,6 +2075,14 @@ textarea.form-input {
   font-size: 11px;
   font-weight: 700;
 }
+.candidate-avatar.candidate-avatar-male .candidate-avatar-fallback {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.candidate-avatar.candidate-avatar-female .candidate-avatar-fallback {
+  background: #fce7f3;
+  color: #be185d;
+}
 .cand-avatar-cell {
   vertical-align: middle;
 }
@@ -1750,6 +2141,20 @@ textarea.form-input {
 
 .cand-name { font-weight: 600; color: var(--gray-900); }
 .cand-tc   { font-family: 'SF Mono', monospace; font-size: 12px; color: var(--gray-500); }
+.cand-secondary-text {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.documents-phone-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--brand-dark);
+  text-decoration: none;
+}
+.documents-phone-link:hover {
+  text-decoration: underline;
+}
 .cand-class-badge {
   font-size: 11px; font-weight: 700;
   padding: 2px 8px;
