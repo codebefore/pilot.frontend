@@ -13,22 +13,110 @@ import { useLanguage } from "../../lib/i18n";
 import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import {
+  candidateMebExamResultLabel,
   candidateStatusLabel,
   CANDIDATE_STATUS_OPTIONS,
+  EXISTING_LICENSE_TYPE_OPTIONS,
+  existingLicenseTypeLabel,
   formatDateTR,
   LICENSE_CLASS_OPTIONS,
   normalizeCandidateStatusValue,
+  TURKEY_PROVINCE_OPTIONS,
 } from "../../lib/status-maps";
 import type { CandidateResponse, CandidateUpsertRequest, LicenseClass } from "../../lib/types";
 import { UploadDocumentModal } from "../modals/UploadDocumentModal";
+import { WhatsAppIcon } from "../icons";
+import { CandidateAvatar } from "../ui/CandidateAvatar";
+import { CustomSelect } from "../ui/CustomSelect";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { EditableRow } from "../ui/EditableRow";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
-function groupTermLabel(title: string, licenseClass: string): string {
-  const prefix = `${licenseClass} Sinifi - `;
-  return title.startsWith(prefix) ? title.slice(prefix.length) : title;
+function formatMonthYearLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const parts = iso.slice(0, 10).split("-");
+  if (parts.length !== 3) return null;
+
+  const year = parts[0];
+  const monthNumber = Number(parts[1]);
+  const months = [
+    "Ocak",
+    "Şubat",
+    "Mart",
+    "Nisan",
+    "Mayıs",
+    "Haziran",
+    "Temmuz",
+    "Ağustos",
+    "Eylül",
+    "Ekim",
+    "Kasım",
+    "Aralık",
+  ];
+
+  const month = months[monthNumber - 1];
+  if (!month) return null;
+  return `${month} ${year}`;
+}
+
+function groupTermLabel(title: string, startDate: string | null | undefined): string {
+  const normalizedTitle = title.trim();
+  const monthYear = formatMonthYearLabel(startDate);
+
+  if (!monthYear) return normalizedTitle || "Atanmamış";
+
+  for (const separator of [" - ", " — ", "-"]) {
+    const suffix = `${separator}${monthYear}`;
+    if (normalizedTitle.endsWith(suffix)) {
+      const base = normalizedTitle.slice(0, -suffix.length).trim();
+      return base.length > 0 ? `${base}-${monthYear}` : monthYear;
+    }
+  }
+
+  return `${normalizedTitle}-${monthYear}`;
+}
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatPhoneNumber(raw: string | null | undefined): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  const localDigits =
+    digits.length === 11 && digits.startsWith("0")
+      ? digits.slice(1)
+      : digits.length === 12 && digits.startsWith("90")
+        ? digits.slice(2)
+        : digits;
+
+  if (localDigits.length !== 10) {
+    return raw?.trim() || "—";
+  }
+
+  return `0 ${localDigits.slice(0, 3)} ${localDigits.slice(3, 6)} ${localDigits.slice(
+    6,
+    8
+  )} ${localDigits.slice(8, 10)}`;
+}
+
+function buildWhatsAppUrl(raw: string | null | undefined): string | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+
+  if (digits.length === 10) {
+    return `https://wa.me/90${digits}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith("0")) {
+    return `https://wa.me/90${digits.slice(1)}`;
+  }
+
+  if (digits.length === 12 && digits.startsWith("90")) {
+    return `https://wa.me/${digits}`;
+  }
+
+  return null;
 }
 
 /* ── Drawer ── */
@@ -43,6 +131,34 @@ type CandidateDrawerProps = {
 };
 
 const STATUS_OPTIONS: SelectOption[] = CANDIDATE_STATUS_OPTIONS;
+const EXISTING_LICENSE_EDIT_OPTIONS: SelectOption[] = [
+  { value: "", label: "— Belge Yok —" },
+  ...EXISTING_LICENSE_TYPE_OPTIONS,
+];
+const BOOLEAN_OPTIONS: SelectOption[] = [
+  { value: "true", label: "Evet" },
+  { value: "false", label: "Hayir" },
+];
+
+type ExistingLicenseDraft = {
+  enabled: boolean;
+  type: string;
+  issuedAt: string;
+  number: string;
+  issuedProvince: string;
+  pre2016: boolean;
+};
+
+function buildExistingLicenseDraft(candidate: CandidateResponse | null): ExistingLicenseDraft {
+  return {
+    enabled: !!candidate?.existingLicenseType,
+    type: candidate?.existingLicenseType ?? "",
+    issuedAt: candidate?.existingLicenseIssuedAt ?? "",
+    number: candidate?.existingLicenseNumber ?? "",
+    issuedProvince: candidate?.existingLicenseIssuedProvince ?? "",
+    pre2016: candidate?.existingLicensePre2016 ?? false,
+  };
+}
 
 export function CandidateDrawer({
   candidateId,
@@ -54,18 +170,27 @@ export function CandidateDrawer({
 }: CandidateDrawerProps) {
   const { showToast } = useToast();
   const { lang } = useLanguage();
+  const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
+  const today = todayISO();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [missingDocs, setMissingDocs] = useState<string[] | null>(null);
+  const [existingLicenseDraft, setExistingLicenseDraft] = useState<ExistingLicenseDraft>(
+    buildExistingLicenseDraft(null)
+  );
+  const [existingLicenseSaving, setExistingLicenseSaving] = useState(false);
+  const [existingLicenseError, setExistingLicenseError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!candidateId) {
       setCandidate(null);
       setConfirmDelete(false);
       setMissingDocs(null);
+      setExistingLicenseDraft(buildExistingLicenseDraft(null));
+      setExistingLicenseError(null);
       return;
     }
     const controller = new AbortController();
@@ -81,6 +206,11 @@ export function CandidateDrawer({
       });
     return () => controller.abort();
   }, [candidateId]);
+
+  useEffect(() => {
+    setExistingLicenseDraft(buildExistingLicenseDraft(candidate));
+    setExistingLicenseError(null);
+  }, [candidate]);
 
   // Lazy-load missing document names from the checklist endpoint. Skipped when
   // the candidate has no missing documents to keep the drawer fast.
@@ -117,6 +247,11 @@ export function CandidateDrawer({
         email: candidate.email,
         birthDate: candidate.birthDate,
         licenseClass: candidate.licenseClass,
+        existingLicenseType: candidate.existingLicenseType,
+        existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
+        existingLicenseNumber: candidate.existingLicenseNumber,
+        existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
+        existingLicensePre2016: candidate.existingLicensePre2016,
         status: normalizeCandidateStatusValue(candidate.status),
         ...patch,
       });
@@ -125,6 +260,140 @@ export function CandidateDrawer({
     } catch {
       showToast("Değişiklik kaydedilemedi", "error");
       throw new Error("save failed");
+    }
+  };
+
+  const buildExistingLicensePatch = (
+    patch: Partial<CandidateUpsertRequest>
+  ): Partial<CandidateUpsertRequest> | null => {
+    if (!candidate) return null;
+
+    const nextTypeRaw =
+      patch.existingLicenseType !== undefined
+        ? patch.existingLicenseType
+        : candidate.existingLicenseType;
+    const nextType = nextTypeRaw && nextTypeRaw.trim().length > 0 ? nextTypeRaw : null;
+
+    if (!nextType) {
+      return {
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+      };
+    }
+
+    const nextIssuedAt =
+      patch.existingLicenseIssuedAt !== undefined
+        ? patch.existingLicenseIssuedAt
+        : candidate.existingLicenseIssuedAt;
+    const nextNumberRaw =
+      patch.existingLicenseNumber !== undefined
+        ? patch.existingLicenseNumber
+        : candidate.existingLicenseNumber;
+    const nextProvinceRaw =
+      patch.existingLicenseIssuedProvince !== undefined
+        ? patch.existingLicenseIssuedProvince
+        : candidate.existingLicenseIssuedProvince;
+    const nextNumber = nextNumberRaw?.trim() || null;
+    const nextProvince = nextProvinceRaw?.trim() || null;
+    const nextPre2016 =
+      patch.existingLicensePre2016 !== undefined
+        ? patch.existingLicensePre2016
+        : candidate.existingLicensePre2016;
+
+    if (!nextIssuedAt) {
+      showToast("Belge tarihi zorunlu.", "error");
+      throw new Error("existing license issuedAt required");
+    }
+
+    if (!nextNumber) {
+      showToast("Belge numarasi zorunlu.", "error");
+      throw new Error("existing license number required");
+    }
+
+    if (!nextProvince) {
+      showToast("Belge verilis ili zorunlu.", "error");
+      throw new Error("existing license province required");
+    }
+
+    return {
+      existingLicenseType: nextType,
+      existingLicenseIssuedAt: nextIssuedAt,
+      existingLicenseNumber: nextNumber,
+      existingLicenseIssuedProvince: nextProvince,
+      existingLicensePre2016: nextPre2016 ?? false,
+    };
+  };
+
+  const saveExistingLicenseField = async (
+    patch: Partial<CandidateUpsertRequest>,
+    successMessage = "Mevcut surucu belgesi guncellendi"
+  ) => {
+    const payload = buildExistingLicensePatch(patch);
+    if (!payload) return;
+
+    try {
+      await saveField(payload);
+      showToast(successMessage);
+    } catch {
+      throw new Error("existing license save failed");
+    }
+  };
+
+  const existingLicenseDirty =
+    existingLicenseDraft.enabled !== !!candidate?.existingLicenseType ||
+    existingLicenseDraft.type !== (candidate?.existingLicenseType ?? "") ||
+    existingLicenseDraft.issuedAt !== (candidate?.existingLicenseIssuedAt ?? "") ||
+    existingLicenseDraft.number !== (candidate?.existingLicenseNumber ?? "") ||
+    existingLicenseDraft.issuedProvince !== (candidate?.existingLicenseIssuedProvince ?? "") ||
+    existingLicenseDraft.pre2016 !== (candidate?.existingLicensePre2016 ?? false);
+
+  const saveExistingLicense = async () => {
+    if (!candidate) return;
+
+    if (existingLicenseDraft.enabled) {
+      if (!existingLicenseDraft.type) {
+        setExistingLicenseError("Mevcut belge seçilmeli.");
+        return;
+      }
+      if (!existingLicenseDraft.issuedAt) {
+        setExistingLicenseError("Belge tarihi zorunlu.");
+        return;
+      }
+      if (!existingLicenseDraft.number.trim()) {
+        setExistingLicenseError("Belge numarası zorunlu.");
+        return;
+      }
+      if (!existingLicenseDraft.issuedProvince.trim()) {
+        setExistingLicenseError("Belge veriliş ili zorunlu.");
+        return;
+      }
+    }
+
+    setExistingLicenseSaving(true);
+    setExistingLicenseError(null);
+
+    try {
+      await saveField({
+        existingLicenseType: existingLicenseDraft.enabled ? existingLicenseDraft.type : null,
+        existingLicenseIssuedAt: existingLicenseDraft.enabled ? existingLicenseDraft.issuedAt : null,
+        existingLicenseNumber: existingLicenseDraft.enabled
+          ? existingLicenseDraft.number.trim()
+          : null,
+        existingLicenseIssuedProvince: existingLicenseDraft.enabled
+          ? existingLicenseDraft.issuedProvince.trim()
+          : null,
+        existingLicensePre2016: existingLicenseDraft.enabled
+          ? existingLicenseDraft.pre2016
+          : false,
+      });
+      showToast("Mevcut sürücü belgesi güncellendi");
+    } catch {
+      setExistingLicenseError("Değişiklik kaydedilemedi.");
+    } finally {
+      setExistingLicenseSaving(false);
     }
   };
 
@@ -214,6 +483,9 @@ export function CandidateDrawer({
     </>
   );
 
+  const whatsappUrl = buildWhatsAppUrl(candidate?.phoneNumber);
+  const profileContactText = formatPhoneNumber(candidate?.phoneNumber);
+
   return (
     <Drawer actions={actions} onClose={onClose} open title={title}>
       {loading ? (
@@ -222,6 +494,35 @@ export function CandidateDrawer({
         </div>
       ) : candidate ? (
         <>
+          <div className="drawer-profile-summary">
+            <button
+              aria-label={candidate.photo ? "Profil resmini değiştir" : "Profil resmi yükle"}
+              className="drawer-profile-avatar-button"
+              onClick={() => setUploadOpen(true)}
+              type="button"
+            >
+              <CandidateAvatar candidate={candidate} className="drawer-profile-avatar" size={64} />
+            </button>
+            <div className="drawer-profile-meta">
+              <div className="drawer-profile-name">
+                {candidate.firstName} {candidate.lastName}
+              </div>
+              {whatsappUrl ? (
+                <a
+                  className="drawer-profile-subtitle drawer-profile-link"
+                  href={whatsappUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <WhatsAppIcon size={14} />
+                  {profileContactText}
+                </a>
+              ) : (
+                <div className="drawer-profile-subtitle">{profileContactText}</div>
+              )}
+            </div>
+          </div>
+
           <DrawerSection title="Kişisel Bilgiler">
             <EditableRow
               displayValue={candidate.firstName}
@@ -244,6 +545,7 @@ export function CandidateDrawer({
             />
             <EditableRow
               displayValue={formatDateTR(candidate.birthDate)}
+              inputLang={dateInputLang}
               inputType="date"
               inputValue={candidate.birthDate ?? ""}
               label="Doğum Tarihi"
@@ -269,7 +571,7 @@ export function CandidateDrawer({
             <EditableRow
               displayValue={candidate.licenseClass}
               inputValue={candidate.licenseClass}
-              label="Sınıf"
+              label="Ehliyet Tipi"
               options={LICENSE_CLASS_OPTIONS}
               onSave={(v) => saveField({ licenseClass: v as LicenseClass })}
             />
@@ -277,7 +579,7 @@ export function CandidateDrawer({
               key={candidate.licenseClass}
               displayValue={
                 candidate.currentGroup
-                  ? groupTermLabel(candidate.currentGroup.title, candidate.licenseClass)
+                  ? groupTermLabel(candidate.currentGroup.title, candidate.currentGroup.startDate)
                   : "Atanmamış"
               }
               inputValue={candidate.currentGroup?.groupId ?? ""}
@@ -288,6 +590,208 @@ export function CandidateDrawer({
             <DrawerRow label="Kayıt Tarihi">{formatDateTR(candidate.createdAtUtc)}</DrawerRow>
           </DrawerSection>
 
+          <DrawerSection title="Mevcut Sürücü Belgesi">
+            {candidate.existingLicenseType ? (
+              <>
+                <EditableRow
+                  displayValue={existingLicenseTypeLabel(candidate.existingLicenseType)}
+                  inputValue={candidate.existingLicenseType}
+                  label="Mevcut Belge"
+                  options={EXISTING_LICENSE_EDIT_OPTIONS}
+                  onSave={(value) =>
+                    saveExistingLicenseField(
+                      { existingLicenseType: value || null },
+                      value ? "Mevcut surucu belgesi guncellendi" : "Mevcut surucu belgesi kaldirildi"
+                    )
+                  }
+                />
+                <EditableRow
+                  displayValue={formatDateTR(candidate.existingLicenseIssuedAt)}
+                  inputLang={dateInputLang}
+                  inputType="date"
+                  inputValue={candidate.existingLicenseIssuedAt ?? ""}
+                  label="Belge Tarihi"
+                  onSave={(value) =>
+                    saveExistingLicenseField({ existingLicenseIssuedAt: value || null })
+                  }
+                />
+                <EditableRow
+                  displayValue={candidate.existingLicenseNumber ?? ""}
+                  inputValue={candidate.existingLicenseNumber ?? ""}
+                  label="Belge No"
+                  onSave={(value) =>
+                    saveExistingLicenseField({ existingLicenseNumber: value || null })
+                  }
+                />
+                <EditableRow
+                  displayValue={candidate.existingLicenseIssuedProvince ?? ""}
+                  inputValue={candidate.existingLicenseIssuedProvince ?? ""}
+                  label="Belge Veriliş İli"
+                  options={TURKEY_PROVINCE_OPTIONS}
+                  onSave={(value) =>
+                    saveExistingLicenseField({
+                      existingLicenseIssuedProvince: value || null,
+                    })
+                  }
+                />
+                <EditableRow
+                  displayValue={candidate.existingLicensePre2016 ? "Evet" : "Hayir"}
+                  inputValue={candidate.existingLicensePre2016 ? "true" : "false"}
+                  label="2016 Ocak Öncesi"
+                  options={BOOLEAN_OPTIONS}
+                  onSave={(value) =>
+                    saveExistingLicenseField({ existingLicensePre2016: value === "true" })
+                  }
+                />
+              </>
+            ) : (
+              <div className="drawer-form">
+                <label className="switch-toggle">
+                  <input
+                    aria-label="Mevcut sürücü belgesi var"
+                    checked={existingLicenseDraft.enabled}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      setExistingLicenseError(null);
+                      setExistingLicenseDraft((current) => ({
+                        ...current,
+                        enabled,
+                        ...(enabled
+                          ? {}
+                          : {
+                              type: "",
+                              issuedAt: "",
+                              number: "",
+                              issuedProvince: "",
+                              pre2016: false,
+                            }),
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  <span className="switch-toggle-control" aria-hidden="true" />
+                  <span>Mevcut sürücü belgesi var</span>
+                </label>
+
+                {existingLicenseDraft.enabled ? (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">Mevcut Belge</label>
+                    <CustomSelect
+                      aria-label="Mevcut Belge"
+                      className="form-select"
+                      onChange={(event) =>
+                        setExistingLicenseDraft((current) => ({
+                          ...current,
+                          type: event.target.value,
+                        }))
+                      }
+                      value={existingLicenseDraft.type}
+                    >
+                      <option value="">Belge seçin</option>
+                      {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Belge Tarihi</label>
+                    <LocalizedDateInput
+                      ariaLabel="Belge Tarihi"
+                      defaultOnOpen={today}
+                      lang={dateInputLang}
+                      onChange={(value) =>
+                        setExistingLicenseDraft((current) => ({
+                          ...current,
+                          issuedAt: value,
+                        }))
+                      }
+                      value={existingLicenseDraft.issuedAt}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Belge No</label>
+                    <input
+                      aria-label="Belge No"
+                      className="form-input"
+                      onChange={(event) =>
+                        setExistingLicenseDraft((current) => ({
+                          ...current,
+                          number: event.target.value,
+                        }))
+                      }
+                      placeholder="Örn. ABC-12345"
+                      value={existingLicenseDraft.number}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Belge Veriliş İli</label>
+                    <CustomSelect
+                      aria-label="Belge Veriliş İli"
+                      className="form-select"
+                      onChange={(event) =>
+                        setExistingLicenseDraft((current) => ({
+                          ...current,
+                          issuedProvince: event.target.value,
+                        }))
+                      }
+                      value={existingLicenseDraft.issuedProvince}
+                    >
+                      <option value="">İl seçin</option>
+                      {TURKEY_PROVINCE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="switch-toggle">
+                      <input
+                        checked={existingLicenseDraft.pre2016}
+                        onChange={(event) =>
+                          setExistingLicenseDraft((current) => ({
+                            ...current,
+                            pre2016: event.target.checked,
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      <span className="switch-toggle-control" aria-hidden="true" />
+                      <span>2016 Ocak öncesi</span>
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <DrawerRow label="Mevcut Belge">{existingLicenseTypeLabel(null)}</DrawerRow>
+              )}
+
+                {existingLicenseError && (
+                  <div className="drawer-form-error">{existingLicenseError}</div>
+                )}
+
+                {existingLicenseDirty && (
+                  <div className="drawer-form-actions">
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={existingLicenseSaving}
+                      onClick={saveExistingLicense}
+                      type="button"
+                    >
+                      {existingLicenseSaving ? "Kaydediliyor..." : "Kaydet"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </DrawerSection>
+
           <DrawerSection title="Durum">
             <EditableRow
               displayValue={candidateStatusLabel(candidate.status)}
@@ -296,20 +800,26 @@ export function CandidateDrawer({
               options={STATUS_OPTIONS}
               onSave={(v) => saveField({ status: v })}
             />
+            <DrawerRow label="MEB Sinav Sonucu">
+              {candidateMebExamResultLabel(candidate.mebExamResult)}
+            </DrawerRow>
           </DrawerSection>
 
           <DrawerSection title="Evrak Durumu">
             {candidate.documentSummary ? (
               <>
-                <DrawerRow label="Tamamlanan">
+                <DrawerRow
+                  label="Tamamlanan"
+                  tone={
+                    candidate.documentSummary.totalRequiredCount > 0 &&
+                    candidate.documentSummary.completedCount ===
+                      candidate.documentSummary.totalRequiredCount
+                      ? "brand"
+                      : "danger"
+                  }
+                >
                   {candidate.documentSummary.completedCount} /{" "}
                   {candidate.documentSummary.totalRequiredCount}
-                </DrawerRow>
-                <DrawerRow
-                  label="Eksik"
-                  tone={candidate.documentSummary.missingCount > 0 ? "danger" : "default"}
-                >
-                  {candidate.documentSummary.missingCount}
                 </DrawerRow>
                 {missingDocs && missingDocs.length > 0 && (
                   <div className="drawer-row-list">
@@ -324,7 +834,6 @@ export function CandidateDrawer({
             ) : (
               <>
                 <DrawerRow label="Tamamlanan">—</DrawerRow>
-                <DrawerRow label="Eksik">—</DrawerRow>
               </>
             )}
           </DrawerSection>
@@ -344,10 +853,11 @@ export function CandidateDrawer({
       <UploadDocumentModal
         candidateId={candidate ? candidateId : null}
         candidateName={candidate ? `${candidate.firstName} ${candidate.lastName}` : undefined}
+        lockedDocumentTypeKey="biometric_photo"
         onClose={() => setUploadOpen(false)}
         onUploaded={async () => {
           setUploadOpen(false);
-          showToast("Evrak yüklendi");
+          showToast(candidate?.photo ? "Profil resmi güncellendi" : "Profil resmi yüklendi");
           // Refresh the in-drawer candidate so documentSummary + missing list
           // reflect the upload immediately.
           if (candidateId) {
@@ -361,6 +871,7 @@ export function CandidateDrawer({
           onUpdated?.();
         }}
         open={uploadOpen}
+        title={candidate?.photo ? "Profil Resmini Değiştir" : "Profil Resmi Yükle"}
       />
     </Drawer>
   );

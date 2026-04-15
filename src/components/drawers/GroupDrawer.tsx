@@ -42,6 +42,7 @@ type GroupDrawerProps = {
 export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
   const { showToast } = useToast();
   const { lang } = useLanguage();
+  const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const [group, setGroup] = useState<GroupDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [terms, setTerms] = useState<TermResponse[]>([]);
@@ -235,6 +236,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated }: GroupDrawerProps) {
             />
             <EditableRow
               displayValue={formatDateTR(group.startDate)}
+              inputLang={dateInputLang}
               inputType="date"
               inputValue={group.startDate ?? ""}
               label="Başlangıç"

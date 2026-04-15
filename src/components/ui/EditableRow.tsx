@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 
 import { CheckIcon, PencilIcon, XIcon } from "../icons";
+import { CustomSelect } from "./CustomSelect";
+import { LocalizedDateInput } from "./LocalizedDateInput";
 
 export type SelectOption = { value: string; label: string };
 
@@ -9,6 +11,7 @@ type EditableRowProps = {
   displayValue: string;
   inputValue: string;
   inputType?: string;
+  inputLang?: string;
   options?: SelectOption[];
   loadOptions?: () => Promise<SelectOption[]>;
   onSave: (value: string) => Promise<void>;
@@ -19,6 +22,7 @@ export function EditableRow({
   displayValue,
   inputValue,
   inputType = "text",
+  inputLang,
   options: staticOptions,
   loadOptions,
   onSave,
@@ -71,7 +75,7 @@ export function EditableRow({
       {editing ? (
         <span className="editable-row-edit">
           {isSelect ? (
-            <select
+            <CustomSelect
               className="form-select-sm"
               disabled={saving || loadingOptions}
               onChange={(e) => setDraft(e.target.value)}
@@ -82,17 +86,29 @@ export function EditableRow({
               {(options ?? []).map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
-            </select>
+            </CustomSelect>
           ) : (
-            <input
-              className="form-input-sm"
-              disabled={saving}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={onKeyDown}
-              ref={inputRef as React.Ref<HTMLInputElement>}
-              type={inputType}
-              value={draft}
-            />
+            inputType === "date" ? (
+              <LocalizedDateInput
+                ariaLabel={label}
+                disabled={saving}
+                lang={inputLang}
+                onChange={setDraft}
+                size="sm"
+                value={draft}
+              />
+            ) : (
+              <input
+                className="form-input-sm"
+                disabled={saving}
+                lang={inputLang}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={onKeyDown}
+                ref={inputRef as React.Ref<HTMLInputElement>}
+                type={inputType}
+                value={draft}
+              />
+            )
           )}
           <button className="icon-btn icon-btn-confirm" disabled={saving || loadingOptions} onClick={save} title="Kaydet" type="button">
             <CheckIcon size={13} />

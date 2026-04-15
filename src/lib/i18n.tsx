@@ -225,6 +225,26 @@ const tr = {
 
   // Candidates page
 
+  // Candidates table columns
+  "candidates.col.name": "Ad Soyad",
+  "candidates.col.photo": "Resim",
+  "candidates.col.nationalId": "TC Kimlik",
+  "candidates.col.phoneNumber": "Telefon",
+  "candidates.col.email": "E-posta",
+  "candidates.col.birthDate": "Doğum Tarihi",
+  "candidates.col.gender": "Cinsiyet",
+  "candidates.col.licenseClass": "Ehliyet Tipi",
+  "candidates.col.group": "Grup",
+  "candidates.col.groupStartDate": "Grup Başlangıç",
+  "candidates.col.documents": "Evrak",
+  "candidates.col.missingDocuments": "Eksik Evrak",
+  "candidates.col.mebExamResult": "MEB Sonucu",
+  "candidates.col.balance": "Bakiye",
+  "candidates.col.status": "Durum",
+  "candidates.col.createdAtUtc": "Kayıt Tarihi",
+  "candidates.col.updatedAtUtc": "Güncelleme Tarihi",
+  "candidates.columns.button": "Sütunlar",
+
   // Candidate document summary badge
   "candidateDocs.fraction": "{completed}/{total}",
   "candidateDocs.complete": "Tam",
@@ -533,6 +553,26 @@ const en: Record<keyof typeof tr, string> = {
   "documents.uploadFailed": "Document upload failed",
 
   // Candidates page
+
+  // Candidates table columns
+  "candidates.col.name": "Full Name",
+  "candidates.col.photo": "Photo",
+  "candidates.col.nationalId": "National ID",
+  "candidates.col.phoneNumber": "Phone",
+  "candidates.col.email": "Email",
+  "candidates.col.birthDate": "Birth Date",
+  "candidates.col.gender": "Gender",
+  "candidates.col.licenseClass": "License Type",
+  "candidates.col.group": "Group",
+  "candidates.col.groupStartDate": "Group Start",
+  "candidates.col.documents": "Documents",
+  "candidates.col.missingDocuments": "Missing Docs",
+  "candidates.col.mebExamResult": "MEB Result",
+  "candidates.col.balance": "Balance",
+  "candidates.col.status": "Status",
+  "candidates.col.createdAtUtc": "Created At",
+  "candidates.col.updatedAtUtc": "Updated At",
+  "candidates.columns.button": "Columns",
 
   // Candidate document summary badge
   "candidateDocs.fraction": "{completed}/{total}",

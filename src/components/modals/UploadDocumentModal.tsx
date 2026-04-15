@@ -6,6 +6,7 @@ import { getDocumentTypes, uploadDocument } from "../../lib/documents-api";
 import { ApiError } from "../../lib/http";
 import { useT } from "../../lib/i18n";
 import type { CandidateResponse, DocumentTypeResponse } from "../../lib/types";
+import { CustomSelect } from "../ui/CustomSelect";
 import { FileDropInput } from "../ui/FileDropInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
@@ -22,7 +23,9 @@ type UploadDocumentModalProps = {
   candidateId: string | null;
   candidateName?: string;
   initialDocumentTypeId?: string;
+  lockedDocumentTypeKey?: string;
   documentTypes?: DocumentTypeResponse[];
+  title?: string;
   onClose: () => void;
   onUploaded: () => void;
 };
@@ -45,7 +48,9 @@ export function UploadDocumentModal({
   candidateId,
   candidateName,
   initialDocumentTypeId,
+  lockedDocumentTypeKey,
   documentTypes: documentTypesProp,
+  title,
   onClose,
   onUploaded,
 }: UploadDocumentModalProps) {
@@ -65,9 +70,13 @@ export function UploadDocumentModal({
     register,
     reset,
     setError,
+    watch,
   } = useForm<UploadDocumentForm>({
     defaultValues: emptyForm(candidateId, initialDocumentTypeId),
   });
+
+  const selectedCandidateId = watch("candidateId");
+  const selectedDocumentTypeId = watch("documentTypeId");
 
   useEffect(() => {
     if (open) {
@@ -109,6 +118,10 @@ export function UploadDocumentModal({
     return () => controller.abort();
   }, [candidateId, open, showToast, t]);
 
+  const lockedDocumentType = lockedDocumentTypeKey
+    ? documentTypes.find((documentType) => documentType.key === lockedDocumentTypeKey)
+    : null;
+
   const submit = handleSubmit(async (data) => {
     const resolvedCandidateId = candidateId ?? data.candidateId;
     if (!resolvedCandidateId) {
@@ -116,11 +129,23 @@ export function UploadDocumentModal({
       return;
     }
 
+    const resolvedDocumentTypeId =
+      lockedDocumentType?.id ??
+      (lockedDocumentTypeKey ? "" : data.documentTypeId);
+    if (!resolvedDocumentTypeId) {
+      setError("documentTypeId", {
+        message: lockedDocumentTypeKey
+          ? "Biyometrik foto belge türü bulunamadı."
+          : t("uploadDoc.errors.docTypeRequired"),
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       await uploadDocument({
         candidateId: resolvedCandidateId,
-        documentTypeId: data.documentTypeId,
+        documentTypeId: resolvedDocumentTypeId,
         file: data.file!,
         note: data.note.trim() || undefined,
       });
@@ -175,7 +200,7 @@ export function UploadDocumentModal({
       }
       onClose={onClose}
       open={open}
-      title={t("uploadDoc.title")}
+      title={title ?? t("uploadDoc.title")}
     >
       <form onSubmit={submit}>
         {candidateId ? (
@@ -191,8 +216,9 @@ export function UploadDocumentModal({
           <div className="form-row full">
             <div className="form-group">
               <label className="form-label">{t("uploadDoc.candidate")}</label>
-              <select
+              <CustomSelect
                 className={fieldClass(!!errors.candidateId, "form-select")}
+                value={selectedCandidateId}
                 {...register("candidateId", {
                   required: t("uploadDoc.errors.candidateRequired"),
                 })}
@@ -203,31 +229,46 @@ export function UploadDocumentModal({
                     {candidate.firstName} {candidate.lastName}
                   </option>
                 ))}
-              </select>
+              </CustomSelect>
               {errors.candidateId && <div className="form-error">{errors.candidateId.message}</div>}
             </div>
           </div>
         )}
 
-        <div className="form-row full">
-          <div className="form-group">
-            <label className="form-label">{t("uploadDoc.docType")}</label>
-            <select
-              className={fieldClass(!!errors.documentTypeId, "form-select")}
-              {...register("documentTypeId", { required: t("uploadDoc.errors.docTypeRequired") })}
-            >
-              <option value="">{t("uploadDoc.docTypePlaceholder")}</option>
-              {documentTypes.map((documentType) => (
-                <option key={documentType.id} value={documentType.id}>
-                  {documentType.name}
-                </option>
-              ))}
-            </select>
-            {errors.documentTypeId && (
-              <div className="form-error">{errors.documentTypeId.message}</div>
-            )}
+        {lockedDocumentTypeKey ? (
+          <div className="form-row full">
+            <div className="form-group">
+              <label className="form-label">{t("uploadDoc.docType")}</label>
+              <div className="form-readonly">
+                {lockedDocumentType?.name ?? "Biometric Photo"}
+              </div>
+              {errors.documentTypeId && (
+                <div className="form-error">{errors.documentTypeId.message}</div>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="form-row full">
+            <div className="form-group">
+              <label className="form-label">{t("uploadDoc.docType")}</label>
+              <CustomSelect
+                className={fieldClass(!!errors.documentTypeId, "form-select")}
+                value={selectedDocumentTypeId}
+                {...register("documentTypeId", { required: t("uploadDoc.errors.docTypeRequired") })}
+              >
+                <option value="">{t("uploadDoc.docTypePlaceholder")}</option>
+                {documentTypes.map((documentType) => (
+                  <option key={documentType.id} value={documentType.id}>
+                    {documentType.name}
+                  </option>
+                ))}
+              </CustomSelect>
+              {errors.documentTypeId && (
+                <div className="form-error">{errors.documentTypeId.message}</div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="form-row full">
           <div className="form-group">

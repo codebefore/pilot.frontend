@@ -8,8 +8,6 @@ import type {
   PagedResponse,
 } from "./types";
 
-export type DocumentChecklistTab = "missing" | "all";
-
 export interface GetDocumentTypesOptions {
   module?: string;
   /** When true, also returns soft-deactivated types. Used by the admin screen. */
@@ -18,7 +16,6 @@ export interface GetDocumentTypesOptions {
 
 export interface GetDocumentChecklistParams extends QueryParams {
   search?: string;
-  documentTypeId?: string;
   status?: DocumentStatus;
   page?: number;
   pageSize?: number;

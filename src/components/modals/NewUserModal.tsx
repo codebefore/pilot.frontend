@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Modal } from "../ui/Modal";
+import { CustomSelect } from "../ui/CustomSelect";
 import type { UserRole } from "../../mock/users";
 
 type NewUserForm = {
@@ -86,7 +87,7 @@ export function NewUserModal({ open, onClose, onSubmit }: NewUserModalProps) {
           </div>
           <div className="form-group">
             <label className="form-label">Rol</label>
-            <select
+            <CustomSelect
               className={fieldClass(!!errors.role, "form-select")}
               {...register("role", { required: true })}
             >
@@ -95,7 +96,7 @@ export function NewUserModal({ open, onClose, onSubmit }: NewUserModalProps) {
                   {r.label}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
           </div>
         </div>
 

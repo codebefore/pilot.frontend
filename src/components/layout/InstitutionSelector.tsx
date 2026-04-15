@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-import { ChevronDownIcon } from "../icons";
 import { useToast } from "../ui/Toast";
 import type { Institution } from "../../mock/institutions";
 
@@ -38,7 +37,6 @@ export function InstitutionSelector({
       >
         <span className="inst-dot" />
         <span>{active.name}</span>
-        <ChevronDownIcon />
       </button>
 
       {open && (

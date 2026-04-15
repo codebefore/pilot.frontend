@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Modal } from "../ui/Modal";
+import { CustomSelect } from "../ui/CustomSelect";
 
 type PlanType = "teorik" | "direksiyon";
 
@@ -72,20 +73,20 @@ export function NewTrainingPlanModal({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Plan Tipi</label>
-            <select className="form-select" {...register("type", { required: true })}>
+            <CustomSelect className="form-select" {...register("type", { required: true })}>
               <option value="teorik">Teorik</option>
               <option value="direksiyon">Uygulama (Direksiyon)</option>
-            </select>
+            </CustomSelect>
           </div>
           <div className="form-group">
             <label className="form-label">Sınıf</label>
-            <select className="form-select" {...register("className", { required: true })}>
+            <CustomSelect className="form-select" {...register("className", { required: true })}>
               <option value="B">B — Otomobil</option>
               <option value="A2">A2 — Motosiklet</option>
               <option value="C">C — Kamyon</option>
               <option value="D">D — Otobüs</option>
               <option value="E">E — Dorseli</option>
-            </select>
+            </CustomSelect>
           </div>
         </div>
 

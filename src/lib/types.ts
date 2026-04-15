@@ -19,6 +19,11 @@ export interface CandidateGroupSummary {
   assignedAtUtc: string;
 }
 
+export interface CandidatePhotoSummary {
+  documentId: string;
+  kind: string;
+}
+
 export interface CandidateResponse {
   id: string;
   firstName: string;
@@ -29,9 +34,16 @@ export interface CandidateResponse {
   birthDate: string | null;
   gender: string | null;
   licenseClass: LicenseClass;
+  existingLicenseType: string | null;
+  existingLicenseIssuedAt: string | null;
+  existingLicenseNumber: string | null;
+  existingLicenseIssuedProvince: string | null;
+  existingLicensePre2016: boolean;
   status: string;
+  mebExamResult?: string | null;
   currentGroup: CandidateGroupSummary | null;
   documentSummary: CandidateDocumentSummaryResponse | null;
+  photo?: CandidatePhotoSummary | null;
   createdAtUtc: string;
   updatedAtUtc: string;
 }
@@ -45,6 +57,11 @@ export interface CandidateUpsertRequest {
   birthDate?: string | null;
   gender?: string | null;
   licenseClass: LicenseClass;
+  existingLicenseType?: string | null;
+  existingLicenseIssuedAt?: string | null;
+  existingLicenseNumber?: string | null;
+  existingLicenseIssuedProvince?: string | null;
+  existingLicensePre2016?: boolean;
   status: string;
 }
 
@@ -169,6 +186,7 @@ export interface DocumentChecklistEntry {
   nationalId: string;
   licenseClass: LicenseClass;
   summary: CandidateDocumentSummaryResponse;
+  photo?: CandidatePhotoSummary | null;
   missingDocumentKeys: string[];
   missingDocumentNames: string[];
 }

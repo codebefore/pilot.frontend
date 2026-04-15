@@ -8,7 +8,9 @@ import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { useLanguage, useT } from "../../lib/i18n";
 import type { LicenseClass, TermResponse } from "../../lib/types";
 import { LICENSE_CLASS_OPTIONS } from "../../lib/status-maps";
+import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { useToast } from "../ui/Toast";
 
 type NewGroupForm = {
@@ -48,6 +50,7 @@ export function NewGroupModal({
   const { showToast } = useToast();
   const t = useT();
   const { lang } = useLanguage();
+  const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const [submitting, setSubmitting] = useState(false);
   const [terms, setTerms] = useState<TermResponse[]>([]);
 
@@ -56,8 +59,12 @@ export function NewGroupModal({
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<NewGroupForm>({ defaultValues: defaultValues(initialTermId) });
+  const startDate = watch("startDate");
+  const startDateRegistration = register("startDate", { required: "Zorunlu alan" });
 
   useEffect(() => {
     if (open) reset(defaultValues(initialTermId));
@@ -172,7 +179,7 @@ export function NewGroupModal({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Sınıf</label>
-            <select
+            <CustomSelect
               className={fieldClass(!!errors.licenseClass, "form-select")}
               {...register("licenseClass", { required: true })}
             >
@@ -181,11 +188,11 @@ export function NewGroupModal({
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
           </div>
           <div className="form-group">
             <label className="form-label">{t("terms.selector.label")}</label>
-            <select
+            <CustomSelect
               className={fieldClass(!!errors.termId, "form-select")}
               {...register("termId", { required: "Zorunlu alan" })}
             >
@@ -195,7 +202,7 @@ export function NewGroupModal({
                   {buildTermLabel(term, sortedTerms, lang)}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
             {errors.termId && (
               <div className="form-error">{errors.termId.message}</div>
             )}
@@ -235,10 +242,17 @@ export function NewGroupModal({
           </div>
           <div className="form-group">
             <label className="form-label">Başlangıç</label>
-            <input
+            <LocalizedDateInput
+              ariaLabel="Başlangıç"
               className={fieldClass(!!errors.startDate, "form-input")}
-              type="date"
-              {...register("startDate", { required: "Zorunlu alan" })}
+              inputRef={startDateRegistration.ref}
+              lang={dateInputLang}
+              name={startDateRegistration.name}
+              onBlur={startDateRegistration.onBlur}
+              onChange={(value) =>
+                setValue("startDate", value, { shouldDirty: true, shouldValidate: true })
+              }
+              value={startDate}
             />
             {errors.startDate && (
               <div className="form-error">{errors.startDate.message}</div>

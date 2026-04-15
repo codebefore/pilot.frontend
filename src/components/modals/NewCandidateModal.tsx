@@ -5,10 +5,13 @@ import { assignCandidateGroup, createCandidate } from "../../lib/candidates-api"
 import { ApiError } from "../../lib/http";
 import { getGroups } from "../../lib/groups-api";
 import { useLanguage } from "../../lib/i18n";
+import { EXISTING_LICENSE_TYPE_OPTIONS, TURKEY_PROVINCE_OPTIONS } from "../../lib/status-maps";
 import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import type { GroupResponse, LicenseClass, TermResponse } from "../../lib/types";
+import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { useToast } from "../ui/Toast";
 
 type NewCandidateForm = {
@@ -20,6 +23,12 @@ type NewCandidateForm = {
   phone: string;
   email: string;
   groupId: string;
+  hasExistingLicense: boolean;
+  existingLicenseType: string;
+  existingLicenseIssuedAt: string;
+  existingLicenseNumber: string;
+  existingLicenseIssuedProvince: string;
+  existingLicensePre2016: boolean;
 };
 
 type NewCandidateModalProps = {
@@ -43,6 +52,10 @@ function yearsSince(iso: string): number {
   return years;
 }
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const defaultValues = (): NewCandidateForm => ({
   tc: "",
   className: "B",
@@ -52,11 +65,19 @@ const defaultValues = (): NewCandidateForm => ({
   phone: "",
   email: "",
   groupId: "",
+  hasExistingLicense: false,
+  existingLicenseType: "",
+  existingLicenseIssuedAt: "",
+  existingLicenseNumber: "",
+  existingLicenseIssuedProvince: "",
+  existingLicensePre2016: false,
 });
 
 export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModalProps) {
   const { showToast } = useToast();
   const { lang } = useLanguage();
+  const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
+  const today = todayISO();
   const [submitting, setSubmitting] = useState(false);
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
@@ -69,21 +90,52 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
     setError,
     setValue,
     watch,
+    clearErrors,
     formState: { errors },
   } = useForm<NewCandidateForm>({ defaultValues: defaultValues() });
 
   const selectedClass = watch("className");
   const selectedGroupId = watch("groupId");
+  const hasExistingLicense = watch("hasExistingLicense");
+  const birthDate = watch("birthDate");
+  const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
   const availableGroups = groups.filter((group) => group.licenseClass === selectedClass);
   const classRegistration = register("className", {
     required: true,
     onChange: () => setValue("groupId", ""),
+  });
+  const birthDateRegistration = register("birthDate", {
+    required: "Zorunlu alan",
+    validate: (v) => {
+      const age = yearsSince(v);
+      if (age < 17) return "En az 17 yaşında olmalı";
+      if (age > 80) return "Geçerli bir tarih girin";
+      return true;
+    },
+  });
+  const existingLicenseIssuedAtRegistration = register("existingLicenseIssuedAt", {
+    validate: (value) => !hasExistingLicense || !!value || "Zorunlu alan",
   });
 
   // Reset form when modal closes
   useEffect(() => {
     if (!open) reset(defaultValues());
   }, [open, reset]);
+
+  useEffect(() => {
+    if (hasExistingLicense) return;
+    setValue("existingLicenseType", "");
+    setValue("existingLicenseIssuedAt", "");
+    setValue("existingLicenseNumber", "");
+    setValue("existingLicenseIssuedProvince", "");
+    setValue("existingLicensePre2016", false);
+    clearErrors([
+      "existingLicenseType",
+      "existingLicenseIssuedAt",
+      "existingLicenseNumber",
+      "existingLicenseIssuedProvince",
+    ]);
+  }, [clearErrors, hasExistingLicense, setValue]);
 
   useEffect(() => {
     if (!open) return;
@@ -135,9 +187,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
 
       if (data.groupId && selectedGroup?.licenseClass !== data.className) {
         setError("groupId", {
-          message: "Seçilen grup aday sınıfı ile uyumlu değil",
+          message: "Seçilen grup aday ehliyet tipi ile uyumlu değil",
         });
-        showToast("Aday sınıfı ile grup sınıfı uyuşmuyor.", "error");
+        showToast("Aday ehliyet tipi ile grup ehliyet tipi uyuşmuyor.", "error");
         return;
       }
 
@@ -149,6 +201,15 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         email: data.email || null,
         birthDate: data.birthDate || null,
         licenseClass: data.className,
+        existingLicenseType: data.hasExistingLicense ? data.existingLicenseType || null : null,
+        existingLicenseIssuedAt: data.hasExistingLicense
+          ? data.existingLicenseIssuedAt || null
+          : null,
+        existingLicenseNumber: data.hasExistingLicense ? data.existingLicenseNumber.trim() || null : null,
+        existingLicenseIssuedProvince: data.hasExistingLicense
+          ? data.existingLicenseIssuedProvince.trim() || null
+          : null,
+        existingLicensePre2016: data.hasExistingLicense ? data.existingLicensePre2016 : false,
         status: "pre_registered",
       });
 
@@ -211,9 +272,10 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             {errors.tc && <div className="form-error">{errors.tc.message}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">Sınıf</label>
-            <select
+            <label className="form-label">Ehliyet Tipi</label>
+            <CustomSelect
               className={fieldClass(!!errors.className, "form-select")}
+              value={selectedClass}
               {...classRegistration}
             >
               <option value="B">B — Otomobil</option>
@@ -221,7 +283,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               <option value="C">C — Kamyon</option>
               <option value="D">D — Otobüs</option>
               <option value="E">E — Dorseli</option>
-            </select>
+            </CustomSelect>
           </div>
         </div>
 
@@ -255,18 +317,17 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Doğum Tarihi</label>
-            <input
+            <LocalizedDateInput
+              ariaLabel="Doğum Tarihi"
               className={fieldClass(!!errors.birthDate, "form-input")}
-              type="date"
-              {...register("birthDate", {
-                required: "Zorunlu alan",
-                validate: (v) => {
-                  const age = yearsSince(v);
-                  if (age < 17) return "En az 17 yaşında olmalı";
-                  if (age > 80) return "Geçerli bir tarih girin";
-                  return true;
-                },
-              })}
+              inputRef={birthDateRegistration.ref}
+              lang={dateInputLang}
+              name={birthDateRegistration.name}
+              onBlur={birthDateRegistration.onBlur}
+              onChange={(value) =>
+                setValue("birthDate", value, { shouldDirty: true, shouldValidate: true })
+              }
+              value={birthDate}
             />
             {errors.birthDate && <div className="form-error">{errors.birthDate.message}</div>}
           </div>
@@ -307,7 +368,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
           </div>
           <div className="form-group">
             <label className="form-label">Grup</label>
-            <select
+            <CustomSelect
               className={fieldClass(!!errors.groupId, "form-select")}
               disabled={groupsLoading}
               {...register("groupId")}
@@ -325,10 +386,131 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
                   </option>
                 );
               })}
-            </select>
+            </CustomSelect>
             {errors.groupId && <div className="form-error">{errors.groupId.message}</div>}
           </div>
         </div>
+
+        <section className="form-subsection">
+          <div className="form-subsection-header">
+            <div>
+              <div className="form-subsection-title">Mevcut Sürücü Belgesi</div>
+              <div className="form-subsection-note">
+                Varsa eski ehliyet bilgisini buradan ekleyin.
+              </div>
+            </div>
+            <label className="switch-toggle">
+              <input
+                aria-label="Mevcut sürücü belgesi var"
+                type="checkbox"
+                {...register("hasExistingLicense")}
+              />
+              <span className="switch-toggle-control" aria-hidden="true" />
+              <span>Var</span>
+            </label>
+          </div>
+
+          {hasExistingLicense && (
+            <>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Mevcut Belge</label>
+                  <CustomSelect
+                    aria-label="Mevcut Belge"
+                    className={fieldClass(!!errors.existingLicenseType, "form-select")}
+                    {...register("existingLicenseType", {
+                      validate: (value) =>
+                        !hasExistingLicense || !!value || "Zorunlu alan",
+                    })}
+                  >
+                    <option value="">Belge seçin</option>
+                    {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                  {errors.existingLicenseType && (
+                    <div className="form-error">{errors.existingLicenseType.message}</div>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Belge Tarihi</label>
+                  <LocalizedDateInput
+                    ariaLabel="Belge Tarihi"
+                    className={fieldClass(!!errors.existingLicenseIssuedAt, "form-input")}
+                    defaultOnOpen={today}
+                    inputRef={existingLicenseIssuedAtRegistration.ref}
+                    lang={dateInputLang}
+                    name={existingLicenseIssuedAtRegistration.name}
+                    onBlur={existingLicenseIssuedAtRegistration.onBlur}
+                    onChange={(value) =>
+                      setValue("existingLicenseIssuedAt", value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                    value={existingLicenseIssuedAt}
+                  />
+                  {errors.existingLicenseIssuedAt && (
+                    <div className="form-error">{errors.existingLicenseIssuedAt.message}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Belge No</label>
+                  <input
+                    aria-label="Belge No"
+                    className={fieldClass(!!errors.existingLicenseNumber, "form-input")}
+                    placeholder="Örn. ABC-12345"
+                    {...register("existingLicenseNumber", {
+                      validate: (value) =>
+                        !hasExistingLicense || !!value.trim() || "Zorunlu alan",
+                    })}
+                  />
+                  {errors.existingLicenseNumber && (
+                    <div className="form-error">{errors.existingLicenseNumber.message}</div>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Belge Veriliş İli</label>
+                  <CustomSelect
+                    aria-label="Belge Veriliş İli"
+                    className={fieldClass(!!errors.existingLicenseIssuedProvince, "form-select")}
+                    {...register("existingLicenseIssuedProvince", {
+                      validate: (value) =>
+                        !hasExistingLicense || !!value.trim() || "Zorunlu alan",
+                    })}
+                  >
+                    <option value="">İl seçin</option>
+                    {TURKEY_PROVINCE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                  {errors.existingLicenseIssuedProvince && (
+                    <div className="form-error">
+                      {errors.existingLicenseIssuedProvince.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="form-row full">
+                <div className="form-group">
+                  <label className="switch-toggle">
+                    <input type="checkbox" {...register("existingLicensePre2016")} />
+                    <span className="switch-toggle-control" aria-hidden="true" />
+                    <span>2016 Ocak öncesi</span>
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
+        </section>
       </form>
     </Modal>
   );

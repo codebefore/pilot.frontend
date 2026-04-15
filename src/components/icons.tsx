@@ -147,6 +147,20 @@ export const DownloadIcon = (p?: IconProps) =>
     p
   );
 
+export const CalendarIcon = (p?: IconProps) =>
+  svg(
+    [
+      <rect key="1" x="3" y="4" width="18" height="18" rx="2" />,
+      <line key="2" x1="8" y1="2.5" x2="8" y2="6" />,
+      <line key="3" x1="16" y1="2.5" x2="16" y2="6" />,
+      <line key="4" x1="3" y1="10" x2="21" y2="10" />,
+      <line key="5" x1="8" y1="14" x2="8" y2="14" />,
+      <line key="6" x1="12" y1="14" x2="12" y2="14" />,
+      <line key="7" x1="16" y1="14" x2="16" y2="14" />,
+    ],
+    p
+  );
+
 export const FilterIcon = (p?: IconProps) =>
   svg(<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />, p);
 
@@ -248,6 +262,25 @@ export const LoginIcon = (p?: IconProps) =>
     ],
     p
   );
+
+export const WhatsAppIcon = (p?: IconProps) => {
+  const { size = defaults.size } = p ?? {};
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3.25a8.75 8.75 0 0 1 7.52 13.23A8.75 8.75 0 0 1 8.7 20.04L4 20.75l1.12-4.44A8.75 8.75 0 0 1 12 3.25Z" />
+      <path d="M9.45 8.85c.14-.31.3-.35.54-.35.16 0 .33 0 .5.01.14.01.33.05.5.4.17.36.58 1.42.63 1.52.05.11.08.24 0 .38-.08.14-.13.22-.25.35-.12.12-.25.27-.35.36-.11.1-.22.2-.1.41.12.22.55.91 1.17 1.48.8.72 1.47.95 1.68 1.05.21.1.33.08.45-.05.12-.13.51-.58.65-.78.13-.19.27-.16.45-.1.18.07 1.16.55 1.36.65.2.1.33.15.38.24.05.09.05.52-.12 1.02-.17.5-.98.97-1.36 1.02-.36.05-.8.08-1.3-.07-.31-.09-.69-.22-1.19-.44-2.09-.91-3.45-3.07-3.55-3.21-.11-.15-.85-1.14-.85-2.17 0-1.03.54-1.53.73-1.74Z" />
+    </svg>
+  );
+};
 
 export const LogoutIcon = (p?: IconProps) =>
   svg(

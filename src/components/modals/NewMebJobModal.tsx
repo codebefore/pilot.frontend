@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Modal } from "../ui/Modal";
+import { CustomSelect } from "../ui/CustomSelect";
 
 type NewMebJobForm = {
   jobType: string;
@@ -73,7 +74,7 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label">İş Tipi</label>
-            <select
+            <CustomSelect
               className={fieldClass(!!errors.jobType, "form-select")}
               {...register("jobType", { required: "İş tipi seçin" })}
             >
@@ -82,21 +83,21 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
                   {t}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
             {errors.jobType && <div className="form-error">{errors.jobType.message}</div>}
           </div>
         </div>
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Kapsam</label>
-            <select className="form-select" {...register("scope", { required: true })}>
+            <CustomSelect className="form-select" {...register("scope", { required: true })}>
               <option value="single">Tek Aday</option>
               <option value="group">Grup (Toplu)</option>
-            </select>
+            </CustomSelect>
           </div>
           <div className="form-group">
             <label className="form-label">Aday / Grup</label>
-            <select
+            <CustomSelect
               className={fieldClass(!!errors.target, "form-select")}
               {...register("target", { required: "Hedef seçin" })}
             >
@@ -105,7 +106,7 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
                   {t}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
             {errors.target && <div className="form-error">{errors.target.message}</div>}
           </div>
         </div>

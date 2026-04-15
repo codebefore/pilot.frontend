@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+import { createPortal } from "react-dom";
 
 import { useT } from "../../lib/i18n";
 import type { CandidateDocumentSummaryResponse } from "../../lib/types";
@@ -24,6 +31,10 @@ type CandidateDocumentBadgeProps = {
   onClick?: () => void;
 };
 
+/** Estimated popover width in px; must stay in sync with `.cand-doc-popover`. */
+const POPOVER_WIDTH = 240;
+const POPOVER_GAP = 6;
+
 export function CandidateDocumentBadge({
   summary,
   missingDocumentNames,
@@ -35,16 +46,52 @@ export function CandidateDocumentBadge({
   const [lazyNames, setLazyNames] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  const badgeRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Close the popover when the user clicks anywhere outside of it.
+  // Close the popover when the user clicks anywhere outside of both the
+  // trigger and the (portaled) popover.
   useEffect(() => {
     if (!open) return;
     const handler = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (badgeRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Measure the trigger and position the portal'ed popover. Recalculates on
+  // scroll/resize so the popover stays pinned to the button.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPopoverPos(null);
+      return;
+    }
+    const updatePosition = () => {
+      const button = badgeRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      // Center the popover under the trigger, but clamp to viewport so it
+      // never runs off-screen on narrow layouts.
+      const desiredLeft = rect.left + rect.width / 2 - POPOVER_WIDTH / 2;
+      const clampedLeft = Math.max(
+        8,
+        Math.min(desiredLeft, viewportWidth - POPOVER_WIDTH - 8)
+      );
+      setPopoverPos({ top: rect.bottom + POPOVER_GAP, left: clampedLeft });
+    };
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
   }, [open]);
 
   // Lazy-load missing names the first time the popover opens. Result is
@@ -124,23 +171,31 @@ export function CandidateDocumentBadge({
   }
 
   return (
-    <span className="cand-doc-badge-wrap" ref={ref}>
+    <>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={t("candidateDocs.aria.openDetails")}
         className={className}
         onClick={handleClick}
+        ref={badgeRef}
         type="button"
       >
         {label}
       </button>
-      {open && (
-        <div className="cand-doc-popover" role="dialog">
-          <div className="cand-doc-popover-title">{label}</div>
-          <div className="cand-doc-popover-body">{popoverBody}</div>
-        </div>
-      )}
-    </span>
+      {open && popoverPos &&
+        createPortal(
+          <div
+            className="cand-doc-popover"
+            ref={popoverRef}
+            role="dialog"
+            style={{ top: popoverPos.top, left: popoverPos.left }}
+          >
+            <div className="cand-doc-popover-title">{label}</div>
+            <div className="cand-doc-popover-body">{popoverBody}</div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

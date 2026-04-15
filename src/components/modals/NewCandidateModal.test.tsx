@@ -59,6 +59,11 @@ describe("NewCandidateModal", () => {
       birthDate: "2000-01-01",
       gender: null,
       licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
       status: "pre_registered",
       currentGroup: null,
       documentSummary: null,
@@ -120,6 +125,59 @@ describe("NewCandidateModal", () => {
           nationalId: "11111111111",
           licenseClass: "B",
           status: "pre_registered",
+        })
+      );
+    });
+  });
+
+  it("includes existing license fields when the toggle is enabled", async () => {
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    fireEvent.change(screen.getByPlaceholderText("11 haneli TC"), {
+      target: { value: "11111111111" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Adı"), {
+      target: { value: "Ada" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
+      target: { value: "Yilmaz" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("5XXXXXXXXX"), {
+      target: { value: "5551234567" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Mevcut sürücü belgesi var" })
+    );
+    await screen.findByLabelText("Mevcut Belge");
+    fireEvent.change(screen.getByLabelText("Mevcut Belge"), {
+      target: { value: "b_auto" },
+    });
+    const existingLicenseIssuedAtInput = document.querySelector(
+      'input[name="existingLicenseIssuedAt"]'
+    );
+    expect(existingLicenseIssuedAtInput).not.toBeNull();
+    fireEvent.change(existingLicenseIssuedAtInput!, {
+      target: { value: "2018-03-04" },
+    });
+    fireEvent.change(screen.getByLabelText("Belge No"), {
+      target: { value: " 12345 " },
+    });
+    fireEvent.change(screen.getByLabelText("Belge Veriliş İli"), {
+      target: { value: "Ankara" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "2016 Ocak öncesi" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(createCandidateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          existingLicenseType: "b_auto",
+          existingLicenseIssuedAt: "2018-03-04",
+          existingLicenseNumber: "12345",
+          existingLicenseIssuedProvince: "Ankara",
+          existingLicensePre2016: true,
         })
       );
     });

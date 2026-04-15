@@ -63,13 +63,12 @@ describe("DocumentsPage", () => {
     ]);
   });
 
-  it("fetches the missing checklist by default with backend-compatible params", async () => {
+  it("fetches the checklist by default without a tab status filter", async () => {
     renderWithProviders(<DocumentsPage />);
 
     await waitFor(() => {
       expect(getDocumentChecklistMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: "missing",
           page: 1,
           pageSize: 20,
         }),
@@ -78,20 +77,19 @@ describe("DocumentsPage", () => {
     });
   });
 
-  it("sends the selected document type filter", async () => {
+  it("sends the text search filter", async () => {
     renderWithProviders(<DocumentsPage />);
 
     await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText("Belge Türü"), {
-      target: { value: "t2" },
+    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
+      target: { value: "Ayse" },
     });
 
     await waitFor(() => {
       expect(getDocumentChecklistMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          documentTypeId: "t2",
-          status: "missing",
+          search: "Ayse",
           page: 1,
         }),
         expect.any(AbortSignal)
@@ -99,11 +97,49 @@ describe("DocumentsPage", () => {
     });
   });
 
-  it("loads document types once for the filter dropdown", async () => {
+  it("loads document types once for the upload modal", async () => {
     renderWithProviders(<DocumentsPage />);
     await waitFor(() => expect(getDocumentTypesMock).toHaveBeenCalledTimes(1));
-    // The type dropdown should now contain the two types from the mock.
-    expect(await screen.findByRole("option", { name: "Nüfus Cüzdanı" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Sağlık Raporu" })).toBeInTheDocument();
+  });
+
+  it("renders a sortable candidate header without triggering an extra fetch", async () => {
+    renderWithProviders(<DocumentsPage />);
+
+    await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /aday/i }));
+
+    await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("renders required document types as check columns", async () => {
+    getDocumentChecklistMock.mockResolvedValueOnce({
+      items: [
+        {
+          candidateId: "cand-1",
+          fullName: "Ayse Demir",
+          nationalId: "12345678901",
+          licenseClass: "B",
+          summary: {
+            completedCount: 1,
+            missingCount: 1,
+            totalRequiredCount: 2,
+          },
+          missingDocumentKeys: ["health_report"],
+          missingDocumentNames: ["Sağlık Raporu"],
+        },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderWithProviders(<DocumentsPage />);
+
+    expect(await screen.findByLabelText("Nüfus Cüzdanı")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sağlık Raporu")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nüfus Cüzdanı: var")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sağlık Raporu: yok, yukle")).toBeInTheDocument();
   });
 });

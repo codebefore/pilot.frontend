@@ -3,6 +3,9 @@ import { useForm } from "react-hook-form";
 
 import { Modal } from "../ui/Modal";
 import { mockCandidates } from "../../mock/candidates";
+import { useLanguage } from "../../lib/i18n";
+import { CustomSelect } from "../ui/CustomSelect";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
 type PaymentMethodKey = "Nakit" | "Havale" | "KrediKarti";
 
@@ -33,12 +36,25 @@ const defaultValues = (): NewPaymentForm => ({
 });
 
 export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProps) {
+  const { lang } = useLanguage();
+  const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<NewPaymentForm>({ defaultValues: defaultValues() });
+  const date = watch("date");
+  const dateRegistration = register("date", {
+    required: "Zorunlu alan",
+    validate: (v) => {
+      const diff = (new Date(v).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+      if (diff > 1) return "Gelecek tarih olamaz";
+      return true;
+    },
+  });
 
   useEffect(() => {
     if (!open) reset(defaultValues());
@@ -69,7 +85,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Aday</label>
-            <select
+            <CustomSelect
               className={fieldClass(!!errors.candidateId, "form-select")}
               {...register("candidateId", { required: "Aday seçin" })}
             >
@@ -78,7 +94,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
                   {c.fullName} — Bakiye: {c.balance.toLocaleString("tr-TR")} TL
                 </option>
               ))}
-            </select>
+            </CustomSelect>
             {errors.candidateId && (
               <div className="form-error">{errors.candidateId.message}</div>
             )}
@@ -100,25 +116,25 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Ödeme Tipi</label>
-            <select className="form-select" {...register("method", { required: true })}>
+            <CustomSelect className="form-select" {...register("method", { required: true })}>
               <option value="Nakit">Nakit</option>
               <option value="Havale">Havale / EFT</option>
               <option value="KrediKarti">Kredi Kartı</option>
-            </select>
+            </CustomSelect>
           </div>
           <div className="form-group">
             <label className="form-label">Tarih</label>
-            <input
+            <LocalizedDateInput
+              ariaLabel="Tarih"
               className={fieldClass(!!errors.date, "form-input")}
-              type="date"
-              {...register("date", {
-                required: "Zorunlu alan",
-                validate: (v) => {
-                  const diff = (new Date(v).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-                  if (diff > 1) return "Gelecek tarih olamaz";
-                  return true;
-                },
-              })}
+              inputRef={dateRegistration.ref}
+              lang={dateInputLang}
+              name={dateRegistration.name}
+              onBlur={dateRegistration.onBlur}
+              onChange={(value) =>
+                setValue("date", value, { shouldDirty: true, shouldValidate: true })
+              }
+              value={date}
             />
             {errors.date && <div className="form-error">{errors.date.message}</div>}
           </div>
