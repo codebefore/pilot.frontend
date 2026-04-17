@@ -465,6 +465,7 @@ describe("CandidatesPage tabs", () => {
 
     expect(screen.queryByRole("button", { name: "Yeni Aday" })).not.toBeInTheDocument();
     expect(screen.queryByText("0 seçili")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
@@ -736,6 +737,64 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
+  it("applies bulk tag update to selected candidates without dropping existing tags", async () => {
+    const candidates = [
+      {
+        id: "cand-1",
+        firstName: "Ayse",
+        lastName: "Demir",
+        nationalId: "12345678901",
+        phoneNumber: null,
+        email: null,
+        birthDate: null,
+        gender: null,
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        currentGroup: null,
+        documentSummary: null,
+        mebExamResult: null,
+        tags: [{ id: "tag-1", name: "Referans" }],
+        createdAtUtc: "2026-04-01T10:00:00Z",
+        updatedAtUtc: "2026-04-02T10:00:00Z",
+      },
+    ];
+
+    getCandidatesMock.mockResolvedValue({
+      items: candidates,
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    updateCandidateMock.mockResolvedValue(candidates[0]);
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Etiket Ekle" }));
+
+    const bulkTagsInput = screen.getByLabelText("Toplu etiket seç");
+    fireEvent.change(bulkTagsInput, { target: { value: "VIP" } });
+    fireEvent.keyDown(bulkTagsInput, { key: ",", code: "Comma" });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "cand-1",
+        expect.objectContaining({
+          tags: ["Referans", "VIP"],
+        })
+      );
+    });
+  });
+
   it("hides the current tab status from the bulk status dropdown", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [
@@ -948,15 +1007,9 @@ describe("CandidatesPage filter panel", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
 
     // After toggling the panel, individual inputs become available.
-    expect(
-      screen.getAllByText("Ad", { selector: ".form-label" }).length
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByText("Soyad", { selector: ".form-label" }).length
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByText("TC Kimlik", { selector: ".form-label" }).length
-    ).toBeGreaterThan(0);
+    expect(screen.getByPlaceholderText("Ad")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Soyad")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("TC Kimlik")).toBeInTheDocument();
   });
 
   it("sends firstName to the candidates query when typed into the filter input", async () => {
@@ -965,12 +1018,7 @@ describe("CandidatesPage filter panel", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
 
-    const firstNameLabel = screen
-      .getAllByText("Ad", { selector: ".form-label" })[0];
-    const firstNameInput = firstNameLabel.parentElement?.querySelector(
-      "input"
-    ) as HTMLInputElement;
-    expect(firstNameInput).toBeTruthy();
+    const firstNameInput = screen.getByPlaceholderText("Ad") as HTMLInputElement;
 
     fireEvent.change(firstNameInput, { target: { value: "Ayse" } });
 
@@ -991,12 +1039,7 @@ describe("CandidatesPage filter panel", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
 
-    const firstNameLabel = screen
-      .getAllByText("Ad", { selector: ".form-label" })[0];
-    const firstNameInput = firstNameLabel.parentElement?.querySelector(
-      "input"
-    ) as HTMLInputElement;
-    expect(firstNameInput).toBeTruthy();
+    const firstNameInput = screen.getByPlaceholderText("Ad") as HTMLInputElement;
 
     fireEvent.change(firstNameInput, { target: { value: "A" } });
 
@@ -1063,10 +1106,8 @@ describe("CandidatesPage filter panel", () => {
 
     // Open the panel and change a filter — page should reset to 1.
     fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
-    const nationalIdLabel = screen
-      .getAllByText("TC Kimlik", { selector: ".form-label" })[0];
-    const nationalIdInput = nationalIdLabel.parentElement?.querySelector(
-      "input"
+    const nationalIdInput = screen.getByPlaceholderText(
+      "TC Kimlik"
     ) as HTMLInputElement;
     fireEvent.change(nationalIdInput, { target: { value: "123" } });
 
@@ -1087,11 +1128,7 @@ describe("CandidatesPage filter panel", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
 
-    const firstNameLabel = screen
-      .getAllByText("Ad", { selector: ".form-label" })[0];
-    const firstNameInput = firstNameLabel.parentElement?.querySelector(
-      "input"
-    ) as HTMLInputElement;
+    const firstNameInput = screen.getByPlaceholderText("Ad") as HTMLInputElement;
     fireEvent.change(firstNameInput, { target: { value: "Ayse" } });
 
     // Clear button only appears once a filter is active.

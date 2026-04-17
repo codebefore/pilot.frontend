@@ -1,15 +1,21 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useLanguage, useT } from "../../lib/i18n";
 import type {
   CandidateFilterState,
   TriState,
 } from "../../lib/candidate-filters";
+import { getGroups } from "../../lib/groups-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
   LICENSE_CLASS_OPTIONS,
 } from "../../lib/status-maps";
-import type { CandidateGenderValue, LicenseClass } from "../../lib/types";
+import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import type {
+  CandidateGenderValue,
+  GroupResponse,
+  LicenseClass,
+} from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
@@ -53,6 +59,47 @@ export function CandidateFilterPanel({
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const wasOpenRef = useRef(false);
+  const [groups, setGroups] = useState<GroupResponse[]>([]);
+
+  // Lazily fetch the group catalog the first time the panel opens so the
+  // group filter can resolve ids into readable "{title} · {term}" labels.
+  useEffect(() => {
+    if (!open || groups.length > 0) return;
+
+    const controller = new AbortController();
+    getGroups({ pageSize: 200 }, controller.signal)
+      .then((result) => setGroups(result.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setGroups([]);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [open, groups.length]);
+
+  const groupOptions = useMemo(() => {
+    const termsFromGroups = groups.map((group) => group.term);
+    const uniqueTerms = Array.from(
+      new Map(termsFromGroups.map((term) => [term.id, term])).values()
+    ).sort(compareTermsDesc);
+
+    return [...groups]
+      .sort((a, b) => {
+        const termCompare = compareTermsDesc(a.term, b.term);
+        if (termCompare !== 0) return termCompare;
+        return a.title.localeCompare(b.title, lang === "tr" ? "tr" : "en");
+      })
+      .map((group) => ({
+        id: group.id,
+        label: `${group.title} · ${buildTermLabel(
+          group.term,
+          uniqueTerms.length > 0 ? uniqueTerms : [group.term],
+          lang === "tr" ? "tr" : "en"
+        )}`,
+      }));
+  }, [groups, lang]);
 
   // Focus only on the closed -> open transition. The parent rerenders on each
   // filter keystroke, so tying focus to every render would steal focus back to
@@ -130,55 +177,59 @@ export function CandidateFilterPanel({
         )}
         <div className="cand-filters-grid">
           <div className="form-group">
-            <label className="form-label">{t("candidates.filters.firstName")}</label>
             <input
+              aria-label={t("candidates.filters.firstName")}
               className="form-input"
               onChange={(event) => onChange("firstName", event.target.value)}
+              placeholder={t("candidates.filters.firstName")}
               ref={firstInputRef}
               type="text"
               value={filters.firstName}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.filters.lastName")}</label>
             <input
+              aria-label={t("candidates.filters.lastName")}
               className="form-input"
               onChange={(event) => onChange("lastName", event.target.value)}
+              placeholder={t("candidates.filters.lastName")}
               type="text"
               value={filters.lastName}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.col.nationalId")}</label>
             <input
+              aria-label={t("candidates.col.nationalId")}
               className="form-input"
               inputMode="numeric"
               onChange={(event) => onChange("nationalId", event.target.value)}
+              placeholder={t("candidates.col.nationalId")}
               type="text"
               value={filters.nationalId}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.col.phoneNumber")}</label>
             <input
+              aria-label={t("candidates.col.phoneNumber")}
               className="form-input"
               inputMode="tel"
               onChange={(event) => onChange("phoneNumber", event.target.value)}
+              placeholder={t("candidates.col.phoneNumber")}
               type="text"
               value={filters.phoneNumber}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.col.email")}</label>
             <input
+              aria-label={t("candidates.col.email")}
               className="form-input"
               onChange={(event) => onChange("email", event.target.value)}
+              placeholder={t("candidates.col.email")}
               type="text"
               value={filters.email}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.col.licenseClass")}</label>
             <CustomSelect
               aria-label={t("candidates.col.licenseClass")}
               className="form-select"
@@ -187,7 +238,7 @@ export function CandidateFilterPanel({
               }
               value={filters.licenseClass}
             >
-              <option value="">{t("common.all")}</option>
+              <option value="">{t("candidates.col.licenseClass")}</option>
               {LICENSE_CLASS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -196,7 +247,6 @@ export function CandidateFilterPanel({
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.col.gender")}</label>
             <CustomSelect
               aria-label={t("candidates.col.gender")}
               className="form-select"
@@ -205,7 +255,7 @@ export function CandidateFilterPanel({
               }
               value={filters.gender}
             >
-              <option value="">{t("common.all")}</option>
+              <option value="">{t("candidates.col.gender")}</option>
               {CANDIDATE_GENDER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -214,17 +264,21 @@ export function CandidateFilterPanel({
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.col.group")}</label>
-            <input
-              className="form-input"
-              onChange={(event) => onChange("groupTitle", event.target.value)}
-              placeholder={t("candidates.filters.groupPlaceholder")}
-              type="text"
-              value={filters.groupTitle}
-            />
+            <CustomSelect
+              aria-label={t("candidates.col.group")}
+              className="form-select"
+              onChange={(event) => onChange("groupId", event.target.value)}
+              value={filters.groupId}
+            >
+              <option value="">{t("candidates.col.group")}</option>
+              {groupOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.filters.hasActiveGroup")}</label>
             <CustomSelect
               aria-label={t("candidates.filters.hasActiveGroup")}
               className="form-select"
@@ -233,13 +287,12 @@ export function CandidateFilterPanel({
               }
               value={filters.hasActiveGroup}
             >
-              <option value="">{t("common.all")}</option>
+              <option value="">{t("candidates.filters.hasActiveGroup")}</option>
               <option value="true">{t("candidates.filters.yes")}</option>
               <option value="false">{t("candidates.filters.no")}</option>
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.filters.hasPhoto")}</label>
             <CustomSelect
               aria-label={t("candidates.filters.hasPhoto")}
               className="form-select"
@@ -248,13 +301,12 @@ export function CandidateFilterPanel({
               }
               value={filters.hasPhoto}
             >
-              <option value="">{t("common.all")}</option>
+              <option value="">{t("candidates.filters.hasPhoto")}</option>
               <option value="true">{t("candidates.filters.yes")}</option>
               <option value="false">{t("candidates.filters.no")}</option>
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.filters.hasMebExamResult")}</label>
             <CustomSelect
               aria-label={t("candidates.filters.hasMebExamResult")}
               className="form-select"
@@ -263,13 +315,12 @@ export function CandidateFilterPanel({
               }
               value={filters.hasMebExamResult}
             >
-              <option value="">{t("common.all")}</option>
+              <option value="">{t("candidates.filters.hasMebExamResult")}</option>
               <option value="true">{t("candidates.filters.yes")}</option>
               <option value="false">{t("candidates.filters.no")}</option>
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.filters.examFeePaid")}</label>
             <CustomSelect
               aria-label={t("candidates.filters.examFeePaid")}
               className="form-select"
@@ -278,13 +329,12 @@ export function CandidateFilterPanel({
               }
               value={filters.examFeePaid}
             >
-              <option value="">{t("common.all")}</option>
+              <option value="">{t("candidates.filters.examFeePaid")}</option>
               <option value="true">{t("candidates.examFee.paid")}</option>
               <option value="false">{t("candidates.examFee.unpaid")}</option>
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("candidates.filters.hasMissingDocuments")}</label>
             <CustomSelect
               aria-label={t("candidates.filters.hasMissingDocuments")}
               className="form-select"
@@ -293,103 +343,89 @@ export function CandidateFilterPanel({
               }
               value={filters.hasMissingDocuments}
             >
-              <option value="">{t("common.all")}</option>
+              <option value="">{t("candidates.filters.hasMissingDocuments")}</option>
               <option value="true">{t("candidates.filters.yes")}</option>
               <option value="false">{t("candidates.filters.no")}</option>
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.birthDate")} ({t("candidates.filters.rangeFrom")})
-            </label>
             <LocalizedDateInput
               ariaLabel={`${t("candidates.col.birthDate")} ${t("candidates.filters.rangeFrom")}`}
               lang={dateInputLang}
               onChange={(value) => onChange("birthDateFrom", value)}
+              placeholder={`${t("candidates.col.birthDate")} (${t("candidates.filters.rangeFrom")})`}
               value={filters.birthDateFrom}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.birthDate")} ({t("candidates.filters.rangeTo")})
-            </label>
             <LocalizedDateInput
               ariaLabel={`${t("candidates.col.birthDate")} ${t("candidates.filters.rangeTo")}`}
               lang={dateInputLang}
               onChange={(value) => onChange("birthDateTo", value)}
+              placeholder={`${t("candidates.col.birthDate")} (${t("candidates.filters.rangeTo")})`}
               value={filters.birthDateTo}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.createdAtUtc")} ({t("candidates.filters.rangeFrom")})
-            </label>
             <LocalizedDateInput
               ariaLabel={`${t("candidates.col.createdAtUtc")} ${t("candidates.filters.rangeFrom")}`}
               lang={dateInputLang}
               onChange={(value) => onChange("createdAtFrom", value)}
+              placeholder={`${t("candidates.col.createdAtUtc")} (${t("candidates.filters.rangeFrom")})`}
               value={filters.createdAtFrom}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.createdAtUtc")} ({t("candidates.filters.rangeTo")})
-            </label>
             <LocalizedDateInput
               ariaLabel={`${t("candidates.col.createdAtUtc")} ${t("candidates.filters.rangeTo")}`}
               lang={dateInputLang}
               onChange={(value) => onChange("createdAtTo", value)}
+              placeholder={`${t("candidates.col.createdAtUtc")} (${t("candidates.filters.rangeTo")})`}
               value={filters.createdAtTo}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.updatedAtUtc")} ({t("candidates.filters.rangeFrom")})
-            </label>
             <LocalizedDateInput
               ariaLabel={`${t("candidates.col.updatedAtUtc")} ${t("candidates.filters.rangeFrom")}`}
               lang={dateInputLang}
               onChange={(value) => onChange("updatedAtFrom", value)}
+              placeholder={`${t("candidates.col.updatedAtUtc")} (${t("candidates.filters.rangeFrom")})`}
               value={filters.updatedAtFrom}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.updatedAtUtc")} ({t("candidates.filters.rangeTo")})
-            </label>
             <LocalizedDateInput
               ariaLabel={`${t("candidates.col.updatedAtUtc")} ${t("candidates.filters.rangeTo")}`}
               lang={dateInputLang}
               onChange={(value) => onChange("updatedAtTo", value)}
+              placeholder={`${t("candidates.col.updatedAtUtc")} (${t("candidates.filters.rangeTo")})`}
               value={filters.updatedAtTo}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.missingDocuments")} ({t("candidates.filters.min")})
-            </label>
             <input
+              aria-label={`${t("candidates.col.missingDocuments")} ${t("candidates.filters.min")}`}
               className="form-input"
               inputMode="numeric"
               min={0}
               onChange={(event) =>
                 onChange("missingDocumentCountMin", event.target.value)
               }
+              placeholder={`${t("candidates.col.missingDocuments")} (${t("candidates.filters.min")})`}
               type="number"
               value={filters.missingDocumentCountMin}
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              {t("candidates.col.missingDocuments")} ({t("candidates.filters.max")})
-            </label>
             <input
+              aria-label={`${t("candidates.col.missingDocuments")} ${t("candidates.filters.max")}`}
               className="form-input"
               inputMode="numeric"
               min={0}
               onChange={(event) =>
                 onChange("missingDocumentCountMax", event.target.value)
               }
+              placeholder={`${t("candidates.col.missingDocuments")} (${t("candidates.filters.max")})`}
               type="number"
               value={filters.missingDocumentCountMax}
             />

@@ -18,7 +18,7 @@ export type CandidateFilterState = {
   licenseClass: LicenseClass | "";
   /** Canonical gender value or empty string (= "Tümü"). Never free text. */
   gender: CandidateGenderValue | "";
-  groupTitle: string;
+  groupId: string;
   hasActiveGroup: TriState;
   hasPhoto: TriState;
   hasMebExamResult: TriState;
@@ -42,7 +42,7 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   email: "",
   licenseClass: "",
   gender: "",
-  groupTitle: "",
+  groupId: "",
   hasActiveGroup: "",
   hasPhoto: "",
   hasMebExamResult: "",
@@ -82,7 +82,7 @@ export function filtersToQuery(filters: CandidateFilterState) {
     email: normalizeTextQuery(filters.email),
     licenseClass: filters.licenseClass || undefined,
     gender: filters.gender || undefined,
-    groupTitle: normalizeTextQuery(filters.groupTitle),
+    groupId: filters.groupId || undefined,
     hasActiveGroup: triToBool(filters.hasActiveGroup),
     hasPhoto: triToBool(filters.hasPhoto),
     hasMebExamResult: triToBool(filters.hasMebExamResult),

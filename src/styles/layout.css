@@ -266,6 +266,13 @@
 .candidate-bulk-toolbar .custom-select-trigger {
   width: 100%;
 }
+.candidate-bulk-toolbar .tag-input-root {
+  flex: 0 1 280px;
+  min-width: 220px;
+}
+.candidate-bulk-toolbar .candidate-bulk-tags-input {
+  width: 100%;
+}
 .candidate-bulk-toolbar .btn {
   flex: 0 0 auto;
   white-space: nowrap;

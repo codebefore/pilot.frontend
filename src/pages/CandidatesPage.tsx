@@ -8,7 +8,7 @@ import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
 import { CandidateDocumentBadge } from "../components/ui/CandidateDocumentBadge";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
-import { tagColorIndex } from "../components/ui/CandidateTagsInput";
+import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTagsInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { Pagination } from "../components/ui/Pagination";
@@ -48,7 +48,7 @@ import type { CandidateResponse, CandidateTag } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
-type BulkActionMode = "status" | "export" | null;
+type BulkActionMode = "status" | "tags" | "export" | null;
 
 const TAB_KEYS: CandidateTab[] = [
   "all",
@@ -357,6 +357,7 @@ export function CandidatesPage() {
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
+  const [bulkTagValues, setBulkTagValues] = useState<string[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
@@ -724,6 +725,7 @@ export function CandidatesPage() {
         setBulkActionMode(null);
         setSelectedCandidateIds(new Set());
         setBulkStatusValue("");
+        setBulkTagValues([]);
       }
       return next;
     });
@@ -762,6 +764,14 @@ export function CandidatesPage() {
     setBulkActionMode("status");
   };
 
+  const openBulkTagAction = () => {
+    if (selectedCandidateIds.size === 0) {
+      showToast("Önce en az bir aday seç", "error");
+      return;
+    }
+    setBulkActionMode("tags");
+  };
+
   const openBulkExportAction = () => {
     if (selectedCandidateIds.size === 0) {
       showToast("Önce en az bir aday seç", "error");
@@ -772,7 +782,10 @@ export function CandidatesPage() {
 
   const buildCandidateUpdatePayload = (
     candidate: CandidateResponse,
-    status: CandidateStatusValue
+    overrides?: {
+      status?: CandidateStatusValue;
+      tags?: string[];
+    }
   ) => ({
     firstName: candidate.firstName,
     lastName: candidate.lastName,
@@ -788,9 +801,37 @@ export function CandidatesPage() {
     existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
     existingLicensePre2016: candidate.existingLicensePre2016,
     examFeePaid: candidate.examFeePaid ?? false,
-    status,
-    tags: candidate.tags?.map((tag) => tag.name) ?? [],
+    status: overrides?.status ?? (candidate.status as CandidateStatusValue),
+    tags: overrides?.tags ?? (candidate.tags?.map((tag) => tag.name) ?? []),
   });
+
+  const mergeCandidateTags = (candidate: CandidateResponse, additions: string[]) => {
+    const merged: string[] = [];
+    const seen = new Set<string>();
+
+    const pushUnique = (name: string) => {
+      const normalized = name
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleLowerCase("tr-TR");
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+
+      seen.add(normalized);
+      merged.push(name.trim().replace(/\s+/g, " "));
+    };
+
+    for (const existing of candidate.tags?.map((tag) => tag.name) ?? []) {
+      pushUnique(existing);
+    }
+
+    for (const addition of additions) {
+      pushUnique(addition);
+    }
+
+    return merged;
+  };
 
   const applyBulkStatusChange = async () => {
     if (!bulkStatusValue || selectedCandidateIds.size === 0) {
@@ -806,7 +847,10 @@ export function CandidatesPage() {
       await Promise.all(
         selectedIds.map(async (candidateId) => {
           const candidate = candidateById.get(candidateId) ?? (await getCandidateById(candidateId));
-          await updateCandidate(candidateId, buildCandidateUpdatePayload(candidate, bulkStatusValue));
+          await updateCandidate(
+            candidateId,
+            buildCandidateUpdatePayload(candidate, { status: bulkStatusValue })
+          );
         })
       );
 
@@ -817,6 +861,41 @@ export function CandidatesPage() {
       setRefreshKey((k) => k + 1);
     } catch {
       showToast("Toplu durum güncellenemedi", "error");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const applyBulkTagChange = async () => {
+    if (bulkTagValues.length === 0 || selectedCandidateIds.size === 0) {
+      return;
+    }
+
+    setBulkSaving(true);
+
+    try {
+      const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+      const selectedIds = Array.from(selectedCandidateIds);
+
+      await Promise.all(
+        selectedIds.map(async (candidateId) => {
+          const candidate = candidateById.get(candidateId) ?? (await getCandidateById(candidateId));
+          await updateCandidate(
+            candidateId,
+            buildCandidateUpdatePayload(candidate, {
+              tags: mergeCandidateTags(candidate, bulkTagValues),
+            })
+          );
+        })
+      );
+
+      showToast(`${selectedIds.length} adaya etiket eklendi`);
+      setBulkActionMode(null);
+      setSelectedCandidateIds(new Set());
+      setBulkTagValues([]);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("Toplu etiket ekleme tamamlanamadı", "error");
     } finally {
       setBulkSaving(false);
     }
@@ -857,6 +936,24 @@ export function CandidatesPage() {
                     {bulkSaving ? "Güncelleniyor..." : "Uygula"}
                   </button>
                 </>
+              ) : bulkActionMode === "tags" ? (
+                <>
+                  <CandidateTagsInput
+                    ariaLabel="Toplu etiket seç"
+                    className="candidate-bulk-tags-input"
+                    onChange={setBulkTagValues}
+                    placeholder="Etiket ara veya yeni ekle"
+                    value={bulkTagValues}
+                  />
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={selectedCount === 0 || bulkTagValues.length === 0 || bulkSaving}
+                    onClick={applyBulkTagChange}
+                    type="button"
+                  >
+                    {bulkSaving ? "Ekleniyor..." : "Uygula"}
+                  </button>
+                </>
               ) : bulkActionMode === "export" ? (
                 <button
                   className="btn btn-primary btn-sm"
@@ -868,6 +965,13 @@ export function CandidatesPage() {
                 </button>
               ) : (
                 <>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={openBulkTagAction}
+                    type="button"
+                  >
+                    Etiket Ekle
+                  </button>
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={openBulkStatusAction}
