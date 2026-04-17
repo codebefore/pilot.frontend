@@ -4,7 +4,14 @@ import { useForm } from "react-hook-form";
 import { createDocumentType, updateDocumentType } from "../../lib/documents-api";
 import { ApiError } from "../../lib/http";
 import { useT } from "../../lib/i18n";
-import type { DocumentTypeResponse, DocumentTypeUpsertRequest } from "../../lib/types";
+import type {
+  DocumentMetadataField,
+  DocumentMetadataFieldOption,
+  DocumentMetadataInputType,
+  DocumentTypeResponse,
+  DocumentTypeUpsertRequest,
+} from "../../lib/types";
+import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
@@ -50,6 +57,17 @@ const emptyValues = (
         isActive: true,
       };
 
+const emptyField = (): DocumentMetadataField => ({
+  key: "",
+  label: "",
+  inputType: "text",
+  isRequired: false,
+  placeholder: null,
+  options: [],
+});
+
+const emptyOption = (): DocumentMetadataFieldOption => ({ value: "", label: "" });
+
 /** Map .NET / ASP.NET model-validation field names to react-hook-form names. */
 const VALIDATION_FIELD_MAP: Record<string, keyof DocumentTypeFormValues> = {
   key: "key",
@@ -74,6 +92,10 @@ export function DocumentTypeFormModal({
   const t = useT();
   const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [metadataFields, setMetadataFields] = useState<DocumentMetadataField[]>(
+    editing?.metadataFields ?? []
+  );
+  const [metadataError, setMetadataError] = useState<string | null>(null);
 
   const {
     formState: { errors },
@@ -86,10 +108,118 @@ export function DocumentTypeFormModal({
   });
 
   useEffect(() => {
-    if (open) reset(emptyValues(editing, nextSortOrder));
+    if (!open) return;
+    reset(emptyValues(editing, nextSortOrder));
+    setMetadataFields(editing?.metadataFields ?? []);
+    setMetadataError(null);
   }, [editing, nextSortOrder, open, reset]);
 
+  const updateField = (
+    index: number,
+    patch: Partial<DocumentMetadataField>
+  ) => {
+    setMetadataFields((current) =>
+      current.map((field, i) => (i === index ? { ...field, ...patch } : field))
+    );
+  };
+
+  const addField = () => {
+    setMetadataFields((current) => [...current, emptyField()]);
+  };
+
+  const removeField = (index: number) => {
+    setMetadataFields((current) => current.filter((_, i) => i !== index));
+  };
+
+  const moveField = (index: number, direction: -1 | 1) => {
+    setMetadataFields((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return current;
+      const copy = [...current];
+      const [item] = copy.splice(index, 1);
+      copy.splice(target, 0, item);
+      return copy;
+    });
+  };
+
+  const addOption = (fieldIndex: number) => {
+    setMetadataFields((current) =>
+      current.map((field, i) =>
+        i === fieldIndex
+          ? { ...field, options: [...field.options, emptyOption()] }
+          : field
+      )
+    );
+  };
+
+  const updateOption = (
+    fieldIndex: number,
+    optionIndex: number,
+    patch: Partial<DocumentMetadataFieldOption>
+  ) => {
+    setMetadataFields((current) =>
+      current.map((field, i) =>
+        i === fieldIndex
+          ? {
+              ...field,
+              options: field.options.map((option, j) =>
+                j === optionIndex ? { ...option, ...patch } : option
+              ),
+            }
+          : field
+      )
+    );
+  };
+
+  const removeOption = (fieldIndex: number, optionIndex: number) => {
+    setMetadataFields((current) =>
+      current.map((field, i) =>
+        i === fieldIndex
+          ? {
+              ...field,
+              options: field.options.filter((_, j) => j !== optionIndex),
+            }
+          : field
+      )
+    );
+  };
+
+  const validateMetadataFields = (): string | null => {
+    const seenKeys = new Set<string>();
+    for (const field of metadataFields) {
+      const key = field.key.trim();
+      if (!key) return t("documentTypeForm.errors.fieldKeyRequired");
+      if (!KEY_PATTERN.test(key)) return t("documentTypeForm.errors.fieldKeyFormat");
+      if (seenKeys.has(key)) return t("documentTypeForm.errors.fieldKeyDuplicate");
+      seenKeys.add(key);
+      if (!field.label.trim()) return t("documentTypeForm.errors.fieldLabelRequired");
+      if (field.inputType === "select") {
+        if (field.options.length === 0) {
+          return t("documentTypeForm.errors.selectOptionsRequired");
+        }
+        const seenValues = new Set<string>();
+        for (const option of field.options) {
+          if (!option.value.trim() || !option.label.trim()) {
+            return t("documentTypeForm.errors.optionFieldsRequired");
+          }
+          if (seenValues.has(option.value)) {
+            return t("documentTypeForm.errors.optionValueDuplicate");
+          }
+          seenValues.add(option.value);
+        }
+      }
+    }
+    return null;
+  };
+
   const submit = handleSubmit(async (values) => {
+    const metadataValidation = validateMetadataFields();
+    if (metadataValidation) {
+      setMetadataError(metadataValidation);
+      return;
+    }
+    setMetadataError(null);
+
     setSubmitting(true);
     const payload: DocumentTypeUpsertRequest = {
       module: DOCUMENT_TYPE_MODULE,
@@ -98,6 +228,20 @@ export function DocumentTypeFormModal({
       sortOrder: Number(values.sortOrder),
       isRequired: values.isRequired,
       isActive: values.isActive,
+      metadataFields: metadataFields.map((field) => ({
+        key: field.key.trim(),
+        label: field.label.trim(),
+        inputType: field.inputType,
+        isRequired: field.isRequired,
+        placeholder: field.placeholder?.trim() || null,
+        options:
+          field.inputType === "select"
+            ? field.options.map((option) => ({
+                value: option.value.trim(),
+                label: option.label.trim(),
+              }))
+            : [],
+      })),
     };
 
     try {
@@ -111,6 +255,8 @@ export function DocumentTypeFormModal({
           const formField = VALIDATION_FIELD_MAP[serverField];
           if (formField && messages?.[0]) {
             setError(formField, { message: messages[0] });
+          } else if (serverField.toLowerCase().includes("metadata") && messages?.[0]) {
+            setMetadataError(messages[0]);
           }
         }
       }
@@ -228,6 +374,201 @@ export function DocumentTypeFormModal({
               <span>{t("documentTypeForm.isActive")}</span>
             </label>
           </div>
+        </div>
+
+        <div className="doc-meta-editor">
+          <div className="doc-meta-editor-header">
+            <div>
+              <div className="doc-meta-editor-title">
+                {t("documentTypeForm.metadataTitle")}
+              </div>
+              <div className="form-hint">{t("documentTypeForm.metadataHint")}</div>
+            </div>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={addField}
+              type="button"
+            >
+              {t("documentTypeForm.addField")}
+            </button>
+          </div>
+
+          {metadataError && <div className="form-error">{metadataError}</div>}
+
+          {metadataFields.length === 0 ? (
+            <div className="form-hint">{t("documentTypeForm.metadataEmpty")}</div>
+          ) : (
+            <ol className="doc-meta-field-list">
+              {metadataFields.map((field, index) => (
+                <li className="doc-meta-field" key={index}>
+                  <div className="doc-meta-field-row">
+                    <div className="form-group">
+                      <label className="form-label">
+                        {t("documentTypeForm.fieldKey")}
+                      </label>
+                      <input
+                        autoComplete="off"
+                        className="form-input"
+                        onChange={(event) =>
+                          updateField(index, { key: event.target.value })
+                        }
+                        placeholder="issued_at"
+                        value={field.key}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">
+                        {t("documentTypeForm.fieldLabel")}
+                      </label>
+                      <input
+                        className="form-input"
+                        onChange={(event) =>
+                          updateField(index, { label: event.target.value })
+                        }
+                        placeholder={t("documentTypeForm.fieldLabelPlaceholder")}
+                        value={field.label}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">
+                        {t("documentTypeForm.fieldType")}
+                      </label>
+                      <CustomSelect
+                        className="form-select"
+                        onChange={(event) => {
+                          const inputType = event.target
+                            .value as DocumentMetadataInputType;
+                          updateField(index, {
+                            inputType,
+                            options: inputType === "select" ? field.options : [],
+                          });
+                        }}
+                        value={field.inputType}
+                      >
+                        <option value="text">
+                          {t("documentTypeForm.fieldTypeText")}
+                        </option>
+                        <option value="date">
+                          {t("documentTypeForm.fieldTypeDate")}
+                        </option>
+                        <option value="select">
+                          {t("documentTypeForm.fieldTypeSelect")}
+                        </option>
+                      </CustomSelect>
+                    </div>
+                  </div>
+
+                  <div className="doc-meta-field-row">
+                    <div className="form-group doc-meta-field-placeholder">
+                      <label className="form-label">
+                        {t("documentTypeForm.fieldPlaceholder")}
+                      </label>
+                      <input
+                        className="form-input"
+                        onChange={(event) =>
+                          updateField(index, { placeholder: event.target.value })
+                        }
+                        value={field.placeholder ?? ""}
+                      />
+                    </div>
+                    <div className="form-group doc-meta-field-required">
+                      <label className="form-checkbox">
+                        <input
+                          checked={field.isRequired}
+                          onChange={(event) =>
+                            updateField(index, { isRequired: event.target.checked })
+                          }
+                          type="checkbox"
+                        />
+                        <span>{t("documentTypeForm.fieldRequired")}</span>
+                      </label>
+                    </div>
+                    <div className="doc-meta-field-actions">
+                      <button
+                        aria-label={t("documentTypeForm.moveUp")}
+                        className="btn btn-secondary btn-sm"
+                        disabled={index === 0}
+                        onClick={() => moveField(index, -1)}
+                        type="button"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        aria-label={t("documentTypeForm.moveDown")}
+                        className="btn btn-secondary btn-sm"
+                        disabled={index === metadataFields.length - 1}
+                        onClick={() => moveField(index, 1)}
+                        type="button"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => removeField(index)}
+                        type="button"
+                      >
+                        {t("documentTypeForm.removeField")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {field.inputType === "select" && (
+                    <div className="doc-meta-options">
+                      <div className="doc-meta-options-header">
+                        <span className="form-label">
+                          {t("documentTypeForm.fieldOptions")}
+                        </span>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => addOption(index)}
+                          type="button"
+                        >
+                          {t("documentTypeForm.addOption")}
+                        </button>
+                      </div>
+                      {field.options.length === 0 ? (
+                        <div className="form-hint">
+                          {t("documentTypeForm.optionsEmpty")}
+                        </div>
+                      ) : (
+                        field.options.map((option, optionIndex) => (
+                          <div className="doc-meta-option-row" key={optionIndex}>
+                            <input
+                              className="form-input"
+                              onChange={(event) =>
+                                updateOption(index, optionIndex, {
+                                  value: event.target.value,
+                                })
+                              }
+                              placeholder={t("documentTypeForm.optionValue")}
+                              value={option.value}
+                            />
+                            <input
+                              className="form-input"
+                              onChange={(event) =>
+                                updateOption(index, optionIndex, {
+                                  label: event.target.value,
+                                })
+                              }
+                              placeholder={t("documentTypeForm.optionLabel")}
+                              value={option.label}
+                            />
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => removeOption(index, optionIndex)}
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       </form>
     </Modal>

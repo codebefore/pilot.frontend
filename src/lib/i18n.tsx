@@ -325,6 +325,9 @@ const tr = {
   "uploadDoc.errors.docTypeRequired": "Belge türü seçin",
   "uploadDoc.errors.candidatesLoadFailed": "Adaylar yüklenemedi",
   "uploadDoc.errors.typesLoadFailed": "Belge türleri yüklenemedi",
+  "uploadDoc.errors.metadataRequired": "{label} alanı gerekli",
+  "uploadDoc.metadataTitle": "Belge Bilgileri",
+  "uploadDoc.metadataSelectPlaceholder": "Seçin...",
 
   // Document types admin
   "documentTypes.title": "Belge Türleri",
@@ -366,6 +369,37 @@ const tr = {
   "documentTypeForm.errors.keyFormat": "Sadece küçük harf, rakam ve _ kullanın",
   "documentTypeForm.errors.nameRequired": "Ad gerekli",
   "documentTypeForm.errors.sortOrderInvalid": "0 veya daha büyük olmalı",
+  "documentTypeForm.metadataTitle": "Ek Alanlar",
+  "documentTypeForm.metadataHint":
+    "Bu belge türü yüklenirken kullanıcıdan toplanacak ek veriler.",
+  "documentTypeForm.metadataEmpty":
+    "Bu belge türü ek veri toplamıyor. Alan eklemek için butonu kullanın.",
+  "documentTypeForm.addField": "Alan Ekle",
+  "documentTypeForm.removeField": "Kaldır",
+  "documentTypeForm.moveUp": "Yukarı taşı",
+  "documentTypeForm.moveDown": "Aşağı taşı",
+  "documentTypeForm.fieldKey": "Anahtar",
+  "documentTypeForm.fieldLabel": "Etiket",
+  "documentTypeForm.fieldLabelPlaceholder": "Örn. Veriliş Tarihi",
+  "documentTypeForm.fieldType": "Tip",
+  "documentTypeForm.fieldRequired": "Zorunlu",
+  "documentTypeForm.fieldPlaceholder": "Placeholder",
+  "documentTypeForm.fieldTypeText": "Metin",
+  "documentTypeForm.fieldTypeDate": "Tarih",
+  "documentTypeForm.fieldTypeSelect": "Seçim",
+  "documentTypeForm.fieldOptions": "Seçenekler",
+  "documentTypeForm.addOption": "Seçenek Ekle",
+  "documentTypeForm.optionValue": "Değer",
+  "documentTypeForm.optionLabel": "Görünen",
+  "documentTypeForm.optionsEmpty": "En az bir seçenek ekleyin.",
+  "documentTypeForm.errors.fieldKeyRequired": "Alan anahtarı gerekli",
+  "documentTypeForm.errors.fieldKeyFormat":
+    "Alan anahtarı sadece küçük harf, rakam ve _ içerebilir",
+  "documentTypeForm.errors.fieldKeyDuplicate": "Aynı alan anahtarı iki kez kullanılmış",
+  "documentTypeForm.errors.fieldLabelRequired": "Alan etiketi gerekli",
+  "documentTypeForm.errors.selectOptionsRequired": "Seçim alanı için en az bir seçenek ekleyin",
+  "documentTypeForm.errors.optionFieldsRequired": "Tüm seçeneklerin değer ve görüneni olmalı",
+  "documentTypeForm.errors.optionValueDuplicate": "Aynı seçenek değeri iki kez kullanılmış",
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -686,6 +720,9 @@ const en: Record<keyof typeof tr, string> = {
   "uploadDoc.errors.docTypeRequired": "Select a document type",
   "uploadDoc.errors.candidatesLoadFailed": "Failed to load candidates",
   "uploadDoc.errors.typesLoadFailed": "Failed to load document types",
+  "uploadDoc.errors.metadataRequired": "{label} is required",
+  "uploadDoc.metadataTitle": "Document Info",
+  "uploadDoc.metadataSelectPlaceholder": "Select...",
 
   // Document types admin
   "documentTypes.title": "Document Types",
@@ -727,6 +764,39 @@ const en: Record<keyof typeof tr, string> = {
   "documentTypeForm.errors.keyFormat": "Use only lowercase letters, digits and _",
   "documentTypeForm.errors.nameRequired": "Name is required",
   "documentTypeForm.errors.sortOrderInvalid": "Must be 0 or greater",
+  "documentTypeForm.metadataTitle": "Extra Fields",
+  "documentTypeForm.metadataHint":
+    "Additional data collected from the user when uploading this document type.",
+  "documentTypeForm.metadataEmpty":
+    "This document type does not collect extra data. Click the button to add a field.",
+  "documentTypeForm.addField": "Add Field",
+  "documentTypeForm.removeField": "Remove",
+  "documentTypeForm.moveUp": "Move up",
+  "documentTypeForm.moveDown": "Move down",
+  "documentTypeForm.fieldKey": "Key",
+  "documentTypeForm.fieldLabel": "Label",
+  "documentTypeForm.fieldLabelPlaceholder": "e.g. Issued At",
+  "documentTypeForm.fieldType": "Type",
+  "documentTypeForm.fieldRequired": "Required",
+  "documentTypeForm.fieldPlaceholder": "Placeholder",
+  "documentTypeForm.fieldTypeText": "Text",
+  "documentTypeForm.fieldTypeDate": "Date",
+  "documentTypeForm.fieldTypeSelect": "Select",
+  "documentTypeForm.fieldOptions": "Options",
+  "documentTypeForm.addOption": "Add Option",
+  "documentTypeForm.optionValue": "Value",
+  "documentTypeForm.optionLabel": "Label",
+  "documentTypeForm.optionsEmpty": "Add at least one option.",
+  "documentTypeForm.errors.fieldKeyRequired": "Field key is required",
+  "documentTypeForm.errors.fieldKeyFormat":
+    "Field key may only contain lowercase letters, digits and _",
+  "documentTypeForm.errors.fieldKeyDuplicate": "Field key is used twice",
+  "documentTypeForm.errors.fieldLabelRequired": "Field label is required",
+  "documentTypeForm.errors.selectOptionsRequired":
+    "A select field requires at least one option",
+  "documentTypeForm.errors.optionFieldsRequired":
+    "All options must have a value and a label",
+  "documentTypeForm.errors.optionValueDuplicate": "Option value is used twice",
 };
 
 export type TranslationKey = keyof typeof tr;

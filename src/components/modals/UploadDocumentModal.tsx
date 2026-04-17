@@ -1,13 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { getCandidates } from "../../lib/candidates-api";
 import { getDocumentTypes, uploadDocument } from "../../lib/documents-api";
 import { ApiError } from "../../lib/http";
-import { useT } from "../../lib/i18n";
-import type { CandidateResponse, DocumentTypeResponse } from "../../lib/types";
+import { useLanguage, useT } from "../../lib/i18n";
+import type {
+  CandidateResponse,
+  DocumentMetadataField,
+  DocumentTypeResponse,
+} from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { FileDropInput } from "../ui/FileDropInput";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
@@ -55,6 +60,8 @@ export function UploadDocumentModal({
   onUploaded,
 }: UploadDocumentModalProps) {
   const t = useT();
+  const { lang } = useLanguage();
+  const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>(
@@ -62,6 +69,8 @@ export function UploadDocumentModal({
   );
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [metadataValues, setMetadataValues] = useState<Record<string, string>>({});
+  const [metadataErrors, setMetadataErrors] = useState<Record<string, string>>({});
 
   const {
     control,
@@ -122,6 +131,54 @@ export function UploadDocumentModal({
     ? documentTypes.find((documentType) => documentType.key === lockedDocumentTypeKey)
     : null;
 
+  const resolvedDocumentTypeId = lockedDocumentType?.id ?? selectedDocumentTypeId;
+  const activeDocumentType = useMemo(
+    () => documentTypes.find((dt) => dt.id === resolvedDocumentTypeId) ?? null,
+    [documentTypes, resolvedDocumentTypeId]
+  );
+  const metadataFields: DocumentMetadataField[] = activeDocumentType?.metadataFields ?? [];
+
+  // Reset collected metadata whenever the selected document type changes —
+  // different types have different schemas, so stale values could otherwise
+  // leak across selections.
+  useEffect(() => {
+    setMetadataValues({});
+    setMetadataErrors({});
+  }, [resolvedDocumentTypeId]);
+
+  // Clear all metadata state whenever the modal is reopened.
+  useEffect(() => {
+    if (!open) {
+      setMetadataValues({});
+      setMetadataErrors({});
+    }
+  }, [open]);
+
+  const setMetadataValue = (key: string, value: string) => {
+    setMetadataValues((current) => ({ ...current, [key]: value }));
+    if (metadataErrors[key]) {
+      setMetadataErrors((current) => {
+        const { [key]: _, ...rest } = current;
+        return rest;
+      });
+    }
+  };
+
+  const validateMetadata = (): boolean => {
+    const errorsNext: Record<string, string> = {};
+    for (const field of metadataFields) {
+      const value = (metadataValues[field.key] ?? "").trim();
+      if (field.isRequired && value === "") {
+        errorsNext[field.key] = t("uploadDoc.errors.metadataRequired").replace(
+          "{label}",
+          field.label
+        );
+      }
+    }
+    setMetadataErrors(errorsNext);
+    return Object.keys(errorsNext).length === 0;
+  };
+
   const submit = handleSubmit(async (data) => {
     const resolvedCandidateId = candidateId ?? data.candidateId;
     if (!resolvedCandidateId) {
@@ -129,10 +186,10 @@ export function UploadDocumentModal({
       return;
     }
 
-    const resolvedDocumentTypeId =
+    const resolvedSubmitDocumentTypeId =
       lockedDocumentType?.id ??
       (lockedDocumentTypeKey ? "" : data.documentTypeId);
-    if (!resolvedDocumentTypeId) {
+    if (!resolvedSubmitDocumentTypeId) {
       setError("documentTypeId", {
         message: lockedDocumentTypeKey
           ? "Biyometrik foto belge türü bulunamadı."
@@ -141,13 +198,23 @@ export function UploadDocumentModal({
       return;
     }
 
+    if (!validateMetadata()) return;
+
+    const metadataToSend: Record<string, string> = {};
+    for (const field of metadataFields) {
+      const value = (metadataValues[field.key] ?? "").trim();
+      if (value !== "") metadataToSend[field.key] = value;
+    }
+
     setSubmitting(true);
     try {
       await uploadDocument({
         candidateId: resolvedCandidateId,
-        documentTypeId: resolvedDocumentTypeId,
+        documentTypeId: resolvedSubmitDocumentTypeId,
         file: data.file!,
         note: data.note.trim() || undefined,
+        metadata:
+          Object.keys(metadataToSend).length > 0 ? metadataToSend : undefined,
       });
       onUploaded();
     } catch (error) {
@@ -300,6 +367,64 @@ export function UploadDocumentModal({
             {errors.file && <div className="form-error">{errors.file.message}</div>}
           </div>
         </div>
+
+        {metadataFields.length > 0 && (
+          <div className="upload-doc-metadata">
+            <div className="form-label">{t("uploadDoc.metadataTitle")}</div>
+            {metadataFields.map((field) => {
+              const value = metadataValues[field.key] ?? "";
+              const fieldError = metadataErrors[field.key];
+              const labelWithRequired = field.isRequired ? `${field.label} *` : field.label;
+
+              return (
+                <div className="form-row full" key={field.key}>
+                  <div className="form-group">
+                    <label className="form-label">{labelWithRequired}</label>
+                    {field.inputType === "date" ? (
+                      <LocalizedDateInput
+                        ariaLabel={field.label}
+                        lang={dateInputLang}
+                        onChange={(next) => setMetadataValue(field.key, next)}
+                        placeholder={field.placeholder ?? ""}
+                        value={value}
+                      />
+                    ) : field.inputType === "select" ? (
+                      <CustomSelect
+                        aria-label={field.label}
+                        className="form-select"
+                        onChange={(event) =>
+                          setMetadataValue(field.key, event.target.value)
+                        }
+                        value={value}
+                      >
+                        <option value="">
+                          {field.placeholder ?? t("uploadDoc.metadataSelectPlaceholder")}
+                        </option>
+                        {field.options.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </CustomSelect>
+                    ) : (
+                      <input
+                        aria-label={field.label}
+                        className={fieldClass(!!fieldError, "form-input")}
+                        onChange={(event) =>
+                          setMetadataValue(field.key, event.target.value)
+                        }
+                        placeholder={field.placeholder ?? ""}
+                        type="text"
+                        value={value}
+                      />
+                    )}
+                    {fieldError && <div className="form-error">{fieldError}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="form-row full">
           <div className="form-group">

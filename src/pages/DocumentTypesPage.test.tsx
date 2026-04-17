@@ -108,6 +108,7 @@ describe("DocumentTypesPage", () => {
         sortOrder: 1,
         isRequired: true,
         isActive: true,
+        metadataFields: [],
       });
     });
   });
@@ -132,6 +133,7 @@ describe("DocumentTypesPage", () => {
         sortOrder: 0,
         isRequired: true,
         isActive: false,
+        metadataFields: [],
       });
     });
   });

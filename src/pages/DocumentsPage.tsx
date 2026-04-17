@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { CheckIcon, PlusIcon, XIcon } from "../components/icons";
+import { CheckIcon, XIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { UploadDocumentModal } from "../components/modals/UploadDocumentModal";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
@@ -104,7 +104,7 @@ export function DocumentsPage() {
   const [entries, setEntries] = useState<DocumentChecklistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const lastFetchKeyRef = useRef<string | null>(null);
+  const lastCompletedFetchKeyRef = useRef<string | null>(null);
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>([]);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
@@ -136,15 +136,15 @@ export function DocumentsPage() {
       pageSize: PAGE_SIZE,
     };
     const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
-    if (lastFetchKeyRef.current === fetchKey) {
-      return () => controller.abort();
+    if (lastCompletedFetchKeyRef.current === fetchKey) {
+      return;
     }
 
-    lastFetchKeyRef.current = fetchKey;
     setLoading(true);
 
     getDocumentChecklist(requestParams, controller.signal)
       .then((result) => {
+        lastCompletedFetchKeyRef.current = fetchKey;
         setEntries(result.items);
         setTotalPages(result.totalPages);
       })
@@ -230,10 +230,6 @@ export function DocumentsPage() {
       <PageToolbar
         actions={
           <div className="documents-toolbar-actions">
-            <button className="btn btn-primary btn-sm" onClick={() => openUpload()} type="button">
-              <PlusIcon size={12} />
-              {t("documents.action.upload")}
-            </button>
             <div className="search-box documents-toolbar-search">
               <SearchInput
                 onChange={(value) => patchFilters({ search: value })}

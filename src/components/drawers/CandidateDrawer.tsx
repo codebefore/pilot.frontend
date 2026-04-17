@@ -7,7 +7,11 @@ import {
   removeActiveGroupAssignment,
   updateCandidate,
 } from "../../lib/candidates-api";
-import { getDocumentChecklist } from "../../lib/documents-api";
+import {
+  getCandidateDocuments,
+  getDocumentChecklist,
+  getDocumentTypes,
+} from "../../lib/documents-api";
 import { getGroups } from "../../lib/groups-api";
 import { useLanguage, useT } from "../../lib/i18n";
 import { buildWhatsAppUrl, formatPhoneNumber } from "../../lib/phone";
@@ -30,6 +34,8 @@ import {
 import type {
   CandidateResponse,
   CandidateUpsertRequest,
+  DocumentResponse,
+  DocumentTypeResponse,
   LicenseClass,
 } from "../../lib/types";
 import { UploadDocumentModal } from "../modals/UploadDocumentModal";
@@ -155,6 +161,8 @@ export function CandidateDrawer({
   const [deleting, setDeleting] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [missingDocs, setMissingDocs] = useState<string[] | null>(null);
+  const [uploadedDocs, setUploadedDocs] = useState<DocumentResponse[] | null>(null);
+  const [docTypesForMetadata, setDocTypesForMetadata] = useState<DocumentTypeResponse[]>([]);
   const [existingLicenseDraft, setExistingLicenseDraft] = useState<ExistingLicenseDraft>(
     buildExistingLicenseDraft(null)
   );
@@ -212,6 +220,30 @@ export function CandidateDrawer({
       });
     return () => controller.abort();
   }, [candidate]);
+
+  // Load the candidate's uploaded documents + the matching document type
+  // catalog so metadata values can be rendered against their human labels
+  // (and select values mapped back to their option labels).
+  useEffect(() => {
+    if (!candidateId) {
+      setUploadedDocs(null);
+      return;
+    }
+    const controller = new AbortController();
+    Promise.all([
+      getCandidateDocuments(candidateId, controller.signal),
+      getDocumentTypes({ includeInactive: true }, controller.signal),
+    ])
+      .then(([docs, types]) => {
+        setUploadedDocs(docs);
+        setDocTypesForMetadata(types);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setUploadedDocs([]);
+      });
+    return () => controller.abort();
+  }, [candidateId]);
 
   const saveField = async (patch: Partial<CandidateUpsertRequest>) => {
     if (!candidate || !candidateId) return;
@@ -838,6 +870,45 @@ export function CandidateDrawer({
               </>
             )}
           </DrawerSection>
+
+          {uploadedDocs && uploadedDocs.length > 0 && (
+            <DrawerSection title="Yüklenen Evraklar">
+              {uploadedDocs.map((doc) => {
+                const docType = docTypesForMetadata.find((dt) => dt.id === doc.documentTypeId);
+                const metadataEntries = Object.entries(doc.metadata ?? {}).filter(
+                  ([, value]) => value !== null && value !== ""
+                );
+
+                return (
+                  <div className="drawer-doc-item" key={doc.id}>
+                    <DrawerRow label={doc.documentTypeName}>{doc.originalFileName}</DrawerRow>
+                    {metadataEntries.length > 0 && (
+                      <ul className="drawer-list drawer-doc-metadata">
+                        {metadataEntries.map(([key, rawValue]) => {
+                          const fieldDef = docType?.metadataFields.find((f) => f.key === key);
+                          const value = rawValue ?? "";
+                          const displayValue =
+                            fieldDef?.inputType === "select"
+                              ? fieldDef.options.find((o) => o.value === value)?.label ?? value
+                              : fieldDef?.inputType === "date"
+                              ? formatDateTR(value)
+                              : value;
+                          return (
+                            <li key={key}>
+                              <span className="drawer-doc-metadata-label">
+                                {fieldDef?.label ?? key}:
+                              </span>{" "}
+                              {displayValue}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </DrawerSection>
+          )}
 
           <DrawerSection title="Muhasebe">
             <EditableRow

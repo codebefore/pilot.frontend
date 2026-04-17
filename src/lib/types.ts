@@ -27,6 +27,7 @@ export interface CandidatePhotoSummary {
 export interface CandidateTag {
   id: string;
   name: string;
+  usageCount?: number | null;
 }
 
 export interface CandidateResponse {
@@ -181,6 +182,23 @@ export interface GroupUpsertRequest {
 
 export type DocumentStatus = "missing" | "uploaded";
 
+/** Backend-supported input types for a document metadata field. */
+export type DocumentMetadataInputType = "text" | "date" | "select";
+
+export interface DocumentMetadataFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface DocumentMetadataField {
+  key: string;
+  label: string;
+  inputType: DocumentMetadataInputType;
+  isRequired: boolean;
+  placeholder: string | null;
+  options: DocumentMetadataFieldOption[];
+}
+
 export interface DocumentTypeResponse {
   id: string;
   module: string;
@@ -189,6 +207,7 @@ export interface DocumentTypeResponse {
   sortOrder: number;
   isRequired: boolean;
   isActive: boolean;
+  metadataFields: DocumentMetadataField[];
   createdAtUtc: string;
   updatedAtUtc: string;
 }
@@ -200,6 +219,7 @@ export interface DocumentTypeUpsertRequest {
   sortOrder: number;
   isRequired: boolean;
   isActive: boolean;
+  metadataFields?: DocumentMetadataField[];
 }
 
 export interface CandidateDocumentSummaryResponse {
@@ -229,6 +249,7 @@ export interface DocumentResponse {
   contentType: string;
   fileSizeBytes: number;
   note: string | null;
+  metadata: Record<string, string | null>;
   uploadedAtUtc: string;
   createdAtUtc: string;
   updatedAtUtc: string;

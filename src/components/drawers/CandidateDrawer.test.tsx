@@ -50,6 +50,7 @@ vi.mock("../../lib/documents-api", () => ({
     totalPages: 1,
   }),
   getDocumentTypes: vi.fn().mockResolvedValue([]),
+  getCandidateDocuments: vi.fn().mockResolvedValue([]),
   uploadDocument: vi.fn(),
 }));
 

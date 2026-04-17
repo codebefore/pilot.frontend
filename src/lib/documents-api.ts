@@ -1,5 +1,6 @@
 import { httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
 import type {
+  DocumentMetadataField,
   DocumentChecklistEntry,
   DocumentResponse,
   DocumentStatus,
@@ -7,6 +8,33 @@ import type {
   DocumentTypeUpsertRequest,
   PagedResponse,
 } from "./types";
+
+function normalizeMetadataField(field: DocumentMetadataField): DocumentMetadataField {
+  const matchesLegacyLabel =
+    /belge\s+say/i.test(field.label) || (!!field.placeholder && /belge\s+say/i.test(field.placeholder));
+
+  if (field.key !== "document_number" && !matchesLegacyLabel) {
+    return field;
+  }
+
+  const placeholder =
+    !field.placeholder || /belge\s+say/i.test(field.placeholder)
+      ? "Belge No"
+      : field.placeholder;
+
+  return {
+    ...field,
+    label: "Belge No",
+    placeholder,
+  };
+}
+
+function normalizeDocumentType(documentType: DocumentTypeResponse): DocumentTypeResponse {
+  return {
+    ...documentType,
+    metadataFields: documentType.metadataFields.map(normalizeMetadataField),
+  };
+}
 
 export interface GetDocumentTypesOptions {
   module?: string;
@@ -29,20 +57,24 @@ export function getDocumentTypes(
     module: options?.module ?? "candidate",
     includeInactive: options?.includeInactive ?? false,
   };
-  return httpGet<DocumentTypeResponse[]>("/api/document-types", params, { signal });
+  return httpGet<DocumentTypeResponse[]>("/api/document-types", params, { signal }).then(
+    (documentTypes) => documentTypes.map(normalizeDocumentType)
+  );
 }
 
 export function createDocumentType(
   body: DocumentTypeUpsertRequest
 ): Promise<DocumentTypeResponse> {
-  return httpPost<DocumentTypeResponse>("/api/document-types", body);
+  return httpPost<DocumentTypeResponse>("/api/document-types", body).then(normalizeDocumentType);
 }
 
 export function updateDocumentType(
   id: string,
   body: DocumentTypeUpsertRequest
 ): Promise<DocumentTypeResponse> {
-  return httpPut<DocumentTypeResponse>(`/api/document-types/${id}`, body);
+  return httpPut<DocumentTypeResponse>(`/api/document-types/${id}`, body).then(
+    normalizeDocumentType
+  );
 }
 
 export function getDocumentChecklist(
@@ -61,6 +93,12 @@ export interface UploadDocumentInput {
   documentTypeId: string;
   file: File;
   note?: string;
+  /**
+   * Extra key-value data collected from the schema fields defined on the
+   * selected document type. Serialized to a single `metadataJson` form field
+   * because the backend accepts the dict as a JSON string.
+   */
+  metadata?: Record<string, string>;
 }
 
 export function uploadDocument(
@@ -71,9 +109,23 @@ export function uploadDocument(
   form.append("documentTypeId", input.documentTypeId);
   form.append("file", input.file);
   if (input.note) form.append("note", input.note);
+  if (input.metadata && Object.keys(input.metadata).length > 0) {
+    form.append("metadataJson", JSON.stringify(input.metadata));
+  }
   return httpPostForm<DocumentResponse>(
     `/api/candidates/${input.candidateId}/documents`,
     form,
+    { signal }
+  );
+}
+
+export function getCandidateDocuments(
+  candidateId: string,
+  signal?: AbortSignal
+): Promise<DocumentResponse[]> {
+  return httpGet<DocumentResponse[]>(
+    `/api/candidates/${candidateId}/documents`,
+    undefined,
     { signal }
   );
 }

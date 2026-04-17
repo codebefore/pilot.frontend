@@ -286,7 +286,7 @@
   width: 100%;
 }
 .documents-toolbar-search {
-  flex: 0 1 360px;
+  flex: 1 1 auto;
   min-width: 240px;
   padding: 0;
   margin: 0;

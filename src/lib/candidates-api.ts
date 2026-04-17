@@ -112,6 +112,14 @@ export function createCandidateTag(name: string): Promise<CandidateTag> {
   return httpPost<CandidateTag>("/api/candidates/tags", { name });
 }
 
+export function updateCandidateTag(id: string, name: string): Promise<CandidateTag> {
+  return httpPut<CandidateTag>(`/api/candidates/tags/${id}`, { name });
+}
+
+export function deleteCandidateTag(id: string): Promise<void> {
+  return httpDelete(`/api/candidates/tags/${id}`);
+}
+
 export function assignCandidateGroup(
   candidateId: string,
   groupId: string

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,8 @@ import { renderWithProviders } from "../test/render-with-providers";
 const getCandidatesMock = vi.fn();
 const getCandidateByIdMock = vi.fn();
 const updateCandidateMock = vi.fn();
+const updateCandidateTagMock = vi.fn();
+const deleteCandidateTagMock = vi.fn();
 const searchCandidateTagsMock = vi.fn();
 
 vi.mock("../lib/candidates-api", async () => {
@@ -21,8 +23,13 @@ vi.mock("../lib/candidates-api", async () => {
     getCandidateById: (...args: Parameters<typeof actual.getCandidateById>) =>
       getCandidateByIdMock(...args),
     createCandidate: vi.fn(),
+    createCandidateTag: vi.fn(),
     updateCandidate: (...args: Parameters<typeof actual.updateCandidate>) =>
       updateCandidateMock(...args),
+    updateCandidateTag: (...args: Parameters<typeof actual.updateCandidateTag>) =>
+      updateCandidateTagMock(...args),
+    deleteCandidateTag: (...args: Parameters<typeof actual.deleteCandidateTag>) =>
+      deleteCandidateTagMock(...args),
     deleteCandidate: vi.fn(),
     assignCandidateGroup: vi.fn(),
     removeActiveGroupAssignment: vi.fn(),
@@ -65,6 +72,8 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockReset();
     getCandidateByIdMock.mockReset();
     updateCandidateMock.mockReset();
+    updateCandidateTagMock.mockReset();
+    deleteCandidateTagMock.mockReset();
     searchCandidateTagsMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getCandidatesMock.mockResolvedValue({
@@ -792,6 +801,59 @@ describe("CandidatesPage tabs", () => {
           tags: ["Referans", "VIP"],
         })
       );
+    });
+  });
+
+  it("renames a tag from the global tag manager", async () => {
+    searchCandidateTagsMock.mockResolvedValue([
+      { id: "tag-1", name: "Referans", usageCount: 2 },
+    ]);
+    updateCandidateTagMock.mockResolvedValue({
+      id: "tag-1",
+      name: "VIP",
+      usageCount: 2,
+    });
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Referans" });
+    fireEvent.click(screen.getByRole("button", { name: "Etiketleri Yönet" }));
+
+    const dialog = screen.getByRole("dialog");
+    const row = within(dialog).getByText("Referans").closest(".tag-manager-row");
+    expect(row).toBeTruthy();
+
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Düzenle" }));
+    fireEvent.change(screen.getByLabelText("Referans etiket adı"), {
+      target: { value: "VIP" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateTagMock).toHaveBeenCalledWith("tag-1", "VIP");
+    });
+  });
+
+  it("deletes a tag from the global tag manager", async () => {
+    searchCandidateTagsMock.mockResolvedValue([
+      { id: "tag-1", name: "Referans", usageCount: 3 },
+    ]);
+    deleteCandidateTagMock.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await screen.findByRole("button", { name: "Referans" });
+    fireEvent.click(screen.getByRole("button", { name: "Etiketleri Yönet" }));
+
+    const dialog = screen.getByRole("dialog");
+    const row = within(dialog).getByText("Referans").closest(".tag-manager-row");
+    expect(row).toBeTruthy();
+
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Sil" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evet, Sil" }));
+
+    await waitFor(() => {
+      expect(deleteCandidateTagMock).toHaveBeenCalledWith("tag-1");
     });
   });
 

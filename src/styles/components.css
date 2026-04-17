@@ -1615,6 +1615,25 @@ textarea.form-input {
   color: var(--brand-dark);
   background: var(--brand-subtle);
 }
+.tag-filter-manage {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.tag-filter-manage:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: var(--brand-subtle);
+}
 .tag-filter-new-input {
   min-width: 140px;
   padding: 4px 12px;
@@ -1631,6 +1650,46 @@ textarea.form-input {
 .tag-filter-new-input::placeholder {
   color: var(--gray-400);
   font-weight: 500;
+}
+.tag-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tag-manager-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+.tag-manager-row:last-child {
+  border-bottom: none;
+}
+.tag-manager-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.tag-manager-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+.tag-manager-usage {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.tag-manager-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.tag-manager-empty {
+  font-size: 14px;
+  color: var(--gray-500);
 }
 /* ─── CANDIDATE FILTER PANEL ─── */
 .cand-filters-switch {
@@ -1726,6 +1785,19 @@ textarea.form-input {
 .cand-filters-grid .form-label {
   font-size: 11px;
   margin-bottom: 4px;
+}
+/* Filter sidebar is narrower than the date popover's default 296px width,
+   so shrink it to the inner width of the panel (260px sidebar - 32px padding).
+   The day grid uses `minmax(0, 1fr)` columns and shrinks gracefully. */
+.cand-filters-panel .localized-date-popover {
+  width: 100%;
+  left: 0;
+  right: 0;
+  padding: 10px;
+}
+.cand-filters-panel .localized-date-day {
+  height: 30px;
+  font-size: 11px;
 }
 .cand-filters-backdrop {
   /* Desktop'ta görünmez — sol nav her zaman görünür kalır, ikisinden hangisi
@@ -2874,3 +2946,93 @@ textarea.form-input {
 .candidate-search-results li button:disabled { opacity: .5; cursor: wait; }
 .candidate-search-results .candidate-name { color: var(--gray-900); font-weight: 500; }
 .candidate-search-results .candidate-tc { color: var(--gray-400); font-size: 11px; margin-left: 0; }
+
+/* ── Document type metadata field editor (DocumentTypeFormModal) ───── */
+.doc-meta-editor {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-100);
+}
+.doc-meta-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.doc-meta-editor-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+.doc-meta-field-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.doc-meta-field {
+  padding: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: var(--gray-50);
+}
+.doc-meta-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 140px;
+  gap: 10px;
+  align-items: end;
+}
+.doc-meta-field-row + .doc-meta-field-row {
+  margin-top: 8px;
+  grid-template-columns: 1fr 130px auto;
+}
+.doc-meta-field-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.doc-meta-options {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--gray-200);
+}
+.doc-meta-options-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.doc-meta-option-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ── UploadDocumentModal dynamic metadata section ──────────────────── */
+.upload-doc-metadata {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gray-100);
+}
+
+/* ── CandidateDrawer uploaded document metadata list ───────────────── */
+.drawer-doc-item + .drawer-doc-item {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--gray-100);
+}
+.drawer-doc-metadata {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+.drawer-doc-metadata-label {
+  color: var(--gray-500);
+  font-weight: 500;
+}

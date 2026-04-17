@@ -5,6 +5,7 @@ import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPa
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
 import { DownloadIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
+import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
 import { CandidateDocumentBadge } from "../components/ui/CandidateDocumentBadge";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
@@ -353,6 +354,7 @@ export function CandidatesPage() {
   const [tab, setTab] = useState<CandidateTab>(DEFAULT_TAB);
   const [sort, setSort] = useState<SortState>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
@@ -379,7 +381,7 @@ export function CandidatesPage() {
   );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = countActiveCandidateFilters(filters);
-  const lastFetchKeyRef = useRef<string | null>(null);
+  const lastCompletedFetchKeyRef = useRef<string | null>(null);
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("selected");
@@ -434,11 +436,10 @@ export function CandidatesPage() {
       pageSize: PAGE_SIZE,
     };
     const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
-    if (lastFetchKeyRef.current === fetchKey) {
-      return () => controller.abort();
+    if (lastCompletedFetchKeyRef.current === fetchKey) {
+      return;
     }
 
-    lastFetchKeyRef.current = fetchKey;
     setLoading(true);
 
     getCandidates(
@@ -446,6 +447,7 @@ export function CandidatesPage() {
       controller.signal
     )
       .then((result) => {
+        lastCompletedFetchKeyRef.current = fetchKey;
         setCandidates(result.items);
         setTotalPages(result.totalPages);
       })
@@ -539,6 +541,26 @@ export function CandidatesPage() {
         : [...current, tag];
       return next.slice().sort((left, right) => left.name.localeCompare(right.name, "tr"));
     });
+  };
+
+  const removeTagFromCatalog = (tagId: string) => {
+    setAllTags((current) => current.filter((tag) => tag.id !== tagId));
+  };
+
+  const handleTagRenamed = (previousTag: CandidateTag, nextTag: CandidateTag) => {
+    removeTagFromCatalog(previousTag.id);
+    upsertTagCatalog(nextTag);
+    setActiveTags((current) => {
+      const mapped = current.map((name) => (name === previousTag.name ? nextTag.name : name));
+      return mapped.filter((name, index) => mapped.indexOf(name) === index);
+    });
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleTagDeleted = (tag: CandidateTag) => {
+    removeTagFromCatalog(tag.id);
+    setActiveTags((current) => current.filter((name) => name !== tag.name));
+    setRefreshKey((k) => k + 1);
   };
 
   const commitNewTag = async () => {
@@ -1099,6 +1121,13 @@ export function CandidatesPage() {
             + {t("candidates.tags.addFilter")}
           </button>
         )}
+        <button
+          className="tag-filter-manage"
+          onClick={() => setTagManagerOpen(true)}
+          type="button"
+        >
+          Etiketleri Yönet
+        </button>
       </div>
 
       <div className="table-wrap spaced">
@@ -1230,6 +1259,13 @@ export function CandidatesPage() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmitNew}
         open={modalOpen}
+      />
+      <CandidateTagManagerModal
+        onClose={() => setTagManagerOpen(false)}
+        onDeleted={handleTagDeleted}
+        onRenamed={handleTagRenamed}
+        open={tagManagerOpen}
+        tags={allTags}
       />
     </>
   );
