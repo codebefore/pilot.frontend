@@ -10,6 +10,10 @@ import { getDocumentTypes } from "../lib/documents-api";
 import { useT } from "../lib/i18n";
 import type { DocumentTypeResponse } from "../lib/types";
 
+type DocumentTypeSortField = "sortOrder" | "key" | "name" | "isRequired" | "isActive";
+type SortDirection = "asc" | "desc";
+type SortState = { field: DocumentTypeSortField; direction: SortDirection } | null;
+
 export function DocumentTypesPage() {
   const t = useT();
   const { showToast } = useToast();
@@ -18,6 +22,7 @@ export function DocumentTypesPage() {
   const [loading, setLoading] = useState(true);
   const [includeInactive, setIncludeInactive] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [sort, setSort] = useState<SortState>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<DocumentTypeResponse | null>(null);
@@ -45,6 +50,34 @@ export function DocumentTypesPage() {
     () => (items.length === 0 ? 0 : Math.max(...items.map((i) => i.sortOrder)) + 1),
     [items]
   );
+
+  const sortedItems = useMemo(() => {
+    if (!sort) return items;
+    const multiplier = sort.direction === "asc" ? 1 : -1;
+    return items.slice().sort((a, b) => {
+      const av = a[sort.field];
+      const bv = b[sort.field];
+      if (typeof av === "number" && typeof bv === "number") {
+        return (av - bv) * multiplier;
+      }
+      if (typeof av === "boolean" && typeof bv === "boolean") {
+        return (Number(av) - Number(bv)) * multiplier;
+      }
+      return String(av).localeCompare(String(bv), undefined, { sensitivity: "base" }) * multiplier;
+    });
+  }, [items, sort]);
+
+  const handleSortToggle = (field: DocumentTypeSortField) => {
+    setSort((current) => {
+      if (!current || current.field !== field) {
+        return { field, direction: "asc" };
+      }
+      if (current.direction === "asc") {
+        return { field, direction: "desc" };
+      }
+      return null;
+    });
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -99,11 +132,36 @@ export function DocumentTypesPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>{t("documentTypes.col.sortOrder")}</th>
-                <th>{t("documentTypes.col.key")}</th>
-                <th>{t("documentTypes.col.name")}</th>
-                <th>{t("documentTypes.col.required")}</th>
-                <th>{t("documentTypes.col.active")}</th>
+                <SortableTh
+                  field="sortOrder"
+                  label={t("documentTypes.col.sortOrder")}
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
+                <SortableTh
+                  field="key"
+                  label={t("documentTypes.col.key")}
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
+                <SortableTh
+                  field="name"
+                  label={t("documentTypes.col.name")}
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
+                <SortableTh
+                  field="isRequired"
+                  label={t("documentTypes.col.required")}
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
+                <SortableTh
+                  field="isActive"
+                  label={t("documentTypes.col.active")}
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
                 <th>{t("documentTypes.col.action")}</th>
               </tr>
             </thead>
@@ -131,14 +189,14 @@ export function DocumentTypesPage() {
                     </td>
                   </tr>
                 ))
-              ) : items.length === 0 ? (
+              ) : sortedItems.length === 0 ? (
                 <tr>
                   <td className="data-table-empty" colSpan={6}>
                     {t("documentTypes.empty")}
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
+                sortedItems.map((item) => (
                   <tr key={item.id}>
                     <td>{item.sortOrder}</td>
                     <td>
@@ -189,5 +247,38 @@ export function DocumentTypesPage() {
         open={formOpen}
       />
     </>
+  );
+}
+
+type SortableThProps = {
+  field: DocumentTypeSortField;
+  label: string;
+  sort: SortState;
+  onToggle: (field: DocumentTypeSortField) => void;
+};
+
+function SortableTh({ field, label, sort, onToggle }: SortableThProps) {
+  const isActive = sort?.field === field;
+  const direction = isActive ? sort.direction : null;
+  const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
+  const ariaSort = isActive
+    ? direction === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+
+  return (
+    <th aria-sort={ariaSort} className={isActive ? "sortable-th active" : "sortable-th"}>
+      <button
+        className="sortable-th-btn"
+        onClick={() => onToggle(field)}
+        type="button"
+      >
+        <span>{label}</span>
+        <span aria-hidden="true" className="sortable-th-indicator">
+          {indicator}
+        </span>
+      </button>
+    </th>
   );
 }

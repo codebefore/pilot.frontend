@@ -10,7 +10,7 @@ import {
   EXISTING_LICENSE_TYPE_OPTIONS,
   TURKEY_PROVINCE_OPTIONS,
 } from "../../lib/status-maps";
-import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import type { CandidateGenderValue, GroupResponse, LicenseClass, TermResponse } from "../../lib/types";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
@@ -111,11 +111,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const birthDate = watch("birthDate");
   const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
   const tags = watch("tags");
-  const availableGroups = groups.filter((group) => group.licenseClass === selectedClass);
-  const classRegistration = register("className", {
-    required: true,
-    onChange: () => setValue("groupId", ""),
-  });
+  const availableGroups = groups;
+  const sortedTerms = terms.length > 0 ? [...terms].sort(compareTermsDesc) : [];
+  const classRegistration = register("className", { required: true });
   const birthDateRegistration = register("birthDate", {
     required: "Zorunlu alan",
     validate: (v) => {
@@ -182,9 +180,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   useEffect(() => {
     if (
       selectedGroupId &&
-      !groups.some(
-        (group) => group.id === selectedGroupId && group.licenseClass === selectedClass
-      )
+      !groups.some((group) => group.id === selectedGroupId)
     ) {
       setValue("groupId", "");
     }
@@ -193,18 +189,6 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const submit = handleSubmit(async (data) => {
     setSubmitting(true);
     try {
-      const selectedGroup = data.groupId
-        ? groups.find((group) => group.id === data.groupId)
-        : undefined;
-
-      if (data.groupId && selectedGroup?.licenseClass !== data.className) {
-        setError("groupId", {
-          message: "Seçilen grup aday ehliyet tipi ile uyumlu değil",
-        });
-        showToast("Aday ehliyet tipi ile grup ehliyet tipi uyuşmuyor.", "error");
-        return;
-      }
-
       const candidate = await createCandidate({
         firstName: data.firstName,
         lastName: data.lastName,
@@ -404,14 +388,14 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             >
               <option value="">— Atanmamış —</option>
               {availableGroups.map((g) => {
-                const termLabel = buildTermLabel(
-                  g.term,
-                  terms.length > 0 ? [...terms].sort(compareTermsDesc) : [g.term],
-                  lang
-                );
                 return (
                   <option key={g.id} value={g.id}>
-                    {g.title} · {termLabel}
+                    {buildGroupHeading(
+                      g.title,
+                      g.term,
+                      sortedTerms.length > 0 ? sortedTerms : [g.term],
+                      lang
+                    )}
                   </option>
                 );
               })}

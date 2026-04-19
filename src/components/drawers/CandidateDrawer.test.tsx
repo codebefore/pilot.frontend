@@ -7,6 +7,12 @@ import { renderWithProviders } from "../../test/render-with-providers";
 const getCandidateByIdMock = vi.fn();
 const updateCandidateMock = vi.fn();
 
+function getHiddenSelect(ariaLabel: string) {
+  return document.querySelector(
+    `select[aria-label="${ariaLabel}"]`
+  ) as HTMLSelectElement | null;
+}
+
 vi.mock("../../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/candidates-api")>("../../lib/candidates-api");
   return {
@@ -110,8 +116,6 @@ describe("CandidateDrawer", () => {
         candidateId="candidate-1"
         onClose={() => {}}
         onDeleted={() => {}}
-        onStartMebJob={() => {}}
-        onTakePayment={() => {}}
       />
     );
 
@@ -167,8 +171,6 @@ describe("CandidateDrawer", () => {
         candidateId="candidate-1"
         onClose={() => {}}
         onDeleted={() => {}}
-        onStartMebJob={() => {}}
-        onTakePayment={() => {}}
       />
     );
 
@@ -233,12 +235,10 @@ describe("CandidateDrawer", () => {
         candidateId="candidate-1"
         onClose={() => {}}
         onDeleted={() => {}}
-        onStartMebJob={() => {}}
-        onTakePayment={() => {}}
       />
     );
 
-    expect(await screen.findByText("1B-Nisan 2026")).toBeInTheDocument();
+    expect(await screen.findByText("Nisan 2026 - 1B")).toBeInTheDocument();
   });
 
   it("renders candidate profile photo in the drawer when available", async () => {
@@ -273,8 +273,6 @@ describe("CandidateDrawer", () => {
         candidateId="candidate-1"
         onClose={() => {}}
         onDeleted={() => {}}
-        onStartMebJob={() => {}}
-        onTakePayment={() => {}}
       />
     );
 
@@ -313,8 +311,6 @@ describe("CandidateDrawer", () => {
         candidateId="candidate-1"
         onClose={() => {}}
         onDeleted={() => {}}
-        onStartMebJob={() => {}}
-        onTakePayment={() => {}}
       />
     );
 
@@ -350,8 +346,6 @@ describe("CandidateDrawer", () => {
         candidateId="candidate-1"
         onClose={() => {}}
         onDeleted={() => {}}
-        onStartMebJob={() => {}}
-        onTakePayment={() => {}}
       />
     );
 
@@ -361,8 +355,12 @@ describe("CandidateDrawer", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Mevcut sürücü belgesi var" })
     );
-    await screen.findByLabelText("Mevcut Belge");
-    fireEvent.change(screen.getByLabelText("Mevcut Belge"), {
+    await waitFor(() => {
+      expect(getHiddenSelect("Mevcut Belge")).not.toBeNull();
+    });
+
+    const existingLicenseTypeSelect = getHiddenSelect("Mevcut Belge");
+    fireEvent.change(existingLicenseTypeSelect!, {
       target: { value: "b_auto" },
     });
     const existingLicenseIssuedAtInput = document.querySelector(
@@ -375,7 +373,10 @@ describe("CandidateDrawer", () => {
     fireEvent.change(screen.getByLabelText("Belge No"), {
       target: { value: " 12345 " },
     });
-    fireEvent.change(screen.getByLabelText("Belge Veriliş İli"), {
+
+    const existingLicenseProvinceSelect = getHiddenSelect("Belge Veriliş İli");
+    expect(existingLicenseProvinceSelect).not.toBeNull();
+    fireEvent.change(existingLicenseProvinceSelect!, {
       target: { value: "Ankara" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "2016 Ocak öncesi" }));

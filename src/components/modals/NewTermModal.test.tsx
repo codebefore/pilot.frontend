@@ -26,6 +26,7 @@ describe("NewTermModal", () => {
       name: "Ek Donem",
       groupCount: 0,
       activeCandidateCount: 0,
+      licenseClassCounts: [],
       createdAtUtc: "2026-04-01T00:00:00Z",
       updatedAtUtc: "2026-04-02T00:00:00Z",
     });
@@ -44,6 +45,7 @@ describe("NewTermModal", () => {
           name: "Nisan Donemi",
           groupCount: 2,
           activeCandidateCount: 0,
+          licenseClassCounts: [],
           createdAtUtc: "2026-04-01T00:00:00Z",
           updatedAtUtc: "2026-04-01T00:00:00Z",
         }}
@@ -91,6 +93,7 @@ describe("NewTermModal", () => {
           name: null,
           groupCount: 0,
           activeCandidateCount: 0,
+          licenseClassCounts: [],
           createdAtUtc: "2026-04-01T00:00:00Z",
           updatedAtUtc: "2026-04-01T00:00:00Z",
         }}

@@ -370,7 +370,6 @@ export function UploadDocumentModal({
 
         {metadataFields.length > 0 && (
           <div className="upload-doc-metadata">
-            <div className="form-label">{t("uploadDoc.metadataTitle")}</div>
             {metadataFields.map((field) => {
               const value = metadataValues[field.key] ?? "";
               const fieldError = metadataErrors[field.key];

@@ -1,16 +1,15 @@
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
+  GroupCreateRequest,
   GroupDetailResponse,
   GroupResponse,
-  GroupUpsertRequest,
-  LicenseClass,
+  GroupUpdateRequest,
   PagedResponse,
 } from "./types";
 
 export interface GetGroupsParams extends QueryParams {
   search?: string;
   mebStatus?: string;
-  licenseClass?: LicenseClass;
   termId?: string;
   page?: number;
   pageSize?: number;
@@ -27,11 +26,11 @@ export function getGroupById(id: string, signal?: AbortSignal): Promise<GroupDet
   return httpGet<GroupDetailResponse>(`/api/groups/${id}`, undefined, { signal });
 }
 
-export function createGroup(body: GroupUpsertRequest): Promise<GroupResponse> {
+export function createGroup(body: GroupCreateRequest): Promise<GroupResponse> {
   return httpPost<GroupResponse>("/api/groups", body);
 }
 
-export function updateGroup(id: string, body: GroupUpsertRequest): Promise<GroupResponse> {
+export function updateGroup(id: string, body: GroupUpdateRequest): Promise<GroupResponse> {
   return httpPut<GroupResponse>(`/api/groups/${id}`, body);
 }
 

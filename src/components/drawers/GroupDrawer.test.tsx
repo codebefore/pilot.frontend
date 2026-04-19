@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GroupDrawer } from "./GroupDrawer";
@@ -8,13 +8,14 @@ import { ApiError } from "../../lib/http";
 const getGroupByIdMock = vi.fn();
 const deleteGroupMock = vi.fn();
 const getCandidatesMock = vi.fn();
+const updateGroupMock = vi.fn();
 
 vi.mock("../../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/groups-api")>("../../lib/groups-api");
   return {
     ...actual,
     getGroupById: (...args: Parameters<typeof actual.getGroupById>) => getGroupByIdMock(...args),
-    updateGroup: vi.fn(),
+    updateGroup: (...args: Parameters<typeof actual.updateGroup>) => updateGroupMock(...args),
     deleteGroup: (...args: [string]) => deleteGroupMock(...args),
   };
 });
@@ -47,7 +48,6 @@ function buildGroup(overrides: Record<string, unknown> = {}) {
   return {
     id: "group-1",
     title: "1A",
-    licenseClass: "B",
     term: {
       id: "term-1",
       monthDate: "2026-04-01",
@@ -71,6 +71,7 @@ describe("GroupDrawer", () => {
     deleteGroupMock.mockReset();
     getGroupByIdMock.mockReset();
     getCandidatesMock.mockReset();
+    updateGroupMock.mockReset();
     getCandidatesMock.mockResolvedValue({ items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 0 });
   });
 
@@ -86,22 +87,12 @@ describe("GroupDrawer", () => {
     expect(await screen.findByRole("button", { name: "Aday Ekle" })).toBeInTheDocument();
   });
 
-  it("keeps arbitrary group names in the drawer title", async () => {
-    getGroupByIdMock.mockResolvedValue(buildGroup({ title: "B Sinifi - Hizlandirilmis" }));
+  it("renders the group code with the term label in the drawer title", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({ title: "2B" }));
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
     expect(
-      await screen.findByRole("heading", { name: /B Sinifi - Hizlandirilmis/ })
-    ).toBeInTheDocument();
-  });
-
-  it("deduplicates a legacy term suffix in the drawer title", async () => {
-    getGroupByIdMock.mockResolvedValue(
-      buildGroup({ title: "1C Sinifi - Nisan 2026", licenseClass: "C" })
+      await screen.findByRole("heading", { name: "Nisan 2026 - 2B" })
     );
-    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
-    expect(
-      await screen.findByRole("heading", { name: "1C Sinifi — Nisan 2026 - (C)" })
-    ).toBeInTheDocument();
   });
 
   it("shows delete action and deletes the group after confirmation", async () => {
@@ -164,5 +155,41 @@ describe("GroupDrawer", () => {
         })
       );
     });
+  });
+
+  it("updates the group title from selected number and branch", async () => {
+    updateGroupMock.mockResolvedValue(buildGroup({ title: "3C" }));
+    getGroupByIdMock.mockResolvedValue(buildGroup({ title: "1A" }));
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    const editButtons = await screen.findAllByTitle("Düzenle");
+    fireEvent.click(editButtons[0]!);
+
+    const selects = document.body.querySelectorAll("select");
+    fireEvent.change(selects[0]!, { target: { value: "3" } });
+    fireEvent.change(selects[1]!, { target: { value: "C" } });
+    fireEvent.click(screen.getByTitle("Kaydet"));
+
+    await waitFor(() => {
+      expect(updateGroupMock).toHaveBeenCalledWith(
+        "group-1",
+        expect.objectContaining({
+          groupNumber: 3,
+          groupBranch: "C",
+        })
+      );
+    });
+  });
+
+  it("does not offer title code editing for legacy group titles", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({ title: "B Sinifi - Hizlandirilmis" }));
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    const titleValue = await screen.findByText("B Sinifi - Hizlandirilmis");
+    const titleRow = titleValue.closest(".drawer-row");
+    expect(titleRow).not.toBeNull();
+    expect(within(titleRow as HTMLElement).queryByTitle("Düzenle")).not.toBeInTheDocument();
   });
 });

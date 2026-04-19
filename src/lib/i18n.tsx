@@ -36,7 +36,7 @@ const tr = {
   "nav.administration": "Yönetim",
   "nav.dashboard": "Kontrol Paneli",
   "nav.candidates": "Adaylar",
-  "nav.groups": "Gruplar",
+  "nav.groups": "Dönemler",
   "nav.documents": "Evrak",
   "nav.documentTypes": "Belge Türleri",
   "nav.payments": "Tahsilat",
@@ -100,6 +100,9 @@ const tr = {
   "groups.table.createdAtUtc": "Kayıt Tarihi",
   "groups.table.updatedAtUtc": "Güncelleme Tarihi",
   "groups.columns.button": "Sütunlar",
+  "groups.section.groups": "Grup",
+  "groups.section.totalCapacity": "Toplam Kontenjan",
+  "groups.section.activeCandidates": "Aktif Aday",
 
   // Terms
   "terms.title": "Dönemler",
@@ -226,6 +229,18 @@ const tr = {
   "documents.loadFailed": "Evraklar yüklenemedi",
   "documents.uploaded": "Evrak yüklendi",
   "documents.uploadFailed": "Evrak yüklenemedi",
+  "documents.manage.title": "Evrakı Görüntüle / Düzenle",
+  "documents.manage.file": "Mevcut Dosya",
+  "documents.manage.open": "Belgeyi Aç",
+  "documents.manage.replace": "Belgeyi Değiştir",
+  "documents.manage.cancelReplace": "Değiştirmeyi İptal Et",
+  "documents.manage.newFile": "Yeni Dosya",
+  "documents.manage.replaceHint": "Yeni dosya seçersen kaydederken mevcut evrak bununla değiştirilir.",
+  "documents.manage.notFound": "Belge kaydı bulunamadı.",
+  "documents.manage.loadFailed": "Belge detayları yüklenemedi",
+  "documents.manage.saveFailed": "Belge güncellenemedi",
+  "documents.manage.saved": "Evrak bilgileri güncellendi",
+  "documents.manage.saving": "Kaydediliyor...",
 
   // Candidates page
 
@@ -326,7 +341,6 @@ const tr = {
   "uploadDoc.errors.candidatesLoadFailed": "Adaylar yüklenemedi",
   "uploadDoc.errors.typesLoadFailed": "Belge türleri yüklenemedi",
   "uploadDoc.errors.metadataRequired": "{label} alanı gerekli",
-  "uploadDoc.metadataTitle": "Belge Bilgileri",
   "uploadDoc.metadataSelectPlaceholder": "Seçin...",
 
   // Document types admin
@@ -431,7 +445,7 @@ const en: Record<keyof typeof tr, string> = {
   "nav.administration": "Administration",
   "nav.dashboard": "Dashboard",
   "nav.candidates": "Candidates",
-  "nav.groups": "Groups",
+  "nav.groups": "Terms",
   "nav.documents": "Documents",
   "nav.documentTypes": "Document Types",
   "nav.payments": "Payments",
@@ -495,6 +509,9 @@ const en: Record<keyof typeof tr, string> = {
   "groups.table.createdAtUtc": "Created At",
   "groups.table.updatedAtUtc": "Updated At",
   "groups.columns.button": "Columns",
+  "groups.section.groups": "Groups",
+  "groups.section.totalCapacity": "Total Capacity",
+  "groups.section.activeCandidates": "Active Candidates",
 
   // Terms
   "terms.title": "Terms",
@@ -621,6 +638,18 @@ const en: Record<keyof typeof tr, string> = {
   "documents.loadFailed": "Failed to load documents",
   "documents.uploaded": "Document uploaded",
   "documents.uploadFailed": "Document upload failed",
+  "documents.manage.title": "View / Edit Document",
+  "documents.manage.file": "Current File",
+  "documents.manage.open": "Open Document",
+  "documents.manage.replace": "Replace Document",
+  "documents.manage.cancelReplace": "Cancel Replace",
+  "documents.manage.newFile": "New File",
+  "documents.manage.replaceHint": "If you select a new file, saving will replace the current document.",
+  "documents.manage.notFound": "Document record was not found.",
+  "documents.manage.loadFailed": "Failed to load document details",
+  "documents.manage.saveFailed": "Document could not be updated",
+  "documents.manage.saved": "Document details updated",
+  "documents.manage.saving": "Saving...",
 
   // Candidates page
 
@@ -721,7 +750,6 @@ const en: Record<keyof typeof tr, string> = {
   "uploadDoc.errors.candidatesLoadFailed": "Failed to load candidates",
   "uploadDoc.errors.typesLoadFailed": "Failed to load document types",
   "uploadDoc.errors.metadataRequired": "{label} is required",
-  "uploadDoc.metadataTitle": "Document Info",
   "uploadDoc.metadataSelectPlaceholder": "Select...",
 
   // Document types admin

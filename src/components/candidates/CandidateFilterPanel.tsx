@@ -10,7 +10,7 @@ import {
   CANDIDATE_GENDER_OPTIONS,
   LICENSE_CLASS_OPTIONS,
 } from "../../lib/status-maps";
-import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import type {
   CandidateGenderValue,
   GroupResponse,
@@ -93,11 +93,12 @@ export function CandidateFilterPanel({
       })
       .map((group) => ({
         id: group.id,
-        label: `${group.title} · ${buildTermLabel(
+        label: buildGroupHeading(
+          group.title,
           group.term,
           uniqueTerms.length > 0 ? uniqueTerms : [group.term],
           lang === "tr" ? "tr" : "en"
-        )}`,
+        ),
       }));
   }, [groups, lang]);
 

@@ -66,19 +66,16 @@ export function CandidateTagsInput({
   }, [open]);
 
   // Debounced suggestion fetch whenever the dropdown is open and the query changes.
+  // Empty query returns the full list (server caps at SEARCH_LIMIT), so the user
+  // sees existing tags right after focus without having to type first.
   useEffect(() => {
     if (!open) return;
     const normalizedQuery = normalizeTextQuery(inputValue);
-    if (!normalizedQuery) {
-      setSuggestions([]);
-      setLoading(false);
-      setHighlightedIndex(0);
-      return;
-    }
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
+    const fetchNow = !normalizedQuery;
+    const run = () => {
       setLoading(true);
-      searchCandidateTags(normalizedQuery, SEARCH_LIMIT, controller.signal)
+      searchCandidateTags(normalizedQuery || undefined, SEARCH_LIMIT, controller.signal)
         .then((result) => {
           setSuggestions(result);
           setLoading(false);
@@ -89,8 +86,14 @@ export function CandidateTagsInput({
           setSuggestions([]);
           setLoading(false);
         });
-    }, SEARCH_DEBOUNCE_MS);
+    };
 
+    if (fetchNow) {
+      run();
+      return () => controller.abort();
+    }
+
+    const timer = window.setTimeout(run, SEARCH_DEBOUNCE_MS);
     return () => {
       window.clearTimeout(timer);
       controller.abort();

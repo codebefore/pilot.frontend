@@ -1,112 +1,457 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { Panel } from "../components/ui/Panel";
+import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
+import { ApiError } from "../lib/http";
+import { useT, type TranslationKey } from "../lib/i18n";
 import {
-  initialPermissionMatrix,
-  LEVEL_LABELS,
-  PERMISSION_AREAS,
-  PERMISSION_ROLES,
-  type PermissionArea,
-  type PermissionLevel,
-  type PermissionMatrix,
-} from "../mock/permissions";
-import type { UserRole } from "../mock/users";
+  deleteRole,
+  getPermissionAreas,
+  getRolePermissions,
+  getRoles,
+  saveRolePermissions,
+} from "../lib/roles-api";
+import type {
+  PermissionAreasResponse,
+  PermissionLevel,
+  RolePermissionResponse,
+  RoleResponse,
+} from "../lib/types";
 
-const LEVELS: PermissionLevel[] = ["none", "view", "full"];
+type MatrixValue = "none" | PermissionLevel;
+
+const AREA_LABEL_KEY: Record<string, TranslationKey> = {
+  candidates: "nav.candidates",
+  groups: "nav.groups",
+  documents: "nav.documents",
+  documentTypes: "nav.documentTypes",
+  payments: "nav.payments",
+  training: "nav.training",
+  mebjobs: "nav.mebJobs",
+  users: "nav.users",
+  permissions: "nav.permissions",
+  settings: "nav.settings",
+};
+
+const LEVEL_LABEL: Record<MatrixValue, string> = {
+  none: "Yok",
+  view: "Görüntüle",
+  full: "Tam Yetki",
+};
+
+const PERMISSION_OPTIONS: { value: MatrixValue; label: string }[] = [
+  { value: "none", label: LEVEL_LABEL.none },
+  { value: "view", label: LEVEL_LABEL.view },
+  { value: "full", label: LEVEL_LABEL.full },
+];
 
 export function PermissionsPage() {
-  const [matrix, setMatrix] = useState<PermissionMatrix>(initialPermissionMatrix);
-  const [dirty, setDirty] = useState(false);
+  const t = useT();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
 
-  const update = (role: UserRole, area: PermissionArea, level: PermissionLevel) => {
-    setMatrix((prev) => ({
-      ...prev,
-      [role]: { ...prev[role], [area]: level },
-    }));
-    setDirty(true);
+  const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [areas, setAreas] = useState<PermissionAreasResponse | null>(null);
+  const [matrix, setMatrix] = useState<Record<string, MatrixValue>>({});
+  const originalMatrixRef = useRef<Record<string, MatrixValue>>({});
+  const [dirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteRoleId, setConfirmDeleteRoleId] = useState<string | null>(null);
+  const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
+
+  const requestedRoleId = searchParams.get("role");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+
+    Promise.all([
+      getRoles({ includeInactive: true }, controller.signal),
+      getPermissionAreas(controller.signal),
+    ])
+      .then(([roleList, areaResponse]) => {
+        const sortedRoles = roleList
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+        setRoles(sortedRoles);
+        setAreas(areaResponse);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        showToast("Roller yüklenemedi", "error");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [showToast]);
+
+  const selectedRoleId = useMemo(() => {
+    if (requestedRoleId && roles.some((role) => role.id === requestedRoleId)) {
+      return requestedRoleId;
+    }
+    return roles[0]?.id ?? null;
+  }, [requestedRoleId, roles]);
+
+  const selectedRole = useMemo(
+    () => roles.find((role) => role.id === selectedRoleId) ?? null,
+    [roles, selectedRoleId]
+  );
+
+  useEffect(() => {
+    if (selectedRoleId === requestedRoleId) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (selectedRoleId) {
+      nextParams.set("role", selectedRoleId);
+    } else {
+      nextParams.delete("role");
+    }
+    setSearchParams(nextParams, { replace: true });
+  }, [requestedRoleId, searchParams, selectedRoleId, setSearchParams]);
+
+  useEffect(() => {
+    if (!selectedRoleId || !areas) {
+      setMatrix({});
+      originalMatrixRef.current = {};
+      setDirty(false);
+      setPermissionsLoading(false);
+      setConfirmDeleteRoleId(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setPermissionsLoading(true);
+
+    getRolePermissions(selectedRoleId, controller.signal)
+      .then((permissions) => applyLoadedMatrix(areas.areas, permissions))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        showToast("Yetkiler yüklenemedi", "error");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setPermissionsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [areas, selectedRoleId, showToast]);
+
+  const applyLoadedMatrix = (
+    areaList: string[],
+    permissions: RolePermissionResponse[]
+  ) => {
+    const next: Record<string, MatrixValue> = {};
+    for (const area of areaList) next[area] = "none";
+    for (const permission of permissions) next[permission.area] = permission.level;
+    setMatrix(next);
+    originalMatrixRef.current = { ...next };
+    setDirty(false);
   };
 
-  const handleSave = () => {
-    setDirty(false);
-    showToast("Yetkiler kaydedildi");
+  const updateSelectedRole = (roleId: string | null, replace = false) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (roleId) {
+      nextParams.set("role", roleId);
+    } else {
+      nextParams.delete("role");
+    }
+    setSearchParams(nextParams, { replace });
+  };
+
+  const confirmDiscardChanges = () =>
+    !dirty ||
+    window.confirm("Kaydedilmemiş yetki değişiklikleri silinecek. Devam edilsin mi?");
+
+  const handleRoleSelect = (roleId: string) => {
+    if (roleId === selectedRoleId) return;
+    if (!confirmDiscardChanges()) return;
+    setConfirmDeleteRoleId(null);
+    updateSelectedRole(roleId);
+  };
+
+  const handleLevelChange = (area: string, value: MatrixValue) => {
+    setMatrix((prev) => {
+      const next = { ...prev, [area]: value };
+      setDirty(!isEqualMatrix(next, originalMatrixRef.current));
+      return next;
+    });
   };
 
   const handleReset = () => {
-    setMatrix(initialPermissionMatrix);
+    setMatrix({ ...originalMatrixRef.current });
     setDirty(false);
-    showToast("Değişiklikler geri alındı");
   };
+
+  const handleSave = async () => {
+    if (!selectedRoleId) return;
+    setSaving(true);
+    try {
+      const body: RolePermissionResponse[] = Object.entries(matrix)
+        .filter(([, level]) => level !== "none")
+        .map(([area, level]) => ({ area, level: level as PermissionLevel }));
+      const saved = await saveRolePermissions(selectedRoleId, body);
+      if (areas) applyLoadedMatrix(areas.areas, saved);
+      showToast("Yetkiler kaydedildi");
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Yetkiler kaydedilemedi";
+      showToast(message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateRole = () => {
+    if (!confirmDiscardChanges()) return;
+    navigate("/permissions/roles/new");
+  };
+
+  const handleEditRole = () => {
+    if (!selectedRole) return;
+    if (!confirmDiscardChanges()) return;
+    navigate(`/permissions/roles/${selectedRole.id}`);
+  };
+
+  const handleDeleteRole = async () => {
+    if (!selectedRole) return;
+    setDeletingRoleId(selectedRole.id);
+    try {
+      await deleteRole(selectedRole.id);
+      setRoles((prev) => prev.filter((role) => role.id !== selectedRole.id));
+      setConfirmDeleteRoleId(null);
+      showToast("Rol silindi");
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Rol silinemedi";
+      showToast(message, "error");
+    } finally {
+      setDeletingRoleId(null);
+    }
+  };
+
+  const hasRoles = roles.length > 0;
+  const activeRoleCount = roles.filter((role) => role.isActive).length;
 
   return (
     <>
       <PageToolbar
         actions={
-          <>
-            <button
-              className="btn btn-secondary btn-sm"
-              disabled={!dirty}
-              onClick={handleReset}
-              type="button"
-            >
-              Geri Al
-            </button>
-            <button
-              className="btn btn-primary btn-sm"
-              disabled={!dirty}
-              onClick={handleSave}
-              type="button"
-            >
-              Kaydet
-            </button>
-          </>
+          <button className="btn btn-primary btn-sm" onClick={handleCreateRole} type="button">
+            Yeni Rol
+          </button>
         }
         title="Yetki Yönetimi"
       />
 
-      <div className="table-wrap spaced">
-        <Panel>
-          <table className="data-table permissions-matrix">
-            <thead>
-              <tr>
-                <th>Modül</th>
-                {PERMISSION_ROLES.map((role) => (
-                  <th key={role}>{role}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PERMISSION_AREAS.map((area) => (
-                <tr key={area.key}>
-                  <td>{area.label}</td>
-                  {PERMISSION_ROLES.map((role) => {
-                    const level = matrix[role][area.key];
+      <div className="permissions-page-grid spaced">
+        <Panel
+          action={
+            hasRoles ? (
+              <span className="permissions-role-count">
+                {activeRoleCount}/{roles.length} aktif
+              </span>
+            ) : undefined
+          }
+          title="Roller"
+        >
+          {loading ? (
+            <div className="permissions-role-list">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div className="permissions-role-item-skeleton" key={index}>
+                  <span className="skeleton" style={{ width: 120 }} />
+                  <span className="skeleton skeleton-pill" style={{ width: 52 }} />
+                </div>
+              ))}
+            </div>
+          ) : !hasRoles ? (
+            <div className="permissions-empty-state">
+              Rol yok. Önce bir rol ekleyip sonra yetkilerini belirle.
+            </div>
+          ) : (
+            <div className="permissions-role-list">
+              {roles.map((role) => (
+                <button
+                  aria-label={`${role.name} rolü`}
+                  aria-pressed={role.id === selectedRoleId}
+                  className={
+                    role.id === selectedRoleId
+                      ? "permissions-role-item active"
+                      : "permissions-role-item"
+                  }
+                  key={role.id}
+                  onClick={() => handleRoleSelect(role.id)}
+                  type="button"
+                >
+                  <span className="permissions-role-item-copy">
+                    <span className="permissions-role-item-name">{role.name}</span>
+                    <span className="permissions-role-item-meta">
+                      {role.userCount} kullanıcı
+                    </span>
+                  </span>
+                  <StatusPill
+                    label={role.isActive ? "Aktif" : "Pasif"}
+                    status={role.isActive ? "success" : "manual"}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Rol Yetkileri">
+          {!hasRoles && !loading ? (
+            <div className="permissions-empty-state">
+              Yetki düzenlemek için önce rol oluştur.
+            </div>
+          ) : !selectedRole ? (
+            <div className="permissions-empty-state">
+              Yetkilerini görmek için soldan bir rol seç.
+            </div>
+          ) : (
+            <div className="permissions-detail">
+              <div className="permissions-detail-header">
+                <div className="permissions-detail-copy">
+                  <h3 className="permissions-detail-title">{selectedRole.name}</h3>
+                  <div className="permissions-detail-meta">
+                    <StatusPill
+                      label={selectedRole.isActive ? "Aktif" : "Pasif"}
+                      status={selectedRole.isActive ? "success" : "manual"}
+                    />
+                    <span>{selectedRole.userCount} kullanıcı</span>
+                    {dirty && <span className="permissions-dirty-badge">Kaydedilmedi</span>}
+                  </div>
+                </div>
+
+                <div className="permissions-detail-actions">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleEditRole}
+                    type="button"
+                  >
+                    Rolü Düzenle
+                  </button>
+                  {confirmDeleteRoleId === selectedRole.id ? (
+                    <>
+                      <span className="permissions-delete-hint">
+                        {selectedRole.userCount > 0
+                          ? `"${selectedRole.name}" silinsin mi? ${selectedRole.userCount} kullanıcı rolsüz kalacak.`
+                          : `"${selectedRole.name}" silinsin mi?`}
+                      </span>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={deletingRoleId === selectedRole.id}
+                        onClick={() => setConfirmDeleteRoleId(null)}
+                        type="button"
+                      >
+                        Vazgeç
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        disabled={deletingRoleId === selectedRole.id}
+                        onClick={handleDeleteRole}
+                        type="button"
+                      >
+                        {deletingRoleId === selectedRole.id ? "Siliniyor..." : "Sil"}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={deletingRoleId !== null}
+                      onClick={() => setConfirmDeleteRoleId(selectedRole.id)}
+                      type="button"
+                    >
+                      Sil
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={!dirty || saving}
+                    onClick={handleReset}
+                    type="button"
+                  >
+                    Geri Al
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={!dirty || saving}
+                    onClick={handleSave}
+                    type="button"
+                  >
+                    {saving ? "Kaydediliyor..." : "Kaydet"}
+                  </button>
+                </div>
+              </div>
+
+              {permissionsLoading || !areas ? (
+                <div className="permissions-row-list">
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <div className="permissions-row-skeleton" key={index}>
+                      <span className="skeleton" style={{ width: 140 }} />
+                      <span className="skeleton" style={{ width: 220 }} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="permissions-row-list">
+                  {areas.areas.map((area) => {
+                    const labelKey = AREA_LABEL_KEY[area];
+                    const label = labelKey ? t(labelKey) : area;
+                    const value = matrix[area] ?? "none";
+
                     return (
-                      <td key={role}>
-                        <select
-                          className={`perm-select level-${level}`}
-                          onChange={(e) =>
-                            update(role, area.key, e.target.value as PermissionLevel)
-                          }
-                          value={level}
-                        >
-                          {LEVELS.map((l) => (
-                            <option key={l} value={l}>
-                              {LEVEL_LABELS[l]}
-                            </option>
+                      <div className="permissions-row" key={area}>
+                        <div className="permissions-row-copy">
+                          <div className="permissions-row-title">{label}</div>
+                          <div className="permissions-row-value">
+                            {LEVEL_LABEL[value]}
+                          </div>
+                        </div>
+
+                        <div className="permissions-level-group" role="group" aria-label={label}>
+                          {PERMISSION_OPTIONS.map((option) => (
+                            <button
+                              aria-pressed={value === option.value}
+                              className={
+                                value === option.value
+                                  ? `permissions-level-btn active ${option.value}`
+                                  : "permissions-level-btn"
+                              }
+                              key={option.value}
+                              onClick={() => handleLevelChange(area, option.value)}
+                              type="button"
+                            >
+                              {option.label}
+                            </button>
                           ))}
-                        </select>
-                      </td>
+                        </div>
+                      </div>
                     );
                   })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </div>
+              )}
+            </div>
+          )}
         </Panel>
       </div>
     </>
   );
+}
+
+function isEqualMatrix(
+  a: Record<string, MatrixValue>,
+  b: Record<string, MatrixValue>
+): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if ((a[key] ?? "none") !== (b[key] ?? "none")) return false;
+  }
+  return true;
 }

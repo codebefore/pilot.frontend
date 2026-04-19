@@ -100,8 +100,8 @@ describe("CandidatesPage tabs", () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(screen.getByRole("button", { name: "Tum" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Onkayit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tümü" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ön Kayıt" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aktif" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Park" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mezun" })).toBeInTheDocument();
@@ -112,11 +112,11 @@ describe("CandidatesPage tabs", () => {
     expect(screen.queryByRole("button", { name: "Tamamlanan" })).not.toBeInTheDocument();
   });
 
-  it("does not send status when the Tum tab is selected", async () => {
+  it("does not send status when the Tümü tab is selected", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Tum" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
 
     await waitFor(() => {
       const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
@@ -140,11 +140,11 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("sends status='pre_registered' when the Onkayit tab is selected", async () => {
+  it("sends status='pre_registered' when the Ön Kayıt tab is selected", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Onkayit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ön Kayıt" }));
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
@@ -293,7 +293,7 @@ describe("CandidatesPage tabs", () => {
 
     renderPage();
 
-    expect(await screen.findByText("1B-Nisan 2026")).toBeInTheDocument();
+    expect(await screen.findByText("Nisan 2026 - 1B")).toBeInTheDocument();
   });
 
   it("renders biometric photo when present and initials fallback otherwise", async () => {
@@ -904,7 +904,7 @@ describe("CandidatesPage tabs", () => {
     expect(optionValues).not.toContain("active");
     expect(optionValues).toEqual(["", "pre_registered", "parked", "graduated", "dropped"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Tum" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
 
     await waitFor(() => {
       const allTabOptionValues = Array.from(

@@ -8,9 +8,9 @@ import { NewTermModal } from "../components/modals/NewTermModal";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
-import { Pagination } from "../components/ui/Pagination";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
+import { parseGroupTitle } from "../lib/group-code";
 import { getGroups } from "../lib/groups-api";
 import { ApiError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
@@ -23,7 +23,6 @@ import {
   buildGroupHeading,
   buildTermLabel,
   compareTermsDesc,
-  pickDefaultTermId,
 } from "../lib/term-label";
 import { deleteTerm, getTerms } from "../lib/terms-api";
 import type { GroupResponse, TermResponse } from "../lib/types";
@@ -32,19 +31,18 @@ import { useColumnVisibility } from "../lib/use-column-visibility";
 type GroupViewMode = "cards" | "list";
 type GroupColumnId =
   | "name"
-  | "licenseClass"
   | "capacity"
   | "activeCandidates"
   | "startDate"
   | "mebStatus"
   | "createdAtUtc"
   | "updatedAtUtc";
+type GroupTermLabelItem = GroupResponse["term"] | TermResponse;
 
 type GroupColumnDef = {
   id: GroupColumnId;
   labelKey:
     | "groups.table.name"
-    | "groups.table.licenseClass"
     | "groups.table.capacity"
     | "groups.table.activeCandidates"
     | "groups.table.startDate"
@@ -54,10 +52,17 @@ type GroupColumnDef = {
   headerClassName?: string;
   cellClassName?: string;
   skeletonWidth: number;
-  renderCell: (group: GroupResponse, sortedTerms: TermResponse[], lang: "tr" | "en") => ReactNode;
+  renderCell: (group: GroupResponse, termContext: GroupTermLabelItem[], lang: "tr" | "en") => ReactNode;
 };
 
-const PAGE_SIZE = 12;
+type GroupTermSection = {
+  term: GroupResponse["term"];
+  groups: GroupResponse[];
+  totalCapacity: number;
+  activeCandidateCount: number;
+};
+
+const GROUP_FETCH_PAGE_SIZE = 100;
 const GROUP_COLUMNS: GroupColumnDef[] = [
   {
     id: "name",
@@ -65,13 +70,7 @@ const GROUP_COLUMNS: GroupColumnDef[] = [
     cellClassName: "group-table-name",
     skeletonWidth: 190,
     renderCell: (group, sortedTerms, lang) =>
-      buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass),
-  },
-  {
-    id: "licenseClass",
-    labelKey: "groups.table.licenseClass",
-    skeletonWidth: 54,
-    renderCell: (group) => group.licenseClass,
+      buildGroupHeading(group.title, group.term, sortedTerms, lang),
   },
   {
     id: "capacity",
@@ -122,13 +121,81 @@ const DEFAULT_VISIBLE_GROUP_COLUMN_IDS: GroupColumnId[] = [
   "startDate",
   "mebStatus",
 ];
+const DEFAULT_LOADING_TERM_SECTION_COUNT = 2;
+const DEFAULT_LOADING_ROWS_PER_SECTION = 3;
+
+async function loadAllGroups(
+  termId: string | undefined,
+  signal: AbortSignal
+): Promise<GroupResponse[]> {
+  const baseParams = {
+    pageSize: GROUP_FETCH_PAGE_SIZE,
+    ...(termId ? { termId } : {}),
+  };
+  const firstPage = await getGroups(
+    {
+      ...baseParams,
+      page: 1,
+    },
+    signal
+  );
+
+  if (firstPage.totalPages <= 1) {
+    return firstPage.items;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: firstPage.totalPages - 1 }, (_, index) =>
+      getGroups(
+        {
+          ...baseParams,
+          page: index + 2,
+        },
+        signal
+      )
+    )
+  );
+
+  return [firstPage, ...remainingPages].flatMap((pageResult) => pageResult.items);
+}
+
+function compareGroupsByTitle(
+  a: GroupResponse,
+  b: GroupResponse,
+  lang: "tr" | "en"
+): number {
+  const aCode = parseGroupTitle(a.title);
+  const bCode = parseGroupTitle(b.title);
+
+  if (aCode && bCode) {
+    const numberDiff = Number(aCode.groupNumber) - Number(bCode.groupNumber);
+    if (numberDiff !== 0) {
+      return numberDiff;
+    }
+
+    const branchDiff = aCode.groupBranch.localeCompare(
+      bCode.groupBranch,
+      lang === "tr" ? "tr" : "en"
+    );
+    if (branchDiff !== 0) {
+      return branchDiff;
+    }
+  }
+
+  const startDateDiff = (a.startDate ?? "").localeCompare(b.startDate ?? "");
+  if (startDateDiff !== 0) {
+    return startDateDiff;
+  }
+
+  return a.title.localeCompare(b.title, lang === "tr" ? "tr" : "en");
+}
 
 export function GroupsPage() {
   const { showToast } = useToast();
   const t = useT();
   const { lang } = useLanguage();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "groups.columns.v1",
+    "groups.columns.v2",
     GROUP_COLUMN_IDS,
     DEFAULT_VISIBLE_GROUP_COLUMN_IDS
   );
@@ -142,9 +209,6 @@ export function GroupsPage() {
   const [deletingTerm, setDeletingTerm] = useState(false);
 
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
-
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
 
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -167,7 +231,9 @@ export function GroupsPage() {
       .then((result) => {
         const sorted = [...result.items].sort(compareTermsDesc);
         setTerms(sorted);
-        setSelectedTermId((prev) => (prev ? prev : pickDefaultTermId(sorted) ?? ""));
+        setSelectedTermId((prev) =>
+          prev && sorted.some((term) => term.id === prev) ? prev : ""
+        );
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -188,14 +254,12 @@ export function GroupsPage() {
   const handleTermCreated = (term: TermResponse) => {
     setTermModalState(null);
     setSelectedTermId(term.id);
-    setPage(1);
     setTermRefreshKey((k) => k + 1);
   };
 
   const handleTermSaved = (term: TermResponse) => {
     setTermModalState(null);
     setSelectedTermId(term.id);
-    setPage(1);
     setTermRefreshKey((k) => k + 1);
   };
 
@@ -222,29 +286,15 @@ export function GroupsPage() {
     }
   };
 
-  /* ── Groups (scoped to the selected term) ────────────── */
+  /* ── Groups ───────────────────────────────────────────── */
 
   useEffect(() => {
-    if (!selectedTermId) {
-      setGroups([]);
-      setTotalPages(1);
-      setLoading(false);
-      return;
-    }
     const controller = new AbortController();
     setLoading(true);
 
-    getGroups(
-      {
-        termId: selectedTermId,
-        page,
-        pageSize: PAGE_SIZE,
-      },
-      controller.signal
-    )
-      .then((result) => {
-        setGroups(result.items);
-        setTotalPages(result.totalPages);
+    loadAllGroups(selectedTermId || undefined, controller.signal)
+      .then((items) => {
+        setGroups(items);
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -257,7 +307,6 @@ export function GroupsPage() {
     return () => controller.abort();
   }, [
     selectedTermId,
-    page,
     refreshKey,
     showToast,
     t,
@@ -281,9 +330,291 @@ export function GroupsPage() {
     setTermRefreshKey((k) => k + 1);
   };
 
-  const emptyMessage = !selectedTermId
-    ? t("groups.empty.noTermSelected")
-    : t("groups.empty.noGroupsForTab");
+  const termLabelContext = useMemo(() => {
+    const items = new Map<string, GroupTermLabelItem>();
+
+    sortedTerms.forEach((term) => {
+      items.set(term.id, term);
+    });
+    groups.forEach((group) => {
+      if (!items.has(group.term.id)) {
+        items.set(group.term.id, group.term);
+      }
+    });
+
+    return Array.from(items.values()).sort(compareTermsDesc);
+  }, [groups, sortedTerms]);
+
+  const termSections = useMemo<GroupTermSection[]>(() => {
+    const sections = new Map<string, GroupTermSection>();
+
+    groups.forEach((group) => {
+      const existing = sections.get(group.term.id);
+      if (existing) {
+        existing.groups.push(group);
+        existing.totalCapacity += group.capacity;
+        existing.activeCandidateCount += group.activeCandidateCount;
+        return;
+      }
+
+      sections.set(group.term.id, {
+        term: group.term,
+        groups: [group],
+        totalCapacity: group.capacity,
+        activeCandidateCount: group.activeCandidateCount,
+      });
+    });
+
+    return Array.from(sections.values())
+      .map((section) => ({
+        ...section,
+        groups: [...section.groups].sort((a, b) => compareGroupsByTitle(a, b, lang)),
+      }))
+      .sort((a, b) => compareTermsDesc(a.term, b.term));
+  }, [groups, lang]);
+  const loadingTermSections = useMemo<(GroupTermLabelItem | null)[]>(() => {
+    if (selectedTerm) {
+      return [selectedTerm];
+    }
+
+    const availableTerms = sortedTerms.slice(0, DEFAULT_LOADING_TERM_SECTION_COUNT);
+    if (availableTerms.length > 0) {
+      return availableTerms;
+    }
+
+    return Array.from({ length: DEFAULT_LOADING_TERM_SECTION_COUNT }, () => null);
+  }, [selectedTerm, sortedTerms]);
+
+  const emptyMessage = t("groups.empty.noGroupsForTab");
+
+  const renderGroupCard = (group: GroupResponse) => {
+    const licenseClassCounts = group.licenseClassCounts ?? [];
+
+    return (
+      <div className="panel group-card" key={group.id} onClick={() => setSelectedGroupId(group.id)}>
+        <div className="panel-header group-card-header">
+          <div className="group-card-heading">
+            <span className="panel-title">
+              {buildGroupHeading(group.title, group.term, termLabelContext, lang)}
+            </span>
+          </div>
+          <StatusPill
+            label={groupMebStatusLabel(group.mebStatus)}
+            status={groupMebStatusToPill(group.mebStatus)}
+          />
+        </div>
+        <div className="group-body">
+          <div className="drawer-row">
+            <span className="label">{t("groups.card.capacity")}</span>
+            <span className="value">
+              {group.assignedCandidateCount} / {group.capacity}
+            </span>
+          </div>
+          <div className="drawer-row">
+            <span className="label">{t("groups.card.startDate")}</span>
+            <span className="value">{formatDateTR(group.startDate)}</span>
+          </div>
+          {licenseClassCounts.length > 0 && (
+            <div className="group-card-license-chips">
+              {licenseClassCounts.map((entry) => (
+                <span
+                  className="group-card-license-chip"
+                  key={entry.licenseClass}
+                  title={`${entry.licenseClass}: ${entry.count} aday`}
+                >
+                  <strong>{entry.count}</strong>
+                  <span>{entry.licenseClass}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        {(group.candidatePreview?.length ?? 0) > 0 && (
+          <div className="group-card-avatar-stack">
+            {(group.candidatePreview ?? []).map((candidate) => (
+              <CandidateAvatar
+                candidate={{
+                  id: candidate.candidateId,
+                  firstName: candidate.firstName,
+                  lastName: candidate.lastName,
+                  photo: candidate.photo ?? null,
+                }}
+                className="group-card-avatar"
+                key={candidate.candidateId}
+                size={28}
+              />
+            ))}
+            {group.activeCandidateCount > (group.candidatePreview?.length ?? 0) && (
+              <span className="group-card-avatar-overflow">
+                +{group.activeCandidateCount - (group.candidatePreview?.length ?? 0)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTermSectionHeader = (section: GroupTermSection) => {
+    const fullTerm = terms.find((term) => term.id === section.term.id);
+    const licenseClassCounts = fullTerm?.licenseClassCounts ?? [];
+    return (
+      <div className="group-term-section-header">
+        <div className="group-term-section-copy">
+          <h2 className="group-term-section-title">
+            {buildTermLabel(section.term, termLabelContext, lang)}
+          </h2>
+          <p className="group-term-section-meta">
+            {t("terms.groupCount", { count: section.groups.length })}
+          </p>
+        </div>
+        <div className="group-term-section-stats">
+          <div className="group-term-section-stat">
+            <strong>{section.groups.length}</strong>
+            <span>{t("groups.section.groups")}</span>
+          </div>
+          <div className="group-term-section-stat">
+            <strong>{section.totalCapacity}</strong>
+            <span>{t("groups.section.totalCapacity")}</span>
+          </div>
+          <div className="group-term-section-stat">
+            <strong>{section.activeCandidateCount}</strong>
+            <span>{t("groups.section.activeCandidates")}</span>
+          </div>
+          {licenseClassCounts.map((entry) => (
+            <div className="group-term-section-stat" key={entry.licenseClass}>
+              <strong>{entry.count}</strong>
+              <span>{entry.licenseClass}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderGroupTable = (sectionGroups: GroupResponse[], showColumnPicker: boolean) => (
+    <div className="table-wrap group-term-table-wrap">
+      <table className="data-table group-table">
+        <thead>
+          <tr>
+            {visibleColumns.map((column) => (
+              <th className={column.headerClassName} key={column.id}>
+                {t(column.labelKey)}
+              </th>
+            ))}
+            <th className="col-picker-th">
+              {showColumnPicker ? (
+                <ColumnPicker
+                  columns={pickerOptions}
+                  isVisible={isVisible}
+                  onToggle={toggleColumn}
+                  triggerTitle={t("groups.columns.button")}
+                />
+              ) : null}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {sectionGroups.map((group) => (
+            <tr
+              key={group.id}
+              onClick={() => setSelectedGroupId(group.id)}
+            >
+              {visibleColumns.map((column) => (
+                <td className={column.cellClassName} key={column.id}>
+                  {column.renderCell(group, termLabelContext, lang)}
+                </td>
+              ))}
+              <td className="col-picker-td" />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const renderLoadingTermSectionHeader = (term: GroupTermLabelItem | null) => (
+    <div
+      aria-hidden="true"
+      className="group-term-section-header"
+    >
+      <div className="group-term-section-copy">
+        {term ? (
+          <h2 className="group-term-section-title">{buildTermLabel(term, termLabelContext, lang)}</h2>
+        ) : (
+          <span className="skeleton" style={{ width: 184, height: 24 }} />
+        )}
+        <p className="group-term-section-meta">
+          <span className="skeleton" style={{ width: 112 }} />
+        </p>
+      </div>
+      <div className="group-term-section-stats">
+        {[
+          t("groups.section.groups"),
+          t("groups.section.totalCapacity"),
+          t("groups.section.activeCandidates"),
+        ].map((label) => (
+          <div className="group-term-section-stat" key={label}>
+            <strong>
+              <span className="skeleton" style={{ width: 32, height: 20 }} />
+            </strong>
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderLoadingGroupTable = (showColumnPicker: boolean, rowCount: number) => (
+    <div className="table-wrap group-term-table-wrap">
+      <table aria-hidden="true" className="data-table group-table">
+        <thead>
+          <tr>
+            {visibleColumns.map((column) => (
+              <th className={column.headerClassName} key={column.id}>
+                {t(column.labelKey)}
+              </th>
+            ))}
+            <th className="col-picker-th">
+              {showColumnPicker ? (
+                <ColumnPicker
+                  columns={pickerOptions}
+                  isVisible={isVisible}
+                  onToggle={toggleColumn}
+                  triggerTitle={t("groups.columns.button")}
+                />
+              ) : null}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rowCount }, (_, index) => (
+            <tr key={index} style={{ pointerEvents: "none" }}>
+              {visibleColumns.map((column) => (
+                <td className={column.cellClassName} key={column.id}>
+                  <span
+                    className={
+                      column.id === "mebStatus" ? "skeleton skeleton-pill" : "skeleton"
+                    }
+                    style={{ width: `${column.skeletonWidth + (index * 9) % 28}px` }}
+                  />
+                </td>
+              ))}
+              <td className="col-picker-td" />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const getLoadingRowCount = (term: GroupTermLabelItem | null) => {
+    if (term && "groupCount" in term && typeof term.groupCount === "number") {
+      return Math.min(Math.max(term.groupCount, 2), 4);
+    }
+
+    return DEFAULT_LOADING_ROWS_PER_SECTION;
+  };
 
   return (
     <>
@@ -300,7 +631,6 @@ export function GroupsPage() {
             </button>
             <button
               className="btn btn-primary btn-sm"
-              disabled={!selectedTermId}
               onClick={() => setModalOpen(true)}
               type="button"
             >
@@ -361,7 +691,7 @@ export function GroupsPage() {
           disabled={termsLoading}
           onChange={(e) => {
             setSelectedTermId(e.target.value);
-            setPage(1);
+            setConfirmDeleteTermId(null);
           }}
           value={selectedTermId}
         >
@@ -401,7 +731,7 @@ export function GroupsPage() {
 
       {loading ? (
         viewMode === "cards" ? (
-          <div className="groups-grid">
+          <div className="groups-grid groups-page-grid">
             {Array.from({ length: 6 }, (_, i) => (
               <div className="panel" key={i}>
                 <div className="panel-header">
@@ -420,43 +750,13 @@ export function GroupsPage() {
             ))}
           </div>
         ) : (
-          <div className="table-wrap spaced">
-            <table className="data-table group-table">
-              <thead>
-                <tr>
-                  {visibleColumns.map((column) => (
-                    <th className={column.headerClassName} key={column.id}>
-                      {t(column.labelKey)}
-                    </th>
-                  ))}
-                  <th className="col-picker-th">
-                    <ColumnPicker
-                      columns={pickerOptions}
-                      isVisible={isVisible}
-                      onToggle={toggleColumn}
-                      triggerTitle={t("groups.columns.button")}
-                    />
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: PAGE_SIZE }, (_, i) => (
-                  <tr key={i} style={{ pointerEvents: "none" }}>
-                    {visibleColumns.map((column) => (
-                      <td className={column.cellClassName} key={column.id}>
-                        <span
-                          className={
-                            column.id === "mebStatus" ? "skeleton skeleton-pill" : "skeleton"
-                          }
-                          style={{ width: `${column.skeletonWidth + (i * 9) % 28}px` }}
-                        />
-                      </td>
-                    ))}
-                    <td className="col-picker-td" />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="group-term-sections">
+            {loadingTermSections.map((term, index) => (
+              <section aria-busy="true" className="group-term-section" key={term?.id ?? `loading-${index}`}>
+                {renderLoadingTermSectionHeader(term)}
+                {renderLoadingGroupTable(index === 0, getLoadingRowCount(term))}
+              </section>
+            ))}
           </div>
         )
       ) : groups.length === 0 ? (
@@ -464,97 +764,27 @@ export function GroupsPage() {
           {emptyMessage}
         </div>
       ) : viewMode === "cards" ? (
-        <div className="groups-grid">
-          {groups.map((group) => (
-            <div className="panel group-card" key={group.id} onClick={() => setSelectedGroupId(group.id)}>
-              <div className="panel-header group-card-header">
-                <div className="group-card-heading">
-                  <span className="panel-title">
-                    {buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass)}
-                  </span>
-                </div>
-                <StatusPill
-                  label={groupMebStatusLabel(group.mebStatus)}
-                  status={groupMebStatusToPill(group.mebStatus)}
-                />
+        <div className="group-term-sections">
+          {termSections.map((section) => (
+            <section className="group-term-section" key={section.term.id}>
+              {renderTermSectionHeader(section)}
+
+              <div className="groups-grid groups-page-grid">
+                {section.groups.map((group) => renderGroupCard(group))}
               </div>
-              <div className="group-body">
-                <div className="drawer-row">
-                  <span className="label">{t("groups.card.capacity")}</span>
-                  <span className="value">
-                    {group.assignedCandidateCount} / {group.capacity}
-                  </span>
-                </div>
-                <div className="drawer-row">
-                  <span className="label">{t("groups.card.startDate")}</span>
-                  <span className="value">{formatDateTR(group.startDate)}</span>
-                </div>
-              </div>
-              {(group.candidatePreview?.length ?? 0) > 0 && (
-                <div className="group-card-avatar-stack">
-                  {(group.candidatePreview ?? []).map((candidate) => (
-                    <CandidateAvatar
-                      candidate={{
-                        id: candidate.candidateId,
-                        firstName: candidate.firstName,
-                        lastName: candidate.lastName,
-                        photo: candidate.photo ?? null,
-                      }}
-                      className="group-card-avatar"
-                      key={candidate.candidateId}
-                      size={28}
-                    />
-                  ))}
-                  {group.activeCandidateCount > (group.candidatePreview?.length ?? 0) && (
-                    <span className="group-card-avatar-overflow">
-                      +{group.activeCandidateCount - (group.candidatePreview?.length ?? 0)}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+            </section>
           ))}
         </div>
       ) : (
-        <div className="table-wrap spaced">
-          <table className="data-table group-table">
-            <thead>
-              <tr>
-                {visibleColumns.map((column) => (
-                  <th className={column.headerClassName} key={column.id}>
-                    {t(column.labelKey)}
-                  </th>
-                ))}
-                <th className="col-picker-th">
-                  <ColumnPicker
-                    columns={pickerOptions}
-                    isVisible={isVisible}
-                    onToggle={toggleColumn}
-                    triggerTitle={t("groups.columns.button")}
-                  />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((group) => (
-                <tr
-                  key={group.id}
-                  onClick={() => setSelectedGroupId(group.id)}
-                >
-                  {visibleColumns.map((column) => (
-                    <td className={column.cellClassName} key={column.id}>
-                      {column.renderCell(group, sortedTerms, lang)}
-                    </td>
-                  ))}
-                  <td className="col-picker-td" />
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="group-term-sections">
+          {termSections.map((section, index) => (
+            <section className="group-term-section" key={section.term.id}>
+              {renderTermSectionHeader(section)}
+              {renderGroupTable(section.groups, index === 0)}
+            </section>
+          ))}
         </div>
       )}
-
-      <Pagination disabled={loading} onChange={setPage} page={page} totalPages={totalPages} />
 
       <NewGroupModal
         initialTermId={selectedTermId || null}

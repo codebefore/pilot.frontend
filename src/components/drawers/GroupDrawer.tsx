@@ -6,6 +6,11 @@ import {
   removeActiveGroupAssignment,
 } from "../../lib/candidates-api";
 import { deleteGroup, getGroupById, updateGroup } from "../../lib/groups-api";
+import {
+  parseGroupTitle,
+  GROUP_BRANCH_VALUES,
+  GROUP_NUMBER_VALUES,
+} from "../../lib/group-code";
 import { ApiError } from "../../lib/http";
 import { useLanguage } from "../../lib/i18n";
 import { normalizeTextQuery } from "../../lib/search";
@@ -13,19 +18,18 @@ import {
   formatDateTR,
   groupMebStatusLabel,
   GROUP_MEB_STATUS_OPTIONS,
-  LICENSE_CLASS_OPTIONS,
   normalizeGroupMebStatusValue,
 } from "../../lib/status-maps";
 import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import type {
   GroupDetailResponse,
-  GroupUpsertRequest,
-  LicenseClass,
+  GroupUpdateRequest,
   TermResponse,
 } from "../../lib/types";
-import { PlusIcon, XIcon } from "../icons";
+import { CheckIcon, PencilIcon, PlusIcon, XIcon } from "../icons";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
+import { CustomSelect } from "../ui/CustomSelect";
 import { EditableRow } from "../ui/EditableRow";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
@@ -122,7 +126,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
         const activeCandidateIds = new Set(group?.activeCandidates.map((c) => c.candidateId) ?? []);
         setSearchResults(
           result.items
-            .filter((c) => !activeCandidateIds.has(c.id) && c.licenseClass === group?.licenseClass)
+            .filter((c) => !activeCandidateIds.has(c.id))
             .map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, nationalId: c.nationalId }))
         );
       } catch {
@@ -143,12 +147,10 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
     onUpdated?.();
   };
 
-  const saveField = async (patch: Partial<GroupUpsertRequest>) => {
+  const saveField = async (patch: Partial<GroupUpdateRequest>) => {
     if (!group || !groupId || !group.startDate) return;
     try {
       const updated = await updateGroup(groupId, {
-        title: group.title,
-        licenseClass: group.licenseClass,
         termId: group.term.id,
         capacity: group.capacity,
         startDate: group.startDate,
@@ -224,7 +226,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
   const title = loading
     ? "Grup Detayı"
     : group
-    ? buildGroupHeading(group.title, group.term, sortedTerms, lang, group.licenseClass)
+    ? buildGroupHeading(group.title, group.term, sortedTerms, lang)
     : "Grup Detayı";
   const effectiveSearchQuery = normalizeTextQuery(searchQuery);
 
@@ -268,11 +270,14 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
       ) : group ? (
         <>
           <DrawerSection title="Grup Bilgileri">
-            <EditableRow
-              displayValue={group.title}
-              inputValue={group.title}
-              label="Başlık"
-              onSave={(v) => saveField({ title: v })}
+            <GroupCodeEditableRow
+              title={group.title}
+              onSave={(groupNumber, groupBranch) =>
+                saveField({
+                  groupNumber: Number(groupNumber),
+                  groupBranch,
+                })
+              }
             />
             <EditableRow
               displayValue={buildTermLabel(group.term, sortedTerms, lang)}
@@ -280,13 +285,6 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
               label="Dönem"
               options={termOptions}
               onSave={(v) => saveField({ termId: v })}
-            />
-            <EditableRow
-              displayValue={group.licenseClass}
-              inputValue={group.licenseClass}
-              label="Sınıf"
-              options={LICENSE_CLASS_OPTIONS}
-              onSave={(v) => saveField({ licenseClass: v as LicenseClass })}
             />
             <EditableRow
               displayValue={String(group.capacity)}
@@ -406,5 +404,133 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
         </div>
       )}
     </Drawer>
+  );
+}
+
+type GroupCodeEditableRowProps = {
+  title: string;
+  onSave: (groupNumber: string, groupBranch: string) => Promise<void>;
+};
+
+function GroupCodeEditableRow({ title, onSave }: GroupCodeEditableRowProps) {
+  const initialCode = parseGroupTitle(title);
+  const [editing, setEditing] = useState(false);
+  const [groupNumber, setGroupNumber] = useState(initialCode?.groupNumber ?? GROUP_NUMBER_VALUES[0]);
+  const [groupBranch, setGroupBranch] = useState(initialCode?.groupBranch ?? GROUP_BRANCH_VALUES[0]);
+  const [saving, setSaving] = useState(false);
+  const isEditable = initialCode !== null;
+
+  useEffect(() => {
+    const next = parseGroupTitle(title);
+    if (!next) {
+      setEditing(false);
+      return;
+    }
+
+    setGroupNumber(next.groupNumber);
+    setGroupBranch(next.groupBranch);
+  }, [title]);
+
+  const startEdit = () => {
+    const next = parseGroupTitle(title);
+    if (!next) {
+      return;
+    }
+
+    setGroupNumber(next.groupNumber);
+    setGroupBranch(next.groupBranch);
+    setEditing(true);
+  };
+
+  const cancel = () => {
+    const next = parseGroupTitle(title);
+    if (!next) {
+      setEditing(false);
+      return;
+    }
+
+    setGroupNumber(next.groupNumber);
+    setGroupBranch(next.groupBranch);
+    setEditing(false);
+  };
+
+  const save = async () => {
+    const currentCode = parseGroupTitle(title);
+    if (
+      currentCode?.groupNumber === groupNumber &&
+      currentCode.groupBranch === groupBranch.trim().toUpperCase()
+    ) {
+      setEditing(false);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSave(groupNumber, groupBranch);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="drawer-row editable-row">
+      {!editing && <span className="label">Başlık</span>}
+      {editing ? (
+        <span className="editable-row-edit">
+          <CustomSelect
+            className="form-select-sm"
+            disabled={saving}
+            onChange={(event) => setGroupNumber(event.target.value)}
+            value={groupNumber}
+          >
+            {GROUP_NUMBER_VALUES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </CustomSelect>
+          <CustomSelect
+            className="form-select-sm"
+            disabled={saving}
+            onChange={(event) => setGroupBranch(event.target.value)}
+            value={groupBranch}
+          >
+            {GROUP_BRANCH_VALUES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </CustomSelect>
+          <button
+            className="icon-btn icon-btn-confirm"
+            disabled={saving}
+            onClick={save}
+            title="Kaydet"
+            type="button"
+          >
+            <CheckIcon size={13} />
+          </button>
+          <button
+            className="icon-btn"
+            disabled={saving}
+            onClick={cancel}
+            title="Vazgeç"
+            type="button"
+          >
+            <XIcon size={13} />
+          </button>
+        </span>
+      ) : (
+        <span className="editable-row-view">
+          <span className="value">{title || "—"}</span>
+          {isEditable ? (
+            <button className="icon-btn edit-trigger" onClick={startEdit} title="Düzenle" type="button">
+              <PencilIcon size={12} />
+            </button>
+          ) : null}
+        </span>
+      )}
+    </div>
   );
 }

@@ -107,8 +107,15 @@ export interface TermResponse {
   name: string | null;
   groupCount: number;
   activeCandidateCount: number;
+  /** Active candidate counts broken down by license class. */
+  licenseClassCounts: TermLicenseClassCount[];
   createdAtUtc: string;
   updatedAtUtc: string;
+}
+
+export interface TermLicenseClassCount {
+  licenseClass: string;
+  count: number;
 }
 
 /** Embedded term reference on a group payload. */
@@ -131,14 +138,20 @@ export interface UpdateTermRequest {
 
 /* ── Groups ── */
 
+export interface GroupLicenseClassCount {
+  licenseClass: string;
+  count: number;
+}
+
 export interface GroupResponse {
   id: string;
   title: string;
-  licenseClass: LicenseClass;
   term: GroupTermRef;
   capacity: number;
   assignedCandidateCount: number;
   activeCandidateCount: number;
+  /** Active candidate counts broken down by license class. */
+  licenseClassCounts: GroupLicenseClassCount[];
   startDate: string | null;
   mebStatus: string | null;
   candidatePreview?: GroupCandidatePreview[];
@@ -169,9 +182,18 @@ export interface GroupDetailResponse extends GroupResponse {
   activeCandidates: GroupCandidateResponse[];
 }
 
-export interface GroupUpsertRequest {
-  title: string;
-  licenseClass: LicenseClass;
+export interface GroupCreateRequest {
+  groupNumber: number;
+  groupBranch: string;
+  termId: string;
+  capacity: number;
+  startDate: string;
+  mebStatus?: string | null;
+}
+
+export interface GroupUpdateRequest {
+  groupNumber?: number;
+  groupBranch?: string;
   termId: string;
   capacity: number;
   startDate: string;
@@ -253,6 +275,55 @@ export interface DocumentResponse {
   uploadedAtUtc: string;
   createdAtUtc: string;
   updatedAtUtc: string;
+}
+
+/* ── Users & Roles ── */
+
+export type PermissionLevel = "view" | "full";
+
+export interface AppUserResponse {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  roleId: string | null;
+  roleName: string | null;
+  isSuperAdmin: boolean;
+  isActive: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface AppUserUpsertRequest {
+  fullName: string;
+  email?: string | null;
+  phone: string;
+  roleId?: string | null;
+  isActive: boolean;
+}
+
+export interface RoleResponse {
+  id: string;
+  name: string;
+  isActive: boolean;
+  userCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface RoleUpsertRequest {
+  name: string;
+  isActive: boolean;
+}
+
+export interface RolePermissionResponse {
+  area: string;
+  level: PermissionLevel;
+}
+
+export interface PermissionAreasResponse {
+  areas: string[];
+  levels: PermissionLevel[];
 }
 
 /* ── Stats ── */

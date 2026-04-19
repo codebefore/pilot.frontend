@@ -211,6 +211,8 @@
 
 /* ─── MAIN ─── */
 .main {
+  --page-shell-gutter: 16px;
+  --page-shell-gap: 16px;
   margin-left: var(--sidebar-w);
   margin-top: var(--header-h);
   min-height: calc(100vh - var(--header-h));
@@ -222,7 +224,7 @@
   gap: 12px;
   flex-wrap: nowrap;
   min-width: 0;
-  padding: 20px 36px;
+  padding: 20px var(--page-shell-gutter);
   border-bottom: 1px solid var(--gray-200);
   background: var(--white);
 }
@@ -297,7 +299,7 @@
 
 .page-tabs {
   display: flex;
-  padding: 0 36px;
+  padding: 0 var(--page-shell-gutter);
   border-bottom: 1px solid var(--gray-200);
   background: var(--white);
 }
@@ -308,8 +310,8 @@
 .tabs-search-row {
   display: flex;
   align-items: stretch;
-  gap: 16px;
-  padding: 0 36px;
+  gap: var(--page-shell-gap);
+  padding: 0 var(--page-shell-gutter);
   border-bottom: 1px solid var(--gray-200);
   background: var(--white);
   flex-wrap: wrap;
@@ -374,14 +376,14 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  padding: 0 36px;
+  padding: 0 var(--page-shell-gutter);
   margin-top: -24px;
   position: relative;
   z-index: 2;
 }
 
 .dash-content {
-  padding: 24px 36px 48px;
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 24px;
@@ -415,7 +417,7 @@
   .table-wrap,
   .groups-grid,
   .tag-filter-bar,
-  .settings-page { padding-left: 20px; padding-right: 20px; }
+  .settings-page { padding-left: var(--page-shell-gutter); padding-right: var(--page-shell-gutter); }
   .dash-header { padding-top: 24px; padding-bottom: 20px; }
   .dash-content { padding-bottom: 32px; }
 }

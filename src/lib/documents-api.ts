@@ -45,6 +45,29 @@ export interface GetDocumentTypesOptions {
 export interface GetDocumentChecklistParams extends QueryParams {
   search?: string;
   status?: DocumentStatus;
+  candidateStatus?: "pre_registered" | "active";
+  tags?: string[];
+  firstName?: string;
+  lastName?: string;
+  nationalId?: string;
+  phoneNumber?: string;
+  email?: string;
+  licenseClass?: string;
+  gender?: string;
+  groupId?: string;
+  hasActiveGroup?: boolean;
+  hasPhoto?: boolean;
+  hasMebExamResult?: boolean;
+  examFeePaid?: boolean;
+  hasMissingDocuments?: boolean;
+  missingDocumentCountMin?: number;
+  missingDocumentCountMax?: number;
+  birthDateFrom?: string;
+  birthDateTo?: string;
+  createdAtFrom?: string;
+  createdAtTo?: string;
+  updatedAtFrom?: string;
+  updatedAtTo?: string;
   page?: number;
   pageSize?: number;
 }
@@ -115,6 +138,28 @@ export function uploadDocument(
   return httpPostForm<DocumentResponse>(
     `/api/candidates/${input.candidateId}/documents`,
     form,
+    { signal }
+  );
+}
+
+export interface UpdateCandidateDocumentInput {
+  note?: string | null;
+  metadata?: Record<string, string>;
+}
+
+export function updateCandidateDocument(
+  candidateId: string,
+  documentId: string,
+  input: UpdateCandidateDocumentInput,
+  signal?: AbortSignal
+): Promise<DocumentResponse> {
+  return httpPut<DocumentResponse>(
+    `/api/candidates/${candidateId}/documents/${documentId}`,
+    {
+      note: input.note ?? null,
+      metadataJson:
+        input.metadata !== undefined ? JSON.stringify(input.metadata) : undefined,
+    },
     { signal }
   );
 }

@@ -156,8 +156,8 @@
 /* ─── JOBS SUMMARY (small stat row) ─── */
 .jobs-summary {
   display: flex;
-  gap: 10px;
-  padding: 24px 36px 0;
+  gap: var(--page-shell-gap);
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
   flex-wrap: wrap;
 }
 .jobs-summary-card {
@@ -185,7 +185,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 36px;
+  padding: var(--page-shell-gap) var(--page-shell-gutter);
   flex-wrap: wrap;
 }
 
@@ -193,11 +193,111 @@
 .groups-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--page-shell-gap);
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
+}
+.groups-page-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.group-term-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
+}
+.group-term-section {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  padding: 24px 36px 48px;
+}
+.group-term-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gray-200);
+}
+.group-term-section-copy {
+  min-width: 0;
+}
+.group-term-section-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--gray-900);
+}
+.group-term-section-meta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+.group-term-section-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.group-term-section-stat {
+  min-width: 110px;
+}
+.group-term-section-stat strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--gray-900);
+}
+.group-term-section-stat span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.group-term-section .groups-page-grid {
+  padding: 0;
+}
+.group-card-license-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.group-card-license-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.group-card-license-chip strong {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+.group-card-license-chip span {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+.group-term-table-wrap {
+  padding: 0;
+}
+@media (max-width: 1100px) {
+  .groups-page-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 860px) {
   .groups-grid { grid-template-columns: minmax(0, 1fr); }
+  .group-term-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (max-width: 640px) {
+  .group-term-sections {
+    padding: var(--page-shell-gap) var(--page-shell-gutter) 32px;
+    gap: 24px;
+  }
 }
 
 .view-toggle {
@@ -249,48 +349,307 @@
 
 /* ─── SETTINGS PAGE ─── */
 .settings-page {
-  padding: 24px 36px 48px;
-  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-shell-gap);
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
+}
+.settings-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--page-shell-gap);
+}
+.settings-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+.settings-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+.settings-summary-value {
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--gray-900);
+}
+.settings-summary-meta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: var(--page-shell-gap);
+  align-items: start;
+}
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.settings-panel-note {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.settings-connection-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--gray-50);
+}
+.settings-connection-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-connection-title {
+  font-size: 14px;
+  color: var(--gray-900);
+}
+.settings-connection-meta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.settings-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* ─── PERMISSIONS MATRIX ─── */
-.permissions-matrix th:first-child,
-.permissions-matrix td:first-child {
-  font-weight: 600;
-  color: var(--gray-800);
-  background: var(--white);
-  position: sticky;
-  left: 0;
-  z-index: 1;
+.permissions-page-grid {
+  --permissions-grid-gap: var(--page-shell-gap);
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--permissions-grid-gap);
+  padding: var(--permissions-grid-gap) var(--page-shell-gutter) 48px;
 }
-.permissions-matrix .perm-select {
-  padding: 6px 10px;
+.permissions-page-grid .panel,
+.role-editor-page .panel {
+  overflow: visible;
+}
+.permissions-page-grid .panel-body,
+.role-editor-page .panel-body {
+  overflow: visible;
+}
+.permissions-role-count {
   font-size: 12px;
   font-weight: 600;
-  border-radius: 6px;
+  color: var(--gray-500);
+}
+.permissions-role-list {
+  display: flex;
+  flex-direction: column;
+}
+.permissions-role-item,
+.permissions-role-item-skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.permissions-role-item {
+  text-align: left;
+  background: var(--white);
+  transition: background .15s, border-color .15s;
+}
+.permissions-role-item:last-child,
+.permissions-role-item-skeleton:last-child {
+  border-bottom: none;
+}
+.permissions-role-item:hover {
+  background: var(--gray-50);
+}
+.permissions-role-item.active {
+  background: var(--brand-light);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.permissions-role-item-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.permissions-role-item-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.permissions-role-item-meta {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.permissions-empty-state {
+  padding: 28px 20px;
+  font-size: 14px;
+  color: var(--gray-500);
+}
+.permissions-detail {
+  display: flex;
+  flex-direction: column;
+}
+.permissions-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid var(--gray-200);
+}
+.permissions-detail-copy {
+  min-width: 0;
+}
+.permissions-detail-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--gray-900);
+}
+.permissions-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+.permissions-dirty-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+}
+.permissions-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.permissions-delete-hint {
+  align-self: center;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+.permissions-row-list {
+  display: flex;
+  flex-direction: column;
+}
+.permissions-row,
+.permissions-row-skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.permissions-row:last-child,
+.permissions-row-skeleton:last-child {
+  border-bottom: none;
+}
+.permissions-row-copy {
+  min-width: 0;
+}
+.permissions-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.permissions-row-value {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.permissions-level-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.permissions-level-btn {
+  min-width: 96px;
+  padding: 9px 12px;
   border: 1px solid var(--gray-200);
+  border-radius: 8px;
   background: var(--white);
   color: var(--gray-700);
-  outline: none;
-  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
   transition: border-color .15s, background .15s, color .15s;
-  min-width: 120px;
 }
-.permissions-matrix .perm-select:focus { border-color: var(--brand); }
-.permissions-matrix .perm-select.level-full {
-  background: var(--brand-light);
-  color: var(--brand-dark);
-  border-color: var(--brand-light);
+.permissions-level-btn:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-50);
 }
-.permissions-matrix .perm-select.level-view {
-  background: var(--blue-light);
-  color: #1d4ed8;
-  border-color: var(--blue-light);
-}
-.permissions-matrix .perm-select.level-none {
+.permissions-level-btn.active.none {
   background: var(--gray-100);
-  color: var(--gray-500);
   border-color: var(--gray-100);
+  color: var(--gray-600);
+}
+.permissions-level-btn.active.view {
+  background: var(--blue-light);
+  border-color: var(--blue-light);
+  color: #1d4ed8;
+}
+.permissions-level-btn.active.full {
+  background: var(--brand-light);
+  border-color: var(--brand-light);
+  color: var(--brand-dark);
+}
+
+.role-editor-page {
+  max-width: 760px;
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
+}
+.role-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.role-editor-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.role-editor-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--gray-900);
+}
+.role-editor-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--gray-500);
+}
+.role-editor-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
 }
 
 .connection-status {
@@ -365,8 +724,8 @@
 .payment-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 24px 36px;
+  gap: var(--page-shell-gap);
+  padding: var(--page-shell-gap) var(--page-shell-gutter);
 }
 .payment-card {
   background: var(--white);
@@ -1417,6 +1776,41 @@ textarea.form-input {
   border-top: 1px solid var(--gray-100);
 }
 
+@media (max-width: 980px) {
+  .settings-summary-grid,
+  .permissions-page-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .permissions-page-grid,
+  .role-editor-page {
+    padding-left: var(--page-shell-gutter);
+    padding-right: var(--page-shell-gutter);
+  }
+
+  .permissions-detail-header,
+  .permissions-row,
+  .permissions-row-skeleton {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .permissions-detail-actions,
+  .permissions-level-group {
+    justify-content: flex-start;
+  }
+
+  .permissions-level-btn {
+    flex: 1 1 120px;
+  }
+}
+
 /* ─── TAG INPUT (candidate tags) ─── */
 .tag-input-root {
   position: relative;
@@ -1561,13 +1955,11 @@ textarea.form-input {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  /* Match the 36px horizontal padding used by .page-toolbar / .tabs-search-row
-     / .table-wrap so the row lines up with the tabs above and the table below.
-     Bottom padding is left to 0 so .table-wrap.spaced's own 16px padding-top
-     provides the single gap between this row and the table. The mobile
-     fallback to 20px is handled in layout.css alongside the other page-level
-     wrappers. */
-  padding: 12px 36px 0;
+  /* Match the shared page gutter used by .page-toolbar / .tabs-search-row /
+     .table-wrap so the row lines up with the tabs above and the table below.
+     Bottom padding is left to 0 so .table-wrap.spaced's own top gap provides
+     the single gap between this row and the table. */
+  padding: 12px var(--page-shell-gutter) 0;
 }
 .tag-filter-chip {
   display: inline-flex;
@@ -1934,6 +2326,9 @@ textarea.form-input {
 .documents-doc-icon-btn:hover .documents-doc-icon.missing {
   color: #b91c1c;
 }
+.documents-doc-icon-btn:hover .documents-doc-icon.present {
+  color: #179d85;
+}
 .documents-doc-icon.present {
   color: var(--brand);
 }
@@ -2262,8 +2657,8 @@ textarea.form-input {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 0 36px;
-  margin: 16px 0;
+  padding: 0 var(--page-shell-gutter);
+  margin: var(--page-shell-gap) 0;
 }
 
 .search-input {
@@ -2305,7 +2700,7 @@ textarea.form-input {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 36px 0;
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
 }
 .term-bar-label {
   font-size: 11px;
@@ -2330,7 +2725,7 @@ textarea.form-input {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 36px 24px;
+  padding: 12px var(--page-shell-gutter) 24px;
 }
 .pagination-info { font-size: 13px; color: var(--gray-600); }
 
@@ -2433,7 +2828,7 @@ textarea.form-input {
 
 /* ─── NOTIFICATIONS PAGE ─── */
 .notif-page {
-  padding: 24px 36px 48px;
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
 }
 .notif-page-list {
   list-style: none;
@@ -2561,7 +2956,7 @@ textarea.form-input {
 
 /* ─── PROFILE PAGE ─── */
 .profile-page {
-  padding: 24px 36px 48px;
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
 }
 
 /* Header banner — reuses .dash-header gradient */
@@ -2680,7 +3075,7 @@ textarea.form-input {
 }
 
 @media (max-width: 640px) {
-  .profile-page { padding-left: 20px; padding-right: 20px; }
+  .profile-page { padding-left: var(--page-shell-gutter); padding-right: var(--page-shell-gutter); }
   .profile-dash-row { flex-direction: column; text-align: center; }
   .profile-dash-info p { justify-content: center; flex-wrap: wrap; }
 }
@@ -2754,8 +3149,17 @@ textarea.form-input {
 }
 
 /* ─── TABLE WRAPPER ─── */
-.table-wrap { padding: 0 36px 48px; overflow-x: auto; }
-.table-wrap.spaced { padding-top: 16px; }
+.table-wrap {
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
+  overflow-x: auto;
+}
+.table-wrap.spaced { padding-top: var(--page-shell-gap); }
+.table-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 /* ─── META ROW ─── */
 .meta-row {
@@ -3019,6 +3423,20 @@ textarea.form-input {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--gray-100);
+}
+
+.documents-manage-actions {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.documents-manage-empty {
+  color: var(--gray-500);
+  text-align: center;
+  padding: 12px 0;
 }
 
 /* ── CandidateDrawer uploaded document metadata list ───────────────── */

@@ -23,13 +23,16 @@ import {
   type CandidateFilterState,
 } from "../lib/candidate-filters";
 import {
+  applyStatusToCandidates,
+  applyTagsToCandidates,
+} from "../lib/candidate-bulk";
+import {
   getCandidates,
   getCandidateById,
   createCandidateTag,
   searchCandidateTags,
   type CandidateSortField,
   type SortDirection,
-  updateCandidate,
 } from "../lib/candidates-api";
 import { getDocumentChecklist } from "../lib/documents-api";
 import { useLanguage, useT } from "../lib/i18n";
@@ -41,9 +44,10 @@ import {
   candidateStatusLabel,
   candidateStatusToPill,
   formatDateTR,
-  normalizeCandidateGender,
   type CandidateStatusValue,
 } from "../lib/status-maps";
+import { buildGroupCode, parseGroupTitle } from "../lib/group-code";
+import { buildMonthYearLabel } from "../lib/term-label";
 import { normalizeTextQuery } from "../lib/search";
 import type { CandidateResponse, CandidateTag } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
@@ -123,48 +127,29 @@ function formatOptionalText(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function formatMonthYearLabel(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const parts = iso.slice(0, 10).split("-");
-  if (parts.length !== 3) return null;
-
-  const year = parts[0];
-  const monthNumber = Number(parts[1]);
-  const months = [
-    "Ocak",
-    "Şubat",
-    "Mart",
-    "Nisan",
-    "Mayıs",
-    "Haziran",
-    "Temmuz",
-    "Ağustos",
-    "Eylül",
-    "Ekim",
-    "Kasım",
-    "Aralık",
-  ];
-  const month = months[monthNumber - 1];
-  if (!month) return null;
-  return `${month} ${year}`;
-}
-
 function formatGroupWithTerm(candidate: CandidateResponse): string {
   if (!candidate.currentGroup) return "—";
 
   const title = candidate.currentGroup.title.trim();
-  const monthYear = formatMonthYearLabel(candidate.currentGroup.startDate);
+  const monthYear = candidate.currentGroup.startDate
+    ? buildMonthYearLabel(candidate.currentGroup.startDate, "tr")
+    : null;
   if (!monthYear) return title || "—";
+  const groupCode = parseGroupTitle(title);
+
+  if (groupCode) {
+    return `${monthYear} - ${buildGroupCode(groupCode.groupNumber, groupCode.groupBranch)}`;
+  }
 
   for (const separator of [" - ", " — ", "-"]) {
     const suffix = `${separator}${monthYear}`;
     if (title.endsWith(suffix)) {
       const base = title.slice(0, -suffix.length).trim();
-      return base.length > 0 ? `${base}-${monthYear}` : monthYear;
+      return base.length > 0 ? `${base} — ${monthYear}` : monthYear;
     }
   }
 
-  return `${title}-${monthYear}`;
+  return `${title} — ${monthYear}`;
 }
 
 const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
@@ -340,7 +325,7 @@ export function CandidatesPage() {
   useLanguage();
   const tabs = TAB_KEYS.map((key) => ({
     key,
-    label: key === "all" ? "Tum" : candidateStatusLabel(key),
+    label: key === "all" ? "Tümü" : candidateStatusLabel(key),
   }));
 
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
@@ -802,59 +787,6 @@ export function CandidatesPage() {
     setBulkActionMode("export");
   };
 
-  const buildCandidateUpdatePayload = (
-    candidate: CandidateResponse,
-    overrides?: {
-      status?: CandidateStatusValue;
-      tags?: string[];
-    }
-  ) => ({
-    firstName: candidate.firstName,
-    lastName: candidate.lastName,
-    nationalId: candidate.nationalId,
-    phoneNumber: candidate.phoneNumber,
-    email: candidate.email,
-    birthDate: candidate.birthDate,
-    gender: normalizeCandidateGender(candidate.gender),
-    licenseClass: candidate.licenseClass,
-    existingLicenseType: candidate.existingLicenseType,
-    existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
-    existingLicenseNumber: candidate.existingLicenseNumber,
-    existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
-    existingLicensePre2016: candidate.existingLicensePre2016,
-    examFeePaid: candidate.examFeePaid ?? false,
-    status: overrides?.status ?? (candidate.status as CandidateStatusValue),
-    tags: overrides?.tags ?? (candidate.tags?.map((tag) => tag.name) ?? []),
-  });
-
-  const mergeCandidateTags = (candidate: CandidateResponse, additions: string[]) => {
-    const merged: string[] = [];
-    const seen = new Set<string>();
-
-    const pushUnique = (name: string) => {
-      const normalized = name
-        .trim()
-        .replace(/\s+/g, " ")
-        .toLocaleLowerCase("tr-TR");
-      if (!normalized || seen.has(normalized)) {
-        return;
-      }
-
-      seen.add(normalized);
-      merged.push(name.trim().replace(/\s+/g, " "));
-    };
-
-    for (const existing of candidate.tags?.map((tag) => tag.name) ?? []) {
-      pushUnique(existing);
-    }
-
-    for (const addition of additions) {
-      pushUnique(addition);
-    }
-
-    return merged;
-  };
-
   const applyBulkStatusChange = async () => {
     if (!bulkStatusValue || selectedCandidateIds.size === 0) {
       return;
@@ -866,15 +798,7 @@ export function CandidatesPage() {
       const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
       const selectedIds = Array.from(selectedCandidateIds);
 
-      await Promise.all(
-        selectedIds.map(async (candidateId) => {
-          const candidate = candidateById.get(candidateId) ?? (await getCandidateById(candidateId));
-          await updateCandidate(
-            candidateId,
-            buildCandidateUpdatePayload(candidate, { status: bulkStatusValue })
-          );
-        })
-      );
+      await applyStatusToCandidates(selectedIds, bulkStatusValue, candidateById);
 
       showToast(`${selectedIds.length} aday güncellendi`);
       setBulkActionMode(null);
@@ -899,17 +823,7 @@ export function CandidatesPage() {
       const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
       const selectedIds = Array.from(selectedCandidateIds);
 
-      await Promise.all(
-        selectedIds.map(async (candidateId) => {
-          const candidate = candidateById.get(candidateId) ?? (await getCandidateById(candidateId));
-          await updateCandidate(
-            candidateId,
-            buildCandidateUpdatePayload(candidate, {
-              tags: mergeCandidateTags(candidate, bulkTagValues),
-            })
-          );
-        })
-      );
+      await applyTagsToCandidates(selectedIds, bulkTagValues, candidateById);
 
       showToast(`${selectedIds.length} adaya etiket eklendi`);
       setBulkActionMode(null);
@@ -1245,14 +1159,6 @@ export function CandidatesPage() {
           setRefreshKey((k) => k + 1);
         }}
         onUpdated={() => setRefreshKey((k) => k + 1)}
-        onStartMebJob={() => {
-          showToast("MEB işi oluşturuldu");
-          closeDrawer();
-        }}
-        onTakePayment={() => {
-          showToast("Tahsilat ekranı açıldı");
-          closeDrawer();
-        }}
       />
 
       <NewCandidateModal

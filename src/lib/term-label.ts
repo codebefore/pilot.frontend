@@ -1,4 +1,5 @@
 import type { GroupTermRef, TermResponse } from "./types";
+import { buildGroupCode, parseGroupTitle } from "./group-code";
 
 /** Months localized for the two supported UI languages. */
 const MONTHS_TR = [
@@ -34,7 +35,10 @@ type TermLike = Pick<GroupTermRef, "id" | "monthDate" | "sequence" | "name"> | T
 
 export type TermLabelLanguage = "tr" | "en";
 
-function monthYear(monthDate: string, lang: TermLabelLanguage): string {
+export function buildMonthYearLabel(
+  monthDate: string,
+  lang: TermLabelLanguage = "tr"
+): string {
   const parts = monthDate.slice(0, 10).split("-");
   if (parts.length !== 3) return monthDate;
   const year = parts[0];
@@ -64,7 +68,7 @@ export function buildTermLabel(
   siblings: TermLike[],
   lang: TermLabelLanguage = "tr"
 ): string {
-  const base = monthYear(term.monthDate, lang);
+  const base = buildMonthYearLabel(term.monthDate, lang);
   const peerCount = siblings.filter((t) => sameMonth(t, term)).length;
   let label = base;
   if (peerCount > 1) {
@@ -76,41 +80,36 @@ export function buildTermLabel(
   return label;
 }
 
-/**
- * Build the final group heading shown in cards/drawers. Legacy data may have
- * stored the term label inside the group title itself, e.g.
- * "1C Sinifi - Nisan 2026". When that exact term label is already present as
- * a suffix, remove only the duplicated suffix and keep the rest of the title
- * intact. When `licenseClass` is provided, it is appended as a parenthesized
- * suffix so the heading reads e.g. "1A Sinifi — Şubat 2026 - (C)".
- */
 export function buildGroupHeading(
   title: string,
   term: TermLike,
   siblings: TermLike[],
-  lang: TermLabelLanguage = "tr",
-  licenseClass?: string | null
+  lang: TermLabelLanguage = "tr"
 ): string {
   const termLabel = buildTermLabel(term, siblings, lang);
+  const monthYearLabel = buildMonthYearLabel(term.monthDate, lang);
   const normalizedTitle = title.trim();
-  const licenseSuffix =
-    licenseClass && licenseClass.trim().length > 0 ? ` - (${licenseClass.trim()})` : "";
+  const groupCode = parseGroupTitle(normalizedTitle);
 
-  const withTerm = (() => {
-    if (normalizedTitle === termLabel) {
-      return termLabel;
-    }
-    for (const separator of [" - ", " — "]) {
-      const suffix = `${separator}${termLabel}`;
+  if (groupCode) {
+    return `${monthYearLabel} - ${buildGroupCode(groupCode.groupNumber, groupCode.groupBranch)}`;
+  }
+
+  if (normalizedTitle === termLabel || normalizedTitle === monthYearLabel) {
+    return termLabel;
+  }
+
+  for (const separator of [" - ", " — "]) {
+    for (const suffixLabel of [termLabel, monthYearLabel]) {
+      const suffix = `${separator}${suffixLabel}`;
       if (normalizedTitle.endsWith(suffix)) {
         const withoutSuffix = normalizedTitle.slice(0, -suffix.length).trim();
         return withoutSuffix.length > 0 ? `${withoutSuffix} — ${termLabel}` : termLabel;
       }
     }
-    return `${normalizedTitle} — ${termLabel}`;
-  })();
+  }
 
-  return `${withTerm}${licenseSuffix}`;
+  return `${normalizedTitle} — ${termLabel}`;
 }
 
 /**

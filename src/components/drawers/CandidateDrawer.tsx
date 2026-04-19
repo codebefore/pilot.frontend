@@ -15,8 +15,9 @@ import {
 import { getGroups } from "../../lib/groups-api";
 import { useLanguage, useT } from "../../lib/i18n";
 import { buildWhatsAppUrl, formatPhoneNumber } from "../../lib/phone";
-import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { buildGroupHeading, buildMonthYearLabel, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
+import { buildGroupCode, parseGroupTitle } from "../../lib/group-code";
 import {
   candidateGenderLabel,
   CANDIDATE_GENDER_OPTIONS,
@@ -49,48 +50,26 @@ import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
-function formatMonthYearLabel(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const parts = iso.slice(0, 10).split("-");
-  if (parts.length !== 3) return null;
-
-  const year = parts[0];
-  const monthNumber = Number(parts[1]);
-  const months = [
-    "Ocak",
-    "Şubat",
-    "Mart",
-    "Nisan",
-    "Mayıs",
-    "Haziran",
-    "Temmuz",
-    "Ağustos",
-    "Eylül",
-    "Ekim",
-    "Kasım",
-    "Aralık",
-  ];
-
-  const month = months[monthNumber - 1];
-  if (!month) return null;
-  return `${month} ${year}`;
-}
-
 function groupTermLabel(title: string, startDate: string | null | undefined): string {
   const normalizedTitle = title.trim();
-  const monthYear = formatMonthYearLabel(startDate);
+  const monthYear = startDate ? buildMonthYearLabel(startDate, "tr") : null;
 
   if (!monthYear) return normalizedTitle || "Atanmamış";
+  const groupCode = parseGroupTitle(normalizedTitle);
+
+  if (groupCode) {
+    return `${monthYear} - ${buildGroupCode(groupCode.groupNumber, groupCode.groupBranch)}`;
+  }
 
   for (const separator of [" - ", " — ", "-"]) {
     const suffix = `${separator}${monthYear}`;
     if (normalizedTitle.endsWith(suffix)) {
       const base = normalizedTitle.slice(0, -suffix.length).trim();
-      return base.length > 0 ? `${base}-${monthYear}` : monthYear;
+      return base.length > 0 ? `${base} — ${monthYear}` : monthYear;
     }
   }
 
-  return `${normalizedTitle}-${monthYear}`;
+  return `${normalizedTitle} — ${monthYear}`;
 }
 
 function todayISO(): string {
@@ -104,8 +83,6 @@ type CandidateDrawerProps = {
   onClose: () => void;
   onDeleted: () => void;
   onUpdated?: () => void;
-  onStartMebJob: () => void;
-  onTakePayment: () => void;
 };
 
 const STATUS_OPTIONS: SelectOption[] = CANDIDATE_STATUS_OPTIONS;
@@ -147,8 +124,6 @@ export function CandidateDrawer({
   onClose,
   onDeleted,
   onUpdated,
-  onStartMebJob,
-  onTakePayment,
 }: CandidateDrawerProps) {
   const { showToast } = useToast();
   const { lang } = useLanguage();
@@ -431,19 +406,15 @@ export function CandidateDrawer({
       getGroups({ pageSize: 100 }),
       getTerms({ pageSize: 200 }).catch(() => ({ items: [] })),
     ]);
-    const filtered = groupsResult.items.filter(
-      (g) => !candidate?.licenseClass || g.licenseClass === candidate.licenseClass
-    );
     const sortedTerms = [...termsResult.items].sort(compareTermsDesc);
     return [
       { value: "", label: "— Atanmamış —" },
-      ...filtered.map((g) => {
-        const termLabel = buildTermLabel(
-          g.term,
-          sortedTerms.length > 0 ? sortedTerms : [g.term],
-          lang
-        );
-        return { value: g.id, label: `${g.title} · ${termLabel}` };
+      ...groupsResult.items.map((g) => {
+        const termContext = sortedTerms.length > 0 ? sortedTerms : [g.term];
+        return {
+          value: g.id,
+          label: buildGroupHeading(g.title, g.term, termContext, lang),
+        };
       }),
     ];
   };
@@ -480,19 +451,7 @@ export function CandidateDrawer({
       </button>
     </div>
   ) : (
-    <>
-      <button className="btn btn-primary btn-sm" onClick={onStartMebJob} type="button">MEB İşi Başlat</button>
-      <button className="btn btn-secondary btn-sm" onClick={onTakePayment} type="button">Tahsilat Al</button>
-      <button
-        className="btn btn-secondary btn-sm"
-        disabled={!candidate}
-        onClick={() => setUploadOpen(true)}
-        type="button"
-      >
-        Evrak Yükle
-      </button>
-      <button className="btn btn-danger btn-sm" disabled={loading} onClick={() => setConfirmDelete(true)} type="button">Aday Sil</button>
-    </>
+    <button className="btn btn-danger btn-sm" disabled={loading} onClick={() => setConfirmDelete(true)} type="button">Aday Sil</button>
   );
 
   const whatsappUrl = buildWhatsAppUrl(candidate?.phoneNumber);
@@ -611,7 +570,6 @@ export function CandidateDrawer({
               onSave={(v) => saveField({ licenseClass: v as LicenseClass })}
             />
             <EditableRow
-              key={candidate.licenseClass}
               displayValue={
                 candidate.currentGroup
                   ? groupTermLabel(candidate.currentGroup.title, candidate.currentGroup.startDate)

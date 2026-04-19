@@ -177,7 +177,7 @@ export const CANDIDATE_STATUS_VALUES: CandidateStatusValue[] = [
 
 /** Select options for the candidate status field (drawer + modal). */
 export const CANDIDATE_STATUS_OPTIONS: { value: CandidateStatusValue; label: string }[] = [
-  { value: "pre_registered", label: "Onkayit" },
+  { value: "pre_registered", label: "Ön Kayıt" },
   { value: "active",         label: "Aktif" },
   { value: "parked",         label: "Park" },
   { value: "graduated",      label: "Mezun" },
@@ -286,7 +286,7 @@ export function candidateStatusToPill(status: string): JobStatus {
 
 export function candidateStatusLabel(status: string): string {
   switch (normalizeCandidateStatusValue(status)) {
-    case "pre_registered": return "Onkayit";
+    case "pre_registered": return "Ön Kayıt";
     case "active":         return "Aktif";
     case "parked":         return "Park";
     case "graduated":      return "Mezun";

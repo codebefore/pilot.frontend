@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DocumentsPage } from "./DocumentsPage";
@@ -24,6 +25,14 @@ vi.mock("../lib/documents-api", async () => {
 vi.mock("../components/modals/UploadDocumentModal", () => ({
   UploadDocumentModal: () => null,
 }));
+
+function renderPage() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/documents"]}>
+      <DocumentsPage />
+    </MemoryRouter>
+  );
+}
 
 describe("DocumentsPage", () => {
   beforeEach(() => {
@@ -64,7 +73,7 @@ describe("DocumentsPage", () => {
   });
 
   it("fetches the checklist by default without a tab status filter", async () => {
-    renderWithProviders(<DocumentsPage />);
+    renderPage();
 
     await waitFor(() => {
       expect(getDocumentChecklistMock).toHaveBeenCalledWith(
@@ -78,7 +87,7 @@ describe("DocumentsPage", () => {
   });
 
   it("sends the text search filter", async () => {
-    renderWithProviders(<DocumentsPage />);
+    renderPage();
 
     await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalled());
 
@@ -98,7 +107,7 @@ describe("DocumentsPage", () => {
   });
 
   it("does not send the document search query until the second character", async () => {
-    renderWithProviders(<DocumentsPage />);
+    renderPage();
 
     await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalled());
     expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1);
@@ -128,12 +137,12 @@ describe("DocumentsPage", () => {
   });
 
   it("loads document types once for the upload modal", async () => {
-    renderWithProviders(<DocumentsPage />);
+    renderPage();
     await waitFor(() => expect(getDocumentTypesMock).toHaveBeenCalledTimes(1));
   });
 
   it("renders a sortable candidate header without triggering an extra fetch", async () => {
-    renderWithProviders(<DocumentsPage />);
+    renderPage();
 
     await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1));
 
@@ -165,7 +174,7 @@ describe("DocumentsPage", () => {
       totalPages: 1,
     });
 
-    renderWithProviders(<DocumentsPage />);
+    renderPage();
 
     expect(await screen.findByLabelText("Nüfus Cüzdanı")).toBeInTheDocument();
     expect(screen.getByLabelText("Sağlık Raporu")).toBeInTheDocument();

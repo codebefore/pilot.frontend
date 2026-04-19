@@ -20,6 +20,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { PermissionsPage } from "./pages/PermissionsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { RoleEditorPage } from "./pages/RoleEditorPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrainingPage } from "./pages/TrainingPage";
 import { UsersPage } from "./pages/UsersPage";
@@ -61,6 +62,8 @@ function AppShell() {
           <Route element={<NotificationsPage />} path="/notifications" />
           <Route element={<SettingsPage />}    path="/settings" />
           <Route element={<UsersPage />}       path="/users" />
+          <Route element={<RoleEditorPage />}  path="/permissions/roles/new" />
+          <Route element={<RoleEditorPage />}  path="/permissions/roles/:roleId" />
           <Route element={<PermissionsPage />} path="/permissions" />
           <Route element={<ProfilePage />} path="/profile" />
           <Route element={<Navigate replace to="/" />} path="*" />
