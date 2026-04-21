@@ -28,7 +28,7 @@ const TARGETS = [
   "Ahmet Yılmaz",
   "Emre Şahin",
   "Fatma Demir",
-  "B Sınıfı — Nisan 2026 (tüm grup)",
+  "B Sınıfı — NİSAN 2026 (tüm grup)",
 ];
 
 const DEFAULT_VALUES: NewMebJobForm = {

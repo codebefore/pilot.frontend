@@ -41,11 +41,37 @@ const tr = {
   "nav.documentTypes": "Belge Türleri",
   "nav.payments": "Tahsilat",
   "nav.training": "Eğitim Planı",
+  "nav.exams": "Sınavlar",
+  "nav.examESinav": "E-Sınav",
+  "nav.examDireksiyon": "Direksiyon",
   "nav.mebJobs": "MEB İşleri",
   "nav.settings": "Kurum Ayarları",
   "nav.users": "Kullanıcılar",
   "nav.permissions": "Yetki Yönetimi",
   "nav.login": "Giriş",
+
+  // Exams
+  "examESinav.title": "E-Sınav",
+  "examESinav.tab.havuz": "Havuz",
+  "examESinav.tab.basarisiz": "Başarısız",
+  "examESinav.tab.randevulu": "Randevulu",
+  "examESinav.sessions.title": "Sınav Oturumları",
+  "examESinav.sessions.emptyTitle": "Planlanan oturum yok",
+  "examESinav.sessions.emptyDescription":
+    "İlk e-sınav randevusu açıldığında aday listesi burada toplanır.",
+  "examESinav.candidates.title": "Hazır Adaylar",
+  "examESinav.candidates.emptyTitle": "Hazır aday yok",
+  "examESinav.candidates.emptyDescription":
+    "Evrak ve ödeme adımları tamamlanan adaylar burada görünür.",
+  "examDireksiyon.title": "Direksiyon",
+  "examDireksiyon.schedule.title": "Sınav Takvimi",
+  "examDireksiyon.schedule.emptyTitle": "Planlanan sınav yok",
+  "examDireksiyon.schedule.emptyDescription":
+    "Direksiyon sınav günü tanımlandığında aday atamaları burada listelenir.",
+  "examDireksiyon.boards.title": "Komisyon ve Araç",
+  "examDireksiyon.boards.emptyTitle": "Komisyon ataması yok",
+  "examDireksiyon.boards.emptyDescription":
+    "Komisyon, araç ve güzergah bilgileri kesinleştiğinde burada görünür.",
 
   // Login
   "login.title": "Pilot",
@@ -156,7 +182,7 @@ const tr = {
   "notif.documentUploaded.title": "Evrak yüklendi",
   "notif.documentUploaded.body": "Ayşe Demir — Sağlık raporu yüklendi.",
   "notif.groupClosing.title": "Grup kapanışa yaklaşıyor",
-  "notif.groupClosing.body": "B Sınıfı - Nisan 2026 grubu kapanışta.",
+  "notif.groupClosing.body": "B Sınıfı - NİSAN 2026 grubu kapanışta.",
   "notif.paymentOverdue.title": "Ödeme vadesi geçti",
   "notif.paymentOverdue.body": "3 aday için bakiye tahsilatı bekliyor.",
   "notif.mebApproved.title": "MEB işi onaylandı",
@@ -253,6 +279,7 @@ const tr = {
   "candidates.col.birthDate": "Doğum Tarihi",
   "candidates.col.gender": "Cinsiyet",
   "candidates.col.licenseClass": "Ehliyet Tipi",
+  "candidates.col.term": "Dönem",
   "candidates.col.group": "Grup",
   "candidates.col.groupStartDate": "Grup Başlangıç",
   "candidates.col.documents": "Evrak",
@@ -450,11 +477,37 @@ const en: Record<keyof typeof tr, string> = {
   "nav.documentTypes": "Document Types",
   "nav.payments": "Payments",
   "nav.training": "Training Plan",
+  "nav.exams": "Exams",
+  "nav.examESinav": "E-Exam",
+  "nav.examDireksiyon": "Driving",
   "nav.mebJobs": "MEB Jobs",
   "nav.settings": "Institution Settings",
   "nav.users": "Users",
   "nav.permissions": "Permissions",
   "nav.login": "Sign In",
+
+  // Exams
+  "examESinav.title": "E-Exam",
+  "examESinav.tab.havuz": "Pool",
+  "examESinav.tab.basarisiz": "Failed",
+  "examESinav.tab.randevulu": "Scheduled",
+  "examESinav.sessions.title": "Exam Sessions",
+  "examESinav.sessions.emptyTitle": "No session planned",
+  "examESinav.sessions.emptyDescription":
+    "Scheduled e-exam appointments will appear here as soon as the first session is opened.",
+  "examESinav.candidates.title": "Ready Candidates",
+  "examESinav.candidates.emptyTitle": "No candidate is ready",
+  "examESinav.candidates.emptyDescription":
+    "Candidates who completed their document and payment steps will appear here.",
+  "examDireksiyon.title": "Driving",
+  "examDireksiyon.schedule.title": "Exam Schedule",
+  "examDireksiyon.schedule.emptyTitle": "No exam planned",
+  "examDireksiyon.schedule.emptyDescription":
+    "Candidate assignments will appear here when a driving exam day is scheduled.",
+  "examDireksiyon.boards.title": "Board and Vehicle",
+  "examDireksiyon.boards.emptyTitle": "No board assigned",
+  "examDireksiyon.boards.emptyDescription":
+    "Board, vehicle and route details will appear here once they are finalized.",
 
   // Login
   "login.title": "Pilot",
@@ -662,6 +715,7 @@ const en: Record<keyof typeof tr, string> = {
   "candidates.col.birthDate": "Birth Date",
   "candidates.col.gender": "Gender",
   "candidates.col.licenseClass": "License Type",
+  "candidates.col.term": "Term",
   "candidates.col.group": "Group",
   "candidates.col.groupStartDate": "Group Start",
   "candidates.col.documents": "Documents",

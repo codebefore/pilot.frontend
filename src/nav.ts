@@ -4,6 +4,7 @@ import {
   CandidatesIcon,
   DashboardIcon,
   DocumentsIcon,
+  ExamsIcon,
   GroupsIcon,
   KeyIcon,
   LoginIcon,
@@ -21,6 +22,13 @@ export type NavItem = {
   path: string;
   labelKey: TranslationKey;
   Icon: ComponentType;
+  children?: NavChildItem[];
+};
+
+export type NavChildItem = {
+  key: NavKey;
+  path: string;
+  labelKey: TranslationKey;
 };
 
 export type NavSection = {
@@ -43,6 +51,16 @@ export const navSections: NavSection[] = [
       { key: "documents",  path: "/documents",  labelKey: "nav.documents",  Icon: DocumentsIcon },
       { key: "payments",   path: "/payments",   labelKey: "nav.payments",   Icon: PaymentsIcon },
       { key: "training",   path: "/training",   labelKey: "nav.training",   Icon: TrainingIcon },
+      {
+        key: "exams",
+        path: "/exams",
+        labelKey: "nav.exams",
+        Icon: ExamsIcon,
+        children: [
+          { key: "examESinav", path: "/exams/e-sinav", labelKey: "nav.examESinav" },
+          { key: "examDireksiyon", path: "/exams/direksiyon", labelKey: "nav.examDireksiyon" },
+        ],
+      },
     ],
   },
   {

@@ -17,7 +17,7 @@ export type Group = {
 export const mockGroups: Group[] = [
   {
     id: "g1",
-    name: "B Sınıfı — Nisan 2026",
+    name: "B Sınıfı — NİSAN 2026",
     status: "running",
     statusLabel: "Aktif",
     capacityFilled: 20,
@@ -30,7 +30,7 @@ export const mockGroups: Group[] = [
   },
   {
     id: "g2",
-    name: "A2 Sınıfı — Nisan 2026",
+    name: "A2 Sınıfı — NİSAN 2026",
     status: "running",
     statusLabel: "Aktif",
     capacityFilled: 8,
@@ -43,7 +43,7 @@ export const mockGroups: Group[] = [
   },
   {
     id: "g3",
-    name: "B Sınıfı — Mart 2026",
+    name: "B Sınıfı — MART 2026",
     status: "manual",
     statusLabel: "Kapanışta",
     capacityFilled: 22,
@@ -56,7 +56,7 @@ export const mockGroups: Group[] = [
   },
   {
     id: "g4",
-    name: "C Sınıfı — Mart 2026",
+    name: "C Sınıfı — MART 2026",
     status: "success",
     statusLabel: "Tamamlandı",
     capacityFilled: 10,

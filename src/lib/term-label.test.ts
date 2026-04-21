@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGroupHeading, pickDefaultTermId } from "./term-label";
+import { buildGroupHeading, buildTermLabel, pickDefaultTermId } from "./term-label";
 
 describe("pickDefaultTermId", () => {
   it("prefers the current month term over a newer future term", () => {
@@ -15,7 +15,7 @@ describe("pickDefaultTermId", () => {
         id: "apr-2",
         monthDate: "2026-04-01",
         sequence: 2,
-        name: "Ek Donem",
+        name: "EK DÖNEM",
       },
       {
         id: "apr-1",
@@ -57,18 +57,34 @@ describe("buildGroupHeading", () => {
   };
 
   it("renders legacy code titles with month first", () => {
-    expect(buildGroupHeading("1A", aprilTerm, [aprilTerm], "tr")).toBe("Nisan 2026 - 1A");
+    expect(buildGroupHeading("1A", aprilTerm, [aprilTerm], "tr")).toBe("NİSAN 2026 - 1A");
   });
 
   it("keeps stored month-first code titles stable", () => {
-    expect(buildGroupHeading("Nisan 2026 - 1A", aprilTerm, [aprilTerm], "tr")).toBe(
-      "Nisan 2026 - 1A"
+    expect(buildGroupHeading("NİSAN 2026 - 1A", aprilTerm, [aprilTerm], "tr")).toBe(
+      "NİSAN 2026 - 1A"
     );
   });
 
   it("does not collapse custom titles that only start with a code-looking prefix", () => {
-    expect(buildGroupHeading("1C Sinifi - Nisan 2026", aprilTerm, [aprilTerm], "tr")).toBe(
-      "1C Sinifi — Nisan 2026"
+    expect(buildGroupHeading("1C Sinifi - NİSAN 2026", aprilTerm, [aprilTerm], "tr")).toBe(
+      "1C Sinifi — NİSAN 2026"
     );
+  });
+
+  it("renders supplemental terms with sequence suffix", () => {
+    const supplementalAprilTerm = {
+      id: "apr-2",
+      monthDate: "2026-04-01",
+      sequence: 2,
+      name: null,
+    };
+
+    expect(buildTermLabel(supplementalAprilTerm, [aprilTerm, supplementalAprilTerm], "tr")).toBe(
+      "NİSAN 2026 / 2"
+    );
+    expect(
+      buildGroupHeading("1A", supplementalAprilTerm, [aprilTerm, supplementalAprilTerm], "tr")
+    ).toBe("NİSAN 2026 / 2 - 1A");
   });
 });

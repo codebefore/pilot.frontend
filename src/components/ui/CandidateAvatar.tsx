@@ -13,7 +13,7 @@ type CandidateAvatarProps = {
 function candidateInitials(candidate: Pick<CandidateResponse, "firstName" | "lastName">): string {
   const first = candidate.firstName.trim().charAt(0);
   const last = candidate.lastName.trim().charAt(0);
-  return `${first}${last}`.trim().toUpperCase() || "A";
+  return `${first}${last}`.trim().toLocaleUpperCase("tr-TR") || "A";
 }
 
 function buildCandidatePhotoUrl(

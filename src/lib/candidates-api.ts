@@ -20,10 +20,12 @@ export type CandidateSortField =
   | "missingDocumentCount";
 
 export type SortDirection = "asc" | "desc";
+export type ESinavTabValue = "havuz" | "basarisiz" | "randevulu";
 
 export interface GetCandidatesParams extends QueryParams {
   search?: string;
   status?: string;
+  eSinavTab?: ESinavTabValue;
   groupId?: string;
   groupTitle?: string;
   groupStartDateFrom?: string;

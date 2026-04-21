@@ -12,6 +12,8 @@ import { CandidatesPage } from "./pages/CandidatesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { DocumentTypesPage } from "./pages/DocumentTypesPage";
+import { ExamDireksiyonPage } from "./pages/ExamDireksiyonPage";
+import { ExamESinavPage } from "./pages/ExamESinavPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -58,6 +60,9 @@ function AppShell() {
           <Route element={<DocumentTypesPage />} path="/document-types" />
           <Route element={<PaymentsPage />}   path="/payments" />
           <Route element={<TrainingPage />}   path="/training" />
+          <Route element={<Navigate replace to="/exams/e-sinav" />} path="/exams" />
+          <Route element={<ExamESinavPage />} path="/exams/e-sinav" />
+          <Route element={<ExamDireksiyonPage />} path="/exams/direksiyon" />
           <Route element={<MebJobsPage />}    path="/meb-jobs" />
           <Route element={<NotificationsPage />} path="/notifications" />
           <Route element={<SettingsPage />}    path="/settings" />

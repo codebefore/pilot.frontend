@@ -23,7 +23,7 @@ describe("NewTermModal", () => {
       id: "term-1",
       monthDate: "2026-04-01",
       sequence: 1,
-      name: "Ek Donem",
+      name: "EK DÖNEM",
       groupCount: 0,
       activeCandidateCount: 0,
       licenseClassCounts: [],
@@ -42,7 +42,7 @@ describe("NewTermModal", () => {
           id: "term-1",
           monthDate: "2026-04-01",
           sequence: 1,
-          name: "Nisan Donemi",
+          name: "NİSAN DÖNEMİ",
           groupCount: 2,
           activeCandidateCount: 0,
           licenseClassCounts: [],
@@ -55,20 +55,20 @@ describe("NewTermModal", () => {
     expect(screen.getByText("Dönemi Düzenle")).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("Örn. Ek Dönem"), {
-      target: { value: "Ek Donem" },
+      target: { value: "EK DÖNEM" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(updateTermMock).toHaveBeenCalledWith("term-1", {
         monthDate: "2026-04-01",
-        name: "Ek Donem",
+        name: "EK DÖNEM",
       });
     });
     expect(onSaved).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "term-1",
-        name: "Ek Donem",
+        name: "EK DÖNEM",
       })
     );
     expect(createTermMock).not.toHaveBeenCalled();

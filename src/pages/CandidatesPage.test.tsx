@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CandidatesPage } from "./CandidatesPage";
+import { ExamESinavPage } from "./ExamESinavPage";
 import { renderWithProviders } from "../test/render-with-providers";
 
 const getCandidatesMock = vi.fn();
@@ -66,6 +67,14 @@ function renderPage() {
   );
 }
 
+function renderESinavPage() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/exams/e-sinav"]}>
+      <ExamESinavPage />
+    </MemoryRouter>
+  );
+}
+
 describe("CandidatesPage tabs", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -94,6 +103,56 @@ describe("CandidatesPage tabs", () => {
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
     expect(callArgs).toMatchObject({ status: "active", page: 1, pageSize: 10 });
+  });
+
+  it("renders e-sinav tabs and defaults to the havuz filter", async () => {
+    renderESinavPage();
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenCalled();
+    });
+
+    const callArgs = getCandidatesMock.mock.calls[0]?.[0];
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 10 });
+    expect(callArgs.eSinavTab).toBe("havuz");
+    expect(callArgs.status).toBeUndefined();
+
+    expect(screen.getByRole("button", { name: "Havuz" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Başarısız" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Randevulu" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tümü" })).not.toBeInTheDocument();
+  });
+
+  it("sends the selected e-sinav tab key to the candidate query", async () => {
+    renderESinavPage();
+
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Başarısız" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eSinavTab: "basarisiz",
+          page: 1,
+          pageSize: 10,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Randevulu" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eSinavTab: "randevulu",
+          page: 1,
+          pageSize: 10,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
   });
 
   it("renders exactly the 5 canonical candidate status tabs", async () => {
@@ -274,6 +333,12 @@ describe("CandidatesPage tabs", () => {
             groupId: "group-1",
             title: "1B",
             startDate: "2026-04-02",
+            term: {
+              id: "term-1",
+              monthDate: "2026-04-01",
+              sequence: 1,
+              name: null,
+            },
             assignedAtUtc: "2026-04-01T10:00:00Z",
           },
           documentSummary: {
@@ -293,7 +358,56 @@ describe("CandidatesPage tabs", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Nisan 2026 - 1B")).toBeInTheDocument();
+    expect(await screen.findByText("NİSAN 2026 - 1B")).toBeInTheDocument();
+  });
+
+  it("renders the e-sinav group column as a period column", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "12345678901",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          status: "active",
+          currentGroup: {
+            groupId: "group-1",
+            title: "1B",
+            startDate: "2026-04-02",
+            term: {
+              id: "term-2",
+              monthDate: "2026-04-01",
+              sequence: 2,
+              name: null,
+            },
+            assignedAtUtc: "2026-04-01T10:00:00Z",
+          },
+          documentSummary: {
+            completedCount: 1,
+            missingCount: 0,
+            totalRequiredCount: 1,
+          },
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderESinavPage();
+
+    expect(await screen.findByRole("columnheader", { name: "Dönem" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Grup" })).not.toBeInTheDocument();
+    expect(screen.getByText("NİSAN 2026 / 2")).toBeInTheDocument();
+    expect(screen.queryByText("NİSAN 2026 - 1B")).not.toBeInTheDocument();
   });
 
   it("renders biometric photo when present and initials fallback otherwise", async () => {

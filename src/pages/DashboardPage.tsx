@@ -88,7 +88,7 @@ export function DashboardPage() {
         <h1>
           Hoş geldin, <span>Mehmet</span>
         </h1>
-        <p>Sezer Sürücü Kursu — Nisan 2026 operasyon özeti</p>
+        <p>Sezer Sürücü Kursu — NİSAN 2026 operasyon özeti</p>
       </div>
 
       <div className="dash-stats">

@@ -31,6 +31,7 @@ import {
   getCandidateById,
   createCandidateTag,
   searchCandidateTags,
+  type GetCandidatesParams,
   type CandidateSortField,
   type SortDirection,
 } from "../lib/candidates-api";
@@ -41,19 +42,20 @@ import {
   candidateMebExamResultLabel,
   candidateMebExamResultToPill,
   CANDIDATE_STATUS_OPTIONS,
+  CANDIDATE_STATUS_VALUES,
   candidateStatusLabel,
   candidateStatusToPill,
   formatDateTR,
   type CandidateStatusValue,
 } from "../lib/status-maps";
-import { buildGroupCode, parseGroupTitle } from "../lib/group-code";
-import { buildMonthYearLabel } from "../lib/term-label";
+import { buildGroupHeading, buildTermLabel } from "../lib/term-label";
 import { normalizeTextQuery } from "../lib/search";
 import type { CandidateResponse, CandidateTag } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
 type BulkActionMode = "status" | "tags" | "export" | null;
+type CandidateListTabKey = string;
 
 const TAB_KEYS: CandidateTab[] = [
   "all",
@@ -127,29 +129,19 @@ function formatOptionalText(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function formatGroupWithTerm(candidate: CandidateResponse): string {
+function formatGroupWithTerm(candidate: CandidateResponse, lang: "tr" | "en"): string {
   if (!candidate.currentGroup) return "—";
+  return buildGroupHeading(
+    candidate.currentGroup.title,
+    candidate.currentGroup.term,
+    [candidate.currentGroup.term],
+    lang
+  );
+}
 
-  const title = candidate.currentGroup.title.trim();
-  const monthYear = candidate.currentGroup.startDate
-    ? buildMonthYearLabel(candidate.currentGroup.startDate, "tr")
-    : null;
-  if (!monthYear) return title || "—";
-  const groupCode = parseGroupTitle(title);
-
-  if (groupCode) {
-    return `${monthYear} - ${buildGroupCode(groupCode.groupNumber, groupCode.groupBranch)}`;
-  }
-
-  for (const separator of [" - ", " — ", "-"]) {
-    const suffix = `${separator}${monthYear}`;
-    if (title.endsWith(suffix)) {
-      const base = title.slice(0, -suffix.length).trim();
-      return base.length > 0 ? `${base} — ${monthYear}` : monthYear;
-    }
-  }
-
-  return `${title} — ${monthYear}`;
+function formatCandidateTerm(candidate: CandidateResponse, lang: "tr" | "en"): string {
+  if (!candidate.currentGroup) return "—";
+  return buildTermLabel(candidate.currentGroup.term, [candidate.currentGroup.term], lang);
 }
 
 const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
@@ -217,7 +209,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "group",
     labelKey: "candidates.col.group",
     sortField: "groupTitle",
-    renderCell: (c) => formatGroupWithTerm(c),
+    renderCell: (c) => formatGroupWithTerm(c, "tr"),
     skeletonWidth: 110,
   },
   {
@@ -320,23 +312,58 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
   "status",
 ];
 
-export function CandidatesPage() {
+type CandidatesPageProps = {
+  title?: string;
+  columnStorageKey?: string;
+  showTabs?: boolean;
+  defaultTab?: CandidateTab;
+  groupColumnMode?: "group" | "term";
+  tabConfig?: {
+    tabs: { key: CandidateListTabKey; label: string }[];
+    defaultTab: CandidateListTabKey;
+    buildParams: (tab: CandidateListTabKey) => Partial<GetCandidatesParams>;
+  };
+};
+
+export function CandidatesPage({
+  title = "Adaylar",
+  columnStorageKey = "candidates.columns.v8",
+  showTabs = true,
+  defaultTab = DEFAULT_TAB,
+  groupColumnMode = "group",
+  tabConfig,
+}: CandidatesPageProps = {}) {
   const t = useT();
-  useLanguage();
-  const tabs = TAB_KEYS.map((key) => ({
-    key,
-    label: key === "all" ? "Tümü" : candidateStatusLabel(key),
-  }));
+  const { lang } = useLanguage();
+  const defaultTabs = useMemo(
+    () =>
+      TAB_KEYS.map((key) => ({
+        key,
+        label: key === "all" ? "Tümü" : candidateStatusLabel(key),
+      })),
+    []
+  );
+  const resolvedTabConfig = useMemo(
+    () =>
+      tabConfig ?? {
+        tabs: defaultTabs,
+        defaultTab,
+        buildParams: (tab: CandidateListTabKey): Partial<GetCandidatesParams> => ({
+          status: tab === "all" ? undefined : tab,
+        }),
+      },
+    [defaultTab, defaultTabs, tabConfig]
+  );
 
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "candidates.columns.v8",
+    columnStorageKey,
     CANDIDATE_COLUMN_IDS,
     DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS
   );
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [tab, setTab] = useState<CandidateTab>(DEFAULT_TAB);
+  const [tab, setTab] = useState<CandidateListTabKey>(resolvedTabConfig.defaultTab);
   const [sort, setSort] = useState<SortState>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
@@ -371,18 +398,42 @@ export function CandidatesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("selected");
 
-  const visibleColumns = CANDIDATE_COLUMNS.filter((col) => isVisible(col.id));
+  const resolvedColumns = useMemo(
+    () =>
+      CANDIDATE_COLUMNS.map((col) => {
+        if (col.id !== "group") return col;
+        return {
+          ...col,
+          renderCell: (candidate: CandidateResponse) =>
+            groupColumnMode === "term"
+              ? formatCandidateTerm(candidate, lang)
+              : formatGroupWithTerm(candidate, lang),
+        };
+      }),
+    [groupColumnMode, lang]
+  );
+  const visibleColumns = resolvedColumns.filter((col) => isVisible(col.id));
+  const getColumnLabel = (col: CandidateColumnDef) =>
+    col.id === "group" && groupColumnMode === "term"
+      ? t("candidates.col.term")
+      : t(col.labelKey);
+  const currentStatusTab = useMemo(() => {
+    if (tab === "all") return tab;
+    return CANDIDATE_STATUS_VALUES.includes(tab as CandidateStatusValue)
+      ? (tab as CandidateStatusValue)
+      : null;
+  }, [tab]);
   const visibleBulkStatusOptions = useMemo(
     () =>
-      tab === "all"
+      currentStatusTab === "all" || currentStatusTab === null
         ? BULK_STATUS_OPTIONS
-        : BULK_STATUS_OPTIONS.filter((option) => option.value !== tab),
-    [tab]
+        : BULK_STATUS_OPTIONS.filter((option) => option.value !== currentStatusTab),
+    [currentStatusTab]
   );
 
-  const pickerOptions: ColumnOption[] = CANDIDATE_COLUMNS.map((col) => ({
+  const pickerOptions: ColumnOption[] = resolvedColumns.map((col) => ({
     id: col.id,
-    label: t(col.labelKey),
+    label: getColumnLabel(col),
   }));
   const allVisibleSelected =
     candidates.length > 0 && candidates.every((candidate) => selectedCandidateIds.has(candidate.id));
@@ -409,10 +460,14 @@ export function CandidatesPage() {
   }, [filters]);
 
   useEffect(() => {
+    setTab(resolvedTabConfig.defaultTab);
+  }, [resolvedTabConfig.defaultTab]);
+
+  useEffect(() => {
     const controller = new AbortController();
     const requestParams = {
       search: normalizeTextQuery(debouncedSearch),
-      status: tab === "all" ? undefined : tab,
+      ...resolvedTabConfig.buildParams(tab),
       tags: activeTags.length > 0 ? activeTags : undefined,
       ...filtersToQuery(debouncedFilters),
       sortBy: sort?.field,
@@ -447,7 +502,7 @@ export function CandidatesPage() {
     return () => {
       controller.abort();
     };
-  }, [activeTags, debouncedFilters, debouncedSearch, page, refreshKey, showToast, sort, tab]);
+  }, [activeTags, debouncedFilters, debouncedSearch, page, refreshKey, resolvedTabConfig, showToast, sort, tab]);
 
   // Load the full tag catalog for the filter bar. Refetched on refreshKey
   // bumps so newly created tags surface after create/edit flows.
@@ -478,7 +533,7 @@ export function CandidatesPage() {
     setPage(1);
   };
 
-  const handleTabChange = (value: CandidateTab) => {
+  const handleTabChange = (value: CandidateListTabKey) => {
     setTab(value);
     setPage(1);
   };
@@ -636,6 +691,8 @@ export function CandidatesPage() {
   };
 
   const exportCandidatesToCsv = (rowsToExport: CandidateResponse[]) => {
+    const groupColumnHeader =
+      groupColumnMode === "term" ? t("candidates.col.term") : t("candidates.col.group");
     const rows = rowsToExport.map((candidate) => ({
       "Ad Soyad": `${candidate.firstName} ${candidate.lastName}`.trim(),
       "TC Kimlik": candidate.nationalId,
@@ -644,7 +701,10 @@ export function CandidatesPage() {
       "Doğum Tarihi": formatDateTR(candidate.birthDate),
       Cinsiyet: formatOptionalText(candidateGenderLabel(candidate.gender)),
       "Ehliyet Tipi": candidate.licenseClass,
-      Grup: formatGroupWithTerm(candidate),
+      [groupColumnHeader]:
+        groupColumnMode === "term"
+          ? formatCandidateTerm(candidate, lang)
+          : formatGroupWithTerm(candidate, lang),
       "Tamamlanan Evrak": candidate.documentSummary?.completedCount ?? 0,
       "Eksik Evrak": candidate.documentSummary?.missingCount ?? 0,
       "MEB Durumu": candidateMebExamResultLabel(candidate.mebExamResult),
@@ -661,7 +721,7 @@ export function CandidatesPage() {
       "Doğum Tarihi",
       "Cinsiyet",
       "Ehliyet Tipi",
-      "Grup",
+      groupColumnHeader,
       "Tamamlanan Evrak",
       "Eksik Evrak",
       "MEB Durumu",
@@ -968,11 +1028,11 @@ export function CandidatesPage() {
             </>
           )
         }
-        title="Adaylar"
+        title={title}
       />
 
-      <div className="tabs-search-row">
-        <PageTabs active={tab} onChange={handleTabChange} tabs={tabs} />
+      <div className={showTabs ? "tabs-search-row" : "tabs-search-row no-tabs"}>
+        {showTabs && <PageTabs active={tab} onChange={handleTabChange} tabs={resolvedTabConfig.tabs} />}
         <div className="search-box">
           <SearchInput
             onChange={handleSearchChange}
@@ -1062,21 +1122,21 @@ export function CandidatesPage() {
               )}
               {visibleColumns.map((col) =>
                 col.sortField ? (
-                  <SortableTh
-                    className={col.headerClassName}
-                    key={col.id}
-                    field={col.sortField}
-                    label={t(col.labelKey)}
-                    onToggle={handleSortToggle}
-                    sort={sort}
-                  />
+                <SortableTh
+                  className={col.headerClassName}
+                  key={col.id}
+                  field={col.sortField}
+                  label={getColumnLabel(col)}
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
                 ) : (
                   <th
-                    aria-label={t(col.labelKey)}
+                    aria-label={getColumnLabel(col)}
                     className={col.headerClassName}
                     key={col.id}
                   >
-                    {col.headerLabel ?? t(col.labelKey)}
+                    {col.headerLabel ?? getColumnLabel(col)}
                   </th>
                 )
               )}

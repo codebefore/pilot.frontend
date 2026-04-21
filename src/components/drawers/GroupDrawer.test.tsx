@@ -91,7 +91,7 @@ describe("GroupDrawer", () => {
     getGroupByIdMock.mockResolvedValue(buildGroup({ title: "2B" }));
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
     expect(
-      await screen.findByRole("heading", { name: "Nisan 2026 - 2B" })
+      await screen.findByRole("heading", { name: "NİSAN 2026 - 2B" })
     );
   });
 

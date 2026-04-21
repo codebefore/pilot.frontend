@@ -64,7 +64,7 @@ export const recentMebJobs: MebJob[] = [
   { id: "j1", jobType: "Aday Kaydı",      target: "Ahmet Yılmaz",          status: "failed",  time: "14:32" },
   { id: "j2", jobType: "Belge Gönderimi", target: "Fatma Demir (3 belge)", status: "running", time: "14:28" },
   { id: "j3", jobType: "Dönem Kapanışı",  target: "Grup 2026-03",          status: "manual",  time: "13:15" },
-  { id: "j4", jobType: "Grup Oluşturma",  target: "B Sınıfı — Nisan 2026", status: "success", time: "11:42" },
+  { id: "j4", jobType: "Grup Oluşturma",  target: "B Sınıfı — NİSAN 2026", status: "success", time: "11:42" },
   { id: "j5", jobType: "Aday Kaydı",      target: "Zeynep Kara",           status: "success", time: "11:20" },
   { id: "j6", jobType: "Fatura Kaydı",    target: "12 aday — toplu",       status: "success", time: "10:05" },
 ];

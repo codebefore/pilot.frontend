@@ -15,9 +15,8 @@ import {
 import { getGroups } from "../../lib/groups-api";
 import { useLanguage, useT } from "../../lib/i18n";
 import { buildWhatsAppUrl, formatPhoneNumber } from "../../lib/phone";
-import { buildGroupHeading, buildMonthYearLabel, compareTermsDesc } from "../../lib/term-label";
+import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
-import { buildGroupCode, parseGroupTitle } from "../../lib/group-code";
 import {
   candidateGenderLabel,
   CANDIDATE_GENDER_OPTIONS,
@@ -49,28 +48,6 @@ import { EditableRow } from "../ui/EditableRow";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
-
-function groupTermLabel(title: string, startDate: string | null | undefined): string {
-  const normalizedTitle = title.trim();
-  const monthYear = startDate ? buildMonthYearLabel(startDate, "tr") : null;
-
-  if (!monthYear) return normalizedTitle || "Atanmamış";
-  const groupCode = parseGroupTitle(normalizedTitle);
-
-  if (groupCode) {
-    return `${monthYear} - ${buildGroupCode(groupCode.groupNumber, groupCode.groupBranch)}`;
-  }
-
-  for (const separator of [" - ", " — ", "-"]) {
-    const suffix = `${separator}${monthYear}`;
-    if (normalizedTitle.endsWith(suffix)) {
-      const base = normalizedTitle.slice(0, -suffix.length).trim();
-      return base.length > 0 ? `${base} — ${monthYear}` : monthYear;
-    }
-  }
-
-  return `${normalizedTitle} — ${monthYear}`;
-}
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -237,6 +214,7 @@ export function CandidateDrawer({
         existingLicenseNumber: candidate.existingLicenseNumber,
         existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
         existingLicensePre2016: candidate.existingLicensePre2016,
+        mebExamDate: candidate.mebExamDate,
         status: normalizeCandidateStatusValue(candidate.status),
         examFeePaid: candidate.examFeePaid ?? false,
         tags: candidate.tags?.map((tag) => tag.name) ?? [],
@@ -572,7 +550,12 @@ export function CandidateDrawer({
             <EditableRow
               displayValue={
                 candidate.currentGroup
-                  ? groupTermLabel(candidate.currentGroup.title, candidate.currentGroup.startDate)
+                  ? buildGroupHeading(
+                      candidate.currentGroup.title,
+                      candidate.currentGroup.term,
+                      [candidate.currentGroup.term],
+                      lang
+                    )
                   : "Atanmamış"
               }
               inputValue={candidate.currentGroup?.groupId ?? ""}

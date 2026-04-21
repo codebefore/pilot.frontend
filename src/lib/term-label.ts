@@ -3,18 +3,18 @@ import { buildGroupCode, parseGroupTitle } from "./group-code";
 
 /** Months localized for the two supported UI languages. */
 const MONTHS_TR = [
-  "Ocak",
-  "Şubat",
-  "Mart",
-  "Nisan",
-  "Mayıs",
-  "Haziran",
-  "Temmuz",
-  "Ağustos",
-  "Eylül",
-  "Ekim",
-  "Kasım",
-  "Aralık",
+  "OCAK",
+  "ŞUBAT",
+  "MART",
+  "NİSAN",
+  "MAYIS",
+  "HAZİRAN",
+  "TEMMUZ",
+  "AĞUSTOS",
+  "EYLÜL",
+  "EKİM",
+  "KASIM",
+  "ARALIK",
 ];
 const MONTHS_EN = [
   "January",
@@ -47,33 +47,29 @@ export function buildMonthYearLabel(
   return `${months[monthIdx]} ${year}`;
 }
 
-function sameMonth(a: TermLike, b: TermLike): boolean {
-  return a.monthDate.slice(0, 7) === b.monthDate.slice(0, 7);
-}
-
 /**
  * Produce a display label for a single term using the supplied list as
  * context. The list lets us decide whether a given month has siblings.
  *
  * - A month with a single term: `Nisan 2026`
- * - A month with multiple terms: `Nisan 2026 / 1`, `Nisan 2026 / 2`
+ * - Supplemental terms in the same month: `Nisan 2026 / 2`, `Nisan 2026 / 3`
  * - A term with a `name`: `Nisan 2026 / 2 - Ek Donem`
  *
  * Backend does not compute this, so the frontend derives it locally. The
  * `siblings` argument is the full list of known terms (or any subset that
  * contains the relevant month peers).
  */
+function buildTermPrefixLabel(term: TermLike, lang: TermLabelLanguage = "tr"): string {
+  const base = buildMonthYearLabel(term.monthDate, lang);
+  return term.sequence > 1 ? `${base} / ${term.sequence}` : base;
+}
+
 export function buildTermLabel(
   term: TermLike,
-  siblings: TermLike[],
+  _siblings: TermLike[],
   lang: TermLabelLanguage = "tr"
 ): string {
-  const base = buildMonthYearLabel(term.monthDate, lang);
-  const peerCount = siblings.filter((t) => sameMonth(t, term)).length;
-  let label = base;
-  if (peerCount > 1) {
-    label = `${base} / ${term.sequence}`;
-  }
+  let label = buildTermPrefixLabel(term, lang);
   if (term.name && term.name.trim().length > 0) {
     label = `${label} - ${term.name.trim()}`;
   }
@@ -87,20 +83,25 @@ export function buildGroupHeading(
   lang: TermLabelLanguage = "tr"
 ): string {
   const termLabel = buildTermLabel(term, siblings, lang);
+  const termPrefixLabel = buildTermPrefixLabel(term, lang);
   const monthYearLabel = buildMonthYearLabel(term.monthDate, lang);
   const normalizedTitle = title.trim();
   const groupCode = parseGroupTitle(normalizedTitle);
 
   if (groupCode) {
-    return `${monthYearLabel} - ${buildGroupCode(groupCode.groupNumber, groupCode.groupBranch)}`;
+    return `${termPrefixLabel} - ${buildGroupCode(groupCode.groupNumber, groupCode.groupBranch)}`;
   }
 
-  if (normalizedTitle === termLabel || normalizedTitle === monthYearLabel) {
+  if (
+    normalizedTitle === termLabel ||
+    normalizedTitle === termPrefixLabel ||
+    normalizedTitle === monthYearLabel
+  ) {
     return termLabel;
   }
 
   for (const separator of [" - ", " — "]) {
-    for (const suffixLabel of [termLabel, monthYearLabel]) {
+    for (const suffixLabel of [termLabel, termPrefixLabel, monthYearLabel]) {
       const suffix = `${separator}${suffixLabel}`;
       if (normalizedTitle.endsWith(suffix)) {
         const withoutSuffix = normalizedTitle.slice(0, -suffix.length).trim();

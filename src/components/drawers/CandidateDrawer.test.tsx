@@ -223,6 +223,12 @@ describe("CandidateDrawer", () => {
         groupId: "group-1",
         title: "1B",
         startDate: "2026-04-02",
+        term: {
+          id: "term-2",
+          monthDate: "2026-04-01",
+          sequence: 2,
+          name: null,
+        },
         assignedAtUtc: "2026-04-01T10:00:00Z",
       },
       documentSummary: null,
@@ -238,7 +244,7 @@ describe("CandidateDrawer", () => {
       />
     );
 
-    expect(await screen.findByText("Nisan 2026 - 1B")).toBeInTheDocument();
+    expect(await screen.findByText("NİSAN 2026 / 2 - 1B")).toBeInTheDocument();
   });
 
   it("renders candidate profile photo in the drawer when available", async () => {

@@ -12,9 +12,9 @@ vi.mock("../../lib/stats-api", () => ({
   getSidebarStats: (...args: unknown[]) => getSidebarStatsMock(...args),
 }));
 
-function renderSidebar() {
+function renderSidebar(path = "/") {
   return renderWithProviders(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <SidebarStatsProvider>
         <Sidebar
           activeInstitutionId="i1"
@@ -83,5 +83,22 @@ describe("Sidebar live stats", () => {
 
     // Documents and MEB attention indicators should NOT render any "0" badge.
     expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("renders exams submenu and highlights the active child route", async () => {
+    getSidebarStatsMock.mockResolvedValue({
+      candidates: { total: 8, active: 4 },
+      groups: { total: 2 },
+      documents: { missingCount: 0 },
+      mebJobs: { failed: 0, manualReview: 0 },
+    });
+
+    renderSidebar("/exams/e-sinav");
+
+    await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument());
+
+    expect(screen.getByRole("link", { name: "Sınavlar" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "E-Sınav" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "Direksiyon" })).toBeInTheDocument();
   });
 });

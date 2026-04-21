@@ -30,6 +30,7 @@ export function buildCandidateUpdatePayload(
     existingLicenseNumber: candidate.existingLicenseNumber,
     existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
     existingLicensePre2016: candidate.existingLicensePre2016,
+    mebExamDate: candidate.mebExamDate,
     examFeePaid: candidate.examFeePaid ?? false,
     status: overrides?.status ?? (candidate.status as CandidateStatusValue),
     tags: overrides?.tags ?? (candidate.tags?.map((tag) => tag.name) ?? []),

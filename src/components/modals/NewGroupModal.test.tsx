@@ -99,7 +99,7 @@ describe("NewGroupModal", () => {
       />
     );
 
-    await screen.findAllByText("Nisan 2026");
+    await screen.findAllByText("NİSAN 2026");
 
     const groupNumberSelect = document.querySelector('select[name="groupNumber"]');
     const groupBranchSelect = document.querySelector('select[name="groupBranch"]');
@@ -125,7 +125,7 @@ describe("NewGroupModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByText("Baslangic tarihi secilen donemin ayi icinde olmali: Nisan 2026.")
+        screen.getAllByText("Baslangic tarihi secilen donemin ayi icinde olmali: NİSAN 2026.")
           .length
       ).toBeGreaterThan(0);
     });
@@ -194,7 +194,7 @@ describe("NewGroupModal", () => {
       />
     );
 
-    await screen.findAllByText("Nisan 2026");
+    await screen.findAllByText("NİSAN 2026");
 
     await waitFor(() => {
       const groupNumberSelect = document.querySelector('select[name="groupNumber"]');
@@ -243,7 +243,7 @@ describe("NewGroupModal", () => {
       />
     );
 
-    await screen.findAllByText("Nisan 2026");
+    await screen.findAllByText("NİSAN 2026");
 
     const groupNumberSelect = document.querySelector('select[name="groupNumber"]');
     const groupBranchSelect = document.querySelector('select[name="groupBranch"]');
@@ -302,7 +302,7 @@ describe("NewGroupModal", () => {
       />
     );
 
-    await screen.findAllByText("Nisan 2026");
+    await screen.findAllByText("NİSAN 2026");
     await waitFor(() => expect(getGroupsMock).toHaveBeenCalled());
 
     const groupNumberSelect = document.querySelector('select[name="groupNumber"]');
@@ -377,7 +377,7 @@ describe("NewGroupModal", () => {
       />
     );
 
-    await screen.findAllByText("Nisan 2026");
+    await screen.findAllByText("NİSAN 2026");
     await waitFor(() => {
       const groupNumberSelect = document.querySelector('select[name="groupNumber"]');
       const groupBranchSelect = document.querySelector('select[name="groupBranch"]');
@@ -436,7 +436,7 @@ describe("NewGroupModal", () => {
       />
     );
 
-    await screen.findAllByText("Nisan 2026");
+    await screen.findAllByText("NİSAN 2026");
 
     const groupNumberSelect = document.querySelector('select[name="groupNumber"]');
     const groupBranchSelect = document.querySelector('select[name="groupBranch"]');

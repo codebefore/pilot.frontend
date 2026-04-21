@@ -16,6 +16,7 @@ export interface CandidateGroupSummary {
   groupId: string;
   title: string;
   startDate: string | null;
+  term: GroupTermRef;
   assignedAtUtc: string;
 }
 
@@ -46,6 +47,7 @@ export interface CandidateResponse {
   existingLicenseIssuedProvince: string | null;
   existingLicensePre2016: boolean;
   status: string;
+  mebExamDate?: string | null;
   mebExamResult?: string | null;
   examFeePaid?: boolean;
   currentGroup: CandidateGroupSummary | null;
@@ -79,6 +81,7 @@ export interface CandidateUpsertRequest {
   existingLicenseIssuedProvince?: string | null;
   existingLicensePre2016?: boolean;
   status: string;
+  mebExamDate?: string | null;
   examFeePaid?: boolean;
   /** Names only — backend resolves or creates tags by name. */
   tags?: string[];

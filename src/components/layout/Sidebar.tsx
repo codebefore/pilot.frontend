@@ -62,24 +62,52 @@ export function Sidebar({
               const { Icon } = item;
               const badge = badges[item.key];
               return (
-                <NavLink
-                  className={({ isActive }) =>
-                    isActive ? "sidebar-link active" : "sidebar-link"
-                  }
-                  end={item.path === "/"}
-                  key={item.key}
-                  to={item.path}
-                >
-                  <span className="sidebar-icon">
-                    <Icon />
-                  </span>
-                  {t(item.labelKey)}
-                  {badge && (
-                    <span className={`sidebar-badge ${badge.tone}`.trim()}>
-                      {badge.value}
+                <div className="sidebar-nav-group" key={item.key}>
+                  <NavLink
+                    className={({ isActive }) =>
+                      isActive ? "sidebar-link active" : "sidebar-link"
+                    }
+                    end={item.path === "/"}
+                    to={item.path}
+                  >
+                    <span className="sidebar-icon">
+                      <Icon />
                     </span>
+                    {t(item.labelKey)}
+                    {badge && (
+                      <span className={`sidebar-badge ${badge.tone}`.trim()}>
+                        {badge.value}
+                      </span>
+                    )}
+                  </NavLink>
+
+                  {item.children && item.children.length > 0 && (
+                    <div className="sidebar-subnav">
+                      {item.children.map((child) => {
+                        const childBadge = badges[child.key];
+                        return (
+                          <NavLink
+                            className={({ isActive }) =>
+                              isActive
+                                ? "sidebar-link sidebar-link-child active"
+                                : "sidebar-link sidebar-link-child"
+                            }
+                            key={child.key}
+                            to={child.path}
+                          >
+                            <span aria-hidden="true" className="sidebar-subdot" />
+                            {t(child.labelKey)}
+                            {childBadge && (
+                              <span className={`sidebar-badge ${childBadge.tone}`.trim()}>
+                                {childBadge.value}
+                              </span>
+                            )}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
                   )}
-                </NavLink>
+                </div>
               );
             })}
           </div>

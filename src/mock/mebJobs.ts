@@ -51,7 +51,7 @@ export const mockMebJobs: MebJob[] = [
     id: "j1020",
     jobNo: "#1020",
     jobType: "Grup Oluşturma",
-    target: "B Sınıfı — Nisan 2026",
+    target: "B Sınıfı — NİSAN 2026",
     step: "5/5",
     status: "success",
     startedAt: "11:38",

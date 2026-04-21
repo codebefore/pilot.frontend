@@ -59,7 +59,7 @@ const term2 = {
   id: "term-2",
   monthDate: "2026-04-01",
   sequence: 2,
-  name: "Ek Donem",
+  name: "EK DÖNEM",
   groupCount: 1,
   activeCandidateCount: 0,
   createdAtUtc: "2026-01-02T00:00:00Z",
@@ -170,8 +170,8 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    expect(await screen.findByText("Nisan 2026 - 1A")).toBeInTheDocument();
-    expect(await screen.findByText("Nisan 2026 - 1B")).toBeInTheDocument();
+    expect(await screen.findByText("NİSAN 2026 - 1A")).toBeInTheDocument();
+    expect(await screen.findByText("NİSAN 2026 - 1B")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(getGroupsMock).toHaveBeenCalledTimes(2);
@@ -330,7 +330,7 @@ describe("GroupsPage", () => {
             id: "term-2",
             monthDate: "2026-04-01",
             sequence: 2,
-            name: "Ek Donem",
+            name: "EK DÖNEM",
           },
           capacity: 15,
           assignedCandidateCount: 3,
@@ -350,7 +350,7 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    const primarySectionHeading = await screen.findByRole("heading", { name: "Nisan 2026 / 1" });
+    const primarySectionHeading = await screen.findByRole("heading", { name: "NİSAN 2026" });
     const primarySection = primarySectionHeading.closest("section");
     expect(primarySection).not.toBeNull();
     if (!primarySection) {
@@ -358,15 +358,15 @@ describe("GroupsPage", () => {
     }
     const primarySectionQueries = within(primarySection);
 
-    expect(screen.getByRole("heading", { name: "Nisan 2026 / 2 - Ek Donem" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "NİSAN 2026 / 2 - EK DÖNEM" })).toBeInTheDocument();
     expect(primarySectionQueries.getByText("Toplam Kontenjan")).toBeInTheDocument();
     expect(primarySectionQueries.getByText("Aktif Aday")).toBeInTheDocument();
     expect(primarySectionQueries.getByText("30")).toBeInTheDocument();
     expect(primarySectionQueries.getByText("6")).toBeInTheDocument();
     expect(primarySectionQueries.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("Nisan 2026 - 1A")).toBeInTheDocument();
-    expect(screen.getByText("Nisan 2026 - 1B")).toBeInTheDocument();
-    expect(screen.getByText("Nisan 2026 - 2A")).toBeInTheDocument();
+    expect(screen.getByText("NİSAN 2026 - 1A")).toBeInTheDocument();
+    expect(screen.getByText("NİSAN 2026 - 1B")).toBeInTheDocument();
+    expect(screen.getByText("NİSAN 2026 / 2 - 2A")).toBeInTheDocument();
   });
 
   it("groups list view into term sections and keeps a single column picker", async () => {
@@ -404,7 +404,7 @@ describe("GroupsPage", () => {
             id: "term-2",
             monthDate: "2026-04-01",
             sequence: 2,
-            name: "Ek Donem",
+            name: "EK DÖNEM",
           },
           capacity: 15,
           assignedCandidateCount: 3,
@@ -424,11 +424,11 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    await screen.findByText("Nisan 2026 - 1A");
+    await screen.findByText("NİSAN 2026 - 1A");
     fireEvent.click(screen.getByRole("button", { name: "Liste" }));
 
-    expect(await screen.findByRole("heading", { name: "Nisan 2026 / 1" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Nisan 2026 / 2 - Ek Donem" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "NİSAN 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "NİSAN 2026 / 2 - EK DÖNEM" })).toBeInTheDocument();
     expect(screen.getAllByRole("table")).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Sütunlar" })).toHaveLength(1);
   });
@@ -463,7 +463,7 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    expect(await screen.findByText("Nisan 2026 - 2B")).toBeInTheDocument();
+    expect(await screen.findByText("NİSAN 2026 - 2B")).toBeInTheDocument();
   });
 
   it("deduplicates a legacy term suffix already embedded in the group title", async () => {
@@ -471,7 +471,7 @@ describe("GroupsPage", () => {
       items: [
         {
           id: "group-legacy",
-          title: "1C Sinifi - Nisan 2026",
+          title: "1C Sinifi - NİSAN 2026",
           term: {
             id: "term-1",
             monthDate: "2026-04-01",
@@ -496,9 +496,9 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    expect(await screen.findByText("1C Sinifi — Nisan 2026")).toBeInTheDocument();
+    expect(await screen.findByText("1C Sinifi — NİSAN 2026")).toBeInTheDocument();
     expect(
-      screen.queryByText("1C Sinifi - Nisan 2026 — Nisan 2026")
+      screen.queryByText("1C Sinifi - NİSAN 2026 — NİSAN 2026")
     ).not.toBeInTheDocument();
   });
 
@@ -582,13 +582,13 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    await screen.findByText("Nisan 2026 - 1A");
+    await screen.findByText("NİSAN 2026 - 1A");
     fireEvent.click(screen.getByRole("button", { name: "Liste" }));
 
-    expect(await screen.findByRole("heading", { name: "Nisan 2026" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "NİSAN 2026" })).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: "Grup" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Kontenjan" })).toBeInTheDocument();
-    expect(screen.getByText("Nisan 2026 - 1A")).toBeInTheDocument();
+    expect(screen.getByText("NİSAN 2026 - 1A")).toBeInTheDocument();
   });
 
   it("lets the user add optional columns from the picker in list view", async () => {
@@ -621,7 +621,7 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    await screen.findByText("Nisan 2026 - 1B");
+    await screen.findByText("NİSAN 2026 - 1B");
     fireEvent.click(screen.getByRole("button", { name: "Liste" }));
 
     expect(screen.queryByRole("columnheader", { name: "Aktif Aday" })).not.toBeInTheDocument();
