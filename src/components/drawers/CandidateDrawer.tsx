@@ -18,9 +18,11 @@ import { buildWhatsAppUrl, formatPhoneNumber } from "../../lib/phone";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import {
+  CANDIDATE_MEB_SYNC_STATUS_OPTIONS,
+  candidateExamResultLabel,
   candidateGenderLabel,
   CANDIDATE_GENDER_OPTIONS,
-  candidateMebExamResultLabel,
+  candidateMebSyncStatusLabel,
   candidateStatusLabel,
   CANDIDATE_STATUS_OPTIONS,
   EXISTING_LICENSE_TYPE_OPTIONS,
@@ -28,6 +30,8 @@ import {
   formatDateTR,
   LICENSE_CLASS_OPTIONS,
   normalizeCandidateGender,
+  normalizeCandidateExamResultValue,
+  normalizeCandidateMebSyncStatusValue,
   normalizeCandidateStatusValue,
   TURKEY_PROVINCE_OPTIONS,
 } from "../../lib/status-maps";
@@ -38,6 +42,7 @@ import type {
   DocumentTypeResponse,
   LicenseClass,
 } from "../../lib/types";
+import { ApiError } from "../../lib/http";
 import { UploadDocumentModal } from "../modals/UploadDocumentModal";
 import { WhatsAppIcon } from "../icons";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
@@ -71,9 +76,16 @@ const BOOLEAN_OPTIONS: SelectOption[] = [
   { value: "true", label: "Evet" },
   { value: "false", label: "Hayir" },
 ];
+const MEB_SYNC_STATUS_OPTIONS: SelectOption[] = CANDIDATE_MEB_SYNC_STATUS_OPTIONS;
 const EXAM_FEE_OPTIONS: SelectOption[] = [
   { value: "true", label: "Ödendi" },
   { value: "false", label: "Ödenmedi" },
+];
+const EXAM_ATTEMPT_OPTIONS: SelectOption[] = [
+  { value: "1", label: "1/4" },
+  { value: "2", label: "2/4" },
+  { value: "3", label: "3/4" },
+  { value: "4", label: "4/4" },
 ];
 
 type ExistingLicenseDraft = {
@@ -214,7 +226,12 @@ export function CandidateDrawer({
         existingLicenseNumber: candidate.existingLicenseNumber,
         existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
         existingLicensePre2016: candidate.existingLicensePre2016,
+        mebSyncStatus: candidate.mebSyncStatus,
         mebExamDate: candidate.mebExamDate,
+        drivingExamDate: candidate.drivingExamDate,
+        mebExamResult: candidate.mebExamResult,
+        eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
+        drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
         status: normalizeCandidateStatusValue(candidate.status),
         examFeePaid: candidate.examFeePaid ?? false,
         tags: candidate.tags?.map((tag) => tag.name) ?? [],
@@ -222,11 +239,20 @@ export function CandidateDrawer({
       });
       setCandidate(updated);
       onUpdated?.();
-    } catch {
-      showToast("Değişiklik kaydedilemedi", "error");
+    } catch (error) {
+      const validationMessage =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0]
+          : null;
+      showToast(validationMessage ?? "Değişiklik kaydedilemedi", "error");
       throw new Error("save failed");
     }
   };
+
+  const eSinavAttemptCount = candidate?.eSinavAttemptCount ?? 1;
+  const isESinavAttemptLimitReached =
+    eSinavAttemptCount >= 4 &&
+    normalizeCandidateExamResultValue(candidate?.mebExamResult) === "failed";
 
   const buildExistingLicensePatch = (
     patch: Partial<CandidateUpsertRequest>
@@ -774,9 +800,46 @@ export function CandidateDrawer({
               options={STATUS_OPTIONS}
               onSave={(v) => saveField({ status: v })}
             />
-            <DrawerRow label="MEB Durumu">
-              {candidateMebExamResultLabel(candidate.mebExamResult)}
-            </DrawerRow>
+            <EditableRow
+              displayValue={candidateMebSyncStatusLabel(candidate.mebSyncStatus)}
+              inputValue={normalizeCandidateMebSyncStatusValue(candidate.mebSyncStatus) ?? "not_synced"}
+              label="Mebbis"
+              options={MEB_SYNC_STATUS_OPTIONS}
+              onSave={(value) => saveField({ mebSyncStatus: value || null })}
+            />
+            <EditableRow
+              displayValue={formatDateTR(candidate.mebExamDate)}
+              disabled={isESinavAttemptLimitReached}
+              disabledTitle="4 hak doldu"
+              inputLang={dateInputLang}
+              inputType="date"
+              inputValue={candidate.mebExamDate ?? ""}
+              label="E-Sınav Tarihi"
+              onSave={(value) => saveField({ mebExamDate: value || null })}
+            />
+            <EditableRow
+              displayValue={formatDateTR(candidate.drivingExamDate)}
+              inputLang={dateInputLang}
+              inputType="date"
+              inputValue={candidate.drivingExamDate ?? ""}
+              label="Direksiyon Tarihi"
+              onSave={(value) => saveField({ drivingExamDate: value || null })}
+            />
+            <EditableRow
+              displayValue={`${candidate.eSinavAttemptCount ?? 1}/4`}
+              inputValue={String(candidate.eSinavAttemptCount ?? 1)}
+              label="E-Sınav Hakkı"
+              options={EXAM_ATTEMPT_OPTIONS}
+              onSave={(value) => saveField({ eSinavAttemptCount: Number(value) })}
+            />
+            <EditableRow
+              displayValue={`${candidate.drivingExamAttemptCount ?? 1}/4`}
+              inputValue={String(candidate.drivingExamAttemptCount ?? 1)}
+              label="Direksiyon Hakkı"
+              options={EXAM_ATTEMPT_OPTIONS}
+              onSave={(value) => saveField({ drivingExamAttemptCount: Number(value) })}
+            />
+            <DrawerRow label="Sınav Sonucu">{candidateExamResultLabel(candidate.mebExamResult)}</DrawerRow>
           </DrawerSection>
 
           <DrawerSection title="Evrak Durumu">

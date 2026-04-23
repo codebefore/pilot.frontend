@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
 import { DownloadIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
+import { NewExamScheduleModal } from "../components/modals/NewExamScheduleModal";
 import { CandidateDocumentBadge } from "../components/ui/CandidateDocumentBadge";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTagsInput";
@@ -28,19 +30,24 @@ import {
 } from "../lib/candidate-bulk";
 import {
   getCandidates,
+  getExamScheduleOptions,
   getCandidateById,
   createCandidateTag,
   searchCandidateTags,
+  type CandidateExamDateType,
   type GetCandidatesParams,
   type CandidateSortField,
   type SortDirection,
 } from "../lib/candidates-api";
 import { getDocumentChecklist } from "../lib/documents-api";
+import { syncExamSchedules } from "../lib/exam-schedules-api";
+import { formatLicenseClassTotalSummary } from "../lib/exam-schedule-summary";
 import { useLanguage, useT } from "../lib/i18n";
 import {
+  candidateExamResultLabel,
   candidateGenderLabel,
-  candidateMebExamResultLabel,
-  candidateMebExamResultToPill,
+  candidateMebSyncStatusLabel,
+  candidateMebSyncStatusToPill,
   CANDIDATE_STATUS_OPTIONS,
   CANDIDATE_STATUS_VALUES,
   candidateStatusLabel,
@@ -50,7 +57,12 @@ import {
 } from "../lib/status-maps";
 import { buildGroupHeading, buildTermLabel } from "../lib/term-label";
 import { normalizeTextQuery } from "../lib/search";
-import type { CandidateResponse, CandidateTag } from "../lib/types";
+import type {
+  CandidateResponse,
+  CandidateTag,
+  ExamScheduleLicenseClassCount,
+  ExamScheduleOption,
+} from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
@@ -72,8 +84,9 @@ const TEXT_DEBOUNCE_MS = 300;
 const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
 
 type SortState = { field: CandidateSortField; direction: SortDirection } | null;
+type CandidateColumnPageScope = "all" | "eSinav" | "direksiyon";
 
-type CandidateColumnId =
+export type CandidateColumnId =
   | "photo"
   | "name"
   | "nationalId"
@@ -84,9 +97,13 @@ type CandidateColumnId =
   | "licenseClass"
   | "group"
   | "groupStartDate"
+  | "eSinavDate"
+  | "eSinavAttemptCount"
+  | "drivingExamDate"
+  | "drivingExamAttemptCount"
   | "documents"
   | "missingDocuments"
-  | "mebExamResult"
+  | "mebSyncStatus"
   | "examFeePaid"
   | "balance"
   | "status"
@@ -95,6 +112,8 @@ type CandidateColumnId =
 
 type CandidateColumnDef = {
   id: CandidateColumnId;
+  pageScope?: CandidateColumnPageScope;
+  pickerHidden?: boolean;
   /** i18n key for the header + picker label. */
   labelKey: "candidates.col.name"
     | "candidates.col.photo"
@@ -106,9 +125,13 @@ type CandidateColumnDef = {
     | "candidates.col.licenseClass"
     | "candidates.col.group"
     | "candidates.col.groupStartDate"
+    | "candidates.col.eSinavDate"
+    | "candidates.col.eSinavAttemptCount"
+    | "candidates.col.drivingExamDate"
+    | "candidates.col.drivingExamAttemptCount"
     | "candidates.col.documents"
     | "candidates.col.missingDocuments"
-    | "candidates.col.mebExamResult"
+    | "candidates.col.mebSyncStatus"
     | "candidates.col.examFeePaid"
     | "candidates.col.balance"
     | "candidates.col.status"
@@ -142,6 +165,24 @@ function formatGroupWithTerm(candidate: CandidateResponse, lang: "tr" | "en"): s
 function formatCandidateTerm(candidate: CandidateResponse, lang: "tr" | "en"): string {
   if (!candidate.currentGroup) return "—";
   return buildTermLabel(candidate.currentGroup.term, [candidate.currentGroup.term], lang);
+}
+
+function sortExamDateOptionsNewestFirst(options: ExamScheduleOption[]): ExamScheduleOption[] {
+  return [...options].sort((left, right) => {
+    const dateCompare = right.date.localeCompare(left.date);
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+
+    return right.time.localeCompare(left.time);
+  });
+}
+
+function columnAvailableOnPage(
+  column: Pick<CandidateColumnDef, "pageScope">,
+  pageScope: CandidateColumnPageScope
+): boolean {
+  return !column.pageScope || column.pageScope === "all" || column.pageScope === pageScope;
 }
 
 const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
@@ -219,6 +260,38 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     skeletonWidth: 88,
   },
   {
+    id: "eSinavDate",
+    pageScope: "eSinav",
+    pickerHidden: true,
+    labelKey: "candidates.col.eSinavDate",
+    renderCell: (c) => formatDateTR(c.mebExamDate),
+    skeletonWidth: 88,
+  },
+  {
+    id: "eSinavAttemptCount",
+    pageScope: "eSinav",
+    pickerHidden: true,
+    labelKey: "candidates.col.eSinavAttemptCount",
+    renderCell: (c) => `${c.eSinavAttemptCount ?? 1}/4`,
+    skeletonWidth: 64,
+  },
+  {
+    id: "drivingExamDate",
+    pageScope: "direksiyon",
+    pickerHidden: true,
+    labelKey: "candidates.col.drivingExamDate",
+    renderCell: (c) => formatDateTR(c.drivingExamDate),
+    skeletonWidth: 88,
+  },
+  {
+    id: "drivingExamAttemptCount",
+    pageScope: "direksiyon",
+    pickerHidden: true,
+    labelKey: "candidates.col.drivingExamAttemptCount",
+    renderCell: (c) => `${c.drivingExamAttemptCount ?? 1}/4`,
+    skeletonWidth: 64,
+  },
+  {
     id: "documents",
     labelKey: "candidates.col.documents",
     sortField: "missingDocumentCount",
@@ -246,12 +319,12 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     skeletonWidth: 48,
   },
   {
-    id: "mebExamResult",
-    labelKey: "candidates.col.mebExamResult",
+    id: "mebSyncStatus",
+    labelKey: "candidates.col.mebSyncStatus",
     renderCell: (c) => (
       <StatusPill
-        label={candidateMebExamResultLabel(c.mebExamResult)}
-        status={candidateMebExamResultToPill(c.mebExamResult)}
+        label={candidateMebSyncStatusLabel(c.mebSyncStatus)}
+        status={candidateMebSyncStatusToPill(c.mebSyncStatus)}
       />
     ),
     skeletonWidth: 72,
@@ -300,24 +373,35 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   },
 ];
 
-const CANDIDATE_COLUMN_IDS: CandidateColumnId[] = CANDIDATE_COLUMNS.map((col) => col.id);
 const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
   "photo",
   "name",
   "nationalId",
   "group",
   "documents",
-  "mebExamResult",
+  "mebSyncStatus",
   "examFeePaid",
   "status",
 ];
 
+type ExamDateSidebarConfig = {
+  title: string;
+  examType: CandidateExamDateType;
+  field: "eSinavDate" | "drivingExamDate";
+  showTime?: boolean;
+  showLicenseClassTotalSummary?: boolean;
+  summaryMode?: "capacity" | "candidateCount" | "licenseClass";
+};
+
 type CandidatesPageProps = {
   title?: string;
   columnStorageKey?: string;
+  defaultVisibleColumnIds?: CandidateColumnId[];
+  columnLabelOverrides?: Partial<Record<CandidateColumnId, string>>;
   showTabs?: boolean;
   defaultTab?: CandidateTab;
   groupColumnMode?: "group" | "term";
+  examDateSidebar?: ExamDateSidebarConfig;
   tabConfig?: {
     tabs: { key: CandidateListTabKey; label: string }[];
     defaultTab: CandidateListTabKey;
@@ -328,13 +412,44 @@ type CandidatesPageProps = {
 export function CandidatesPage({
   title = "Adaylar",
   columnStorageKey = "candidates.columns.v8",
+  defaultVisibleColumnIds = DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS,
+  columnLabelOverrides,
   showTabs = true,
   defaultTab = DEFAULT_TAB,
   groupColumnMode = "group",
+  examDateSidebar,
   tabConfig,
 }: CandidatesPageProps = {}) {
   const t = useT();
   const { lang } = useLanguage();
+  const columnPageScope: CandidateColumnPageScope =
+    examDateSidebar?.field === "eSinavDate"
+      ? "eSinav"
+      : examDateSidebar?.field === "drivingExamDate"
+        ? "direksiyon"
+        : "all";
+  const forcedVisibleColumnIds = useMemo<Set<CandidateColumnId>>(
+    () =>
+      new Set(
+        examDateSidebar?.field === "eSinavDate"
+          ? (["eSinavDate", "eSinavAttemptCount"] satisfies CandidateColumnId[])
+          : examDateSidebar?.field === "drivingExamDate"
+            ? (["drivingExamDate", "drivingExamAttemptCount"] satisfies CandidateColumnId[])
+            : []
+      ),
+    [examDateSidebar?.field]
+  );
+  const availableColumnIds = useMemo(
+    () =>
+      CANDIDATE_COLUMNS.filter((column) => columnAvailableOnPage(column, columnPageScope)).map(
+        (column) => column.id
+      ),
+    [columnPageScope]
+  );
+  const scopedDefaultVisibleColumnIds = useMemo(
+    () => defaultVisibleColumnIds.filter((id) => availableColumnIds.includes(id)),
+    [availableColumnIds, defaultVisibleColumnIds]
+  );
   const defaultTabs = useMemo(
     () =>
       TAB_KEYS.map((key) => ({
@@ -357,8 +472,8 @@ export function CandidatesPage({
 
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     columnStorageKey,
-    CANDIDATE_COLUMN_IDS,
-    DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS
+    availableColumnIds,
+    scopedDefaultVisibleColumnIds.length > 0 ? scopedDefaultVisibleColumnIds : undefined
   );
 
   const [search, setSearch] = useState("");
@@ -366,6 +481,8 @@ export function CandidatesPage({
   const [tab, setTab] = useState<CandidateListTabKey>(resolvedTabConfig.defaultTab);
   const [sort, setSort] = useState<SortState>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [examScheduleModalOpen, setExamScheduleModalOpen] = useState(false);
+  const [examScheduleSyncing, setExamScheduleSyncing] = useState(false);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
@@ -375,6 +492,9 @@ export function CandidatesPage({
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
+  const [candidateLicenseClassCounts, setCandidateLicenseClassCounts] = useState<
+    ExamScheduleLicenseClassCount[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -397,10 +517,15 @@ export function CandidatesPage({
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("selected");
+  const [selectedExamDate, setSelectedExamDate] = useState("");
+  const [examDateOptions, setExamDateOptions] = useState<ExamScheduleOption[]>([]);
+  const [examDateOptionsLoading, setExamDateOptionsLoading] = useState(false);
 
   const resolvedColumns = useMemo(
     () =>
-      CANDIDATE_COLUMNS.map((col) => {
+      CANDIDATE_COLUMNS.filter((column) =>
+        columnAvailableOnPage(column, columnPageScope)
+      ).map((col) => {
         if (col.id !== "group") return col;
         return {
           ...col,
@@ -410,13 +535,16 @@ export function CandidatesPage({
               : formatGroupWithTerm(candidate, lang),
         };
       }),
-    [groupColumnMode, lang]
+    [columnPageScope, groupColumnMode, lang]
   );
-  const visibleColumns = resolvedColumns.filter((col) => isVisible(col.id));
+  const visibleColumns = resolvedColumns.filter(
+    (col) => forcedVisibleColumnIds.has(col.id) || isVisible(col.id)
+  );
   const getColumnLabel = (col: CandidateColumnDef) =>
-    col.id === "group" && groupColumnMode === "term"
+    columnLabelOverrides?.[col.id] ??
+    ((col.id === "group" && groupColumnMode === "term")
       ? t("candidates.col.term")
-      : t(col.labelKey);
+      : t(col.labelKey));
   const currentStatusTab = useMemo(() => {
     if (tab === "all") return tab;
     return CANDIDATE_STATUS_VALUES.includes(tab as CandidateStatusValue)
@@ -431,13 +559,35 @@ export function CandidatesPage({
     [currentStatusTab]
   );
 
-  const pickerOptions: ColumnOption[] = resolvedColumns.map((col) => ({
-    id: col.id,
-    label: getColumnLabel(col),
-  }));
+  const pickerOptions: ColumnOption[] = resolvedColumns
+    .filter((col) => !col.pickerHidden && !forcedVisibleColumnIds.has(col.id))
+    .map((col) => ({
+      id: col.id,
+      label: getColumnLabel(col),
+    }));
   const allVisibleSelected =
     candidates.length > 0 && candidates.every((candidate) => selectedCandidateIds.has(candidate.id));
   const selectedCount = selectedCandidateIds.size;
+  const examDateFilterParams = useMemo<Partial<GetCandidatesParams>>(() => {
+    if (!examDateSidebar || !selectedExamDate) {
+      return {};
+    }
+
+    return examDateSidebar.field === "eSinavDate"
+      ? { eSinavDate: selectedExamDate }
+      : { drivingExamDate: selectedExamDate };
+  }, [examDateSidebar, selectedExamDate]);
+  const displayedExamDateOptions = useMemo(
+    () => sortExamDateOptionsNewestFirst(examDateOptions),
+    [examDateOptions]
+  );
+  const licenseClassTotalSummary = useMemo(
+    () =>
+      examDateSidebar?.showLicenseClassTotalSummary
+        ? formatLicenseClassTotalSummary(candidateLicenseClassCounts)
+        : "",
+    [candidateLicenseClassCounts, examDateSidebar]
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -464,12 +614,18 @@ export function CandidatesPage({
   }, [resolvedTabConfig.defaultTab]);
 
   useEffect(() => {
+    setSelectedExamDate("");
+    setExamDateOptions([]);
+  }, [examDateSidebar?.field]);
+
+  useEffect(() => {
     const controller = new AbortController();
     const requestParams = {
       search: normalizeTextQuery(debouncedSearch),
       ...resolvedTabConfig.buildParams(tab),
       tags: activeTags.length > 0 ? activeTags : undefined,
       ...filtersToQuery(debouncedFilters),
+      ...examDateFilterParams,
       sortBy: sort?.field,
       sortDir: sort?.direction,
       page,
@@ -489,10 +645,12 @@ export function CandidatesPage({
       .then((result) => {
         lastCompletedFetchKeyRef.current = fetchKey;
         setCandidates(result.items);
+        setCandidateLicenseClassCounts(result.licenseClassCounts ?? []);
         setTotalPages(result.totalPages);
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
+        setCandidateLicenseClassCounts([]);
         showToast("Adaylar yüklenemedi", "error");
       })
       .finally(() => {
@@ -502,7 +660,60 @@ export function CandidatesPage({
     return () => {
       controller.abort();
     };
-  }, [activeTags, debouncedFilters, debouncedSearch, page, refreshKey, resolvedTabConfig, showToast, sort, tab]);
+  }, [
+    activeTags,
+    debouncedFilters,
+    debouncedSearch,
+    examDateFilterParams,
+    page,
+    refreshKey,
+    resolvedTabConfig,
+    showToast,
+    sort,
+    tab,
+  ]);
+
+  useEffect(() => {
+    if (!examDateSidebar) {
+      setExamDateOptions([]);
+      setExamDateOptionsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setExamDateOptionsLoading(true);
+
+    getExamScheduleOptions(
+      {
+        examType: examDateSidebar.examType,
+        search: normalizeTextQuery(debouncedSearch),
+        ...(tab === "havuz" ? { status: "active" } : resolvedTabConfig.buildParams(tab)),
+        tags: activeTags.length > 0 ? activeTags : undefined,
+        ...filtersToQuery(debouncedFilters),
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setExamDateOptions(sortExamDateOptionsNewestFirst(result));
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setExamDateOptions([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setExamDateOptionsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [
+    activeTags,
+    debouncedFilters,
+    debouncedSearch,
+    examDateSidebar,
+    refreshKey,
+    resolvedTabConfig,
+    tab,
+  ]);
 
   // Load the full tag catalog for the filter bar. Refetched on refreshKey
   // bumps so newly created tags surface after create/edit flows.
@@ -528,12 +739,52 @@ export function CandidatesPage({
     }
   }, [activeTags, allTags]);
 
+  useEffect(() => {
+    if (!examDateSidebar || !selectedExamDate || examDateOptionsLoading) {
+      return;
+    }
+
+    if (!displayedExamDateOptions.some((option) => option.date === selectedExamDate)) {
+      setSelectedExamDate("");
+    }
+  }, [
+    displayedExamDateOptions,
+    examDateOptionsLoading,
+    examDateSidebar,
+    selectedExamDate,
+  ]);
+
   const handleSearchChange = (value: string) => {
     setSearch(value);
     setPage(1);
   };
 
+  const handleExamDateAddClick = () => {
+    setExamScheduleModalOpen(true);
+  };
+
+  const handleExamSyncClick = async () => {
+    if (!examDateSidebar || examScheduleSyncing) {
+      return;
+    }
+
+    setExamScheduleSyncing(true);
+
+    try {
+      await syncExamSchedules(examDateSidebar.examType);
+      setRefreshKey((current) => current + 1);
+      showToast("Sinav takvimi senkronize edildi");
+    } catch {
+      showToast("Sinav takvimi senkronize edilemedi", "error");
+    } finally {
+      setExamScheduleSyncing(false);
+    }
+  };
+
   const handleTabChange = (value: CandidateListTabKey) => {
+    if (examDateSidebar && value === "havuz") {
+      setSelectedExamDate("");
+    }
     setTab(value);
     setPage(1);
   };
@@ -555,11 +806,20 @@ export function CandidatesPage({
     setFilters((current) => ({ ...current, [key]: value }));
   };
 
+  const handleExamDateSelect = (value: string) => {
+    if (value && examDateSidebar && tab === "havuz") {
+      setTab("randevulu");
+    }
+    setPage(1);
+    setSelectedExamDate(value);
+  };
+
   const clearAllFilters = () => {
     setPage(1);
     setFilters(EMPTY_CANDIDATE_FILTERS);
     setDebouncedFilters(EMPTY_CANDIDATE_FILTERS);
     setActiveTags([]);
+    setSelectedExamDate("");
   };
 
   const openAddTagInput = () => {
@@ -705,9 +965,14 @@ export function CandidatesPage({
         groupColumnMode === "term"
           ? formatCandidateTerm(candidate, lang)
           : formatGroupWithTerm(candidate, lang),
+      "E-Sınav Tarihi": formatDateTR(candidate.mebExamDate),
+      "E-Sınav Hakkı": `${candidate.eSinavAttemptCount ?? 1}/4`,
+      "Direksiyon Tarihi": formatDateTR(candidate.drivingExamDate),
+      "Direksiyon Hakkı": `${candidate.drivingExamAttemptCount ?? 1}/4`,
       "Tamamlanan Evrak": candidate.documentSummary?.completedCount ?? 0,
       "Eksik Evrak": candidate.documentSummary?.missingCount ?? 0,
-      "MEB Durumu": candidateMebExamResultLabel(candidate.mebExamResult),
+      Mebbis: candidateMebSyncStatusLabel(candidate.mebSyncStatus),
+      "Sınav Sonucu": candidateExamResultLabel(candidate.mebExamResult),
       "Sınav Ücreti": candidate.examFeePaid ? "Ödendi" : "Ödenmedi",
       Durum: candidateStatusLabel(candidate.status),
       "Kayıt Tarihi": formatDateTR(candidate.createdAtUtc),
@@ -722,9 +987,14 @@ export function CandidatesPage({
       "Cinsiyet",
       "Ehliyet Tipi",
       groupColumnHeader,
+      "E-Sınav Tarihi",
+      "E-Sınav Hakkı",
+      "Direksiyon Tarihi",
+      "Direksiyon Hakkı",
       "Tamamlanan Evrak",
       "Eksik Evrak",
-      "MEB Durumu",
+      "Mebbis",
+      "Sınav Sonucu",
       "Sınav Ücreti",
       "Durum",
       "Kayıt Tarihi",
@@ -897,6 +1167,189 @@ export function CandidatesPage({
     }
   };
 
+  const candidateListContent = (
+    <>
+      <div className="tag-filter-bar" role="toolbar" aria-label={t("candidates.tags.label")}>
+        {allTags.map((tag) => {
+          const isActive = activeTags.includes(tag.name);
+          return (
+            <button
+              aria-pressed={isActive}
+              className={`tag-filter-chip color-${tagColorIndex(tag.name)}${
+                isActive ? " active" : ""
+              }`}
+              key={tag.id}
+              onClick={() => handleTagFilterToggle(tag.name)}
+              type="button"
+            >
+              {tag.name}
+            </button>
+          );
+        })}
+        {isAddingTag ? (
+          <input
+            aria-label={t("candidates.tags.newFilterPlaceholder")}
+            className="tag-filter-new-input"
+            disabled={isCreatingTag}
+            onBlur={() => {
+              void commitNewTag();
+            }}
+            onChange={(event) => setNewTagDraft(event.target.value)}
+            onKeyDown={handleNewTagKeyDown}
+            placeholder={t("candidates.tags.newFilterPlaceholder")}
+            ref={newTagInputRef}
+            type="text"
+            value={newTagDraft}
+          />
+        ) : (
+          <button
+            aria-label={t("candidates.tags.addFilter")}
+            className="tag-filter-add"
+            onClick={openAddTagInput}
+            type="button"
+          >
+            + {t("candidates.tags.addFilter")}
+          </button>
+        )}
+        <button
+          className="tag-filter-manage"
+          onClick={() => setTagManagerOpen(true)}
+          type="button"
+        >
+          Etiketleri Yönet
+        </button>
+        {licenseClassTotalSummary ? (
+          <span
+            aria-label="Ehliyet sınıfı özeti"
+            className="tag-filter-summary-chip tag-filter-license-summary"
+          >
+            {licenseClassTotalSummary}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="table-wrap spaced">
+        <table className="data-table cand-table">
+          <thead>
+            <tr>
+              {bulkSelectEnabled && (
+                <th className="cand-select-th">
+                  <span className="cand-select-control">
+                    <input
+                      aria-label="Bu sayfadaki tüm adayları seç"
+                      checked={allVisibleSelected}
+                      onChange={toggleVisibleCandidateSelection}
+                      type="checkbox"
+                    />
+                  </span>
+                </th>
+              )}
+              {visibleColumns.map((col) =>
+                col.sortField ? (
+                  <SortableTh
+                    className={col.headerClassName}
+                    key={col.id}
+                    field={col.sortField}
+                    label={getColumnLabel(col)}
+                    onToggle={handleSortToggle}
+                    sort={sort}
+                  />
+                ) : (
+                  <th
+                    aria-label={getColumnLabel(col)}
+                    className={col.headerClassName}
+                    key={col.id}
+                  >
+                    {col.headerLabel ?? getColumnLabel(col)}
+                  </th>
+                )
+              )}
+              <th className="col-picker-th">
+                <ColumnPicker
+                  columns={pickerOptions}
+                  isVisible={isVisible}
+                  onToggle={toggleColumn}
+                  triggerTitle={t("candidates.columns.button")}
+                />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <>
+                {Array.from({ length: PAGE_SIZE }, (_, i) => (
+                  <tr key={i} style={{ pointerEvents: "none" }}>
+                    {bulkSelectEnabled && <td className="cand-select-td" />}
+                    {visibleColumns.map((col) => (
+                      <td className={col.cellClassName} key={col.id}>
+                        <span
+                          className="skeleton"
+                          style={{ width: `${col.skeletonWidth + (i * 11) % 24}px` }}
+                        />
+                      </td>
+                    ))}
+                    <td className="col-picker-td" />
+                  </tr>
+                ))}
+              </>
+            ) : candidates.length === 0 ? (
+              <tr>
+                <td
+                  className="data-table-empty"
+                  colSpan={visibleColumns.length + 1 + (bulkSelectEnabled ? 1 : 0)}
+                >
+                  Eşleşen aday bulunamadı.
+                </td>
+              </tr>
+            ) : (
+              candidates.map((c) => (
+                <tr key={c.id} onClick={() => openDrawer(c.id)}>
+                  {bulkSelectEnabled && (
+                    <td
+                      className="cand-select-td"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <span className="cand-select-control">
+                        <input
+                          aria-label={`${c.firstName} ${c.lastName} seç`}
+                          checked={selectedCandidateIds.has(c.id)}
+                          onChange={() => toggleCandidateSelection(c.id)}
+                          onClick={(event) => event.stopPropagation()}
+                          type="checkbox"
+                        />
+                      </span>
+                    </td>
+                  )}
+                  {visibleColumns.map((col) => (
+                    <td className={col.cellClassName} key={col.id}>
+                      {col.renderCell(c)}
+                    </td>
+                  ))}
+                  <td className="col-picker-td" />
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Pagination disabled={loading} onChange={setPage} page={page} totalPages={totalPages} />
+    </>
+  );
+
+  const tabsSearchRow = (
+    <div className={showTabs ? "tabs-search-row" : "tabs-search-row no-tabs"}>
+      {showTabs && <PageTabs active={tab} onChange={handleTabChange} tabs={resolvedTabConfig.tabs} />}
+      <div className="search-box">
+        <SearchInput
+          onChange={handleSearchChange}
+          placeholder="Aday ara... (ad, soyad, TC)"
+          value={search}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <>
       <PageToolbar
@@ -1031,17 +1484,6 @@ export function CandidatesPage({
         title={title}
       />
 
-      <div className={showTabs ? "tabs-search-row" : "tabs-search-row no-tabs"}>
-        {showTabs && <PageTabs active={tab} onChange={handleTabChange} tabs={resolvedTabConfig.tabs} />}
-        <div className="search-box">
-          <SearchInput
-            onChange={handleSearchChange}
-            placeholder="Aday ara... (ad, soyad, TC)"
-            value={search}
-          />
-        </div>
-      </div>
-
       <CandidateFilterPanel
         activeFilterCount={activeFilterCount}
         filters={filters}
@@ -1051,165 +1493,35 @@ export function CandidatesPage({
         onClose={() => setFiltersOpen(false)}
         open={filtersOpen}
       />
-
-
-      <div className="tag-filter-bar" role="toolbar" aria-label={t("candidates.tags.label")}>
-        {allTags.map((tag) => {
-          const isActive = activeTags.includes(tag.name);
-          return (
-            <button
-              aria-pressed={isActive}
-              className={`tag-filter-chip color-${tagColorIndex(tag.name)}${
-                isActive ? " active" : ""
-              }`}
-              key={tag.id}
-              onClick={() => handleTagFilterToggle(tag.name)}
-              type="button"
-            >
-              {tag.name}
-            </button>
-          );
-        })}
-        {isAddingTag ? (
-          <input
-            aria-label={t("candidates.tags.newFilterPlaceholder")}
-            className="tag-filter-new-input"
-            disabled={isCreatingTag}
-            onBlur={() => {
-              void commitNewTag();
-            }}
-            onChange={(event) => setNewTagDraft(event.target.value)}
-            onKeyDown={handleNewTagKeyDown}
-            placeholder={t("candidates.tags.newFilterPlaceholder")}
-            ref={newTagInputRef}
-            type="text"
-            value={newTagDraft}
+      {examDateSidebar ? (
+        <div className="candidates-layout">
+          <CandidateExamDateSidebar
+            actions={[
+              { label: "Tarih Ekle", onClick: handleExamDateAddClick },
+              {
+                label: "Senkronize",
+                onClick: handleExamSyncClick,
+                disabled: examScheduleSyncing,
+              },
+            ]}
+            onSelect={handleExamDateSelect}
+            options={displayedExamDateOptions}
+            selectedDate={selectedExamDate}
+            showTime={examDateSidebar.showTime}
+            summaryMode={examDateSidebar.summaryMode}
+            title={examDateSidebar.title}
           />
-        ) : (
-          <button
-            aria-label={t("candidates.tags.addFilter")}
-            className="tag-filter-add"
-            onClick={openAddTagInput}
-            type="button"
-          >
-            + {t("candidates.tags.addFilter")}
-          </button>
-        )}
-        <button
-          className="tag-filter-manage"
-          onClick={() => setTagManagerOpen(true)}
-          type="button"
-        >
-          Etiketleri Yönet
-        </button>
-      </div>
-
-      <div className="table-wrap spaced">
-        <table className="data-table cand-table">
-          <thead>
-            <tr>
-              {bulkSelectEnabled && (
-                <th className="cand-select-th">
-                  <span className="cand-select-control">
-                    <input
-                      aria-label="Bu sayfadaki tüm adayları seç"
-                      checked={allVisibleSelected}
-                      onChange={toggleVisibleCandidateSelection}
-                      type="checkbox"
-                    />
-                  </span>
-                </th>
-              )}
-              {visibleColumns.map((col) =>
-                col.sortField ? (
-                <SortableTh
-                  className={col.headerClassName}
-                  key={col.id}
-                  field={col.sortField}
-                  label={getColumnLabel(col)}
-                  onToggle={handleSortToggle}
-                  sort={sort}
-                />
-                ) : (
-                  <th
-                    aria-label={getColumnLabel(col)}
-                    className={col.headerClassName}
-                    key={col.id}
-                  >
-                    {col.headerLabel ?? getColumnLabel(col)}
-                  </th>
-                )
-              )}
-              <th className="col-picker-th">
-                <ColumnPicker
-                  columns={pickerOptions}
-                  isVisible={isVisible}
-                  onToggle={toggleColumn}
-                  triggerTitle={t("candidates.columns.button")}
-                />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <>
-                {Array.from({ length: PAGE_SIZE }, (_, i) => (
-                  <tr key={i} style={{ pointerEvents: "none" }}>
-                    {bulkSelectEnabled && <td className="cand-select-td" />}
-                    {visibleColumns.map((col) => (
-                      <td className={col.cellClassName} key={col.id}>
-                        <span
-                          className="skeleton"
-                          style={{ width: `${col.skeletonWidth + (i * 11) % 24}px` }}
-                        />
-                      </td>
-                    ))}
-                    <td className="col-picker-td" />
-                  </tr>
-                ))}
-              </>
-            ) : candidates.length === 0 ? (
-              <tr>
-                <td
-                  className="data-table-empty"
-                  colSpan={visibleColumns.length + 1 + (bulkSelectEnabled ? 1 : 0)}
-                >
-                  Eşleşen aday bulunamadı.
-                </td>
-              </tr>
-            ) : (
-              candidates.map((c) => (
-                <tr key={c.id} onClick={() => openDrawer(c.id)}>
-                  {bulkSelectEnabled && (
-                    <td
-                      className="cand-select-td"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <span className="cand-select-control">
-                        <input
-                          aria-label={`${c.firstName} ${c.lastName} seç`}
-                          checked={selectedCandidateIds.has(c.id)}
-                          onChange={() => toggleCandidateSelection(c.id)}
-                          onClick={(event) => event.stopPropagation()}
-                          type="checkbox"
-                        />
-                      </span>
-                    </td>
-                  )}
-                  {visibleColumns.map((col) => (
-                    <td className={col.cellClassName} key={col.id}>
-                      {col.renderCell(c)}
-                    </td>
-                  ))}
-                  <td className="col-picker-td" />
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <Pagination disabled={loading} onChange={setPage} page={page} totalPages={totalPages} />
+          <div className="candidates-main">
+            {tabsSearchRow}
+            {candidateListContent}
+          </div>
+        </div>
+      ) : (
+        <>
+          {tabsSearchRow}
+          {candidateListContent}
+        </>
+      )}
 
       <CandidateDrawer
         candidateId={selectedId}
@@ -1233,6 +1545,17 @@ export function CandidatesPage({
         open={tagManagerOpen}
         tags={allTags}
       />
+      {examDateSidebar ? (
+        <NewExamScheduleModal
+          examType={examDateSidebar.examType}
+          onClose={() => setExamScheduleModalOpen(false)}
+          onSaved={() => {
+            setExamScheduleModalOpen(false);
+            setRefreshKey((current) => current + 1);
+          }}
+          open={examScheduleModalOpen}
+        />
+      ) : null}
     </>
   );
 }

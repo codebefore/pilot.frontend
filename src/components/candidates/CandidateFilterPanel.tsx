@@ -309,14 +309,14 @@ export function CandidateFilterPanel({
           </div>
           <div className="form-group">
             <CustomSelect
-              aria-label={t("candidates.filters.hasMebExamResult")}
+              aria-label={t("candidates.filters.hasExamResult")}
               className="form-select"
               onChange={(event) =>
-                onChange("hasMebExamResult", event.target.value as TriState)
+                onChange("hasExamResult", event.target.value as TriState)
               }
-              value={filters.hasMebExamResult}
+              value={filters.hasExamResult}
             >
-              <option value="">{t("candidates.filters.hasMebExamResult")}</option>
+              <option value="">{t("candidates.filters.hasExamResult")}</option>
               <option value="true">{t("candidates.filters.yes")}</option>
               <option value="false">{t("candidates.filters.no")}</option>
             </CustomSelect>

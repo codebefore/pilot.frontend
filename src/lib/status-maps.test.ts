@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   CANDIDATE_GENDER_OPTIONS,
   candidateGenderLabel,
+  candidateExamResultLabel,
+  candidateMebSyncStatusLabel,
+  normalizeCandidateExamResultValue,
+  normalizeCandidateMebSyncStatusValue,
   normalizeCandidateGender,
 } from "./status-maps";
 
@@ -72,5 +76,36 @@ describe("CANDIDATE_GENDER_OPTIONS", () => {
       { value: "male", label: "Erkek" },
       { value: "unspecified", label: "Seçilmemiş" },
     ]);
+  });
+});
+
+describe("normalizeCandidateMebSyncStatusValue", () => {
+  it("maps Turkish and canonical variants to sync status values", () => {
+    expect(normalizeCandidateMebSyncStatusValue("SENKRONIZE")).toBe("synced");
+    expect(normalizeCandidateMebSyncStatusValue("Beklemede")).toBe("not_synced");
+    expect(normalizeCandidateMebSyncStatusValue("not_synced")).toBe("not_synced");
+  });
+});
+
+describe("candidateMebSyncStatusLabel", () => {
+  it("renders sync labels for canonical and Turkish values", () => {
+    expect(candidateMebSyncStatusLabel("synced")).toBe("Senkronize");
+    expect(candidateMebSyncStatusLabel("Beklemede")).toBe("Beklemede");
+  });
+});
+
+describe("normalizeCandidateExamResultValue", () => {
+  it("maps Turkish and ASCII variants to canonical values", () => {
+    expect(normalizeCandidateExamResultValue("BAŞARISIZ")).toBe("failed");
+    expect(normalizeCandidateExamResultValue("BASARISIZ")).toBe("failed");
+    expect(normalizeCandidateExamResultValue("BAŞARILI")).toBe("passed");
+  });
+});
+
+describe("candidateExamResultLabel", () => {
+  it("renders canonical labels for exam results", () => {
+    expect(candidateExamResultLabel("başarisiz")).toBe("Başarısız");
+    expect(candidateExamResultLabel("BAŞARILI")).toBe("Başarılı");
+    expect(candidateExamResultLabel(null)).toBe("—");
   });
 });

@@ -5,6 +5,7 @@ import type {
   CandidateResponse,
   CandidateTag,
   CandidateUpsertRequest,
+  ExamScheduleOption,
   LicenseClass,
   PagedResponse,
 } from "./types";
@@ -20,12 +21,17 @@ export type CandidateSortField =
   | "missingDocumentCount";
 
 export type SortDirection = "asc" | "desc";
-export type ESinavTabValue = "havuz" | "basarisiz" | "randevulu";
+export type CandidateExamTabValue = "havuz" | "basarisiz" | "randevulu";
+export type ESinavTabValue = CandidateExamTabValue;
+export type CandidateExamDateType = "e_sinav" | "direksiyon";
 
 export interface GetCandidatesParams extends QueryParams {
   search?: string;
   status?: string;
   eSinavTab?: ESinavTabValue;
+  drivingExamTab?: CandidateExamTabValue;
+  eSinavDate?: string;
+  drivingExamDate?: string;
   groupId?: string;
   groupTitle?: string;
   groupStartDateFrom?: string;
@@ -33,7 +39,7 @@ export interface GetCandidatesParams extends QueryParams {
   hasActiveGroup?: boolean;
   hasMissingDocuments?: boolean;
   hasPhoto?: boolean;
-  hasMebExamResult?: boolean;
+  hasExamResult?: boolean;
   examFeePaid?: boolean;
   licenseClass?: LicenseClass;
   firstName?: string;
@@ -63,11 +69,25 @@ export interface GetCandidatesParams extends QueryParams {
   pageSize?: number;
 }
 
+export interface GetExamScheduleOptionsParams
+  extends Omit<GetCandidatesParams, "page" | "pageSize" | "sortBy" | "sortDir"> {
+  examType: CandidateExamDateType;
+}
+
 export function getCandidates(
   params?: GetCandidatesParams,
   signal?: AbortSignal
 ): Promise<PagedResponse<CandidateResponse>> {
   return httpGet<PagedResponse<CandidateResponse>>("/api/candidates", params, { signal });
+}
+
+export function getExamScheduleOptions(
+  params: GetExamScheduleOptionsParams,
+  signal?: AbortSignal
+): Promise<ExamScheduleOption[]> {
+  return httpGet<ExamScheduleOption[]>("/api/candidates/exam-date-options", params, {
+    signal,
+  });
 }
 
 export function getCandidateById(

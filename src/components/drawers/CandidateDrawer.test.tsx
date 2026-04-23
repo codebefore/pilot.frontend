@@ -81,6 +81,7 @@ describe("CandidateDrawer", () => {
       existingLicenseIssuedProvince: null,
       existingLicensePre2016: false,
       status: "active",
+      mebSyncStatus: "not_synced",
       currentGroup: null,
       documentSummary: null,
       createdAtUtc: "2026-04-12T10:00:00Z",
@@ -103,6 +104,7 @@ describe("CandidateDrawer", () => {
       existingLicenseIssuedProvince: null,
       existingLicensePre2016: false,
       status: "graduated",
+      mebSyncStatus: "synced",
       currentGroup: null,
       documentSummary: null,
       createdAtUtc: "2026-04-12T10:00:00Z",
@@ -160,6 +162,7 @@ describe("CandidateDrawer", () => {
       existingLicenseIssuedProvince: null,
       existingLicensePre2016: false,
       status: "active",
+      mebSyncStatus: "not_synced",
       currentGroup: null,
       documentSummary: null,
       createdAtUtc: "2026-04-12T10:00:00Z",
@@ -197,6 +200,273 @@ describe("CandidateDrawer", () => {
         "candidate-1",
         expect.objectContaining({
           gender: "male",
+        })
+      );
+    });
+  });
+
+  it("saves canonical meb sync status values", async () => {
+    getCandidateByIdMock.mockResolvedValue({
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "11111111111",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebSyncStatus: "not_synced",
+      mebExamResult: null,
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+      />
+    );
+
+    await screen.findByRole("heading", { name: "Ada Yilmaz" });
+
+    const mebStatusLabel = screen
+      .getAllByText("Mebbis")
+      .find((node) => node.classList.contains("label"));
+    const mebStatusRow = mebStatusLabel?.closest(".drawer-row");
+    expect(mebStatusRow).not.toBeNull();
+    fireEvent.click(
+      mebStatusRow!.querySelector('button[title="Düzenle"]') as HTMLButtonElement
+    );
+
+    const mebStatusSelect = await screen.findByDisplayValue("Beklemede");
+    fireEvent.change(mebStatusSelect, { target: { value: "synced" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "candidate-1",
+        expect.objectContaining({
+          mebSyncStatus: "synced",
+        })
+      );
+    });
+  });
+
+  it("saves the driving exam date", async () => {
+    getCandidateByIdMock.mockResolvedValue({
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "11111111111",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebSyncStatus: "synced",
+      mebExamDate: "2026-05-12",
+      drivingExamDate: "2026-06-01",
+      mebExamResult: null,
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+      />
+    );
+
+    await screen.findByRole("heading", { name: "Ada Yilmaz" });
+
+    const dateLabel = screen
+      .getAllByText("Direksiyon Tarihi")
+      .find((node) => node.classList.contains("label"));
+    const dateRow = dateLabel?.closest(".drawer-row");
+    expect(dateRow).not.toBeNull();
+    fireEvent.click(
+      dateRow!.querySelector('button[title="Düzenle"]') as HTMLButtonElement
+    );
+
+    const hiddenDateInput = dateRow!.querySelector(
+      'input.localized-date-native-input[type="date"]'
+    );
+    expect(hiddenDateInput).not.toBeNull();
+    fireEvent.change(hiddenDateInput!, {
+      target: { value: "2026-06-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "candidate-1",
+        expect.objectContaining({
+          drivingExamDate: "2026-06-15",
+        })
+      );
+    });
+  });
+
+  it("disables e-sinav date editing after the fourth failed attempt", async () => {
+    getCandidateByIdMock.mockResolvedValue({
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "11111111111",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebSyncStatus: "synced",
+      mebExamDate: "2026-06-01",
+      mebExamResult: "failed",
+      eSinavAttemptCount: 4,
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+      />
+    );
+
+    await screen.findByRole("heading", { name: "Ada Yilmaz" });
+
+    const dateLabel = screen
+      .getAllByText("E-Sınav Tarihi")
+      .find((node) => node.classList.contains("label"));
+    const dateRow = dateLabel?.closest(".drawer-row");
+    expect(dateRow).not.toBeNull();
+
+    const editButton = dateRow!.querySelector(
+      'button[title="4 hak doldu"]'
+    ) as HTMLButtonElement | null;
+
+    expect(editButton).not.toBeNull();
+    expect(editButton).toBeDisabled();
+  });
+
+  it("saves e-sinav and driving attempt counts as 1..4 values", async () => {
+    const candidate = {
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "11111111111",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebSyncStatus: "synced",
+      eSinavAttemptCount: 1,
+      drivingExamAttemptCount: 2,
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    };
+    getCandidateByIdMock.mockResolvedValue(candidate);
+    updateCandidateMock.mockImplementation(async (_candidateId, patch) => ({
+      ...candidate,
+      ...patch,
+      updatedAtUtc: "2026-04-12T10:10:00Z",
+    }));
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+      />
+    );
+
+    await screen.findByRole("heading", { name: "Ada Yilmaz" });
+
+    const eSinavLabel = screen
+      .getAllByText("E-Sınav Hakkı")
+      .find((node) => node.classList.contains("label"));
+    const eSinavRow = eSinavLabel?.closest(".drawer-row");
+    expect(eSinavRow).not.toBeNull();
+    fireEvent.click(
+      eSinavRow!.querySelector('button[title="Düzenle"]') as HTMLButtonElement
+    );
+
+    const eSinavSelect = eSinavRow!.querySelector(
+      "select.custom-select-native"
+    ) as HTMLSelectElement | null;
+    expect(eSinavSelect).not.toBeNull();
+    fireEvent.change(eSinavSelect!, { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "candidate-1",
+        expect.objectContaining({
+          eSinavAttemptCount: 3,
+        })
+      );
+    });
+
+    const drivingLabel = screen
+      .getAllByText("Direksiyon Hakkı")
+      .find((node) => node.classList.contains("label"));
+    const drivingRow = drivingLabel?.closest(".drawer-row");
+    expect(drivingRow).not.toBeNull();
+    fireEvent.click(
+      drivingRow!.querySelector('button[title="Düzenle"]') as HTMLButtonElement
+    );
+
+    const drivingSelect = drivingRow!.querySelector(
+      "select.custom-select-native"
+    ) as HTMLSelectElement | null;
+    expect(drivingSelect).not.toBeNull();
+    fireEvent.change(drivingSelect!, { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "candidate-1",
+        expect.objectContaining({
+          drivingExamAttemptCount: 4,
         })
       );
     });

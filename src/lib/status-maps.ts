@@ -156,6 +156,11 @@ export const GROUP_MEB_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "sent",     label: "Gönderildi" },
 ];
 
+export const CANDIDATE_MEB_SYNC_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "not_synced", label: "Beklemede" },
+  { value: "synced", label: "Senkronize" },
+];
+
 
 /* ── Candidate status ── */
 
@@ -295,23 +300,88 @@ export function candidateStatusLabel(status: string): string {
   }
 }
 
-export function normalizeCandidateMebExamResultValue(
+function toTurkishLookupKey(value: string): string {
+  return Array.from(value.trim().toLocaleLowerCase("tr-TR"), (char) => {
+    switch (char) {
+      case "ç": return "c";
+      case "ğ": return "g";
+      case "ı":
+      case "i":
+      case "İ": return "i";
+      case "ö": return "o";
+      case "ş": return "s";
+      case "ü": return "u";
+      default: return char;
+    }
+  }).join("");
+}
+
+export function normalizeCandidateMebSyncStatusValue(
+  status: string | null | undefined
+): string | null {
+  if (!status) return null;
+  switch (toTurkishLookupKey(status)) {
+    case "senkronize":
+    case "synced":
+      return "synced";
+    case "beklemede":
+    case "senkronize degil":
+    case "not synced":
+    case "not_synced":
+      return "not_synced";
+    default:
+      return status.trim().toLowerCase();
+  }
+}
+
+export function candidateMebSyncStatusToPill(
+  status: string | null | undefined
+): JobStatus {
+  switch (normalizeCandidateMebSyncStatusValue(status)) {
+    case "synced": return "success";
+    case "not_synced":
+    case null: return "failed";
+    default: return "manual";
+  }
+}
+
+export function candidateMebSyncStatusLabel(
+  status: string | null | undefined
+): string {
+  switch (normalizeCandidateMebSyncStatusValue(status)) {
+    case "synced": return "Senkronize";
+    case "not_synced":
+    case null: return "Beklemede";
+    default: return status?.trim() || "Beklemede";
+  }
+}
+
+export function normalizeCandidateExamResultValue(
   result: string | null | undefined
 ): string | null {
   if (!result) return null;
-  return result.trim().toLowerCase();
+  const normalized = result.trim().toLocaleLowerCase("tr-TR");
+  switch (toTurkishLookupKey(result)) {
+    case "basarili":
+    case "passed":
+      return "passed";
+    case "basarisiz":
+    case "failed":
+      return "failed";
+    default:
+      return normalized;
+  }
 }
 
-export function candidateMebExamResultToPill(
-  result: string | null | undefined
-): JobStatus {
-  return normalizeCandidateMebExamResultValue(result) ? "success" : "failed";
-}
-
-export function candidateMebExamResultLabel(
+export function candidateExamResultLabel(
   result: string | null | undefined
 ): string {
-  return normalizeCandidateMebExamResultValue(result) ? "Gönderildi" : "Gönderilmedi";
+  switch (normalizeCandidateExamResultValue(result)) {
+    case null: return "—";
+    case "passed": return "Başarılı";
+    case "failed": return "Başarısız";
+    default: return result?.trim() || "—";
+  }
 }
 
 /* ── Group MEB status ── */

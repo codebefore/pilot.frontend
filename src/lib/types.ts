@@ -6,6 +6,7 @@ export interface PagedResponse<T> {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  licenseClassCounts?: ExamScheduleLicenseClassCount[];
 }
 
 export type LicenseClass = "B" | "A2" | "C" | "D" | "E";
@@ -47,8 +48,12 @@ export interface CandidateResponse {
   existingLicenseIssuedProvince: string | null;
   existingLicensePre2016: boolean;
   status: string;
+  mebSyncStatus?: string | null;
   mebExamDate?: string | null;
+  drivingExamDate?: string | null;
   mebExamResult?: string | null;
+  eSinavAttemptCount?: number | null;
+  drivingExamAttemptCount?: number | null;
   examFeePaid?: boolean;
   currentGroup: CandidateGroupSummary | null;
   documentSummary: CandidateDocumentSummaryResponse | null;
@@ -81,7 +86,12 @@ export interface CandidateUpsertRequest {
   existingLicenseIssuedProvince?: string | null;
   existingLicensePre2016?: boolean;
   status: string;
+  mebSyncStatus?: string | null;
   mebExamDate?: string | null;
+  drivingExamDate?: string | null;
+  mebExamResult?: string | null;
+  eSinavAttemptCount?: number | null;
+  drivingExamAttemptCount?: number | null;
   examFeePaid?: boolean;
   /** Names only — backend resolves or creates tags by name. */
   tags?: string[];
@@ -96,6 +106,27 @@ export interface CandidateGroupAssignmentResponse {
   assignedAtUtc: string;
   removedAtUtc: string | null;
   isActive: boolean;
+}
+
+export interface ExamScheduleOption {
+  id: string;
+  examType: "e_sinav" | "direksiyon";
+  date: string;
+  time: string;
+  capacity: number;
+  candidateCount: number;
+  licenseClassCounts?: ExamScheduleLicenseClassCount[];
+}
+
+export interface ExamScheduleLicenseClassCount {
+  licenseClass: string;
+  count: number;
+}
+
+export interface ExamScheduleSyncResponse {
+  examType: "e_sinav" | "direksiyon";
+  createdCount: number;
+  dateCount: number;
 }
 
 /* ── Terms ── */

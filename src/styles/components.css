@@ -1775,6 +1775,69 @@ textarea.form-input {
   padding-top: 10px;
   border-top: 1px solid var(--gray-100);
 }
+.localized-time-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 130;
+  width: 100%;
+  min-width: 172px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 10px;
+}
+.localized-time-popover-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.localized-time-popover-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.localized-time-popover-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+}
+.localized-time-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 224px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.localized-time-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.localized-time-option:hover {
+  background: var(--gray-50);
+  color: var(--gray-900);
+}
+.localized-time-option.selected {
+  background: var(--brand-light);
+  color: var(--brand-dark);
+}
 
 @media (max-width: 980px) {
   .settings-summary-grid,
@@ -1950,6 +2013,115 @@ textarea.form-input {
   font-weight: 600;
 }
 
+/* ─── EXAM DATE SIDEBAR (exam candidate pages) ─── */
+.candidates-layout {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 0 var(--page-shell-gutter);
+}
+.candidates-main {
+  min-width: 0;
+}
+.candidates-main .tabs-search-row {
+  padding-left: 0;
+  padding-right: 0;
+}
+.candidates-main .tag-filter-bar,
+.candidates-main .table-wrap,
+.candidates-main .pagination {
+  padding-left: 0;
+  padding-right: 0;
+}
+.exam-date-sidebar-list {
+  position: sticky;
+  top: calc(var(--header-h) + 12px);
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 8px;
+}
+.exam-date-sidebar-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 8px;
+}
+.exam-date-sidebar-action {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+}
+.exam-date-option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.exam-date-divider {
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: #16a34a;
+}
+.exam-date-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 42px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-800);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: normal;
+  text-align: left;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.exam-date-option-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.exam-date-option:hover {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+}
+.exam-date-option.active {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+}
+.exam-date-option-time {
+  color: var(--gray-500);
+  font-weight: 500;
+}
+.exam-date-option-meta {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 980px) {
+  .candidates-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .exam-date-sidebar-list {
+    position: static;
+  }
+}
+
 /* ─── TAG FILTER BAR (candidates page) ─── */
 .tag-filter-bar {
   display: flex;
@@ -1988,6 +2160,34 @@ textarea.form-input {
 .tag-filter-chip.color-3 { background: var(--purple-light); color: var(--purple); }
 .tag-filter-chip.color-4 { background: #fce7f3;             color: #be185d; }
 .tag-filter-chip.color-5 { background: #ecfeff;             color: #0e7490; }
+.tag-filter-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gray-200);
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.tag-filter-license-summary {
+  margin-left: auto;
+}
+button.tag-filter-summary-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--brand);
+}
+button.tag-filter-summary-chip.active {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
+}
 .tag-filter-add {
   display: inline-flex;
   align-items: center;

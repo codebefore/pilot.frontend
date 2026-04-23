@@ -57,7 +57,7 @@ export interface GetDocumentChecklistParams extends QueryParams {
   groupId?: string;
   hasActiveGroup?: boolean;
   hasPhoto?: boolean;
-  hasMebExamResult?: boolean;
+  hasExamResult?: boolean;
   examFeePaid?: boolean;
   hasMissingDocuments?: boolean;
   missingDocumentCountMin?: number;

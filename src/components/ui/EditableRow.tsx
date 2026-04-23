@@ -12,6 +12,8 @@ type EditableRowProps = {
   inputValue: string;
   inputType?: string;
   inputLang?: string;
+  disabled?: boolean;
+  disabledTitle?: string;
   options?: SelectOption[];
   loadOptions?: () => Promise<SelectOption[]>;
   onSave: (value: string) => Promise<void>;
@@ -23,6 +25,8 @@ export function EditableRow({
   inputValue,
   inputType = "text",
   inputLang,
+  disabled = false,
+  disabledTitle,
   options: staticOptions,
   loadOptions,
   onSave,
@@ -35,6 +39,10 @@ export function EditableRow({
   const inputRef = useRef<HTMLInputElement & HTMLSelectElement>(null);
 
   const startEdit = async () => {
+    if (disabled) {
+      return;
+    }
+
     setDraft(inputValue);
     setEditing(true);
     if (loadOptions && !options) {
@@ -120,7 +128,13 @@ export function EditableRow({
       ) : (
         <span className="editable-row-view">
           <span className="value">{displayValue || "—"}</span>
-          <button className="icon-btn edit-trigger" onClick={startEdit} title="Düzenle" type="button">
+          <button
+            className="icon-btn edit-trigger"
+            disabled={disabled}
+            onClick={startEdit}
+            title={disabled ? (disabledTitle ?? "Düzenlenemez") : "Düzenle"}
+            type="button"
+          >
             <PencilIcon size={12} />
           </button>
         </span>

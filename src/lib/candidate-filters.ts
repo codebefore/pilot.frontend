@@ -21,7 +21,7 @@ export type CandidateFilterState = {
   groupId: string;
   hasActiveGroup: TriState;
   hasPhoto: TriState;
-  hasMebExamResult: TriState;
+  hasExamResult: TriState;
   examFeePaid: TriState;
   hasMissingDocuments: TriState;
   birthDateFrom: string;
@@ -45,7 +45,7 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   groupId: "",
   hasActiveGroup: "",
   hasPhoto: "",
-  hasMebExamResult: "",
+  hasExamResult: "",
   examFeePaid: "",
   hasMissingDocuments: "",
   birthDateFrom: "",
@@ -85,7 +85,7 @@ export function filtersToQuery(filters: CandidateFilterState) {
     groupId: filters.groupId || undefined,
     hasActiveGroup: triToBool(filters.hasActiveGroup),
     hasPhoto: triToBool(filters.hasPhoto),
-    hasMebExamResult: triToBool(filters.hasMebExamResult),
+    hasExamResult: triToBool(filters.hasExamResult),
     examFeePaid: triToBool(filters.examFeePaid),
     hasMissingDocuments: triToBool(filters.hasMissingDocuments),
     birthDateFrom: filters.birthDateFrom || undefined,
