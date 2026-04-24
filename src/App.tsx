@@ -59,7 +59,9 @@ function AppShell() {
           <Route element={<DocumentsPage />}  path="/documents" />
           <Route element={<DocumentTypesPage />} path="/document-types" />
           <Route element={<PaymentsPage />}   path="/payments" />
-          <Route element={<TrainingPage />}   path="/training" />
+          <Route element={<Navigate replace to="/training/teorik" />} path="/training" />
+          <Route element={<TrainingPage type="teorik" />} path="/training/teorik" />
+          <Route element={<TrainingPage type="uygulama" />} path="/training/uygulama" />
           <Route element={<Navigate replace to="/exams/e-sinav" />} path="/exams" />
           <Route element={<ExamESinavPage />} path="/exams/e-sinav" />
           <Route element={<Navigate replace to="/exams/uygulama" />} path="/exams/direksiyon" />

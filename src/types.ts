@@ -6,6 +6,8 @@ export type NavKey =
   | "documentTypes"
   | "payments"
   | "training"
+  | "trainingTeorik"
+  | "trainingUygulama"
   | "exams"
   | "examESinav"
   | "examUygulama"

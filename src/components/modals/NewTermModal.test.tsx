@@ -29,6 +29,7 @@ describe("NewTermModal", () => {
       licenseClassCounts: [],
       createdAtUtc: "2026-04-01T00:00:00Z",
       updatedAtUtc: "2026-04-02T00:00:00Z",
+      rowVersion: 2,
     });
 
     const onSaved = vi.fn();
@@ -48,6 +49,7 @@ describe("NewTermModal", () => {
           licenseClassCounts: [],
           createdAtUtc: "2026-04-01T00:00:00Z",
           updatedAtUtc: "2026-04-01T00:00:00Z",
+          rowVersion: 1,
         }}
       />
     );
@@ -63,6 +65,7 @@ describe("NewTermModal", () => {
       expect(updateTermMock).toHaveBeenCalledWith("term-1", {
         monthDate: "2026-04-01",
         name: "EK DÖNEM",
+        rowVersion: 1,
       });
     });
     expect(onSaved).toHaveBeenCalledWith(
@@ -96,6 +99,7 @@ describe("NewTermModal", () => {
           licenseClassCounts: [],
           createdAtUtc: "2026-04-01T00:00:00Z",
           updatedAtUtc: "2026-04-01T00:00:00Z",
+          rowVersion: 1,
         }}
       />
     );

@@ -21,6 +21,7 @@ const tr = {
   "common.close": "Kapat",
   "common.search": "Ara",
   "common.clearFilters": "Filtreleri Temizle",
+  "common.pageSize": "Sayfa başına",
 
   // Header
   "header.notifications": "Bildirimler",
@@ -41,6 +42,8 @@ const tr = {
   "nav.documentTypes": "Belge Türleri",
   "nav.payments": "Tahsilat",
   "nav.training": "Eğitim Planı",
+  "nav.trainingTeorik": "Teorik Eğitim",
+  "nav.trainingUygulama": "Uygulama Eğitim",
   "nav.exams": "Sınavlar",
   "nav.examESinav": "E-Sınav",
   "nav.examUygulama": "Uygulama",
@@ -444,6 +447,140 @@ const tr = {
   "documentTypeForm.errors.selectOptionsRequired": "Seçim alanı için en az bir seçenek ekleyin",
   "documentTypeForm.errors.optionFieldsRequired": "Tüm seçeneklerin değer ve görüneni olmalı",
   "documentTypeForm.errors.optionValueDuplicate": "Aynı seçenek değeri iki kez kullanılmış",
+
+  // Vehicle validation (returned by VehiclesController as errorCodes)
+  "vehicle.validation.required": "Bu alan boş bırakılamaz",
+  "vehicle.validation.invalidPlate": "Plaka {min} ile {max} karakter arasında olmalı",
+  "vehicle.validation.invalidModelYear": "Model yılı {min} ile {max} arasında olmalı",
+  "vehicle.validation.invalidOdometer": "Kilometre / saat değeri negatif olamaz",
+  "vehicle.validation.invalidCatalogValue": "Desteklenen değerler: {values}",
+  "vehicle.validation.invalidLicenseClass": "Desteklenen değerler: {values}",
+  "vehicle.validation.invalidSortField": "Sıralama alanı geçerli değil",
+  "vehicle.validation.invalidSortDirection": "Sıralama yönü geçerli değil",
+  "vehicle.validation.invalidActivityFilter": "Desteklenen değerler: {values}",
+  "vehicle.validation.plateConflict": "Bu plakayla başka bir araç zaten kayıtlı",
+  "vehicle.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "vehicle.validation.concurrencyConflict":
+    "Bu kayıt başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "vehicle.validation.generic": "Araç kaydı sırasında hata oluştu",
+
+  // Instructor validation (returned by InstructorsController as errorCodes)
+  "instructor.validation.required": "Bu alan boş bırakılamaz",
+  "instructor.validation.invalidCode": "Personel kodu {min} ile {max} karakter arasında olmalı",
+  "instructor.validation.invalidNationalId": "TC kimlik no 11 haneli olmalı",
+  "instructor.validation.invalidWeeklyLessonHours":
+    "Haftalık ders saati {min} ile {max} arasında olmalı",
+  "instructor.validation.invalidCatalogValue": "Desteklenen değerler: {values}",
+  "instructor.validation.invalidCollection": "Desteklenen değerler: {values}",
+  "instructor.validation.invalidLicenseClass": "Desteklenen değerler: {values}",
+  "instructor.validation.invalidAssignedVehicle": "Atanan araç bulunamadı",
+  "instructor.validation.invalidSortField": "Sıralama alanı geçerli değil",
+  "instructor.validation.invalidSortDirection": "Sıralama yönü geçerli değil",
+  "instructor.validation.invalidActivityFilter": "Desteklenen değerler: {values}",
+  "instructor.validation.codeConflict": "Bu personel koduyla başka bir eğitmen zaten kayıtlı",
+  "instructor.validation.nationalIdConflict":
+    "Bu TC kimlik no ile başka bir eğitmen zaten kayıtlı",
+  "instructor.validation.uniqueConflict": "Personel kodu veya TC kimlik no zaten kullanılıyor",
+  "instructor.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "instructor.validation.concurrencyConflict":
+    "Bu kayıt başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "instructor.validation.generic": "Eğitmen kaydı sırasında hata oluştu",
+
+  // Route validation (returned by RoutesController as errorCodes)
+  "route.validation.required": "Bu alan boş bırakılamaz",
+  "route.validation.invalidCode": "Güzergah kodu {min} ile {max} karakter arasında olmalı",
+  "route.validation.invalidCatalogValue": "Desteklenen değerler: {values}",
+  "route.validation.invalidDistance": "Mesafe {min} ile {max} km arasında olmalı",
+  "route.validation.invalidDuration": "Süre {min} ile {max} dakika arasında olmalı",
+  "route.validation.invalidSortField": "Sıralama alanı geçerli değil",
+  "route.validation.invalidSortDirection": "Sıralama yönü geçerli değil",
+  "route.validation.invalidActivityFilter": "Desteklenen değerler: {values}",
+  "route.validation.codeConflict": "Bu kodla başka bir güzergah zaten kayıtlı",
+  "route.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "route.validation.concurrencyConflict":
+    "Bu kayıt başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "route.validation.generic": "Güzergah kaydı sırasında hata oluştu",
+
+  // Area validation (returned by AreasController as errorCodes)
+  "area.validation.required": "Bu alan boş bırakılamaz",
+  "area.validation.invalidCode": "Alan kodu {min} ile {max} karakter arasında olmalı",
+  "area.validation.invalidCatalogValue": "Desteklenen değerler: {values}",
+  "area.validation.invalidCapacity": "Kapasite {min} ile {max} arasında olmalı",
+  "area.validation.invalidSortField": "Sıralama alanı geçerli değil",
+  "area.validation.invalidSortDirection": "Sıralama yönü geçerli değil",
+  "area.validation.invalidActivityFilter": "Desteklenen değerler: {values}",
+  "area.validation.codeConflict": "Bu kodla başka bir alan zaten kayıtlı",
+  "area.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "area.validation.concurrencyConflict":
+    "Bu kayıt başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "area.validation.generic": "Alan kaydı sırasında hata oluştu",
+
+  // License class definition validation
+  "licenseClassDefinition.validation.required": "Bu alan boş bırakılamaz",
+  "licenseClassDefinition.validation.invalidCode":
+    "Ehliyet tipi kodu {min} ile {max} karakter arasında olmalı",
+  "licenseClassDefinition.validation.invalidCatalogValue": "Desteklenen değerler: {values}",
+  "licenseClassDefinition.validation.invalidSortField": "Sıralama alanı geçerli değil",
+  "licenseClassDefinition.validation.invalidSortDirection": "Sıralama yönü geçerli değil",
+  "licenseClassDefinition.validation.invalidActivityFilter": "Desteklenen değerler: {values}",
+  "licenseClassDefinition.validation.invalidAge": "Yaş şartı {min} ile {max} arasında olmalı",
+  "licenseClassDefinition.validation.invalidHours": "Ders saati {min} ile {max} arasında olmalı",
+  "licenseClassDefinition.validation.invalidFee": "Ücret {min} ile {max} arasında olmalı",
+  "licenseClassDefinition.validation.invalidDisplayOrder":
+    "Sıralama {min} ile {max} arasında olmalı",
+  "licenseClassDefinition.validation.codeConflict":
+    "Bu kodla başka bir ehliyet tipi zaten kayıtlı",
+  "licenseClassDefinition.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "licenseClassDefinition.validation.concurrencyConflict":
+    "Bu kayıt başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "licenseClassDefinition.validation.generic": "Ehliyet tipi kaydı sırasında hata oluştu",
+
+  // Candidate validation (returned by CandidatesController as errorCodes)
+  "candidate.validation.required": "Bu alan boş bırakılamaz",
+  "candidate.validation.tagNameRequired": "Etiket adı zorunlu",
+  "candidate.validation.invalidLicenseClass": "Desteklenen değerler: {values}",
+  "candidate.validation.invalidStatus": "Desteklenen değerler: {values}",
+  "candidate.validation.invalidMebSyncStatus": "Desteklenen değerler: {values}",
+  "candidate.validation.invalidGender": "Desteklenen değerler: {values}",
+  "candidate.validation.invalidESinavTab": "Desteklenen değerler: havuz, basarisiz, randevulu",
+  "candidate.validation.invalidExamDateType": "Desteklenen değerler: e_sinav, uygulama",
+  "candidate.validation.invalidExistingLicenseType": "Geçersiz mevcut ehliyet türü",
+  "candidate.validation.invalidExamAttemptCount":
+    "Sınav hakkı {min} ile {max} arasında olmalı",
+  "candidate.validation.eSinavRescheduleLimit":
+    "E-Sınav için {max} hak doldu. Yeni sınav tarihi atanamaz.",
+  "candidate.validation.existingLicenseConsistency":
+    "Mevcut ehliyet alanları birbirini tamamlamalı",
+  "candidate.validation.invalidSortField": "Sıralama alanı geçerli değil",
+  "candidate.validation.invalidSortDirection": "Sıralama yönü geçerli değil",
+  "candidate.validation.invalidTag": "Etiket geçersiz",
+  "candidate.validation.nationalIdConflict": "Bu TC kimlik numarası zaten kayıtlı",
+  "candidate.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "candidate.validation.concurrencyConflict":
+    "Bu aday başka bir kullanıcı tarafından güncellendi. Lütfen listeye dönüp tekrar açın.",
+  "candidate.validation.generic": "Aday kaydı sırasında hata oluştu",
+
+  // Group validation (returned by GroupsController as errorCodes)
+  "group.validation.required": "Bu alan boş bırakılamaz",
+  "group.validation.invalidGroupNumber": "Grup numarası {min} ile {max} arasında olmalı",
+  "group.validation.invalidGroupBranch": "Grup şubesi A ile Z arasında tek harf olmalı",
+  "group.validation.invalidMebStatus": "Desteklenen değerler: {values}",
+  "group.validation.termNotFound": "Seçilen dönem bulunamadı",
+  "group.validation.startDateOutsideTerm": "Başlangıç tarihi seçilen dönem ayının içinde olmalı",
+  "group.validation.hasActiveCandidates": "Aktif adayı olan grup silinemez",
+  "group.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "group.validation.concurrencyConflict":
+    "Bu grup başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "group.validation.generic": "Grup kaydı sırasında hata oluştu",
+
+  // Term validation (returned by TermsController as errorCodes)
+  "term.validation.nameRequired": "Aynı ayda başka bir dönem varken ad zorunlu",
+  "term.validation.hasActiveCandidates":
+    "İçinde aktif adayları olan grubu bulunan dönem silinemez",
+  "term.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "term.validation.concurrencyConflict":
+    "Bu dönem başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "term.validation.generic": "Dönem kaydı sırasında hata oluştu",
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -460,6 +597,7 @@ const en: Record<keyof typeof tr, string> = {
   "common.close": "Close",
   "common.search": "Search",
   "common.clearFilters": "Clear Filters",
+  "common.pageSize": "Per page",
 
   // Header
   "header.notifications": "Notifications",
@@ -480,6 +618,8 @@ const en: Record<keyof typeof tr, string> = {
   "nav.documentTypes": "Document Types",
   "nav.payments": "Payments",
   "nav.training": "Training Plan",
+  "nav.trainingTeorik": "Theory Training",
+  "nav.trainingUygulama": "Practice Training",
   "nav.exams": "Exams",
   "nav.examESinav": "E-Exam",
   "nav.examUygulama": "Driving",
@@ -885,6 +1025,144 @@ const en: Record<keyof typeof tr, string> = {
   "documentTypeForm.errors.optionFieldsRequired":
     "All options must have a value and a label",
   "documentTypeForm.errors.optionValueDuplicate": "Option value is used twice",
+
+  // Vehicle validation (returned by VehiclesController as errorCodes)
+  "vehicle.validation.required": "This field is required",
+  "vehicle.validation.invalidPlate": "Plate must be between {min} and {max} characters",
+  "vehicle.validation.invalidModelYear": "Model year must be between {min} and {max}",
+  "vehicle.validation.invalidOdometer": "Odometer value cannot be negative",
+  "vehicle.validation.invalidCatalogValue": "Supported values: {values}",
+  "vehicle.validation.invalidLicenseClass": "Supported values: {values}",
+  "vehicle.validation.invalidSortField": "Sort field is not valid",
+  "vehicle.validation.invalidSortDirection": "Sort direction is not valid",
+  "vehicle.validation.invalidActivityFilter": "Supported values: {values}",
+  "vehicle.validation.plateConflict": "Another vehicle already uses this plate",
+  "vehicle.validation.rowVersionRequired": "Row version is required",
+  "vehicle.validation.concurrencyConflict":
+    "This record was updated by someone else. Close the form and try again with the latest data.",
+  "vehicle.validation.generic": "Something went wrong while saving the vehicle",
+
+  // Instructor validation (returned by InstructorsController as errorCodes)
+  "instructor.validation.required": "This field is required",
+  "instructor.validation.invalidCode":
+    "Instructor code must be between {min} and {max} characters",
+  "instructor.validation.invalidNationalId": "National id must be exactly 11 digits",
+  "instructor.validation.invalidWeeklyLessonHours":
+    "Weekly lesson hours must be between {min} and {max}",
+  "instructor.validation.invalidCatalogValue": "Supported values: {values}",
+  "instructor.validation.invalidCollection": "Supported values: {values}",
+  "instructor.validation.invalidLicenseClass": "Supported values: {values}",
+  "instructor.validation.invalidAssignedVehicle": "Assigned vehicle was not found",
+  "instructor.validation.invalidSortField": "Sort field is not valid",
+  "instructor.validation.invalidSortDirection": "Sort direction is not valid",
+  "instructor.validation.invalidActivityFilter": "Supported values: {values}",
+  "instructor.validation.codeConflict": "Another instructor already uses this code",
+  "instructor.validation.nationalIdConflict":
+    "Another instructor already uses this national id",
+  "instructor.validation.uniqueConflict": "Instructor code or national id is already in use",
+  "instructor.validation.rowVersionRequired": "Row version is required",
+  "instructor.validation.concurrencyConflict":
+    "This record was updated by someone else. Close the form and try again with the latest data.",
+  "instructor.validation.generic": "Something went wrong while saving the instructor",
+
+  // Route validation (returned by RoutesController as errorCodes)
+  "route.validation.required": "This field is required",
+  "route.validation.invalidCode": "Route code must be between {min} and {max} characters",
+  "route.validation.invalidCatalogValue": "Supported values: {values}",
+  "route.validation.invalidDistance": "Distance must be between {min} and {max} km",
+  "route.validation.invalidDuration": "Duration must be between {min} and {max} minutes",
+  "route.validation.invalidSortField": "Sort field is not valid",
+  "route.validation.invalidSortDirection": "Sort direction is not valid",
+  "route.validation.invalidActivityFilter": "Supported values: {values}",
+  "route.validation.codeConflict": "Another route already uses this code",
+  "route.validation.rowVersionRequired": "Row version is required",
+  "route.validation.concurrencyConflict":
+    "This record was updated by someone else. Close the form and try again with the latest data.",
+  "route.validation.generic": "Something went wrong while saving the route",
+
+  // Area validation (returned by AreasController as errorCodes)
+  "area.validation.required": "This field is required",
+  "area.validation.invalidCode": "Area code must be between {min} and {max} characters",
+  "area.validation.invalidCatalogValue": "Supported values: {values}",
+  "area.validation.invalidCapacity": "Capacity must be between {min} and {max}",
+  "area.validation.invalidSortField": "Sort field is not valid",
+  "area.validation.invalidSortDirection": "Sort direction is not valid",
+  "area.validation.invalidActivityFilter": "Supported values: {values}",
+  "area.validation.codeConflict": "Another area already uses this code",
+  "area.validation.rowVersionRequired": "Row version is required",
+  "area.validation.concurrencyConflict":
+    "This record was updated by someone else. Close the form and try again with the latest data.",
+  "area.validation.generic": "Something went wrong while saving the area",
+
+  // License class definition validation
+  "licenseClassDefinition.validation.required": "This field is required",
+  "licenseClassDefinition.validation.invalidCode":
+    "License class code must be between {min} and {max} characters",
+  "licenseClassDefinition.validation.invalidCatalogValue": "Supported values: {values}",
+  "licenseClassDefinition.validation.invalidSortField": "Sort field is not valid",
+  "licenseClassDefinition.validation.invalidSortDirection": "Sort direction is not valid",
+  "licenseClassDefinition.validation.invalidActivityFilter": "Supported values: {values}",
+  "licenseClassDefinition.validation.invalidAge":
+    "Minimum age must be between {min} and {max}",
+  "licenseClassDefinition.validation.invalidHours":
+    "Lesson hours must be between {min} and {max}",
+  "licenseClassDefinition.validation.invalidFee": "Fee must be between {min} and {max}",
+  "licenseClassDefinition.validation.invalidDisplayOrder":
+    "Display order must be between {min} and {max}",
+  "licenseClassDefinition.validation.codeConflict":
+    "Another license class already uses this code",
+  "licenseClassDefinition.validation.rowVersionRequired": "Row version is required",
+  "licenseClassDefinition.validation.concurrencyConflict":
+    "This record was updated by someone else. Close the form and try again with the latest data.",
+  "licenseClassDefinition.validation.generic":
+    "Something went wrong while saving the license class",
+
+  // Candidate validation (returned by CandidatesController as errorCodes)
+  "candidate.validation.required": "This field is required",
+  "candidate.validation.tagNameRequired": "Tag name is required",
+  "candidate.validation.invalidLicenseClass": "Supported values: {values}",
+  "candidate.validation.invalidStatus": "Supported values: {values}",
+  "candidate.validation.invalidMebSyncStatus": "Supported values: {values}",
+  "candidate.validation.invalidGender": "Supported values: {values}",
+  "candidate.validation.invalidESinavTab": "Supported values: havuz, basarisiz, randevulu",
+  "candidate.validation.invalidExamDateType": "Supported values: e_sinav, uygulama",
+  "candidate.validation.invalidExistingLicenseType": "Existing license type is invalid",
+  "candidate.validation.invalidExamAttemptCount":
+    "Exam attempt count must be between {min} and {max}",
+  "candidate.validation.eSinavRescheduleLimit":
+    "E-Sinav attempt limit reached ({max}). Cannot assign a new exam date.",
+  "candidate.validation.existingLicenseConsistency":
+    "Existing license fields must be provided together",
+  "candidate.validation.invalidSortField": "Sort field is not valid",
+  "candidate.validation.invalidSortDirection": "Sort direction is not valid",
+  "candidate.validation.invalidTag": "Tag is invalid",
+  "candidate.validation.nationalIdConflict": "This national ID is already registered",
+  "candidate.validation.rowVersionRequired": "Row version is required",
+  "candidate.validation.concurrencyConflict":
+    "This candidate was updated by someone else. Return to the list and reopen to retry.",
+  "candidate.validation.generic": "Something went wrong while saving the candidate",
+
+  // Group validation (returned by GroupsController as errorCodes)
+  "group.validation.required": "This field is required",
+  "group.validation.invalidGroupNumber": "Group number must be between {min} and {max}",
+  "group.validation.invalidGroupBranch": "Group branch must be a single letter between A and Z",
+  "group.validation.invalidMebStatus": "Supported values: {values}",
+  "group.validation.termNotFound": "Selected term was not found",
+  "group.validation.startDateOutsideTerm": "Start date must be inside the selected term month",
+  "group.validation.hasActiveCandidates": "Group cannot be deleted while it still has active candidates",
+  "group.validation.rowVersionRequired": "Row version is required",
+  "group.validation.concurrencyConflict":
+    "This group was updated by someone else. Close the form and try again with the latest data.",
+  "group.validation.generic": "Something went wrong while saving the group",
+
+  // Term validation (returned by TermsController as errorCodes)
+  "term.validation.nameRequired": "Name is required when another term already exists in the same month",
+  "term.validation.hasActiveCandidates":
+    "Term cannot be deleted while it still has groups with active candidates",
+  "term.validation.rowVersionRequired": "Row version is required",
+  "term.validation.concurrencyConflict":
+    "This term was updated by someone else. Close the form and try again with the latest data.",
+  "term.validation.generic": "Something went wrong while saving the term",
 };
 
 export type TranslationKey = keyof typeof tr;

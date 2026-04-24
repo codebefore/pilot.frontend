@@ -3248,6 +3248,44 @@ button.tag-filter-summary-chip.active {
 }
 .pagination-info { font-size: 13px; color: var(--gray-600); }
 
+/* Page-size selector — sits left of the prev/next controls, auto-margin
+   pushes it away from the page buttons so pagination stays right-aligned. */
+.pagination-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+.pagination-page-size-label {
+  white-space: nowrap;
+}
+.pagination-page-size-select {
+  height: 28px;
+  padding: 0 24px 0 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background-color: var(--white);
+  color: var(--gray-900);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.pagination-page-size-select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.pagination-page-size-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ─── NOTIFICATIONS MENU ─── */
 .notif-menu-wrap { position: relative; }
 .notif-menu {

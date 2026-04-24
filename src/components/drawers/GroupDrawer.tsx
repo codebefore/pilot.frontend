@@ -12,7 +12,7 @@ import {
   GROUP_NUMBER_VALUES,
 } from "../../lib/group-code";
 import { ApiError } from "../../lib/http";
-import { useLanguage } from "../../lib/i18n";
+import { useLanguage, useT } from "../../lib/i18n";
 import { normalizeTextQuery } from "../../lib/search";
 import {
   formatDateTR,
@@ -43,6 +43,7 @@ type GroupDrawerProps = {
 
 export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
+  const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const [group, setGroup] = useState<GroupDetailResponse | null>(null);
@@ -155,11 +156,28 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
         capacity: group.capacity,
         startDate: group.startDate,
         mebStatus: normalizeGroupMebStatusValue(group.mebStatus),
+        rowVersion: group.rowVersion,
         ...patch,
       });
       setGroup({ ...updated, activeCandidates: group.activeCandidates });
       onUpdated?.();
-    } catch {
+    } catch (error) {
+      // 409 on RowVersion means someone else updated this group while the
+      // drawer was open. Our cached `group.rowVersion` is stale — surface
+      // via i18n, refresh the list, and force a reopen.
+      if (error instanceof ApiError) {
+        const concurrencyCode = "group.validation.concurrencyConflict";
+        const hasConcurrency = error.validationErrorCodes
+          ? Object.values(error.validationErrorCodes).some((codes) =>
+              codes.some((entry) => entry.code === concurrencyCode)
+            )
+          : false;
+        if (error.status === 409 && hasConcurrency) {
+          showToast(t(concurrencyCode), "error");
+          onUpdated?.();
+          throw new Error("save failed");
+        }
+      }
       showToast("Değişiklik kaydedilemedi", "error");
       throw new Error("save failed");
     }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
-import { VehicleFormModal } from "../modals/VehicleFormModal";
+import { InstructorFormModal } from "../modals/InstructorFormModal";
 import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
@@ -9,25 +9,27 @@ import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import {
-  deleteVehicle,
-  getVehicles,
-  type VehicleActivityFilter,
-  type VehicleSortDirection,
-  type VehicleSortField,
-} from "../../lib/vehicles-api";
+  deleteInstructor,
+  getInstructors,
+  type InstructorActivityFilter,
+  type InstructorSortDirection,
+  type InstructorSortField,
+} from "../../lib/instructors-api";
 import {
-  VEHICLE_STATUS_OPTIONS,
-  VEHICLE_STATUS_LABELS,
-  VEHICLE_TRANSMISSION_OPTIONS,
-  VEHICLE_TRANSMISSION_LABELS,
-  VEHICLE_TYPE_LABELS,
-} from "../../lib/vehicle-catalog";
+  INSTRUCTOR_BRANCH_LABELS,
+  INSTRUCTOR_BRANCH_OPTIONS,
+  INSTRUCTOR_EMPLOYMENT_LABELS,
+  INSTRUCTOR_EMPLOYMENT_OPTIONS,
+  INSTRUCTOR_ROLE_LABELS,
+  INSTRUCTOR_ROLE_OPTIONS,
+} from "../../lib/instructor-catalog";
 import type {
+  InstructorBranch,
+  InstructorEmploymentType,
+  InstructorListSummaryResponse,
+  InstructorResponse,
+  InstructorRole,
   LicenseClass,
-  VehicleListSummaryResponse,
-  VehicleResponse,
-  VehicleStatus,
-  VehicleTransmissionType,
 } from "../../lib/types";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 import {
@@ -38,150 +40,150 @@ import {
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
-type SortState = { field: VehicleSortField; direction: VehicleSortDirection } | null;
-type VehicleFilterValue<T extends string> = T | "all";
-type VehicleFilters = {
-  activity: VehicleActivityFilter;
-  status: VehicleFilterValue<VehicleStatus>;
-  licenseClass: VehicleFilterValue<LicenseClass>;
-  transmissionType: VehicleFilterValue<VehicleTransmissionType>;
+type SortState = { field: InstructorSortField; direction: InstructorSortDirection } | null;
+type InstructorFilterValue<T extends string> = T | "all";
+type InstructorFilters = {
+  activity: InstructorActivityFilter;
+  role: InstructorFilterValue<InstructorRole>;
+  employmentType: InstructorFilterValue<InstructorEmploymentType>;
+  branch: InstructorFilterValue<InstructorBranch>;
+  licenseClass: InstructorFilterValue<LicenseClass>;
 };
-type VehicleColumnId =
-  | "plateNumber"
-  | "brandModel"
-  | "vehicleType"
-  | "licenseClass"
-  | "transmissionType"
-  | "status"
+type InstructorColumnId =
+  | "code"
+  | "fullName"
+  | "role"
+  | "employmentType"
+  | "branches"
+  | "licenseClassCodes"
+  | "weeklyLessonHours"
   | "isActive";
-type VehicleColumnDef = {
-  id: VehicleColumnId;
+type InstructorColumnDef = {
+  id: InstructorColumnId;
   label: string;
-  sortField?: VehicleSortField;
-  renderCell: (vehicle: VehicleResponse) => React.ReactNode;
+  sortField?: InstructorSortField;
+  renderCell: (instructor: InstructorResponse) => React.ReactNode;
   skeletonWidth: number;
   skeletonKind?: "line" | "pill";
 };
 
-const EMPTY_SUMMARY: VehicleListSummaryResponse = {
+const EMPTY_SUMMARY: InstructorListSummaryResponse = {
   activeCount: 0,
-  inUseCount: 0,
-  maintenanceCount: 0,
-  idleCount: 0,
+  masterInstructorCount: 0,
+  specialistInstructorCount: 0,
+  practiceBranchCount: 0,
 };
 
-const VEHICLE_COLUMNS: VehicleColumnDef[] = [
+const INSTRUCTOR_COLUMNS: InstructorColumnDef[] = [
   {
-    id: "plateNumber",
-    label: "Plaka",
-    sortField: "plateNumber",
-    renderCell: (vehicle) => <strong>{vehicle.plateNumber}</strong>,
-    skeletonWidth: 84,
+    id: "code",
+    label: "Kod",
+    sortField: "code",
+    renderCell: (instructor) => <strong>{instructor.code}</strong>,
+    skeletonWidth: 76,
   },
   {
-    id: "brandModel",
-    label: "Marka / Model",
-    sortField: "brandModel",
-    renderCell: (vehicle) => (
+    id: "fullName",
+    label: "Ad Soyad",
+    sortField: "fullName",
+    renderCell: (instructor) => (
       <div>
-        {vehicle.brand}
-        {vehicle.model ? ` ${vehicle.model}` : ""}
-        {vehicle.modelYear ? ` · ${vehicle.modelYear}` : ""}
+        {instructor.firstName} {instructor.lastName}
+        {instructor.mebbisPermitNo ? (
+          <div className="settings-table-secondary">MEBBİS: {instructor.mebbisPermitNo}</div>
+        ) : null}
       </div>
     ),
     skeletonWidth: 180,
   },
   {
-    id: "vehicleType",
-    label: "Tür",
-    sortField: "vehicleType",
-    renderCell: (vehicle) => VEHICLE_TYPE_LABELS[vehicle.vehicleType],
-    skeletonWidth: 88,
+    id: "role",
+    label: "Görev",
+    sortField: "role",
+    renderCell: (instructor) => INSTRUCTOR_ROLE_LABELS[instructor.role],
+    skeletonWidth: 120,
   },
   {
-    id: "licenseClass",
+    id: "employmentType",
+    label: "Statü",
+    sortField: "employmentType",
+    renderCell: (instructor) => INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType],
+    skeletonWidth: 110,
+  },
+  {
+    id: "branches",
+    label: "Branş",
+    sortField: "branch",
+    renderCell: (instructor) =>
+      instructor.branches.map((branch) => INSTRUCTOR_BRANCH_LABELS[branch]).join(", "),
+    skeletonWidth: 160,
+  },
+  {
+    id: "licenseClassCodes",
     label: "Belge",
     sortField: "licenseClass",
-    renderCell: (vehicle) => vehicle.licenseClass,
-    skeletonWidth: 44,
+    renderCell: (instructor) => instructor.licenseClassCodes.join(", "),
+    skeletonWidth: 78,
   },
   {
-    id: "transmissionType",
-    label: "Vites",
-    sortField: "transmissionType",
-    renderCell: (vehicle) => VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType],
-    skeletonWidth: 76,
-  },
-  {
-    id: "status",
-    label: "Araç Durumu",
-    sortField: "status",
-    renderCell: (vehicle) => (
-      <StatusPill
-        label={VEHICLE_STATUS_LABELS[vehicle.status]}
-        status={
-          vehicle.status === "in_use"
-            ? "running"
-            : vehicle.status === "maintenance"
-              ? "retry"
-              : "manual"
-        }
-      />
-    ),
-    skeletonWidth: 90,
-    skeletonKind: "pill",
+    id: "weeklyLessonHours",
+    label: "Haftalık Saat",
+    sortField: "weeklyLessonHours",
+    renderCell: (instructor) => instructor.weeklyLessonHours ?? "-",
+    skeletonWidth: 70,
   },
   {
     id: "isActive",
     label: "Genel Durum",
     sortField: "isActive",
-    renderCell: (vehicle) => (
+    renderCell: (instructor) => (
       <StatusPill
-        label={vehicle.isActive ? "Aktif" : "Pasif"}
-        status={vehicle.isActive ? "success" : "manual"}
+        label={instructor.isActive ? "Aktif" : "Pasif"}
+        status={instructor.isActive ? "success" : "manual"}
       />
     ),
     skeletonWidth: 74,
     skeletonKind: "pill",
   },
 ];
-const VEHICLE_COLUMN_IDS = VEHICLE_COLUMNS.map((column) => column.id);
-const VEHICLE_COLUMN_PICKER_OPTIONS: ColumnOption[] = VEHICLE_COLUMNS.map((column) => ({
+const INSTRUCTOR_COLUMN_IDS = INSTRUCTOR_COLUMNS.map((column) => column.id);
+const INSTRUCTOR_COLUMN_PICKER_OPTIONS: ColumnOption[] = INSTRUCTOR_COLUMNS.map((column) => ({
   id: column.id,
   label: column.label,
 }));
-const DEFAULT_FILTERS: VehicleFilters = {
+const DEFAULT_FILTERS: InstructorFilters = {
   activity: "active",
-  status: "all",
+  role: "all",
+  employmentType: "all",
+  branch: "all",
   licenseClass: "all",
-  transmissionType: "all",
 };
 
-export function VehiclesSettingsSection() {
+export function InstructorsSettingsSection() {
   const { showToast } = useToast();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.vehicles.columns.v1",
-    VEHICLE_COLUMN_IDS
+    "settings.instructors.columns.v1",
+    INSTRUCTOR_COLUMN_IDS
   );
 
-  const [items, setItems] = useState<VehicleResponse[]>([]);
+  const [items, setItems] = useState<InstructorResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [summary, setSummary] = useState<VehicleListSummaryResponse>(EMPTY_SUMMARY);
+  const [summary, setSummary] = useState<InstructorListSummaryResponse>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
-  const [filters, setFilters] = useState<VehicleFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<InstructorFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<VehicleResponse | null>(null);
-  const [confirmDeleteVehicleId, setConfirmDeleteVehicleId] = useState<string | null>(null);
-  const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<InstructorResponse | null>(null);
+  const [confirmDeleteInstructorId, setConfirmDeleteInstructorId] = useState<string | null>(null);
+  const [deletingInstructorId, setDeletingInstructorId] = useState<string | null>(null);
   const { options: licenseClassOptions } = useLicenseClassOptions();
-  const visibleColumns = VEHICLE_COLUMNS.filter((column) => isVisible(column.id));
+  const visibleColumns = INSTRUCTOR_COLUMNS.filter((column) => isVisible(column.id));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -191,14 +193,14 @@ export function VehiclesSettingsSection() {
       page,
       pageSize,
       search: search.trim() || undefined,
-      status: filters.status !== "all" ? filters.status : undefined,
+      role: filters.role !== "all" ? filters.role : undefined,
+      employmentType: filters.employmentType !== "all" ? filters.employmentType : undefined,
+      branch: filters.branch !== "all" ? filters.branch : undefined,
       licenseClass: filters.licenseClass !== "all" ? filters.licenseClass : undefined,
-      transmissionType:
-        filters.transmissionType !== "all" ? filters.transmissionType : undefined,
       ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
     };
 
-    getVehicles(query, controller.signal)
+    getInstructors(query, controller.signal)
       .then((response) => {
         setItems(response.items);
         setTotalCount(response.totalCount);
@@ -207,7 +209,7 @@ export function VehiclesSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Araç listesi yüklenemedi", "error");
+        showToast("Eğitmen listesi yüklenemedi", "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -221,27 +223,28 @@ export function VehiclesSettingsSection() {
   const counts = useMemo(() => {
     return {
       total: totalCount,
-      idle: summary.idleCount,
-      inUse: summary.inUseCount,
-      maintenance: summary.maintenanceCount,
+      active: summary.activeCount,
+      master: summary.masterInstructorCount,
+      practice: summary.practiceBranchCount,
     };
   }, [summary, totalCount]);
 
   const hasActiveFilters =
     search.trim().length > 0 ||
     filters.activity !== DEFAULT_FILTERS.activity ||
-    filters.status !== DEFAULT_FILTERS.status ||
-    filters.licenseClass !== DEFAULT_FILTERS.licenseClass ||
-    filters.transmissionType !== DEFAULT_FILTERS.transmissionType;
+    filters.role !== DEFAULT_FILTERS.role ||
+    filters.employmentType !== DEFAULT_FILTERS.employmentType ||
+    filters.branch !== DEFAULT_FILTERS.branch ||
+    filters.licenseClass !== DEFAULT_FILTERS.licenseClass;
 
-  const handleSaved = (_saved: VehicleResponse) => {
+  const handleSaved = (_saved: InstructorResponse) => {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
-    showToast(editing ? "Araç kaydı güncellendi" : "Araç kaydı oluşturuldu");
+    showToast(editing ? "Eğitmen kaydı güncellendi" : "Eğitmen kaydı oluşturuldu");
   };
 
-  const handleSortToggle = (field: VehicleSortField) => {
+  const handleSortToggle = (field: InstructorSortField) => {
     setPage(1);
     setSort((current) => {
       if (!current || current.field !== field) {
@@ -255,44 +258,49 @@ export function VehiclesSettingsSection() {
   };
 
   const handleColumnToggle = (id: string) => {
-    const column = VEHICLE_COLUMNS.find((item) => item.id === id);
+    const column = INSTRUCTOR_COLUMNS.find((item) => item.id === id);
     if (column?.sortField && isVisible(id) && sort?.field === column.sortField) {
       setSort(null);
     }
     if (isVisible(id)) {
       if (id === "isActive") {
         setFilter("activity", DEFAULT_FILTERS.activity);
-      } else if (id === "status") {
-        setFilter("status", DEFAULT_FILTERS.status);
-      } else if (id === "licenseClass") {
+      } else if (id === "role") {
+        setFilter("role", DEFAULT_FILTERS.role);
+      } else if (id === "employmentType") {
+        setFilter("employmentType", DEFAULT_FILTERS.employmentType);
+      } else if (id === "branches") {
+        setFilter("branch", DEFAULT_FILTERS.branch);
+      } else if (id === "licenseClassCodes") {
         setFilter("licenseClass", DEFAULT_FILTERS.licenseClass);
-      } else if (id === "transmissionType") {
-        setFilter("transmissionType", DEFAULT_FILTERS.transmissionType);
       }
     }
     toggleColumn(id);
   };
 
-  const setFilter = <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => {
+  const setFilter = <K extends keyof InstructorFilters>(
+    key: K,
+    value: InstructorFilters[K]
+  ) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
   };
 
-  const handleDelete = async (vehicle: VehicleResponse) => {
-    setDeletingVehicleId(vehicle.id);
+  const handleDelete = async (instructor: InstructorResponse) => {
+    setDeletingInstructorId(instructor.id);
     try {
-      await deleteVehicle(vehicle.id);
-      setConfirmDeleteVehicleId(null);
-      showToast("Araç silindi");
+      await deleteInstructor(instructor.id);
+      setConfirmDeleteInstructorId(null);
+      showToast("Eğitmen silindi");
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast("Araç silinemedi", "error");
+      showToast("Eğitmen silinemedi", "error");
     } finally {
-      setDeletingVehicleId(null);
+      setDeletingInstructorId(null);
     }
   };
 
@@ -301,26 +309,26 @@ export function VehiclesSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Araç</span>
+            <span className="settings-summary-label">Toplam Eğitmen</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Boşta</span>
-            <strong className="settings-summary-value">{counts.idle}</strong>
+            <span className="settings-summary-label">Aktif</span>
+            <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Kullanımda</span>
-            <strong className="settings-summary-value">{counts.inUse}</strong>
+            <span className="settings-summary-label">Usta Öğretici</span>
+            <strong className="settings-summary-value">{counts.master}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Bakımda</span>
-            <strong className="settings-summary-value">{counts.maintenance}</strong>
+            <span className="settings-summary-label">Uygulama Branşı</span>
+            <strong className="settings-summary-value">{counts.practice}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Araç Listesi</div>
+            <div className="settings-surface-title">Eğitmen Listesi</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -329,7 +337,7 @@ export function VehiclesSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder="Plaka, marka veya model ara"
+                  placeholder="Kod, ad, TC veya izin no ara"
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -357,7 +365,7 @@ export function VehiclesSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Araç
+                Yeni Eğitmen
               </button>
             </div>
           </div>
@@ -382,12 +390,21 @@ export function VehiclesSettingsSection() {
                         sort={sort}
                       />
                     ) : (
-                      <th key={column.id}>{column.label}</th>
+                      <PlainTh
+                        filterControl={buildColumnFilterControl(
+                          column.id,
+                          filters,
+                          setFilter,
+                          licenseClassOptions
+                        )}
+                        key={column.id}
+                        label={column.label}
+                      />
                     )
                   )}
                   <th className="col-picker-th">
                     <ColumnPicker
-                      columns={VEHICLE_COLUMN_PICKER_OPTIONS}
+                      columns={INSTRUCTOR_COLUMN_PICKER_OPTIONS}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
                       triggerTitle="Sütunlar"
@@ -419,7 +436,7 @@ export function VehiclesSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      Araç kaydı bulunmuyor.
+                      Eğitmen kaydı bulunmuyor.
                     </td>
                   </tr>
                 ) : (
@@ -431,28 +448,28 @@ export function VehiclesSettingsSection() {
                       <td className="col-picker-td">
                         <div
                           className={
-                            confirmDeleteVehicleId === item.id
+                            confirmDeleteInstructorId === item.id
                               ? "table-row-actions table-row-actions-confirm"
                               : "table-row-actions"
                           }
                         >
-                          {confirmDeleteVehicleId === item.id ? (
+                          {confirmDeleteInstructorId === item.id ? (
                             <>
                               <button
                                 className="btn btn-secondary btn-sm"
-                                disabled={deletingVehicleId === item.id}
-                                onClick={() => setConfirmDeleteVehicleId(null)}
+                                disabled={deletingInstructorId === item.id}
+                                onClick={() => setConfirmDeleteInstructorId(null)}
                                 type="button"
                               >
                                 Vazgeç
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
-                                disabled={deletingVehicleId === item.id}
+                                disabled={deletingInstructorId === item.id}
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingVehicleId === item.id ? "Siliniyor..." : "Sil"}
+                                {deletingInstructorId === item.id ? "Siliniyor..." : "Sil"}
                               </button>
                             </>
                           ) : (
@@ -472,8 +489,8 @@ export function VehiclesSettingsSection() {
                               <button
                                 aria-label="Sil"
                                 className="icon-btn icon-btn-danger"
-                                disabled={deletingVehicleId !== null}
-                                onClick={() => setConfirmDeleteVehicleId(item.id)}
+                                disabled={deletingInstructorId !== null}
+                                onClick={() => setConfirmDeleteInstructorId(item.id)}
                                 title="Sil"
                                 type="button"
                               >
@@ -505,7 +522,7 @@ export function VehiclesSettingsSection() {
         </section>
       </div>
 
-      <VehicleFormModal
+      <InstructorFormModal
         editing={editing}
         onClose={() => {
           setFormOpen(false);
@@ -524,11 +541,11 @@ export function VehiclesSettingsSection() {
 }
 
 type SortableThProps = {
-  field: VehicleSortField;
+  field: InstructorSortField;
   filterControl?: React.ReactNode;
   label: string;
   sort: SortState;
-  onToggle: (field: VehicleSortField) => void;
+  onToggle: (field: InstructorSortField) => void;
 };
 
 function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThProps) {
@@ -560,17 +577,33 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
   );
 }
 
+type PlainThProps = {
+  filterControl?: React.ReactNode;
+  label: string;
+};
+
+function PlainTh({ filterControl, label }: PlainThProps) {
+  return (
+    <th>
+      <div className="sortable-th-shell">
+        <span>{label}</span>
+        {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+      </div>
+    </th>
+  );
+}
+
 function buildColumnFilterControl(
-  columnId: VehicleColumnId,
-  filters: VehicleFilters,
-  setFilter: <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => void,
+  columnId: InstructorColumnId,
+  filters: InstructorFilters,
+  setFilter: <K extends keyof InstructorFilters>(key: K, value: InstructorFilters[K]) => void,
   licenseClassOptions: LicenseClassOption[]
 ) {
   if (columnId === "isActive") {
     return (
       <TableHeaderFilter
         active={filters.activity !== DEFAULT_FILTERS.activity}
-        onChange={(nextValue) => setFilter("activity", nextValue as VehicleActivityFilter)}
+        onChange={(nextValue) => setFilter("activity", nextValue as InstructorActivityFilter)}
         options={[
           { value: "active", label: "Aktif" },
           { value: "all", label: "Tümü" },
@@ -582,30 +615,68 @@ function buildColumnFilterControl(
     );
   }
 
-  if (columnId === "status") {
+  if (columnId === "role") {
     return (
       <TableHeaderFilter
-        active={filters.status !== DEFAULT_FILTERS.status}
-        onChange={(nextValue) => setFilter("status", nextValue as VehicleFilters["status"])}
+        active={filters.role !== DEFAULT_FILTERS.role}
+        onChange={(nextValue) => setFilter("role", nextValue as InstructorFilters["role"])}
         options={[
           { value: "all", label: "Tümü" },
-          ...VEHICLE_STATUS_OPTIONS.map((option) => ({
+          ...INSTRUCTOR_ROLE_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Araç Durumu filtresi"
-        value={filters.status}
+        title="Görev filtresi"
+        value={filters.role}
       />
     );
   }
 
-  if (columnId === "licenseClass") {
+  if (columnId === "employmentType") {
+    return (
+      <TableHeaderFilter
+        active={filters.employmentType !== DEFAULT_FILTERS.employmentType}
+        onChange={(nextValue) =>
+          setFilter("employmentType", nextValue as InstructorFilters["employmentType"])
+        }
+        options={[
+          { value: "all", label: "Tümü" },
+          ...INSTRUCTOR_EMPLOYMENT_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          })),
+        ]}
+        title="Statü filtresi"
+        value={filters.employmentType}
+      />
+    );
+  }
+
+  if (columnId === "branches") {
+    return (
+      <TableHeaderFilter
+        active={filters.branch !== DEFAULT_FILTERS.branch}
+        onChange={(nextValue) => setFilter("branch", nextValue as InstructorFilters["branch"])}
+        options={[
+          { value: "all", label: "Tümü" },
+          ...INSTRUCTOR_BRANCH_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          })),
+        ]}
+        title="Branş filtresi"
+        value={filters.branch}
+      />
+    );
+  }
+
+  if (columnId === "licenseClassCodes") {
     return (
       <TableHeaderFilter
         active={filters.licenseClass !== DEFAULT_FILTERS.licenseClass}
         onChange={(nextValue) =>
-          setFilter("licenseClass", nextValue as VehicleFilters["licenseClass"])
+          setFilter("licenseClass", nextValue as InstructorFilters["licenseClass"])
         }
         options={[
           { value: "all", label: "Tümü" },
@@ -616,26 +687,6 @@ function buildColumnFilterControl(
         ]}
         title="Belge filtresi"
         value={filters.licenseClass}
-      />
-    );
-  }
-
-  if (columnId === "transmissionType") {
-    return (
-      <TableHeaderFilter
-        active={filters.transmissionType !== DEFAULT_FILTERS.transmissionType}
-        onChange={(nextValue) =>
-          setFilter("transmissionType", nextValue as VehicleFilters["transmissionType"])
-        }
-        options={[
-          { value: "all", label: "Tümü" },
-          ...VEHICLE_TRANSMISSION_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          })),
-        ]}
-        title="Vites filtresi"
-        value={filters.transmissionType}
       />
     );
   }

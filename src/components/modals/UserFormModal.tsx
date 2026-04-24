@@ -215,9 +215,10 @@ export function UserFormModal({
         </div>
 
         <div className="form-row full">
-          <label className="form-checkbox">
+          <label className="switch-toggle">
             <input type="checkbox" {...register("isActive")} />
-            <span>Aktif</span>
+            <span className="switch-toggle-control" aria-hidden="true" />
+            <span>{watch("isActive") ? "Aktif" : "Pasif"}</span>
           </label>
         </div>
       </form>

@@ -6,16 +6,14 @@ import type {
   TriState,
 } from "../../lib/candidate-filters";
 import { getGroups } from "../../lib/groups-api";
-import {
-  CANDIDATE_GENDER_OPTIONS,
-  LICENSE_CLASS_OPTIONS,
-} from "../../lib/status-maps";
+import { CANDIDATE_GENDER_OPTIONS } from "../../lib/status-maps";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import type {
   CandidateGenderValue,
   GroupResponse,
   LicenseClass,
 } from "../../lib/types";
+import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
@@ -60,6 +58,7 @@ export function CandidateFilterPanel({
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const wasOpenRef = useRef(false);
   const [groups, setGroups] = useState<GroupResponse[]>([]);
+  const { options: licenseClassOptions } = useLicenseClassOptions();
 
   // Lazily fetch the group catalog the first time the panel opens so the
   // group filter can resolve ids into readable "{title} · {term}" labels.
@@ -240,7 +239,7 @@ export function CandidateFilterPanel({
               value={filters.licenseClass}
             >
               <option value="">{t("candidates.col.licenseClass")}</option>
-              {LICENSE_CLASS_OPTIONS.map((option) => (
+              {licenseClassOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

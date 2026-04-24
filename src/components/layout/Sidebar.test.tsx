@@ -101,4 +101,21 @@ describe("Sidebar live stats", () => {
     expect(screen.getByRole("link", { name: "E-Sınav" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "Uygulama" })).toBeInTheDocument();
   });
+
+  it("renders training submenu and highlights the active child route", async () => {
+    getSidebarStatsMock.mockResolvedValue({
+      candidates: { total: 8, active: 4 },
+      groups: { total: 2 },
+      documents: { missingCount: 0 },
+      mebJobs: { failed: 0, manualReview: 0 },
+    });
+
+    renderSidebar("/training/uygulama");
+
+    await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument());
+
+    expect(screen.getByRole("link", { name: "Eğitim Planı" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "Uygulama Eğitim" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toBeInTheDocument();
+  });
 });

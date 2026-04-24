@@ -2,6 +2,10 @@ import { useMemo, useState, type ChangeEvent } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
+import { AreasSettingsSection } from "../components/settings/AreasSettingsSection";
+import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
+import { LicenseClassDefinitionsSettingsSection } from "../components/settings/LicenseClassDefinitionsSettingsSection";
+import { RoutesSettingsSection } from "../components/settings/RoutesSettingsSection";
 import { VehiclesSettingsSection } from "../components/settings/VehiclesSettingsSection";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { StatusPill } from "../components/ui/StatusPill";
@@ -10,7 +14,14 @@ import { useToast } from "../components/ui/Toast";
 type InstitutionType = "MTSK" | "ISMAK" | "SRC" | "PSI";
 type ConnectionStatus = "connected" | "attention";
 type CityOption = "Istanbul" | "Ankara" | "Izmir" | "Bursa" | "Kocaeli" | "Antalya";
-type SettingsSectionKey = "general" | "integrations" | "vehicles";
+type SettingsSectionKey =
+  | "general"
+  | "integrations"
+  | "vehicles"
+  | "instructors"
+  | "licenseClasses"
+  | "routes"
+  | "areas";
 
 type SettingsFormValues = {
   institutionName: string;
@@ -105,6 +116,11 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     title: "Tanimlar",
     items: [
       {
+        label: "Ehliyet Tipleri",
+        description: "Sınıf, yaş, ders saati ve ücret tanımları",
+        to: "/settings/definitions/license-classes",
+      },
+      {
         label: "Araclar",
         description: "Uygulama ve planlama araclari",
         to: "/settings/definitions/vehicles",
@@ -112,17 +128,17 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       {
         label: "Egitmenler",
         description: "Uygulama hoca ve atama havuzu",
-        badge: "Yakinda",
+        to: "/settings/definitions/instructors",
       },
       {
         label: "Guzergahlar",
         description: "Sinav ve ders guzergah tanimlari",
-        badge: "Yakinda",
+        to: "/settings/definitions/routes",
       },
       {
         label: "Alanlar",
         description: "Sinif, saha ve operasyon alanlari",
-        badge: "Yakinda",
+        to: "/settings/definitions/areas",
       },
     ],
   },
@@ -145,6 +161,22 @@ function isSettingsDirty(current: SettingsFormValues, saved: SettingsFormValues)
 }
 
 function getActiveSection(pathname: string): SettingsSectionKey {
+  if (pathname.includes("/settings/definitions/license-classes")) {
+    return "licenseClasses";
+  }
+
+  if (pathname.includes("/settings/definitions/areas")) {
+    return "areas";
+  }
+
+  if (pathname.includes("/settings/definitions/routes")) {
+    return "routes";
+  }
+
+  if (pathname.includes("/settings/definitions/instructors")) {
+    return "instructors";
+  }
+
   if (pathname.includes("/settings/definitions/vehicles")) {
     return "vehicles";
   }
@@ -362,17 +394,19 @@ function IntegrationSettingsSection({
               </div>
 
               <div className="settings-checkbox-list">
-                <label className="form-checkbox">
+                <label className="switch-toggle">
                   <input checked={values.syncEnabled} onChange={onInputChange("syncEnabled")} type="checkbox" />
+                  <span className="switch-toggle-control" aria-hidden="true" />
                   <span>Otomatik senkron acik</span>
                 </label>
 
-                <label className="form-checkbox">
+                <label className="switch-toggle">
                   <input
                     checked={values.retryEnabled}
                     onChange={onInputChange("retryEnabled")}
                     type="checkbox"
                   />
+                  <span className="switch-toggle-control" aria-hidden="true" />
                   <span>Hata durumunda otomatik tekrar dene</span>
                 </label>
               </div>
@@ -561,7 +595,14 @@ export function SettingsPage() {
                 path="integrations"
               />
               <Route element={<Navigate replace to="vehicles" />} path="definitions" />
+              <Route
+                element={<LicenseClassDefinitionsSettingsSection />}
+                path="definitions/license-classes"
+              />
               <Route element={<VehiclesSettingsSection />} path="definitions/vehicles" />
+              <Route element={<InstructorsSettingsSection />} path="definitions/instructors" />
+              <Route element={<RoutesSettingsSection />} path="definitions/routes" />
+              <Route element={<AreasSettingsSection />} path="definitions/areas" />
               <Route element={<Navigate replace to="general" />} path="*" />
             </Routes>
           </div>

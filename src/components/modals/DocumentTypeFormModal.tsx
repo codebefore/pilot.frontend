@@ -363,14 +363,16 @@ export function DocumentTypeFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-checkbox">
+            <label className="switch-toggle">
               <input type="checkbox" {...register("isRequired")} />
+              <span className="switch-toggle-control" aria-hidden="true" />
               <span>{t("documentTypeForm.isRequired")}</span>
             </label>
           </div>
           <div className="form-group">
-            <label className="form-checkbox">
+            <label className="switch-toggle">
               <input type="checkbox" {...register("isActive")} />
+              <span className="switch-toggle-control" aria-hidden="true" />
               <span>{t("documentTypeForm.isActive")}</span>
             </label>
           </div>

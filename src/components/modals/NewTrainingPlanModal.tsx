@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
+import type { LicenseClass } from "../../lib/types";
+import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { Modal } from "../ui/Modal";
 import { CustomSelect } from "../ui/CustomSelect";
 
@@ -8,7 +10,7 @@ type PlanType = "teorik" | "uygulama";
 
 type NewTrainingPlanForm = {
   type: PlanType;
-  className: "B" | "A2" | "C" | "D" | "E";
+  className: LicenseClass;
   instructor: string;
   vehicle: string;
   totalHours: number;
@@ -16,20 +18,22 @@ type NewTrainingPlanForm = {
 
 type NewTrainingPlanModalProps = {
   open: boolean;
+  defaultType?: PlanType;
   onClose: () => void;
   onSubmit: () => void;
 };
 
-const DEFAULT_VALUES: NewTrainingPlanForm = {
-  type: "teorik",
+const buildDefaultValues = (type: PlanType): NewTrainingPlanForm => ({
+  type,
   className: "B",
   instructor: "",
   vehicle: "",
   totalHours: 32,
-};
+});
 
 export function NewTrainingPlanModal({
   open,
+  defaultType = "teorik",
   onClose,
   onSubmit,
 }: NewTrainingPlanModalProps) {
@@ -37,13 +41,28 @@ export function NewTrainingPlanModal({
     register,
     handleSubmit,
     reset,
+    setValue,
     watch,
     formState: { errors },
-  } = useForm<NewTrainingPlanForm>({ defaultValues: DEFAULT_VALUES });
+  } = useForm<NewTrainingPlanForm>({ defaultValues: buildDefaultValues(defaultType) });
+  const { options: licenseClassOptions } = useLicenseClassOptions();
 
   useEffect(() => {
-    if (!open) reset(DEFAULT_VALUES);
-  }, [open, reset]);
+    if (!open) reset(buildDefaultValues(defaultType));
+  }, [defaultType, open, reset]);
+
+  const selectedClass = watch("className");
+  useEffect(() => {
+    if (!open || licenseClassOptions.length === 0) return;
+    if (licenseClassOptions.some((option) => option.value === selectedClass)) {
+      return;
+    }
+
+    setValue("className", licenseClassOptions[0].value, {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+  }, [licenseClassOptions, open, selectedClass, setValue]);
 
   const submit = handleSubmit(() => onSubmit());
 
@@ -81,11 +100,11 @@ export function NewTrainingPlanModal({
           <div className="form-group">
             <label className="form-label">Sınıf</label>
             <CustomSelect className="form-select" {...register("className", { required: true })}>
-              <option value="B">B — Otomobil</option>
-              <option value="A2">A2 — Motosiklet</option>
-              <option value="C">C — Kamyon</option>
-              <option value="D">D — Otobüs</option>
-              <option value="E">E — Dorseli</option>
+              {licenseClassOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </CustomSelect>
           </div>
         </div>

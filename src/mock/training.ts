@@ -1,5 +1,6 @@
 export type TrainingPlan = {
   id: string;
+  type: "teorik" | "uygulama";
   title: string;
   instructor: string;
   vehicle?: string;
@@ -11,6 +12,7 @@ export type TrainingPlan = {
 export const mockTrainingPlans: TrainingPlan[] = [
   {
     id: "tp1",
+    type: "teorik",
     title: "Teorik Eğitim — B Sınıfı",
     instructor: "Hasan Korkmaz",
     totalHours: "32 saat",
@@ -19,6 +21,7 @@ export const mockTrainingPlans: TrainingPlan[] = [
   },
   {
     id: "tp2",
+    type: "uygulama",
     title: "Uygulama — B Sınıfı",
     instructor: "Kemal Aydın",
     vehicle: "34 ABC 123 — Fiat Egea",

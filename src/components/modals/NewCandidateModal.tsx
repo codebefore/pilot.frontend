@@ -13,6 +13,7 @@ import {
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import type { CandidateGenderValue, GroupResponse, LicenseClass, TermResponse } from "../../lib/types";
+import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
@@ -105,6 +106,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   } = useForm<NewCandidateForm>({ defaultValues: defaultValues() });
 
   const selectedClass = watch("className");
+  const { options: licenseClassOptions } = useLicenseClassOptions();
   const selectedGender = watch("gender");
   const selectedGroupId = watch("groupId");
   const hasExistingLicense = watch("hasExistingLicense");
@@ -126,6 +128,18 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const existingLicenseIssuedAtRegistration = register("existingLicenseIssuedAt", {
     validate: (value) => !hasExistingLicense || !!value || "Zorunlu alan",
   });
+
+  useEffect(() => {
+    if (!open || licenseClassOptions.length === 0) return;
+    if (licenseClassOptions.some((option) => option.value === selectedClass)) {
+      return;
+    }
+
+    setValue("className", licenseClassOptions[0].value, {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+  }, [licenseClassOptions, open, selectedClass, setValue]);
 
   // Reset form when modal closes
   useEffect(() => {
@@ -277,11 +291,11 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               value={selectedClass}
               {...classRegistration}
             >
-              <option value="B">B — Otomobil</option>
-              <option value="A2">A2 — Motosiklet</option>
-              <option value="C">C — Kamyon</option>
-              <option value="D">D — Otobüs</option>
-              <option value="E">E — Dorseli</option>
+              {licenseClassOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </CustomSelect>
           </div>
         </div>

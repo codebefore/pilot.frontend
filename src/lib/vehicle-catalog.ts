@@ -1,5 +1,4 @@
 import type {
-  LicenseClass,
   VehicleFuelType,
   VehicleOdometerUnit,
   VehicleOwnershipType,
@@ -7,6 +6,7 @@ import type {
   VehicleTransmissionType,
   VehicleType,
 } from "./types";
+import { REFERENCE_LICENSE_CLASS_OPTIONS } from "./use-license-class-options";
 
 type Option<T extends string> = {
   value: T;
@@ -54,13 +54,7 @@ export const VEHICLE_ODOMETER_UNIT_OPTIONS: Option<VehicleOdometerUnit>[] = [
   { value: "hour", label: "Saat" },
 ];
 
-export const VEHICLE_LICENSE_CLASS_OPTIONS: Option<LicenseClass>[] = [
-  { value: "B", label: "B" },
-  { value: "A2", label: "A2" },
-  { value: "C", label: "C" },
-  { value: "D", label: "D" },
-  { value: "E", label: "E" },
-];
+export const VEHICLE_LICENSE_CLASS_OPTIONS = [...REFERENCE_LICENSE_CLASS_OPTIONS];
 
 function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string> {
   return options.reduce(

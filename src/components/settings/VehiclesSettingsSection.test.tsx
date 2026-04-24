@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../../lib/http";
 import { renderWithProviders } from "../../test/render-with-providers";
 import { VehiclesSettingsSection } from "./VehiclesSettingsSection";
 
@@ -45,6 +46,7 @@ const sampleVehicle = {
   notes: null,
   createdAtUtc: "2026-01-01T00:00:00Z",
   updatedAtUtc: "2026-01-01T00:00:00Z",
+  rowVersion: 1,
 };
 
 describe("VehiclesSettingsSection", () => {
@@ -110,7 +112,7 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Bakımda" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Belge filtresi" }));
-    fireEvent.click(screen.getByRole("button", { name: "A2" }));
+    fireEvent.click(screen.getByRole("button", { name: /^A2 -/ }));
 
     fireEvent.click(screen.getByRole("button", { name: "Vites filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: "Otomatik" }));
@@ -292,6 +294,29 @@ describe("VehiclesSettingsSection", () => {
     });
   });
 
+  it("shows unmapped server validation errors as a toast", async () => {
+    updateVehicleMock.mockRejectedValueOnce(
+      new ApiError(
+        400,
+        "Bad Request",
+        { RowVersion: ["Row version is required."] },
+        {
+          RowVersion: [
+            { code: "vehicle.validation.rowVersionRequired" },
+          ],
+        }
+      )
+    );
+
+    renderWithProviders(<VehiclesSettingsSection />);
+    await screen.findByText("34 ABC 123");
+
+    fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    expect(await screen.findByText("Kayıt sürümü zorunlu")).toBeInTheDocument();
+  });
+
   it("submits canonical payload when creating", async () => {
     renderWithProviders(<VehiclesSettingsSection />);
     await waitFor(() => expect(getVehiclesMock).toHaveBeenCalled());
@@ -299,7 +324,7 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));
 
     expect(screen.getByRole("button", { name: "Otomobil" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "B" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /B .*Otomobil/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Düz" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Boşta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Satın Alındı" })).toBeInTheDocument();
@@ -323,7 +348,7 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.change(screen.getByDisplayValue("Otomobil"), {
       target: { value: "motorcycle" },
     });
-    fireEvent.change(screen.getByDisplayValue("B"), {
+    fireEvent.change(screen.getByDisplayValue(/B .*Otomobil/), {
       target: { value: "A2" },
     });
     fireEvent.change(screen.getByDisplayValue("Düz"), {

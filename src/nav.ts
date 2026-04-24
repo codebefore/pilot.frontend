@@ -50,7 +50,16 @@ export const navSections: NavSection[] = [
       { key: "groups",     path: "/groups",     labelKey: "nav.groups",     Icon: GroupsIcon },
       { key: "documents",  path: "/documents",  labelKey: "nav.documents",  Icon: DocumentsIcon },
       { key: "payments",   path: "/payments",   labelKey: "nav.payments",   Icon: PaymentsIcon },
-      { key: "training",   path: "/training",   labelKey: "nav.training",   Icon: TrainingIcon },
+      {
+        key: "training",
+        path: "/training",
+        labelKey: "nav.training",
+        Icon: TrainingIcon,
+        children: [
+          { key: "trainingTeorik", path: "/training/teorik", labelKey: "nav.trainingTeorik" },
+          { key: "trainingUygulama", path: "/training/uygulama", labelKey: "nav.trainingUygulama" },
+        ],
+      },
       {
         key: "exams",
         path: "/exams",

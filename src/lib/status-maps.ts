@@ -1,14 +1,11 @@
 import type { JobStatus } from "../types";
 import type { CandidateGenderValue } from "./types";
+import { REFERENCE_LICENSE_CLASS_OPTIONS } from "./use-license-class-options";
 
 /* ── Shared select options ── */
 
 export const LICENSE_CLASS_OPTIONS: { value: string; label: string }[] = [
-  { value: "B",  label: "B — Otomobil" },
-  { value: "A2", label: "A2 — Motosiklet" },
-  { value: "C",  label: "C — Kamyon" },
-  { value: "D",  label: "D — Otobüs" },
-  { value: "E",  label: "E — Dorseli" },
+  ...REFERENCE_LICENSE_CLASS_OPTIONS,
 ];
 
 export const EXISTING_LICENSE_TYPE_OPTIONS: { value: string; label: string }[] = [

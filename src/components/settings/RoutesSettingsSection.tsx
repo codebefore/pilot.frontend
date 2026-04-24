@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
-import { VehicleFormModal } from "../modals/VehicleFormModal";
+import { RouteFormModal } from "../modals/RouteFormModal";
 import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
@@ -9,179 +9,165 @@ import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import {
-  deleteVehicle,
-  getVehicles,
-  type VehicleActivityFilter,
-  type VehicleSortDirection,
-  type VehicleSortField,
-} from "../../lib/vehicles-api";
+  deleteRoute,
+  getRoutes,
+  type RouteActivityFilter,
+  type RouteSortDirection,
+  type RouteSortField,
+} from "../../lib/routes-api";
 import {
-  VEHICLE_STATUS_OPTIONS,
-  VEHICLE_STATUS_LABELS,
-  VEHICLE_TRANSMISSION_OPTIONS,
-  VEHICLE_TRANSMISSION_LABELS,
-  VEHICLE_TYPE_LABELS,
-} from "../../lib/vehicle-catalog";
+  ROUTE_USAGE_LABELS,
+  ROUTE_USAGE_OPTIONS,
+} from "../../lib/route-catalog";
 import type {
-  LicenseClass,
-  VehicleListSummaryResponse,
-  VehicleResponse,
-  VehicleStatus,
-  VehicleTransmissionType,
+  RouteListSummaryResponse,
+  RouteResponse,
+  RouteUsageType,
 } from "../../lib/types";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
-import {
-  type LicenseClassOption,
-  useLicenseClassOptions,
-} from "../../lib/use-license-class-options";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
-type SortState = { field: VehicleSortField; direction: VehicleSortDirection } | null;
-type VehicleFilterValue<T extends string> = T | "all";
-type VehicleFilters = {
-  activity: VehicleActivityFilter;
-  status: VehicleFilterValue<VehicleStatus>;
-  licenseClass: VehicleFilterValue<LicenseClass>;
-  transmissionType: VehicleFilterValue<VehicleTransmissionType>;
+type SortState = { field: RouteSortField; direction: RouteSortDirection } | null;
+type RouteFilterValue<T extends string> = T | "all";
+type RouteFilters = {
+  activity: RouteActivityFilter;
+  usageType: RouteFilterValue<RouteUsageType>;
 };
-type VehicleColumnId =
-  | "plateNumber"
-  | "brandModel"
-  | "vehicleType"
-  | "licenseClass"
-  | "transmissionType"
-  | "status"
+type RouteColumnId =
+  | "code"
+  | "name"
+  | "usageType"
+  | "district"
+  | "distanceKm"
+  | "estimatedDurationMinutes"
   | "isActive";
-type VehicleColumnDef = {
-  id: VehicleColumnId;
+type RouteColumnDef = {
+  id: RouteColumnId;
   label: string;
-  sortField?: VehicleSortField;
-  renderCell: (vehicle: VehicleResponse) => React.ReactNode;
+  sortField?: RouteSortField;
+  renderCell: (route: RouteResponse) => React.ReactNode;
   skeletonWidth: number;
   skeletonKind?: "line" | "pill";
 };
 
-const EMPTY_SUMMARY: VehicleListSummaryResponse = {
+const EMPTY_SUMMARY: RouteListSummaryResponse = {
   activeCount: 0,
-  inUseCount: 0,
-  maintenanceCount: 0,
-  idleCount: 0,
+  practiceRouteCount: 0,
+  examRouteCount: 0,
 };
 
-const VEHICLE_COLUMNS: VehicleColumnDef[] = [
+function formatDistance(value: number | null): string {
+  if (value === null || value === undefined) return "-";
+  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} km`;
+}
+
+function formatDuration(value: number | null): string {
+  if (value === null || value === undefined) return "-";
+  return `${value} dk`;
+}
+
+const ROUTE_COLUMNS: RouteColumnDef[] = [
   {
-    id: "plateNumber",
-    label: "Plaka",
-    sortField: "plateNumber",
-    renderCell: (vehicle) => <strong>{vehicle.plateNumber}</strong>,
-    skeletonWidth: 84,
-  },
-  {
-    id: "brandModel",
-    label: "Marka / Model",
-    sortField: "brandModel",
-    renderCell: (vehicle) => (
-      <div>
-        {vehicle.brand}
-        {vehicle.model ? ` ${vehicle.model}` : ""}
-        {vehicle.modelYear ? ` · ${vehicle.modelYear}` : ""}
-      </div>
-    ),
-    skeletonWidth: 180,
-  },
-  {
-    id: "vehicleType",
-    label: "Tür",
-    sortField: "vehicleType",
-    renderCell: (vehicle) => VEHICLE_TYPE_LABELS[vehicle.vehicleType],
-    skeletonWidth: 88,
-  },
-  {
-    id: "licenseClass",
-    label: "Belge",
-    sortField: "licenseClass",
-    renderCell: (vehicle) => vehicle.licenseClass,
-    skeletonWidth: 44,
-  },
-  {
-    id: "transmissionType",
-    label: "Vites",
-    sortField: "transmissionType",
-    renderCell: (vehicle) => VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType],
+    id: "code",
+    label: "Kod",
+    sortField: "code",
+    renderCell: (route) => <strong>{route.code}</strong>,
     skeletonWidth: 76,
   },
   {
-    id: "status",
-    label: "Araç Durumu",
-    sortField: "status",
-    renderCell: (vehicle) => (
-      <StatusPill
-        label={VEHICLE_STATUS_LABELS[vehicle.status]}
-        status={
-          vehicle.status === "in_use"
-            ? "running"
-            : vehicle.status === "maintenance"
-              ? "retry"
-              : "manual"
-        }
-      />
+    id: "name",
+    label: "Güzergah",
+    sortField: "name",
+    renderCell: (route) => (
+      <div>
+        {route.name}
+        {route.startLocation || route.endLocation ? (
+          <div className="settings-table-secondary">
+            {[route.startLocation, route.endLocation].filter(Boolean).join(" → ")}
+          </div>
+        ) : null}
+      </div>
     ),
-    skeletonWidth: 90,
-    skeletonKind: "pill",
+    skeletonWidth: 200,
+  },
+  {
+    id: "usageType",
+    label: "Kullanım",
+    sortField: "usageType",
+    renderCell: (route) => ROUTE_USAGE_LABELS[route.usageType],
+    skeletonWidth: 120,
+  },
+  {
+    id: "district",
+    label: "Bölge",
+    sortField: "district",
+    renderCell: (route) => route.district ?? "-",
+    skeletonWidth: 110,
+  },
+  {
+    id: "distanceKm",
+    label: "Mesafe",
+    sortField: "distanceKm",
+    renderCell: (route) => formatDistance(route.distanceKm),
+    skeletonWidth: 70,
+  },
+  {
+    id: "estimatedDurationMinutes",
+    label: "Süre",
+    sortField: "estimatedDurationMinutes",
+    renderCell: (route) => formatDuration(route.estimatedDurationMinutes),
+    skeletonWidth: 70,
   },
   {
     id: "isActive",
     label: "Genel Durum",
     sortField: "isActive",
-    renderCell: (vehicle) => (
+    renderCell: (route) => (
       <StatusPill
-        label={vehicle.isActive ? "Aktif" : "Pasif"}
-        status={vehicle.isActive ? "success" : "manual"}
+        label={route.isActive ? "Aktif" : "Pasif"}
+        status={route.isActive ? "success" : "manual"}
       />
     ),
     skeletonWidth: 74,
     skeletonKind: "pill",
   },
 ];
-const VEHICLE_COLUMN_IDS = VEHICLE_COLUMNS.map((column) => column.id);
-const VEHICLE_COLUMN_PICKER_OPTIONS: ColumnOption[] = VEHICLE_COLUMNS.map((column) => ({
+const ROUTE_COLUMN_IDS = ROUTE_COLUMNS.map((column) => column.id);
+const ROUTE_COLUMN_PICKER_OPTIONS: ColumnOption[] = ROUTE_COLUMNS.map((column) => ({
   id: column.id,
   label: column.label,
 }));
-const DEFAULT_FILTERS: VehicleFilters = {
+const DEFAULT_FILTERS: RouteFilters = {
   activity: "active",
-  status: "all",
-  licenseClass: "all",
-  transmissionType: "all",
+  usageType: "all",
 };
 
-export function VehiclesSettingsSection() {
+export function RoutesSettingsSection() {
   const { showToast } = useToast();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.vehicles.columns.v1",
-    VEHICLE_COLUMN_IDS
+    "settings.routes.columns.v1",
+    ROUTE_COLUMN_IDS
   );
 
-  const [items, setItems] = useState<VehicleResponse[]>([]);
+  const [items, setItems] = useState<RouteResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [summary, setSummary] = useState<VehicleListSummaryResponse>(EMPTY_SUMMARY);
+  const [summary, setSummary] = useState<RouteListSummaryResponse>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
-  const [filters, setFilters] = useState<VehicleFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<RouteFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<VehicleResponse | null>(null);
-  const [confirmDeleteVehicleId, setConfirmDeleteVehicleId] = useState<string | null>(null);
-  const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
-  const { options: licenseClassOptions } = useLicenseClassOptions();
-  const visibleColumns = VEHICLE_COLUMNS.filter((column) => isVisible(column.id));
+  const [editing, setEditing] = useState<RouteResponse | null>(null);
+  const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null);
+  const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
+  const visibleColumns = ROUTE_COLUMNS.filter((column) => isVisible(column.id));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -191,14 +177,11 @@ export function VehiclesSettingsSection() {
       page,
       pageSize,
       search: search.trim() || undefined,
-      status: filters.status !== "all" ? filters.status : undefined,
-      licenseClass: filters.licenseClass !== "all" ? filters.licenseClass : undefined,
-      transmissionType:
-        filters.transmissionType !== "all" ? filters.transmissionType : undefined,
+      usageType: filters.usageType !== "all" ? filters.usageType : undefined,
       ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
     };
 
-    getVehicles(query, controller.signal)
+    getRoutes(query, controller.signal)
       .then((response) => {
         setItems(response.items);
         setTotalCount(response.totalCount);
@@ -207,7 +190,7 @@ export function VehiclesSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Araç listesi yüklenemedi", "error");
+        showToast("Güzergah listesi yüklenemedi", "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -221,27 +204,25 @@ export function VehiclesSettingsSection() {
   const counts = useMemo(() => {
     return {
       total: totalCount,
-      idle: summary.idleCount,
-      inUse: summary.inUseCount,
-      maintenance: summary.maintenanceCount,
+      active: summary.activeCount,
+      practice: summary.practiceRouteCount,
+      exam: summary.examRouteCount,
     };
   }, [summary, totalCount]);
 
   const hasActiveFilters =
     search.trim().length > 0 ||
     filters.activity !== DEFAULT_FILTERS.activity ||
-    filters.status !== DEFAULT_FILTERS.status ||
-    filters.licenseClass !== DEFAULT_FILTERS.licenseClass ||
-    filters.transmissionType !== DEFAULT_FILTERS.transmissionType;
+    filters.usageType !== DEFAULT_FILTERS.usageType;
 
-  const handleSaved = (_saved: VehicleResponse) => {
+  const handleSaved = (_saved: RouteResponse) => {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
-    showToast(editing ? "Araç kaydı güncellendi" : "Araç kaydı oluşturuldu");
+    showToast(editing ? "Güzergah kaydı güncellendi" : "Güzergah kaydı oluşturuldu");
   };
 
-  const handleSortToggle = (field: VehicleSortField) => {
+  const handleSortToggle = (field: RouteSortField) => {
     setPage(1);
     setSort((current) => {
       if (!current || current.field !== field) {
@@ -255,44 +236,43 @@ export function VehiclesSettingsSection() {
   };
 
   const handleColumnToggle = (id: string) => {
-    const column = VEHICLE_COLUMNS.find((item) => item.id === id);
+    const column = ROUTE_COLUMNS.find((item) => item.id === id);
     if (column?.sortField && isVisible(id) && sort?.field === column.sortField) {
       setSort(null);
     }
     if (isVisible(id)) {
       if (id === "isActive") {
         setFilter("activity", DEFAULT_FILTERS.activity);
-      } else if (id === "status") {
-        setFilter("status", DEFAULT_FILTERS.status);
-      } else if (id === "licenseClass") {
-        setFilter("licenseClass", DEFAULT_FILTERS.licenseClass);
-      } else if (id === "transmissionType") {
-        setFilter("transmissionType", DEFAULT_FILTERS.transmissionType);
+      } else if (id === "usageType") {
+        setFilter("usageType", DEFAULT_FILTERS.usageType);
       }
     }
     toggleColumn(id);
   };
 
-  const setFilter = <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => {
+  const setFilter = <K extends keyof RouteFilters>(
+    key: K,
+    value: RouteFilters[K]
+  ) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
   };
 
-  const handleDelete = async (vehicle: VehicleResponse) => {
-    setDeletingVehicleId(vehicle.id);
+  const handleDelete = async (route: RouteResponse) => {
+    setDeletingRouteId(route.id);
     try {
-      await deleteVehicle(vehicle.id);
-      setConfirmDeleteVehicleId(null);
-      showToast("Araç silindi");
+      await deleteRoute(route.id);
+      setConfirmDeleteRouteId(null);
+      showToast("Güzergah silindi");
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast("Araç silinemedi", "error");
+      showToast("Güzergah silinemedi", "error");
     } finally {
-      setDeletingVehicleId(null);
+      setDeletingRouteId(null);
     }
   };
 
@@ -301,26 +281,26 @@ export function VehiclesSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Araç</span>
+            <span className="settings-summary-label">Toplam Güzergah</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Boşta</span>
-            <strong className="settings-summary-value">{counts.idle}</strong>
+            <span className="settings-summary-label">Aktif</span>
+            <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Kullanımda</span>
-            <strong className="settings-summary-value">{counts.inUse}</strong>
+            <span className="settings-summary-label">Uygulama</span>
+            <strong className="settings-summary-value">{counts.practice}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Bakımda</span>
-            <strong className="settings-summary-value">{counts.maintenance}</strong>
+            <span className="settings-summary-label">Sınav</span>
+            <strong className="settings-summary-value">{counts.exam}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Araç Listesi</div>
+            <div className="settings-surface-title">Güzergah Listesi</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -329,7 +309,7 @@ export function VehiclesSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder="Plaka, marka veya model ara"
+                  placeholder="Kod, ad, bölge veya nokta ara"
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -357,7 +337,7 @@ export function VehiclesSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Araç
+                Yeni Güzergah
               </button>
             </div>
           </div>
@@ -370,24 +350,23 @@ export function VehiclesSettingsSection() {
                     column.sortField ? (
                       <SortableTh
                         field={column.sortField}
-                        filterControl={buildColumnFilterControl(
-                          column.id,
-                          filters,
-                          setFilter,
-                          licenseClassOptions
-                        )}
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
                         key={column.id}
                         label={column.label}
                         onToggle={handleSortToggle}
                         sort={sort}
                       />
                     ) : (
-                      <th key={column.id}>{column.label}</th>
+                      <PlainTh
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                        key={column.id}
+                        label={column.label}
+                      />
                     )
                   )}
                   <th className="col-picker-th">
                     <ColumnPicker
-                      columns={VEHICLE_COLUMN_PICKER_OPTIONS}
+                      columns={ROUTE_COLUMN_PICKER_OPTIONS}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
                       triggerTitle="Sütunlar"
@@ -419,7 +398,7 @@ export function VehiclesSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      Araç kaydı bulunmuyor.
+                      Güzergah kaydı bulunmuyor.
                     </td>
                   </tr>
                 ) : (
@@ -431,28 +410,28 @@ export function VehiclesSettingsSection() {
                       <td className="col-picker-td">
                         <div
                           className={
-                            confirmDeleteVehicleId === item.id
+                            confirmDeleteRouteId === item.id
                               ? "table-row-actions table-row-actions-confirm"
                               : "table-row-actions"
                           }
                         >
-                          {confirmDeleteVehicleId === item.id ? (
+                          {confirmDeleteRouteId === item.id ? (
                             <>
                               <button
                                 className="btn btn-secondary btn-sm"
-                                disabled={deletingVehicleId === item.id}
-                                onClick={() => setConfirmDeleteVehicleId(null)}
+                                disabled={deletingRouteId === item.id}
+                                onClick={() => setConfirmDeleteRouteId(null)}
                                 type="button"
                               >
                                 Vazgeç
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
-                                disabled={deletingVehicleId === item.id}
+                                disabled={deletingRouteId === item.id}
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingVehicleId === item.id ? "Siliniyor..." : "Sil"}
+                                {deletingRouteId === item.id ? "Siliniyor..." : "Sil"}
                               </button>
                             </>
                           ) : (
@@ -472,8 +451,8 @@ export function VehiclesSettingsSection() {
                               <button
                                 aria-label="Sil"
                                 className="icon-btn icon-btn-danger"
-                                disabled={deletingVehicleId !== null}
-                                onClick={() => setConfirmDeleteVehicleId(item.id)}
+                                disabled={deletingRouteId !== null}
+                                onClick={() => setConfirmDeleteRouteId(item.id)}
                                 title="Sil"
                                 type="button"
                               >
@@ -505,7 +484,7 @@ export function VehiclesSettingsSection() {
         </section>
       </div>
 
-      <VehicleFormModal
+      <RouteFormModal
         editing={editing}
         onClose={() => {
           setFormOpen(false);
@@ -524,11 +503,11 @@ export function VehiclesSettingsSection() {
 }
 
 type SortableThProps = {
-  field: VehicleSortField;
+  field: RouteSortField;
   filterControl?: React.ReactNode;
   label: string;
   sort: SortState;
-  onToggle: (field: VehicleSortField) => void;
+  onToggle: (field: RouteSortField) => void;
 };
 
 function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThProps) {
@@ -560,17 +539,32 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
   );
 }
 
+type PlainThProps = {
+  filterControl?: React.ReactNode;
+  label: string;
+};
+
+function PlainTh({ filterControl, label }: PlainThProps) {
+  return (
+    <th>
+      <div className="sortable-th-shell">
+        <span>{label}</span>
+        {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+      </div>
+    </th>
+  );
+}
+
 function buildColumnFilterControl(
-  columnId: VehicleColumnId,
-  filters: VehicleFilters,
-  setFilter: <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => void,
-  licenseClassOptions: LicenseClassOption[]
+  columnId: RouteColumnId,
+  filters: RouteFilters,
+  setFilter: <K extends keyof RouteFilters>(key: K, value: RouteFilters[K]) => void
 ) {
   if (columnId === "isActive") {
     return (
       <TableHeaderFilter
         active={filters.activity !== DEFAULT_FILTERS.activity}
-        onChange={(nextValue) => setFilter("activity", nextValue as VehicleActivityFilter)}
+        onChange={(nextValue) => setFilter("activity", nextValue as RouteActivityFilter)}
         options={[
           { value: "active", label: "Aktif" },
           { value: "all", label: "Tümü" },
@@ -582,60 +576,20 @@ function buildColumnFilterControl(
     );
   }
 
-  if (columnId === "status") {
+  if (columnId === "usageType") {
     return (
       <TableHeaderFilter
-        active={filters.status !== DEFAULT_FILTERS.status}
-        onChange={(nextValue) => setFilter("status", nextValue as VehicleFilters["status"])}
+        active={filters.usageType !== DEFAULT_FILTERS.usageType}
+        onChange={(nextValue) => setFilter("usageType", nextValue as RouteFilters["usageType"])}
         options={[
           { value: "all", label: "Tümü" },
-          ...VEHICLE_STATUS_OPTIONS.map((option) => ({
+          ...ROUTE_USAGE_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Araç Durumu filtresi"
-        value={filters.status}
-      />
-    );
-  }
-
-  if (columnId === "licenseClass") {
-    return (
-      <TableHeaderFilter
-        active={filters.licenseClass !== DEFAULT_FILTERS.licenseClass}
-        onChange={(nextValue) =>
-          setFilter("licenseClass", nextValue as VehicleFilters["licenseClass"])
-        }
-        options={[
-          { value: "all", label: "Tümü" },
-          ...licenseClassOptions.map((option) => ({
-            value: option.value,
-            label: option.label,
-          })),
-        ]}
-        title="Belge filtresi"
-        value={filters.licenseClass}
-      />
-    );
-  }
-
-  if (columnId === "transmissionType") {
-    return (
-      <TableHeaderFilter
-        active={filters.transmissionType !== DEFAULT_FILTERS.transmissionType}
-        onChange={(nextValue) =>
-          setFilter("transmissionType", nextValue as VehicleFilters["transmissionType"])
-        }
-        options={[
-          { value: "all", label: "Tümü" },
-          ...VEHICLE_TRANSMISSION_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          })),
-        ]}
-        title="Vites filtresi"
-        value={filters.transmissionType}
+        title="Kullanım filtresi"
+        value={filters.usageType}
       />
     );
   }

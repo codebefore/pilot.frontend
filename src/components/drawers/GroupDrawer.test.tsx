@@ -61,6 +61,7 @@ function buildGroup(overrides: Record<string, unknown> = {}) {
     mebStatus: "sent",
     createdAtUtc: "2026-04-12T10:00:00Z",
     updatedAtUtc: "2026-04-12T10:00:00Z",
+    rowVersion: 1,
     activeCandidates: [],
     ...overrides,
   };
@@ -177,6 +178,7 @@ describe("GroupDrawer", () => {
         expect.objectContaining({
           groupNumber: 3,
           groupBranch: "C",
+          rowVersion: 1,
         })
       );
     });

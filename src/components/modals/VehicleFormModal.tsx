@@ -4,15 +4,16 @@ import { Controller, useForm } from "react-hook-form";
 import { createVehicle, updateVehicle } from "../../lib/vehicles-api";
 import {
   VEHICLE_FUEL_OPTIONS,
-  VEHICLE_LICENSE_CLASS_OPTIONS,
   VEHICLE_ODOMETER_UNIT_OPTIONS,
   VEHICLE_OWNERSHIP_OPTIONS,
   VEHICLE_STATUS_OPTIONS,
   VEHICLE_TRANSMISSION_OPTIONS,
   VEHICLE_TYPE_OPTIONS,
 } from "../../lib/vehicle-catalog";
-import { ApiError } from "../../lib/http";
+import { ApiError, type ApiValidationError } from "../../lib/http";
+import { useT, type TranslationKey } from "../../lib/i18n";
 import type { VehicleResponse, VehicleUpsertRequest } from "../../lib/types";
+import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
@@ -45,6 +46,12 @@ type VehicleFormModalProps = {
   editing: VehicleResponse | null;
   onClose: () => void;
   onSaved: (saved: VehicleResponse) => void;
+  /**
+   * Invoked when the server reports a 409 concurrency conflict (someone else
+   * updated the record). The parent typically closes the modal, shows a
+   * toast, and refetches the list so the user can retry against fresh data.
+   */
+  onConcurrencyConflict?: () => void;
 };
 
 const VALIDATION_FIELD_MAP: Record<string, keyof VehicleFormValues> = {
@@ -125,14 +132,74 @@ function parseOptionalNumber(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+const CONCURRENCY_CODE = "vehicle.validation.concurrencyConflict";
+
+function hasConcurrencyError(
+  codes: Record<string, ApiValidationError[]> | undefined
+): boolean {
+  if (!codes) return false;
+  return Object.values(codes).some((errors) =>
+    errors.some((error) => error.code === CONCURRENCY_CODE)
+  );
+}
+
+function applyServerFieldErrors(
+  error: ApiError,
+  setError: (field: keyof VehicleFormValues, error: { message: string }) => void,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): { appliedFieldError: boolean; unmappedMessage: string | null } {
+  const codes = error.validationErrorCodes;
+  const fallback = error.validationErrors;
+  let appliedFieldError = false;
+  let unmappedMessage: string | null = null;
+
+  // Prefer structured codes when the server provided them: they translate and
+  // interpolate {min}/{max}/{values} cleanly. Fall back to the plain-text
+  // `errors` map only for fields the server didn't annotate with a code.
+  if (codes) {
+    for (const [serverField, fieldErrors] of Object.entries(codes)) {
+      const formField = VALIDATION_FIELD_MAP[serverField];
+      const first = fieldErrors[0];
+      if (!first) continue;
+      if (!formField) {
+        unmappedMessage ??= t(first.code as TranslationKey, first.params);
+        continue;
+      }
+      setError(formField, { message: t(first.code as TranslationKey, first.params) });
+      appliedFieldError = true;
+    }
+  }
+
+  if (fallback) {
+    for (const [serverField, messages] of Object.entries(fallback)) {
+      const formField = VALIDATION_FIELD_MAP[serverField];
+      if (!messages?.[0]) continue;
+      if (!formField) {
+        unmappedMessage ??= messages[0];
+        continue;
+      }
+      // Only use the plain text when the structured map didn't already cover
+      // the field — otherwise we would overwrite a translated message.
+      if (codes && codes[serverField]?.length) continue;
+      setError(formField, { message: messages[0] });
+      appliedFieldError = true;
+    }
+  }
+
+  return { appliedFieldError, unmappedMessage };
+}
+
 export function VehicleFormModal({
   open,
   editing,
   onClose,
   onSaved,
+  onConcurrencyConflict,
 }: VehicleFormModalProps) {
   const { showToast } = useToast();
+  const t = useT();
   const [submitting, setSubmitting] = useState(false);
+  const { options: licenseClassOptions } = useLicenseClassOptions();
 
   const {
     control,
@@ -141,15 +208,29 @@ export function VehicleFormModal({
     register,
     reset,
     setError,
+    setValue,
     watch,
   } = useForm<VehicleFormValues>({
     defaultValues: getEmptyValues(editing),
   });
+  const selectedLicenseClass = watch("licenseClass");
 
   useEffect(() => {
     if (!open) return;
     reset(getEmptyValues(editing));
   }, [editing, open, reset]);
+
+  useEffect(() => {
+    if (!open || licenseClassOptions.length === 0) return;
+    if (licenseClassOptions.some((option) => option.value === selectedLicenseClass)) {
+      return;
+    }
+
+    setValue("licenseClass", licenseClassOptions[0].value, {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+  }, [licenseClassOptions, open, selectedLicenseClass, setValue]);
 
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
@@ -170,6 +251,7 @@ export function VehicleFormModal({
       odometerValue: parseOptionalNumber(values.odometerValue),
       odometerUnit: values.odometerUnit,
       notes: values.notes.trim() || null,
+      ...(editing ? { rowVersion: editing.rowVersion } : {}),
     };
 
     try {
@@ -178,15 +260,23 @@ export function VehicleFormModal({
         : await createVehicle(payload);
       onSaved(saved);
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        for (const [serverField, messages] of Object.entries(error.validationErrors)) {
-          const formField = VALIDATION_FIELD_MAP[serverField];
-          if (formField && messages?.[0]) {
-            setError(formField, { message: messages[0] });
-          }
+      if (error instanceof ApiError) {
+        // 409 on the RowVersion field means a concurrent update. Surface it
+        // through the dedicated callback so the parent can close the modal
+        // and refetch — re-showing the form would just race again.
+        if (error.status === 409 && hasConcurrencyError(error.validationErrorCodes)) {
+          showToast(t("vehicle.validation.concurrencyConflict"), "error");
+          onConcurrencyConflict?.();
+          return;
+        }
+        const { appliedFieldError, unmappedMessage } = applyServerFieldErrors(error, setError, t);
+        if (unmappedMessage) {
+          showToast(unmappedMessage, "error");
+        } else if (!appliedFieldError) {
+          showToast(t("vehicle.validation.generic"), "error");
         }
       } else {
-        showToast("Araç kaydı sırasında hata oluştu", "error");
+        showToast(t("vehicle.validation.generic"), "error");
       }
     } finally {
       setSubmitting(false);
@@ -327,7 +417,7 @@ export function VehicleFormModal({
               name="licenseClass"
               render={({ field }) => (
                 <CustomSelect className={selectClass(errors.licenseClass?.message)} {...field}>
-                  {VEHICLE_LICENSE_CLASS_OPTIONS.map((option) => (
+                  {licenseClassOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>

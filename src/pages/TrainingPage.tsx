@@ -8,9 +8,15 @@ import { Panel } from "../components/ui/Panel";
 import { useToast } from "../components/ui/Toast";
 import { mockTrainingPlans } from "../mock/training";
 
-export function TrainingPage() {
+type TrainingPageProps = {
+  type: "teorik" | "uygulama";
+};
+
+export function TrainingPage({ type }: TrainingPageProps) {
   const { showToast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
+  const plans = mockTrainingPlans.filter((plan) => plan.type === type);
+  const title = type === "teorik" ? "Teorik Eğitim Planı" : "Uygulama Eğitim Planı";
 
   return (
     <>
@@ -24,11 +30,11 @@ export function TrainingPage() {
             Yeni Plan
           </button>
         }
-        title="Eğitim Planı"
+        title={title}
       />
 
       <div className="groups-grid">
-        {mockTrainingPlans.map((plan) => (
+        {plans.map((plan) => (
           <Panel key={plan.id} padded title={plan.title}>
             <DrawerRow label="Eğitmen">{plan.instructor}</DrawerRow>
             {plan.vehicle && <DrawerRow label="Araç">{plan.vehicle}</DrawerRow>}
@@ -48,6 +54,7 @@ export function TrainingPage() {
       </div>
 
       <NewTrainingPlanModal
+        defaultType={type}
         onClose={() => setModalOpen(false)}
         onSubmit={() => {
           setModalOpen(false);

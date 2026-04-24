@@ -85,6 +85,7 @@ export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps
         ? await updateTerm(term.id, {
             monthDate: normalizedMonthDate,
             name: data.name.trim() || null,
+            rowVersion: term.rowVersion,
           })
         : await createTerm({
             monthDate: normalizedMonthDate,
@@ -93,23 +94,40 @@ export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps
       showToast(t(isEditMode ? "terms.updated" : "terms.created"));
       onSaved(saved);
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        const monthError =
-          error.validationErrors.monthDate?.[0] ??
-          error.validationErrors.MonthDate?.[0];
-        if (monthError) {
-          setError("monthDate", { message: monthError });
+      if (error instanceof ApiError) {
+        // 409 on RowVersion means someone else updated this term while the
+        // modal was open. Surface via i18n, close the modal, and let the
+        // parent refetch the list on the next render.
+        const concurrencyCode = "term.validation.concurrencyConflict";
+        const hasConcurrency = error.validationErrorCodes
+          ? Object.values(error.validationErrorCodes).some((codes) =>
+              codes.some((entry) => entry.code === concurrencyCode)
+            )
+          : false;
+        if (error.status === 409 && hasConcurrency) {
+          showToast(t(concurrencyCode), "error");
+          onClose();
+          return;
         }
 
-        const nameError =
-          error.validationErrors.name?.[0] ??
-          error.validationErrors.Name?.[0];
-        if (nameError) {
-          setError("name", { message: nameError });
-        }
+        if (error.validationErrors) {
+          const monthError =
+            error.validationErrors.monthDate?.[0] ??
+            error.validationErrors.MonthDate?.[0];
+          if (monthError) {
+            setError("monthDate", { message: monthError });
+          }
 
-        showToast(t(isEditMode ? "terms.updateFailed" : "terms.createFailed"), "error");
-        return;
+          const nameError =
+            error.validationErrors.name?.[0] ??
+            error.validationErrors.Name?.[0];
+          if (nameError) {
+            setError("name", { message: nameError });
+          }
+
+          showToast(t(isEditMode ? "terms.updateFailed" : "terms.createFailed"), "error");
+          return;
+        }
       }
 
       showToast(t(isEditMode ? "terms.updateFailed" : "terms.createFailed"), "error");

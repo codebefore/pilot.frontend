@@ -80,7 +80,8 @@ const TAB_KEYS: CandidateTab[] = [
 ];
 const DEFAULT_TAB: CandidateTab = "active";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
 
@@ -508,6 +509,7 @@ export function CandidatesPage({
   >([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalPages, setTotalPages] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
   const [allTags, setAllTags] = useState<CandidateTag[]>([]);
@@ -640,7 +642,7 @@ export function CandidatesPage({
       sortBy: sort?.field,
       sortDir: sort?.direction,
       page,
-      pageSize: PAGE_SIZE,
+      pageSize,
     };
     const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
     if (lastCompletedFetchKeyRef.current === fetchKey) {
@@ -677,6 +679,7 @@ export function CandidatesPage({
     debouncedSearch,
     examDateFilterParams,
     page,
+    pageSize,
     refreshKey,
     resolvedTabConfig,
     showToast,
@@ -1359,7 +1362,7 @@ export function CandidatesPage({
           <tbody>
             {loading ? (
               <>
-                {Array.from({ length: PAGE_SIZE }, (_, i) => (
+                {Array.from({ length: Math.min(pageSize, 10) }, (_, i) => (
                   <tr key={i} style={{ pointerEvents: "none" }}>
                     {bulkSelectEnabled && <td className="cand-select-td" />}
                     {visibleColumns.map((col) => (
@@ -1415,7 +1418,18 @@ export function CandidatesPage({
         </table>
       </div>
 
-      <Pagination disabled={loading} onChange={setPage} page={page} totalPages={totalPages} />
+      <Pagination
+        disabled={loading}
+        onChange={setPage}
+        onPageSizeChange={(nextSize) => {
+          setPageSize(nextSize);
+          setPage(1);
+        }}
+        page={page}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        totalPages={totalPages}
+      />
     </>
   );
 

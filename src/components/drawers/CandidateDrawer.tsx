@@ -13,7 +13,7 @@ import {
   getDocumentTypes,
 } from "../../lib/documents-api";
 import { getGroups } from "../../lib/groups-api";
-import { useLanguage, useT } from "../../lib/i18n";
+import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { buildWhatsAppUrl, formatPhoneNumber } from "../../lib/phone";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
@@ -42,7 +42,7 @@ import type {
   DocumentTypeResponse,
   LicenseClass,
 } from "../../lib/types";
-import { ApiError } from "../../lib/http";
+import { ApiError, type ApiValidationError } from "../../lib/http";
 import { UploadDocumentModal } from "../modals/UploadDocumentModal";
 import { WhatsAppIcon } from "../icons";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
@@ -96,6 +96,24 @@ type ExistingLicenseDraft = {
   issuedProvince: string;
   pre2016: boolean;
 };
+
+/**
+ * Translate the first structured validation error the server returned and
+ * return the resolved message. Unknown codes fall back to the server's
+ * English message; returns null when no code map was supplied.
+ */
+function pickFirstCodedMessage(
+  codes: Record<string, ApiValidationError[]> | undefined,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): string | null {
+  if (!codes) return null;
+  for (const fieldErrors of Object.values(codes)) {
+    const first = fieldErrors[0];
+    if (!first) continue;
+    return t(first.code as TranslationKey, first.params);
+  }
+  return null;
+}
 
 function buildExistingLicenseDraft(candidate: CandidateResponse | null): ExistingLicenseDraft {
   return {
@@ -235,16 +253,41 @@ export function CandidateDrawer({
         status: normalizeCandidateStatusValue(candidate.status),
         examFeePaid: candidate.examFeePaid ?? false,
         tags: candidate.tags?.map((tag) => tag.name) ?? [],
+        rowVersion: candidate.rowVersion,
         ...patch,
       });
       setCandidate(updated);
       onUpdated?.();
     } catch (error) {
-      const validationMessage =
-        error instanceof ApiError
-          ? Object.values(error.validationErrors ?? {})[0]?.[0]
-          : null;
-      showToast(validationMessage ?? "Değişiklik kaydedilemedi", "error");
+      if (error instanceof ApiError) {
+        // 409 on RowVersion means someone else updated this candidate while
+        // we held the drawer open. Our cached `candidate.rowVersion` is stale
+        // — surface the conflict via i18n, refresh the list, and force the
+        // caller to reopen.
+        const concurrencyCode = "candidate.validation.concurrencyConflict";
+        const hasConcurrency = error.validationErrorCodes
+          ? Object.values(error.validationErrorCodes).some((codes) =>
+              codes.some((entry) => entry.code === concurrencyCode)
+            )
+          : false;
+        if (error.status === 409 && hasConcurrency) {
+          showToast(t(concurrencyCode as TranslationKey), "error");
+          onUpdated?.();
+          throw new Error("save failed");
+        }
+
+        // Prefer structured codes when present so {values}/{min}/{max} etc.
+        // interpolate cleanly; fall back to the server's English `errors`
+        // message, and finally to a generic banner.
+        const codedMessage = pickFirstCodedMessage(error.validationErrorCodes, t);
+        const fallbackMessage = Object.values(error.validationErrors ?? {})[0]?.[0];
+        showToast(
+          codedMessage ?? fallbackMessage ?? t("candidate.validation.generic"),
+          "error"
+        );
+        throw new Error("save failed");
+      }
+      showToast(t("candidate.validation.generic"), "error");
       throw new Error("save failed");
     }
   };

@@ -1,20 +1,35 @@
 import { getApiBaseUrl } from "./api";
 
+/**
+ * Structured validation error delivered through
+ * `ValidationProblemDetails.Extensions["errorCodes"]` by endpoints that opt
+ * into i18n-friendly error reporting. `code` is the
+ * translation key; `params` carries interpolation values (e.g. the list of
+ * allowed catalog values).
+ */
+export type ApiValidationError = {
+  code: string;
+  params?: Record<string, string>;
+};
+
 export class ApiError extends Error {
   status: number;
   statusText: string;
   validationErrors?: Record<string, string[]>;
+  validationErrorCodes?: Record<string, ApiValidationError[]>;
 
   constructor(
     status: number,
     statusText: string,
-    validationErrors?: Record<string, string[]>
+    validationErrors?: Record<string, string[]>,
+    validationErrorCodes?: Record<string, ApiValidationError[]>
   ) {
     super(`API error ${status}: ${statusText}`);
     this.name = "ApiError";
     this.status = status;
     this.statusText = statusText;
     this.validationErrors = validationErrors;
+    this.validationErrorCodes = validationErrorCodes;
   }
 }
 
@@ -58,13 +73,20 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     let validationErrors: Record<string, string[]> | undefined;
+    let validationErrorCodes: Record<string, ApiValidationError[]> | undefined;
     try {
       const body = await response.json();
       if (body?.errors) validationErrors = body.errors;
+      if (body?.errorCodes) validationErrorCodes = body.errorCodes;
     } catch {
       // ignore parse errors
     }
-    throw new ApiError(response.status, response.statusText, validationErrors);
+    throw new ApiError(
+      response.status,
+      response.statusText,
+      validationErrors,
+      validationErrorCodes
+    );
   }
 
   return response.json() as Promise<T>;
