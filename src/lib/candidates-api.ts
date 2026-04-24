@@ -23,7 +23,7 @@ export type CandidateSortField =
 export type SortDirection = "asc" | "desc";
 export type CandidateExamTabValue = "havuz" | "basarisiz" | "randevulu";
 export type ESinavTabValue = CandidateExamTabValue;
-export type CandidateExamDateType = "e_sinav" | "direksiyon";
+export type CandidateExamDateType = "e_sinav" | "uygulama";
 
 export interface GetCandidatesParams extends QueryParams {
   search?: string;

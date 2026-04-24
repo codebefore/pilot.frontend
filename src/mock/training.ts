@@ -19,7 +19,7 @@ export const mockTrainingPlans: TrainingPlan[] = [
   },
   {
     id: "tp2",
-    title: "Uygulama (Direksiyon) — B Sınıfı",
+    title: "Uygulama — B Sınıfı",
     instructor: "Kemal Aydın",
     vehicle: "34 ABC 123 — Fiat Egea",
     totalHours: "16 saat / aday",

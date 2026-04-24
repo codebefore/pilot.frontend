@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CandidatesPage } from "./CandidatesPage";
-import { ExamDireksiyonPage } from "./ExamDireksiyonPage";
+import { ExamUygulamaPage } from "./ExamUygulamaPage";
 import { ExamESinavPage } from "./ExamESinavPage";
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
 import { renderWithProviders } from "../test/render-with-providers";
@@ -86,7 +86,7 @@ function examScheduleOption(
   date: string,
   overrides: Partial<{
     id: string;
-    examType: "e_sinav" | "direksiyon";
+    examType: "e_sinav" | "uygulama";
     time: string;
     capacity: number;
     candidateCount: number;
@@ -120,10 +120,10 @@ function renderESinavPage() {
   );
 }
 
-function renderDireksiyonPage() {
+function renderUygulamaPage() {
   return renderWithProviders(
-    <MemoryRouter initialEntries={["/exams/direksiyon"]}>
-      <ExamDireksiyonPage />
+    <MemoryRouter initialEntries={["/exams/uygulama"]}>
+      <ExamUygulamaPage />
     </MemoryRouter>
   );
 }
@@ -222,8 +222,8 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("renders direksiyon tabs and defaults to the havuz filter", async () => {
-    renderDireksiyonPage();
+  it("renders uygulama tabs and defaults to the havuz filter", async () => {
+    renderUygulamaPage();
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenCalled();
@@ -240,8 +240,8 @@ describe("CandidatesPage tabs", () => {
     expect(screen.queryByRole("button", { name: "Tümü" })).not.toBeInTheDocument();
   });
 
-  it("sends the selected direksiyon tab key to the candidate query", async () => {
-    renderDireksiyonPage();
+  it("sends the selected uygulama tab key to the candidate query", async () => {
+    renderUygulamaPage();
 
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
@@ -285,12 +285,12 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("loads direksiyon date options without the havuz tab constraint", async () => {
-    renderDireksiyonPage();
+  it("loads uygulama date options without the havuz tab constraint", async () => {
+    renderUygulamaPage();
 
     await waitFor(() => {
       const params = getExamScheduleOptionsMock.mock.calls[0]?.[0];
-      expect(params.examType).toBe("direksiyon");
+      expect(params.examType).toBe("uygulama");
       expect(params.status).toBe("active");
       expect(params.drivingExamTab).toBeUndefined();
     });
@@ -482,10 +482,10 @@ describe("CandidatesPage tabs", () => {
     ).toBeInTheDocument();
   });
 
-  it("uses the new direksiyon column storage key so old visibility state is ignored", async () => {
-    localStorage.setItem("exams.direksiyon.columns.v2", JSON.stringify(["photo", "name"]));
+  it("uses the new uygulama column storage key so old visibility state is ignored", async () => {
+    localStorage.setItem("exams.uygulama.columns.v2", JSON.stringify(["photo", "name"]));
 
-    renderDireksiyonPage();
+    renderUygulamaPage();
 
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
@@ -497,20 +497,20 @@ describe("CandidatesPage tabs", () => {
     ).toBeInTheDocument();
   });
 
-  it("filters the direksiyon page by the selected driving exam date", async () => {
+  it("filters the uygulama page by the selected driving exam date", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-06-03", {
-        examType: "direksiyon",
+        examType: "uygulama",
         candidateCount: 2,
       }),
     ]);
 
-    renderDireksiyonPage();
+    renderUygulamaPage();
 
     await waitFor(() => {
       expect(getExamScheduleOptionsMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          examType: "direksiyon",
+          examType: "uygulama",
           status: "active",
         }),
         expect.any(AbortSignal)
@@ -539,10 +539,10 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("renders the direksiyon sidebar summary without license class counts", async () => {
+  it("renders the uygulama sidebar summary without license class counts", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-06-03", {
-        examType: "direksiyon",
+        examType: "uygulama",
         capacity: 12,
         candidateCount: 4,
         licenseClassCounts: [
@@ -552,7 +552,7 @@ describe("CandidatesPage tabs", () => {
       }),
     ]);
 
-    const view = renderDireksiyonPage();
+    const view = renderUygulamaPage();
     const sidebar = view.container.querySelector(".exam-date-sidebar-list") as HTMLElement | null;
     expect(sidebar).not.toBeNull();
     if (!sidebar) {
@@ -568,7 +568,7 @@ describe("CandidatesPage tabs", () => {
     expect(within(sidebar).queryByText(/B\(3\)|A2\(1\)/i)).not.toBeInTheDocument();
   });
 
-  it("renders one aggregate direksiyon license summary in the tag row", async () => {
+  it("renders one aggregate uygulama license summary in the tag row", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
@@ -579,7 +579,7 @@ describe("CandidatesPage tabs", () => {
     });
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-06-03", {
-        examType: "direksiyon",
+        examType: "uygulama",
         capacity: 10,
         candidateCount: 2,
         licenseClassCounts: [
@@ -587,7 +587,7 @@ describe("CandidatesPage tabs", () => {
         ],
       }),
       examScheduleOption("2026-06-07", {
-        examType: "direksiyon",
+        examType: "uygulama",
         capacity: 14,
         candidateCount: 2,
         licenseClassCounts: [
@@ -595,7 +595,7 @@ describe("CandidatesPage tabs", () => {
         ],
       }),
       examScheduleOption("2026-06-12", {
-        examType: "direksiyon",
+        examType: "uygulama",
         capacity: 12,
         candidateCount: 2,
         licenseClassCounts: [
@@ -603,7 +603,7 @@ describe("CandidatesPage tabs", () => {
         ],
       }),
       examScheduleOption("2026-06-20", {
-        examType: "direksiyon",
+        examType: "uygulama",
         capacity: 20,
         candidateCount: 2,
         licenseClassCounts: [
@@ -612,7 +612,7 @@ describe("CandidatesPage tabs", () => {
       }),
     ]);
 
-    const view = renderDireksiyonPage();
+    const view = renderUygulamaPage();
     const tagBar = view.container.querySelector(".tag-filter-bar") as HTMLElement | null;
 
     expect(tagBar).not.toBeNull();
@@ -796,8 +796,8 @@ describe("CandidatesPage tabs", () => {
 
     expect(screen.queryByRole("columnheader", { name: "E-Sınav Tarihi" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "E-Sınav Hakkı" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Direksiyon Tarihi" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Direksiyon Hakkı" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Uygulama Tarihi" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Uygulama Hakkı" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
     const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
@@ -808,8 +808,8 @@ describe("CandidatesPage tabs", () => {
 
     expect(within(picker).queryByText("E-Sınav Tarihi")).not.toBeInTheDocument();
     expect(within(picker).queryByText("E-Sınav Hakkı")).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Direksiyon Tarihi")).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Direksiyon Hakkı")).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Uygulama Tarihi")).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Uygulama Hakkı")).not.toBeInTheDocument();
   });
 
   it("keeps e-sinav date columns visible but out of the picker", async () => {
@@ -830,8 +830,8 @@ describe("CandidatesPage tabs", () => {
     expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
   });
 
-  it("keeps direksiyon date columns visible but out of the picker", async () => {
-    renderDireksiyonPage();
+  it("keeps uygulama date columns visible but out of the picker", async () => {
+    renderUygulamaPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     expect(await screen.findByRole("columnheader", { name: "Tarih" })).toBeInTheDocument();
@@ -1451,6 +1451,103 @@ describe("CandidatesPage tabs", () => {
         })
       );
     });
+  });
+
+  it("assigns selected candidates to the chosen e-sinav date in bulk", async () => {
+    const candidates = [
+      {
+        id: "cand-1",
+        firstName: "Ayse",
+        lastName: "Demir",
+        nationalId: "12345678901",
+        phoneNumber: null,
+        email: null,
+        birthDate: null,
+        gender: null,
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        mebExamDate: null,
+        drivingExamDate: null,
+        eSinavAttemptCount: 1,
+        drivingExamAttemptCount: 1,
+        currentGroup: null,
+        documentSummary: null,
+        mebExamResult: null,
+        createdAtUtc: "2026-04-01T10:00:00Z",
+        updatedAtUtc: "2026-04-02T10:00:00Z",
+      },
+    ];
+
+    getCandidatesMock.mockResolvedValue({
+      items: candidates,
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-05-12", {
+        candidateCount: 3,
+        time: "09:00",
+      }),
+    ]);
+    updateCandidateMock.mockResolvedValue({
+      ...candidates[0],
+      mebExamDate: "2026-05-12",
+    });
+
+    renderESinavPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sınav Tarihi Belirle" }));
+
+    const bulkExamDateSelect = screen.getByLabelText(
+      "Toplu sınav tarihi seç"
+    ) as HTMLSelectElement;
+    const optionLabels = Array.from(bulkExamDateSelect.querySelectorAll("option")).map(
+      (option) => option.textContent
+    );
+    expect(optionLabels).toContain("12.05.2026 09:00");
+    expect(optionLabels).not.toContain("12.05.2026 09:00 - 3 aday");
+
+    fireEvent.change(screen.getByLabelText("Toplu sınav tarihi seç"), {
+      target: { value: "2026-05-12" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "cand-1",
+        expect.objectContaining({
+          mebExamDate: "2026-05-12",
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: "active",
+          eSinavTab: "randevulu",
+          eSinavDate: "2026-05-12",
+          page: 1,
+          pageSize: 10,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Sınav Tarihi Belirle" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Toplu Seçim" })).toBeInTheDocument();
   });
 
   it("renames a tag from the global tag manager", async () => {

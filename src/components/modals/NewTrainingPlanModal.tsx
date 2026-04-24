@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { Modal } from "../ui/Modal";
 import { CustomSelect } from "../ui/CustomSelect";
 
-type PlanType = "teorik" | "direksiyon";
+type PlanType = "teorik" | "uygulama";
 
 type NewTrainingPlanForm = {
   type: PlanType;
@@ -51,7 +51,7 @@ export function NewTrainingPlanModal({
     hasError ? `${base} error` : base;
 
   const type = watch("type");
-  const needsVehicle = type === "direksiyon";
+  const needsVehicle = type === "uygulama";
 
   return (
     <Modal
@@ -75,7 +75,7 @@ export function NewTrainingPlanModal({
             <label className="form-label">Plan Tipi</label>
             <CustomSelect className="form-select" {...register("type", { required: true })}>
               <option value="teorik">Teorik</option>
-              <option value="direksiyon">Uygulama (Direksiyon)</option>
+              <option value="uygulama">Uygulama</option>
             </CustomSelect>
           </div>
           <div className="form-group">
@@ -132,7 +132,7 @@ export function NewTrainingPlanModal({
                 className={fieldClass(!!errors.vehicle, "form-input")}
                 placeholder="34 ABC 123 — Fiat Egea"
                 {...register("vehicle", {
-                  required: needsVehicle ? "Direksiyon için araç zorunlu" : false,
+                  required: needsVehicle ? "Uygulama için araç zorunlu" : false,
                 })}
               />
               {errors.vehicle && (

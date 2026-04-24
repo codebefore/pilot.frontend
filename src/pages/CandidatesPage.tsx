@@ -25,6 +25,7 @@ import {
   type CandidateFilterState,
 } from "../lib/candidate-filters";
 import {
+  assignCandidatesToExamDate,
   applyStatusToCandidates,
   applyTagsToCandidates,
 } from "../lib/candidate-bulk";
@@ -66,7 +67,7 @@ import type {
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
-type BulkActionMode = "status" | "tags" | "export" | null;
+type BulkActionMode = "status" | "tags" | "export" | "examDate" | null;
 type CandidateListTabKey = string;
 
 const TAB_KEYS: CandidateTab[] = [
@@ -84,7 +85,7 @@ const TEXT_DEBOUNCE_MS = 300;
 const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
 
 type SortState = { field: CandidateSortField; direction: SortDirection } | null;
-type CandidateColumnPageScope = "all" | "eSinav" | "direksiyon";
+type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
 
 export type CandidateColumnId =
   | "photo"
@@ -176,6 +177,15 @@ function sortExamDateOptionsNewestFirst(options: ExamScheduleOption[]): ExamSche
 
     return right.time.localeCompare(left.time);
   });
+}
+
+function formatBulkExamDateOptionLabel(
+  option: ExamScheduleOption,
+  showTime = true
+): string {
+  return showTime && option.time
+    ? `${formatDateTR(option.date)} ${option.time}`
+    : formatDateTR(option.date);
 }
 
 function columnAvailableOnPage(
@@ -277,7 +287,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   },
   {
     id: "drivingExamDate",
-    pageScope: "direksiyon",
+    pageScope: "uygulama",
     pickerHidden: true,
     labelKey: "candidates.col.drivingExamDate",
     renderCell: (c) => formatDateTR(c.drivingExamDate),
@@ -285,7 +295,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   },
   {
     id: "drivingExamAttemptCount",
-    pageScope: "direksiyon",
+    pageScope: "uygulama",
     pickerHidden: true,
     labelKey: "candidates.col.drivingExamAttemptCount",
     renderCell: (c) => `${c.drivingExamAttemptCount ?? 1}/4`,
@@ -426,7 +436,7 @@ export function CandidatesPage({
     examDateSidebar?.field === "eSinavDate"
       ? "eSinav"
       : examDateSidebar?.field === "drivingExamDate"
-        ? "direksiyon"
+        ? "uygulama"
         : "all";
   const forcedVisibleColumnIds = useMemo<Set<CandidateColumnId>>(
     () =>
@@ -489,6 +499,7 @@ export function CandidatesPage({
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
   const [bulkTagValues, setBulkTagValues] = useState<string[]>([]);
+  const [bulkExamDateValue, setBulkExamDateValue] = useState("");
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
@@ -967,8 +978,8 @@ export function CandidatesPage({
           : formatGroupWithTerm(candidate, lang),
       "E-Sınav Tarihi": formatDateTR(candidate.mebExamDate),
       "E-Sınav Hakkı": `${candidate.eSinavAttemptCount ?? 1}/4`,
-      "Direksiyon Tarihi": formatDateTR(candidate.drivingExamDate),
-      "Direksiyon Hakkı": `${candidate.drivingExamAttemptCount ?? 1}/4`,
+      "Uygulama Tarihi": formatDateTR(candidate.drivingExamDate),
+      "Uygulama Hakkı": `${candidate.drivingExamAttemptCount ?? 1}/4`,
       "Tamamlanan Evrak": candidate.documentSummary?.completedCount ?? 0,
       "Eksik Evrak": candidate.documentSummary?.missingCount ?? 0,
       Mebbis: candidateMebSyncStatusLabel(candidate.mebSyncStatus),
@@ -989,8 +1000,8 @@ export function CandidatesPage({
       groupColumnHeader,
       "E-Sınav Tarihi",
       "E-Sınav Hakkı",
-      "Direksiyon Tarihi",
-      "Direksiyon Hakkı",
+      "Uygulama Tarihi",
+      "Uygulama Hakkı",
       "Tamamlanan Evrak",
       "Eksik Evrak",
       "Mebbis",
@@ -1063,6 +1074,7 @@ export function CandidatesPage({
         setSelectedCandidateIds(new Set());
         setBulkStatusValue("");
         setBulkTagValues([]);
+        setBulkExamDateValue("");
       }
       return next;
     });
@@ -1117,6 +1129,29 @@ export function CandidatesPage({
     setBulkActionMode("export");
   };
 
+  const openBulkExamDateAction = () => {
+    if (selectedCandidateIds.size === 0) {
+      showToast("Önce en az bir aday seç", "error");
+      return;
+    }
+
+    if (!examDateSidebar) {
+      return;
+    }
+
+    if (displayedExamDateOptions.length === 0) {
+      showToast("Önce sınav tarihi ekle", "error");
+      return;
+    }
+
+    setBulkExamDateValue(
+      displayedExamDateOptions.some((option) => option.date === selectedExamDate)
+        ? selectedExamDate
+        : ""
+    );
+    setBulkActionMode("examDate");
+  };
+
   const applyBulkStatusChange = async () => {
     if (!bulkStatusValue || selectedCandidateIds.size === 0) {
       return;
@@ -1162,6 +1197,53 @@ export function CandidatesPage({
       setRefreshKey((k) => k + 1);
     } catch {
       showToast("Toplu etiket ekleme tamamlanamadı", "error");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const applyBulkExamDateChange = async () => {
+    if (!examDateSidebar || !bulkExamDateValue || selectedCandidateIds.size === 0) {
+      return;
+    }
+
+    setBulkSaving(true);
+
+    try {
+      const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+      const selectedIds = Array.from(selectedCandidateIds);
+      const assignedExamDate = bulkExamDateValue;
+      const result = await assignCandidatesToExamDate(
+        selectedIds,
+        examDateSidebar.examType,
+        assignedExamDate,
+        candidateById
+      );
+
+      if (result.successCount === 0) {
+        showToast("Toplu sınav ataması tamamlanamadı", "error");
+        return;
+      }
+
+      if (result.failureCount === 0) {
+        showToast(`${result.successCount} aday sınava aktarıldı`);
+      } else {
+        showToast(
+          `${result.successCount} aday sınava aktarıldı, ${result.failureCount} aday aktarılamadı`,
+          "error"
+        );
+      }
+
+      setBulkActionMode(null);
+      setBulkSelectEnabled(false);
+      setSelectedCandidateIds(new Set());
+      setBulkExamDateValue("");
+      setSelectedExamDate(assignedExamDate);
+      setTab("randevulu");
+      setPage(1);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("Toplu sınav ataması tamamlanamadı", "error");
     } finally {
       setBulkSaving(false);
     }
@@ -1412,8 +1494,41 @@ export function CandidatesPage({
                 >
                   {bulkExporting ? "İndiriliyor..." : "CSV İndir"}
                 </button>
+              ) : bulkActionMode === "examDate" ? (
+                <>
+                  <CustomSelect
+                    aria-label="Toplu sınav tarihi seç"
+                    onChange={(event) => setBulkExamDateValue(event.target.value)}
+                    size="sm"
+                    value={bulkExamDateValue}
+                  >
+                    <option value="">Tarih seç</option>
+                    {displayedExamDateOptions.map((option) => (
+                      <option key={option.id} value={option.date}>
+                        {formatBulkExamDateOptionLabel(option, examDateSidebar?.showTime)}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={selectedCount === 0 || !bulkExamDateValue || bulkSaving}
+                    onClick={applyBulkExamDateChange}
+                    type="button"
+                  >
+                    {bulkSaving ? "Aktarılıyor..." : "Uygula"}
+                  </button>
+                </>
               ) : (
                 <>
+                  {examDateSidebar ? (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={openBulkExamDateAction}
+                      type="button"
+                    >
+                      Sınav Tarihi Belirle
+                    </button>
+                  ) : null}
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={openBulkTagAction}

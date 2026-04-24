@@ -2,7 +2,7 @@ import { CandidatesPage, type CandidateColumnId } from "./CandidatesPage";
 import { useT } from "../lib/i18n";
 import type { CandidateExamTabValue, GetCandidatesParams } from "../lib/candidates-api";
 
-export function ExamDireksiyonPage() {
+export function ExamUygulamaPage() {
   const t = useT();
   const defaultVisibleColumnIds: CandidateColumnId[] = [
     "photo",
@@ -27,14 +27,14 @@ export function ExamDireksiyonPage() {
 
   return (
     <CandidatesPage
-      columnStorageKey="exams.direksiyon.columns.v3"
+      columnStorageKey="exams.uygulama.columns.v3"
       columnLabelOverrides={{
         drivingExamDate: "Tarih",
         drivingExamAttemptCount: "Hak",
       }}
       defaultVisibleColumnIds={defaultVisibleColumnIds}
       examDateSidebar={{
-        examType: "direksiyon",
+        examType: "uygulama",
         field: "drivingExamDate",
         showLicenseClassTotalSummary: true,
         showTime: false,
@@ -46,7 +46,7 @@ export function ExamDireksiyonPage() {
         defaultTab: "havuz",
         buildParams,
       }}
-      title={t("examDireksiyon.title")}
+      title={t("examUygulama.title")}
     />
   );
 }

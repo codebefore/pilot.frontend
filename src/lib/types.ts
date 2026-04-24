@@ -110,7 +110,7 @@ export interface CandidateGroupAssignmentResponse {
 
 export interface ExamScheduleOption {
   id: string;
-  examType: "e_sinav" | "direksiyon";
+  examType: "e_sinav" | "uygulama";
   date: string;
   time: string;
   capacity: number;
@@ -124,9 +124,77 @@ export interface ExamScheduleLicenseClassCount {
 }
 
 export interface ExamScheduleSyncResponse {
-  examType: "e_sinav" | "direksiyon";
+  examType: "e_sinav" | "uygulama";
   createdCount: number;
   dateCount: number;
+}
+
+/* ── Vehicles ── */
+
+export type VehicleStatus = "idle" | "in_use" | "maintenance";
+export type VehicleTransmissionType = "manual" | "automatic";
+export type VehicleType =
+  | "automobile"
+  | "motorcycle"
+  | "minibus"
+  | "bus"
+  | "pickup"
+  | "truck"
+  | "trailer"
+  | "work_machine"
+  | "tir";
+export type VehicleOwnershipType = "owned" | "leased";
+export type VehicleFuelType = "gasoline" | "diesel" | "lpg" | "electric" | "hybrid";
+export type VehicleOdometerUnit = "km" | "hour";
+
+export interface VehicleResponse {
+  id: string;
+  plateNumber: string;
+  brand: string;
+  model: string | null;
+  modelYear: number | null;
+  color: string | null;
+  status: VehicleStatus;
+  isActive: boolean;
+  transmissionType: VehicleTransmissionType;
+  vehicleType: VehicleType;
+  licenseClass: LicenseClass;
+  ownershipType: VehicleOwnershipType;
+  fuelType: VehicleFuelType | null;
+  odometerValue: number | null;
+  odometerUnit: VehicleOdometerUnit;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface VehicleListSummaryResponse {
+  activeCount: number;
+  inUseCount: number;
+  maintenanceCount: number;
+  idleCount: number;
+}
+
+export interface VehicleListResponse extends PagedResponse<VehicleResponse> {
+  summary: VehicleListSummaryResponse;
+}
+
+export interface VehicleUpsertRequest {
+  plateNumber: string;
+  brand: string;
+  model?: string | null;
+  modelYear?: number | null;
+  color?: string | null;
+  status: VehicleStatus;
+  isActive: boolean;
+  transmissionType: VehicleTransmissionType;
+  vehicleType: VehicleType;
+  licenseClass: LicenseClass;
+  ownershipType: VehicleOwnershipType;
+  fuelType?: VehicleFuelType | null;
+  odometerValue?: number | null;
+  odometerUnit: VehicleOdometerUnit;
+  notes?: string | null;
 }
 
 /* ── Terms ── */

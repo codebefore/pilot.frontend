@@ -8,7 +8,7 @@ export type NavKey =
   | "training"
   | "exams"
   | "examESinav"
-  | "examDireksiyon"
+  | "examUygulama"
   | "mebjobs"
   | "settings"
   | "users"

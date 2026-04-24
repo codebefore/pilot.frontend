@@ -22,7 +22,7 @@ describe("NewExamScheduleModal", () => {
     createExamScheduleMock.mockReset();
     createExamScheduleMock.mockResolvedValue({
       id: "schedule-1",
-      examType: "direksiyon",
+      examType: "uygulama",
       date: "2026-06-03",
       time: "09:00",
       capacity: 20,
@@ -31,12 +31,12 @@ describe("NewExamScheduleModal", () => {
     });
   });
 
-  it("hides the time field for direksiyon and submits without time", async () => {
+  it("hides the time field for uygulama and submits without time", async () => {
     const onSaved = vi.fn();
 
     renderWithProviders(
       <NewExamScheduleModal
-        examType="direksiyon"
+        examType="uygulama"
         onClose={() => {}}
         onSaved={onSaved}
         open
@@ -52,7 +52,7 @@ describe("NewExamScheduleModal", () => {
     await waitFor(() => {
       expect(createExamScheduleMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          examType: "direksiyon",
+          examType: "uygulama",
           date: expect.any(String),
           capacity: 24,
         })

@@ -16,7 +16,7 @@ type NewExamScheduleForm = {
 };
 
 type NewExamScheduleModalProps = {
-  examType: "e_sinav" | "direksiyon";
+  examType: "e_sinav" | "uygulama";
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -34,8 +34,8 @@ function defaultValues(): NewExamScheduleForm {
   };
 }
 
-function modalTitle(examType: "e_sinav" | "direksiyon"): string {
-  return examType === "e_sinav" ? "Yeni E-Sınav Tarihi" : "Yeni Direksiyon Tarihi";
+function modalTitle(examType: "e_sinav" | "uygulama"): string {
+  return examType === "e_sinav" ? "Yeni E-Sınav Tarihi" : "Yeni Uygulama Tarihi";
 }
 
 export function NewExamScheduleModal({

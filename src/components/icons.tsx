@@ -238,6 +238,18 @@ export const PencilIcon = (p?: IconProps) =>
     p
   );
 
+export const TrashIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M3 6h18" />,
+      <path key="2" d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />,
+      <path key="3" d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />,
+      <line key="4" x1="10" y1="11" x2="10" y2="17" />,
+      <line key="5" x1="14" y1="11" x2="14" y2="17" />,
+    ],
+    p
+  );
+
 export const MenuIcon = (p?: IconProps) =>
   svg(
     [

@@ -12,7 +12,7 @@ import { CandidatesPage } from "./pages/CandidatesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { DocumentTypesPage } from "./pages/DocumentTypesPage";
-import { ExamDireksiyonPage } from "./pages/ExamDireksiyonPage";
+import { ExamUygulamaPage } from "./pages/ExamUygulamaPage";
 import { ExamESinavPage } from "./pages/ExamESinavPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { GroupsPage } from "./pages/GroupsPage";
@@ -62,10 +62,11 @@ function AppShell() {
           <Route element={<TrainingPage />}   path="/training" />
           <Route element={<Navigate replace to="/exams/e-sinav" />} path="/exams" />
           <Route element={<ExamESinavPage />} path="/exams/e-sinav" />
-          <Route element={<ExamDireksiyonPage />} path="/exams/direksiyon" />
+          <Route element={<Navigate replace to="/exams/uygulama" />} path="/exams/direksiyon" />
+          <Route element={<ExamUygulamaPage />} path="/exams/uygulama" />
           <Route element={<MebJobsPage />}    path="/meb-jobs" />
           <Route element={<NotificationsPage />} path="/notifications" />
-          <Route element={<SettingsPage />}    path="/settings" />
+          <Route element={<SettingsPage />}    path="/settings/*" />
           <Route element={<UsersPage />}       path="/users" />
           <Route element={<RoleEditorPage />}  path="/permissions/roles/new" />
           <Route element={<RoleEditorPage />}  path="/permissions/roles/:roleId" />

@@ -58,7 +58,7 @@ export const navSections: NavSection[] = [
         Icon: ExamsIcon,
         children: [
           { key: "examESinav", path: "/exams/e-sinav", labelKey: "nav.examESinav" },
-          { key: "examDireksiyon", path: "/exams/direksiyon", labelKey: "nav.examDireksiyon" },
+          { key: "examUygulama", path: "/exams/uygulama", labelKey: "nav.examUygulama" },
         ],
       },
     ],

@@ -822,7 +822,7 @@ export function CandidateDrawer({
               inputLang={dateInputLang}
               inputType="date"
               inputValue={candidate.drivingExamDate ?? ""}
-              label="Direksiyon Tarihi"
+              label="Uygulama Tarihi"
               onSave={(value) => saveField({ drivingExamDate: value || null })}
             />
             <EditableRow
@@ -835,7 +835,7 @@ export function CandidateDrawer({
             <EditableRow
               displayValue={`${candidate.drivingExamAttemptCount ?? 1}/4`}
               inputValue={String(candidate.drivingExamAttemptCount ?? 1)}
-              label="Direksiyon Hakkı"
+              label="Uygulama Hakkı"
               options={EXAM_ATTEMPT_OPTIONS}
               onSave={(value) => saveField({ drivingExamAttemptCount: Number(value) })}
             />

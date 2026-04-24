@@ -99,6 +99,6 @@ describe("Sidebar live stats", () => {
 
     expect(screen.getByRole("link", { name: "Sınavlar" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "E-Sınav" })).toHaveClass("active");
-    expect(screen.getByRole("link", { name: "Direksiyon" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Uygulama" })).toBeInTheDocument();
   });
 });

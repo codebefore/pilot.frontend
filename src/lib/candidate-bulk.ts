@@ -1,10 +1,21 @@
-import { getCandidateById, updateCandidate } from "./candidates-api";
+import {
+  getCandidateById,
+  updateCandidate,
+  type CandidateExamDateType,
+} from "./candidates-api";
 import { normalizeCandidateGender, type CandidateStatusValue } from "./status-maps";
 import type { CandidateResponse, CandidateUpsertRequest } from "./types";
 
 type CandidatePayloadOverrides = {
   status?: CandidateStatusValue;
   tags?: string[];
+  mebExamDate?: string | null;
+  drivingExamDate?: string | null;
+};
+
+export type BulkCandidateUpdateResult = {
+  successCount: number;
+  failureCount: number;
 };
 
 /**
@@ -16,6 +27,13 @@ export function buildCandidateUpdatePayload(
   candidate: CandidateResponse,
   overrides?: CandidatePayloadOverrides
 ): CandidateUpsertRequest {
+  const hasMebExamDateOverride =
+    overrides !== undefined &&
+    Object.prototype.hasOwnProperty.call(overrides, "mebExamDate");
+  const hasDrivingExamDateOverride =
+    overrides !== undefined &&
+    Object.prototype.hasOwnProperty.call(overrides, "drivingExamDate");
+
   return {
     firstName: candidate.firstName,
     lastName: candidate.lastName,
@@ -31,8 +49,10 @@ export function buildCandidateUpdatePayload(
     existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
     existingLicensePre2016: candidate.existingLicensePre2016,
     mebSyncStatus: candidate.mebSyncStatus,
-    mebExamDate: candidate.mebExamDate,
-    drivingExamDate: candidate.drivingExamDate,
+    mebExamDate: hasMebExamDateOverride ? overrides.mebExamDate : candidate.mebExamDate,
+    drivingExamDate: hasDrivingExamDateOverride
+      ? overrides.drivingExamDate
+      : candidate.drivingExamDate,
     mebExamResult: candidate.mebExamResult,
     eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
     drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
@@ -117,4 +137,33 @@ export async function applyTagsToCandidates(
       );
     })
   );
+}
+
+/**
+ * Assign the selected candidates to the requested exam date. Reuses the
+ * existing candidate update boundary so backend business rules stay in force.
+ */
+export async function assignCandidatesToExamDate(
+  candidateIds: string[],
+  examType: CandidateExamDateType,
+  examDate: string,
+  cache?: Map<string, CandidateResponse>
+): Promise<BulkCandidateUpdateResult> {
+  const results = await Promise.allSettled(
+    candidateIds.map(async (id) => {
+      const candidate = await resolveCandidate(id, cache);
+      const overrides =
+        examType === "e_sinav"
+          ? { mebExamDate: examDate }
+          : { drivingExamDate: examDate };
+
+      await updateCandidate(id, buildCandidateUpdatePayload(candidate, overrides));
+    })
+  );
+
+  const successCount = results.filter((result) => result.status === "fulfilled").length;
+  return {
+    successCount,
+    failureCount: results.length - successCount,
+  };
 }

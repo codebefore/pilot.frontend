@@ -301,7 +301,7 @@ describe("CandidateDrawer", () => {
     await screen.findByRole("heading", { name: "Ada Yilmaz" });
 
     const dateLabel = screen
-      .getAllByText("Direksiyon Tarihi")
+      .getAllByText("Uygulama Tarihi")
       .find((node) => node.classList.contains("label"));
     const dateRow = dateLabel?.closest(".drawer-row");
     expect(dateRow).not.toBeNull();
@@ -447,7 +447,7 @@ describe("CandidateDrawer", () => {
     });
 
     const drivingLabel = screen
-      .getAllByText("Direksiyon Hakkı")
+      .getAllByText("Uygulama Hakkı")
       .find((node) => node.classList.contains("label"));
     const drivingRow = drivingLabel?.closest(".drawer-row");
     expect(drivingRow).not.toBeNull();

@@ -43,7 +43,7 @@ const tr = {
   "nav.training": "Eğitim Planı",
   "nav.exams": "Sınavlar",
   "nav.examESinav": "E-Sınav",
-  "nav.examDireksiyon": "Direksiyon",
+  "nav.examUygulama": "Uygulama",
   "nav.mebJobs": "MEB İşleri",
   "nav.settings": "Kurum Ayarları",
   "nav.users": "Kullanıcılar",
@@ -63,14 +63,14 @@ const tr = {
   "examESinav.candidates.emptyTitle": "Hazır aday yok",
   "examESinav.candidates.emptyDescription":
     "Evrak ve ödeme adımları tamamlanan adaylar burada görünür.",
-  "examDireksiyon.title": "Direksiyon",
-  "examDireksiyon.schedule.title": "Sınav Takvimi",
-  "examDireksiyon.schedule.emptyTitle": "Planlanan sınav yok",
-  "examDireksiyon.schedule.emptyDescription":
-    "Direksiyon sınav günü tanımlandığında aday atamaları burada listelenir.",
-  "examDireksiyon.boards.title": "Komisyon ve Araç",
-  "examDireksiyon.boards.emptyTitle": "Komisyon ataması yok",
-  "examDireksiyon.boards.emptyDescription":
+  "examUygulama.title": "Uygulama",
+  "examUygulama.schedule.title": "Sınav Takvimi",
+  "examUygulama.schedule.emptyTitle": "Planlanan sınav yok",
+  "examUygulama.schedule.emptyDescription":
+    "Uygulama sınav günü tanımlandığında aday atamaları burada listelenir.",
+  "examUygulama.boards.title": "Komisyon ve Araç",
+  "examUygulama.boards.emptyTitle": "Komisyon ataması yok",
+  "examUygulama.boards.emptyDescription":
     "Komisyon, araç ve güzergah bilgileri kesinleştiğinde burada görünür.",
 
   // Login
@@ -188,7 +188,7 @@ const tr = {
   "notif.mebApproved.title": "MEB işi onaylandı",
   "notif.mebApproved.body": "J-2026-0398 numaralı iş başarıyla tamamlandı.",
   "notif.trainingAssigned.title": "Eğitim planı atandı",
-  "notif.trainingAssigned.body": "Mehmet Yılmaz direksiyon eğitimine atandı.",
+  "notif.trainingAssigned.body": "Mehmet Yılmaz uygulama eğitimine atandı.",
 
   // Notifications page
   "notifPage.title": "Bildirimler",
@@ -284,8 +284,8 @@ const tr = {
   "candidates.col.groupStartDate": "Grup Başlangıç",
   "candidates.col.eSinavDate": "E-Sınav Tarihi",
   "candidates.col.eSinavAttemptCount": "E-Sınav Hakkı",
-  "candidates.col.drivingExamDate": "Direksiyon Tarihi",
-  "candidates.col.drivingExamAttemptCount": "Direksiyon Hakkı",
+  "candidates.col.drivingExamDate": "Uygulama Tarihi",
+  "candidates.col.drivingExamAttemptCount": "Uygulama Hakkı",
   "candidates.col.documents": "Evrak",
   "candidates.col.missingDocuments": "Eksik Evrak",
   "candidates.col.mebSyncStatus": "Mebbis",
@@ -482,7 +482,7 @@ const en: Record<keyof typeof tr, string> = {
   "nav.training": "Training Plan",
   "nav.exams": "Exams",
   "nav.examESinav": "E-Exam",
-  "nav.examDireksiyon": "Driving",
+  "nav.examUygulama": "Driving",
   "nav.mebJobs": "MEB Jobs",
   "nav.settings": "Institution Settings",
   "nav.users": "Users",
@@ -502,14 +502,14 @@ const en: Record<keyof typeof tr, string> = {
   "examESinav.candidates.emptyTitle": "No candidate is ready",
   "examESinav.candidates.emptyDescription":
     "Candidates who completed their document and payment steps will appear here.",
-  "examDireksiyon.title": "Driving",
-  "examDireksiyon.schedule.title": "Exam Schedule",
-  "examDireksiyon.schedule.emptyTitle": "No exam planned",
-  "examDireksiyon.schedule.emptyDescription":
+  "examUygulama.title": "Driving",
+  "examUygulama.schedule.title": "Exam Schedule",
+  "examUygulama.schedule.emptyTitle": "No exam planned",
+  "examUygulama.schedule.emptyDescription":
     "Candidate assignments will appear here when a driving exam day is scheduled.",
-  "examDireksiyon.boards.title": "Board and Vehicle",
-  "examDireksiyon.boards.emptyTitle": "No board assigned",
-  "examDireksiyon.boards.emptyDescription":
+  "examUygulama.boards.title": "Board and Vehicle",
+  "examUygulama.boards.emptyTitle": "No board assigned",
+  "examUygulama.boards.emptyDescription":
     "Board, vehicle and route details will appear here once they are finalized.",
 
   // Login
