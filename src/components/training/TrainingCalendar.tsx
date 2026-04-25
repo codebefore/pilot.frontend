@@ -1,5 +1,7 @@
 import { useMemo, useState, type ComponentType } from "react";
 import { Calendar, type View } from "react-big-calendar";
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 
 import {
@@ -8,8 +10,12 @@ import {
   type TrainingCalendarEvent,
   type TrainingEventKind,
 } from "../../lib/training-calendar";
-import { colorForGroup } from "../../lib/training-calendar-palette";
-import { RollingTwoWeeksView, RollingWeekView } from "./RollingWeekView";
+import {
+  RollingFourWeeksView,
+  RollingThreeWeeksView,
+  RollingTwoWeeksView,
+  RollingWeekView,
+} from "./RollingWeekView";
 
 // RBC DnD HOC ile Calendar'ı sar — resize/drop callback'leri aktif olur.
 // @types'ın `Event` base tipi bizim TrainingCalendarEvent için gevşek;
@@ -48,6 +54,8 @@ const ROLLING_MESSAGES = {
   // RBC `messages[viewName]` ile view butonu etiketini çeker.
   rolling: "Hafta",
   rolling2w: "2 Hafta",
+  rolling3w: "3 Hafta",
+  rolling4w: "4 Hafta",
 };
 
 // 24-saat Türkçe format. RBC default `timeGutterFormat` "h:mm a" (12-saat
@@ -90,28 +98,77 @@ export function TrainingCalendar({
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  // Hafta/gün görünümü açılışında 08:00'e scroll olsun (ders saatleri
-  // buradan başlıyor). Bugünün 08:00'ı — tarih önemli değil, sadece
-  // saat-dakika kısmı kullanılıyor.
-  const scrollToTime = useMemo(() => {
+  // Ders saatleri 07:00–23:00 aralığında. RBC `min`/`max` prop'ları
+  // gün/hafta görünümlerinin görünür saat aralığını kısıtlar; bu
+  // aralık dışındaki slotlar (07:00 öncesi, 23:00 sonrası) çizilmez.
+  // `scrollToTime` da aynı başlangıca alındı ki açılışta ilk ders
+  // saati ekranın üstünde olsun.
+  const minTime = useMemo(() => {
     const d = new Date();
-    d.setHours(8, 0, 0, 0);
+    d.setHours(7, 0, 0, 0);
     return d;
   }, []);
+  const maxTime = useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 0, 0, 0);
+    return d;
+  }, []);
+  const scrollToTime = minTime;
+
+  // Hafta sonu (Cmt/Paz) sütunlarına ayrı renk: gövde için
+  // `dayPropGetter` (.rbc-day-bg + .rbc-day-slot), başlık için custom
+  // header component (`components.week.header`). Her iki yere
+  // `training-day-weekend` class'ı düşüyor.
+  const isWeekend = (d: Date) => {
+    const day = d.getDay();
+    return day === 0 || day === 6;
+  };
+
+  const dayPropGetter = useMemo(
+    () => (date: Date) => {
+      if (isWeekend(date)) {
+        const cls = date.getDay() === 0
+          ? "training-day-weekend training-day-sunday"
+          : "training-day-weekend training-day-saturday";
+        return { className: cls };
+      }
+      return {};
+    },
+    []
+  );
+
+  const WeekHeader = useMemo(
+    () => ({ date }: { date: Date; label: string; localizer: unknown }) => {
+      const weekend = isWeekend(date);
+      // Türkçe kısa gün adı + ay-içi tarih: "Pzt 25"
+      const text = format(date, "EEE d", { locale: tr });
+      const className = weekend
+        ? "training-header-day training-header-day-weekend"
+        : "training-header-day";
+      return <span className={className}>{text}</span>;
+    },
+    []
+  );
+
+  const EventComponent = useMemo(
+    () => ({ event }: { event: TrainingCalendarEvent }) => {
+      return (
+        <div className="training-event-content">
+          <div className="training-event-instructor">{event.instructorName}</div>
+        </div>
+      );
+    },
+    []
+  );
 
   const eventStyleGetter = useMemo(
     () => (event: TrainingCalendarEvent) => {
-      const c = colorForGroup(event.groupName);
+      // Renk artık ders tipine göre. Inline style kaldırıldı; CSS
+      // class'ları (`.training-event`, `.training-event-teorik|uygulama`)
+      // teorik=marka yeşili, uygulama=mavi olarak boyar.
       const classes = ["training-event", `training-event-${kind}`];
       if (event.external) classes.push("training-event-external");
-      return {
-        className: classes.join(" "),
-        style: {
-          backgroundColor: c.bg,
-          borderColor: c.border,
-          color: c.fg,
-        },
-      };
+      return { className: classes.join(" ") };
     },
     [kind]
   );
@@ -129,7 +186,13 @@ export function TrainingCalendar({
 
   const calendarProps: Record<string, unknown> = {
     culture: "tr",
+    components: {
+      week: { header: WeekHeader },
+      day: { header: WeekHeader },
+      event: EventComponent,
+    },
     date,
+    dayPropGetter,
     defaultView: ROLLING_2W_VIEW,
     endAccessor: "end",
     eventPropGetter: eventStyleGetter,
@@ -149,16 +212,22 @@ export function TrainingCalendar({
     // taşınmamalı/yeniden boyutlandırılmamalı.
     draggableAccessor: (event: TrainingCalendarEvent) => !event.external,
     resizableAccessor: (event: TrainingCalendarEvent) => !event.external,
+    min: minTime,
+    max: maxTime,
     scrollToTime,
     selectable: true,
     startAccessor: "start",
+    // 30 dk slot, saat başlarında ana çizgi (timeslots=2 → her grup
+    // 1 saat). Min ders 60 dk; daha hassas snap için 30 dk granülerlik.
     step: 30,
-    timeslots: 1,
+    timeslots: 2,
     style: { height: "calc(100vh - 180px)", minHeight: 480 },
     view,
     views: {
       rolling: RollingWeekView,
       rolling2w: RollingTwoWeeksView,
+      rolling3w: RollingThreeWeeksView,
+      rolling4w: RollingFourWeeksView,
       month: true,
       day: true,
       agenda: true,

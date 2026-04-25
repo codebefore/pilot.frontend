@@ -294,7 +294,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     generalError?: string;
   } => {
     if (!(error instanceof ApiError)) {
-      return { generalError: "Ders kaydedilemedi" };
+      return { fieldErrors: {}, generalError: "Ders kaydedilemedi" };
     }
     const fieldErrors: Record<string, string> = {};
     let generalError: string | undefined;

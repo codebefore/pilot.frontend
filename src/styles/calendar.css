@@ -573,6 +573,22 @@
   background: #2563eb;
 }
 
+/* Custom event content styling */
+.training-event-content {
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-event-instructor {
+  font-size: 11px;
+  font-weight: 600;
+}
+
 /* ─── Ay görünümü ──────────────────────────────────────────── */
 .training-calendar .rbc-month-header .rbc-header {
   background: var(--gray-50);
