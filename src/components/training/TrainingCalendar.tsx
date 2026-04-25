@@ -149,10 +149,10 @@ export function TrainingCalendar({
 
   const EventComponent = useMemo(
     () => ({ event }: { event: TrainingCalendarEvent }) => {
-      const lessonType = event.kind === "teorik" ? "Teorik" : "Uygulama";
+      const lessonType = event.kind === "teorik" ? "Teorik" : null;
       return (
         <div className="training-event-content">
-          <div className="training-event-type">{lessonType}</div>
+          {lessonType && <div className="training-event-type">{lessonType}</div>}
           <div className="training-event-instructor">{event.instructorName}</div>
           <div className="training-event-group">{event.groupName}</div>
         </div>
