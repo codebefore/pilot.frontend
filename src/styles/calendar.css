@@ -575,8 +575,8 @@
 
 /* Custom event content styling */
 .training-event-content {
-  padding: 2px 4px;
-  font-size: 10px;
+  padding: 1px 3px;
+  font-size: 9px;
   font-weight: 500;
   line-height: 1.1;
   overflow: hidden;
@@ -585,14 +585,14 @@
 }
 
 .training-event-instructor {
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.8);
   margin-bottom: 1px;
 }
 
 .training-event-group {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
 }
 
