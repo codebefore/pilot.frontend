@@ -156,7 +156,6 @@ export function TrainingCalendar({
           {lessonType && <div className="training-event-type">{lessonType}</div>}
           <div className="training-event-instructor">{event.instructorName}</div>
           <div className="training-event-group">
-            {isUygulama && <span className="training-event-label">PLAKA:</span>}
             {event.groupName}
           </div>
         </div>
