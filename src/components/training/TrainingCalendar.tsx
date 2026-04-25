@@ -157,7 +157,6 @@ export function TrainingCalendar({
           {isUygulama && event.candidateName && (
             <div className="training-event-candidate">{event.candidateName}</div>
           )}
-          <div className="training-event-instructor">{event.instructorName}</div>
           <div className="training-event-group">
             {event.groupName}
           </div>
