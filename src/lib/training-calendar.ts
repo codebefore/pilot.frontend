@@ -114,7 +114,7 @@ export function trainingLessonToCalendarEvent(
   const end = new Date(lesson.endAtUtc);
   const isPractice = lesson.kind === "uygulama";
   const groupName = isPractice
-    ? lesson.candidateName ?? "Aday seçilmedi"
+    ? lesson.vehiclePlate ?? "Araç seçilmedi"
     : lesson.groupTitle ?? "Grup seçilmedi";
   const title = isPractice
     ? groupName
