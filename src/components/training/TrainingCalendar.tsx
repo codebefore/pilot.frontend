@@ -154,6 +154,9 @@ export function TrainingCalendar({
       return (
         <div className="training-event-content">
           {lessonType && <div className="training-event-type">{lessonType}</div>}
+          {isUygulama && event.candidateName && (
+            <div className="training-event-candidate">{event.candidateName}</div>
+          )}
           <div className="training-event-instructor">{event.instructorName}</div>
           <div className="training-event-group">
             {event.groupName}

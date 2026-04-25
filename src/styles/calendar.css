@@ -593,6 +593,13 @@
   letter-spacing: 0.5px;
 }
 
+.training-event-candidate {
+  font-size: 7px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 1px;
+}
+
 .training-event-instructor {
   font-size: 6px;
   font-weight: 400;
