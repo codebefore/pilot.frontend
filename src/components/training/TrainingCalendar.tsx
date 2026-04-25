@@ -151,6 +151,7 @@ export function TrainingCalendar({
     () => ({ event }: { event: TrainingCalendarEvent }) => {
       return (
         <div className="training-event-content">
+          <div className="training-event-instructor">{event.instructorName}</div>
           <div className="training-event-group">{event.groupName}</div>
         </div>
       );
