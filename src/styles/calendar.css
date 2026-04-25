@@ -584,6 +584,15 @@
   white-space: nowrap;
 }
 
+.training-event-type {
+  font-size: 6px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .training-event-instructor {
   font-size: 6px;
   font-weight: 400;
