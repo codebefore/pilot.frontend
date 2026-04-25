@@ -156,9 +156,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const allGroups = useMemo(
     () =>
       Array.from(
-        new Set(events.filter((e) => !e.external).map((e) => e.groupName))
+        new Set(events.filter((e) => !e.external).map((e) => 
+          type === "uygulama" ? (e.vehiclePlate || "Araç seçilmedi") : e.groupName
+        ))
       ),
-    [events]
+    [events, type]
   );
   const allInstructorIds = useMemo(
     () => Array.from(new Set(events.map((e) => e.instructorId))),
@@ -210,9 +212,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
         // External event'ler grup filtresinden muaf — gölge olarak hep
         // görünür kalır.
         if (e.external) return true;
-        return visibleGroups.has(e.groupName);
+        const filterValue = type === "uygulama" ? (e.vehiclePlate || "Araç seçilmedi") : e.groupName;
+        return visibleGroups.has(filterValue);
       }),
-    [events, visibleGroups, visibleInstructors, showExternal]
+    [events, visibleGroups, visibleInstructors, showExternal, type]
   );
 
   const toggleGroup = (group: string) => {

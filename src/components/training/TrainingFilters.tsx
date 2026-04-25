@@ -34,7 +34,7 @@ export function TrainingFilters({
   onShowAllInstructors,
   onHideAllInstructors,
 }: TrainingFiltersProps) {
-  const groupSectionTitle = kind === "uygulama" ? "Adaylar" : "Gruplar";
+  const groupSectionTitle = kind === "uygulama" ? "Araçlar" : "Gruplar";
   // Filter listesi sadece bu sayfanın kind'ına ait event'lerden türer —
   // teorik sayfada yanlışlıkla uygulama event'leri (aday adları) ya da
   // tersi kazara karışırsa filtre kirlenmesin. Gruplar sadece
@@ -48,10 +48,12 @@ export function TrainingFilters({
 
   const groups = useMemo(() => {
     const set = new Set(
-      ownEvents.filter((e) => !e.external).map((e) => e.groupName)
+      ownEvents.filter((e) => !e.external).map((e) => 
+        kind === "uygulama" ? (e.vehiclePlate || "Araç seçilmedi") : e.groupName
+      )
     );
     return Array.from(set).sort();
-  }, [ownEvents]);
+  }, [ownEvents, kind]);
 
   const instructors = useMemo(() => {
     const map = new Map<string, string>();
