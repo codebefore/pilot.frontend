@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { ApiError } from "../lib/http";
+import { useT } from "../lib/i18n";
+import type { TranslationKey } from "../lib/i18n";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import {
   NewTrainingPlanModal,
@@ -42,8 +45,30 @@ type TrainingPageProps = {
   type: "teorik" | "uygulama";
 };
 
+// Backend `errorCodes` mapindeki PascalCase field adlarını
+// modal'ın camelCase form alanlarına eşleştiriyoruz.
+const SERVER_FIELD_MAP: Record<string, string> = {
+  StartAtUtc: "startTime",
+  EndAtUtc: "durationMinutes",
+  InstructorId: "instructorId",
+  GroupId: "groupId",
+  CandidateId: "candidateId",
+  VehicleId: "vehicleId",
+  AreaId: "areaId",
+  RouteId: "routeId",
+};
+
+const GENERAL_CODES = new Set<string>([
+  "trainingLesson.validation.rowVersionRequired",
+  "trainingLesson.validation.concurrencyConflict",
+  "trainingLesson.validation.generic",
+]);
+
 export function TrainingPage({ type }: TrainingPageProps) {
   const { showToast } = useToast();
+  const t = useT();
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
+  const [serverGeneralError, setServerGeneralError] = useState<string | undefined>();
   const [modalOpen, setModalOpen] = useState(false);
   const [newLessonSlot, setNewLessonSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<TrainingCalendarEvent[]>([]);
@@ -212,6 +237,23 @@ export function TrainingPage({ type }: TrainingPageProps) {
     setVisibleGroups(new Set(allGroups));
     setVisibleInstructors(new Set(allInstructorIds));
   };
+
+  const showAllGroups = () => {
+    setVisibleGroups(new Set(allGroups));
+  };
+
+  const hideAllGroups = () => {
+    setVisibleGroups(new Set());
+  };
+
+  const showAllInstructors = () => {
+    setVisibleInstructors(new Set(allInstructorIds));
+  };
+
+  const hideAllInstructors = () => {
+    setVisibleInstructors(new Set());
+  };
+
   const title = type === "teorik" ? "Teorik Eğitim Planı" : "Uygulama Eğitim Planı";
 
   const replaceEvent = (nextEvent: TrainingCalendarEvent) => {
@@ -244,18 +286,43 @@ export function TrainingPage({ type }: TrainingPageProps) {
     };
   };
 
-  const getPersistErrorMessage = (error: unknown) => {
-    const status =
-      typeof error === "object" && error !== null && "status" in error
-        ? (error as { status?: number }).status
-        : undefined;
-    if (status === 409) {
-      return "Aynı saat için eğitmen veya araç çakışması var";
+  // ApiError'daki `validationErrorCodes`u i18n üzerinden çevirip
+  // {field -> mesaj} ve genel mesaj olarak ikiye böler. Modal field
+  // mesajları input altına, general mesaj form üstüne renderlar.
+  const splitApiError = (error: unknown): {
+    fieldErrors: Record<string, string>;
+    generalError?: string;
+  } => {
+    if (!(error instanceof ApiError)) {
+      return { generalError: "Ders kaydedilemedi" };
     }
-    return "Ders kaydedilemedi";
+    const fieldErrors: Record<string, string> = {};
+    let generalError: string | undefined;
+    const codes = error.validationErrorCodes ?? {};
+    for (const [serverField, fieldErrs] of Object.entries(codes)) {
+      const first = fieldErrs[0];
+      if (!first) continue;
+      const message = t(first.code as TranslationKey, first.params);
+      const formField = SERVER_FIELD_MAP[serverField];
+      if (formField) {
+        fieldErrors[formField] = message;
+      } else if (GENERAL_CODES.has(first.code) || serverField === "RowVersion") {
+        generalError ??= message;
+      } else {
+        generalError ??= message;
+      }
+    }
+    if (!Object.keys(fieldErrors).length && !generalError) {
+      generalError = error.status === 409
+        ? "Aynı saat için eğitmen veya araç çakışması var"
+        : "Ders kaydedilemedi";
+    }
+    return { fieldErrors, generalError };
   };
 
   const handleCreateLesson = async (values: TrainingLessonSubmitValues) => {
+    setServerFieldErrors({});
+    setServerGeneralError(undefined);
     try {
       const saved = await createTrainingLesson(buildCreateRequest(values));
       const nextEvent = trainingLessonToCalendarEvent(saved);
@@ -265,7 +332,14 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast("Ders oluşturuldu");
     } catch (error) {
       console.error(error);
-      showToast(getPersistErrorMessage(error));
+      const { fieldErrors, generalError } = splitApiError(error);
+      setServerFieldErrors(fieldErrors);
+      setServerGeneralError(generalError);
+      // Field-level mesaj inline gösterilecek; toast yalnızca genel
+      // mesaj varsa görünür durumda kalır.
+      if (Object.keys(fieldErrors).length === 0 && generalError) {
+        showToast(generalError);
+      }
     }
   };
 
@@ -283,7 +357,13 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast("Ders güncellendi");
     } catch (error) {
       console.error(error);
-      showToast(getPersistErrorMessage(error));
+      const { fieldErrors, generalError } = splitApiError(error);
+      // Update yolunda inline form yok — tüm mesajları toast'ta birleştir.
+      const merged = [
+        ...Object.values(fieldErrors),
+        ...(generalError ? [generalError] : []),
+      ];
+      showToast(merged[0] ?? "Ders kaydedilemedi");
     }
   };
 
@@ -301,7 +381,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleSelectSlot = (slot: { start: Date; end: Date }) => {
-    setNewLessonSlot(slot);
+    const snappedStart = snapStart(slot.start);
+    const desiredMin = (slot.end.getTime() - slot.start.getTime()) / 60000;
+    const durationMin = snapDuration(desiredMin);
+    const snappedEnd = new Date(snappedStart.getTime() + durationMin * 60000);
+    if (!isWithinLessonHours(snappedStart, snappedEnd)) {
+      showToast("Ders 07:00-23:00 aralığında olmalı");
+      return;
+    }
+    setNewLessonSlot({ start: snappedStart, end: snappedEnd });
     setModalOpen(true);
   };
 
@@ -309,11 +397,32 @@ export function TrainingPage({ type }: TrainingPageProps) {
     setSelectedEvent(event);
   };
 
-  // Resize sonrası event minimum 30 dakika olmalı. Kullanıcı hangi
-  // kenardan çektiğini args'tan doğrudan almıyoruz; event.start ile
-  // yeni start'ı karşılaştırarak üst kenar mı alt kenar mı değişti
-  // anlıyoruz ve doğru tarafı sabitliyoruz.
-  const MIN_DURATION_MS = 30 * 60 * 1000;
+  // Tek kural: ders en az 60 dk. Drag/resize 30 dk granülerlikle
+  // snap'lenir; yarım saatlik kayma görsel grid'le hizalanır.
+  const LESSON_MIN_MIN = 60;
+  const SNAP_MIN = 30;
+  const LESSON_HOURS_START = 7;
+  const LESSON_HOURS_END = 23;
+
+  const snapStart = (d: Date) => {
+    const s = new Date(d);
+    const minutes = Math.round(s.getMinutes() / SNAP_MIN) * SNAP_MIN;
+    s.setMinutes(0, 0, 0);
+    s.setMinutes(minutes);
+    return s;
+  };
+
+  const snapDuration = (durationMin: number) => {
+    const snapped = Math.round(durationMin / SNAP_MIN) * SNAP_MIN;
+    return Math.max(LESSON_MIN_MIN, snapped);
+  };
+
+  const isWithinLessonHours = (start: Date, end: Date) => {
+    if (start.toDateString() !== end.toDateString()) return false;
+    const startHour = start.getHours() + start.getMinutes() / 60;
+    const endHour = end.getHours() + end.getMinutes() / 60;
+    return startHour >= LESSON_HOURS_START && endHour <= LESSON_HOURS_END;
+  };
 
   const handleEventResize = ({
     event,
@@ -324,15 +433,27 @@ export function TrainingPage({ type }: TrainingPageProps) {
     start: Date;
     end: Date;
   }) => {
-    let finalStart = start;
-    let finalEnd = end;
-    if (finalEnd.getTime() - finalStart.getTime() < MIN_DURATION_MS) {
-      const topChanged = start.getTime() !== event.start.getTime();
-      if (topChanged) {
-        finalStart = new Date(finalEnd.getTime() - MIN_DURATION_MS);
-      } else {
-        finalEnd = new Date(finalStart.getTime() + MIN_DURATION_MS);
-      }
+    // Kullanıcı hangi kenarı çekti? `event.start` değiştiyse üst kenar.
+    const topChanged = start.getTime() !== event.start.getTime();
+    let finalStart: Date;
+    let finalEnd: Date;
+    if (topChanged) {
+      finalEnd = event.end;
+      const desiredStart = snapStart(start);
+      const durationMin = snapDuration(
+        (finalEnd.getTime() - desiredStart.getTime()) / 60000
+      );
+      finalStart = new Date(finalEnd.getTime() - durationMin * 60000);
+    } else {
+      finalStart = event.start;
+      const durationMin = snapDuration(
+        (end.getTime() - finalStart.getTime()) / 60000
+      );
+      finalEnd = new Date(finalStart.getTime() + durationMin * 60000);
+    }
+    if (!isWithinLessonHours(finalStart, finalEnd)) {
+      showToast("Ders 07:00-23:00 aralığında olmalı");
+      return;
     }
     void persistEventUpdate(event, {
       startAtUtc: finalStart.toISOString(),
@@ -343,15 +464,21 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const handleEventDrop = ({
     event,
     start,
-    end,
   }: {
     event: TrainingCalendarEvent;
     start: Date;
     end: Date;
   }) => {
+    const finalStart = snapStart(start);
+    const durationMs = event.end.getTime() - event.start.getTime();
+    const finalEnd = new Date(finalStart.getTime() + durationMs);
+    if (!isWithinLessonHours(finalStart, finalEnd)) {
+      showToast("Ders 07:00-23:00 aralığında olmalı");
+      return;
+    }
     void persistEventUpdate(event, {
-      startAtUtc: start.toISOString(),
-      endAtUtc: end.toISOString(),
+      startAtUtc: finalStart.toISOString(),
+      endAtUtc: finalEnd.toISOString(),
     });
   };
 
@@ -396,6 +523,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
             onResetFilters={resetFilters}
             onToggleGroup={toggleGroup}
             onToggleInstructor={toggleInstructor}
+            onShowAllGroups={showAllGroups}
+            onHideAllGroups={hideAllGroups}
+            onShowAllInstructors={showAllInstructors}
+            onHideAllInstructors={hideAllInstructors}
             visibleGroups={visibleGroups}
             visibleInstructors={visibleInstructors}
           />
@@ -422,9 +553,13 @@ export function TrainingPage({ type }: TrainingPageProps) {
         onClose={() => {
           setModalOpen(false);
           setNewLessonSlot(null);
+          setServerFieldErrors({});
+          setServerGeneralError(undefined);
         }}
         onSubmit={(values) => void handleCreateLesson(values)}
         open={modalOpen}
+        serverFieldErrors={serverFieldErrors}
+        serverGeneralError={serverGeneralError}
       />
 
       <TrainingEventDetailModal

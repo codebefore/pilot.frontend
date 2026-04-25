@@ -15,6 +15,10 @@ type TrainingFiltersProps = {
   onToggleGroup: (groupName: string) => void;
   onToggleInstructor: (instructorId: string) => void;
   onResetFilters: () => void;
+  onShowAllGroups: () => void;
+  onHideAllGroups: () => void;
+  onShowAllInstructors: () => void;
+  onHideAllInstructors: () => void;
 };
 
 export function TrainingFilters({
@@ -25,6 +29,10 @@ export function TrainingFilters({
   onToggleGroup,
   onToggleInstructor,
   onResetFilters,
+  onShowAllGroups,
+  onHideAllGroups,
+  onShowAllInstructors,
+  onHideAllInstructors,
 }: TrainingFiltersProps) {
   const groupSectionTitle = kind === "uygulama" ? "Adaylar" : "Gruplar";
   // Filter listesi sadece bu sayfanın kind'ına ait event'lerden türer —
@@ -75,7 +83,23 @@ export function TrainingFilters({
       </div>
 
       <section className="training-filters-section">
-        <h4 className="training-filters-section-title">{groupSectionTitle}</h4>
+        <div className="training-filters-section-header">
+          <h4 className="training-filters-section-title">{groupSectionTitle}</h4>
+          <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
+            <input
+              checked={visibleGroups.size === groups.length && groups.length > 0}
+              onChange={() => {
+                if (visibleGroups.size === groups.length) {
+                  onHideAllGroups();
+                } else {
+                  onShowAllGroups();
+                }
+              }}
+              type="checkbox"
+            />
+            <span className="switch-toggle-control" />
+          </label>
+        </div>
         <ul className="training-filters-list">
           {groups.map((group) => {
             const color = colorForGroup(group);
@@ -103,7 +127,23 @@ export function TrainingFilters({
       </section>
 
       <section className="training-filters-section">
-        <h4 className="training-filters-section-title">Eğitmenler</h4>
+        <div className="training-filters-section-header">
+          <h4 className="training-filters-section-title">Eğitmenler</h4>
+          <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
+            <input
+              checked={visibleInstructors.size === instructors.length && instructors.length > 0}
+              onChange={() => {
+                if (visibleInstructors.size === instructors.length) {
+                  onHideAllInstructors();
+                } else {
+                  onShowAllInstructors();
+                }
+              }}
+              type="checkbox"
+            />
+            <span className="switch-toggle-control" />
+          </label>
+        </div>
         <ul className="training-filters-list">
           {instructors.map((instructor) => {
             const checked = visibleInstructors.has(instructor.id);

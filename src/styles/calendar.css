@@ -107,6 +107,41 @@
   color: var(--gray-500);
 }
 
+.training-filters-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.training-filters-master-toggle {
+  margin: 0;
+}
+
+.training-filters-bulk-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.training-filters-bulk-btn {
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 3px;
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.training-filters-bulk-btn:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+}
+
 .training-filters-list {
   list-style: none;
   margin: 0;
@@ -314,16 +349,10 @@
   color: var(--brand-dark);
 }
 
-/* Tüm gün şeridi */
-.training-calendar .rbc-allday-cell {
-  border-bottom: 1px solid var(--gray-200);
-  background: var(--gray-50);
-  height: auto;
-  max-height: 28px;
-}
-
-.training-calendar .rbc-time-header-content .rbc-row {
-  min-height: 24px;
+/* Tüm gün şeridi (all-day) — kullanılmıyor, gizliyoruz. */
+.training-calendar .rbc-allday-cell,
+.training-calendar .rbc-time-header-content .rbc-row-bg {
+  display: none;
 }
 
 /* Saat gutter (sol kolon: 00:00, 01:00 …)
@@ -367,20 +396,11 @@
   border-left-color: var(--gray-200);
 }
 
+/* step=30 + timeslots=2 → her grup 1 saat (içeride 2 yarım-saat slotu
+ * snap için tutuluyor ama görsel olarak sadece saat çizgisi gösteriliyor;
+ * yarım-saat dashed çizgisi yok). */
 .training-calendar .rbc-timeslot-group {
-  min-height: 22px;
-}
-
-/* timeslots=1 + step=30 → her "grup" tek bir 30dk slotu. Bu yüzden
- * tam-saat (nth-child odd) ve yarım-saat (nth-child even) grupları
- * border-bottom ile farklı çizeriz: tam saat grubu altı = 30dk çizgisi
- * (dashed, ince); yarım saat grubu altı = saat başı çizgisi (solid,
- * daha koyu). */
-.training-calendar .rbc-timeslot-group:nth-child(odd) {
-  border-bottom: 1px dashed var(--gray-200);
-}
-
-.training-calendar .rbc-timeslot-group:nth-child(even) {
+  min-height: 44px;
   border-bottom: 1px solid var(--gray-200);
 }
 
@@ -388,16 +408,41 @@
   border-top: none;
 }
 
-/* Yarım saat label'ları gri + normal weight — tam saatler koyulaşır */
-.training-calendar .rbc-time-gutter .rbc-timeslot-group:nth-child(even) .rbc-label {
-  color: var(--gray-400);
-  font-weight: 400;
-}
-
 /* Bugün sütunu vurgusu (içerik hücreleri) */
 .training-calendar .rbc-day-slot.rbc-today,
 .training-calendar .rbc-day-bg.rbc-today {
   background: rgba(34, 176, 148, 0.04);
+}
+
+/* ─── Hafta sonu sütunları ────────────────────────────────────
+ * `dayPropGetter` Cmt/Paz için `training-day-weekend` class'ı
+ * ekliyor. Her ikisi de aynı sıcak ton — hafta içinden ayırt
+ * edilsin diye `--orange-light`. */
+.training-calendar .rbc-day-slot.training-day-weekend,
+.training-calendar .rbc-day-bg.training-day-weekend {
+  background: var(--orange-light);
+}
+
+/* Bugün hafta sonuna düşerse marka tonu öne çıksın. */
+.training-calendar .rbc-day-slot.training-day-weekend.rbc-today,
+.training-calendar .rbc-day-bg.training-day-weekend.rbc-today {
+  background: var(--brand-subtle);
+}
+
+/* Header'da hafta sonu günleri için custom span'a class düşüyor;
+ * cumartesi/pazar gün başlığını hafif italic ve sönük yapıyoruz. */
+.training-calendar .rbc-time-header-cell .rbc-header:has(.training-header-day-weekend) {
+  background: var(--gray-100);
+}
+
+.training-header-day {
+  display: inline-block;
+  text-transform: capitalize;
+}
+
+.training-header-day-weekend {
+  color: var(--gray-500);
+  font-style: italic;
 }
 
 /* Şu an çizgisi */
@@ -440,17 +485,17 @@
 }
 
 .training-calendar .rbc-event-label {
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 500;
-  opacity: 0.75;
-  margin-bottom: 0;
+  opacity: 0.85;
+  margin-bottom: 1px;
   letter-spacing: 0;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .training-calendar .rbc-event-content {
-  font-size: 6px;
-  line-height: 1.15;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .training-calendar .rbc-event.rbc-selected,
@@ -488,11 +533,36 @@
   transform: none;
 }
 
-/* Uygulama eventleri (mavi) */
+/* Mat ders tipi renkleri — saturasyonu düşük, beyaz metin okunaklı.
+ * GROUP_PALETTE'ten alındı: teorik = mat orman, uygulama = mat çelik. */
+.training-calendar .training-event-teorik {
+  background: #4d6b47;
+  border-color: #385032;
+  color: var(--white);
+  box-shadow: 0 1px 2px rgba(56, 80, 50, 0.25);
+}
+
+.training-calendar .training-event-teorik:hover {
+  box-shadow: 0 4px 10px rgba(56, 80, 50, 0.35);
+}
+
+.training-calendar .training-event-teorik.rbc-selected {
+  background: #385032;
+}
+
 .training-calendar .training-event-uygulama {
-  background: var(--blue);
-  border-color: #2563eb;
-  box-shadow: 0 1px 2px rgba(59, 130, 246, 0.25);
+  background: #4d5c70;
+  border-color: #374455;
+  color: var(--white);
+  box-shadow: 0 1px 2px rgba(55, 68, 85, 0.25);
+}
+
+.training-calendar .training-event-uygulama:hover {
+  box-shadow: 0 4px 10px rgba(55, 68, 85, 0.35);
+}
+
+.training-calendar .training-event-uygulama.rbc-selected {
+  background: #374455;
 }
 
 .training-calendar .training-event-uygulama:hover {
