@@ -64,10 +64,7 @@ const ROLLING_MESSAGES = {
 // burada kullanılıyor.
 const CALENDAR_FORMATS = {
   timeGutterFormat: "HH:mm",
-  eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: { format: (d: Date, fmt: string, c?: string) => string }) =>
-    localizer
-      ? `${localizer.format(start, "HH:mm", culture)} – ${localizer.format(end, "HH:mm", culture)}`
-      : "",
+  eventTimeRangeFormat: () => "",
   agendaTimeFormat: "HH:mm",
   agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: { format: (d: Date, fmt: string, c?: string) => string }) =>
     localizer
