@@ -43,6 +43,7 @@ const sampleLicenseClass = {
   isNewGeneration: false,
   requiresTheoryExam: true,
   requiresPracticeExam: true,
+  theoryLessonHours: 34,
   contractLessonHours: 16,
   directPracticeLessonHours: 14,
   upgradePracticeLessonHours: 7,
@@ -109,6 +110,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     expect(await screen.findByText("B")).toBeInTheDocument();
     expect(screen.getByText("B Otomobil")).toBeInTheDocument();
     expect(screen.getByText("Otomobil")).toBeInTheDocument();
+    expect(screen.getByText(/Teo\. 34/)).toBeInTheDocument();
   });
 
   it("applies filters and re-fetches", async () => {
@@ -154,6 +156,9 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     fireEvent.change(screen.getByPlaceholderText("18"), {
       target: { value: "16" },
     });
+    fireEvent.change(screen.getByLabelText("Teorik Ders Saati"), {
+      target: { value: "34" },
+    });
     fireEvent.change(screen.getByLabelText("Eğitim Ücreti"), {
       target: { value: "12500" },
     });
@@ -167,6 +172,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
           name: "A2 Motosiklet",
           category: "motorcycle",
           minimumAge: 16,
+          theoryLessonHours: 34,
           courseFee: 12500,
           isActive: true,
           requiresTheoryExam: true,

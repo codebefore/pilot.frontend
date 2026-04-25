@@ -35,6 +35,24 @@
   letter-spacing: -.02em;
 }
 
+.header-brand-button {
+  border: 0;
+  background: transparent;
+  padding: 4px 6px 4px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.header-brand-button:hover {
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+}
+.header-brand-button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
 .header-brand .logo-icon {
   width: 32px; height: 32px;
   background: var(--brand);
@@ -131,7 +149,24 @@
   overflow-y: auto;
   padding: 16px 0;
   z-index: 150;
+  transition: transform .18s ease, box-shadow .18s ease;
+  scrollbar-width: none;
 }
+
+.sidebar.desktop-collapsed {
+  transform: translateX(-100%);
+  box-shadow: none;
+}
+
+.sidebar-edge-trigger {
+  position: fixed;
+  top: var(--header-h);
+  left: 0;
+  bottom: 0;
+  width: 14px;
+  z-index: 149;
+}
+
 .sidebar-backdrop {
   display: none;
   position: fixed;
@@ -140,8 +175,18 @@
   background: rgba(0,0,0,.35);
   z-index: 120;
 }
-.sidebar::-webkit-scrollbar { width: 4px; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 4px; }
+/* Sidebar scroll çubuğunu tamamen gizliyoruz — Firefox'ta
+ * `scrollbar-width: none`, WebKit'te `display: none`. Mouse wheel /
+ * trackpad / klavye scroll'u çalışmaya devam eder. */
+.sidebar {
+  scrollbar-width: none;
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 
 .sidebar-section { margin-bottom: 8px; }
 .sidebar-nav-group { margin-bottom: 2px; }
@@ -174,10 +219,15 @@
   width: 100%;
   padding: 8px 20px;
   font-size: 13px;
+  font-family: inherit;
   color: var(--gray-600);
+  background: transparent;
+  border: 0;
   border-left: 2px solid transparent;
   transition: all .15s;
   text-align: left;
+  text-decoration: none;
+  cursor: pointer;
 }
 .sidebar-link:hover {
   color: var(--brand-dark);
@@ -195,6 +245,22 @@
   width: 18px; height: 18px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+}
+
+.sidebar-menu-chevron {
+  margin-left: auto;
+  display: flex;
+  color: var(--gray-400);
+  transition: transform .15s;
+  flex-shrink: 0;
+}
+
+.sidebar-badge + .sidebar-menu-chevron {
+  margin-left: 4px;
+}
+
+.sidebar-link-parent.expanded .sidebar-menu-chevron {
+  transform: rotate(180deg);
 }
 
 .sidebar-subnav {
@@ -242,6 +308,10 @@
   margin-left: var(--sidebar-w);
   margin-top: var(--header-h);
   min-height: calc(100vh - var(--header-h));
+  transition: margin-left .18s ease;
+}
+.main.sidebar-collapsed {
+  margin-left: 0;
 }
 
 /* ─── PAGE HEADER / TOOLBAR / TABS ─── */
@@ -430,6 +500,7 @@
     transition: transform .2s;
   }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+  .sidebar-edge-trigger { display: none; }
   .sidebar-backdrop { display: block; }
   .main { margin-left: 0; }
   .dash-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

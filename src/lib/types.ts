@@ -345,6 +345,7 @@ export interface LicenseClassDefinitionResponse {
   isNewGeneration: boolean;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
+  theoryLessonHours: number | null;
   contractLessonHours: number | null;
   directPracticeLessonHours: number | null;
   upgradePracticeLessonHours: number | null;
@@ -385,6 +386,7 @@ export interface LicenseClassDefinitionUpsertRequest {
   isNewGeneration: boolean;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
+  theoryLessonHours?: number | null;
   contractLessonHours?: number | null;
   directPracticeLessonHours?: number | null;
   upgradePracticeLessonHours?: number | null;
@@ -559,6 +561,64 @@ export interface GroupUpdateRequest {
   capacity: number;
   startDate: string;
   mebStatus?: string | null;
+  rowVersion?: number;
+}
+
+/* ── Training Lessons ── */
+
+export type TrainingLessonKind = "teorik" | "uygulama";
+export type TrainingLessonStatus = "planned" | "completed";
+
+export interface TrainingLessonLicenseClassCount {
+  licenseClass: string;
+  count: number;
+}
+
+export interface TrainingLessonResponse {
+  id: string;
+  kind: TrainingLessonKind;
+  status: TrainingLessonStatus;
+  startAtUtc: string;
+  endAtUtc: string;
+  instructorId: string;
+  instructorName: string;
+  groupId: string | null;
+  groupTitle: string | null;
+  termName: string | null;
+  licenseClassCounts: TrainingLessonLicenseClassCount[];
+  candidateId: string | null;
+  candidateName: string | null;
+  vehicleId: string | null;
+  vehiclePlate: string | null;
+  areaId: string | null;
+  areaName: string | null;
+  routeId: string | null;
+  routeName: string | null;
+  licenseClass: LicenseClass | null;
+  candidateCount: number;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface TrainingLessonListResponse {
+  items: TrainingLessonResponse[];
+}
+
+export interface TrainingLessonUpsertRequest {
+  kind: TrainingLessonKind;
+  status: TrainingLessonStatus;
+  startAtUtc: string;
+  endAtUtc: string;
+  instructorId: string;
+  groupId?: string | null;
+  candidateId?: string | null;
+  vehicleId?: string | null;
+  areaId?: string | null;
+  routeId?: string | null;
+  licenseClass?: LicenseClass | null;
+  notes?: string | null;
   rowVersion?: number;
 }
 

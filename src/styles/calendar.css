@@ -1,0 +1,721 @@
+/* react-big-calendar default stilini node_modules'tan içeri alıyoruz —
+ * Vite bunu Sass değil düz CSS olarak işliyor. Buradaki override'lar
+ * Pilot marka tokenlarına (--brand, --gray-*) bağlanıyor. */
+@import "react-big-calendar/lib/css/react-big-calendar.css";
+/* Drag-and-drop addon: resize kolları ve drag-preview için stil. */
+@import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
+
+/* ─── Konteyner ───────────────────────────────────────────── */
+.training-calendar {
+  padding: 14px;
+}
+
+/* ─── Sayfa layout: sidebar + takvim ──────────────────────── */
+.training-layout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 0 14px;
+}
+
+.training-layout > .training-calendar {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+
+/* ─── Filtre paneli ───────────────────────────────────────── */
+.training-filters {
+  flex: 0 0 200px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px 10px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  /* İnce ve marka tonunda scrollbar — default gri kalın bar yerine. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand) transparent;
+}
+
+.training-filters::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.training-filters::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.training-filters::-webkit-scrollbar-thumb {
+  background: var(--brand);
+  border-radius: 999px;
+}
+
+.training-filters::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-dark);
+}
+
+.training-filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+
+.training-filters-reset {
+  background: transparent;
+  border: none;
+  color: var(--brand-dark);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.training-filters-reset:hover {
+  color: var(--brand);
+}
+
+.training-filters-section {
+  margin-top: 8px;
+}
+
+.training-filters-section + .training-filters-section {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.training-filters-section-title {
+  margin: 0 0 6px 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+
+.training-filters-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.training-filters-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--gray-800);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.training-filters-item:hover {
+  background: var(--gray-50);
+}
+
+/* switch-toggle kompakt varyant — filter listesinde her satıra
+ * yerleşecek kadar küçük (24×14, knob 10px). Genel `.switch-toggle`
+ * stilinin üstüne yazıyor. */
+.switch-toggle-sm .switch-toggle-control {
+  width: 24px;
+  height: 14px;
+}
+.switch-toggle-sm .switch-toggle-control::after {
+  width: 10px;
+  height: 10px;
+  top: 2px;
+  left: 2px;
+}
+.switch-toggle-sm input[type="checkbox"]:checked + .switch-toggle-control::after {
+  transform: translateX(10px);
+}
+
+.training-filters-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.training-filters-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Haftalık özet şeridi ────────────────────────────────── */
+.training-week-summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 4px;
+  margin: 0 0 8px 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.training-week-summary-stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.training-week-summary-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.training-week-summary-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gray-900);
+  line-height: 1;
+}
+
+.training-week-summary-key {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.training-calendar .rbc-calendar {
+  font-family: inherit;
+  color: var(--gray-800);
+  gap: 6px;
+}
+
+/* ─── Toolbar (3-bölgeli flex: nav | başlık | view butonları) ── */
+.training-calendar .rbc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.training-calendar .rbc-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--gray-200);
+}
+
+.training-calendar .rbc-btn-group > button {
+  position: relative;
+  background: var(--white);
+  border: none;
+  border-right: 1px solid var(--gray-200);
+  color: var(--gray-700);
+  border-radius: 0;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.training-calendar .rbc-btn-group > button:last-child {
+  border-right: none;
+}
+
+.training-calendar .rbc-btn-group > button:hover,
+.training-calendar .rbc-btn-group > button:focus {
+  background: var(--gray-50);
+  color: var(--gray-900);
+  outline: none;
+}
+
+.training-calendar .rbc-btn-group > button.rbc-active,
+.training-calendar .rbc-btn-group > button.rbc-active:hover,
+.training-calendar .rbc-btn-group > button.rbc-active:focus {
+  background: var(--brand);
+  color: var(--white);
+  box-shadow: none;
+}
+
+.training-calendar .rbc-toolbar-label {
+  flex: 1 1 auto;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--gray-900);
+  text-transform: capitalize;
+  padding: 0 6px;
+}
+
+/* ─── Time view (Hafta / 2 Hafta / Gün) ───────────────────── */
+.training-calendar .rbc-time-view,
+.training-calendar .rbc-month-view {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--white);
+}
+
+/* Time view header (gün başlıkları + tüm gün şeridi) */
+.training-calendar .rbc-time-header {
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.training-calendar .rbc-time-header.rbc-overflowing {
+  border-right-color: var(--gray-200);
+}
+
+.training-calendar .rbc-time-header-content {
+  border-left: 1px solid var(--gray-200);
+}
+
+.training-calendar .rbc-time-header-cell .rbc-header {
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--gray-200);
+  border-left: 1px solid var(--gray-200);
+  text-transform: capitalize;
+}
+
+.training-calendar .rbc-time-header-cell .rbc-header:first-child {
+  border-left: none;
+}
+
+/* Bugün başlığı */
+.training-calendar .rbc-time-header-cell .rbc-today {
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+}
+
+/* Tüm gün şeridi */
+.training-calendar .rbc-allday-cell {
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--gray-50);
+  height: auto;
+  max-height: 28px;
+}
+
+.training-calendar .rbc-time-header-content .rbc-row {
+  min-height: 24px;
+}
+
+/* Saat gutter (sol kolon: 00:00, 01:00 …)
+ * RBC TimeGutter'ı her saat grubunun ilk yarım-saat slot'unda
+ * <span class="rbc-label">00:00</span> render eder. Default
+ * `.rbc-time-gutter` flex:none olduğu için genişliği içeriğe göre
+ * verilir; explicit width vermezsek dar gelebiliyor. */
+.training-calendar .rbc-time-gutter {
+  background: var(--white);
+  width: 56px;
+  min-width: 56px;
+}
+
+.training-calendar .rbc-time-gutter .rbc-timeslot-group {
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.training-calendar .rbc-time-gutter .rbc-label {
+  display: block;
+  padding: 0 8px 0 0;
+  text-align: right;
+  color: var(--gray-600);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.training-calendar .rbc-time-header-gutter {
+  background: var(--white);
+  width: 56px;
+  min-width: 56px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+/* Time grid hücreleri */
+.training-calendar .rbc-time-content {
+  border-top: 1px solid var(--gray-200);
+}
+
+.training-calendar .rbc-time-content > * + * > * {
+  border-left-color: var(--gray-200);
+}
+
+.training-calendar .rbc-timeslot-group {
+  min-height: 22px;
+}
+
+/* timeslots=1 + step=30 → her "grup" tek bir 30dk slotu. Bu yüzden
+ * tam-saat (nth-child odd) ve yarım-saat (nth-child even) grupları
+ * border-bottom ile farklı çizeriz: tam saat grubu altı = 30dk çizgisi
+ * (dashed, ince); yarım saat grubu altı = saat başı çizgisi (solid,
+ * daha koyu). */
+.training-calendar .rbc-timeslot-group:nth-child(odd) {
+  border-bottom: 1px dashed var(--gray-200);
+}
+
+.training-calendar .rbc-timeslot-group:nth-child(even) {
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.training-calendar .rbc-time-slot {
+  border-top: none;
+}
+
+/* Yarım saat label'ları gri + normal weight — tam saatler koyulaşır */
+.training-calendar .rbc-time-gutter .rbc-timeslot-group:nth-child(even) .rbc-label {
+  color: var(--gray-400);
+  font-weight: 400;
+}
+
+/* Bugün sütunu vurgusu (içerik hücreleri) */
+.training-calendar .rbc-day-slot.rbc-today,
+.training-calendar .rbc-day-bg.rbc-today {
+  background: rgba(34, 176, 148, 0.04);
+}
+
+/* Şu an çizgisi */
+.training-calendar .rbc-current-time-indicator {
+  background: var(--brand);
+  height: 2px;
+  box-shadow: 0 0 0 1px rgba(34, 176, 148, 0.15);
+}
+
+/* ─── Etkinlik baloncukları ────────────────────────────────── */
+.training-calendar .rbc-event {
+  background: var(--brand);
+  border: 1px solid var(--brand-dark);
+  color: var(--white);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transform-origin: center;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  will-change: transform;
+}
+
+.training-calendar .rbc-event:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
+
+.training-calendar .rbc-event:active {
+  transform: scale(0.97);
+  transition-duration: 0.05s;
+}
+
+.training-calendar .rbc-event:focus {
+  outline: 2px solid var(--brand-dark);
+  outline-offset: 1px;
+}
+
+.training-calendar .rbc-event-label {
+  font-size: 7px;
+  font-weight: 500;
+  opacity: 0.75;
+  margin-bottom: 0;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.training-calendar .rbc-event-content {
+  font-size: 6px;
+  line-height: 1.15;
+}
+
+.training-calendar .rbc-event.rbc-selected,
+.training-calendar .rbc-day-slot .rbc-selected.rbc-background-event {
+  background: var(--brand-dark);
+  border-color: var(--brand-dark);
+}
+
+/* External (başka takvimden gelen) event'ler — salt-okunur gölge.
+ * Inline style ile gelen grup rengi opacity ile soluklaşır; üstüne
+ * çapraz tarama deseni koyup "buradan değil" hissi veriyoruz. Hover
+ * scale efekti devre dışı, cursor not-allowed. */
+.training-calendar .rbc-event.training-event-external {
+  opacity: 0.42;
+  border-style: dashed !important;
+  cursor: not-allowed !important;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.18) 0,
+    rgba(255, 255, 255, 0.18) 3px,
+    transparent 3px,
+    transparent 7px
+  );
+  box-shadow: none;
+}
+
+.training-calendar .rbc-event.training-event-external:hover {
+  transform: none;
+  opacity: 0.62;
+  box-shadow: none;
+  z-index: 1;
+}
+
+.training-calendar .rbc-event.training-event-external:active {
+  transform: none;
+}
+
+/* Uygulama eventleri (mavi) */
+.training-calendar .training-event-uygulama {
+  background: var(--blue);
+  border-color: #2563eb;
+  box-shadow: 0 1px 2px rgba(59, 130, 246, 0.25);
+}
+
+.training-calendar .training-event-uygulama:hover {
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.35);
+}
+
+.training-calendar .training-event-uygulama.rbc-selected {
+  background: #2563eb;
+}
+
+/* ─── Ay görünümü ──────────────────────────────────────────── */
+.training-calendar .rbc-month-header .rbc-header {
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--gray-200);
+  border-left: 1px solid var(--gray-200);
+  text-transform: capitalize;
+}
+
+.training-calendar .rbc-month-header .rbc-header:first-child {
+  border-left: none;
+}
+
+.training-calendar .rbc-month-row {
+  border-top: 1px solid var(--gray-200);
+  min-height: 72px;
+}
+
+.training-calendar .rbc-month-row:first-child {
+  border-top: none;
+}
+
+.training-calendar .rbc-day-bg + .rbc-day-bg {
+  border-left-color: var(--gray-200);
+}
+
+.training-calendar .rbc-date-cell {
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-700);
+  text-align: right;
+}
+
+.training-calendar .rbc-date-cell.rbc-now {
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+
+.training-calendar .rbc-date-cell > a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Off-range (bu ayın dışındaki günler) */
+.training-calendar .rbc-off-range-bg {
+  background: var(--gray-50);
+}
+
+.training-calendar .rbc-off-range {
+  color: var(--gray-400);
+}
+
+/* "+N daha" linki */
+.training-calendar .rbc-show-more {
+  background: transparent;
+  color: var(--brand-dark);
+  font-weight: 500;
+  font-size: 10px;
+  padding: 1px 4px;
+  margin-top: 2px;
+}
+
+.training-calendar .rbc-show-more:hover {
+  color: var(--brand);
+  background: var(--brand-subtle);
+  border-radius: 4px;
+}
+
+/* ─── Ajanda görünümü ──────────────────────────────────────── */
+.training-calendar .rbc-agenda-view {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.training-calendar .rbc-agenda-view table.rbc-agenda-table {
+  border: none;
+  font-size: 12px;
+}
+
+.training-calendar .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--gray-200);
+  border-left: 1px solid var(--gray-200);
+  text-transform: uppercase;
+}
+
+.training-calendar .rbc-agenda-view table.rbc-agenda-table thead > tr > th:first-child {
+  border-left: none;
+}
+
+.training-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  padding: 7px 10px;
+  border-top: 1px solid var(--gray-100);
+  vertical-align: top;
+}
+
+.training-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr:hover > .rbc-agenda-date-cell,
+.training-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr:hover > .rbc-agenda-time-cell {
+  background: var(--gray-50);
+}
+
+/* Agenda'da `eventPropGetter`'dan gelen inline style <tr>'a uygulanır;
+ * row'un tamamı grup rengiyle dolar ve tarih/saat kolonlarındaki koyu
+ * metin kaybolur. Bu kolonları beyaz zemin + koyu metin olarak geri
+ * zorluyoruz; event cell'i grup renginde kalıyor. */
+.training-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > .rbc-agenda-date-cell,
+.training-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > .rbc-agenda-time-cell {
+  background: var(--white);
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+.training-calendar .rbc-agenda-empty {
+  color: var(--gray-500);
+  padding: 24px 12px;
+  text-align: center;
+  background: var(--gray-50);
+}
+
+/* ─── Slot seçim kutusu (drag-to-create) ──────────────────── */
+.training-calendar .rbc-slot-selection {
+  background: rgba(34, 176, 148, 0.15);
+  color: var(--brand-dark);
+  font-weight: 600;
+  font-size: 10px;
+  border: 1px dashed var(--brand);
+  border-radius: 4px;
+}
+
+/* ─── 14 günlük view'da yatay scroll güvencesi ───────────── */
+.training-calendar .rbc-time-view {
+  min-width: 0;
+}
+
+/* ─── Drag-and-drop resize kolları ─────────────────────────
+ * RBC DnD addon her event'in alt/üst kenarına resize handle'ı
+ * koyar. Default'ta gizli tutuyoruz, sadece cursor event üzerine
+ * geldiğinde (hover) yumuşak bir fade ile beliriyor. */
+.training-calendar .rbc-addons-dnd .rbc-addons-dnd-resize-ns-anchor .rbc-addons-dnd-resize-ns-icon {
+  display: block;
+  width: 24px;
+  height: 3px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 2px;
+  cursor: ns-resize;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.training-calendar .rbc-addons-dnd .rbc-event:hover .rbc-addons-dnd-resize-ns-icon {
+  opacity: 1;
+}
+
+/* Sürüklerken event'in yarı saydam hali */
+.training-calendar .rbc-addons-dnd-dragged-event {
+  opacity: 0.5;
+}
+
+/* Aylık görünümde event'ler ince yatay şerit; RBC default resize
+ * tutma yeri (ew-icon, 10px height + 3px double border) burada
+ * oransız büyük duruyor. Daha ince ve sade tek-line bir handle
+ * ile küçültüyoruz. */
+.training-calendar .rbc-month-view .rbc-addons-dnd-resize-ew-icon {
+  height: 6px;
+  border-left: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.training-calendar .rbc-month-view .rbc-addons-dnd-resize-ew-anchor {
+  top: 2px;
+  width: 6px;
+}
+
+/* ─── Event detay modalı ──────────────────────────────────
+ * EditableRow'un sağdaki absolute konumlu kalem ikonu için her
+ * satırda padding-right reserve ediyoruz. `drawer-section` sarmalı
+ * olmadan modal içinde kullanıldığında bu rezerv uygulanmaz. */
+.training-event-modal-body .drawer-row {
+  position: relative;
+  padding-right: 24px;
+}
+
+.training-event-external-banner {
+  background: var(--gray-50);
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--gray-700);
+}
+
+.training-event-external-banner strong {
+  color: var(--gray-900);
+  font-weight: 600;
+}
+
+.training-event-delete-confirm {
+  margin-right: auto;
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 500;
+}

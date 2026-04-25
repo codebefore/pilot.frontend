@@ -229,7 +229,7 @@ describe("InstructorsSettingsSection", () => {
       target: { value: "salaried" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "İlk Yardım" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /^A2 -/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /^A2(?:\s+-)?\s+Motosiklet$/ }));
 
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 

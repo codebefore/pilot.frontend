@@ -27,6 +27,7 @@ const tr = {
   "header.notifications": "Bildirimler",
   "header.newNotifications": "{count} yeni bildirim",
   "header.menu": "Menüyü aç",
+  "header.sidebarToggle": "Sol menüyü aç/kapat",
   "header.logout": "Çıkış Yap",
   "header.languageToggle": "Dili değiştir",
 
@@ -603,6 +604,7 @@ const en: Record<keyof typeof tr, string> = {
   "header.notifications": "Notifications",
   "header.newNotifications": "{count} new notifications",
   "header.menu": "Open menu",
+  "header.sidebarToggle": "Open or close sidebar",
   "header.logout": "Log Out",
   "header.languageToggle": "Change language",
 

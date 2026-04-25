@@ -128,12 +128,13 @@ const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
     label: "Ders Saatleri",
     renderCell: (item) => (
       <span>
-        Söz. {formatOptionalNumber(item.contractLessonHours)} / Dir.{" "}
+        Teo. {formatOptionalNumber(item.theoryLessonHours)} / Söz.{" "}
+        {formatOptionalNumber(item.contractLessonHours)} / Dir.{" "}
         {formatOptionalNumber(item.directPracticeLessonHours)} / Yüks.{" "}
         {formatOptionalNumber(item.upgradePracticeLessonHours)}
       </span>
     ),
-    skeletonWidth: 160,
+    skeletonWidth: 190,
   },
   {
     id: "fees",

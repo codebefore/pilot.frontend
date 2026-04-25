@@ -30,12 +30,21 @@ import { UsersPage } from "./pages/UsersPage";
 function AppShell() {
   const [institutionId, setInstitutionId] = useState<string>(mockInstitutions[0].id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarHoverOpen, setSidebarHoverOpen] = useState(false);
   const location = useLocation();
+  const sidebarVisible = !sidebarCollapsed || sidebarHoverOpen;
 
   // Route değişince mobilde sidebar'ı otomatik kapat.
   useEffect(() => {
     setSidebarOpen(false);
+    setSidebarHoverOpen(false);
   }, [location.pathname]);
+
+  const toggleDesktopSidebar = () => {
+    setSidebarHoverOpen(false);
+    setSidebarCollapsed((current) => !current);
+  };
 
   return (
     <SidebarStatsProvider>
@@ -43,15 +52,28 @@ function AppShell() {
         activeInstitutionId={institutionId}
         onInstitutionChange={setInstitutionId}
         onMenuToggle={() => setSidebarOpen((v) => !v)}
+        onSidebarToggle={toggleDesktopSidebar}
+        sidebarCollapsed={sidebarCollapsed}
         userInitials="MS"
       />
+      {sidebarCollapsed && (
+        <div
+          aria-hidden="true"
+          className="sidebar-edge-trigger"
+          onMouseEnter={() => setSidebarHoverOpen(true)}
+        />
+      )}
       <Sidebar
         activeInstitutionId={institutionId}
+        desktopVisible={sidebarVisible}
         onClose={() => setSidebarOpen(false)}
         onInstitutionChange={setInstitutionId}
+        onMouseLeave={() => {
+          if (sidebarCollapsed) setSidebarHoverOpen(false);
+        }}
         open={sidebarOpen}
       />
-      <main className="main">
+      <main className={sidebarCollapsed ? "main sidebar-collapsed" : "main"}>
         <Routes>
           <Route element={<DashboardPage />}  path="/" />
           <Route element={<CandidatesPage />} path="/candidates" />

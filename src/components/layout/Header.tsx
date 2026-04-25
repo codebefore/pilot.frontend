@@ -10,6 +10,8 @@ type HeaderProps = {
   onInstitutionChange: (id: string) => void;
   userInitials: string;
   onMenuToggle: () => void;
+  onSidebarToggle: () => void;
+  sidebarCollapsed: boolean;
 };
 
 export function Header({
@@ -17,6 +19,8 @@ export function Header({
   onInstitutionChange,
   userInitials,
   onMenuToggle,
+  onSidebarToggle,
+  sidebarCollapsed,
 }: HeaderProps) {
   const { lang, setLang, t } = useLanguage();
 
@@ -33,10 +37,16 @@ export function Header({
         <MenuIcon />
       </button>
 
-      <div className="header-brand">
+      <button
+        aria-label={t("header.sidebarToggle")}
+        aria-pressed={!sidebarCollapsed}
+        className="header-brand header-brand-button"
+        onClick={onSidebarToggle}
+        type="button"
+      >
         <span className="logo-icon">P</span>
         Pilot
-      </div>
+      </button>
 
       <div className="header-inst-wrap">
         <div className="header-divider" />

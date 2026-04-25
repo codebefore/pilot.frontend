@@ -26,6 +26,7 @@ type LicenseClassDefinitionFormValues = {
   isNewGeneration: boolean;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
+  theoryLessonHours: string;
   contractLessonHours: string;
   directPracticeLessonHours: string;
   upgradePracticeLessonHours: string;
@@ -58,6 +59,8 @@ const VALIDATION_FIELD_MAP: Record<string, keyof LicenseClassDefinitionFormValue
   Category: "category",
   minimumAge: "minimumAge",
   MinimumAge: "minimumAge",
+  theoryLessonHours: "theoryLessonHours",
+  TheoryLessonHours: "theoryLessonHours",
   contractLessonHours: "contractLessonHours",
   ContractLessonHours: "contractLessonHours",
   directPracticeLessonHours: "directPracticeLessonHours",
@@ -161,6 +164,7 @@ function getEmptyValues(
         isNewGeneration: editing.isNewGeneration,
         requiresTheoryExam: editing.requiresTheoryExam,
         requiresPracticeExam: editing.requiresPracticeExam,
+        theoryLessonHours: stringValue(editing.theoryLessonHours),
         contractLessonHours: stringValue(editing.contractLessonHours),
         directPracticeLessonHours: stringValue(editing.directPracticeLessonHours),
         upgradePracticeLessonHours: stringValue(editing.upgradePracticeLessonHours),
@@ -185,6 +189,7 @@ function getEmptyValues(
         isNewGeneration: false,
         requiresTheoryExam: true,
         requiresPracticeExam: true,
+        theoryLessonHours: "",
         contractLessonHours: "",
         directPracticeLessonHours: "",
         upgradePracticeLessonHours: "",
@@ -271,6 +276,7 @@ export function LicenseClassDefinitionFormModal({
       isNewGeneration: values.isNewGeneration,
       requiresTheoryExam: values.requiresTheoryExam,
       requiresPracticeExam: values.requiresPracticeExam,
+      theoryLessonHours: parseOptionalNumber(values.theoryLessonHours),
       contractLessonHours: parseOptionalNumber(values.contractLessonHours),
       directPracticeLessonHours: parseOptionalNumber(values.directPracticeLessonHours),
       upgradePracticeLessonHours: parseOptionalNumber(values.upgradePracticeLessonHours),
@@ -431,6 +437,15 @@ export function LicenseClassDefinitionFormModal({
           </div>
 
           <div className="form-row">
+            <NumberField
+              error={errors.theoryLessonHours?.message}
+              label="Teorik Ders Saati"
+              placeholder="34"
+              registerProps={register("theoryLessonHours", {
+                validate: (value) =>
+                  validateOptionalInteger(value, 0, 999, "Ders saati 0 ile 999 arasında olmalı"),
+              })}
+            />
             <NumberField
               error={errors.contractLessonHours?.message}
               label="Sözleşme Saati"

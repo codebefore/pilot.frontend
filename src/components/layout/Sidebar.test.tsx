@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -85,6 +85,60 @@ describe("Sidebar live stats", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
+  it("keeps submenus collapsed by default and activates the first child when parent is clicked", async () => {
+    getSidebarStatsMock.mockResolvedValue({
+      candidates: { total: 8, active: 4 },
+      groups: { total: 2 },
+      documents: { missingCount: 0 },
+      mebJobs: { failed: 0, manualReview: 0 },
+    });
+
+    renderSidebar("/");
+
+    await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument());
+
+    const trainingMenu = screen.getByRole("button", { name: "Eğitim Planı" });
+
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Teorik Eğitim" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Uygulama Eğitim" })).not.toBeInTheDocument();
+
+    fireEvent.click(trainingMenu);
+
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "Uygulama Eğitim" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "E-Sınav" })).not.toBeInTheDocument();
+  });
+
+  it("closes the previous submenu when another parent menu is opened", async () => {
+    getSidebarStatsMock.mockResolvedValue({
+      candidates: { total: 8, active: 4 },
+      groups: { total: 2 },
+      documents: { missingCount: 0 },
+      mebJobs: { failed: 0, manualReview: 0 },
+    });
+
+    renderSidebar("/");
+
+    await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument());
+
+    const trainingMenu = screen.getByRole("button", { name: "Eğitim Planı" });
+    const examsMenu = screen.getByRole("button", { name: "Sınavlar" });
+
+    fireEvent.click(trainingMenu);
+
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toBeInTheDocument();
+
+    fireEvent.click(examsMenu);
+
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "false");
+    expect(examsMenu).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("link", { name: "Teorik Eğitim" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "E-Sınav" })).toHaveClass("active");
+  });
+
   it("renders exams submenu and highlights the active child route", async () => {
     getSidebarStatsMock.mockResolvedValue({
       candidates: { total: 8, active: 4 },
@@ -97,7 +151,7 @@ describe("Sidebar live stats", () => {
 
     await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument());
 
-    expect(screen.getByRole("link", { name: "Sınavlar" })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: "Sınavlar" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "E-Sınav" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "Uygulama" })).toBeInTheDocument();
   });
@@ -114,7 +168,7 @@ describe("Sidebar live stats", () => {
 
     await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument());
 
-    expect(screen.getByRole("link", { name: "Eğitim Planı" })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: "Eğitim Planı" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "Uygulama Eğitim" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toBeInTheDocument();
   });
