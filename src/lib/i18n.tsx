@@ -582,6 +582,29 @@ const tr = {
   "term.validation.concurrencyConflict":
     "Bu dönem başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
   "term.validation.generic": "Dönem kaydı sırasında hata oluştu",
+
+  // Training lesson validation (returned by TrainingLessonsController as errorCodes)
+  "trainingLesson.validation.required": "Bu alan boş bırakılamaz",
+  "trainingLesson.validation.invalidKind": "Ders tipi geçersiz",
+  "trainingLesson.validation.invalidStatus": "Ders durumu geçersiz",
+  "trainingLesson.validation.invalidTimeRange": "Bitiş başlangıçtan sonra olmalı",
+  "trainingLesson.validation.invalidLessonDuration": "Ders en az 1 saat olmalı",
+  "trainingLesson.validation.outsideLessonHours":
+    "Ders 07:00–23:00 (Türkiye saati) aralığında olmalı",
+  "trainingLesson.validation.instructorNotFound": "Eğitmen bulunamadı",
+  "trainingLesson.validation.groupNotFound": "Grup bulunamadı",
+  "trainingLesson.validation.candidateNotFound": "Aday bulunamadı",
+  "trainingLesson.validation.vehicleNotFound": "Araç bulunamadı",
+  "trainingLesson.validation.areaNotFound": "Alan bulunamadı",
+  "trainingLesson.validation.routeNotFound": "Güzergah bulunamadı",
+  "trainingLesson.validation.instructorConflict":
+    "Bu eğitmenin aynı saatte başka bir dersi var",
+  "trainingLesson.validation.vehicleConflict":
+    "Bu aracın aynı saatte başka bir dersi var",
+  "trainingLesson.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
+  "trainingLesson.validation.concurrencyConflict":
+    "Bu kayıt başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
+  "trainingLesson.validation.generic": "Ders kaydı sırasında hata oluştu",
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -1165,6 +1188,29 @@ const en: Record<keyof typeof tr, string> = {
   "term.validation.concurrencyConflict":
     "This term was updated by someone else. Close the form and try again with the latest data.",
   "term.validation.generic": "Something went wrong while saving the term",
+
+  // Training lesson validation (returned by TrainingLessonsController as errorCodes)
+  "trainingLesson.validation.required": "This field is required",
+  "trainingLesson.validation.invalidKind": "Invalid lesson kind",
+  "trainingLesson.validation.invalidStatus": "Invalid lesson status",
+  "trainingLesson.validation.invalidTimeRange": "End must be after start",
+  "trainingLesson.validation.invalidLessonDuration": "Lesson must be at least 1 hour long",
+  "trainingLesson.validation.outsideLessonHours":
+    "Lesson must fall within 07:00–23:00 Türkiye saatiyle",
+  "trainingLesson.validation.instructorNotFound": "Instructor not found",
+  "trainingLesson.validation.groupNotFound": "Group not found",
+  "trainingLesson.validation.candidateNotFound": "Candidate not found",
+  "trainingLesson.validation.vehicleNotFound": "Vehicle not found",
+  "trainingLesson.validation.areaNotFound": "Area not found",
+  "trainingLesson.validation.routeNotFound": "Route not found",
+  "trainingLesson.validation.instructorConflict":
+    "This instructor already has a lesson at the same time",
+  "trainingLesson.validation.vehicleConflict":
+    "This vehicle already has a lesson at the same time",
+  "trainingLesson.validation.rowVersionRequired": "Row version is required",
+  "trainingLesson.validation.concurrencyConflict":
+    "This lesson was updated by someone else. Close the form and try again with the latest data.",
+  "trainingLesson.validation.generic": "Something went wrong while saving the lesson",
 };
 
 export type TranslationKey = keyof typeof tr;

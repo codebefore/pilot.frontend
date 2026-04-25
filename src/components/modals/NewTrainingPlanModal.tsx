@@ -43,6 +43,11 @@ type NewTrainingPlanModalProps = {
   routes: RouteResponse[];
   onClose: () => void;
   onSubmit: (values: TrainingLessonSubmitValues) => void;
+  /** Backend `errorCodes` -> çevrilmiş mesaj. Parent submit hatasında
+   *  bu map'i set eder; modal açık kalır ve inline gösterir. */
+  serverFieldErrors?: Record<string, string>;
+  /** Field eşleşmesi olmayan genel hata (örn. concurrency). */
+  serverGeneralError?: string;
 };
 
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -52,10 +57,13 @@ const formatDateInput = (date: Date) =>
 
 const formatTimeInput = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
-const slotDuration = (slot?: { start: Date; end: Date } | null, fallback = 120) => {
-  if (!slot) return fallback;
+// Min ders 60 dk; slot uzunluğu 30 dk'lık katlara yuvarlanır.
+const slotDurationFromRange = (slot: { start: Date; end: Date } | null) => {
+  if (!slot) return null;
   const diff = Math.round((slot.end.getTime() - slot.start.getTime()) / 60000);
-  return diff > 0 ? diff : fallback;
+  if (diff <= 0) return null;
+  const snapped = Math.round(diff / 30) * 30;
+  return Math.max(60, snapped);
 };
 
 const buildDefaultValues = (
@@ -68,12 +76,16 @@ const buildDefaultValues = (
     normalizedStart.setHours(type === "teorik" ? 9 : 10, 0, 0, 0);
   }
 
+  // Default: 60 dk (min). Slot daha uzun seçildiyse 30 dk'lık katlara
+  // yuvarlanmış halini kullan.
+  const durationMinutes = slotDurationFromRange(slot ?? null) ?? 60;
+
   return {
     type,
     status: "planned",
     date: formatDateInput(normalizedStart),
     startTime: formatTimeInput(normalizedStart),
-    durationMinutes: slotDuration(slot, type === "teorik" ? 120 : 60),
+    durationMinutes,
     instructorId: "",
     groupId: "",
     candidateId: "",
@@ -105,6 +117,8 @@ export function NewTrainingPlanModal({
   routes,
   onClose,
   onSubmit,
+  serverFieldErrors,
+  serverGeneralError,
 }: NewTrainingPlanModalProps) {
   const {
     register,
@@ -125,8 +139,13 @@ export function NewTrainingPlanModal({
 
   const submit = handleSubmit((values) => onSubmit(values));
 
-  const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
-    hasError ? `${base} error` : base;
+  // Server hatası varsa input vurgusu da yansısın.
+  const serverErr = (field: string) => serverFieldErrors?.[field];
+  const fieldClass = (
+    field: string,
+    hasError: boolean,
+    base: "form-input" | "form-select"
+  ) => (hasError || serverErr(field) ? `${base} error` : base);
 
   return (
     <Modal
@@ -145,6 +164,11 @@ export function NewTrainingPlanModal({
       title={type === "teorik" ? "Yeni Teorik Ders" : "Yeni Uygulama Dersi"}
     >
       <form onSubmit={submit}>
+        {serverGeneralError ? (
+          <div className="form-error" style={{ marginBottom: 12 }}>
+            {serverGeneralError}
+          </div>
+        ) : null}
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Plan Tipi</label>
@@ -166,38 +190,48 @@ export function NewTrainingPlanModal({
           <div className="form-group">
             <label className="form-label">Tarih</label>
             <input
-              className={fieldClass(!!errors.date, "form-input")}
+              className={fieldClass("date", !!errors.date, "form-input")}
               type="date"
               {...register("date", { required: "Tarih zorunlu" })}
             />
             {errors.date && <div className="form-error">{errors.date.message}</div>}
+            {!errors.date && serverErr("date") ? (
+              <div className="form-error">{serverErr("date")}</div>
+            ) : null}
           </div>
           <div className="form-group">
             <label className="form-label">Başlangıç</label>
             <input
-              className={fieldClass(!!errors.startTime, "form-input")}
+              className={fieldClass("startTime", !!errors.startTime, "form-input")}
               type="time"
               {...register("startTime", { required: "Saat zorunlu" })}
             />
             {errors.startTime && (
               <div className="form-error">{errors.startTime.message}</div>
             )}
+            {!errors.startTime && serverErr("startTime") ? (
+              <div className="form-error">{serverErr("startTime")}</div>
+            ) : null}
           </div>
           <div className="form-group">
             <label className="form-label">Süre</label>
             <CustomSelect
-              className="form-select"
+              className={fieldClass("durationMinutes", false, "form-select")}
               {...register("durationMinutes", {
                 required: "Süre zorunlu",
                 valueAsNumber: true,
               })}
             >
-              <option value={30}>30 dk</option>
+              {/* Min 1 saat. Backend süre < 60 dk'yı 400 ile reddeder. */}
               <option value={60}>1 saat</option>
               <option value={90}>1.5 saat</option>
               <option value={120}>2 saat</option>
               <option value={180}>3 saat</option>
+              <option value={240}>4 saat</option>
             </CustomSelect>
+            {serverErr("durationMinutes") ? (
+              <div className="form-error">{serverErr("durationMinutes")}</div>
+            ) : null}
           </div>
         </div>
 
@@ -205,7 +239,7 @@ export function NewTrainingPlanModal({
           <div className="form-group">
             <label className="form-label">Eğitmen</label>
             <CustomSelect
-              className={fieldClass(!!errors.instructorId, "form-select")}
+              className={fieldClass("instructorId", !!errors.instructorId, "form-select")}
               {...register("instructorId", { required: "Eğitmen zorunlu" })}
             >
               <option value="">Seçiniz</option>
@@ -218,12 +252,15 @@ export function NewTrainingPlanModal({
             {errors.instructorId && (
               <div className="form-error">{errors.instructorId.message}</div>
             )}
+            {!errors.instructorId && serverErr("instructorId") ? (
+              <div className="form-error">{serverErr("instructorId")}</div>
+            ) : null}
           </div>
           {type === "teorik" ? (
             <div className="form-group">
               <label className="form-label">Grup</label>
               <CustomSelect
-                className={fieldClass(!!errors.groupId, "form-select")}
+                className={fieldClass("groupId", !!errors.groupId, "form-select")}
                 {...register("groupId", {
                   validate: (value) =>
                     type !== "teorik" || value ? true : "Grup zorunlu",
@@ -239,12 +276,15 @@ export function NewTrainingPlanModal({
               {errors.groupId && (
                 <div className="form-error">{errors.groupId.message}</div>
               )}
+              {!errors.groupId && serverErr("groupId") ? (
+                <div className="form-error">{serverErr("groupId")}</div>
+              ) : null}
             </div>
           ) : (
             <div className="form-group">
               <label className="form-label">Aday</label>
               <CustomSelect
-                className={fieldClass(!!errors.candidateId, "form-select")}
+                className={fieldClass("candidateId", !!errors.candidateId, "form-select")}
                 {...register("candidateId", {
                   validate: (value) =>
                     !needsPracticeFields || value ? true : "Aday zorunlu",
@@ -260,6 +300,9 @@ export function NewTrainingPlanModal({
               {errors.candidateId && (
                 <div className="form-error">{errors.candidateId.message}</div>
               )}
+              {!errors.candidateId && serverErr("candidateId") ? (
+                <div className="form-error">{serverErr("candidateId")}</div>
+              ) : null}
             </div>
           )}
         </div>
@@ -269,7 +312,7 @@ export function NewTrainingPlanModal({
             <div className="form-group">
               <label className="form-label">Araç</label>
               <CustomSelect
-                className={fieldClass(!!errors.vehicleId, "form-select")}
+                className={fieldClass("vehicleId", !!errors.vehicleId, "form-select")}
                 {...register("vehicleId", {
                   validate: (value) =>
                     !needsPracticeFields || value ? true : "Araç zorunlu",
@@ -285,6 +328,9 @@ export function NewTrainingPlanModal({
               {errors.vehicleId && (
                 <div className="form-error">{errors.vehicleId.message}</div>
               )}
+              {!errors.vehicleId && serverErr("vehicleId") ? (
+                <div className="form-error">{serverErr("vehicleId")}</div>
+              ) : null}
             </div>
             <div className="form-group">
               <label className="form-label">Güzergah</label>

@@ -114,3 +114,5 @@ const createRollingView = (length: number): RollingViewClass => {
 
 export const RollingWeekView = createRollingView(7);
 export const RollingTwoWeeksView = createRollingView(14);
+export const RollingThreeWeeksView = createRollingView(21);
+export const RollingFourWeeksView = createRollingView(28);
