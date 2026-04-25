@@ -605,6 +605,13 @@
   font-weight: 600;
 }
 
+.training-event-label {
+  font-size: 6px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  margin-right: 2px;
+}
+
 /* ─── Ay görünümü ──────────────────────────────────────────── */
 .training-calendar .rbc-month-header .rbc-header {
   background: var(--gray-50);
