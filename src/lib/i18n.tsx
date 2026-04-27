@@ -905,6 +905,8 @@ const tr = {
   "training.quick.header": "Hızlı Ders Atama",
   "training.quick.groupPlaceholder": "Grup seç…",
   "training.quick.instructorPlaceholder": "Eğitmen seç…",
+  "training.quick.candidatePlaceholder": "Aday seç…",
+  "training.quick.vehiclePlaceholder": "Araç seç…",
   "training.popover.titleDefault": "Ders Konusu Seçin",
   "training.popover.titleWithSlot": "{start} – {end} ({hours} sa)",
   "training.popover.noBranches": "Bu eğitmenin teorik branşı yok.",
@@ -1872,6 +1874,8 @@ const en: Record<keyof typeof tr, string> = {
   "training.quick.header": "Quick Lesson Assignment",
   "training.quick.groupPlaceholder": "Select group…",
   "training.quick.instructorPlaceholder": "Select instructor…",
+  "training.quick.candidatePlaceholder": "Select candidate…",
+  "training.quick.vehiclePlaceholder": "Select vehicle…",
   "training.popover.titleDefault": "Select Lesson Topic",
   "training.popover.titleWithSlot": "{start} – {end} ({hours} h)",
   "training.popover.noBranches":

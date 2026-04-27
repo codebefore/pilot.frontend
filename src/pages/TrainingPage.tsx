@@ -12,6 +12,7 @@ import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { TrainingEventDetailModal } from "../components/training/TrainingEventDetailModal";
 import { TrainingFilters } from "../components/training/TrainingFilters";
 import { QuickLessonAssignment } from "../components/training/QuickLessonAssignment";
+import { QuickPracticeAssignment } from "../components/training/QuickPracticeAssignment";
 import { TrainingWeekSummary } from "../components/training/TrainingWeekSummary";
 import { useToast } from "../components/ui/Toast";
 import { BranchPickerPopover } from "../components/training/BranchPickerPopover";
@@ -90,7 +91,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [quickSettings, setQuickSettings] = useState<{
     instructorId: string;
     groupId: string;
-  }>({ instructorId: "", groupId: "" });
+    candidateId: string;
+    vehicleId: string;
+  }>({ instructorId: "", groupId: "", candidateId: "", vehicleId: "" });
   // Quick-assign saat sayısı sayfa yenilemesinde kaybolmasın diye
   // localStorage'a yansıtılıyor (1-8 aralığında).
   const [quickDurationHours, setQuickDurationHours] = useState<number>(() => {
@@ -422,7 +425,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const resetFilters = () => {
     setVisibleGroups(new Set());
     setVisibleInstructors(new Set());
-    setQuickSettings({ groupId: "", instructorId: "" });
+    setQuickSettings({ groupId: "", instructorId: "", candidateId: "", vehicleId: "" });
   };
 
   // Bulk toggle: yalnızca filter listesinde görünen kayıtları etkiler.
@@ -771,15 +774,31 @@ export function TrainingPage({ type }: TrainingPageProps) {
         </div>
         <div className="training-layout">
           <aside className="training-filters-sidebar">
-            {type === "teorik" && (
+            {type === "teorik" ? (
               <QuickLessonAssignment
                 groupId={quickSettings.groupId}
                 groups={groups}
                 instructorId={quickSettings.instructorId}
                 instructors={instructors}
                 isLoading={isQuickAssignLoading}
-                onSettingsChange={(settings) => setQuickSettings(settings)}
+                onSettingsChange={(settings) =>
+                  setQuickSettings((prev) => ({ ...prev, ...settings }))
+                }
                 selectedSlot={newLessonSlot}
+              />
+            ) : (
+              <QuickPracticeAssignment
+                candidateId={quickSettings.candidateId}
+                candidates={candidates}
+                instructorId={quickSettings.instructorId}
+                instructors={instructors}
+                isLoading={isQuickAssignLoading}
+                onSettingsChange={(settings) =>
+                  setQuickSettings((prev) => ({ ...prev, ...settings }))
+                }
+                selectedSlot={newLessonSlot}
+                vehicleId={quickSettings.vehicleId}
+                vehicles={vehicles}
               />
             )}
             <TrainingFilters
