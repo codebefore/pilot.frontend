@@ -420,7 +420,10 @@ export function GroupsPage() {
                 <span
                   className="group-card-license-chip"
                   key={entry.licenseClass}
-                  title={`${entry.licenseClass}: ${entry.count} aday`}
+                  title={t("groups.card.licenseChipTooltip", {
+                    licenseClass: entry.licenseClass,
+                    count: entry.count,
+                  })}
                 >
                   <strong>{entry.count}</strong>
                   <span>{entry.licenseClass}</span>

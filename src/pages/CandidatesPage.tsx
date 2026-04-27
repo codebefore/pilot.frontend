@@ -196,6 +196,16 @@ function columnAvailableOnPage(
   return !column.pageScope || column.pageScope === "all" || column.pageScope === pageScope;
 }
 
+function ExamFeePill({ paid }: { paid: boolean }) {
+  const t = useT();
+  return (
+    <StatusPill
+      label={paid ? t("candidates.examFee.paidShort") : t("candidates.examFee.unpaidShort")}
+      status={paid ? "success" : "failed"}
+    />
+  );
+}
+
 const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "photo",
@@ -343,12 +353,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "examFeePaid",
     labelKey: "candidates.col.examFeePaid",
-    renderCell: (c) => (
-      <StatusPill
-        label={c.examFeePaid ? "Ödendi" : "Ödenmedi"}
-        status={c.examFeePaid ? "success" : "failed"}
-      />
-    ),
+    renderCell: (c) => <ExamFeePill paid={c.examFeePaid} />,
     skeletonWidth: 88,
   },
   {
@@ -421,7 +426,7 @@ type CandidatesPageProps = {
 };
 
 export function CandidatesPage({
-  title = "Adaylar",
+  title,
   columnStorageKey = "candidates.columns.v8",
   defaultVisibleColumnIds = DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS,
   columnLabelOverrides,
@@ -664,7 +669,7 @@ export function CandidatesPage({
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setCandidateLicenseClassCounts([]);
-        showToast("Adaylar yüklenemedi", "error");
+        showToast(t("candidates.toast.loadFailed"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -787,9 +792,9 @@ export function CandidatesPage({
     try {
       await syncExamSchedules(examDateSidebar.examType);
       setRefreshKey((current) => current + 1);
-      showToast("Sinav takvimi senkronize edildi");
+      showToast(t("candidates.toast.examScheduleSynced"));
     } catch {
-      showToast("Sinav takvimi senkronize edilemedi", "error");
+      showToast(t("candidates.toast.examScheduleSyncFailed"), "error");
     } finally {
       setExamScheduleSyncing(false);
     }
@@ -909,7 +914,7 @@ export function CandidatesPage({
       setIsAddingTag(false);
       setNewTagDraft("");
     } catch {
-      showToast("Etiket oluşturulamadı", "error");
+      showToast(t("candidates.toast.tagCreateFailed"), "error");
     } finally {
       setIsCreatingTag(false);
     }
@@ -967,52 +972,53 @@ export function CandidatesPage({
   const exportCandidatesToCsv = (rowsToExport: CandidateResponse[]) => {
     const groupColumnHeader =
       groupColumnMode === "term" ? t("candidates.col.term") : t("candidates.col.group");
-    const rows = rowsToExport.map((candidate) => ({
-      "Ad Soyad": `${candidate.firstName} ${candidate.lastName}`.trim(),
-      "TC Kimlik": candidate.nationalId,
-      Telefon: formatOptionalText(candidate.phoneNumber),
-      "E-posta": formatOptionalText(candidate.email),
-      "Doğum Tarihi": formatDateTR(candidate.birthDate),
-      Cinsiyet: formatOptionalText(candidateGenderLabel(candidate.gender)),
-      "Ehliyet Tipi": candidate.licenseClass,
-      [groupColumnHeader]:
-        groupColumnMode === "term"
-          ? formatCandidateTerm(candidate, lang)
-          : formatGroupWithTerm(candidate, lang),
-      "E-Sınav Tarihi": formatDateTR(candidate.mebExamDate),
-      "E-Sınav Hakkı": `${candidate.eSinavAttemptCount ?? 1}/4`,
-      "Uygulama Tarihi": formatDateTR(candidate.drivingExamDate),
-      "Uygulama Hakkı": `${candidate.drivingExamAttemptCount ?? 1}/4`,
-      "Tamamlanan Evrak": candidate.documentSummary?.completedCount ?? 0,
-      "Eksik Evrak": candidate.documentSummary?.missingCount ?? 0,
-      Mebbis: candidateMebSyncStatusLabel(candidate.mebSyncStatus),
-      "Sınav Sonucu": candidateExamResultLabel(candidate.mebExamResult),
-      "Sınav Ücreti": candidate.examFeePaid ? "Ödendi" : "Ödenmedi",
-      Durum: candidateStatusLabel(candidate.status),
-      "Kayıt Tarihi": formatDateTR(candidate.createdAtUtc),
-    }));
-
     const headers = [
-      "Ad Soyad",
-      "TC Kimlik",
-      "Telefon",
-      "E-posta",
-      "Doğum Tarihi",
-      "Cinsiyet",
-      "Ehliyet Tipi",
+      t("candidates.col.name"),
+      t("candidates.col.nationalId"),
+      t("candidates.col.phoneNumber"),
+      t("candidates.col.email"),
+      t("candidates.col.birthDate"),
+      t("candidates.col.gender"),
+      t("candidates.col.licenseClass"),
       groupColumnHeader,
-      "E-Sınav Tarihi",
-      "E-Sınav Hakkı",
-      "Uygulama Tarihi",
-      "Uygulama Hakkı",
-      "Tamamlanan Evrak",
-      "Eksik Evrak",
-      "Mebbis",
-      "Sınav Sonucu",
-      "Sınav Ücreti",
-      "Durum",
-      "Kayıt Tarihi",
+      t("candidates.col.eSinavDate"),
+      t("candidates.col.eSinavAttemptCount"),
+      t("candidates.col.drivingExamDate"),
+      t("candidates.col.drivingExamAttemptCount"),
+      t("candidates.csv.completedDocuments"),
+      t("candidates.col.missingDocuments"),
+      t("candidates.col.mebSyncStatus"),
+      t("candidates.csv.examResult"),
+      t("candidates.col.examFeePaid"),
+      t("candidates.col.status"),
+      t("candidates.col.createdAtUtc"),
     ] as const;
+
+    const rows = rowsToExport.map((candidate): readonly (string | number)[] => [
+      `${candidate.firstName} ${candidate.lastName}`.trim(),
+      candidate.nationalId,
+      formatOptionalText(candidate.phoneNumber),
+      formatOptionalText(candidate.email),
+      formatDateTR(candidate.birthDate),
+      formatOptionalText(candidateGenderLabel(candidate.gender)),
+      candidate.licenseClass,
+      groupColumnMode === "term"
+        ? formatCandidateTerm(candidate, lang)
+        : formatGroupWithTerm(candidate, lang),
+      formatDateTR(candidate.mebExamDate),
+      `${candidate.eSinavAttemptCount ?? 1}/4`,
+      formatDateTR(candidate.drivingExamDate),
+      `${candidate.drivingExamAttemptCount ?? 1}/4`,
+      candidate.documentSummary?.completedCount ?? 0,
+      candidate.documentSummary?.missingCount ?? 0,
+      candidateMebSyncStatusLabel(candidate.mebSyncStatus),
+      candidateExamResultLabel(candidate.mebExamResult),
+      candidate.examFeePaid
+        ? t("candidates.examFee.paidShort")
+        : t("candidates.examFee.unpaidShort"),
+      candidateStatusLabel(candidate.status),
+      formatDateTR(candidate.createdAtUtc),
+    ]);
 
     const escapeCsvValue = (value: string | number) => {
       const text = String(value);
@@ -1024,7 +1030,7 @@ export function CandidatesPage({
 
     const csvLines = [
       headers.join(","),
-      ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(",")),
+      ...rows.map((row) => row.map((value) => escapeCsvValue(value)).join(",")),
     ];
 
     const blob = new Blob(["\uFEFF" + csvLines.join("\n")], {
@@ -1059,7 +1065,7 @@ export function CandidatesPage({
       exportCandidatesToCsv(selectedCandidates);
       setBulkActionMode(null);
     } catch {
-      showToast("Seçili adaylar dışa aktarılamadı", "error");
+      showToast(t("candidates.toast.bulkExportFailed"), "error");
     } finally {
       setBulkExporting(false);
     }
@@ -1110,7 +1116,7 @@ export function CandidatesPage({
 
   const openBulkStatusAction = () => {
     if (selectedCandidateIds.size === 0) {
-      showToast("Önce en az bir aday seç", "error");
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
     setBulkActionMode("status");
@@ -1118,7 +1124,7 @@ export function CandidatesPage({
 
   const openBulkTagAction = () => {
     if (selectedCandidateIds.size === 0) {
-      showToast("Önce en az bir aday seç", "error");
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
     setBulkActionMode("tags");
@@ -1126,7 +1132,7 @@ export function CandidatesPage({
 
   const openBulkExportAction = () => {
     if (selectedCandidateIds.size === 0) {
-      showToast("Önce en az bir aday seç", "error");
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
     setBulkActionMode("export");
@@ -1134,7 +1140,7 @@ export function CandidatesPage({
 
   const openBulkExamDateAction = () => {
     if (selectedCandidateIds.size === 0) {
-      showToast("Önce en az bir aday seç", "error");
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
 
@@ -1143,7 +1149,7 @@ export function CandidatesPage({
     }
 
     if (displayedExamDateOptions.length === 0) {
-      showToast("Önce sınav tarihi ekle", "error");
+      showToast(t("candidates.toast.selectExamDateFirst"), "error");
       return;
     }
 
@@ -1174,7 +1180,7 @@ export function CandidatesPage({
       setBulkStatusValue("");
       setRefreshKey((k) => k + 1);
     } catch {
-      showToast("Toplu durum güncellenemedi", "error");
+      showToast(t("candidates.toast.bulkStatusFailed"), "error");
     } finally {
       setBulkSaving(false);
     }
@@ -1199,7 +1205,7 @@ export function CandidatesPage({
       setBulkTagValues([]);
       setRefreshKey((k) => k + 1);
     } catch {
-      showToast("Toplu etiket ekleme tamamlanamadı", "error");
+      showToast(t("candidates.toast.bulkTagFailed"), "error");
     } finally {
       setBulkSaving(false);
     }
@@ -1224,7 +1230,7 @@ export function CandidatesPage({
       );
 
       if (result.successCount === 0) {
-        showToast("Toplu sınav ataması tamamlanamadı", "error");
+        showToast(t("candidates.toast.bulkExamFailed"), "error");
         return;
       }
 
@@ -1246,7 +1252,7 @@ export function CandidatesPage({
       setPage(1);
       setRefreshKey((k) => k + 1);
     } catch {
-      showToast("Toplu sınav ataması tamamlanamadı", "error");
+      showToast(t("candidates.toast.bulkExamFailed"), "error");
     } finally {
       setBulkSaving(false);
     }
@@ -1301,11 +1307,11 @@ export function CandidatesPage({
           onClick={() => setTagManagerOpen(true)}
           type="button"
         >
-          Etiketleri Yönet
+          {t("candidates.bulk.manageTags")}
         </button>
         {licenseClassTotalSummary ? (
           <span
-            aria-label="Ehliyet sınıfı özeti"
+            aria-label={t("candidates.aria.licenseClassSummary")}
             className="tag-filter-summary-chip tag-filter-license-summary"
           >
             {licenseClassTotalSummary}
@@ -1321,7 +1327,7 @@ export function CandidatesPage({
                 <th className="cand-select-th">
                   <span className="cand-select-control">
                     <input
-                      aria-label="Bu sayfadaki tüm adayları seç"
+                      aria-label={t("candidates.aria.selectAllOnPage")}
                       checked={allVisibleSelected}
                       onChange={toggleVisibleCandidateSelection}
                       type="checkbox"
@@ -1383,7 +1389,7 @@ export function CandidatesPage({
                   className="data-table-empty"
                   colSpan={visibleColumns.length + 1 + (bulkSelectEnabled ? 1 : 0)}
                 >
-                  Eşleşen aday bulunamadı.
+                  {t("candidates.empty.noMatches")}
                 </td>
               </tr>
             ) : (
@@ -1396,7 +1402,9 @@ export function CandidatesPage({
                     >
                       <span className="cand-select-control">
                         <input
-                          aria-label={`${c.firstName} ${c.lastName} seç`}
+                          aria-label={t("candidates.aria.selectCandidate", {
+                            name: `${c.firstName} ${c.lastName}`,
+                          })}
                           checked={selectedCandidateIds.has(c.id)}
                           onChange={() => toggleCandidateSelection(c.id)}
                           onClick={(event) => event.stopPropagation()}
@@ -1439,7 +1447,7 @@ export function CandidatesPage({
       <div className="search-box">
         <SearchInput
           onChange={handleSearchChange}
-          placeholder="Aday ara... (ad, soyad, TC)"
+          placeholder={t("candidates.searchPlaceholder")}
           value={search}
         />
       </div>
@@ -1458,14 +1466,14 @@ export function CandidatesPage({
               {bulkActionMode === "status" ? (
                 <>
                   <CustomSelect
-                    aria-label="Toplu durum seç"
+                    aria-label={t("candidates.aria.bulkStatusSelect")}
                     onChange={(event) =>
                       setBulkStatusValue(event.target.value as "" | CandidateStatusValue)
                     }
                     size="sm"
                     value={bulkStatusValue}
                   >
-                    <option value="">Durum seç</option>
+                    <option value="">{t("candidates.bulk.statusPlaceholder")}</option>
                     {visibleBulkStatusOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -1478,16 +1486,16 @@ export function CandidatesPage({
                     onClick={applyBulkStatusChange}
                     type="button"
                   >
-                    {bulkSaving ? "Güncelleniyor..." : "Uygula"}
+                    {bulkSaving ? t("candidates.bulk.applying") : t("candidates.bulk.apply")}
                   </button>
                 </>
               ) : bulkActionMode === "tags" ? (
                 <>
                   <CandidateTagsInput
-                    ariaLabel="Toplu etiket seç"
+                    ariaLabel={t("candidates.aria.bulkTagSelect")}
                     className="candidate-bulk-tags-input"
                     onChange={setBulkTagValues}
-                    placeholder="Etiket ara veya yeni ekle"
+                    placeholder={t("candidates.bulk.tagSearchPlaceholder")}
                     value={bulkTagValues}
                   />
                   <button
@@ -1496,7 +1504,7 @@ export function CandidatesPage({
                     onClick={applyBulkTagChange}
                     type="button"
                   >
-                    {bulkSaving ? "Ekleniyor..." : "Uygula"}
+                    {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
                   </button>
                 </>
               ) : bulkActionMode === "export" ? (
@@ -1506,17 +1514,17 @@ export function CandidatesPage({
                   onClick={downloadSelectedCandidatesCsv}
                   type="button"
                 >
-                  {bulkExporting ? "İndiriliyor..." : "CSV İndir"}
+                  {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
                 </button>
               ) : bulkActionMode === "examDate" ? (
                 <>
                   <CustomSelect
-                    aria-label="Toplu sınav tarihi seç"
+                    aria-label={t("candidates.aria.bulkExamDateSelect")}
                     onChange={(event) => setBulkExamDateValue(event.target.value)}
                     size="sm"
                     value={bulkExamDateValue}
                   >
-                    <option value="">Tarih seç</option>
+                    <option value="">{t("candidates.bulk.datePlaceholder")}</option>
                     {displayedExamDateOptions.map((option) => (
                       <option key={option.id} value={option.date}>
                         {formatBulkExamDateOptionLabel(option, examDateSidebar?.showTime)}
@@ -1529,7 +1537,7 @@ export function CandidatesPage({
                     onClick={applyBulkExamDateChange}
                     type="button"
                   >
-                    {bulkSaving ? "Aktarılıyor..." : "Uygula"}
+                    {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
                   </button>
                 </>
               ) : (
@@ -1540,7 +1548,7 @@ export function CandidatesPage({
                       onClick={openBulkExamDateAction}
                       type="button"
                     >
-                      Sınav Tarihi Belirle
+                      {t("candidates.bulk.setExamDate")}
                     </button>
                   ) : null}
                   <button
@@ -1548,14 +1556,14 @@ export function CandidatesPage({
                     onClick={openBulkTagAction}
                     type="button"
                   >
-                    Etiket Ekle
+                    {t("candidates.bulk.addTag")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={openBulkStatusAction}
                     type="button"
                   >
-                    Durum Değiştir
+                    {t("candidates.bulk.changeStatus")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
@@ -1563,7 +1571,7 @@ export function CandidatesPage({
                     type="button"
                   >
                     <DownloadIcon size={14} />
-                    Dışa Aktar
+                    {t("candidates.bulk.export")}
                   </button>
                 </>
               )}
@@ -1572,7 +1580,7 @@ export function CandidatesPage({
                 onClick={toggleBulkSelection}
                 type="button"
               >
-                Kapat
+                {t("candidates.bulk.close")}
               </button>
             </div>
           ) : (
@@ -1605,12 +1613,12 @@ export function CandidatesPage({
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Aday
+                {t("candidates.newCandidate")}
               </button>
             </>
           )
         }
-        title={title}
+        title={title ?? t("candidates.headerTitleDefault")}
       />
 
       <CandidateFilterPanel
