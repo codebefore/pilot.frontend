@@ -10,6 +10,7 @@ import { VehiclesSettingsSection } from "../components/settings/VehiclesSettings
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
+import { useT, type TranslationKey } from "../lib/i18n";
 
 type InstitutionType = "MTSK" | "ISMAK" | "SRC" | "PSI";
 type ConnectionStatus = "connected" | "attention";
@@ -38,14 +39,14 @@ type SettingsFormValues = {
 };
 
 type SettingsNavItem = {
-  label: string;
-  description: string;
+  labelKey: TranslationKey;
+  descriptionKey: TranslationKey;
   to?: string;
   badge?: string;
 };
 
 type SettingsNavGroup = {
-  title: string;
+  titleKey: TranslationKey;
   items: SettingsNavItem[];
 };
 
@@ -80,11 +81,11 @@ const INITIAL_VALUES: SettingsFormValues = {
   retryEnabled: true,
 };
 
-const INSTITUTION_TYPE_LABEL: Record<InstitutionType, string> = {
-  MTSK: "MTSK - Surucu Kursu",
-  ISMAK: "Is Makinesi",
-  SRC: "SRC",
-  PSI: "Psikoteknik",
+const INSTITUTION_TYPE_LABEL_KEY: Record<InstitutionType, TranslationKey> = {
+  MTSK: "settings.institutionType.MTSK",
+  ISMAK: "settings.institutionType.ISMAK",
+  SRC: "settings.institutionType.SRC",
+  PSI: "settings.institutionType.PSI",
 };
 
 const CITY_OPTIONS: { value: CityOption; label: string }[] = [
@@ -98,46 +99,46 @@ const CITY_OPTIONS: { value: CityOption; label: string }[] = [
 
 const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   {
-    title: "Kurum",
+    titleKey: "settings.nav.group.institution",
     items: [
       {
-        label: "Genel",
-        description: "Kurum bilgileri, yetkili ve iletisim",
+        labelKey: "settings.nav.general.label",
+        descriptionKey: "settings.nav.general.description",
         to: "/settings/general",
       },
       {
-        label: "Entegrasyonlar",
-        description: "MEB baglantisi ve senkron ayarlari",
+        labelKey: "settings.nav.integrations.label",
+        descriptionKey: "settings.nav.integrations.description",
         to: "/settings/integrations",
       },
     ],
   },
   {
-    title: "Tanimlar",
+    titleKey: "settings.nav.group.definitions",
     items: [
       {
-        label: "Ehliyet Tipleri",
-        description: "Sınıf, yaş, ders saati ve ücret tanımları",
+        labelKey: "settings.nav.licenseClasses.label",
+        descriptionKey: "settings.nav.licenseClasses.description",
         to: "/settings/definitions/license-classes",
       },
       {
-        label: "Araclar",
-        description: "Uygulama ve planlama araclari",
+        labelKey: "settings.nav.vehicles.label",
+        descriptionKey: "settings.nav.vehicles.description",
         to: "/settings/definitions/vehicles",
       },
       {
-        label: "Egitmenler",
-        description: "Uygulama hoca ve atama havuzu",
+        labelKey: "settings.nav.instructors.label",
+        descriptionKey: "settings.nav.instructors.description",
         to: "/settings/definitions/instructors",
       },
       {
-        label: "Guzergahlar",
-        description: "Sinav ve ders guzergah tanimlari",
+        labelKey: "settings.nav.routes.label",
+        descriptionKey: "settings.nav.routes.description",
         to: "/settings/definitions/routes",
       },
       {
-        label: "Alanlar",
-        description: "Sinif, saha ve operasyon alanlari",
+        labelKey: "settings.nav.areas.label",
+        descriptionKey: "settings.nav.areas.description",
         to: "/settings/definitions/areas",
       },
     ],
@@ -193,21 +194,22 @@ function GeneralSettingsSection({
   lastSavedAt,
   onInputChange,
 }: GeneralSettingsSectionProps) {
+  const t = useT();
   return (
     <div className="settings-section-stack">
       <div className="settings-summary-grid">
         <div className="settings-summary-card">
-          <span className="settings-summary-label">Kurum Tipi</span>
+          <span className="settings-summary-label">{t("settings.general.summary.institutionType")}</span>
           <strong className="settings-summary-value">
-            {INSTITUTION_TYPE_LABEL[values.institutionType]}
+            {t(INSTITUTION_TYPE_LABEL_KEY[values.institutionType])}
           </strong>
         </div>
         <div className="settings-summary-card">
-          <span className="settings-summary-label">Yetkili Kisi</span>
+          <span className="settings-summary-label">{t("settings.general.summary.authorizedPerson")}</span>
           <strong className="settings-summary-value">{values.authorizedPerson}</strong>
         </div>
         <div className="settings-summary-card">
-          <span className="settings-summary-label">Konum</span>
+          <span className="settings-summary-label">{t("settings.general.summary.location")}</span>
           <strong className="settings-summary-value">
             {values.city} / {values.district}
           </strong>
@@ -216,15 +218,17 @@ function GeneralSettingsSection({
 
       <section className="settings-surface">
         <div className="settings-surface-header">
-          <div className="settings-surface-title">Kurum Bilgileri</div>
-          <span className="settings-panel-note">Son kayit: {formatTimestamp(lastSavedAt)}</span>
+          <div className="settings-surface-title">{t("settings.general.surface.title")}</div>
+          <span className="settings-panel-note">
+            {t("settings.general.lastSaved", { at: formatTimestamp(lastSavedAt) })}
+          </span>
         </div>
 
         <div className="settings-surface-body">
           <form className="settings-form" onSubmit={(event) => event.preventDefault()}>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Kurum Adi</label>
+                <label className="form-label">{t("settings.general.field.institutionName")}</label>
                 <input
                   className="form-input"
                   onChange={onInputChange("institutionName")}
@@ -233,24 +237,24 @@ function GeneralSettingsSection({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Kurum Tipi</label>
+                <label className="form-label">{t("settings.general.field.institutionType")}</label>
                 <CustomSelect
-                  aria-label="Kurum Tipi"
+                  aria-label={t("settings.general.field.institutionType")}
                   className="form-select"
                   onChange={onInputChange("institutionType")}
                   value={values.institutionType}
                 >
-                  <option value="MTSK">MTSK - Surucu Kursu</option>
-                  <option value="ISMAK">Is Makinesi</option>
-                  <option value="SRC">SRC</option>
-                  <option value="PSI">Psikoteknik</option>
+                  <option value="MTSK">{t("settings.institutionType.MTSK")}</option>
+                  <option value="ISMAK">{t("settings.institutionType.ISMAK")}</option>
+                  <option value="SRC">{t("settings.institutionType.SRC")}</option>
+                  <option value="PSI">{t("settings.institutionType.PSI")}</option>
                 </CustomSelect>
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Yetkili Kisi</label>
+                <label className="form-label">{t("settings.general.field.authorizedPerson")}</label>
                 <input
                   className="form-input"
                   onChange={onInputChange("authorizedPerson")}
@@ -259,14 +263,14 @@ function GeneralSettingsSection({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Telefon</label>
+                <label className="form-label">{t("settings.general.field.phone")}</label>
                 <input className="form-input" onChange={onInputChange("phone")} value={values.phone} />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">E-posta</label>
+                <label className="form-label">{t("settings.general.field.email")}</label>
                 <input
                   className="form-input"
                   onChange={onInputChange("email")}
@@ -276,7 +280,7 @@ function GeneralSettingsSection({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Ilce</label>
+                <label className="form-label">{t("settings.general.field.district")}</label>
                 <input
                   className="form-input"
                   onChange={onInputChange("district")}
@@ -287,9 +291,9 @@ function GeneralSettingsSection({
 
             <div className="form-row full">
               <div className="form-group">
-                <label className="form-label">Sehir</label>
+                <label className="form-label">{t("settings.general.field.city")}</label>
                 <CustomSelect
-                  aria-label="Sehir"
+                  aria-label={t("settings.general.field.city")}
                   className="form-select"
                   onChange={onInputChange("city")}
                   value={values.city}
@@ -315,32 +319,41 @@ function IntegrationSettingsSection({
   lastCheckedAt,
   onInputChange,
 }: IntegrationSettingsSectionProps) {
+  const t = useT();
   return (
     <div className="settings-section-stack">
       <div className="settings-summary-grid">
         <div className="settings-summary-card">
-          <span className="settings-summary-label">MEB Durumu</span>
+          <span className="settings-summary-label">{t("settings.integration.summary.mebStatus")}</span>
           <strong className="settings-summary-value">
-            {connectionStatus === "connected" ? "Baglanti Aktif" : "Kontrol Gerekli"}
+            {connectionStatus === "connected"
+              ? t("settings.integration.status.connected")
+              : t("settings.integration.status.attention")}
           </strong>
         </div>
         <div className="settings-summary-card">
-          <span className="settings-summary-label">Son Kontrol</span>
+          <span className="settings-summary-label">{t("settings.integration.summary.lastChecked")}</span>
           <strong className="settings-summary-value">{formatTimestamp(lastCheckedAt)}</strong>
         </div>
         <div className="settings-summary-card">
-          <span className="settings-summary-label">Senkron</span>
+          <span className="settings-summary-label">{t("settings.integration.summary.sync")}</span>
           <strong className="settings-summary-value">
-            {values.syncEnabled ? "Otomatik Acik" : "Manuel"}
+            {values.syncEnabled
+              ? t("settings.integration.sync.auto")
+              : t("settings.integration.sync.manual")}
           </strong>
         </div>
       </div>
 
       <section className="settings-surface">
         <div className="settings-surface-header">
-          <div className="settings-surface-title">MEB Baglantisi</div>
+          <div className="settings-surface-title">{t("settings.integration.surface.title")}</div>
           <StatusPill
-            label={connectionStatus === "connected" ? "Aktif" : "Kontrol Gerekli"}
+            label={
+              connectionStatus === "connected"
+                ? t("settings.integration.status.shortConnected")
+                : t("settings.integration.status.shortAttention")
+            }
             status={connectionStatus === "connected" ? "success" : "manual"}
           />
         </div>
@@ -351,18 +364,20 @@ function IntegrationSettingsSection({
               <div className="settings-connection-copy">
                 <strong className="settings-connection-title">
                   {connectionStatus === "connected"
-                    ? "Baglanti su anda hazir"
-                    : "Baglanti bilgilerini kontrol et"}
+                    ? t("settings.integration.connection.readyTitle")
+                    : t("settings.integration.connection.checkTitle")}
                 </strong>
                 <span className="settings-connection-meta">
-                  Son kontrol: {formatTimestamp(lastCheckedAt)}
+                  {t("settings.integration.connection.lastCheckedMeta", {
+                    at: formatTimestamp(lastCheckedAt),
+                  })}
                 </span>
               </div>
             </div>
 
             <div className="form-row full">
               <div className="form-group">
-                <label className="form-label">MEBBIS Kullanici Adi</label>
+                <label className="form-label">{t("settings.integration.field.mebbisUsername")}</label>
                 <input
                   className="form-input"
                   onChange={onInputChange("mebbisUsername")}
@@ -373,7 +388,7 @@ function IntegrationSettingsSection({
 
             <div className="form-row full">
               <div className="form-group">
-                <label className="form-label">MEBBIS Sifre</label>
+                <label className="form-label">{t("settings.integration.field.mebbisPassword")}</label>
                 <input
                   className="form-input"
                   onChange={onInputChange("mebbisPassword")}
@@ -386,9 +401,9 @@ function IntegrationSettingsSection({
             <div className="form-subsection">
               <div className="form-subsection-header">
                 <div>
-                  <div className="form-subsection-title">Senkron Ayarlari</div>
+                  <div className="form-subsection-title">{t("settings.integration.subsection.title")}</div>
                   <div className="form-subsection-note">
-                    Gecelik kontrol ve hata tekrar denemesi ayarlari.
+                    {t("settings.integration.subsection.note")}
                   </div>
                 </div>
               </div>
@@ -397,7 +412,7 @@ function IntegrationSettingsSection({
                 <label className="switch-toggle">
                   <input checked={values.syncEnabled} onChange={onInputChange("syncEnabled")} type="checkbox" />
                   <span className="switch-toggle-control" aria-hidden="true" />
-                  <span>Otomatik senkron acik</span>
+                  <span>{t("settings.integration.toggle.autoSync")}</span>
                 </label>
 
                 <label className="switch-toggle">
@@ -407,7 +422,7 @@ function IntegrationSettingsSection({
                     type="checkbox"
                   />
                   <span className="switch-toggle-control" aria-hidden="true" />
-                  <span>Hata durumunda otomatik tekrar dene</span>
+                  <span>{t("settings.integration.toggle.autoRetry")}</span>
                 </label>
               </div>
             </div>
@@ -421,6 +436,7 @@ function IntegrationSettingsSection({
 export function SettingsPage() {
   const { showToast } = useToast();
   const location = useLocation();
+  const t = useT();
 
   const [values, setValues] = useState<SettingsFormValues>(INITIAL_VALUES);
   const [savedValues, setSavedValues] = useState<SettingsFormValues>(INITIAL_VALUES);
@@ -458,14 +474,14 @@ export function SettingsPage() {
 
       if (!values.mebbisUsername.trim() || !values.mebbisPassword.trim()) {
         setConnectionStatus("attention");
-        showToast("MEB baglantisi icin kullanici adi ve sifre gerekli", "error");
+        showToast(t("settings.integration.toast.credentialsRequired"), "error");
         return;
       }
 
       const now = new Date();
       setConnectionStatus("connected");
       setLastCheckedAt(now);
-      showToast("MEB baglantisi kontrol edildi");
+      showToast(t("settings.integration.toast.connectionChecked"));
     } finally {
       setTestingConnection(false);
     }
@@ -479,7 +495,7 @@ export function SettingsPage() {
       const now = new Date();
       setSavedValues(values);
       setLastSavedAt(now);
-      showToast("Ayarlar kaydedildi");
+      showToast(t("settings.toast.saved"));
     } finally {
       setSubmitting(false);
     }
@@ -494,7 +510,7 @@ export function SettingsPage() {
           onClick={handleTestConnection}
           type="button"
         >
-          {testingConnection ? "Kontrol Ediliyor..." : "Baglantiyi Test Et"}
+          {testingConnection ? t("settings.toolbar.testing") : t("settings.toolbar.testConnection")}
         </button>
         <button
           className="btn btn-primary btn-sm"
@@ -502,7 +518,7 @@ export function SettingsPage() {
           onClick={handleSave}
           type="button"
         >
-          {submitting ? "Kaydediliyor..." : "Kaydet"}
+          {submitting ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
         </button>
       </>
     ) : activeSection === "general" ? (
@@ -512,21 +528,21 @@ export function SettingsPage() {
         onClick={handleSave}
         type="button"
       >
-        {submitting ? "Kaydediliyor..." : "Kaydet"}
+        {submitting ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
       </button>
     ) : undefined;
 
   return (
     <>
-      <PageToolbar actions={toolbarActions} title="Kurum Ayarlari" />
+      <PageToolbar actions={toolbarActions} title={t("settings.title")} />
 
       <div className="settings-page">
         <div className="settings-shell">
           <aside className="settings-nav">
             <div className="settings-nav-groups">
               {SETTINGS_NAV_GROUPS.map((group) => (
-                <section className="settings-nav-group" key={group.title}>
-                  <div className="settings-nav-group-title">{group.title}</div>
+                <section className="settings-nav-group" key={group.titleKey}>
+                  <div className="settings-nav-group-title">{t(group.titleKey)}</div>
 
                   <div className="settings-nav-list">
                     {group.items.map((item) =>
@@ -536,13 +552,13 @@ export function SettingsPage() {
                             isActive ? "settings-nav-link active" : "settings-nav-link"
                           }
                           end
-                          key={item.label}
+                          key={item.labelKey}
                           to={item.to}
                         >
                           <span className="settings-nav-link-copy">
-                            <strong className="settings-nav-link-title">{item.label}</strong>
+                            <strong className="settings-nav-link-title">{t(item.labelKey)}</strong>
                             <span className="settings-nav-link-description">
-                              {item.description}
+                              {t(item.descriptionKey)}
                             </span>
                           </span>
                         </NavLink>
@@ -550,12 +566,12 @@ export function SettingsPage() {
                         <div
                           aria-disabled="true"
                           className="settings-nav-link settings-nav-link-disabled"
-                          key={item.label}
+                          key={item.labelKey}
                         >
                           <span className="settings-nav-link-copy">
-                            <strong className="settings-nav-link-title">{item.label}</strong>
+                            <strong className="settings-nav-link-title">{t(item.labelKey)}</strong>
                             <span className="settings-nav-link-description">
-                              {item.description}
+                              {t(item.descriptionKey)}
                             </span>
                           </span>
                           {item.badge ? (

@@ -19,6 +19,7 @@ import {
   LICENSE_CLASS_DEFINITION_CATEGORY_LABELS,
   LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS,
 } from "../../lib/license-class-definition-catalog";
+import { useT } from "../../lib/i18n";
 import type {
   LicenseClassDefinitionCategory,
   LicenseClassDefinitionListSummaryResponse,
@@ -77,114 +78,117 @@ function formatMoney(value: number | null): string {
   });
 }
 
-function formatFlags(item: LicenseClassDefinitionResponse): string {
+function formatFlags(item: LicenseClassDefinitionResponse, t: ReturnType<typeof useT>): string {
   return [
-    item.isAutomatic ? "Otomatik" : null,
-    item.isDisabled ? "Engelli" : null,
-    item.isNewGeneration ? "Yeni Nesil" : null,
+    item.isAutomatic ? t("settings.licenseClasses.flags.automatic") : null,
+    item.isDisabled ? t("settings.licenseClasses.flags.disabled") : null,
+    item.isNewGeneration ? t("settings.licenseClasses.flags.newGeneration") : null,
   ]
     .filter(Boolean)
     .join(" / ");
 }
-
-const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
-  {
-    id: "code",
-    label: "Kod",
-    sortField: "code",
-    renderCell: (item) => <strong>{item.code}</strong>,
-    skeletonWidth: 70,
-  },
-  {
-    id: "name",
-    label: "Ehliyet Tipi",
-    sortField: "name",
-    renderCell: (item) => (
-      <div>
-        {item.name}
-        {formatFlags(item) ? (
-          <div className="settings-table-secondary">{formatFlags(item)}</div>
-        ) : null}
-      </div>
-    ),
-    skeletonWidth: 180,
-  },
-  {
-    id: "category",
-    label: "Kategori",
-    sortField: "category",
-    renderCell: (item) => LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category],
-    skeletonWidth: 120,
-  },
-  {
-    id: "minimumAge",
-    label: "Yaş",
-    sortField: "minimumAge",
-    renderCell: (item) => formatOptionalNumber(item.minimumAge),
-    skeletonWidth: 50,
-  },
-  {
-    id: "lessonHours",
-    label: "Ders Saatleri",
-    renderCell: (item) => (
-      <span>
-        Teo. {formatOptionalNumber(item.theoryLessonHours)} / Söz.{" "}
-        {formatOptionalNumber(item.contractLessonHours)} / Dir.{" "}
-        {formatOptionalNumber(item.directPracticeLessonHours)} / Yüks.{" "}
-        {formatOptionalNumber(item.upgradePracticeLessonHours)}
-      </span>
-    ),
-    skeletonWidth: 190,
-  },
-  {
-    id: "fees",
-    label: "Ücret",
-    renderCell: (item) => (
-      <div>
-        {formatMoney(item.courseFee)}
-        <div className="settings-table-secondary">
-          Sınav: {formatMoney(item.theoryExamFee)} / {formatMoney(item.practiceExamFirstFee)}
-        </div>
-      </div>
-    ),
-    skeletonWidth: 160,
-  },
-  {
-    id: "displayOrder",
-    label: "Sıra",
-    sortField: "displayOrder",
-    renderCell: (item) => item.displayOrder,
-    skeletonWidth: 52,
-  },
-  {
-    id: "isActive",
-    label: "Genel Durum",
-    sortField: "isActive",
-    renderCell: (item) => (
-      <StatusPill
-        label={item.isActive ? "Aktif" : "Pasif"}
-        status={item.isActive ? "success" : "manual"}
-      />
-    ),
-    skeletonWidth: 74,
-    skeletonKind: "pill",
-  },
-];
-const LICENSE_CLASS_DEFINITION_COLUMN_IDS = LICENSE_CLASS_DEFINITION_COLUMNS.map(
-  (column) => column.id
-);
-const LICENSE_CLASS_DEFINITION_COLUMN_PICKER_OPTIONS: ColumnOption[] =
-  LICENSE_CLASS_DEFINITION_COLUMNS.map((column) => ({
-    id: column.id,
-    label: column.label,
-  }));
 const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
   activity: "active",
   category: "all",
 };
 
 export function LicenseClassDefinitionsSettingsSection() {
+  const t = useT();
   const { showToast } = useToast();
+
+  const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
+    {
+      id: "code",
+      label: t("settings.licenseClasses.columns.code"),
+      sortField: "code",
+      renderCell: (item) => <strong>{item.code}</strong>,
+      skeletonWidth: 70,
+    },
+    {
+      id: "name",
+      label: t("settings.licenseClasses.columns.name"),
+      sortField: "name",
+      renderCell: (item) => (
+        <div>
+          {item.name}
+          {formatFlags(item, t) ? (
+            <div className="settings-table-secondary">{formatFlags(item, t)}</div>
+          ) : null}
+        </div>
+      ),
+      skeletonWidth: 180,
+    },
+    {
+      id: "category",
+      label: t("settings.licenseClasses.columns.category"),
+      sortField: "category",
+      renderCell: (item) => LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category],
+      skeletonWidth: 120,
+    },
+    {
+      id: "minimumAge",
+      label: t("settings.licenseClasses.columns.minimumAge"),
+      sortField: "minimumAge",
+      renderCell: (item) => formatOptionalNumber(item.minimumAge),
+      skeletonWidth: 50,
+    },
+    {
+      id: "lessonHours",
+      label: t("settings.licenseClasses.columns.lessonHours"),
+      renderCell: (item) => (
+        <span>
+          {t("settings.licenseClasses.lessonTypes.theory")} {formatOptionalNumber(item.theoryLessonHours)} / {t("settings.licenseClasses.lessonTypes.contract")}{" "}
+          {formatOptionalNumber(item.contractLessonHours)} / {t("settings.licenseClasses.lessonTypes.directPractice")}{" "}
+          {formatOptionalNumber(item.directPracticeLessonHours)} / {t("settings.licenseClasses.lessonTypes.upgradePractice")}{" "}
+          {formatOptionalNumber(item.upgradePracticeLessonHours)}
+        </span>
+      ),
+      skeletonWidth: 190,
+    },
+    {
+      id: "fees",
+      label: t("settings.licenseClasses.columns.fees"),
+      renderCell: (item) => (
+        <div>
+          {formatMoney(item.courseFee)}
+          <div className="settings-table-secondary">
+            {t("settings.licenseClasses.fees.exam")}: {formatMoney(item.theoryExamFee)} / {formatMoney(item.practiceExamFirstFee)}
+          </div>
+        </div>
+      ),
+      skeletonWidth: 160,
+    },
+    {
+      id: "displayOrder",
+      label: t("settings.licenseClasses.columns.displayOrder"),
+      sortField: "displayOrder",
+      renderCell: (item) => item.displayOrder,
+      skeletonWidth: 52,
+    },
+    {
+      id: "isActive",
+      label: t("settings.licenseClasses.columns.isActive"),
+      sortField: "isActive",
+      renderCell: (item) => (
+        <StatusPill
+          label={item.isActive ? t("settings.licenseClasses.status.active") : t("settings.licenseClasses.status.inactive")}
+          status={item.isActive ? "success" : "manual"}
+        />
+      ),
+      skeletonWidth: 74,
+      skeletonKind: "pill",
+    },
+  ];
+
+  const LICENSE_CLASS_DEFINITION_COLUMN_IDS = LICENSE_CLASS_DEFINITION_COLUMNS.map(
+    (column) => column.id
+  );
+  const LICENSE_CLASS_DEFINITION_COLUMN_PICKER_OPTIONS: ColumnOption[] =
+    LICENSE_CLASS_DEFINITION_COLUMNS.map((column) => ({
+      id: column.id,
+      label: column.label,
+    }));
+
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.license-class-definitions.columns.v1",
     LICENSE_CLASS_DEFINITION_COLUMN_IDS
@@ -232,7 +236,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Ehliyet tipi listesi yüklenemedi", "error");
+        showToast(t("settings.licenseClasses.toast.loadFailed"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -261,7 +265,7 @@ export function LicenseClassDefinitionsSettingsSection() {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
-    showToast(editing ? "Ehliyet tipi güncellendi" : "Ehliyet tipi oluşturuldu");
+    showToast(editing ? t("settings.licenseClasses.toast.updated") : t("settings.licenseClasses.toast.created"));
   };
 
   const handleSortToggle = (field: LicenseClassDefinitionSortField) => {
@@ -305,14 +309,14 @@ export function LicenseClassDefinitionsSettingsSection() {
     try {
       await deleteLicenseClassDefinition(item.id);
       setConfirmDeleteId(null);
-      showToast("Ehliyet tipi silindi");
+      showToast(t("settings.licenseClasses.toast.deleted"));
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast("Ehliyet tipi silinemedi", "error");
+      showToast(t("settings.licenseClasses.toast.deleteFailed"), "error");
     } finally {
       setDeletingId(null);
     }
@@ -323,26 +327,26 @@ export function LicenseClassDefinitionsSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Tip</span>
+            <span className="settings-summary-label">{t("settings.licenseClasses.summary.total")}</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Aktif</span>
+            <span className="settings-summary-label">{t("settings.licenseClasses.summary.active")}</span>
             <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Otomatik</span>
+            <span className="settings-summary-label">{t("settings.licenseClasses.summary.automatic")}</span>
             <strong className="settings-summary-value">{counts.automatic}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Ücretli</span>
+            <span className="settings-summary-label">{t("settings.licenseClasses.summary.priced")}</span>
             <strong className="settings-summary-value">{counts.priced}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Ehliyet Tipleri</div>
+            <div className="settings-surface-title">{t("settings.licenseClasses.title")}</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -351,7 +355,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder="Kod, ad veya not ara"
+                  placeholder={t("settings.licenseClasses.search.placeholder")}
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -367,7 +371,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                   }}
                   type="button"
                 >
-                  Temizle
+                  {t("settings.licenseClasses.button.clearFilters")}
                 </button>
               ) : null}
               <button
@@ -379,7 +383,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Ehliyet Tipi
+                {t("settings.licenseClasses.button.new")}
               </button>
             </div>
           </div>
@@ -392,7 +396,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                     column.sortField ? (
                       <SortableTh
                         field={column.sortField}
-                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter, t)}
                         key={column.id}
                         label={column.label}
                         onToggle={handleSortToggle}
@@ -400,7 +404,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                       />
                     ) : (
                       <PlainTh
-                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter, t)}
                         key={column.id}
                         label={column.label}
                       />
@@ -411,7 +415,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                       columns={LICENSE_CLASS_DEFINITION_COLUMN_PICKER_OPTIONS}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
-                      triggerTitle="Sütunlar"
+                      triggerTitle={t("settings.licenseClasses.columnPicker.title")}
                     />
                   </th>
                 </tr>
@@ -440,7 +444,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      Ehliyet tipi kaydı bulunmuyor.
+                      {t("settings.licenseClasses.empty")}
                     </td>
                   </tr>
                 ) : (
@@ -465,7 +469,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                                 onClick={() => setConfirmDeleteId(null)}
                                 type="button"
                               >
-                                Vazgeç
+                                {t("common.cancel")}
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
@@ -473,29 +477,29 @@ export function LicenseClassDefinitionsSettingsSection() {
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingId === item.id ? "Siliniyor..." : "Sil"}
+                                {deletingId === item.id ? t("settings.licenseClasses.button.deleting") : t("common.delete")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
-                                aria-label="Düzenle"
+                                aria-label={t("common.edit")}
                                 className="icon-btn"
                                 onClick={() => {
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title="Düzenle"
+                                title={t("common.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
                               <button
-                                aria-label="Sil"
+                                aria-label={t("common.delete")}
                                 className="icon-btn icon-btn-danger"
                                 disabled={deletingId !== null}
                                 onClick={() => setConfirmDeleteId(item.id)}
-                                title="Sil"
+                                title={t("common.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -603,7 +607,8 @@ function buildColumnFilterControl(
   setFilter: <K extends keyof LicenseClassDefinitionFilters>(
     key: K,
     value: LicenseClassDefinitionFilters[K]
-  ) => void
+  ) => void,
+  t: ReturnType<typeof useT>
 ) {
   if (columnId === "isActive") {
     return (
@@ -613,11 +618,11 @@ function buildColumnFilterControl(
           setFilter("activity", nextValue as LicenseClassDefinitionActivityFilter)
         }
         options={[
-          { value: "active", label: "Aktif" },
-          { value: "all", label: "Tümü" },
-          { value: "inactive", label: "Pasif" },
+          { value: "active", label: t("settings.licenseClasses.status.active") },
+          { value: "all", label: t("common.all") },
+          { value: "inactive", label: t("settings.licenseClasses.status.inactive") },
         ]}
-        title="Genel Durum filtresi"
+        title={t("settings.licenseClasses.filter.statusTitle")}
         value={filters.activity}
       />
     );
@@ -631,13 +636,13 @@ function buildColumnFilterControl(
           setFilter("category", nextValue as LicenseClassDefinitionFilters["category"])
         }
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Kategori filtresi"
+        title={t("settings.licenseClasses.filter.categoryTitle")}
         value={filters.category}
       />
     );

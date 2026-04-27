@@ -31,6 +31,7 @@ import type {
   InstructorRole,
   LicenseClass,
 } from "../../lib/types";
+import { useT } from "../../lib/i18n";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 import {
   type LicenseClassOption,
@@ -74,83 +75,90 @@ const EMPTY_SUMMARY: InstructorListSummaryResponse = {
   practiceBranchCount: 0,
 };
 
-const INSTRUCTOR_COLUMNS: InstructorColumnDef[] = [
-  {
-    id: "code",
-    label: "Kod",
-    sortField: "code",
-    renderCell: (instructor) => <strong>{instructor.code}</strong>,
-    skeletonWidth: 76,
-  },
-  {
-    id: "fullName",
-    label: "Ad Soyad",
-    sortField: "fullName",
-    renderCell: (instructor) => (
-      <div>
-        {instructor.firstName} {instructor.lastName}
-        {instructor.mebbisPermitNo ? (
-          <div className="settings-table-secondary">MEBBİS: {instructor.mebbisPermitNo}</div>
-        ) : null}
-      </div>
-    ),
-    skeletonWidth: 180,
-  },
-  {
-    id: "role",
-    label: "Görev",
-    sortField: "role",
-    renderCell: (instructor) => INSTRUCTOR_ROLE_LABELS[instructor.role],
-    skeletonWidth: 120,
-  },
-  {
-    id: "employmentType",
-    label: "Statü",
-    sortField: "employmentType",
-    renderCell: (instructor) => INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType],
-    skeletonWidth: 110,
-  },
-  {
-    id: "branches",
-    label: "Branş",
-    sortField: "branch",
-    renderCell: (instructor) =>
-      instructor.branches.map((branch) => INSTRUCTOR_BRANCH_LABELS[branch]).join(", "),
-    skeletonWidth: 160,
-  },
-  {
-    id: "licenseClassCodes",
-    label: "Belge",
-    sortField: "licenseClass",
-    renderCell: (instructor) => instructor.licenseClassCodes.join(", "),
-    skeletonWidth: 78,
-  },
-  {
-    id: "weeklyLessonHours",
-    label: "Haftalık Saat",
-    sortField: "weeklyLessonHours",
-    renderCell: (instructor) => instructor.weeklyLessonHours ?? "-",
-    skeletonWidth: 70,
-  },
-  {
-    id: "isActive",
-    label: "Genel Durum",
-    sortField: "isActive",
-    renderCell: (instructor) => (
-      <StatusPill
-        label={instructor.isActive ? "Aktif" : "Pasif"}
-        status={instructor.isActive ? "success" : "manual"}
-      />
-    ),
-    skeletonWidth: 74,
-    skeletonKind: "pill",
-  },
+function getInstructorColumns(t: ReturnType<typeof useT>): InstructorColumnDef[] {
+  return [
+    {
+      id: "code",
+      label: t("settings.instructors.table.code"),
+      sortField: "code",
+      renderCell: (instructor) => <strong>{instructor.code}</strong>,
+      skeletonWidth: 76,
+    },
+    {
+      id: "fullName",
+      label: t("settings.instructors.table.fullName"),
+      sortField: "fullName",
+      renderCell: (instructor) => (
+        <div>
+          {instructor.firstName} {instructor.lastName}
+          {instructor.mebbisPermitNo ? (
+            <div className="settings-table-secondary">MEBBİS: {instructor.mebbisPermitNo}</div>
+          ) : null}
+        </div>
+      ),
+      skeletonWidth: 180,
+    },
+    {
+      id: "role",
+      label: t("settings.instructors.table.role"),
+      sortField: "role",
+      renderCell: (instructor) => INSTRUCTOR_ROLE_LABELS[instructor.role],
+      skeletonWidth: 120,
+    },
+    {
+      id: "employmentType",
+      label: t("settings.instructors.table.employmentType"),
+      sortField: "employmentType",
+      renderCell: (instructor) => INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType],
+      skeletonWidth: 110,
+    },
+    {
+      id: "branches",
+      label: t("settings.instructors.table.branches"),
+      sortField: "branch",
+      renderCell: (instructor) =>
+        instructor.branches.map((branch) => INSTRUCTOR_BRANCH_LABELS[branch]).join(", "),
+      skeletonWidth: 160,
+    },
+    {
+      id: "licenseClassCodes",
+      label: t("settings.instructors.table.licenseClass"),
+      sortField: "licenseClass",
+      renderCell: (instructor) => instructor.licenseClassCodes.join(", "),
+      skeletonWidth: 78,
+    },
+    {
+      id: "weeklyLessonHours",
+      label: t("settings.instructors.table.weeklyLessonHours"),
+      sortField: "weeklyLessonHours",
+      renderCell: (instructor) => instructor.weeklyLessonHours ?? "-",
+      skeletonWidth: 70,
+    },
+    {
+      id: "isActive",
+      label: t("settings.instructors.table.status"),
+      sortField: "isActive",
+      renderCell: (instructor) => (
+        <StatusPill
+          label={instructor.isActive ? t("settings.instructors.status.active") : t("settings.instructors.status.inactive")}
+          status={instructor.isActive ? "success" : "manual"}
+        />
+      ),
+      skeletonWidth: 74,
+      skeletonKind: "pill",
+    },
+  ];
+}
+const INSTRUCTOR_COLUMN_IDS: InstructorColumnId[] = [
+  "code",
+  "fullName",
+  "role",
+  "employmentType",
+  "branches",
+  "licenseClassCodes",
+  "weeklyLessonHours",
+  "isActive",
 ];
-const INSTRUCTOR_COLUMN_IDS = INSTRUCTOR_COLUMNS.map((column) => column.id);
-const INSTRUCTOR_COLUMN_PICKER_OPTIONS: ColumnOption[] = INSTRUCTOR_COLUMNS.map((column) => ({
-  id: column.id,
-  label: column.label,
-}));
 const DEFAULT_FILTERS: InstructorFilters = {
   activity: "active",
   role: "all",
@@ -160,11 +168,13 @@ const DEFAULT_FILTERS: InstructorFilters = {
 };
 
 export function InstructorsSettingsSection() {
+  const t = useT();
   const { showToast } = useToast();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.instructors.columns.v1",
     INSTRUCTOR_COLUMN_IDS
   );
+  const instructorColumns = getInstructorColumns(t);
 
   const [items, setItems] = useState<InstructorResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -183,7 +193,7 @@ export function InstructorsSettingsSection() {
   const [confirmDeleteInstructorId, setConfirmDeleteInstructorId] = useState<string | null>(null);
   const [deletingInstructorId, setDeletingInstructorId] = useState<string | null>(null);
   const { options: licenseClassOptions } = useLicenseClassOptions();
-  const visibleColumns = INSTRUCTOR_COLUMNS.filter((column) => isVisible(column.id));
+  const visibleColumns = instructorColumns.filter((column) => isVisible(column.id));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -209,7 +219,7 @@ export function InstructorsSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Eğitmen listesi yüklenemedi", "error");
+        showToast(t("settings.instructors.errors.loadFailed"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -241,7 +251,7 @@ export function InstructorsSettingsSection() {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
-    showToast(editing ? "Eğitmen kaydı güncellendi" : "Eğitmen kaydı oluşturuldu");
+    showToast(editing ? t("settings.instructors.toasts.updated") : t("settings.instructors.toasts.created"));
   };
 
   const handleSortToggle = (field: InstructorSortField) => {
@@ -258,7 +268,7 @@ export function InstructorsSettingsSection() {
   };
 
   const handleColumnToggle = (id: string) => {
-    const column = INSTRUCTOR_COLUMNS.find((item) => item.id === id);
+    const column = instructorColumns.find((item) => item.id === id);
     if (column?.sortField && isVisible(id) && sort?.field === column.sortField) {
       setSort(null);
     }
@@ -291,14 +301,14 @@ export function InstructorsSettingsSection() {
     try {
       await deleteInstructor(instructor.id);
       setConfirmDeleteInstructorId(null);
-      showToast("Eğitmen silindi");
+      showToast(t("settings.instructors.toasts.deleted"));
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast("Eğitmen silinemedi", "error");
+      showToast(t("settings.instructors.errors.deleteFailed"), "error");
     } finally {
       setDeletingInstructorId(null);
     }
@@ -309,26 +319,26 @@ export function InstructorsSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Eğitmen</span>
+            <span className="settings-summary-label">{t("settings.instructors.summary.total")}</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Aktif</span>
+            <span className="settings-summary-label">{t("settings.instructors.summary.active")}</span>
             <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Usta Öğretici</span>
+            <span className="settings-summary-label">{t("settings.instructors.summary.masterInstructor")}</span>
             <strong className="settings-summary-value">{counts.master}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Uygulama Branşı</span>
+            <span className="settings-summary-label">{t("settings.instructors.summary.practiceBranch")}</span>
             <strong className="settings-summary-value">{counts.practice}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Eğitmen Listesi</div>
+            <div className="settings-surface-title">{t("settings.instructors.title")}</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -337,7 +347,7 @@ export function InstructorsSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder="Kod, ad, TC veya izin no ara"
+                  placeholder={t("settings.instructors.search.placeholder")}
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -353,7 +363,7 @@ export function InstructorsSettingsSection() {
                   }}
                   type="button"
                 >
-                  Temizle
+                  {t("settings.instructors.actions.clear")}
                 </button>
               ) : null}
               <button
@@ -365,7 +375,7 @@ export function InstructorsSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Eğitmen
+                {t("settings.instructors.actions.new")}
               </button>
             </div>
           </div>
@@ -382,7 +392,8 @@ export function InstructorsSettingsSection() {
                           column.id,
                           filters,
                           setFilter,
-                          licenseClassOptions
+                          licenseClassOptions,
+                          t
                         )}
                         key={column.id}
                         label={column.label}
@@ -395,7 +406,8 @@ export function InstructorsSettingsSection() {
                           column.id,
                           filters,
                           setFilter,
-                          licenseClassOptions
+                          licenseClassOptions,
+                          t
                         )}
                         key={column.id}
                         label={column.label}
@@ -404,10 +416,13 @@ export function InstructorsSettingsSection() {
                   )}
                   <th className="col-picker-th">
                     <ColumnPicker
-                      columns={INSTRUCTOR_COLUMN_PICKER_OPTIONS}
+                      columns={instructorColumns.map((column) => ({
+                        id: column.id,
+                        label: column.label,
+                      }))}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
-                      triggerTitle="Sütunlar"
+                      triggerTitle={t("settings.instructors.columnPicker.title")}
                     />
                   </th>
                 </tr>
@@ -436,7 +451,7 @@ export function InstructorsSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      Eğitmen kaydı bulunmuyor.
+                      {t("settings.instructors.empty")}
                     </td>
                   </tr>
                 ) : (
@@ -461,7 +476,7 @@ export function InstructorsSettingsSection() {
                                 onClick={() => setConfirmDeleteInstructorId(null)}
                                 type="button"
                               >
-                                Vazgeç
+                                {t("common.cancel")}
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
@@ -469,29 +484,29 @@ export function InstructorsSettingsSection() {
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingInstructorId === item.id ? "Siliniyor..." : "Sil"}
+                                {deletingInstructorId === item.id ? t("settings.instructors.actions.deleting") : t("common.delete")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
-                                aria-label="Düzenle"
+                                aria-label={t("common.edit")}
                                 className="icon-btn"
                                 onClick={() => {
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title="Düzenle"
+                                title={t("common.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
                               <button
-                                aria-label="Sil"
+                                aria-label={t("common.delete")}
                                 className="icon-btn icon-btn-danger"
                                 disabled={deletingInstructorId !== null}
                                 onClick={() => setConfirmDeleteInstructorId(item.id)}
-                                title="Sil"
+                                title={t("common.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -597,7 +612,8 @@ function buildColumnFilterControl(
   columnId: InstructorColumnId,
   filters: InstructorFilters,
   setFilter: <K extends keyof InstructorFilters>(key: K, value: InstructorFilters[K]) => void,
-  licenseClassOptions: LicenseClassOption[]
+  licenseClassOptions: LicenseClassOption[],
+  t: ReturnType<typeof useT>
 ) {
   if (columnId === "isActive") {
     return (
@@ -605,11 +621,11 @@ function buildColumnFilterControl(
         active={filters.activity !== DEFAULT_FILTERS.activity}
         onChange={(nextValue) => setFilter("activity", nextValue as InstructorActivityFilter)}
         options={[
-          { value: "active", label: "Aktif" },
-          { value: "all", label: "Tümü" },
-          { value: "inactive", label: "Pasif" },
+          { value: "active", label: t("settings.instructors.status.active") },
+          { value: "all", label: t("common.all") },
+          { value: "inactive", label: t("settings.instructors.status.inactive") },
         ]}
-        title="Genel Durum filtresi"
+        title={t("settings.instructors.filters.statusTitle")}
         value={filters.activity}
       />
     );
@@ -621,13 +637,13 @@ function buildColumnFilterControl(
         active={filters.role !== DEFAULT_FILTERS.role}
         onChange={(nextValue) => setFilter("role", nextValue as InstructorFilters["role"])}
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...INSTRUCTOR_ROLE_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Görev filtresi"
+        title={t("settings.instructors.filters.roleTitle")}
         value={filters.role}
       />
     );
@@ -641,13 +657,13 @@ function buildColumnFilterControl(
           setFilter("employmentType", nextValue as InstructorFilters["employmentType"])
         }
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...INSTRUCTOR_EMPLOYMENT_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Statü filtresi"
+        title={t("settings.instructors.filters.employmentTypeTitle")}
         value={filters.employmentType}
       />
     );
@@ -659,13 +675,13 @@ function buildColumnFilterControl(
         active={filters.branch !== DEFAULT_FILTERS.branch}
         onChange={(nextValue) => setFilter("branch", nextValue as InstructorFilters["branch"])}
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...INSTRUCTOR_BRANCH_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Branş filtresi"
+        title={t("settings.instructors.filters.branchTitle")}
         value={filters.branch}
       />
     );
@@ -679,13 +695,13 @@ function buildColumnFilterControl(
           setFilter("licenseClass", nextValue as InstructorFilters["licenseClass"])
         }
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...licenseClassOptions.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Belge filtresi"
+        title={t("settings.instructors.filters.licenseClassTitle")}
         value={filters.licenseClass}
       />
     );

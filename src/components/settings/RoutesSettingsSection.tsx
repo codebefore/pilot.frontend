@@ -25,6 +25,7 @@ import type {
   RouteUsageType,
 } from "../../lib/types";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
+import { useT } from "../../lib/i18n";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -45,7 +46,7 @@ type RouteColumnId =
   | "isActive";
 type RouteColumnDef = {
   id: RouteColumnId;
-  label: string;
+  labelKey: string;
   sortField?: RouteSortField;
   renderCell: (route: RouteResponse) => React.ReactNode;
   skeletonWidth: number;
@@ -71,14 +72,14 @@ function formatDuration(value: number | null): string {
 const ROUTE_COLUMNS: RouteColumnDef[] = [
   {
     id: "code",
-    label: "Kod",
+    labelKey: "settings.routes.table.code",
     sortField: "code",
     renderCell: (route) => <strong>{route.code}</strong>,
     skeletonWidth: 76,
   },
   {
     id: "name",
-    label: "Güzergah",
+    labelKey: "settings.routes.table.name",
     sortField: "name",
     renderCell: (route) => (
       <div>
@@ -94,42 +95,37 @@ const ROUTE_COLUMNS: RouteColumnDef[] = [
   },
   {
     id: "usageType",
-    label: "Kullanım",
+    labelKey: "settings.routes.table.usageType",
     sortField: "usageType",
     renderCell: (route) => ROUTE_USAGE_LABELS[route.usageType],
     skeletonWidth: 120,
   },
   {
     id: "district",
-    label: "Bölge",
+    labelKey: "settings.routes.table.district",
     sortField: "district",
     renderCell: (route) => route.district ?? "-",
     skeletonWidth: 110,
   },
   {
     id: "distanceKm",
-    label: "Mesafe",
+    labelKey: "settings.routes.table.distanceKm",
     sortField: "distanceKm",
     renderCell: (route) => formatDistance(route.distanceKm),
     skeletonWidth: 70,
   },
   {
     id: "estimatedDurationMinutes",
-    label: "Süre",
+    labelKey: "settings.routes.table.estimatedDurationMinutes",
     sortField: "estimatedDurationMinutes",
     renderCell: (route) => formatDuration(route.estimatedDurationMinutes),
     skeletonWidth: 70,
   },
   {
     id: "isActive",
-    label: "Genel Durum",
+    labelKey: "settings.routes.table.isActive",
     sortField: "isActive",
-    renderCell: (route) => (
-      <StatusPill
-        label={route.isActive ? "Aktif" : "Pasif"}
-        status={route.isActive ? "success" : "manual"}
-      />
-    ),
+    renderCell: () => null,
     skeletonWidth: 74,
     skeletonKind: "pill",
   },
@@ -137,7 +133,7 @@ const ROUTE_COLUMNS: RouteColumnDef[] = [
 const ROUTE_COLUMN_IDS = ROUTE_COLUMNS.map((column) => column.id);
 const ROUTE_COLUMN_PICKER_OPTIONS: ColumnOption[] = ROUTE_COLUMNS.map((column) => ({
   id: column.id,
-  label: column.label,
+  labelKey: column.labelKey,
 }));
 const DEFAULT_FILTERS: RouteFilters = {
   activity: "active",
@@ -145,6 +141,7 @@ const DEFAULT_FILTERS: RouteFilters = {
 };
 
 export function RoutesSettingsSection() {
+  const t = useT();
   const { showToast } = useToast();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.routes.columns.v1",
@@ -190,7 +187,7 @@ export function RoutesSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Güzergah listesi yüklenemedi", "error");
+        showToast(t("settings.routes.toast.loadError"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -219,7 +216,7 @@ export function RoutesSettingsSection() {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
-    showToast(editing ? "Güzergah kaydı güncellendi" : "Güzergah kaydı oluşturuldu");
+    showToast(editing ? t("settings.routes.toast.updated") : t("settings.routes.toast.created"));
   };
 
   const handleSortToggle = (field: RouteSortField) => {
@@ -263,14 +260,14 @@ export function RoutesSettingsSection() {
     try {
       await deleteRoute(route.id);
       setConfirmDeleteRouteId(null);
-      showToast("Güzergah silindi");
+      showToast(t("settings.routes.toast.deleted"));
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast("Güzergah silinemedi", "error");
+      showToast(t("settings.routes.toast.deleteError"), "error");
     } finally {
       setDeletingRouteId(null);
     }
@@ -281,26 +278,26 @@ export function RoutesSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Güzergah</span>
+            <span className="settings-summary-label">{t("settings.routes.summary.total")}</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Aktif</span>
+            <span className="settings-summary-label">{t("settings.routes.summary.active")}</span>
             <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Uygulama</span>
+            <span className="settings-summary-label">{t("settings.routes.summary.practice")}</span>
             <strong className="settings-summary-value">{counts.practice}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Sınav</span>
+            <span className="settings-summary-label">{t("settings.routes.summary.exam")}</span>
             <strong className="settings-summary-value">{counts.exam}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Güzergah Listesi</div>
+            <div className="settings-surface-title">{t("settings.routes.title")}</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -309,7 +306,7 @@ export function RoutesSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder="Kod, ad, bölge veya nokta ara"
+                  placeholder={t("settings.routes.searchPlaceholder")}
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -325,7 +322,7 @@ export function RoutesSettingsSection() {
                   }}
                   type="button"
                 >
-                  Temizle
+                  {t("settings.routes.clearFilters")}
                 </button>
               ) : null}
               <button
@@ -337,7 +334,7 @@ export function RoutesSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Güzergah
+                {t("settings.routes.newButton")}
               </button>
             </div>
           </div>
@@ -350,26 +347,29 @@ export function RoutesSettingsSection() {
                     column.sortField ? (
                       <SortableTh
                         field={column.sortField}
-                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter, t)}
                         key={column.id}
-                        label={column.label}
+                        label={t(column.labelKey)}
                         onToggle={handleSortToggle}
                         sort={sort}
                       />
                     ) : (
                       <PlainTh
-                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter, t)}
                         key={column.id}
-                        label={column.label}
+                        label={t(column.labelKey)}
                       />
                     )
                   )}
                   <th className="col-picker-th">
                     <ColumnPicker
-                      columns={ROUTE_COLUMN_PICKER_OPTIONS}
+                      columns={ROUTE_COLUMN_PICKER_OPTIONS.map((col) => ({
+                        ...col,
+                        label: t(col.labelKey),
+                      }))}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
-                      triggerTitle="Sütunlar"
+                      triggerTitle={t("settings.routes.columnPickerTitle")}
                     />
                   </th>
                 </tr>
@@ -398,15 +398,24 @@ export function RoutesSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      Güzergah kaydı bulunmuyor.
+                      {t("settings.routes.emptyState")}
                     </td>
                   </tr>
                 ) : (
                   items.map((item) => (
                     <tr key={item.id}>
-                      {visibleColumns.map((column) => (
-                        <td key={column.id}>{column.renderCell(item)}</td>
-                      ))}
+                      {visibleColumns.map((column) => {
+                        let cellContent: React.ReactNode = column.renderCell(item);
+                        if (column.id === "isActive") {
+                          cellContent = (
+                            <StatusPill
+                              label={item.isActive ? t("settings.routes.table.active") : t("settings.routes.table.inactive")}
+                              status={item.isActive ? "success" : "manual"}
+                            />
+                          );
+                        }
+                        return <td key={column.id}>{cellContent}</td>;
+                      })}
                       <td className="col-picker-td">
                         <div
                           className={
@@ -423,7 +432,7 @@ export function RoutesSettingsSection() {
                                 onClick={() => setConfirmDeleteRouteId(null)}
                                 type="button"
                               >
-                                Vazgeç
+                                {t("common.cancel")}
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
@@ -431,29 +440,29 @@ export function RoutesSettingsSection() {
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingRouteId === item.id ? "Siliniyor..." : "Sil"}
+                                {deletingRouteId === item.id ? t("settings.routes.deleting") : t("common.delete")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
-                                aria-label="Düzenle"
+                                aria-label={t("common.edit")}
                                 className="icon-btn"
                                 onClick={() => {
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title="Düzenle"
+                                title={t("common.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
                               <button
-                                aria-label="Sil"
+                                aria-label={t("common.delete")}
                                 className="icon-btn icon-btn-danger"
                                 disabled={deletingRouteId !== null}
                                 onClick={() => setConfirmDeleteRouteId(item.id)}
-                                title="Sil"
+                                title={t("common.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -558,7 +567,8 @@ function PlainTh({ filterControl, label }: PlainThProps) {
 function buildColumnFilterControl(
   columnId: RouteColumnId,
   filters: RouteFilters,
-  setFilter: <K extends keyof RouteFilters>(key: K, value: RouteFilters[K]) => void
+  setFilter: <K extends keyof RouteFilters>(key: K, value: RouteFilters[K]) => void,
+  t: ReturnType<typeof useT>
 ) {
   if (columnId === "isActive") {
     return (
@@ -566,11 +576,11 @@ function buildColumnFilterControl(
         active={filters.activity !== DEFAULT_FILTERS.activity}
         onChange={(nextValue) => setFilter("activity", nextValue as RouteActivityFilter)}
         options={[
-          { value: "active", label: "Aktif" },
-          { value: "all", label: "Tümü" },
-          { value: "inactive", label: "Pasif" },
+          { value: "active", label: t("settings.routes.filter.active") },
+          { value: "all", label: t("common.all") },
+          { value: "inactive", label: t("settings.routes.filter.inactive") },
         ]}
-        title="Genel Durum filtresi"
+        title={t("settings.routes.filter.activityTitle")}
         value={filters.activity}
       />
     );
@@ -582,13 +592,13 @@ function buildColumnFilterControl(
         active={filters.usageType !== DEFAULT_FILTERS.usageType}
         onChange={(nextValue) => setFilter("usageType", nextValue as RouteFilters["usageType"])}
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...ROUTE_USAGE_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Kullanım filtresi"
+        title={t("settings.routes.filter.usageTypeTitle")}
         value={filters.usageType}
       />
     );

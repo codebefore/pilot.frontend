@@ -21,6 +21,7 @@ import type {
   AreaResponse,
   AreaType,
 } from "../../lib/types";
+import { useT } from "../../lib/i18n";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -39,14 +40,6 @@ type AreaColumnId =
   | "capacity"
   | "district"
   | "isActive";
-type AreaColumnDef = {
-  id: AreaColumnId;
-  label: string;
-  sortField?: AreaSortField;
-  renderCell: (area: AreaResponse) => React.ReactNode;
-  skeletonWidth: number;
-  skeletonKind?: "line" | "pill";
-};
 
 const EMPTY_SUMMARY: AreaListSummaryResponse = {
   activeCount: 0,
@@ -55,82 +48,95 @@ const EMPTY_SUMMARY: AreaListSummaryResponse = {
   examAreaCount: 0,
 };
 
-function formatCapacity(value: number | null): string {
+function formatCapacity(value: number | null, t: ReturnType<typeof useT>): string {
   if (value === null || value === undefined) return "-";
-  return `${value} kişi`;
+  return t("settings.areas.capacity", { count: value });
 }
 
-const AREA_COLUMNS: AreaColumnDef[] = [
-  {
-    id: "code",
-    label: "Kod",
-    sortField: "code",
-    renderCell: (area) => <strong>{area.code}</strong>,
-    skeletonWidth: 76,
-  },
-  {
-    id: "name",
-    label: "Alan",
-    sortField: "name",
-    renderCell: (area) => (
-      <div>
-        {area.name}
-        {area.address ? <div className="settings-table-secondary">{area.address}</div> : null}
-      </div>
-    ),
-    skeletonWidth: 200,
-  },
-  {
-    id: "areaType",
-    label: "Tip",
-    sortField: "areaType",
-    renderCell: (area) => AREA_TYPE_LABELS[area.areaType],
-    skeletonWidth: 140,
-  },
-  {
-    id: "capacity",
-    label: "Kapasite",
-    sortField: "capacity",
-    renderCell: (area) => formatCapacity(area.capacity),
-    skeletonWidth: 80,
-  },
-  {
-    id: "district",
-    label: "Bölge",
-    sortField: "district",
-    renderCell: (area) => area.district ?? "-",
-    skeletonWidth: 110,
-  },
-  {
-    id: "isActive",
-    label: "Genel Durum",
-    sortField: "isActive",
-    renderCell: (area) => (
-      <StatusPill
-        label={area.isActive ? "Aktif" : "Pasif"}
-        status={area.isActive ? "success" : "manual"}
-      />
-    ),
-    skeletonWidth: 74,
-    skeletonKind: "pill",
-  },
-];
-const AREA_COLUMN_IDS = AREA_COLUMNS.map((column) => column.id);
-const AREA_COLUMN_PICKER_OPTIONS: ColumnOption[] = AREA_COLUMNS.map((column) => ({
-  id: column.id,
-  label: column.label,
-}));
+type AreaColumnDef = {
+  id: AreaColumnId;
+  labelKey: string;
+  sortField?: AreaSortField;
+  renderCell: (area: AreaResponse, t: ReturnType<typeof useT>) => React.ReactNode;
+  skeletonWidth: number;
+  skeletonKind?: "line" | "pill";
+};
+
+function getAreaColumns(t: ReturnType<typeof useT>): AreaColumnDef[] {
+  return [
+    {
+      id: "code",
+      labelKey: "settings.areas.columns.code",
+      sortField: "code",
+      renderCell: (area) => <strong>{area.code}</strong>,
+      skeletonWidth: 76,
+    },
+    {
+      id: "name",
+      labelKey: "settings.areas.columns.name",
+      sortField: "name",
+      renderCell: (area) => (
+        <div>
+          {area.name}
+          {area.address ? <div className="settings-table-secondary">{area.address}</div> : null}
+        </div>
+      ),
+      skeletonWidth: 200,
+    },
+    {
+      id: "areaType",
+      labelKey: "settings.areas.columns.areaType",
+      sortField: "areaType",
+      renderCell: (area) => AREA_TYPE_LABELS[area.areaType],
+      skeletonWidth: 140,
+    },
+    {
+      id: "capacity",
+      labelKey: "settings.areas.columns.capacity",
+      sortField: "capacity",
+      renderCell: (area) => formatCapacity(area.capacity, t),
+      skeletonWidth: 80,
+    },
+    {
+      id: "district",
+      labelKey: "settings.areas.columns.district",
+      sortField: "district",
+      renderCell: (area) => area.district ?? "-",
+      skeletonWidth: 110,
+    },
+    {
+      id: "isActive",
+      labelKey: "settings.areas.columns.isActive",
+      sortField: "isActive",
+      renderCell: (area, t) => (
+        <StatusPill
+          label={area.isActive ? t("settings.areas.status.active") : t("settings.areas.status.inactive")}
+          status={area.isActive ? "success" : "manual"}
+        />
+      ),
+      skeletonWidth: 74,
+      skeletonKind: "pill",
+    },
+  ];
+}
+const AREA_COLUMN_IDS: AreaColumnId[] = ["code", "name", "areaType", "capacity", "district", "isActive"];
 const DEFAULT_FILTERS: AreaFilters = {
   activity: "active",
   areaType: "all",
 };
 
 export function AreasSettingsSection() {
+  const t = useT();
   const { showToast } = useToast();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.areas.columns.v1",
     AREA_COLUMN_IDS
   );
+  const AREA_COLUMNS = getAreaColumns(t);
+  const AREA_COLUMN_PICKER_OPTIONS: ColumnOption[] = AREA_COLUMNS.map((column) => ({
+    id: column.id,
+    label: t(column.labelKey),
+  }));
 
   const [items, setItems] = useState<AreaResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -171,7 +177,7 @@ export function AreasSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Alan listesi yüklenemedi", "error");
+        showToast(t("settings.areas.loadFailed"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -201,7 +207,7 @@ export function AreasSettingsSection() {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
-    showToast(editing ? "Alan kaydı güncellendi" : "Alan kaydı oluşturuldu");
+    showToast(editing ? t("settings.areas.toast.updated") : t("settings.areas.toast.created"));
   };
 
   const handleSortToggle = (field: AreaSortField) => {
@@ -245,14 +251,14 @@ export function AreasSettingsSection() {
     try {
       await deleteArea(area.id);
       setConfirmDeleteAreaId(null);
-      showToast("Alan silindi");
+      showToast(t("settings.areas.toast.deleted"));
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast("Alan silinemedi", "error");
+      showToast(t("settings.areas.toast.deleteFailed"), "error");
     } finally {
       setDeletingAreaId(null);
     }
@@ -263,26 +269,26 @@ export function AreasSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Alan</span>
+            <span className="settings-summary-label">{t("settings.areas.summary.total")}</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Aktif</span>
+            <span className="settings-summary-label">{t("settings.areas.summary.active")}</span>
             <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Sınıf</span>
+            <span className="settings-summary-label">{t("settings.areas.summary.classroom")}</span>
             <strong className="settings-summary-value">{counts.classroom}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Saha / Sınav</span>
+            <span className="settings-summary-label">{t("settings.areas.summary.practiceAndExam")}</span>
             <strong className="settings-summary-value">{counts.practiceTrack + counts.examArea}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Alan Listesi</div>
+            <div className="settings-surface-title">{t("settings.areas.title")}</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -291,7 +297,7 @@ export function AreasSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder="Kod, ad, bölge veya adres ara"
+                  placeholder={t("settings.areas.searchPlaceholder")}
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -307,7 +313,7 @@ export function AreasSettingsSection() {
                   }}
                   type="button"
                 >
-                  Temizle
+                  {t("settings.areas.clearFilters")}
                 </button>
               ) : null}
               <button
@@ -319,7 +325,7 @@ export function AreasSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Alan
+                {t("settings.areas.newArea")}
               </button>
             </div>
           </div>
@@ -332,17 +338,17 @@ export function AreasSettingsSection() {
                     column.sortField ? (
                       <SortableTh
                         field={column.sortField}
-                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter, t)}
                         key={column.id}
-                        label={column.label}
+                        label={t(column.labelKey)}
                         onToggle={handleSortToggle}
                         sort={sort}
                       />
                     ) : (
                       <PlainTh
-                        filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                        filterControl={buildColumnFilterControl(column.id, filters, setFilter, t)}
                         key={column.id}
-                        label={column.label}
+                        label={t(column.labelKey)}
                       />
                     )
                   )}
@@ -351,7 +357,7 @@ export function AreasSettingsSection() {
                       columns={AREA_COLUMN_PICKER_OPTIONS}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
-                      triggerTitle="Sütunlar"
+                      triggerTitle={t("settings.areas.columns.button")}
                     />
                   </th>
                 </tr>
@@ -380,14 +386,14 @@ export function AreasSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      Alan kaydı bulunmuyor.
+                      {t("settings.areas.noRecords")}
                     </td>
                   </tr>
                 ) : (
                   items.map((item) => (
                     <tr key={item.id}>
                       {visibleColumns.map((column) => (
-                        <td key={column.id}>{column.renderCell(item)}</td>
+                        <td key={column.id}>{column.renderCell(item, t)}</td>
                       ))}
                       <td className="col-picker-td">
                         <div
@@ -405,7 +411,7 @@ export function AreasSettingsSection() {
                                 onClick={() => setConfirmDeleteAreaId(null)}
                                 type="button"
                               >
-                                Vazgeç
+                                {t("common.cancel")}
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
@@ -413,29 +419,29 @@ export function AreasSettingsSection() {
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingAreaId === item.id ? "Siliniyor..." : "Sil"}
+                                {deletingAreaId === item.id ? t("settings.areas.deleting") : t("common.delete")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
-                                aria-label="Düzenle"
+                                aria-label={t("settings.areas.actions.edit")}
                                 className="icon-btn"
                                 onClick={() => {
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title="Düzenle"
+                                title={t("settings.areas.actions.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
                               <button
-                                aria-label="Sil"
+                                aria-label={t("settings.areas.actions.delete")}
                                 className="icon-btn icon-btn-danger"
                                 disabled={deletingAreaId !== null}
                                 onClick={() => setConfirmDeleteAreaId(item.id)}
-                                title="Sil"
+                                title={t("settings.areas.actions.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -540,7 +546,8 @@ function PlainTh({ filterControl, label }: PlainThProps) {
 function buildColumnFilterControl(
   columnId: AreaColumnId,
   filters: AreaFilters,
-  setFilter: <K extends keyof AreaFilters>(key: K, value: AreaFilters[K]) => void
+  setFilter: <K extends keyof AreaFilters>(key: K, value: AreaFilters[K]) => void,
+  t: ReturnType<typeof useT>
 ) {
   if (columnId === "isActive") {
     return (
@@ -548,11 +555,11 @@ function buildColumnFilterControl(
         active={filters.activity !== DEFAULT_FILTERS.activity}
         onChange={(nextValue) => setFilter("activity", nextValue as AreaActivityFilter)}
         options={[
-          { value: "active", label: "Aktif" },
-          { value: "all", label: "Tümü" },
-          { value: "inactive", label: "Pasif" },
+          { value: "active", label: t("settings.areas.filters.active") },
+          { value: "all", label: t("common.all") },
+          { value: "inactive", label: t("settings.areas.filters.inactive") },
         ]}
-        title="Genel Durum filtresi"
+        title={t("settings.areas.filters.statusTitle")}
         value={filters.activity}
       />
     );
@@ -564,13 +571,13 @@ function buildColumnFilterControl(
         active={filters.areaType !== DEFAULT_FILTERS.areaType}
         onChange={(nextValue) => setFilter("areaType", nextValue as AreaFilters["areaType"])}
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...AREA_TYPE_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Alan Tipi filtresi"
+        title={t("settings.areas.filters.areaTypeTitle")}
         value={filters.areaType}
       />
     );

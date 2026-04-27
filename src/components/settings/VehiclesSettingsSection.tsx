@@ -8,6 +8,7 @@ import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
+import { useT } from "../../lib/i18n";
 import {
   deleteVehicle,
   getVehicles,
@@ -56,7 +57,7 @@ type VehicleColumnId =
   | "isActive";
 type VehicleColumnDef = {
   id: VehicleColumnId;
-  label: string;
+  labelKey: string;
   sortField?: VehicleSortField;
   renderCell: (vehicle: VehicleResponse) => React.ReactNode;
   skeletonWidth: number;
@@ -70,86 +71,93 @@ const EMPTY_SUMMARY: VehicleListSummaryResponse = {
   idleCount: 0,
 };
 
-const VEHICLE_COLUMNS: VehicleColumnDef[] = [
-  {
-    id: "plateNumber",
-    label: "Plaka",
-    sortField: "plateNumber",
-    renderCell: (vehicle) => <strong>{vehicle.plateNumber}</strong>,
-    skeletonWidth: 84,
-  },
-  {
-    id: "brandModel",
-    label: "Marka / Model",
-    sortField: "brandModel",
-    renderCell: (vehicle) => (
-      <div>
-        {vehicle.brand}
-        {vehicle.model ? ` ${vehicle.model}` : ""}
-        {vehicle.modelYear ? ` · ${vehicle.modelYear}` : ""}
-      </div>
-    ),
-    skeletonWidth: 180,
-  },
-  {
-    id: "vehicleType",
-    label: "Tür",
-    sortField: "vehicleType",
-    renderCell: (vehicle) => VEHICLE_TYPE_LABELS[vehicle.vehicleType],
-    skeletonWidth: 88,
-  },
-  {
-    id: "licenseClass",
-    label: "Belge",
-    sortField: "licenseClass",
-    renderCell: (vehicle) => vehicle.licenseClass,
-    skeletonWidth: 44,
-  },
-  {
-    id: "transmissionType",
-    label: "Vites",
-    sortField: "transmissionType",
-    renderCell: (vehicle) => VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType],
-    skeletonWidth: 76,
-  },
-  {
-    id: "status",
-    label: "Araç Durumu",
-    sortField: "status",
-    renderCell: (vehicle) => (
-      <StatusPill
-        label={VEHICLE_STATUS_LABELS[vehicle.status]}
-        status={
-          vehicle.status === "in_use"
-            ? "running"
-            : vehicle.status === "maintenance"
-              ? "retry"
-              : "manual"
-        }
-      />
-    ),
-    skeletonWidth: 90,
-    skeletonKind: "pill",
-  },
-  {
-    id: "isActive",
-    label: "Genel Durum",
-    sortField: "isActive",
-    renderCell: (vehicle) => (
-      <StatusPill
-        label={vehicle.isActive ? "Aktif" : "Pasif"}
-        status={vehicle.isActive ? "success" : "manual"}
-      />
-    ),
-    skeletonWidth: 74,
-    skeletonKind: "pill",
-  },
+function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
+  return [
+    {
+      id: "plateNumber",
+      labelKey: "settings.vehicles.columns.plateNumber",
+      sortField: "plateNumber",
+      renderCell: (vehicle) => <strong>{vehicle.plateNumber}</strong>,
+      skeletonWidth: 84,
+    },
+    {
+      id: "brandModel",
+      labelKey: "settings.vehicles.columns.brandModel",
+      sortField: "brandModel",
+      renderCell: (vehicle) => (
+        <div>
+          {vehicle.brand}
+          {vehicle.model ? ` ${vehicle.model}` : ""}
+          {vehicle.modelYear ? ` · ${vehicle.modelYear}` : ""}
+        </div>
+      ),
+      skeletonWidth: 180,
+    },
+    {
+      id: "vehicleType",
+      labelKey: "settings.vehicles.columns.vehicleType",
+      sortField: "vehicleType",
+      renderCell: (vehicle) => VEHICLE_TYPE_LABELS[vehicle.vehicleType],
+      skeletonWidth: 88,
+    },
+    {
+      id: "licenseClass",
+      labelKey: "settings.vehicles.columns.licenseClass",
+      sortField: "licenseClass",
+      renderCell: (vehicle) => vehicle.licenseClass,
+      skeletonWidth: 44,
+    },
+    {
+      id: "transmissionType",
+      labelKey: "settings.vehicles.columns.transmissionType",
+      sortField: "transmissionType",
+      renderCell: (vehicle) => VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType],
+      skeletonWidth: 76,
+    },
+    {
+      id: "status",
+      labelKey: "settings.vehicles.columns.status",
+      sortField: "status",
+      renderCell: (vehicle) => (
+        <StatusPill
+          label={VEHICLE_STATUS_LABELS[vehicle.status]}
+          status={
+            vehicle.status === "in_use"
+              ? "running"
+              : vehicle.status === "maintenance"
+                ? "retry"
+                : "manual"
+          }
+        />
+      ),
+      skeletonWidth: 90,
+      skeletonKind: "pill",
+    },
+    {
+      id: "isActive",
+      labelKey: "settings.vehicles.columns.isActive",
+      sortField: "isActive",
+      renderCell: (vehicle) => (
+        <StatusPill
+          label={vehicle.isActive ? t("settings.vehicles.status.active") : t("settings.vehicles.status.inactive")}
+          status={vehicle.isActive ? "success" : "manual"}
+        />
+      ),
+      skeletonWidth: 74,
+      skeletonKind: "pill",
+    },
+  ];
+}
+
+const VEHICLE_COLUMN_IDS: VehicleColumnId[] = [
+  "plateNumber",
+  "brandModel",
+  "vehicleType",
+  "licenseClass",
+  "transmissionType",
+  "status",
+  "isActive",
 ];
-const VEHICLE_COLUMN_IDS = VEHICLE_COLUMNS.map((column) => column.id);
-const VEHICLE_COLUMN_PICKER_OPTIONS: ColumnOption[] = VEHICLE_COLUMNS.map((column) => ({
-  id: column.id,
-  label: column.label,
-}));
 const DEFAULT_FILTERS: VehicleFilters = {
   activity: "active",
   status: "all",
@@ -159,6 +167,7 @@ const DEFAULT_FILTERS: VehicleFilters = {
 
 export function VehiclesSettingsSection() {
   const { showToast } = useToast();
+  const t = useT();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.vehicles.columns.v1",
     VEHICLE_COLUMN_IDS
@@ -181,7 +190,8 @@ export function VehiclesSettingsSection() {
   const [confirmDeleteVehicleId, setConfirmDeleteVehicleId] = useState<string | null>(null);
   const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
   const { options: licenseClassOptions } = useLicenseClassOptions();
-  const visibleColumns = VEHICLE_COLUMNS.filter((column) => isVisible(column.id));
+  const vehicleColumns = buildVehicleColumns(t);
+  const visibleColumns = vehicleColumns.filter((column) => isVisible(column.id));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -207,7 +217,7 @@ export function VehiclesSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Araç listesi yüklenemedi", "error");
+        showToast(t("settings.vehicles.toast.loadError"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -238,7 +248,7 @@ export function VehiclesSettingsSection() {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
-    showToast(editing ? "Araç kaydı güncellendi" : "Araç kaydı oluşturuldu");
+    showToast(editing ? t("settings.vehicles.toast.updated") : t("settings.vehicles.toast.created"));
   };
 
   const handleSortToggle = (field: VehicleSortField) => {
@@ -255,7 +265,7 @@ export function VehiclesSettingsSection() {
   };
 
   const handleColumnToggle = (id: string) => {
-    const column = VEHICLE_COLUMNS.find((item) => item.id === id);
+    const column = vehicleColumns.find((item) => item.id === id);
     if (column?.sortField && isVisible(id) && sort?.field === column.sortField) {
       setSort(null);
     }
@@ -283,14 +293,14 @@ export function VehiclesSettingsSection() {
     try {
       await deleteVehicle(vehicle.id);
       setConfirmDeleteVehicleId(null);
-      showToast("Araç silindi");
+      showToast(t("settings.vehicles.toast.deleted"));
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast("Araç silinemedi", "error");
+      showToast(t("settings.vehicles.toast.deleteError"), "error");
     } finally {
       setDeletingVehicleId(null);
     }
@@ -301,26 +311,26 @@ export function VehiclesSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Araç</span>
+            <span className="settings-summary-label">{t("settings.vehicles.summary.totalVehicles")}</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Boşta</span>
+            <span className="settings-summary-label">{t("settings.vehicles.summary.idle")}</span>
             <strong className="settings-summary-value">{counts.idle}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Kullanımda</span>
+            <span className="settings-summary-label">{t("settings.vehicles.summary.inUse")}</span>
             <strong className="settings-summary-value">{counts.inUse}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Bakımda</span>
+            <span className="settings-summary-label">{t("settings.vehicles.summary.maintenance")}</span>
             <strong className="settings-summary-value">{counts.maintenance}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Araç Listesi</div>
+            <div className="settings-surface-title">{t("settings.vehicles.title")}</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -329,7 +339,7 @@ export function VehiclesSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder="Plaka, marka veya model ara"
+                  placeholder={t("settings.vehicles.search.placeholder")}
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -345,7 +355,7 @@ export function VehiclesSettingsSection() {
                   }}
                   type="button"
                 >
-                  Temizle
+                  {t("common.clearFilters")}
                 </button>
               ) : null}
               <button
@@ -357,7 +367,7 @@ export function VehiclesSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                Yeni Araç
+                {t("settings.vehicles.button.new")}
               </button>
             </div>
           </div>
@@ -374,23 +384,27 @@ export function VehiclesSettingsSection() {
                           column.id,
                           filters,
                           setFilter,
-                          licenseClassOptions
+                          licenseClassOptions,
+                          t
                         )}
                         key={column.id}
-                        label={column.label}
+                        label={t(column.labelKey)}
                         onToggle={handleSortToggle}
                         sort={sort}
                       />
                     ) : (
-                      <th key={column.id}>{column.label}</th>
+                      <th key={column.id}>{t(column.labelKey)}</th>
                     )
                   )}
                   <th className="col-picker-th">
                     <ColumnPicker
-                      columns={VEHICLE_COLUMN_PICKER_OPTIONS}
+                      columns={vehicleColumns.map((column) => ({
+                        id: column.id,
+                        label: t(column.labelKey),
+                      }))}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
-                      triggerTitle="Sütunlar"
+                      triggerTitle={t("settings.vehicles.columnPicker.title")}
                     />
                   </th>
                 </tr>
@@ -419,7 +433,7 @@ export function VehiclesSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      Araç kaydı bulunmuyor.
+                      {t("settings.vehicles.empty")}
                     </td>
                   </tr>
                 ) : (
@@ -444,7 +458,7 @@ export function VehiclesSettingsSection() {
                                 onClick={() => setConfirmDeleteVehicleId(null)}
                                 type="button"
                               >
-                                Vazgeç
+                                {t("common.cancel")}
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
@@ -452,29 +466,29 @@ export function VehiclesSettingsSection() {
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingVehicleId === item.id ? "Siliniyor..." : "Sil"}
+                                {deletingVehicleId === item.id ? t("settings.vehicles.action.deleting") : t("common.delete")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
-                                aria-label="Düzenle"
+                                aria-label={t("settings.vehicles.action.edit")}
                                 className="icon-btn"
                                 onClick={() => {
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title="Düzenle"
+                                title={t("settings.vehicles.action.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
                               <button
-                                aria-label="Sil"
+                                aria-label={t("settings.vehicles.action.delete")}
                                 className="icon-btn icon-btn-danger"
                                 disabled={deletingVehicleId !== null}
                                 onClick={() => setConfirmDeleteVehicleId(item.id)}
-                                title="Sil"
+                                title={t("settings.vehicles.action.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -564,7 +578,8 @@ function buildColumnFilterControl(
   columnId: VehicleColumnId,
   filters: VehicleFilters,
   setFilter: <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => void,
-  licenseClassOptions: LicenseClassOption[]
+  licenseClassOptions: LicenseClassOption[],
+  t: ReturnType<typeof useT>
 ) {
   if (columnId === "isActive") {
     return (
@@ -572,11 +587,11 @@ function buildColumnFilterControl(
         active={filters.activity !== DEFAULT_FILTERS.activity}
         onChange={(nextValue) => setFilter("activity", nextValue as VehicleActivityFilter)}
         options={[
-          { value: "active", label: "Aktif" },
-          { value: "all", label: "Tümü" },
-          { value: "inactive", label: "Pasif" },
+          { value: "active", label: t("settings.vehicles.filter.isActive.active") },
+          { value: "all", label: t("common.all") },
+          { value: "inactive", label: t("settings.vehicles.filter.isActive.inactive") },
         ]}
-        title="Genel Durum filtresi"
+        title={t("settings.vehicles.filter.isActive.title")}
         value={filters.activity}
       />
     );
@@ -588,13 +603,13 @@ function buildColumnFilterControl(
         active={filters.status !== DEFAULT_FILTERS.status}
         onChange={(nextValue) => setFilter("status", nextValue as VehicleFilters["status"])}
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...VEHICLE_STATUS_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Araç Durumu filtresi"
+        title={t("settings.vehicles.filter.status.title")}
         value={filters.status}
       />
     );
@@ -608,13 +623,13 @@ function buildColumnFilterControl(
           setFilter("licenseClass", nextValue as VehicleFilters["licenseClass"])
         }
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...licenseClassOptions.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Belge filtresi"
+        title={t("settings.vehicles.filter.licenseClass.title")}
         value={filters.licenseClass}
       />
     );
@@ -628,13 +643,13 @@ function buildColumnFilterControl(
           setFilter("transmissionType", nextValue as VehicleFilters["transmissionType"])
         }
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           ...VEHICLE_TRANSMISSION_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
           })),
         ]}
-        title="Vites filtresi"
+        title={t("settings.vehicles.filter.transmissionType.title")}
         value={filters.transmissionType}
       />
     );
