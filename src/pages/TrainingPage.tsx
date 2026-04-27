@@ -184,71 +184,25 @@ export function TrainingPage({ type }: TrainingPageProps) {
     return () => controller.abort();
   }, [showToast, type]);
 
-  // Filtreler — başlangıçta hepsi görünür. Set tipinde tutuyoruz; toggle
-  // O(1) ve memoize edilmiş `visibleEvents` `useMemo` ile yeniden
-  // hesaplanıyor.
-  //
-  // Grup listesi sadece internal (bu takvime ait) event'lerden türetiliyor
-  // — external "Direksiyon Slot" / "Bakım" gibi başka takvim
-  // kavramlarını filter dropdown'unda göstermek karışıklık yaratırdı.
-  // Eğitmen listesi ise her ikisini kapsıyor (aynı eğitmen iki takvimde
-  // olabilir, kullanıcı Hasan'ı kapatırsa external Hasan da gitmeli).
-  const allGroups = useMemo(
-    () =>
-      Array.from(
-        new Set(events.map((e) =>
-          type === "uygulama" ? (e.vehiclePlate || t("training.filter.noVehicle")) : e.groupName
-        ))
-      ),
-    [events, type]
-  );
-  const allInstructorIds = useMemo(
-    () => Array.from(new Set(events.map((e) => e.instructorId))),
-    [events]
-  );
+  // Filtreler boş başlar — kullanıcı görmek istediği grup/eğitmeni
+  // sidebar'dan açar. Yeni eklenen grup/eğitmen otomatik visible
+  // olmaz; bu kural quick-assign akışıyla tutarlı (orada da seçim
+  // temizlenince filtreler boşalıyor).
   const [visibleGroups, setVisibleGroups] = useState<Set<string>>(
-    () => new Set(allGroups)
+    () => new Set()
   );
   const [visibleInstructors, setVisibleInstructors] = useState<Set<string>>(
-    () => new Set(allInstructorIds)
+    () => new Set()
   );
-
-  // Yeni grup/eğitmen eklendikçe varsayılan olarak görünür yapalım,
-  // aksi halde kullanıcı yeni eklediği bir kaydı bulamaz. Önceden
-  // görülen ama kullanıcının kapattığı (unchecked) kayıtlar tekrar
-  // açılmamalı — `seenGroupsRef`/`seenInstructorsRef` ile gerçekten
-  // YENİ olanları ayırt ediyoruz.
-  const seenGroupsRef = useRef<Set<string>>(new Set());
-  const seenInstructorsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    setVisibleGroups((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-      allGroups.forEach((g) => {
-        if (seenGroupsRef.current.has(g)) return;
-        seenGroupsRef.current.add(g);
-        if (!next.has(g)) {
-          next.add(g);
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [allGroups]);
 
   // Quick-assign'da grup DEĞİŞİRSE sidebar filter'ı sadece o gruba
   // collapse olur. Eğitmen filtresi de gruba bağlı senkronize edilir:
-  // o grubun mevcut event'lerinde dersi olan eğitmenler visible olur
-  // (diğerleri kapanır). Grubun hiç dersi yoksa tüm bilinen eğitmenler
-  // visible kalır (ilk kez ders atayacak kullanıcı için).
+  // o grubun mevcut event'lerinde dersi olan eğitmenler visible olur.
   const prevQuickGroupRef = useRef<string>("");
   useEffect(() => {
     const nextId = quickSettings.groupId;
     if (nextId === prevQuickGroupRef.current) return;
     prevQuickGroupRef.current = nextId;
-    // QA'dan grup seçimi temizlendiğinde tüm filtreler false olur —
-    // kullanıcı baştan başlama isteğini gösterir.
     if (!nextId) {
       setVisibleGroups(new Set());
       setVisibleInstructors(new Set());
@@ -262,17 +216,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
         .filter((e) => e.groupId === nextId)
         .map((e) => e.instructorId)
     );
-    setVisibleInstructors(
-      groupInstructorIds.size > 0
-        ? groupInstructorIds
-        : new Set(seenInstructorsRef.current)
-    );
+    setVisibleInstructors(groupInstructorIds);
   }, [quickSettings.groupId, groups, events]);
 
   // Aynı kural eğitmen için: QA'da eğitmen değişirse sidebar filter'ı
-  // sadece o eğitmene collapse olur. Eğitmen clear edilince tüm filtreler
-  // false olur. Grup henüz seçilmediyse, eğitmenin dersleri olan gruplar
-  // da otomatik visible olur (calendar boş kalmasın).
+  // sadece o eğitmene collapse olur. Grup henüz seçilmediyse, eğitmenin
+  // dersleri olan gruplar da otomatik visible olur (calendar boş kalmasın).
   const prevQuickInstructorRef = useRef<string>("");
   useEffect(() => {
     const nextId = quickSettings.instructorId;
@@ -299,21 +248,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
       }
     }
   }, [quickSettings.instructorId, quickSettings.groupId, events, type]);
-  useEffect(() => {
-    setVisibleInstructors((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-      allInstructorIds.forEach((id) => {
-        if (seenInstructorsRef.current.has(id)) return;
-        seenInstructorsRef.current.add(id);
-        if (!next.has(id)) {
-          next.add(id);
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [allInstructorIds]);
 
   // Backend'den gelen event.groupName ile groups state'indeki group.title
   // genelde aynı olmalı; ama tutarsızlık olursa (legacy veri, trim farkı,
