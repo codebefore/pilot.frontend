@@ -1,4 +1,9 @@
-import { useMemo, useState, type ComponentType } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+} from "react";
 import { Calendar, type View } from "react-big-calendar";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -11,11 +16,57 @@ import {
   type TrainingEventKind,
 } from "../../lib/training-calendar";
 import {
+  colorForBranch,
+  detectBranchFromNotes,
+} from "../../lib/training-branches";
+import {
   RollingFourWeeksView,
   RollingThreeWeeksView,
   RollingTwoWeeksView,
   RollingWeekView,
 } from "./RollingWeekView";
+
+// Quick-assign saat input'u — boş/ara değer yazılabilsin diye local
+// text state taşıyor; geçerli pozitif tam sayı olunca parent'a iletir.
+// Dışarıdan value değişirse senkron olur. Blur'da geçersiz input
+// önceki değere geri döner.
+function GutterDurationInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (hours: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+  return (
+    <div className="training-gutter-quick-assign">
+      <input
+        className="training-gutter-quick-assign-input"
+        max={8}
+        min={1}
+        onBlur={() => {
+          const parsed = parseInt(text, 10);
+          if (!Number.isFinite(parsed) || parsed < 1) {
+            setText(String(value));
+          }
+        }}
+        onChange={(e) => {
+          const next = e.target.value;
+          setText(next);
+          const parsed = parseInt(next, 10);
+          if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 8) {
+            onChange(parsed);
+          }
+        }}
+        type="number"
+        value={text}
+      />
+    </div>
+  );
+}
 
 // RBC DnD HOC ile Calendar'ı sar — resize/drop callback'leri aktif olur.
 // @types'ın `Event` base tipi bizim TrainingCalendarEvent için gevşek;
@@ -41,6 +92,12 @@ type TrainingCalendarProps = {
   onEventResize?: (args: { event: TrainingCalendarEvent; start: Date; end: Date }) => void;
   /** Event body'sinden sürüklenip başka slota bırakılınca çağrılır. */
   onEventDrop?: (args: { event: TrainingCalendarEvent; start: Date; end: Date }) => void;
+  /**
+   * Quick-assign için ders saat sayısı. Teorik takvimde gutter header'ında
+   * (sol-üst boş köşe) küçük bir input olarak render edilir.
+   */
+  durationHours?: number;
+  onDurationHoursChange?: (hours: number) => void;
 };
 
 // Custom view key'lerimiz — RBC `Views` enum'unda yok, ama `views` map'ine
@@ -85,6 +142,8 @@ export function TrainingCalendar({
   onSelectSlot,
   onEventResize,
   onEventDrop,
+  durationHours,
+  onDurationHoursChange,
 }: TrainingCalendarProps) {
   const [view, setView] = useState<View>(ROLLING_2W_VIEW);
   // Hafta görünümü açılışta 2 gün öncesinden başlasın — kullanıcı
@@ -95,6 +154,7 @@ export function TrainingCalendar({
     d.setHours(0, 0, 0, 0);
     return d;
   });
+
   // Ders saatleri 07:00–23:00 aralığında. RBC `min`/`max` prop'ları
   // gün/hafta görünümlerinin görünür saat aralığını kısıtlar; bu
   // aralık dışındaki slotlar (07:00 öncesi, 23:00 sonrası) çizilmez.
@@ -147,19 +207,43 @@ export function TrainingCalendar({
     []
   );
 
+  // Quick-assign saat input'u takvimin sol-üst gutter köşesine düşüyor.
+  // Sadece teorik kind'da, parent props sağladıysa render ediliyor.
+  const TimeGutterHeader = useMemo(
+    () => () => {
+      if (kind !== "teorik" || !onDurationHoursChange) return null;
+      return (
+        <GutterDurationInput
+          onChange={onDurationHoursChange}
+          value={durationHours ?? 1}
+        />
+      );
+    },
+    [kind, durationHours, onDurationHoursChange]
+  );
+
   const EventComponent = useMemo(
     () => ({ event }: { event: TrainingCalendarEvent }) => {
-      const lessonType = event.kind === "teorik" ? "Teorik" : null;
       const isUygulama = event.kind === "uygulama";
+      // Teorik takvimde quick-assign `notes`'a branş adı yazıyor (T067'ye
+      // kadar geçici) — varsa üst satırda göster. Sayfa zaten teorik
+      // olduğu için "Teorik" tekrar yazmıyoruz.
+      const topLine = isUygulama
+        ? event.candidateName
+        : event.notes?.trim() || null;
       return (
         <div className="training-event-content">
-          {lessonType && <div className="training-event-type">{lessonType}</div>}
-          {isUygulama && event.candidateName && (
-            <div className="training-event-candidate">{event.candidateName}</div>
-          )}
+          {topLine ? (
+            <div className="training-event-type">{topLine}</div>
+          ) : null}
           <div className="training-event-group">
-            {event.groupName}
+            {event.groupName.replace(/\s+\d{4}/g, "")}
           </div>
+          {event.instructorName ? (
+            <div className="training-event-instructor">
+              {event.instructorName}
+            </div>
+          ) : null}
         </div>
       );
     },
@@ -168,12 +252,31 @@ export function TrainingCalendar({
 
   const eventStyleGetter = useMemo(
     () => (event: TrainingCalendarEvent) => {
-      // Renk artık ders tipine göre. Inline style kaldırıldı; CSS
-      // class'ları (`.training-event`, `.training-event-teorik|uygulama`)
-      // teorik=marka yeşili, uygulama=mavi olarak boyar.
+      // Preview event quick-assign popover açıkken çizilen geçici slot —
+      // farklı stil, etkileşim yok. Renk inline override yok, CSS'ten gelir.
+      if (event.preview) {
+        return { className: "training-event training-event-preview" };
+      }
+      // Renk öncelik sırası: branş > kind fallback. Branş şu anda
+      // `notes`'tan tespit ediliyor (T067 sonrası entity'den gelecek).
+      // Uygulama event'leri her zaman `practice` branşı kabul edilir.
       const classes = ["training-event", `training-event-${kind}`];
-      if (event.external) classes.push("training-event-external");
-      return { className: classes.join(" ") };
+      if (event.dimmed) classes.push("training-event-dimmed");
+      const branchCode =
+        kind === "uygulama"
+          ? "practice"
+          : detectBranchFromNotes(event.notes);
+      const color = colorForBranch(branchCode);
+      return color
+        ? {
+            className: classes.join(" "),
+            style: {
+              backgroundColor: color.bg,
+              borderColor: color.border,
+              color: color.fg,
+            },
+          }
+        : { className: classes.join(" ") };
     },
     [kind]
   );
@@ -195,6 +298,7 @@ export function TrainingCalendar({
       week: { header: WeekHeader },
       day: { header: WeekHeader },
       event: EventComponent,
+      timeGutterHeader: TimeGutterHeader,
     },
     date,
     dayPropGetter,
@@ -213,19 +317,21 @@ export function TrainingCalendar({
       onSelectSlot?.({ start: toDate(slot.start), end: toDate(slot.end) }),
     onView: setView,
     resizable: true,
-    // External event'ler başka takvimden gölge olarak geliyor — burada
-    // taşınmamalı/yeniden boyutlandırılmamalı.
-    draggableAccessor: (event: TrainingCalendarEvent) => !event.external,
-    resizableAccessor: (event: TrainingCalendarEvent) => !event.external,
+    // Preview ve dimmed (görünmez eğitmenin dersi) etkileşimsiz.
+    draggableAccessor: (event: TrainingCalendarEvent) =>
+      !event.preview && !event.dimmed,
+    resizableAccessor: (event: TrainingCalendarEvent) =>
+      !event.preview && !event.dimmed,
     min: minTime,
     max: maxTime,
     scrollToTime,
     selectable: true,
     startAccessor: "start",
-    // 30 dk slot, saat başlarında ana çizgi (timeslots=2 → her grup
-    // 1 saat). Min ders 60 dk; daha hassas snap için 30 dk granülerlik.
-    step: 30,
-    timeslots: 2,
+    // step=60 + timeslots=1 → her slot 1 saat. Min ders 60 dk olduğu
+    // için drag/resize de tam saatlere snap'lenir; yarım saat fractional
+    // pozisyon yok (görsel ve davranış birebir).
+    step: 60,
+    timeslots: 1,
     style: { height: "calc(100vh - 180px)", minHeight: 480 },
     view,
     views: {

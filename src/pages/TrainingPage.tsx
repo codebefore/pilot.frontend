@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "../lib/http";
 import { useT } from "../lib/i18n";
@@ -11,14 +11,15 @@ import {
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { TrainingEventDetailModal } from "../components/training/TrainingEventDetailModal";
 import { TrainingFilters } from "../components/training/TrainingFilters";
+import { QuickLessonAssignment } from "../components/training/QuickLessonAssignment";
 import { TrainingWeekSummary } from "../components/training/TrainingWeekSummary";
 import { useToast } from "../components/ui/Toast";
+import { BranchPickerPopover } from "../components/training/BranchPickerPopover";
 import {
   calendarEventToTrainingLessonRequest,
   trainingLessonToCalendarEvent,
   type TrainingCalendarEvent,
 } from "../lib/training-calendar";
-import { loadExternalEvents } from "../lib/training-external-storage";
 import { getAreas } from "../lib/areas-api";
 import { getCandidates } from "../lib/candidates-api";
 import { getGroups } from "../lib/groups-api";
@@ -40,6 +41,8 @@ import type {
 } from "../lib/types";
 import { getRoutes } from "../lib/routes-api";
 import { getVehicles } from "../lib/vehicles-api";
+
+import { BRANCH_LABELS } from "../lib/training-branches";
 
 type TrainingPageProps = {
   type: "teorik" | "uygulama";
@@ -80,7 +83,53 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [areas, setAreas] = useState<AreaResponse[]>([]);
   const [routes, setRoutes] = useState<RouteResponse[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
-  const [showExternal, setShowExternal] = useState(true);
+  const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
+
+  // Hızlı atama ayarları — durationHours ayrı state olarak Calendar
+  // gutter input'unda canlı kontrol ediliyor.
+  const [quickSettings, setQuickSettings] = useState<{
+    instructorId: string;
+    groupId: string;
+  }>({ instructorId: "", groupId: "" });
+  // Quick-assign saat sayısı sayfa yenilemesinde kaybolmasın diye
+  // localStorage'a yansıtılıyor (1-8 aralığında).
+  const [quickDurationHours, setQuickDurationHours] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem("pilot.training.quickDuration");
+      if (stored) {
+        const n = parseInt(stored, 10);
+        if (Number.isFinite(n) && n >= 1 && n <= 8) return n;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 1;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "pilot.training.quickDuration",
+        String(quickDurationHours)
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [quickDurationHours]);
+  
+  const [isBranchPickerOpen, setIsBranchPickerOpen] = useState(false);
+  // Branş popover'ının ekran üzerindeki konumu — tıklanan slotun
+  // hizasında çıksın diye son mouseup pozisyonu yakalanır. RBC
+  // `onSelectSlot` mouse event'i taşımıyor; bu yüzden global listener.
+  const lastClickPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      lastClickPos.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener("mouseup", handler, true);
+    return () => window.removeEventListener("mouseup", handler, true);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -110,16 +159,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       getRoutes({ activity: "active", page: 1, pageSize: 100 }, controller.signal),
     ])
       .then(([lessonResult, instructorResult, groupResult, candidateResult, vehicleResult, areaResult, routeResult]) => {
-        // Backend event'leri + localStorage'dan gelen external gölgeler.
-        // External'lar backend desteği gelene kadar frontend-only; kind'a
-        // göre ayrı seed (teorik/uygulama). Eğitmen ID'si backend
-        // kataloğundaki ilk N eğitmene bağlanıyor ki filter "Hasan'ı
-        // kapat → external Hasan'ı da gizle" mantığı çalışsın.
-        const externals = loadExternalEvents(type, instructorResult.items);
-        setEvents([
-          ...lessonResult.items.map(trainingLessonToCalendarEvent),
-          ...externals,
-        ]);
+        setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
         setInstructors(instructorResult.items);
         setGroups(groupResult.items);
         setCandidates(candidateResult.items);
@@ -135,7 +175,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         if (controller.signal.aborted) return;
         console.error(error);
         setEvents([]);
-        showToast("Eğitim dersleri yüklenemedi");
+        showToast(t("training.toast.lessonsLoadFailed"));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -156,8 +196,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const allGroups = useMemo(
     () =>
       Array.from(
-        new Set(events.filter((e) => !e.external).map((e) => 
-          type === "uygulama" ? (e.vehiclePlate || "Araç seçilmedi") : e.groupName
+        new Set(events.map((e) =>
+          type === "uygulama" ? (e.vehiclePlate || t("training.filter.noVehicle")) : e.groupName
         ))
       ),
     [events, type]
@@ -174,12 +214,20 @@ export function TrainingPage({ type }: TrainingPageProps) {
   );
 
   // Yeni grup/eğitmen eklendikçe varsayılan olarak görünür yapalım,
-  // aksi halde kullanıcı yeni eklediği bir kaydı bulamaz.
+  // aksi halde kullanıcı yeni eklediği bir kaydı bulamaz. Önceden
+  // görülen ama kullanıcının kapattığı (unchecked) kayıtlar tekrar
+  // açılmamalı — `seenGroupsRef`/`seenInstructorsRef` ile gerçekten
+  // YENİ olanları ayırt ediyoruz.
+  const seenGroupsRef = useRef<Set<string>>(new Set());
+  const seenInstructorsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     setVisibleGroups((prev) => {
       const next = new Set(prev);
       let changed = false;
       allGroups.forEach((g) => {
+        if (seenGroupsRef.current.has(g)) return;
+        seenGroupsRef.current.add(g);
         if (!next.has(g)) {
           next.add(g);
           changed = true;
@@ -188,11 +236,76 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return changed ? next : prev;
     });
   }, [allGroups]);
+
+  // Quick-assign'da grup DEĞİŞİRSE sidebar filter'ı sadece o gruba
+  // collapse olur. Eğitmen filtresi de gruba bağlı senkronize edilir:
+  // o grubun mevcut event'lerinde dersi olan eğitmenler visible olur
+  // (diğerleri kapanır). Grubun hiç dersi yoksa tüm bilinen eğitmenler
+  // visible kalır (ilk kez ders atayacak kullanıcı için).
+  const prevQuickGroupRef = useRef<string>("");
+  useEffect(() => {
+    const nextId = quickSettings.groupId;
+    if (nextId === prevQuickGroupRef.current) return;
+    prevQuickGroupRef.current = nextId;
+    // QA'dan grup seçimi temizlendiğinde tüm filtreler false olur —
+    // kullanıcı baştan başlama isteğini gösterir.
+    if (!nextId) {
+      setVisibleGroups(new Set());
+      setVisibleInstructors(new Set());
+      return;
+    }
+    const group = groups.find((g) => g.id === nextId);
+    if (!group) return;
+    setVisibleGroups(new Set([group.title]));
+    const groupInstructorIds = new Set(
+      events
+        .filter((e) => e.groupId === nextId)
+        .map((e) => e.instructorId)
+    );
+    setVisibleInstructors(
+      groupInstructorIds.size > 0
+        ? groupInstructorIds
+        : new Set(seenInstructorsRef.current)
+    );
+  }, [quickSettings.groupId, groups, events]);
+
+  // Aynı kural eğitmen için: QA'da eğitmen değişirse sidebar filter'ı
+  // sadece o eğitmene collapse olur. Eğitmen clear edilince tüm filtreler
+  // false olur. Grup henüz seçilmediyse, eğitmenin dersleri olan gruplar
+  // da otomatik visible olur (calendar boş kalmasın).
+  const prevQuickInstructorRef = useRef<string>("");
+  useEffect(() => {
+    const nextId = quickSettings.instructorId;
+    if (nextId === prevQuickInstructorRef.current) return;
+    prevQuickInstructorRef.current = nextId;
+    if (!nextId) {
+      setVisibleGroups(new Set());
+      setVisibleInstructors(new Set());
+      return;
+    }
+    setVisibleInstructors(new Set([nextId]));
+    if (!quickSettings.groupId) {
+      const instructorGroupNames = new Set(
+        events
+          .filter((e) => e.instructorId === nextId)
+          .map((e) =>
+            type === "uygulama"
+              ? (e.vehiclePlate || t("training.filter.noVehicle"))
+              : e.groupName
+          )
+      );
+      if (instructorGroupNames.size > 0) {
+        setVisibleGroups(instructorGroupNames);
+      }
+    }
+  }, [quickSettings.instructorId, quickSettings.groupId, events, type]);
   useEffect(() => {
     setVisibleInstructors((prev) => {
       const next = new Set(prev);
       let changed = false;
       allInstructorIds.forEach((id) => {
+        if (seenInstructorsRef.current.has(id)) return;
+        seenInstructorsRef.current.add(id);
         if (!next.has(id)) {
           next.add(id);
           changed = true;
@@ -202,62 +315,204 @@ export function TrainingPage({ type }: TrainingPageProps) {
     });
   }, [allInstructorIds]);
 
-  const visibleEvents = useMemo(
-    () =>
-      events.filter((e) => {
-        // Toolbar toggle external'ları tamamen kapatır.
-        if (e.external && !showExternal) return false;
-        // Eğitmen filtresi her zaman uygulanır (internal + external).
-        if (!visibleInstructors.has(e.instructorId)) return false;
-        // External event'ler grup filtresinden muaf — gölge olarak hep
-        // görünür kalır.
-        if (e.external) return true;
-        const filterValue = type === "uygulama" ? (e.vehiclePlate || "Araç seçilmedi") : e.groupName;
-        return visibleGroups.has(filterValue);
-      }),
-    [events, visibleGroups, visibleInstructors, showExternal, type]
+  // Backend'den gelen event.groupName ile groups state'indeki group.title
+  // genelde aynı olmalı; ama tutarsızlık olursa (legacy veri, trim farkı,
+  // race) groupId üzerinden de eşleştir — visibilityCollapse `group.title`
+  // yazıyor; eğer event'in groupName'i farklıysa groupId fallback yakalar.
+  const groupTitleById = useMemo(
+    () => new Map(groups.map((g) => [g.id, g.title])),
+    [groups]
   );
 
+  const visibleEvents = useMemo(() => {
+    // Önce grup filtresini uygula. Eğitmen visible değilse event'i
+    // çıkarmak yerine `dimmed: true` ile şeffaf hayalet olarak göster —
+    // kullanıcı "bu slot başka eğitmen tarafından alınmış" sinyalini
+    // alsın (özellikle aynı grupta farklı eğitmen seçince).
+    const filtered: TrainingCalendarEvent[] = [];
+    for (const e of events) {
+      let matchesGroup = false;
+      if (type === "uygulama") {
+        matchesGroup = visibleGroups.has(e.vehiclePlate || t("training.filter.noVehicle"));
+      } else {
+        if (visibleGroups.has(e.groupName)) {
+          matchesGroup = true;
+        } else if (e.groupId) {
+          const titleFromState = groupTitleById.get(e.groupId);
+          if (titleFromState && visibleGroups.has(titleFromState)) {
+            matchesGroup = true;
+          }
+        }
+      }
+      if (!matchesGroup) continue;
+      const instructorVisible = visibleInstructors.has(e.instructorId);
+      if (instructorVisible) {
+        filtered.push(e);
+      } else {
+        filtered.push({ ...e, dimmed: true });
+      }
+    }
+    // Quick-assign popover açıksa seçilen aralığı görsel önizleme
+    // event'i olarak ekle — kullanıcı hangi slotu işaretlediğini görür.
+    if (isBranchPickerOpen && newLessonSlot) {
+      const previewEnd = new Date(
+        newLessonSlot.start.getTime() + quickDurationHours * 60 * 60 * 1000
+      );
+      filtered.push({
+        id: "__preview__",
+        title: "Yeni ders",
+        start: newLessonSlot.start,
+        end: previewEnd,
+        kind: type,
+        instructorId: quickSettings.instructorId || "__preview-instructor__",
+        instructorName: "",
+        groupId: quickSettings.groupId,
+        termName: "",
+        groupName: "",
+        licenseClass: "",
+        candidateCount: 0,
+        preview: true,
+      });
+    }
+    return filtered;
+  }, [
+    events,
+    visibleGroups,
+    visibleInstructors,
+    type,
+    groupTitleById,
+    isBranchPickerOpen,
+    newLessonSlot,
+    quickDurationHours,
+    quickSettings.instructorId,
+    quickSettings.groupId,
+  ]);
+
   const toggleGroup = (group: string) => {
+    const willTurnOn = !visibleGroups.has(group);
     setVisibleGroups((prev) => {
       const next = new Set(prev);
       if (next.has(group)) next.delete(group);
       else next.add(group);
       return next;
     });
+    const matchesGroup = (e: TrainingCalendarEvent, name: string) =>
+      type === "uygulama"
+        ? (e.vehiclePlate || t("training.filter.noVehicle")) === name
+        : e.groupName === name ||
+          (e.groupId !== undefined &&
+            e.groupId !== null &&
+            groupTitleById.get(e.groupId) === name);
+    const groupInstructorIds = events
+      .filter((e) => matchesGroup(e, group))
+      .map((e) => e.instructorId);
+    if (groupInstructorIds.length === 0) return;
+    if (willTurnOn) {
+      // Açıldığında: o grubun eğitmenlerini de visible yap → calendar
+      // boş kalmasın.
+      setVisibleInstructors((prev) => {
+        const next = new Set(prev);
+        groupInstructorIds.forEach((id) => next.add(id));
+        return next;
+      });
+      return;
+    }
+    // Kapatıldığında: bu grubun eğitmenlerinden sadece "başka görünür
+    // grupta dersi olmayan"ları visible'dan çıkar. Eğitmen birden fazla
+    // visible grupta ders veriyorsa korunur (diğer gruplar hidden olmasın).
+    const otherVisibleGroups = new Set(visibleGroups);
+    otherVisibleGroups.delete(group);
+    setVisibleInstructors((prev) => {
+      const next = new Set(prev);
+      groupInstructorIds.forEach((id) => {
+        const stillTeachesAnotherVisible = events.some(
+          (e) =>
+            e.instructorId === id &&
+            !matchesGroup(e, group) &&
+            (type === "uygulama"
+              ? otherVisibleGroups.has(e.vehiclePlate || t("training.filter.noVehicle"))
+              : Array.from(otherVisibleGroups).some((g) => matchesGroup(e, g)))
+        );
+        if (!stillTeachesAnotherVisible) next.delete(id);
+      });
+      return next;
+    });
   };
 
   const toggleInstructor = (id: string) => {
+    const willTurnOn = !visibleInstructors.has(id);
     setVisibleInstructors((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+    const eventGroupName = (e: TrainingCalendarEvent) =>
+      type === "uygulama"
+        ? (e.vehiclePlate || t("training.filter.noVehicle"))
+        : e.groupName;
+    const instructorGroupNames = events
+      .filter((e) => e.instructorId === id)
+      .map(eventGroupName);
+    if (instructorGroupNames.length === 0) return;
+    if (willTurnOn) {
+      // Eğitmen AÇILINCA: dersleri olan gruplar da otomatik visible olur.
+      setVisibleGroups((prev) => {
+        const next = new Set(prev);
+        instructorGroupNames.forEach((g) => next.add(g));
+        return next;
+      });
+      return;
+    }
+    // KAPATILINCA: o eğitmenin gruplarından, başka görünür eğitmen tarafından
+    // verilmeyenleri visible'dan çıkar.
+    const otherVisibleInstructors = new Set(visibleInstructors);
+    otherVisibleInstructors.delete(id);
+    setVisibleGroups((prev) => {
+      const next = new Set(prev);
+      instructorGroupNames.forEach((g) => {
+        const stillTaughtByAnother = events.some(
+          (e) =>
+            eventGroupName(e) === g &&
+            e.instructorId !== id &&
+            otherVisibleInstructors.has(e.instructorId)
+        );
+        if (!stillTaughtByAnother) next.delete(g);
+      });
+      return next;
+    });
   };
 
+  // Sıfırla → tüm filtreler false (her şey gizli) + QA seçimleri de
+  // temizlenir. Kullanıcı tekrar toggle/dropdown ile istediğini seçer.
   const resetFilters = () => {
-    setVisibleGroups(new Set(allGroups));
-    setVisibleInstructors(new Set(allInstructorIds));
-  };
-
-  const showAllGroups = () => {
-    setVisibleGroups(new Set(allGroups));
-  };
-
-  const hideAllGroups = () => {
     setVisibleGroups(new Set());
-  };
-
-  const showAllInstructors = () => {
-    setVisibleInstructors(new Set(allInstructorIds));
-  };
-
-  const hideAllInstructors = () => {
     setVisibleInstructors(new Set());
+    setQuickSettings({ groupId: "", instructorId: "" });
   };
 
-  const title = type === "teorik" ? "Teorik Eğitim Planı" : "Uygulama Eğitim Planı";
+  // Bulk toggle: yalnızca filter listesinde görünen kayıtları etkiler.
+  // Parent state diğer (görünmeyen) ID'leri korur.
+  const setGroupsVisibility = (groupNames: string[], visible: boolean) => {
+    setVisibleGroups((prev) => {
+      const next = new Set(prev);
+      groupNames.forEach((g) => (visible ? next.add(g) : next.delete(g)));
+      return next;
+    });
+  };
+
+  const setInstructorsVisibility = (ids: string[], visible: boolean) => {
+    setVisibleInstructors((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (visible ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
+
+  const title =
+    type === "teorik"
+      ? t("training.page.title.teorik")
+      : t("training.page.title.uygulama");
 
   const replaceEvent = (nextEvent: TrainingCalendarEvent) => {
     setEvents((prev) =>
@@ -297,7 +552,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     generalError?: string;
   } => {
     if (!(error instanceof ApiError)) {
-      return { fieldErrors: {}, generalError: "Ders kaydedilemedi" };
+      return { fieldErrors: {}, generalError: t("training.toast.lessonNotSaved") };
     }
     const fieldErrors: Record<string, string> = {};
     let generalError: string | undefined;
@@ -316,11 +571,75 @@ export function TrainingPage({ type }: TrainingPageProps) {
       }
     }
     if (!Object.keys(fieldErrors).length && !generalError) {
-      generalError = error.status === 409
-        ? "Aynı saat için eğitmen veya araç çakışması var"
-        : "Ders kaydedilemedi";
+      generalError =
+        error.status === 409
+          ? t("training.toast.fallbackConflict")
+          : t("training.toast.lessonNotSaved");
     }
     return { fieldErrors, generalError };
+  };
+
+  const handleQuickAssign = async (notes: string) => {
+    const { instructorId, groupId } = quickSettings;
+    const durationHours = quickDurationHours;
+    const startTime = newLessonSlot!.start;
+    
+    setIsQuickAssignLoading(true);
+    let successCount = 0;
+    try {
+      for (let i = 0; i < durationHours; i++) {
+        const lessonStart = new Date(startTime.getTime() + i * 60 * 60 * 1000);
+        const lessonEnd = new Date(lessonStart.getTime() + 60 * 60 * 1000);
+
+        const request: TrainingLessonUpsertRequest = {
+          kind: "teorik",
+          status: "planned",
+          startAtUtc: lessonStart.toISOString(),
+          endAtUtc: lessonEnd.toISOString(),
+          instructorId,
+          groupId,
+          candidateId: null,
+          vehicleId: null,
+          areaId: null,
+          routeId: null,
+          licenseClass: null,
+          notes,
+        };
+
+        const saved = await createTrainingLesson(request);
+        const nextEvent = trainingLessonToCalendarEvent(saved);
+        setEvents((prev) => [...prev, nextEvent]);
+        successCount++;
+      }
+      showToast(t("training.toast.bulkAssigned", { count: successCount }));
+    } catch (error) {
+      console.error(error);
+      const { fieldErrors, generalError } = splitApiError(error);
+      // Çakışma kodları (`InstructorConflict`/`VehicleConflict`) field
+      // mapping'i sebebiyle `fieldErrors`'a düşer; quick assign'da form
+      // alanı yok, mesajı yansıtmak için ilk field error'a geri düş.
+      const baseMsg =
+        generalError ??
+        Object.values(fieldErrors)[0] ??
+        t("training.toast.lessonNotSaved");
+      const remaining = durationHours - successCount;
+      const msg =
+        successCount > 0
+          ? t("training.toast.partialAssigned", {
+              success: successCount,
+              remaining,
+              message: baseMsg,
+            })
+          : baseMsg;
+      showToast(msg);
+    } finally {
+      // Picker'ı her durumda kapat ve slot'u temizle — kullanıcı tekrar
+      // tıklarsa önceden başarılı kayıtlarla çakışma olmasın. Yeni atama
+      // için takvimden yeni slot seçmesi gerekir.
+      setIsQuickAssignLoading(false);
+      setNewLessonSlot(null);
+      setIsBranchPickerOpen(false);
+    }
   };
 
   const handleCreateLesson = async (values: TrainingLessonSubmitValues) => {
@@ -332,7 +651,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       setEvents((prev) => [...prev, nextEvent]);
       setModalOpen(false);
       setNewLessonSlot(null);
-      showToast("Ders oluşturuldu");
+      showToast(t("training.toast.lessonCreated"));
     } catch (error) {
       console.error(error);
       const { fieldErrors, generalError } = splitApiError(error);
@@ -350,14 +669,13 @@ export function TrainingPage({ type }: TrainingPageProps) {
     event: TrainingCalendarEvent,
     overrides: Partial<TrainingLessonUpsertRequest>
   ) => {
-    if (event.external) return;
     try {
       const saved = await updateTrainingLesson(
         event.id,
         calendarEventToTrainingLessonRequest(event, overrides)
       );
       replaceEvent(trainingLessonToCalendarEvent(saved));
-      showToast("Ders güncellendi");
+      showToast(t("training.toast.lessonUpdated"));
     } catch (error) {
       console.error(error);
       const { fieldErrors, generalError } = splitApiError(error);
@@ -366,20 +684,19 @@ export function TrainingPage({ type }: TrainingPageProps) {
         ...Object.values(fieldErrors),
         ...(generalError ? [generalError] : []),
       ];
-      showToast(merged[0] ?? "Ders kaydedilemedi");
+      showToast(merged[0] ?? t("training.toast.lessonNotSaved"));
     }
   };
 
   const handleDeleteEvent = async (event: TrainingCalendarEvent) => {
-    if (event.external) return;
     try {
       await deleteTrainingLesson(event.id);
       setEvents((prev) => prev.filter((e) => e.id !== event.id));
       setSelectedEvent(null);
-      showToast("Ders silindi");
+      showToast(t("training.toast.lessonDeleted"));
     } catch (error) {
       console.error(error);
-      showToast("Ders silinemedi");
+      showToast(t("training.toast.lessonNotDeleted"));
     }
   };
 
@@ -389,21 +706,35 @@ export function TrainingPage({ type }: TrainingPageProps) {
     const durationMin = snapDuration(desiredMin);
     const snappedEnd = new Date(snappedStart.getTime() + durationMin * 60000);
     if (!isWithinLessonHours(snappedStart, snappedEnd)) {
-      showToast("Ders 07:00-23:00 aralığında olmalı");
+      showToast(t("training.toast.outsideHours"));
       return;
     }
     setNewLessonSlot({ start: snappedStart, end: snappedEnd });
-    setModalOpen(true);
+    
+    if (type === "uygulama") {
+      setModalOpen(true);
+    } else {
+      // Teorik derste, eğer grup ve eğitmen seçiliyse branş seçiciyi aç
+      if (quickSettings.groupId && quickSettings.instructorId) {
+        setPopoverPos({
+          x: lastClickPos.current.x,
+          y: lastClickPos.current.y,
+        });
+        setIsBranchPickerOpen(true);
+      } else {
+        showToast(t("training.toast.selectGroupAndInstructorFirst"));
+      }
+    }
   };
 
   const handleSelectEvent = (event: TrainingCalendarEvent) => {
     setSelectedEvent(event);
   };
 
-  // Tek kural: ders en az 60 dk. Drag/resize 30 dk granülerlikle
-  // snap'lenir; yarım saatlik kayma görsel grid'le hizalanır.
+  // Tek kural: ders en az 60 dk. Drag/resize tam saat snap (yarım saat
+  // snap kaldırıldı); takvimin step=60 grid'iyle birebir hizalı.
   const LESSON_MIN_MIN = 60;
-  const SNAP_MIN = 30;
+  const SNAP_MIN = 60;
   const LESSON_HOURS_START = 7;
   const LESSON_HOURS_END = 23;
 
@@ -455,7 +786,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       finalEnd = new Date(finalStart.getTime() + durationMin * 60000);
     }
     if (!isWithinLessonHours(finalStart, finalEnd)) {
-      showToast("Ders 07:00-23:00 aralığında olmalı");
+      showToast(t("training.toast.outsideHours"));
       return;
     }
     void persistEventUpdate(event, {
@@ -476,7 +807,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     const durationMs = event.end.getTime() - event.start.getTime();
     const finalEnd = new Date(finalStart.getTime() + durationMs);
     if (!isWithinLessonHours(finalStart, finalEnd)) {
-      showToast("Ders 07:00-23:00 aralığında olmalı");
+      showToast(t("training.toast.outsideHours"));
       return;
     }
     void persistEventUpdate(event, {
@@ -485,34 +816,19 @@ export function TrainingPage({ type }: TrainingPageProps) {
     });
   };
 
+  const selectedInstructor = useMemo(() => 
+    instructors.find(i => i.id === quickSettings.instructorId),
+    [instructors, quickSettings.instructorId]
+  );
+
+  const availableBranches = useMemo(() => 
+    selectedInstructor?.branches.filter(b => b !== "practice") || [],
+    [selectedInstructor]
+  );
+
   return (
     <>
-      <PageToolbar
-        actions={
-          <>
-            <label className="switch-toggle" title="Diğer takvimlerden gelen kayıtları gölge olarak göster">
-              <input
-                checked={showExternal}
-                onChange={(e) => setShowExternal(e.target.checked)}
-                type="checkbox"
-              />
-              <span className="switch-toggle-control" />
-              <span>Diğer takvimleri göster</span>
-            </label>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => {
-                setNewLessonSlot(null);
-                setModalOpen(true);
-              }}
-              type="button"
-            >
-              Yeni Plan
-            </button>
-          </>
-        }
-        title={title}
-      />
+      <PageToolbar title={title} />
 
       <div className="training-layout-wrap">
         {loading ? <div className="empty-state">Dersler yükleniyor...</div> : null}
@@ -520,22 +836,37 @@ export function TrainingPage({ type }: TrainingPageProps) {
           <TrainingWeekSummary events={visibleEvents} />
         </div>
         <div className="training-layout">
-          <TrainingFilters
-            events={events}
-            kind={type}
-            onResetFilters={resetFilters}
-            onToggleGroup={toggleGroup}
-            onToggleInstructor={toggleInstructor}
-            onShowAllGroups={showAllGroups}
-            onHideAllGroups={hideAllGroups}
-            onShowAllInstructors={showAllInstructors}
-            onHideAllInstructors={hideAllInstructors}
-            visibleGroups={visibleGroups}
-            visibleInstructors={visibleInstructors}
-          />
+          <aside className="training-filters-sidebar">
+            {type === "teorik" && (
+              <QuickLessonAssignment
+                groupId={quickSettings.groupId}
+                groups={groups}
+                instructorId={quickSettings.instructorId}
+                instructors={instructors}
+                isLoading={isQuickAssignLoading}
+                onSettingsChange={(settings) => setQuickSettings(settings)}
+                selectedSlot={newLessonSlot}
+              />
+            )}
+            <TrainingFilters
+              allGroupsCatalog={groups}
+              allInstructors={instructors}
+              events={events}
+              kind={type}
+              onResetFilters={resetFilters}
+              onToggleGroup={toggleGroup}
+              onToggleInstructor={toggleInstructor}
+              onSetGroupsVisibility={setGroupsVisibility}
+              onSetInstructorsVisibility={setInstructorsVisibility}
+              visibleGroups={visibleGroups}
+              visibleInstructors={visibleInstructors}
+            />
+          </aside>
           <TrainingCalendar
+            durationHours={quickDurationHours}
             events={visibleEvents}
             kind={type}
+            onDurationHoursChange={setQuickDurationHours}
             onEventDrop={handleEventDrop}
             onEventResize={handleEventResize}
             onSelectEvent={handleSelectEvent}
@@ -564,6 +895,39 @@ export function TrainingPage({ type }: TrainingPageProps) {
         serverFieldErrors={serverFieldErrors}
         serverGeneralError={serverGeneralError}
       />
+
+      {/* Ders konusu seçici popover — tıklanan slotun yanında çıkar
+          (chat baloncuğu stili). Outside-click veya Escape ile kapanır;
+          slot temizliği `handleQuickAssign`'in finally'sinde. */}
+      {isBranchPickerOpen && popoverPos ? (
+        <BranchPickerPopover
+          availableBranches={availableBranches}
+          isLoading={isQuickAssignLoading}
+          onClose={() => setIsBranchPickerOpen(false)}
+          onPick={(branch) => void handleQuickAssign(BRANCH_LABELS[branch])}
+          pos={popoverPos}
+          slotInfo={
+            newLessonSlot
+              ? (() => {
+                  const fmt = (d: Date) =>
+                    d.toLocaleTimeString("tr-TR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                  const end = new Date(
+                    newLessonSlot.start.getTime() +
+                      quickDurationHours * 60 * 60 * 1000
+                  );
+                  return t("training.popover.titleWithSlot", {
+                    start: fmt(newLessonSlot.start),
+                    end: fmt(end),
+                    hours: quickDurationHours,
+                  });
+                })()
+              : null
+          }
+        />
+      ) : null}
 
       <TrainingEventDetailModal
         event={selectedEvent}

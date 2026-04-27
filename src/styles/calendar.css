@@ -31,33 +31,9 @@
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
   padding: 12px 10px;
-  max-height: calc(100vh - 160px);
-  overflow-y: auto;
-  position: sticky;
-  top: 0;
-  /* İnce ve marka tonunda scrollbar — default gri kalın bar yerine. */
-  scrollbar-width: thin;
-  scrollbar-color: var(--brand) transparent;
-}
-
-.training-filters::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.training-filters::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.training-filters::-webkit-scrollbar-thumb {
-  background: var(--brand);
-  border-radius: 999px;
-}
-
-.training-filters::-webkit-scrollbar-thumb:hover {
-  background: var(--brand-dark);
+  /* Scroll/sticky artık `.training-filters-sidebar` üzerinde —
+   * bu eleman daima sidebar içinde render ediliyor, kendi sticky'sine
+   * gerek yok. */
 }
 
 .training-filters-header {
@@ -207,7 +183,6 @@
   gap: 20px;
   padding: 8px 4px;
   margin: 0 0 8px 0;
-  border-bottom: 1px solid var(--gray-200);
 }
 
 .training-week-summary-stats {
@@ -384,7 +359,17 @@
   background: var(--white);
   width: 56px;
   min-width: 56px;
-  border-bottom: 1px solid var(--gray-200);
+  border: 2px solid var(--brand);
+  border-radius: 4px;
+  /* `.rbc-time-header-content` ile aynı yüksekliği tut: parent flex
+   * align-items: stretch default; içeriği dikey ortala. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.training-calendar .rbc-time-header-gutter .training-gutter-quick-assign {
+  padding: 0;
 }
 
 /* Time grid hücreleri */
@@ -396,9 +381,7 @@
   border-left-color: var(--gray-200);
 }
 
-/* step=30 + timeslots=2 → her grup 1 saat (içeride 2 yarım-saat slotu
- * snap için tutuluyor ama görsel olarak sadece saat çizgisi gösteriliyor;
- * yarım-saat dashed çizgisi yok). */
+/* step=60 + timeslots=1 → her grup 1 saat, içerde tek slot. */
 .training-calendar .rbc-timeslot-group {
   min-height: 44px;
   border-bottom: 1px solid var(--gray-200);
@@ -504,12 +487,11 @@
   border-color: var(--brand-dark);
 }
 
-/* External (başka takvimden gelen) event'ler — salt-okunur gölge.
- * Inline style ile gelen grup rengi opacity ile soluklaşır; üstüne
- * çapraz tarama deseni koyup "buradan değil" hissi veriyoruz. Hover
- * scale efekti devre dışı, cursor not-allowed. */
-.training-calendar .rbc-event.training-event-external {
-  opacity: 0.42;
+/* Dimmed event — görünür grupta ama görünmez eğitmen tarafından
+ * verilen ders; "burası başka eğitmen için dolu" sinyali. Şeffaf
+ * (opacity 0.32), dashed border, çapraz tarama deseni; etkileşimsiz. */
+.training-calendar .rbc-event.training-event-dimmed {
+  opacity: 0.32;
   border-style: dashed !important;
   cursor: not-allowed !important;
   background-image: repeating-linear-gradient(
@@ -519,18 +501,42 @@
     transparent 3px,
     transparent 7px
   );
-  box-shadow: none;
+  box-shadow: none !important;
+  pointer-events: none;
 }
 
-.training-calendar .rbc-event.training-event-external:hover {
+.training-calendar .rbc-event.training-event-dimmed:hover {
   transform: none;
-  opacity: 0.62;
   box-shadow: none;
   z-index: 1;
 }
 
-.training-calendar .rbc-event.training-event-external:active {
+/* Preview event — quick-assign popover açıkken çizilen geçici slot
+ * görselleştirmesi. Brand-tonlu zemin, dashed border, hafif transparan.
+ * Hover/click etkisi yok; etkileşim devre dışı. */
+.training-calendar .rbc-event.training-event-preview {
+  background: rgba(34, 176, 148, 0.18) !important;
+  border: 2px dashed var(--brand) !important;
+  color: var(--brand-dark) !important;
+  box-shadow: none !important;
+  cursor: default !important;
+  pointer-events: none;
+  animation: trainingEventPreviewPulse 1.4s ease-in-out infinite;
+}
+
+.training-calendar .rbc-event.training-event-preview:hover,
+.training-calendar .rbc-event.training-event-preview:active {
   transform: none;
+  box-shadow: none;
+}
+
+@keyframes trainingEventPreviewPulse {
+  0%, 100% {
+    background: rgba(34, 176, 148, 0.18);
+  }
+  50% {
+    background: rgba(34, 176, 148, 0.28);
+  }
 }
 
 /* Mat ders tipi renkleri — saturasyonu düşük, beyaz metin okunaklı.
@@ -576,7 +582,7 @@
 /* Custom event content styling */
 .training-event-content {
   padding: 1px 2px;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 500;
   line-height: 1.0;
   overflow: hidden;
@@ -585,7 +591,7 @@
 }
 
 .training-event-type {
-  font-size: 6px;
+  font-size: 5px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   margin-bottom: 1px;
@@ -594,21 +600,21 @@
 }
 
 .training-event-candidate {
-  font-size: 7px;
+  font-size: 6px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   margin-bottom: 1px;
 }
 
 .training-event-instructor {
-  font-size: 6px;
+  font-size: 5px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.8);
   margin-bottom: 1px;
 }
 
 .training-event-group {
-  font-size: 8px;
+  font-size: 6px;
   font-weight: 600;
 }
 
@@ -806,25 +812,211 @@
   padding-right: 24px;
 }
 
-.training-event-external-banner {
-  background: var(--gray-50);
-  border: 1px dashed var(--gray-300);
-  border-radius: var(--radius);
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--gray-700);
-}
-
-.training-event-external-banner strong {
-  color: var(--gray-900);
-  font-weight: 600;
-}
-
 .training-event-delete-confirm {
   margin-right: auto;
   color: var(--red);
   font-size: 13px;
   font-weight: 500;
+}
+
+/* ─── Sol panel sarmalı (Hızlı atama + Filtreler) ──────────── */
+/* Sticky sarmalı viewport'a yapışır; içerideki tüm panel (quick-assign +
+ * filters) tek scroll alanı. İçeride 100vh - 160px sığmıyorsa sidebar
+ * scroll eder. Inner `.training-filters` kendi sticky/scroll'unu
+ * devreder; tek scrollbar = sidebar'ın. */
+.training-filters-sidebar {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 160px);
+  /* Scroll fonksiyonu açık ama bar görünmesin (Firefox + WebKit + IE). */
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.training-filters-sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.training-filters-sidebar .training-filters {
+  flex: 0 0 auto;
+}
+
+/* ─── Hızlı Teorik Ders Atama paneli ───────────────────────── */
+.training-quick-assign {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.training-quick-assign-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+
+.training-quick-assign-slot {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--brand-dark);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Sidebar dar (200px) — quick-assign select'lerinde uzun grup adları
+ * default 13px ile sığmıyor. Font + padding küçült. */
+.training-quick-assign .form-select,
+.training-quick-assign .custom-select-trigger,
+.training-quick-assign .custom-select-option {
+  font-size: 11px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Saat input'u takvimin sol-üst gutter köşesine düşer (rbc-time-header-
+ * gutter slot'u). Küçük, kompakt; "Saat" label + 1-8 number input. */
+.training-gutter-quick-assign {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+}
+
+.training-gutter-quick-assign-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+}
+
+.training-gutter-quick-assign-input {
+  width: 40px;
+  padding: 4px 6px;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  background: transparent;
+  color: var(--brand-dark);
+  /* Number input spinner ok'larını gizle (Firefox + WebKit). */
+  -moz-appearance: textfield;
+}
+
+.training-gutter-quick-assign-input::-webkit-outer-spin-button,
+.training-gutter-quick-assign-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.training-gutter-quick-assign-input:focus {
+  outline: none;
+}
+
+/* ─── Branş seçici popover — chat baloncuğu stili ──────────── */
+.branch-popover {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12),
+              0 2px 6px rgba(0, 0, 0, 0.06);
+  padding: 4px;
+  animation: branchPopoverIn 0.12s ease-out;
+}
+
+@keyframes branchPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.branch-popover-header {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-dark);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border-bottom: 1px solid var(--gray-100);
+  margin-bottom: 2px;
+}
+
+.branch-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.branch-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-900);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s;
+}
+
+.branch-popover-item:hover:not(:disabled) {
+  background: var(--gray-50);
+}
+
+.branch-popover-item:active:not(:disabled) {
+  background: var(--gray-100);
+}
+
+.branch-popover-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.branch-popover-item-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.branch-popover-empty {
+  padding: 10px 8px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--gray-500);
+}
+
+.branch-popover-loading {
+  padding: 6px 8px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--gray-500);
 }

@@ -78,13 +78,17 @@ export type TrainingCalendarEvent = {
   location?: string;
   notes?: string;
   /**
-   * Başka bir takvimden (örn. uygulama eğitim, bakım takvimi) gelen
-   * event. Bu takvimde **salt-okunur gölge** olarak gösterilir; çakışma
-   * görünürlüğünü artırır ama düzenlenemez/sürüklenemez.
+   * Görünür grupta ama görünmez eğitmenin dersi — şeffaf "hayalet"
+   * olarak çizilir (etkileşim yok). Kullanıcı "burası başka eğitmen
+   * tarafından alınmış" bilgisini görsün.
    */
-  external?: boolean;
-  /** External event'in kaynak takvim adı — modalda gösterilir. */
-  sourceCalendar?: string;
+  dimmed?: boolean;
+  /**
+   * Geçici önizleme event'i — quick-assign popover'ı açıkken takvimde
+   * "burası seçildi" geri bildirimi olarak çizilir. Persistent değil,
+   * görsel; etkileşim devre dışı (drag/resize/select kapalı).
+   */
+  preview?: boolean;
   /**
    * Uygulama eğitiminde bir event 1 aday + 1 araç + 1 eğitmen birleşimi
    * olduğundan aday adı ve plaka burada tutulur. Teorik takvimde

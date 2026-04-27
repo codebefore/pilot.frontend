@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { useT } from "../../lib/i18n";
 import type { TrainingCalendarEvent } from "../../lib/training-calendar";
 
 type TrainingWeekSummaryProps = {
@@ -20,6 +21,7 @@ const getWeekRange = (): { start: Date; end: Date } => {
 };
 
 export function TrainingWeekSummary({ events }: TrainingWeekSummaryProps) {
+  const t = useT();
   const stats = useMemo(() => {
     const { start, end } = getWeekRange();
     const inRange = events.filter(
@@ -47,23 +49,23 @@ export function TrainingWeekSummary({ events }: TrainingWeekSummaryProps) {
       <div className="training-week-summary-stats">
         <div className="training-week-summary-stat">
           <span className="training-week-summary-value">{stats.lessonCount}</span>
-          <span className="training-week-summary-key">ders</span>
+          <span className="training-week-summary-key">{t("training.weekSummary.lessons")}</span>
         </div>
         <div className="training-week-summary-stat">
           <span className="training-week-summary-value">{stats.groupCount}</span>
-          <span className="training-week-summary-key">grup</span>
+          <span className="training-week-summary-key">{t("training.weekSummary.groups")}</span>
         </div>
         <div className="training-week-summary-stat">
           <span className="training-week-summary-value">{stats.instructorCount}</span>
-          <span className="training-week-summary-key">eğitmen</span>
+          <span className="training-week-summary-key">{t("training.weekSummary.instructors")}</span>
         </div>
         <div className="training-week-summary-stat">
           <span className="training-week-summary-value">{stats.totalCandidates}</span>
-          <span className="training-week-summary-key">aday</span>
+          <span className="training-week-summary-key">{t("training.weekSummary.candidates")}</span>
         </div>
         <div className="training-week-summary-stat">
           <span className="training-week-summary-value">{stats.totalHours}</span>
-          <span className="training-week-summary-key">saat</span>
+          <span className="training-week-summary-key">{t("training.weekSummary.hours")}</span>
         </div>
       </div>
     </div>

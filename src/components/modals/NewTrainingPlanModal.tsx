@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
+import { useT } from "../../lib/i18n";
 import type {
   AreaResponse,
   CandidateResponse,
@@ -120,6 +121,7 @@ export function NewTrainingPlanModal({
   serverFieldErrors,
   serverGeneralError,
 }: NewTrainingPlanModalProps) {
+  const t = useT();
   const {
     register,
     handleSubmit,
@@ -152,16 +154,20 @@ export function NewTrainingPlanModal({
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} type="button">
-            İptal
+            {t("training.modal.cancel")}
           </button>
           <button className="btn btn-primary" onClick={submit} type="button">
-            Kaydet
+            {t("training.modal.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title={type === "teorik" ? "Yeni Teorik Ders" : "Yeni Uygulama Dersi"}
+      title={
+        type === "teorik"
+          ? t("training.modal.newTheory")
+          : t("training.modal.newPractice")
+      }
     >
       <form onSubmit={submit}>
         {serverGeneralError ? (
@@ -171,28 +177,28 @@ export function NewTrainingPlanModal({
         ) : null}
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Plan Tipi</label>
+            <label className="form-label">{t("training.modal.field.planType")}</label>
             <CustomSelect className="form-select" {...register("type", { required: true })}>
-              <option value="teorik">Teorik</option>
-              <option value="uygulama">Uygulama</option>
+              <option value="teorik">{t("training.modal.kindTheory")}</option>
+              <option value="uygulama">{t("training.modal.kindPractice")}</option>
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">Durum</label>
+            <label className="form-label">{t("training.modal.field.status")}</label>
             <CustomSelect className="form-select" {...register("status", { required: true })}>
-              <option value="planned">Planlandı</option>
-              <option value="completed">Tamamlandı</option>
+              <option value="planned">{t("training.modal.statusPlanned")}</option>
+              <option value="completed">{t("training.modal.statusCompleted")}</option>
             </CustomSelect>
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Tarih</label>
+            <label className="form-label">{t("training.modal.field.date")}</label>
             <input
               className={fieldClass("date", !!errors.date, "form-input")}
               type="date"
-              {...register("date", { required: "Tarih zorunlu" })}
+              {...register("date", { required: t("training.modal.required.date") })}
             />
             {errors.date && <div className="form-error">{errors.date.message}</div>}
             {!errors.date && serverErr("date") ? (
@@ -200,11 +206,11 @@ export function NewTrainingPlanModal({
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">Başlangıç</label>
+            <label className="form-label">{t("training.modal.field.startTime")}</label>
             <input
               className={fieldClass("startTime", !!errors.startTime, "form-input")}
               type="time"
-              {...register("startTime", { required: "Saat zorunlu" })}
+              {...register("startTime", { required: t("training.modal.required.time") })}
             />
             {errors.startTime && (
               <div className="form-error">{errors.startTime.message}</div>
@@ -214,20 +220,20 @@ export function NewTrainingPlanModal({
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">Süre</label>
+            <label className="form-label">{t("training.modal.field.duration")}</label>
             <CustomSelect
               className={fieldClass("durationMinutes", false, "form-select")}
               {...register("durationMinutes", {
-                required: "Süre zorunlu",
+                required: t("training.modal.required.duration"),
                 valueAsNumber: true,
               })}
             >
               {/* Min 1 saat. Backend süre < 60 dk'yı 400 ile reddeder. */}
-              <option value={60}>1 saat</option>
-              <option value={90}>1.5 saat</option>
-              <option value={120}>2 saat</option>
-              <option value={180}>3 saat</option>
-              <option value={240}>4 saat</option>
+              <option value={60}>{t("training.modal.duration.h1")}</option>
+              <option value={90}>{t("training.modal.duration.h1_5")}</option>
+              <option value={120}>{t("training.modal.duration.h2")}</option>
+              <option value={180}>{t("training.modal.duration.h3")}</option>
+              <option value={240}>{t("training.modal.duration.h4")}</option>
             </CustomSelect>
             {serverErr("durationMinutes") ? (
               <div className="form-error">{serverErr("durationMinutes")}</div>
@@ -237,17 +243,25 @@ export function NewTrainingPlanModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Eğitmen</label>
+            <label className="form-label">{t("training.modal.field.instructor")}</label>
             <CustomSelect
               className={fieldClass("instructorId", !!errors.instructorId, "form-select")}
-              {...register("instructorId", { required: "Eğitmen zorunlu" })}
+              {...register("instructorId", { required: t("training.modal.required.instructor") })}
             >
-              <option value="">Seçiniz</option>
-              {instructors.map((instructor) => (
-                <option key={instructor.id} value={instructor.id}>
-                  {instructorLabel(instructor)}
-                </option>
-              ))}
+              <option value="">{t("training.modal.placeholder.select")}</option>
+              {/* Eğitmen filtresi tip'e göre: teorik → en az bir teorik
+                  branş; uygulama → `practice` branşı olmalı. */}
+              {instructors
+                .filter((instructor) =>
+                  type === "teorik"
+                    ? instructor.branches.some((b) => b !== "practice")
+                    : instructor.branches.includes("practice")
+                )
+                .map((instructor) => (
+                  <option key={instructor.id} value={instructor.id}>
+                    {instructorLabel(instructor)}
+                  </option>
+                ))}
             </CustomSelect>
             {errors.instructorId && (
               <div className="form-error">{errors.instructorId.message}</div>
@@ -258,20 +272,24 @@ export function NewTrainingPlanModal({
           </div>
           {type === "teorik" ? (
             <div className="form-group">
-              <label className="form-label">Grup</label>
+              <label className="form-label">{t("training.modal.field.group")}</label>
               <CustomSelect
                 className={fieldClass("groupId", !!errors.groupId, "form-select")}
                 {...register("groupId", {
                   validate: (value) =>
-                    type !== "teorik" || value ? true : "Grup zorunlu",
+                    type !== "teorik" || value ? true : t("training.modal.required.group"),
                 })}
               >
-                <option value="">Seçiniz</option>
-                {groups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.title}
-                  </option>
-                ))}
+                <option value="">{t("training.modal.placeholder.select")}</option>
+                {/* Aktif aday'ı 0 olan grupları gizle — ders atanacak
+                    öğrenci yok (assignedCandidateCount kontenjan sayacı). */}
+                {groups
+                  .filter((g) => g.activeCandidateCount > 0)
+                  .map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.title}
+                    </option>
+                  ))}
               </CustomSelect>
               {errors.groupId && (
                 <div className="form-error">{errors.groupId.message}</div>
@@ -282,15 +300,15 @@ export function NewTrainingPlanModal({
             </div>
           ) : (
             <div className="form-group">
-              <label className="form-label">Aday</label>
+              <label className="form-label">{t("training.modal.field.candidate")}</label>
               <CustomSelect
                 className={fieldClass("candidateId", !!errors.candidateId, "form-select")}
                 {...register("candidateId", {
                   validate: (value) =>
-                    !needsPracticeFields || value ? true : "Aday zorunlu",
+                    !needsPracticeFields || value ? true : t("training.modal.required.candidate"),
                 })}
               >
-                <option value="">Seçiniz</option>
+                <option value="">{t("training.modal.placeholder.select")}</option>
                 {candidates.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
                     {candidateLabel(candidate)}
@@ -310,15 +328,15 @@ export function NewTrainingPlanModal({
         {needsPracticeFields ? (
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Araç</label>
+              <label className="form-label">{t("training.modal.field.vehicle")}</label>
               <CustomSelect
                 className={fieldClass("vehicleId", !!errors.vehicleId, "form-select")}
                 {...register("vehicleId", {
                   validate: (value) =>
-                    !needsPracticeFields || value ? true : "Araç zorunlu",
+                    !needsPracticeFields || value ? true : t("training.modal.required.vehicle"),
                 })}
               >
-                <option value="">Seçiniz</option>
+                <option value="">{t("training.modal.placeholder.select")}</option>
                 {vehicles.map((vehicle) => (
                   <option key={vehicle.id} value={vehicle.id}>
                     {vehicleLabel(vehicle)}
@@ -333,9 +351,9 @@ export function NewTrainingPlanModal({
               ) : null}
             </div>
             <div className="form-group">
-              <label className="form-label">Güzergah</label>
+              <label className="form-label">{t("training.modal.field.route")}</label>
               <CustomSelect className="form-select" {...register("routeId")}>
-                <option value="">Seçim yok</option>
+                <option value="">{t("training.modal.placeholder.optional")}</option>
                 {routes.map((route) => (
                   <option key={route.id} value={route.id}>
                     {route.name}
@@ -347,9 +365,9 @@ export function NewTrainingPlanModal({
         ) : (
           <div className="form-row full">
             <div className="form-group">
-              <label className="form-label">Alan / Sınıf</label>
+              <label className="form-label">{t("training.modal.field.area")}</label>
               <CustomSelect className="form-select" {...register("areaId")}>
-                <option value="">Seçim yok</option>
+                <option value="">{t("training.modal.placeholder.optional")}</option>
                 {areas.map((area) => (
                   <option key={area.id} value={area.id}>
                     {area.name}
@@ -362,7 +380,7 @@ export function NewTrainingPlanModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">Not</label>
+            <label className="form-label">{t("training.modal.field.notes")}</label>
             <textarea className="form-textarea" rows={3} {...register("notes")} />
           </div>
         </div>

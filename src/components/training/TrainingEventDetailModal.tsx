@@ -1,7 +1,8 @@
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { useT } from "../../lib/i18n";
 import type { TrainingCalendarEvent } from "../../lib/training-calendar";
 import type { TrainingLessonStatus } from "../../lib/types";
 import { DrawerRow } from "../ui/Drawer";
@@ -31,11 +32,6 @@ const durationHours = (start: Date, end: Date) => {
   return `${h} sa ${m} dk`;
 };
 
-const STATUS_OPTIONS = [
-  { value: "planned", label: "Planlandı" },
-  { value: "completed", label: "Tamamlandı" },
-];
-
 export function TrainingEventDetailModal({
   event,
   instructors,
@@ -45,6 +41,14 @@ export function TrainingEventDetailModal({
   onNotesChange,
   onDelete,
 }: TrainingEventDetailModalProps) {
+  const t = useT();
+  const STATUS_OPTIONS = useMemo(
+    () => [
+      { value: "planned", label: t("training.modal.statusPlanned") },
+      { value: "completed", label: t("training.modal.statusCompleted") },
+    ],
+    [t]
+  );
   const instructorOptions = instructors.map((i) => ({ value: i.id, label: i.name }));
 
   const saveInstructor = async (newId: string) => {
@@ -74,7 +78,7 @@ export function TrainingEventDetailModal({
     setConfirmingDelete(false);
   }, [event?.id]);
 
-  const editable = event !== null && !event.external;
+  const editable = event !== null;
 
   return (
     <Modal
@@ -82,14 +86,14 @@ export function TrainingEventDetailModal({
         confirmingDelete && editable && onDelete ? (
           <>
             <span className="training-event-delete-confirm">
-              Silmek istediğine emin misin?
+              {t("training.detail.deleteConfirm")}
             </span>
             <button
               className="btn btn-secondary"
               onClick={() => setConfirmingDelete(false)}
               type="button"
             >
-              İptal
+              {t("training.detail.cancel")}
             </button>
             <button
               className="btn btn-danger"
@@ -100,7 +104,7 @@ export function TrainingEventDetailModal({
               }}
               type="button"
             >
-              Evet, sil
+              {t("training.detail.confirmDelete")}
             </button>
           </>
         ) : (
@@ -112,11 +116,11 @@ export function TrainingEventDetailModal({
                 style={{ marginRight: "auto" }}
                 type="button"
               >
-                Sil
+                {t("training.detail.delete")}
               </button>
             ) : null}
             <button className="btn btn-secondary" onClick={onClose} type="button">
-              Kapat
+              {t("training.detail.close")}
             </button>
           </>
         )
@@ -127,80 +131,83 @@ export function TrainingEventDetailModal({
     >
       {event ? (
         <div className="training-event-modal-body">
-          {event.external ? (
-            <div className="training-event-external-banner">
-              <strong>{event.sourceCalendar ?? "Başka takvim"}</strong>{" "}
-              takviminden gelen kayıt — bu sayfadan düzenlenemez. Çakışma
-              görünürlüğü için gölge olarak gösteriliyor.
-            </div>
-          ) : null}
-          {event.external ? (
-            <DrawerRow label="Kaynak Takvim">
-              {event.sourceCalendar ?? "—"}
-            </DrawerRow>
-          ) : null}
-
           {event.kind === "uygulama" ? (
             <>
-              <DrawerRow label="Aday">
+              <DrawerRow label={t("training.detail.field.candidate")}>
                 {event.candidateName ?? event.groupName}
               </DrawerRow>
-              <DrawerRow label="Araç">{event.vehiclePlate ?? "—"}</DrawerRow>
+              <DrawerRow label={t("training.detail.field.vehicle")}>
+                {event.vehiclePlate ?? "—"}
+              </DrawerRow>
             </>
           ) : (
             <>
-              {event.external ? null : (
-                <DrawerRow label="Dönem">{event.termName}</DrawerRow>
-              )}
-              <DrawerRow label="Grup">{event.groupName}</DrawerRow>
+              <DrawerRow label={t("training.detail.field.term")}>
+                {event.termName}
+              </DrawerRow>
+              <DrawerRow label={t("training.detail.field.group")}>
+                {event.groupName}
+              </DrawerRow>
             </>
           )}
 
-          {editable ? (
-            <EditableRow
-              displayValue={event.instructorName}
-              inputValue={event.instructorId}
-              label="Eğitmen"
-              onSave={saveInstructor}
-              options={instructorOptions}
-            />
-          ) : (
-            <DrawerRow label="Eğitmen">{event.instructorName}</DrawerRow>
-          )}
+          <EditableRow
+            displayValue={event.instructorName}
+            inputValue={event.instructorId}
+            label={t("training.detail.field.instructor")}
+            onSave={saveInstructor}
+            options={instructorOptions}
+          />
 
-          {editable && onStatusChange ? (
+          {onStatusChange ? (
             <EditableRow
-              displayValue={event.status === "completed" ? "Tamamlandı" : "Planlandı"}
+              displayValue={
+                event.status === "completed"
+                  ? t("training.modal.statusCompleted")
+                  : t("training.modal.statusPlanned")
+              }
               inputValue={event.status ?? "planned"}
-              label="Durum"
+              label={t("training.detail.field.status")}
               onSave={saveStatus}
               options={STATUS_OPTIONS}
             />
           ) : (
-            <DrawerRow label="Durum">
-              {event.status === "completed" ? "Tamamlandı" : "Planlandı"}
+            <DrawerRow label={t("training.detail.field.status")}>
+              {event.status === "completed"
+                ? t("training.modal.statusCompleted")
+                : t("training.modal.statusPlanned")}
             </DrawerRow>
           )}
 
-          <DrawerRow label="Ehliyet Sınıfı">{event.licenseClass}</DrawerRow>
-          <DrawerRow label="Tarih">{fmtDate(event.start)}</DrawerRow>
-          <DrawerRow label="Saat">
+          <DrawerRow label={t("training.detail.field.licenseClass")}>
+            {event.licenseClass}
+          </DrawerRow>
+          <DrawerRow label={t("training.detail.field.date")}>
+            {fmtDate(event.start)}
+          </DrawerRow>
+          <DrawerRow label={t("training.detail.field.time")}>
             {fmtTime(event.start)} – {fmtTime(event.end)} ({durationHours(event.start, event.end)})
           </DrawerRow>
           {event.kind === "teorik" ? (
-            <DrawerRow label="Aday Sayısı">{event.candidateCount}</DrawerRow>
+            <DrawerRow label={t("training.detail.field.candidateCount")}>
+              {event.candidateCount}
+            </DrawerRow>
           ) : null}
-          {event.location ? <DrawerRow label="Yer">{event.location}</DrawerRow> : null}
+          {event.location ? (
+            <DrawerRow label={t("training.detail.field.location")}>
+              {event.location}
+            </DrawerRow>
+          ) : null}
 
           {editable && onNotesChange ? (
             <EditableRow
               displayValue={event.notes ?? "—"}
               inputValue={event.notes ?? ""}
-              label="Not"
+              label={t("training.detail.field.notes")}
               onSave={saveNotes}
             />
           ) : event.notes ? (
-            <DrawerRow label="Not">{event.notes}</DrawerRow>
+            <DrawerRow label={t("training.detail.field.notes")}>{event.notes}</DrawerRow>
           ) : null}
         </div>
       ) : null}

@@ -1,85 +1,131 @@
 import { useMemo } from "react";
 
+import { useT } from "../../lib/i18n";
 import type {
   TrainingCalendarEvent,
   TrainingEventKind,
 } from "../../lib/training-calendar";
 import { colorForGroup } from "../../lib/training-calendar-palette";
+import type { GroupResponse, InstructorResponse } from "../../lib/types";
 
 type TrainingFiltersProps = {
   events: TrainingCalendarEvent[];
   /** Teorik → "Gruplar" / Uygulama → "Adaylar" başlığı + dataset key. */
   kind: TrainingEventKind;
+  /** Branş yetkisi denetimi için tam eğitmen kataloğu. */
+  allInstructors: InstructorResponse[];
+  /** Tüm aktif grupların kataloğu (teorik filtresinde kullanılır —
+   *  henüz dersi olmayan gruplar da listelensin). */
+  allGroupsCatalog: GroupResponse[];
   visibleGroups: Set<string>;
   visibleInstructors: Set<string>;
   onToggleGroup: (groupName: string) => void;
   onToggleInstructor: (instructorId: string) => void;
   onResetFilters: () => void;
-  onShowAllGroups: () => void;
-  onHideAllGroups: () => void;
-  onShowAllInstructors: () => void;
-  onHideAllInstructors: () => void;
+  /** Bulk toggle — yalnız listede görünen kayıtları etkiler. */
+  onSetGroupsVisibility: (groupNames: string[], visible: boolean) => void;
+  onSetInstructorsVisibility: (ids: string[], visible: boolean) => void;
 };
 
 export function TrainingFilters({
   events,
   kind,
+  allInstructors,
+  allGroupsCatalog,
   visibleGroups,
   visibleInstructors,
   onToggleGroup,
   onToggleInstructor,
   onResetFilters,
-  onShowAllGroups,
-  onHideAllGroups,
-  onShowAllInstructors,
-  onHideAllInstructors,
+  onSetGroupsVisibility,
+  onSetInstructorsVisibility,
 }: TrainingFiltersProps) {
-  const groupSectionTitle = kind === "uygulama" ? "Araçlar" : "Gruplar";
+  const t = useT();
+  const groupSectionTitle =
+    kind === "uygulama"
+      ? t("training.filter.vehiclesTitle")
+      : t("training.filter.groupsTitle");
   // Filter listesi sadece bu sayfanın kind'ına ait event'lerden türer —
   // teorik sayfada yanlışlıkla uygulama event'leri (aday adları) ya da
-  // tersi kazara karışırsa filtre kirlenmesin. Gruplar sadece
-  // internal'lardan; external grup adları (Direksiyon Slot vb.) burada
-  // gösterilmez. Eğitmenler internal + external (aynı eğitmen iki
-  // takvimde olabilir, kullanıcı kapatınca her ikisi de gizlenmeli).
+  // tersi kazara karışırsa filtre kirlenmesin.
   const ownEvents = useMemo(
     () => events.filter((e) => e.kind === kind),
     [events, kind]
   );
 
+  const noVehicleLabel = t("training.filter.noVehicle");
   const groups = useMemo(() => {
     const set = new Set(
-      ownEvents.filter((e) => !e.external).map((e) => 
-        kind === "uygulama" ? (e.vehiclePlate || "Araç seçilmedi") : e.groupName
+      ownEvents.map((e) =>
+        kind === "uygulama" ? (e.vehiclePlate || noVehicleLabel) : e.groupName
       )
     );
+    // Teorik tarafında: dersi olmayan ama aktif aday'ı olan grupları da
+    // ekle (kullanıcı daha hiç ders atamadan da o grubu filterda görsün).
+    // `activeCandidateCount` gerçek atama; `assignedCandidateCount`
+    // kontenjan sayacı (aldatıcı olabilir).
+    if (kind === "teorik") {
+      allGroupsCatalog
+        .filter((g) => g.activeCandidateCount > 0)
+        .forEach((g) => set.add(g.title));
+    }
     return Array.from(set).sort();
-  }, [ownEvents, kind]);
+  }, [ownEvents, kind, allGroupsCatalog, noVehicleLabel]);
+
+  // Eğitmen branş yetkisi map'i — teorik sayfada en az bir teorik
+  // branşı olan, uygulama sayfada `practice` branşı olan eğitmenler
+  // listelenir. Branş bilgisi olmayan (katalogda yok) eğitmenler de
+  // güvende kalsın diye varsayılan olarak gösterilir.
+  const eligibleInstructorIds = useMemo(() => {
+    const set = new Set<string>();
+    allInstructors.forEach((inst) => {
+      const eligible =
+        kind === "uygulama"
+          ? inst.branches.includes("practice")
+          : inst.branches.some((b) => b !== "practice");
+      if (eligible) set.add(inst.id);
+    });
+    return set;
+  }, [allInstructors, kind]);
 
   const instructors = useMemo(() => {
     const map = new Map<string, string>();
     ownEvents.forEach((e) => {
+      if (!eligibleInstructorIds.has(e.instructorId)) return;
       if (!map.has(e.instructorId)) map.set(e.instructorId, e.instructorName);
     });
     return Array.from(map.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name, "tr"));
-  }, [ownEvents]);
+  }, [ownEvents, eligibleInstructorIds]);
 
-  const anyHidden =
-    visibleGroups.size < groups.length ||
-    visibleInstructors.size < instructors.length;
+  // Master toggle/anyHidden hesaplamaları sadece **bu listede görünen**
+  // kayıtlar üzerinden — `visible*` Set'i diğer (filter dışı) ID'leri de
+  // içeriyor olabilir, onlar bulk toggle'a dahil değil.
+  const visibleGroupsInList = groups.filter((g) => visibleGroups.has(g)).length;
+  const visibleInstructorsInList = instructors.filter((i) =>
+    visibleInstructors.has(i.id)
+  ).length;
+  const allGroupsChecked =
+    groups.length > 0 && visibleGroupsInList === groups.length;
+  const allInstructorsChecked =
+    instructors.length > 0 && visibleInstructorsInList === instructors.length;
+  // Sıfırla butonu: en az bir filter aktifse göster (klikleyince tümü
+  // false olur). Hiçbir şey aktif değilse buton anlamsız → gizli.
+  const anyVisible =
+    visibleGroupsInList > 0 || visibleInstructorsInList > 0;
 
   return (
     <aside className="training-filters">
       <div className="training-filters-header">
-        <span>Filtreler</span>
-        {anyHidden ? (
+        <span>{t("training.filter.title")}</span>
+        {anyVisible ? (
           <button
             className="training-filters-reset"
             onClick={onResetFilters}
             type="button"
           >
-            Sıfırla
+            {t("training.filter.reset")}
           </button>
         ) : null}
       </div>
@@ -89,14 +135,8 @@ export function TrainingFilters({
           <h4 className="training-filters-section-title">{groupSectionTitle}</h4>
           <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
             <input
-              checked={visibleGroups.size === groups.length && groups.length > 0}
-              onChange={() => {
-                if (visibleGroups.size === groups.length) {
-                  onHideAllGroups();
-                } else {
-                  onShowAllGroups();
-                }
-              }}
+              checked={allGroupsChecked}
+              onChange={() => onSetGroupsVisibility(groups, !allGroupsChecked)}
               type="checkbox"
             />
             <span className="switch-toggle-control" />
@@ -130,17 +170,18 @@ export function TrainingFilters({
 
       <section className="training-filters-section">
         <div className="training-filters-section-header">
-          <h4 className="training-filters-section-title">Eğitmenler</h4>
+          <h4 className="training-filters-section-title">
+            {t("training.filter.instructorsTitle")}
+          </h4>
           <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
             <input
-              checked={visibleInstructors.size === instructors.length && instructors.length > 0}
-              onChange={() => {
-                if (visibleInstructors.size === instructors.length) {
-                  onHideAllInstructors();
-                } else {
-                  onShowAllInstructors();
-                }
-              }}
+              checked={allInstructorsChecked}
+              onChange={() =>
+                onSetInstructorsVisibility(
+                  instructors.map((i) => i.id),
+                  !allInstructorsChecked
+                )
+              }
               type="checkbox"
             />
             <span className="switch-toggle-control" />
