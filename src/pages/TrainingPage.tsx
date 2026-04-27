@@ -579,6 +579,63 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
+  const handleQuickAssignPractice = async () => {
+    const { instructorId, candidateId, vehicleId } = quickSettings;
+    const durationHours = quickDurationHours;
+    const startTime = newLessonSlot!.start;
+    const candidate = candidates.find((c) => c.id === candidateId);
+
+    setIsQuickAssignLoading(true);
+    let successCount = 0;
+    try {
+      for (let i = 0; i < durationHours; i++) {
+        const lessonStart = new Date(startTime.getTime() + i * 60 * 60 * 1000);
+        const lessonEnd = new Date(lessonStart.getTime() + 60 * 60 * 1000);
+
+        const request: TrainingLessonUpsertRequest = {
+          kind: "uygulama",
+          status: "planned",
+          startAtUtc: lessonStart.toISOString(),
+          endAtUtc: lessonEnd.toISOString(),
+          instructorId,
+          groupId: null,
+          candidateId,
+          vehicleId,
+          areaId: null,
+          routeId: null,
+          licenseClass: candidate?.licenseClass ?? null,
+          notes: null,
+        };
+
+        const saved = await createTrainingLesson(request);
+        const nextEvent = trainingLessonToCalendarEvent(saved);
+        setEvents((prev) => [...prev, nextEvent]);
+        successCount++;
+      }
+      showToast(t("training.toast.bulkAssigned", { count: successCount }));
+    } catch (error) {
+      console.error(error);
+      const { fieldErrors, generalError } = splitApiError(error);
+      const baseMsg =
+        generalError ??
+        Object.values(fieldErrors)[0] ??
+        t("training.toast.lessonNotSaved");
+      const remaining = durationHours - successCount;
+      const msg =
+        successCount > 0
+          ? t("training.toast.partialAssigned", {
+              success: successCount,
+              remaining,
+              message: baseMsg,
+            })
+          : baseMsg;
+      showToast(msg);
+    } finally {
+      setIsQuickAssignLoading(false);
+      setNewLessonSlot(null);
+    }
+  };
+
   const handleCreateLesson = async (values: TrainingLessonSubmitValues) => {
     setServerFieldErrors({});
     setServerGeneralError(undefined);
@@ -647,20 +704,29 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return;
     }
     setNewLessonSlot({ start: snappedStart, end: snappedEnd });
-    
+
     if (type === "uygulama") {
-      setModalOpen(true);
-    } else {
-      // Teorik derste, eğer grup ve eğitmen seçiliyse branş seçiciyi aç
-      if (quickSettings.groupId && quickSettings.instructorId) {
-        setPopoverPos({
-          x: lastClickPos.current.x,
-          y: lastClickPos.current.y,
-        });
-        setIsBranchPickerOpen(true);
+      // Uygulama'da branş seçimi yok (`practice` tek branş). Sidebar'da
+      // aday + eğitmen + araç seçiliyse direkt ders oluştur, eksikse
+      // toast ile uyar — modal açmıyoruz.
+      const { candidateId, instructorId, vehicleId } = quickSettings;
+      if (candidateId && instructorId && vehicleId) {
+        void handleQuickAssignPractice();
       } else {
-        showToast(t("training.toast.selectGroupAndInstructorFirst"));
+        showToast(t("training.toast.selectCandidateInstructorVehicleFirst"));
       }
+      return;
+    }
+
+    // Teorik derste, eğer grup ve eğitmen seçiliyse branş seçiciyi aç
+    if (quickSettings.groupId && quickSettings.instructorId) {
+      setPopoverPos({
+        x: lastClickPos.current.x,
+        y: lastClickPos.current.y,
+      });
+      setIsBranchPickerOpen(true);
+    } else {
+      showToast(t("training.toast.selectGroupAndInstructorFirst"));
     }
   };
 

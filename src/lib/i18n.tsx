@@ -892,6 +892,8 @@ const tr = {
   "training.toast.outsideHours": "Ders 07:00-23:00 aralığında olmalı",
   "training.toast.selectGroupAndInstructorFirst":
     "Lütfen önce sol panelden Grup ve Eğitmen seçin",
+  "training.toast.selectCandidateInstructorVehicleFirst":
+    "Lütfen önce sol panelden Aday, Eğitmen ve Araç seçin",
   "training.toast.bulkAssigned": "{count} ders oluşturuldu",
   "training.toast.partialAssigned":
     "{success} ders oluştu, {remaining} ders eklenemedi: {message}",
@@ -1860,6 +1862,8 @@ const en: Record<keyof typeof tr, string> = {
   "training.toast.outsideHours": "Lesson must be within 07:00–23:00",
   "training.toast.selectGroupAndInstructorFirst":
     "Please select a Group and Instructor from the side panel first",
+  "training.toast.selectCandidateInstructorVehicleFirst":
+    "Please select a Candidate, Instructor and Vehicle from the side panel first",
   "training.toast.bulkAssigned": "{count} lessons created",
   "training.toast.partialAssigned":
     "{success} lessons created, {remaining} could not be added: {message}",
