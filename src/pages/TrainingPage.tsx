@@ -785,6 +785,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
             <TrainingFilters
               allGroupsCatalog={groups}
               allInstructors={instructors}
+              allVehiclesCatalog={vehicles}
               events={events}
               kind={type}
               onResetFilters={resetFilters}

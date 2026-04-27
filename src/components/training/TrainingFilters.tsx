@@ -6,17 +6,24 @@ import type {
   TrainingEventKind,
 } from "../../lib/training-calendar";
 import { colorForGroup } from "../../lib/training-calendar-palette";
-import type { GroupResponse, InstructorResponse } from "../../lib/types";
+import type {
+  GroupResponse,
+  InstructorResponse,
+  VehicleResponse,
+} from "../../lib/types";
 
 type TrainingFiltersProps = {
   events: TrainingCalendarEvent[];
-  /** Teorik → "Gruplar" / Uygulama → "Adaylar" başlığı + dataset key. */
+  /** Teorik → "Gruplar" / Uygulama → "Araçlar" başlığı + dataset key. */
   kind: TrainingEventKind;
   /** Branş yetkisi denetimi için tam eğitmen kataloğu. */
   allInstructors: InstructorResponse[];
   /** Tüm aktif grupların kataloğu (teorik filtresinde kullanılır —
    *  henüz dersi olmayan gruplar da listelensin). */
   allGroupsCatalog: GroupResponse[];
+  /** Tüm aktif araçların kataloğu (uygulama filtresinde kullanılır —
+   *  henüz dersi olmayan araçlar da listelensin). */
+  allVehiclesCatalog: VehicleResponse[];
   visibleGroups: Set<string>;
   visibleInstructors: Set<string>;
   onToggleGroup: (groupName: string) => void;
@@ -32,6 +39,7 @@ export function TrainingFilters({
   kind,
   allInstructors,
   allGroupsCatalog,
+  allVehiclesCatalog,
   visibleGroups,
   visibleInstructors,
   onToggleGroup,
@@ -68,9 +76,15 @@ export function TrainingFilters({
       allGroupsCatalog
         .filter((g) => g.activeCandidateCount > 0)
         .forEach((g) => set.add(g.title));
+    } else {
+      // Uygulama tarafında: dersi olmayan ama aktif olan tüm araçlar
+      // da listede görünmeli (filter ekran tamamen boş kalmasın).
+      allVehiclesCatalog
+        .filter((v) => v.isActive)
+        .forEach((v) => set.add(v.plateNumber));
     }
     return Array.from(set).sort();
-  }, [ownEvents, kind, allGroupsCatalog, noVehicleLabel]);
+  }, [ownEvents, kind, allGroupsCatalog, allVehiclesCatalog, noVehicleLabel]);
 
   // Eğitmen branş yetkisi map'i — teorik sayfada en az bir teorik
   // branşı olan, uygulama sayfada `practice` branşı olan eğitmenler
@@ -90,14 +104,21 @@ export function TrainingFilters({
 
   const instructors = useMemo(() => {
     const map = new Map<string, string>();
+    // Önce dersi olan eğitmenler (event'ten alınan canlı isim önceliklidir).
     ownEvents.forEach((e) => {
       if (!eligibleInstructorIds.has(e.instructorId)) return;
       if (!map.has(e.instructorId)) map.set(e.instructorId, e.instructorName);
     });
+    // Henüz dersi olmayan ama branş'a uygun eğitmenler de listede görünsün.
+    allInstructors.forEach((inst) => {
+      if (!eligibleInstructorIds.has(inst.id)) return;
+      if (map.has(inst.id)) return;
+      map.set(inst.id, `${inst.firstName} ${inst.lastName}`.trim());
+    });
     return Array.from(map.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name, "tr"));
-  }, [ownEvents, eligibleInstructorIds]);
+  }, [ownEvents, eligibleInstructorIds, allInstructors]);
 
   // Master toggle/anyHidden hesaplamaları sadece **bu listede görünen**
   // kayıtlar üzerinden — `visible*` Set'i diğer (filter dışı) ID'leri de
