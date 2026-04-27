@@ -208,10 +208,11 @@ export function TrainingCalendar({
   );
 
   // Quick-assign saat input'u takvimin sol-üst gutter köşesine düşüyor.
-  // Sadece teorik kind'da, parent props sağladıysa render ediliyor.
+  // Hem teorik hem uygulama tarafında aynı süre kuralı geçerli (min 60
+  // dk, 30 dk granülerlik) — iki sayfada da gösteriyoruz.
   const TimeGutterHeader = useMemo(
     () => () => {
-      if (kind !== "teorik" || !onDurationHoursChange) return null;
+      if (!onDurationHoursChange) return null;
       return (
         <GutterDurationInput
           onChange={onDurationHoursChange}
@@ -219,7 +220,7 @@ export function TrainingCalendar({
         />
       );
     },
-    [kind, durationHours, onDurationHoursChange]
+    [durationHours, onDurationHoursChange]
   );
 
   const EventComponent = useMemo(
