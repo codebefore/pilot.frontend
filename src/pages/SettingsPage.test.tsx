@@ -66,19 +66,19 @@ describe("SettingsPage", () => {
     renderSettingsPage();
 
     fireEvent.click(screen.getByRole("link", { name: /Entegrasyonlar/i }));
-    expect(await screen.findByText("MEB Baglantisi")).toBeInTheDocument();
+    expect(await screen.findByText("MEB Bağlantısı")).toBeInTheDocument();
     expect(screen.getByDisplayValue("sezer_mtsk")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("link", { name: /Araclar/i }));
+    fireEvent.click(screen.getByRole("link", { name: /Araçlar/i }));
     expect(screen.getByText("Vehicles Section Mock")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: /Ehliyet Tipleri/i }));
     expect(screen.getByText("License Classes Section Mock")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("link", { name: /Egitmenler/i }));
+    fireEvent.click(screen.getByRole("link", { name: /Eğitmenler/i }));
     expect(screen.getByText("Instructors Section Mock")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("link", { name: /Guzergahlar/i }));
+    fireEvent.click(screen.getByRole("link", { name: /Güzergahlar/i }));
     expect(screen.getByText("Routes Section Mock")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: /Alanlar/i }));
