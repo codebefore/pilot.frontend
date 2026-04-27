@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { InstructorFormModal } from "../modals/InstructorFormModal";
-import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
+import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";

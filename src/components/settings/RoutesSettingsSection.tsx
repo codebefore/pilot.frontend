@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { RouteFormModal } from "../modals/RouteFormModal";
-import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
+import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
@@ -25,7 +25,7 @@ import type {
   RouteUsageType,
 } from "../../lib/types";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -46,7 +46,7 @@ type RouteColumnId =
   | "isActive";
 type RouteColumnDef = {
   id: RouteColumnId;
-  labelKey: string;
+  labelKey: TranslationKey;
   sortField?: RouteSortField;
   renderCell: (route: RouteResponse) => React.ReactNode;
   skeletonWidth: number;
@@ -131,10 +131,6 @@ const ROUTE_COLUMNS: RouteColumnDef[] = [
   },
 ];
 const ROUTE_COLUMN_IDS = ROUTE_COLUMNS.map((column) => column.id);
-const ROUTE_COLUMN_PICKER_OPTIONS: ColumnOption[] = ROUTE_COLUMNS.map((column) => ({
-  id: column.id,
-  labelKey: column.labelKey,
-}));
 const DEFAULT_FILTERS: RouteFilters = {
   activity: "active",
   usageType: "all",
@@ -363,8 +359,8 @@ export function RoutesSettingsSection() {
                   )}
                   <th className="col-picker-th">
                     <ColumnPicker
-                      columns={ROUTE_COLUMN_PICKER_OPTIONS.map((col) => ({
-                        ...col,
+                      columns={ROUTE_COLUMNS.map((col) => ({
+                        id: col.id,
                         label: t(col.labelKey),
                       }))}
                       isVisible={isVisible}

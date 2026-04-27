@@ -353,7 +353,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "examFeePaid",
     labelKey: "candidates.col.examFeePaid",
-    renderCell: (c) => <ExamFeePill paid={c.examFeePaid} />,
+    renderCell: (c) => <ExamFeePill paid={c.examFeePaid ?? false} />,
     skeletonWidth: 88,
   },
   {

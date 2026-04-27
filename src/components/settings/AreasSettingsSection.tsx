@@ -21,7 +21,7 @@ import type {
   AreaResponse,
   AreaType,
 } from "../../lib/types";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -55,7 +55,7 @@ function formatCapacity(value: number | null, t: ReturnType<typeof useT>): strin
 
 type AreaColumnDef = {
   id: AreaColumnId;
-  labelKey: string;
+  labelKey: TranslationKey;
   sortField?: AreaSortField;
   renderCell: (area: AreaResponse, t: ReturnType<typeof useT>) => React.ReactNode;
   skeletonWidth: number;

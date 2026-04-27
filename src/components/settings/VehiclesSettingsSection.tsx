@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { VehicleFormModal } from "../modals/VehicleFormModal";
-import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
+import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 import {
   deleteVehicle,
   getVehicles,
@@ -57,7 +57,7 @@ type VehicleColumnId =
   | "isActive";
 type VehicleColumnDef = {
   id: VehicleColumnId;
-  labelKey: string;
+  labelKey: TranslationKey;
   sortField?: VehicleSortField;
   renderCell: (vehicle: VehicleResponse) => React.ReactNode;
   skeletonWidth: number;
