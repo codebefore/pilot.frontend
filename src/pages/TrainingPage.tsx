@@ -76,6 +76,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [newLessonSlot, setNewLessonSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<TrainingCalendarEvent[]>([]);
+  // Uygulama sayfasında, seçili adayın grubunun teorik dersleri "ghost"
+  // (dimmed) event olarak takvimde gösterilir — kullanıcı çakışmayı
+  // görsel olarak fark etsin diye. Sadece type === "uygulama"'da dolar.
+  const [theoryEventsForOverlay, setTheoryEventsForOverlay] = useState<
+    TrainingCalendarEvent[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [instructors, setInstructors] = useState<InstructorResponse[]>([]);
   const [groups, setGroups] = useState<GroupResponse[]>([]);
@@ -187,6 +193,43 @@ export function TrainingPage({ type }: TrainingPageProps) {
     return () => controller.abort();
   }, [showToast, type]);
 
+  // Uygulama sayfasında, çakışma görünürlüğü için ek olarak teorik
+  // dersleri de çek (overlay havuzu). `quickSettings.candidateId` set
+  // edildiğinde, o adayın grubuna ait teorik dersler dimmed event
+  // olarak takvimde gösterilir.
+  useEffect(() => {
+    if (type !== "uygulama") {
+      setTheoryEventsForOverlay([]);
+      return;
+    }
+    const controller = new AbortController();
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(now.getDate() - 90);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(now);
+    to.setDate(now.getDate() + 180);
+    to.setHours(23, 59, 59, 999);
+    getTrainingLessons(
+      {
+        kind: "teorik",
+        fromUtc: from.toISOString(),
+        toUtc: to.toISOString(),
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setTheoryEventsForOverlay(
+          result.items.map(trainingLessonToCalendarEvent)
+        );
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error(error);
+      });
+    return () => controller.abort();
+  }, [type]);
+
   // Filtreler boş başlar — kullanıcı görmek istediği grup/eğitmeni
   // sidebar'dan açar. Yeni eklenen grup/eğitmen otomatik visible
   // olmaz; bu kural quick-assign akışıyla tutarlı (orada da seçim
@@ -252,6 +295,29 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   }, [quickSettings.instructorId, quickSettings.groupId, events, type]);
 
+  // Uygulama tarafı: QA'da aday değişirse, o adayın mevcut uygulama
+  // derslerinde geçen araçlar ve eğitmenler sidebar'da otomatik visible
+  // olur. Aday clear edilince filtreler sıfırlanır.
+  const prevQuickCandidateRef = useRef<string>("");
+  useEffect(() => {
+    const nextId = quickSettings.candidateId;
+    if (nextId === prevQuickCandidateRef.current) return;
+    prevQuickCandidateRef.current = nextId;
+    if (!nextId) {
+      setVisibleGroups(new Set());
+      setVisibleInstructors(new Set());
+      return;
+    }
+    const candidateEvents = events.filter((e) => e.candidateId === nextId);
+    const noVehicleLabel = t("training.filter.noVehicle");
+    setVisibleGroups(
+      new Set(candidateEvents.map((e) => e.vehiclePlate || noVehicleLabel))
+    );
+    setVisibleInstructors(
+      new Set(candidateEvents.map((e) => e.instructorId))
+    );
+  }, [quickSettings.candidateId, events, t]);
+
   // Backend'den gelen event.groupName ile groups state'indeki group.title
   // genelde aynı olmalı; ama tutarsızlık olursa (legacy veri, trim farkı,
   // race) groupId üzerinden de eşleştir — visibilityCollapse `group.title`
@@ -311,6 +377,23 @@ export function TrainingPage({ type }: TrainingPageProps) {
         preview: true,
       });
     }
+    // Uygulama tarafında: seçili adayın grubunun teorik dersleri
+    // hayalet (dimmed) olarak takvime enjekte edilir. Aday/uygulama ders
+    // bağlamındaki çakışmayı görsel olarak gösterir; etkileşim devre
+    // dışı (dimmed event) kalır.
+    if (type === "uygulama" && quickSettings.candidateId) {
+      const selectedCandidate = candidates.find(
+        (c) => c.id === quickSettings.candidateId
+      );
+      const candidateGroupId = selectedCandidate?.currentGroup?.groupId;
+      if (candidateGroupId) {
+        for (const e of theoryEventsForOverlay) {
+          if (e.groupId === candidateGroupId) {
+            filtered.push({ ...e, dimmed: true });
+          }
+        }
+      }
+    }
     return filtered;
   }, [
     events,
@@ -323,6 +406,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
     quickDurationHours,
     quickSettings.instructorId,
     quickSettings.groupId,
+    quickSettings.candidateId,
+    candidates,
+    theoryEventsForOverlay,
+    t,
   ]);
 
   const toggleGroup = (group: string) => {
@@ -548,6 +635,26 @@ export function TrainingPage({ type }: TrainingPageProps) {
         setEvents((prev) => [...prev, nextEvent]);
         successCount++;
       }
+      // Yeni dersler takvimde anında görünsün diye sidebar filter'ına
+      // grubun adı ve eğitmeni eklenir (kullanıcı manuel kapatmış
+      // olabilirdi).
+      if (successCount > 0) {
+        const groupTitle = groups.find((g) => g.id === groupId)?.title;
+        if (groupTitle) {
+          setVisibleGroups((prev) => {
+            if (prev.has(groupTitle)) return prev;
+            const next = new Set(prev);
+            next.add(groupTitle);
+            return next;
+          });
+        }
+        setVisibleInstructors((prev) => {
+          if (prev.has(instructorId)) return prev;
+          const next = new Set(prev);
+          next.add(instructorId);
+          return next;
+        });
+      }
       showToast(t("training.toast.bulkAssigned", { count: successCount }));
     } catch (error) {
       console.error(error);
@@ -584,6 +691,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     const durationHours = quickDurationHours;
     const startTime = newLessonSlot!.start;
     const candidate = candidates.find((c) => c.id === candidateId);
+    const vehicle = vehicles.find((v) => v.id === vehicleId);
 
     setIsQuickAssignLoading(true);
     let successCount = 0;
@@ -611,6 +719,24 @@ export function TrainingPage({ type }: TrainingPageProps) {
         const nextEvent = trainingLessonToCalendarEvent(saved);
         setEvents((prev) => [...prev, nextEvent]);
         successCount++;
+      }
+      // Yeni oluşturulan dersler takvimde anında görünsün diye sidebar
+      // filter'larına araç plakası ve eğitmeni otomatik visible yap.
+      if (successCount > 0) {
+        if (vehicle) {
+          setVisibleGroups((prev) => {
+            if (prev.has(vehicle.plateNumber)) return prev;
+            const next = new Set(prev);
+            next.add(vehicle.plateNumber);
+            return next;
+          });
+        }
+        setVisibleInstructors((prev) => {
+          if (prev.has(instructorId)) return prev;
+          const next = new Set(prev);
+          next.add(instructorId);
+          return next;
+        });
       }
       showToast(t("training.toast.bulkAssigned", { count: successCount }));
     } catch (error) {
@@ -710,11 +836,32 @@ export function TrainingPage({ type }: TrainingPageProps) {
       // aday + eğitmen + araç seçiliyse direkt ders oluştur, eksikse
       // toast ile uyar — modal açmıyoruz.
       const { candidateId, instructorId, vehicleId } = quickSettings;
-      if (candidateId && instructorId && vehicleId) {
-        void handleQuickAssignPractice();
-      } else {
+      if (!candidateId || !instructorId || !vehicleId) {
         showToast(t("training.toast.selectCandidateInstructorVehicleFirst"));
+        return;
       }
+      // Aday'ın grubunun teorik dersi planlanan aralıkla çakışıyorsa
+      // backend zaten reddeder; ama kullanıcı dene-fail döngüsü görmesin
+      // diye burada da blokla. Slot süresi quickDurationHours kadar
+      // uzayacak (1 saatlik N tekrar) — bu nedenle pencere snappedStart
+      // + N saat üzerinden hesaplanır.
+      const candidate = candidates.find((c) => c.id === candidateId);
+      const candidateGroupId = candidate?.currentGroup?.groupId;
+      if (candidateGroupId) {
+        const blockEndMs =
+          snappedStart.getTime() + quickDurationHours * 60 * 60 * 1000;
+        const conflict = theoryEventsForOverlay.some((te) => {
+          if (te.groupId !== candidateGroupId) return false;
+          const teStart = te.start.getTime();
+          const teEnd = te.end.getTime();
+          return teStart < blockEndMs && teEnd > snappedStart.getTime();
+        });
+        if (conflict) {
+          showToast(t("training.toast.candidateTheoryConflict"));
+          return;
+        }
+      }
+      void handleQuickAssignPractice();
       return;
     }
 

@@ -137,7 +137,7 @@ const CALENDAR_FORMATS = {
 
 export function TrainingCalendar({
   events,
-  kind,
+  kind: _kind,
   onSelectEvent,
   onSelectSlot,
   onEventResize,
@@ -260,11 +260,13 @@ export function TrainingCalendar({
       }
       // Renk öncelik sırası: branş > kind fallback. Branş şu anda
       // `notes`'tan tespit ediliyor (T067 sonrası entity'den gelecek).
-      // Uygulama event'leri her zaman `practice` branşı kabul edilir.
-      const classes = ["training-event", `training-event-${kind}`];
+      // Event'in kendi kind'ına bakıyoruz — uygulama sayfasında dimmed
+      // olarak gösterilen teorik event'ler de kendi branş rengini
+      // korusun (yoksa hepsi "practice" rengiyle çıkardı).
+      const classes = ["training-event", `training-event-${event.kind}`];
       if (event.dimmed) classes.push("training-event-dimmed");
       const branchCode =
-        kind === "uygulama"
+        event.kind === "uygulama"
           ? "practice"
           : detectBranchFromNotes(event.notes);
       const color = colorForBranch(branchCode);
@@ -279,7 +281,7 @@ export function TrainingCalendar({
           }
         : { className: classes.join(" ") };
     },
-    [kind]
+    []
   );
 
   type InteractionArgs = { event: TrainingCalendarEvent; start: Date | string; end: Date | string };

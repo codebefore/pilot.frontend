@@ -894,6 +894,8 @@ const tr = {
     "Lütfen önce sol panelden Grup ve Eğitmen seçin",
   "training.toast.selectCandidateInstructorVehicleFirst":
     "Lütfen önce sol panelden Aday, Eğitmen ve Araç seçin",
+  "training.toast.candidateTheoryConflict":
+    "Adayın bu saatlerde teorik dersi var, uygulama dersi atanamaz",
   "training.toast.bulkAssigned": "{count} ders oluşturuldu",
   "training.toast.partialAssigned":
     "{success} ders oluştu, {remaining} ders eklenemedi: {message}",
@@ -1864,6 +1866,8 @@ const en: Record<keyof typeof tr, string> = {
     "Please select a Group and Instructor from the side panel first",
   "training.toast.selectCandidateInstructorVehicleFirst":
     "Please select a Candidate, Instructor and Vehicle from the side panel first",
+  "training.toast.candidateTheoryConflict":
+    "Candidate has a theory lesson at this time; practice lesson can't be assigned",
   "training.toast.bulkAssigned": "{count} lessons created",
   "training.toast.partialAssigned":
     "{success} lessons created, {remaining} could not be added: {message}",
