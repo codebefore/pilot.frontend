@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { ApiError } from "../lib/http";
 import { useT } from "../lib/i18n";
@@ -10,21 +11,28 @@ import {
 } from "../components/modals/NewTrainingPlanModal";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { TrainingEventDetailModal } from "../components/training/TrainingEventDetailModal";
+import { TrainingBranchSummary } from "../components/training/TrainingBranchSummary";
 import { TrainingFilters } from "../components/training/TrainingFilters";
 import { QuickLessonAssignment } from "../components/training/QuickLessonAssignment";
 import { QuickPracticeAssignment } from "../components/training/QuickPracticeAssignment";
-import { TrainingWeekSummary } from "../components/training/TrainingWeekSummary";
+import { PracticeCandidatePicker } from "../components/training/PracticeCandidatePicker";
 import { useToast } from "../components/ui/Toast";
 import { BranchPickerPopover } from "../components/training/BranchPickerPopover";
+import { PracticeEducationPopover } from "../components/training/PracticeEducationPopover";
 import {
   calendarEventToTrainingLessonRequest,
   trainingLessonToCalendarEvent,
   type TrainingCalendarEvent,
 } from "../lib/training-calendar";
-import { getAreas } from "../lib/areas-api";
 import { getCandidates } from "../lib/candidates-api";
 import { getGroups } from "../lib/groups-api";
 import { getInstructors } from "../lib/instructors-api";
+import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
+import {
+  clearPracticeCandidateScope,
+  getPracticeCandidateScope,
+  setPracticeCandidateScope,
+} from "../lib/practice-candidate-scope";
 import {
   createTrainingLesson,
   deleteTrainingLesson,
@@ -32,18 +40,17 @@ import {
   updateTrainingLesson,
 } from "../lib/training-lessons-api";
 import type {
-  AreaResponse,
   CandidateResponse,
   GroupResponse,
   InstructorResponse,
-  RouteResponse,
+  PracticeEducationType,
+  TrainingBranchDefinitionResponse,
   TrainingLessonUpsertRequest,
   VehicleResponse,
 } from "../lib/types";
-import { getRoutes } from "../lib/routes-api";
 import { getVehicles } from "../lib/vehicles-api";
 
-import { BRANCH_LABELS } from "../lib/training-branches";
+import { buildBranchHelpers } from "../lib/training-branches";
 
 type TrainingPageProps = {
   type: "teorik" | "uygulama";
@@ -60,6 +67,7 @@ const SERVER_FIELD_MAP: Record<string, string> = {
   VehicleId: "vehicleId",
   AreaId: "areaId",
   RouteId: "routeId",
+  BranchCode: "branchCode",
 };
 
 const GENERAL_CODES = new Set<string>([
@@ -82,50 +90,82 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [theoryEventsForOverlay, setTheoryEventsForOverlay] = useState<
     TrainingCalendarEvent[]
   >([]);
+  // Simetrik: teorik sayfasında, seçili grubun adaylarının uygulama
+  // dersleri ghost event olarak gösterilir. Sadece type === "teorik"'te.
+  const [practiceEventsForOverlay, setPracticeEventsForOverlay] = useState<
+    TrainingCalendarEvent[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [instructors, setInstructors] = useState<InstructorResponse[]>([]);
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const [vehicles, setVehicles] = useState<VehicleResponse[]>([]);
-  const [areas, setAreas] = useState<AreaResponse[]>([]);
-  const [routes, setRoutes] = useState<RouteResponse[]>([]);
+  // Branş kataloğu DB'den geliyor (Ayarlar > Tanımlar > Branşlar). Renk,
+  // toplam saat limiti ve label hepsi burada — popover/calendar/summary
+  // bu listeyi kullanır, hardcoded sabit kullanılmaz.
+  const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>(
+    []
+  );
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
+  // Adaylar sayfasından bulk yönlendirme ile gelinen aday kümesi.
+  // localStorage kalıcı; her yeni yönlendirme önceki scope'u override
+  // eder. Boş array → scope yok, tüm aktif adaylar listelenir.
+  const [practiceCandidateScope, setPracticeCandidateScopeState] = useState<
+    string[]
+  >(() => (type === "uygulama" ? getPracticeCandidateScope() : []));
 
-  // Hızlı atama ayarları — durationHours ayrı state olarak Calendar
-  // gutter input'unda canlı kontrol ediliyor.
+  // Hızlı atama ayarları. Süre artık takvimde drag ile seçilen slot'tan
+  // türetiliyor (newLessonSlot.end - start). N saatlik blok = N adet
+  // 1 saatlik ayrı ders olarak yaratılır (handleQuickAssign loop).
   const [quickSettings, setQuickSettings] = useState<{
     instructorId: string;
     groupId: string;
     candidateId: string;
     vehicleId: string;
   }>({ instructorId: "", groupId: "", candidateId: "", vehicleId: "" });
-  // Quick-assign saat sayısı sayfa yenilemesinde kaybolmasın diye
-  // localStorage'a yansıtılıyor (1-8 aralığında).
-  const [quickDurationHours, setQuickDurationHours] = useState<number>(() => {
-    try {
-      const stored = localStorage.getItem("pilot.training.quickDuration");
-      if (stored) {
-        const n = parseInt(stored, 10);
-        if (Number.isFinite(n) && n >= 1 && n <= 8) return n;
-      }
-    } catch {
-      /* ignore */
-    }
-    return 1;
-  });
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Uygulama sayfasına `?candidateId=...` ile gelinmişse o adayı QA'da
+  // initial seçili yap. Scope (localStorage'da) zaten CandidatesPage
+  // bulk handler'ı tarafından yazıldı; burada sadece QA seçimini set
+  // edip query param'ı temizliyoruz.
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        "pilot.training.quickDuration",
-        String(quickDurationHours)
-      );
-    } catch {
-      /* ignore */
-    }
-  }, [quickDurationHours]);
-  
+    if (type !== "uygulama") return;
+    const incomingId = searchParams.get("candidateId");
+    if (!incomingId) return;
+    setQuickSettings((prev) => ({ ...prev, candidateId: incomingId }));
+    // Scope'ta yoksa (direkt link senaryosu) tek-aday scope kur.
+    setPracticeCandidateScopeState((prev) => {
+      if (prev.length > 0 && prev.includes(incomingId)) return prev;
+      if (prev.length > 0) return prev;
+      const next = [incomingId];
+      setPracticeCandidateScope(next);
+      return next;
+    });
+    // Param'ı temizle ki refresh'te tekrar tetiklenmesin.
+    const next = new URLSearchParams(searchParams);
+    next.delete("candidateId");
+    setSearchParams(next, { replace: true });
+  }, [type, searchParams, setSearchParams]);
+
+  const clearPracticeScope = () => {
+    setPracticeCandidateScopeState([]);
+    clearPracticeCandidateScope();
+  };
+
   const [isBranchPickerOpen, setIsBranchPickerOpen] = useState(false);
+  // Uygulama akışında slot tıklayınca eğitim türü popover'ı açılır;
+  // seçim yapılınca yakalanan derived id'lerle handleQuickAssignPractice
+  // çağrılır. Closure güncel kalsın diye `useRef` ile tutuyoruz.
+  const [practicePopoverPos, setPracticePopoverPos] = useState<
+    { x: number; y: number } | null
+  >(null);
+  const pendingPracticeAssignment = useRef<{
+    instructorId: string;
+    vehicleId: string;
+  } | null>(null);
   // Branş popover'ının ekran üzerindeki konumu — tıklanan slotun
   // hizasında çıksın diye son mouseup pozisyonu yakalanır. RBC
   // `onSelectSlot` mouse event'i taşımıyor; bu yüzden global listener.
@@ -164,22 +204,28 @@ export function TrainingPage({ type }: TrainingPageProps) {
       getGroups({ page: 1, pageSize: 100 }, controller.signal),
       getCandidates({ page: 1, pageSize: 100 }, controller.signal),
       getVehicles({ activity: "active", page: 1, pageSize: 100 }, controller.signal),
-      getAreas({ activity: "active", page: 1, pageSize: 100 }, controller.signal),
-      getRoutes({ activity: "active", page: 1, pageSize: 100 }, controller.signal),
+      getTrainingBranchDefinitions(
+        { activity: "active", pageSize: 100 },
+        controller.signal
+      ),
     ])
-      .then(([lessonResult, instructorResult, groupResult, candidateResult, vehicleResult, areaResult, routeResult]) => {
-        setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
-        setInstructors(instructorResult.items);
-        setGroups(groupResult.items);
-        setCandidates(candidateResult.items);
-        setVehicles(vehicleResult.items);
-        setAreas(areaResult.items.filter((area) => area.areaType === "classroom"));
-        setRoutes(
-          routeResult.items.filter(
-            (route) => route.usageType === "practice" || route.usageType === "practice_and_exam"
-          )
-        );
-      })
+      .then(
+        ([
+          lessonResult,
+          instructorResult,
+          groupResult,
+          candidateResult,
+          vehicleResult,
+          branchResult,
+        ]) => {
+          setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
+          setInstructors(instructorResult.items);
+          setGroups(groupResult.items);
+          setCandidates(candidateResult.items);
+          setVehicles(vehicleResult.items);
+          setBranches(branchResult.items);
+        }
+      )
       .catch((error) => {
         if (controller.signal.aborted) return;
         console.error(error);
@@ -230,6 +276,42 @@ export function TrainingPage({ type }: TrainingPageProps) {
     return () => controller.abort();
   }, [type]);
 
+  // Simetrik: teorik sayfasında, çakışma görünürlüğü için uygulama
+  // dersleri de çek. Grup seçilince o grubun adaylarının uygulama
+  // dersleri dimmed gösterilir.
+  useEffect(() => {
+    if (type !== "teorik") {
+      setPracticeEventsForOverlay([]);
+      return;
+    }
+    const controller = new AbortController();
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(now.getDate() - 90);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(now);
+    to.setDate(now.getDate() + 180);
+    to.setHours(23, 59, 59, 999);
+    getTrainingLessons(
+      {
+        kind: "uygulama",
+        fromUtc: from.toISOString(),
+        toUtc: to.toISOString(),
+      },
+      controller.signal
+    )
+      .then((result) => {
+        setPracticeEventsForOverlay(
+          result.items.map(trainingLessonToCalendarEvent)
+        );
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error(error);
+      });
+    return () => controller.abort();
+  }, [type]);
+
   // Filtreler boş başlar — kullanıcı görmek istediği grup/eğitmeni
   // sidebar'dan açar. Yeni eklenen grup/eğitmen otomatik visible
   // olmaz; bu kural quick-assign akışıyla tutarlı (orada da seçim
@@ -241,9 +323,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
     () => new Set()
   );
 
-  // Quick-assign'da grup DEĞİŞİRSE sidebar filter'ı sadece o gruba
-  // collapse olur. Eğitmen filtresi de gruba bağlı senkronize edilir:
-  // o grubun mevcut event'lerinde dersi olan eğitmenler visible olur.
+  // Quick-assign'da grup DEĞİŞİRSE sidebar grup filtresini o gruba
+  // daraltır. Eğitmen filtresine artık dokunulmaz — kullanıcı slot
+  // tıklamadan önce manuel olarak tek eğitmeni işaretlesin (tek
+  // eğitmen kuralı handleSelectSlot'ta zorlanır).
   const prevQuickGroupRef = useRef<string>("");
   useEffect(() => {
     const nextId = quickSettings.groupId;
@@ -251,72 +334,24 @@ export function TrainingPage({ type }: TrainingPageProps) {
     prevQuickGroupRef.current = nextId;
     if (!nextId) {
       setVisibleGroups(new Set());
-      setVisibleInstructors(new Set());
       return;
     }
     const group = groups.find((g) => g.id === nextId);
     if (!group) return;
     setVisibleGroups(new Set([group.title]));
-    const groupInstructorIds = new Set(
-      events
-        .filter((e) => e.groupId === nextId)
-        .map((e) => e.instructorId)
-    );
-    setVisibleInstructors(groupInstructorIds);
-  }, [quickSettings.groupId, groups, events]);
+  }, [quickSettings.groupId, groups]);
 
-  // Aynı kural eğitmen için: QA'da eğitmen değişirse sidebar filter'ı
-  // sadece o eğitmene collapse olur. Grup henüz seçilmediyse, eğitmenin
-  // dersleri olan gruplar da otomatik visible olur (calendar boş kalmasın).
-  const prevQuickInstructorRef = useRef<string>("");
-  useEffect(() => {
-    const nextId = quickSettings.instructorId;
-    if (nextId === prevQuickInstructorRef.current) return;
-    prevQuickInstructorRef.current = nextId;
-    if (!nextId) {
-      setVisibleGroups(new Set());
-      setVisibleInstructors(new Set());
-      return;
-    }
-    setVisibleInstructors(new Set([nextId]));
-    if (!quickSettings.groupId) {
-      const instructorGroupNames = new Set(
-        events
-          .filter((e) => e.instructorId === nextId)
-          .map((e) =>
-            type === "uygulama"
-              ? (e.vehiclePlate || t("training.filter.noVehicle"))
-              : e.groupName
-          )
-      );
-      if (instructorGroupNames.size > 0) {
-        setVisibleGroups(instructorGroupNames);
-      }
-    }
-  }, [quickSettings.instructorId, quickSettings.groupId, events, type]);
+  // QA'da eğitmen seçimi sidebar filter'ını ETKİLEMEZ. Eğitmen filtresi
+  // sadece slot tıklarken (tek eğitmen seçili kuralı) anlamlı. QA'da
+  // eğitmen alanı uygulama tarafında ders oluşturma payload'ı için
+  // kullanılır; kullanıcı sidebar'da görmek istediği eğitmenleri
+  // manuel toggle eder.
 
-  // Uygulama tarafı: QA'da aday değişirse, o adayın mevcut uygulama
-  // derslerinde geçen araçlar ve eğitmenler sidebar'da otomatik visible
-  // olur. Aday clear edilince filtreler sıfırlanır.
-  const prevQuickCandidateRef = useRef<string>("");
-  useEffect(() => {
-    const nextId = quickSettings.candidateId;
-    if (nextId === prevQuickCandidateRef.current) return;
-    prevQuickCandidateRef.current = nextId;
-    if (!nextId) {
-      setVisibleGroups(new Set());
-      setVisibleInstructors(new Set());
-      return;
-    }
-    const candidateEvents = events.filter((e) => e.candidateId === nextId);
-    const noVehicleLabel = t("training.filter.noVehicle");
-    setVisibleGroups(
-      new Set(candidateEvents.map((e) => e.vehiclePlate || noVehicleLabel))
-    );
-    setVisibleInstructors(
-      new Set(candidateEvents.map((e) => e.instructorId))
-    );
-  }, [quickSettings.candidateId, events, t]);
+  // Aday seçimi sidebar filter state'ini ETKİLEMEZ — teorik tarafta
+  // grup seçince eğitmen filter'ına dokunmadığımız gibi, uygulama'da
+  // da aday seçince araç/eğitmen filter'larına dokunulmaz. Görünürlük
+  // visibleEvents tarafında "aday seçiliyse filter yok say" kuralıyla
+  // sağlanır. Filter listeleri yalnızca slot tıklarken anlamlı.
 
   // Backend'den gelen event.groupName ile groups state'indeki group.title
   // genelde aynı olmalı; ama tutarsızlık olursa (legacy veri, trim farkı,
@@ -326,18 +361,79 @@ export function TrainingPage({ type }: TrainingPageProps) {
     () => new Map(groups.map((g) => [g.id, g.title])),
     [groups]
   );
+  const branchHelpers = useMemo(() => buildBranchHelpers(branches), [branches]);
+
+  // QA seçimi takvimi otomatik bir tarihe odaklar:
+  //  - Teorik: seçili grubun startDate'i; seçim yoksa bugün.
+  //  - Uygulama: seçili adayın ilk uygulama dersi varsa onun start'ı,
+  //    yoksa bugün.
+  // Not: "bugün" her useMemo çalışmasında yeni Date olur — referans
+  // değişimi TrainingCalendar effect'ini tetiklerse manuel navigate
+  // bozulur. O yüzden "bugün" durumunda null dönüp, takvim tarafındaki
+  // useEffect null'ı no-op olarak ele alıyor.
+  const focusDate = useMemo<Date | null>(() => {
+    if (type === "teorik") {
+      if (!quickSettings.groupId) return new Date();
+      const group = groups.find((g) => g.id === quickSettings.groupId);
+      if (!group?.startDate) return new Date();
+      return new Date(group.startDate);
+    }
+    if (!quickSettings.candidateId) return new Date();
+    const earliest = events
+      .filter(
+        (e) => e.kind === "uygulama" && e.candidateId === quickSettings.candidateId
+      )
+      .reduce<Date | null>(
+        (acc, e) => (acc && acc < e.start ? acc : e.start),
+        null
+      );
+    return earliest ?? new Date();
+  }, [
+    type,
+    quickSettings.groupId,
+    quickSettings.candidateId,
+    groups,
+    events,
+  ]);
+
+  // Teorik tarafta: seçili grubun startDate'inden önceki günler takvimde
+  // filigranlı (disabled) gösterilir. Sadece bilgi amaçlı; backend zaten
+  // `beforeGroupStartDate` ile reddediyor.
+  const disabledBeforeDate = useMemo<Date | null>(() => {
+    if (type !== "teorik") return null;
+    if (!quickSettings.groupId) return null;
+    const group = groups.find((g) => g.id === quickSettings.groupId);
+    if (!group?.startDate) return null;
+    return new Date(group.startDate);
+  }, [type, quickSettings.groupId, groups]);
 
   const visibleEvents = useMemo(() => {
-    // Önce grup filtresini uygula. Eğitmen visible değilse event'i
-    // çıkarmak yerine `dimmed: true` ile şeffaf hayalet olarak göster —
-    // kullanıcı "bu slot başka eğitmen tarafından alınmış" sinyalini
-    // alsın (özellikle aynı grupta farklı eğitmen seçince).
+    // Görünürlük kuralı:
+    //  - Teorik: grup seçili → o gruba ait tüm dersler eğitmen
+    //    filtresinden bağımsız tam görünür. Grup seçili değil ama
+    //    eğitmen(ler) seçili → o eğitmen(ler)in tüm dersleri görünür.
+    //  - Uygulama: aday seçili → o adayın tüm dersleri araç/eğitmen
+    //    filtresinden bağımsız tam görünür. Aday seçili değilse araç
+    //    (visibleGroups = plaka set) ve eğitmen filtreleri OR olarak
+    //    çalışır — işaretli olan eksenden gelen tüm dersler görünür.
     const filtered: TrainingCalendarEvent[] = [];
     for (const e of events) {
-      let matchesGroup = false;
       if (type === "uygulama") {
-        matchesGroup = visibleGroups.has(e.vehiclePlate || t("training.filter.noVehicle"));
-      } else {
+        const focusedCandidate = quickSettings.candidateId;
+        if (focusedCandidate) {
+          if (e.candidateId === focusedCandidate) filtered.push(e);
+          continue;
+        }
+        const plate = e.vehiclePlate || t("training.filter.noVehicle");
+        const vehicleMatches = visibleGroups.has(plate);
+        const instructorMatches = visibleInstructors.has(e.instructorId);
+        if (vehicleMatches || instructorMatches) filtered.push(e);
+        continue;
+      }
+      // Teorik
+      const groupSelected = visibleGroups.size > 0;
+      if (groupSelected) {
+        let matchesGroup = false;
         if (visibleGroups.has(e.groupName)) {
           matchesGroup = true;
         } else if (e.groupId) {
@@ -346,26 +442,21 @@ export function TrainingPage({ type }: TrainingPageProps) {
             matchesGroup = true;
           }
         }
+        if (matchesGroup) filtered.push(e);
+        continue;
       }
-      if (!matchesGroup) continue;
-      const instructorVisible = visibleInstructors.has(e.instructorId);
-      if (instructorVisible) {
-        filtered.push(e);
-      } else {
-        filtered.push({ ...e, dimmed: true });
-      }
+      // Grup seçili değil → eğitmen ekseni: işaretli eğitmen(ler)in
+      // dersleri görünür.
+      if (visibleInstructors.has(e.instructorId)) filtered.push(e);
     }
     // Quick-assign popover açıksa seçilen aralığı görsel önizleme
     // event'i olarak ekle — kullanıcı hangi slotu işaretlediğini görür.
     if (isBranchPickerOpen && newLessonSlot) {
-      const previewEnd = new Date(
-        newLessonSlot.start.getTime() + quickDurationHours * 60 * 60 * 1000
-      );
       filtered.push({
         id: "__preview__",
         title: "Yeni ders",
         start: newLessonSlot.start,
-        end: previewEnd,
+        end: newLessonSlot.end,
         kind: type,
         instructorId: quickSettings.instructorId || "__preview-instructor__",
         instructorName: "",
@@ -374,6 +465,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         groupName: "",
         licenseClass: "",
         candidateCount: 0,
+        branchCode: null,
         preview: true,
       });
     }
@@ -394,6 +486,23 @@ export function TrainingPage({ type }: TrainingPageProps) {
         }
       }
     }
+    // Simetrik: teorik tarafında, seçili grubun adaylarının uygulama
+    // dersleri hayalet olarak gösterilir. Aday'ın uygulama derslerinin
+    // saatine teorik ders koyulamayacağı için kullanıcı önceden görsün.
+    if (type === "teorik" && quickSettings.groupId) {
+      const groupCandidateIds = new Set(
+        candidates
+          .filter((c) => c.currentGroup?.groupId === quickSettings.groupId)
+          .map((c) => c.id)
+      );
+      if (groupCandidateIds.size > 0) {
+        for (const e of practiceEventsForOverlay) {
+          if (e.candidateId && groupCandidateIds.has(e.candidateId)) {
+            filtered.push({ ...e, dimmed: true });
+          }
+        }
+      }
+    }
     return filtered;
   }, [
     events,
@@ -403,106 +512,35 @@ export function TrainingPage({ type }: TrainingPageProps) {
     groupTitleById,
     isBranchPickerOpen,
     newLessonSlot,
-    quickDurationHours,
     quickSettings.instructorId,
     quickSettings.groupId,
     quickSettings.candidateId,
     candidates,
     theoryEventsForOverlay,
+    practiceEventsForOverlay,
     t,
   ]);
 
-  const toggleGroup = (group: string) => {
-    const willTurnOn = !visibleGroups.has(group);
-    setVisibleGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
-      return next;
-    });
-    const matchesGroup = (e: TrainingCalendarEvent, name: string) =>
-      type === "uygulama"
-        ? (e.vehiclePlate || t("training.filter.noVehicle")) === name
-        : e.groupName === name ||
-          (e.groupId !== undefined &&
-            e.groupId !== null &&
-            groupTitleById.get(e.groupId) === name);
-    const groupInstructorIds = events
-      .filter((e) => matchesGroup(e, group))
-      .map((e) => e.instructorId);
-    if (groupInstructorIds.length === 0) return;
-    if (willTurnOn) {
-      // Açıldığında: o grubun eğitmenlerini de visible yap → calendar
-      // boş kalmasın.
-      setVisibleInstructors((prev) => {
-        const next = new Set(prev);
-        groupInstructorIds.forEach((id) => next.add(id));
-        return next;
-      });
-      return;
-    }
-    // Kapatıldığında: bu grubun eğitmenlerinden sadece "başka görünür
-    // grupta dersi olmayan"ları visible'dan çıkar. Eğitmen birden fazla
-    // visible grupta ders veriyorsa korunur (diğer gruplar hidden olmasın).
-    const otherVisibleGroups = new Set(visibleGroups);
-    otherVisibleGroups.delete(group);
-    setVisibleInstructors((prev) => {
-      const next = new Set(prev);
-      groupInstructorIds.forEach((id) => {
-        const stillTeachesAnotherVisible = events.some(
-          (e) =>
-            e.instructorId === id &&
-            !matchesGroup(e, group) &&
-            (type === "uygulama"
-              ? otherVisibleGroups.has(e.vehiclePlate || t("training.filter.noVehicle"))
-              : Array.from(otherVisibleGroups).some((g) => matchesGroup(e, g)))
-        );
-        if (!stillTeachesAnotherVisible) next.delete(id);
-      });
-      return next;
-    });
-  };
-
+  // Eğitmen toggle sadece kendi görünürlüğünü değiştirir; grup/araç
+  // ekseni görünürlüğüne dokunulmaz. Eğitmen filtresi takvim
+  // görüntüsünü etkilemez (visibleEvents teorik tarafta eğitmen
+  // filtresini yok sayar) — sadece slot tıklarken "tek eğitmen seçili"
+  // kuralını taşır.
   const toggleInstructor = (id: string) => {
-    const willTurnOn = !visibleInstructors.has(id);
     setVisibleInstructors((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-    const eventGroupName = (e: TrainingCalendarEvent) =>
-      type === "uygulama"
-        ? (e.vehiclePlate || t("training.filter.noVehicle"))
-        : e.groupName;
-    const instructorGroupNames = events
-      .filter((e) => e.instructorId === id)
-      .map(eventGroupName);
-    if (instructorGroupNames.length === 0) return;
-    if (willTurnOn) {
-      // Eğitmen AÇILINCA: dersleri olan gruplar da otomatik visible olur.
-      setVisibleGroups((prev) => {
-        const next = new Set(prev);
-        instructorGroupNames.forEach((g) => next.add(g));
-        return next;
-      });
-      return;
-    }
-    // KAPATILINCA: o eğitmenin gruplarından, başka görünür eğitmen tarafından
-    // verilmeyenleri visible'dan çıkar.
-    const otherVisibleInstructors = new Set(visibleInstructors);
-    otherVisibleInstructors.delete(id);
+  };
+
+  // Uygulama'da plaka (visibleGroups Set'inde plaka tutuluyor) toggle.
+  const toggleGroup = (plate: string) => {
     setVisibleGroups((prev) => {
       const next = new Set(prev);
-      instructorGroupNames.forEach((g) => {
-        const stillTaughtByAnother = events.some(
-          (e) =>
-            eventGroupName(e) === g &&
-            e.instructorId !== id &&
-            otherVisibleInstructors.has(e.instructorId)
-        );
-        if (!stillTaughtByAnother) next.delete(g);
-      });
+      if (next.has(plate)) next.delete(plate);
+      else next.add(plate);
       return next;
     });
   };
@@ -517,10 +555,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   // Bulk toggle: yalnızca filter listesinde görünen kayıtları etkiler.
   // Parent state diğer (görünmeyen) ID'leri korur.
-  const setGroupsVisibility = (groupNames: string[], visible: boolean) => {
+  const setGroupsVisibility = (plates: string[], visible: boolean) => {
     setVisibleGroups((prev) => {
       const next = new Set(prev);
-      groupNames.forEach((g) => (visible ? next.add(g) : next.delete(g)));
+      plates.forEach((p) => (visible ? next.add(p) : next.delete(p)));
       return next;
     });
   };
@@ -561,8 +599,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
       groupId: values.type === "teorik" ? values.groupId || null : null,
       candidateId: values.type === "uygulama" ? values.candidateId || null : null,
       vehicleId: values.type === "uygulama" ? values.vehicleId || null : null,
-      areaId: values.type === "teorik" ? values.areaId || null : null,
-      routeId: values.type === "uygulama" ? values.routeId || null : null,
+      areaId: null,
+      routeId: null,
       licenseClass: values.type === "uygulama" ? candidate?.licenseClass ?? null : null,
       notes: values.notes?.trim() || null,
     };
@@ -603,11 +641,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
     return { fieldErrors, generalError };
   };
 
-  const handleQuickAssign = async (notes: string) => {
+  const handleQuickAssign = async (branch: string) => {
     const { instructorId, groupId } = quickSettings;
-    const durationHours = quickDurationHours;
     const startTime = newLessonSlot!.start;
-    
+    // Süre takvimden seçilen slot'tan türetiliyor — drag ile 4 saat
+    // seçildiyse 4 adet 1 saatlik ders oluşturulur. En az 1 saat.
+    const totalMs = newLessonSlot!.end.getTime() - startTime.getTime();
+    const durationHours = Math.max(1, Math.round(totalMs / (60 * 60 * 1000)));
+    const notes = branchHelpers.label(branch) ?? branch;
+
     setIsQuickAssignLoading(true);
     let successCount = 0;
     try {
@@ -626,6 +668,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           vehicleId: null,
           areaId: null,
           routeId: null,
+          branchCode: branch,
           licenseClass: null,
           notes,
         };
@@ -686,10 +729,19 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
-  const handleQuickAssignPractice = async () => {
-    const { instructorId, candidateId, vehicleId } = quickSettings;
-    const durationHours = quickDurationHours;
+  const handleQuickAssignPractice = async (
+    practiceEducationType: PracticeEducationType,
+    override?: {
+      instructorId?: string;
+      vehicleId?: string;
+    }
+  ) => {
+    const candidateId = quickSettings.candidateId;
+    const instructorId = override?.instructorId ?? quickSettings.instructorId;
+    const vehicleId = override?.vehicleId ?? quickSettings.vehicleId;
     const startTime = newLessonSlot!.start;
+    const totalMs = newLessonSlot!.end.getTime() - startTime.getTime();
+    const durationHours = Math.max(1, Math.round(totalMs / (60 * 60 * 1000)));
     const candidate = candidates.find((c) => c.id === candidateId);
     const vehicle = vehicles.find((v) => v.id === vehicleId);
 
@@ -711,7 +763,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
           vehicleId,
           areaId: null,
           routeId: null,
+          branchCode: null,
           licenseClass: candidate?.licenseClass ?? null,
+          practiceEducationType,
           notes: null,
         };
 
@@ -759,6 +813,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
     } finally {
       setIsQuickAssignLoading(false);
       setNewLessonSlot(null);
+      setPracticePopoverPos(null);
+      pendingPracticeAssignment.current = null;
     }
   };
 
@@ -832,24 +888,44 @@ export function TrainingPage({ type }: TrainingPageProps) {
     setNewLessonSlot({ start: snappedStart, end: snappedEnd });
 
     if (type === "uygulama") {
-      // Uygulama'da branş seçimi yok (`practice` tek branş). Sidebar'da
-      // aday + eğitmen + araç seçiliyse direkt ders oluştur, eksikse
-      // toast ile uyar — modal açmıyoruz.
-      const { candidateId, instructorId, vehicleId } = quickSettings;
-      if (!candidateId || !instructorId || !vehicleId) {
-        showToast(t("training.toast.selectCandidateInstructorVehicleFirst"));
+      // Uygulama'da branş seçimi yok (`practice` tek branş). Aday QA
+      // dropdown'ından seçilir; eğitmen ve araç sidebar filtresinden
+      // türetilir — ikisinin de tam olarak 1 işaretli olması gerekir.
+      const { candidateId } = quickSettings;
+      if (!candidateId) {
+        showToast(t("training.toast.selectCandidateFirst"));
+        return;
+      }
+      if (visibleInstructors.size !== 1) {
+        showToast(t("training.toast.selectExactlyOneInstructor"));
+        return;
+      }
+      if (visibleGroups.size !== 1) {
+        showToast(t("training.toast.selectExactlyOneVehicle"));
+        return;
+      }
+      const derivedInstructorId = visibleInstructors.values().next().value;
+      const derivedPlate = visibleGroups.values().next().value;
+      if (!derivedInstructorId || !derivedPlate) {
+        showToast(t("training.toast.selectCandidateFirst"));
+        return;
+      }
+      // Plaka → vehicle.id eşle. Plaka boşsa "araç yok" özel etiketi
+      // (oluşturmaya izin verme).
+      const derivedVehicle = vehicles.find(
+        (v) => v.plateNumber === derivedPlate
+      );
+      if (!derivedVehicle) {
+        showToast(t("training.toast.selectExactlyOneVehicle"));
         return;
       }
       // Aday'ın grubunun teorik dersi planlanan aralıkla çakışıyorsa
       // backend zaten reddeder; ama kullanıcı dene-fail döngüsü görmesin
-      // diye burada da blokla. Slot süresi quickDurationHours kadar
-      // uzayacak (1 saatlik N tekrar) — bu nedenle pencere snappedStart
-      // + N saat üzerinden hesaplanır.
+      // diye burada da blokla.
       const candidate = candidates.find((c) => c.id === candidateId);
       const candidateGroupId = candidate?.currentGroup?.groupId;
       if (candidateGroupId) {
-        const blockEndMs =
-          snappedStart.getTime() + quickDurationHours * 60 * 60 * 1000;
+        const blockEndMs = snappedEnd.getTime();
         const conflict = theoryEventsForOverlay.some((te) => {
           if (te.groupId !== candidateGroupId) return false;
           const teStart = te.start.getTime();
@@ -861,20 +937,90 @@ export function TrainingPage({ type }: TrainingPageProps) {
           return;
         }
       }
-      void handleQuickAssignPractice();
-      return;
-    }
-
-    // Teorik derste, eğer grup ve eğitmen seçiliyse branş seçiciyi aç
-    if (quickSettings.groupId && quickSettings.instructorId) {
-      setPopoverPos({
+      // setState async — derived değerleri hem state'e (sonradan kullanım
+      // için) hem de pendingPracticeAssignment ref'ine yazıyoruz; popover
+      // seçildiğinde ref'i okuyup handleQuickAssignPractice'i çağırırız.
+      setQuickSettings((prev) => ({
+        ...prev,
+        instructorId: derivedInstructorId,
+        vehicleId: derivedVehicle.id,
+      }));
+      pendingPracticeAssignment.current = {
+        instructorId: derivedInstructorId,
+        vehicleId: derivedVehicle.id,
+      };
+      setPracticePopoverPos({
         x: lastClickPos.current.x,
         y: lastClickPos.current.y,
       });
-      setIsBranchPickerOpen(true);
-    } else {
-      showToast(t("training.toast.selectGroupAndInstructorFirst"));
+      return;
     }
+
+    // Teorik akış: grup QA dropdown'ından, eğitmen ise sidebar
+    // filtresinden türetilir. Tam olarak 1 eğitmen visible olmalı —
+    // 0 ise hiç seçim yok, 2+ ise hangi eğitmenle ders açacağı belirsiz.
+    if (!quickSettings.groupId) {
+      showToast(t("training.toast.selectGroupAndInstructorFirst"));
+      return;
+    }
+    if (visibleInstructors.size !== 1) {
+      showToast(t("training.toast.selectExactlyOneInstructor"));
+      return;
+    }
+    const derivedInstructorId = visibleInstructors.values().next().value;
+    if (!derivedInstructorId) {
+      showToast(t("training.toast.selectExactlyOneInstructor"));
+      return;
+    }
+    // Grup başlangıç tarihinden önceye ders atanamaz (backend de
+    // beforeGroupStartDate ile reddediyor; UI'da request'i kesip toast).
+    if (disabledBeforeDate) {
+      const cutoff = new Date(disabledBeforeDate);
+      cutoff.setHours(0, 0, 0, 0);
+      if (snappedStart.getTime() < cutoff.getTime()) {
+        const yyyy = cutoff.getFullYear();
+        const mm = String(cutoff.getMonth() + 1).padStart(2, "0");
+        const dd = String(cutoff.getDate()).padStart(2, "0");
+        showToast(
+          t("trainingLesson.validation.beforeGroupStartDate", {
+            groupStartDate: `${yyyy}-${mm}-${dd}`,
+          })
+        );
+        return;
+      }
+    }
+    // Çakışma blok: planlanan blok aralığında (snappedStart + N saat)
+    // grubun adaylarından herhangi biri uygulama dersi alıyorsa popover
+    // açma, toast ile uyar. Backend de aynı kontrolü yapıyor; burası
+    // dene-fail döngüsünü kullanıcıya yaşatmamak için.
+    const groupCandidateIds = new Set(
+      candidates
+        .filter((c) => c.currentGroup?.groupId === quickSettings.groupId)
+        .map((c) => c.id)
+    );
+    if (groupCandidateIds.size > 0) {
+      const blockEndMs = snappedEnd.getTime();
+      const conflict = practiceEventsForOverlay.some((pe) => {
+        if (!pe.candidateId || !groupCandidateIds.has(pe.candidateId)) return false;
+        const peStart = pe.start.getTime();
+        const peEnd = pe.end.getTime();
+        return peStart < blockEndMs && peEnd > snappedStart.getTime();
+      });
+      if (conflict) {
+        showToast(t("training.toast.groupPracticeConflict"));
+        return;
+      }
+    }
+    // Aşağıdaki create akışı `quickSettings.instructorId`'yi okuyor;
+    // setState async olduğu için aynı render'da görünmez. Override'ı
+    // anında yaz ve popover'ı aç — handleQuickAssign closure'ını
+    // tetikleyen branş seçimi sırasında doğru değer state'te olur.
+    setQuickSettings((prev) => ({ ...prev, instructorId: derivedInstructorId }));
+    setPopoverPos({
+      x: lastClickPos.current.x,
+      y: lastClickPos.current.y,
+    });
+    setIsBranchPickerOpen(true);
   };
 
   const handleSelectEvent = (event: TrainingCalendarEvent) => {
@@ -976,69 +1122,105 @@ export function TrainingPage({ type }: TrainingPageProps) {
     [selectedInstructor]
   );
 
+  const showBackToCandidateList =
+    type === "uygulama" && Boolean(quickSettings.candidateId);
+
   return (
     <>
-      <PageToolbar title={title} />
+      <PageToolbar
+        actions={
+          showBackToCandidateList ? (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() =>
+                setQuickSettings((prev) => ({ ...prev, candidateId: "" }))
+              }
+              type="button"
+            >
+              {t("training.picker.backToList")}
+            </button>
+          ) : undefined
+        }
+        title={title}
+      />
 
       <div className="training-layout-wrap">
         {loading ? <div className="empty-state">Dersler yükleniyor...</div> : null}
-        <div style={{ padding: "0 14px" }}>
-          <TrainingWeekSummary events={visibleEvents} />
-        </div>
         <div className="training-layout">
           <aside className="training-filters-sidebar">
             {type === "teorik" ? (
               <QuickLessonAssignment
                 groupId={quickSettings.groupId}
                 groups={groups}
-                instructorId={quickSettings.instructorId}
-                instructors={instructors}
                 isLoading={isQuickAssignLoading}
                 onSettingsChange={(settings) =>
                   setQuickSettings((prev) => ({ ...prev, ...settings }))
                 }
-                selectedSlot={newLessonSlot}
               />
             ) : (
               <QuickPracticeAssignment
                 candidateId={quickSettings.candidateId}
                 candidates={candidates}
-                instructorId={quickSettings.instructorId}
-                instructors={instructors}
                 isLoading={isQuickAssignLoading}
+                onClearScope={clearPracticeScope}
                 onSettingsChange={(settings) =>
                   setQuickSettings((prev) => ({ ...prev, ...settings }))
                 }
-                selectedSlot={newLessonSlot}
-                vehicleId={quickSettings.vehicleId}
-                vehicles={vehicles}
+                scopedCandidateIds={practiceCandidateScope}
               />
             )}
+            <TrainingBranchSummary
+              branches={branches}
+              branchHelpers={branchHelpers}
+              candidateId={quickSettings.candidateId || undefined}
+              candidates={candidates}
+              events={events}
+              groupId={quickSettings.groupId || undefined}
+              kind={type}
+              overlayEvents={
+                type === "teorik"
+                  ? practiceEventsForOverlay
+                  : theoryEventsForOverlay
+              }
+            />
             <TrainingFilters
-              allGroupsCatalog={groups}
               allInstructors={instructors}
               allVehiclesCatalog={vehicles}
               events={events}
               kind={type}
               onResetFilters={resetFilters}
-              onToggleGroup={toggleGroup}
-              onToggleInstructor={toggleInstructor}
               onSetGroupsVisibility={setGroupsVisibility}
               onSetInstructorsVisibility={setInstructorsVisibility}
+              onToggleGroup={toggleGroup}
+              onToggleInstructor={toggleInstructor}
               visibleGroups={visibleGroups}
               visibleInstructors={visibleInstructors}
             />
           </aside>
-          <TrainingCalendar
-            durationHours={quickDurationHours}
-            events={visibleEvents}
-            kind={type}
-            onDurationHoursChange={setQuickDurationHours}
-            onEventDrop={handleEventDrop}
-            onEventResize={handleEventResize}
-            onSelectEvent={handleSelectEvent}
-            onSelectSlot={handleSelectSlot}
-          />
+          {type === "uygulama" && !quickSettings.candidateId ? (
+            <PracticeCandidatePicker
+              events={events}
+              onClearScope={clearPracticeScope}
+              onPick={(id) =>
+                setQuickSettings((prev) => ({ ...prev, candidateId: id }))
+              }
+              scopedCandidateIds={practiceCandidateScope}
+            />
+          ) : (
+            <div className="training-calendar-wrap">
+              <TrainingCalendar
+                branchHelpers={branchHelpers}
+                disabledBeforeDate={disabledBeforeDate}
+                events={visibleEvents}
+                focusDate={focusDate}
+                kind={type}
+                onEventDrop={handleEventDrop}
+                onEventResize={handleEventResize}
+                onSelectEvent={handleSelectEvent}
+                onSelectSlot={handleSelectSlot}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -1049,8 +1231,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
         groups={groups}
         candidates={candidates}
         vehicles={vehicles}
-        areas={areas}
-        routes={routes}
         onClose={() => {
           setModalOpen(false);
           setNewLessonSlot(null);
@@ -1069,9 +1249,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
       {isBranchPickerOpen && popoverPos ? (
         <BranchPickerPopover
           availableBranches={availableBranches}
+          branchHelpers={branchHelpers}
           isLoading={isQuickAssignLoading}
           onClose={() => setIsBranchPickerOpen(false)}
-          onPick={(branch) => void handleQuickAssign(BRANCH_LABELS[branch])}
+          onPick={(branch) => void handleQuickAssign(branch)}
           pos={popoverPos}
           slotInfo={
             newLessonSlot
@@ -1081,14 +1262,57 @@ export function TrainingPage({ type }: TrainingPageProps) {
                       hour: "2-digit",
                       minute: "2-digit",
                     });
-                  const end = new Date(
-                    newLessonSlot.start.getTime() +
-                      quickDurationHours * 60 * 60 * 1000
+                  const totalMs =
+                    newLessonSlot.end.getTime() - newLessonSlot.start.getTime();
+                  const hours = Math.max(
+                    1,
+                    Math.round(totalMs / (60 * 60 * 1000))
                   );
                   return t("training.popover.titleWithSlot", {
                     start: fmt(newLessonSlot.start),
-                    end: fmt(end),
-                    hours: quickDurationHours,
+                    end: fmt(newLessonSlot.end),
+                    hours,
+                  });
+                })()
+              : null
+          }
+        />
+      ) : null}
+
+      {practicePopoverPos ? (
+        <PracticeEducationPopover
+          isLoading={isQuickAssignLoading}
+          onClose={() => {
+            setPracticePopoverPos(null);
+            pendingPracticeAssignment.current = null;
+          }}
+          onPick={(educationType) => {
+            const pending = pendingPracticeAssignment.current;
+            if (!pending) {
+              setPracticePopoverPos(null);
+              return;
+            }
+            void handleQuickAssignPractice(educationType, pending);
+          }}
+          pos={practicePopoverPos}
+          slotInfo={
+            newLessonSlot
+              ? (() => {
+                  const fmt = (d: Date) =>
+                    d.toLocaleTimeString("tr-TR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                  const totalMs =
+                    newLessonSlot.end.getTime() - newLessonSlot.start.getTime();
+                  const hours = Math.max(
+                    1,
+                    Math.round(totalMs / (60 * 60 * 1000))
+                  );
+                  return t("training.popover.titleWithSlot", {
+                    start: fmt(newLessonSlot.start),
+                    end: fmt(newLessonSlot.end),
+                    hours,
                   });
                 })()
               : null

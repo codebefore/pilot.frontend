@@ -3,11 +3,9 @@ import { useForm } from "react-hook-form";
 
 import { useT } from "../../lib/i18n";
 import type {
-  AreaResponse,
   CandidateResponse,
   GroupResponse,
   InstructorResponse,
-  RouteResponse,
   TrainingLessonKind,
   TrainingLessonStatus,
   VehicleResponse,
@@ -27,8 +25,6 @@ export type TrainingLessonSubmitValues = {
   groupId?: string;
   candidateId?: string;
   vehicleId?: string;
-  areaId?: string;
-  routeId?: string;
   notes?: string;
 };
 
@@ -40,8 +36,6 @@ type NewTrainingPlanModalProps = {
   groups: GroupResponse[];
   candidates: CandidateResponse[];
   vehicles: VehicleResponse[];
-  areas: AreaResponse[];
-  routes: RouteResponse[];
   onClose: () => void;
   onSubmit: (values: TrainingLessonSubmitValues) => void;
   /** Backend `errorCodes` -> çevrilmiş mesaj. Parent submit hatasında
@@ -91,8 +85,6 @@ const buildDefaultValues = (
     groupId: "",
     candidateId: "",
     vehicleId: "",
-    areaId: "",
-    routeId: "",
     notes: "",
   };
 };
@@ -114,8 +106,6 @@ export function NewTrainingPlanModal({
   groups,
   candidates,
   vehicles,
-  areas,
-  routes,
   onClose,
   onSubmit,
   serverFieldErrors,
@@ -350,33 +340,8 @@ export function NewTrainingPlanModal({
                 <div className="form-error">{serverErr("vehicleId")}</div>
               ) : null}
             </div>
-            <div className="form-group">
-              <label className="form-label">{t("training.modal.field.route")}</label>
-              <CustomSelect className="form-select" {...register("routeId")}>
-                <option value="">{t("training.modal.placeholder.optional")}</option>
-                {routes.map((route) => (
-                  <option key={route.id} value={route.id}>
-                    {route.name}
-                  </option>
-                ))}
-              </CustomSelect>
-            </div>
           </div>
-        ) : (
-          <div className="form-row full">
-            <div className="form-group">
-              <label className="form-label">{t("training.modal.field.area")}</label>
-              <CustomSelect className="form-select" {...register("areaId")}>
-                <option value="">{t("training.modal.placeholder.optional")}</option>
-                {areas.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name}
-                  </option>
-                ))}
-              </CustomSelect>
-            </div>
-          </div>
-        )}
+        ) : null}
 
         <div className="form-row full">
           <div className="form-group">

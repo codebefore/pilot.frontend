@@ -597,6 +597,67 @@
   color: var(--gray-500);
   margin-top: 2px;
 }
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.settings-form-actions,
+.settings-table-actions,
+.settings-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-table-wrap {
+  overflow-x: auto;
+}
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.settings-table th,
+.settings-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--gray-200);
+  text-align: left;
+  vertical-align: middle;
+}
+.settings-color-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  border: 1px solid var(--gray-200);
+  vertical-align: middle;
+}
+.branch-color-input {
+  width: 44px;
+  height: 44px;
+  padding: 3px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  background: var(--white);
+  cursor: pointer;
+}
+.branch-color-input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(34,176,148,.12);
+  outline: none;
+}
+.branch-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.branch-color-input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 4px;
+}
+.branch-color-input::-moz-color-swatch {
+  border: 0;
+  border-radius: 4px;
+}
 .settings-inline-checkbox {
   min-height: 38px;
   align-items: center;

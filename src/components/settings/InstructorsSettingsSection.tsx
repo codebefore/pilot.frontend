@@ -15,9 +15,8 @@ import {
   type InstructorSortDirection,
   type InstructorSortField,
 } from "../../lib/instructors-api";
+import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import {
-  INSTRUCTOR_BRANCH_LABELS,
-  INSTRUCTOR_BRANCH_OPTIONS,
   INSTRUCTOR_EMPLOYMENT_LABELS,
   INSTRUCTOR_EMPLOYMENT_OPTIONS,
   INSTRUCTOR_ROLE_LABELS,
@@ -30,6 +29,7 @@ import type {
   InstructorResponse,
   InstructorRole,
   LicenseClass,
+  TrainingBranchDefinitionResponse,
 } from "../../lib/types";
 import { useT } from "../../lib/i18n";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
@@ -75,7 +75,31 @@ const EMPTY_SUMMARY: InstructorListSummaryResponse = {
   practiceBranchCount: 0,
 };
 
-function getInstructorColumns(t: ReturnType<typeof useT>): InstructorColumnDef[] {
+type BranchOption = {
+  value: InstructorBranch;
+  label: string;
+};
+
+function getBranchOptions(
+  branches: TrainingBranchDefinitionResponse[]
+): BranchOption[] {
+  return branches.map((branch) => ({
+    value: branch.code,
+    label: branch.name,
+  }));
+}
+
+function getBranchLabelMap(branchOptions: BranchOption[]): Record<string, string> {
+  return branchOptions.reduce<Record<string, string>>((acc, option) => {
+    acc[option.value] = option.label;
+    return acc;
+  }, {});
+}
+
+function getInstructorColumns(
+  t: ReturnType<typeof useT>,
+  branchLabelMap: Record<string, string>
+): InstructorColumnDef[] {
   return [
     {
       id: "code",
@@ -117,7 +141,9 @@ function getInstructorColumns(t: ReturnType<typeof useT>): InstructorColumnDef[]
       label: t("settings.instructors.table.branches"),
       sortField: "branch",
       renderCell: (instructor) =>
-        instructor.branches.map((branch) => INSTRUCTOR_BRANCH_LABELS[branch]).join(", "),
+        instructor.branches
+          .map((branch) => branchLabelMap[branch] ?? branch)
+          .join(", "),
       skeletonWidth: 160,
     },
     {
@@ -174,7 +200,6 @@ export function InstructorsSettingsSection() {
     "settings.instructors.columns.v1",
     INSTRUCTOR_COLUMN_IDS
   );
-  const instructorColumns = getInstructorColumns(t);
 
   const [items, setItems] = useState<InstructorResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -192,7 +217,14 @@ export function InstructorsSettingsSection() {
   const [editing, setEditing] = useState<InstructorResponse | null>(null);
   const [confirmDeleteInstructorId, setConfirmDeleteInstructorId] = useState<string | null>(null);
   const [deletingInstructorId, setDeletingInstructorId] = useState<string | null>(null);
+  const [trainingBranches, setTrainingBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const branchOptions = useMemo(() => getBranchOptions(trainingBranches), [trainingBranches]);
+  const branchLabelMap = useMemo(() => getBranchLabelMap(branchOptions), [branchOptions]);
+  const instructorColumns = useMemo(
+    () => getInstructorColumns(t, branchLabelMap),
+    [branchLabelMap, t]
+  );
   const visibleColumns = instructorColumns.filter((column) => isVisible(column.id));
 
   useEffect(() => {
@@ -229,6 +261,21 @@ export function InstructorsSettingsSection() {
 
     return () => controller.abort();
   }, [filters, page, pageSize, refreshKey, search, showToast, sort]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getTrainingBranchDefinitions(
+      { activity: "all", page: 1, pageSize: 100 },
+      controller.signal
+    )
+      .then((response) => setTrainingBranches(response.items))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        showToast("Branş tanımları yüklenemedi", "error");
+      });
+
+    return () => controller.abort();
+  }, [showToast]);
 
   const counts = useMemo(() => {
     return {
@@ -392,6 +439,7 @@ export function InstructorsSettingsSection() {
                           column.id,
                           filters,
                           setFilter,
+                          branchOptions,
                           licenseClassOptions,
                           t
                         )}
@@ -406,6 +454,7 @@ export function InstructorsSettingsSection() {
                           column.id,
                           filters,
                           setFilter,
+                          branchOptions,
                           licenseClassOptions,
                           t
                         )}
@@ -538,6 +587,7 @@ export function InstructorsSettingsSection() {
       </div>
 
       <InstructorFormModal
+        branchOptions={branchOptions}
         editing={editing}
         onClose={() => {
           setFormOpen(false);
@@ -612,6 +662,7 @@ function buildColumnFilterControl(
   columnId: InstructorColumnId,
   filters: InstructorFilters,
   setFilter: <K extends keyof InstructorFilters>(key: K, value: InstructorFilters[K]) => void,
+  branchOptions: BranchOption[],
   licenseClassOptions: LicenseClassOption[],
   t: ReturnType<typeof useT>
 ) {
@@ -676,7 +727,7 @@ function buildColumnFilterControl(
         onChange={(nextValue) => setFilter("branch", nextValue as InstructorFilters["branch"])}
         options={[
           { value: "all", label: t("common.all") },
-          ...INSTRUCTOR_BRANCH_OPTIONS.map((option) => ({
+          ...branchOptions.map((option) => ({
             value: option.value,
             label: option.label,
           })),

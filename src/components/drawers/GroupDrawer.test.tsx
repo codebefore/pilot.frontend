@@ -9,6 +9,8 @@ const getGroupByIdMock = vi.fn();
 const deleteGroupMock = vi.fn();
 const getCandidatesMock = vi.fn();
 const updateGroupMock = vi.fn();
+const assignCandidateGroupMock = vi.fn();
+const removeActiveGroupAssignmentMock = vi.fn();
 
 vi.mock("../../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/groups-api")>("../../lib/groups-api");
@@ -39,8 +41,10 @@ vi.mock("../../lib/candidates-api", async () => {
   return {
     ...actual,
     getCandidates: (...args: Parameters<typeof actual.getCandidates>) => getCandidatesMock(...args),
-    assignCandidateGroup: vi.fn(),
-    removeActiveGroupAssignment: vi.fn(),
+    assignCandidateGroup: (...args: Parameters<typeof actual.assignCandidateGroup>) =>
+      assignCandidateGroupMock(...args),
+    removeActiveGroupAssignment: (...args: Parameters<typeof actual.removeActiveGroupAssignment>) =>
+      removeActiveGroupAssignmentMock(...args),
   };
 });
 
@@ -73,7 +77,20 @@ describe("GroupDrawer", () => {
     getGroupByIdMock.mockReset();
     getCandidatesMock.mockReset();
     updateGroupMock.mockReset();
+    assignCandidateGroupMock.mockReset();
+    removeActiveGroupAssignmentMock.mockReset();
     getCandidatesMock.mockResolvedValue({ items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 0 });
+    assignCandidateGroupMock.mockResolvedValue({
+      id: "assignment-1",
+      candidateId: "candidate-transfer",
+      groupId: "group-1",
+      groupTitle: "1A",
+      startDate: "2026-04-10",
+      assignedAtUtc: "2026-04-12T10:00:00Z",
+      removedAtUtc: null,
+      isActive: true,
+    });
+    removeActiveGroupAssignmentMock.mockResolvedValue(undefined);
   });
 
   it("shows candidate add action when group loads", async () => {
@@ -155,6 +172,78 @@ describe("GroupDrawer", () => {
           pageSize: 20,
         })
       );
+    });
+  });
+
+  it("adds a searched candidate to the group through the transfer endpoint", async () => {
+    getGroupByIdMock
+      .mockResolvedValueOnce(buildGroup())
+      .mockResolvedValueOnce(buildGroup({
+        activeCandidates: [
+          {
+            candidateId: "candidate-transfer",
+            firstName: "Ayse",
+            lastName: "Demir",
+            nationalId: "22222222222",
+            assignedAtUtc: "2026-04-12T10:00:00Z",
+          },
+        ],
+      }));
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "candidate-transfer",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "22222222222",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: {
+            groupId: "old-group",
+            title: "1B",
+            startDate: "2026-03-10",
+            term: {
+              id: "term-old",
+              monthDate: "2026-03-01",
+              sequence: 1,
+              name: null,
+            },
+            assignedAtUtc: "2026-03-01T10:00:00Z",
+          },
+          documentSummary: null,
+          createdAtUtc: "2026-04-12T10:00:00Z",
+          updatedAtUtc: "2026-04-12T10:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Aday Ekle" }));
+    fireEvent.change(screen.getByPlaceholderText("İsim veya TC ara..."), {
+      target: { value: "Ay" },
+    });
+
+    const candidateButton = await screen.findByRole("button", { name: /Ayse Demir/ });
+    fireEvent.click(candidateButton);
+
+    await waitFor(() => {
+      expect(assignCandidateGroupMock).toHaveBeenCalledWith("candidate-transfer", "group-1");
+      expect(getGroupByIdMock).toHaveBeenCalledTimes(2);
     });
   });
 

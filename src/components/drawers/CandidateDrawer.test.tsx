@@ -6,6 +6,9 @@ import { renderWithProviders } from "../../test/render-with-providers";
 
 const getCandidateByIdMock = vi.fn();
 const updateCandidateMock = vi.fn();
+const assignCandidateGroupMock = vi.fn();
+const removeActiveGroupAssignmentMock = vi.fn();
+const getGroupsMock = vi.fn();
 
 function getHiddenSelect(ariaLabel: string) {
   return document.querySelector(
@@ -19,8 +22,10 @@ vi.mock("../../lib/candidates-api", async () => {
     ...actual,
     getCandidateById: (...args: Parameters<typeof actual.getCandidateById>) => getCandidateByIdMock(...args),
     updateCandidate: (...args: Parameters<typeof actual.updateCandidate>) => updateCandidateMock(...args),
-    assignCandidateGroup: vi.fn(),
-    removeActiveGroupAssignment: vi.fn(),
+    assignCandidateGroup: (...args: Parameters<typeof actual.assignCandidateGroup>) =>
+      assignCandidateGroupMock(...args),
+    removeActiveGroupAssignment: (...args: Parameters<typeof actual.removeActiveGroupAssignment>) =>
+      removeActiveGroupAssignmentMock(...args),
     deleteCandidate: vi.fn(),
   };
 });
@@ -29,7 +34,7 @@ vi.mock("../../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/groups-api")>("../../lib/groups-api");
   return {
     ...actual,
-    getGroups: vi.fn().mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 }),
+    getGroups: (...args: Parameters<typeof actual.getGroups>) => getGroupsMock(...args),
   };
 });
 
@@ -64,6 +69,9 @@ describe("CandidateDrawer", () => {
   beforeEach(() => {
     getCandidateByIdMock.mockReset();
     updateCandidateMock.mockReset();
+    assignCandidateGroupMock.mockReset();
+    removeActiveGroupAssignmentMock.mockReset();
+    getGroupsMock.mockReset();
 
     getCandidateByIdMock.mockResolvedValue({
       id: "candidate-1",
@@ -110,6 +118,18 @@ describe("CandidateDrawer", () => {
       createdAtUtc: "2026-04-12T10:00:00Z",
       updatedAtUtc: "2026-04-12T10:10:00Z",
     });
+    assignCandidateGroupMock.mockResolvedValue({
+      id: "assignment-1",
+      candidateId: "candidate-1",
+      groupId: "group-2",
+      groupTitle: "2B",
+      startDate: "2026-05-05",
+      assignedAtUtc: "2026-05-01T10:00:00Z",
+      removedAtUtc: null,
+      isActive: true,
+    });
+    removeActiveGroupAssignmentMock.mockResolvedValue(undefined);
+    getGroupsMock.mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 });
   });
 
   it("saves only canonical english candidate status values", async () => {
@@ -515,6 +535,184 @@ describe("CandidateDrawer", () => {
     );
 
     expect(await screen.findByText("NİSAN 2026 / 2 - 1B")).toBeInTheDocument();
+  });
+
+  it("assigns the candidate to a selected group from the drawer", async () => {
+    const onUpdated = vi.fn();
+    getGroupsMock.mockResolvedValue({
+      items: [
+        {
+          id: "group-2",
+          title: "2B",
+          term: {
+            id: "term-2",
+            monthDate: "2026-05-01",
+            sequence: 1,
+            name: null,
+          },
+          capacity: 20,
+          assignedCandidateCount: 4,
+          activeCandidateCount: 4,
+          candidatePreview: [],
+          startDate: "2026-05-05",
+          mebStatus: null,
+          createdAtUtc: "2026-04-12T10:00:00Z",
+          updatedAtUtc: "2026-04-12T10:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getCandidateByIdMock
+      .mockResolvedValueOnce({
+        id: "candidate-1",
+        firstName: "Ada",
+        lastName: "Yilmaz",
+        nationalId: "11111111111",
+        phoneNumber: null,
+        email: null,
+        birthDate: null,
+        gender: null,
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        mebSyncStatus: "not_synced",
+        currentGroup: null,
+        documentSummary: null,
+        createdAtUtc: "2026-04-12T10:00:00Z",
+        updatedAtUtc: "2026-04-12T10:00:00Z",
+      })
+      .mockResolvedValueOnce({
+        id: "candidate-1",
+        firstName: "Ada",
+        lastName: "Yilmaz",
+        nationalId: "11111111111",
+        phoneNumber: null,
+        email: null,
+        birthDate: null,
+        gender: null,
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        mebSyncStatus: "not_synced",
+        currentGroup: {
+          groupId: "group-2",
+          title: "2B",
+          startDate: "2026-05-05",
+          term: {
+            id: "term-2",
+            monthDate: "2026-05-01",
+            sequence: 1,
+            name: null,
+          },
+          assignedAtUtc: "2026-05-01T10:00:00Z",
+        },
+        documentSummary: null,
+        createdAtUtc: "2026-04-12T10:00:00Z",
+        updatedAtUtc: "2026-04-12T10:10:00Z",
+      });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+        onUpdated={onUpdated}
+      />
+    );
+
+    const groupValue = await screen.findByText("Atanmamış");
+    const groupRow = groupValue.closest(".drawer-row") as HTMLElement;
+    fireEvent.click(groupRow.querySelector('button[title="Düzenle"]') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 });
+    });
+    const groupSelect = groupRow.querySelector("select") as HTMLSelectElement;
+    fireEvent.change(groupSelect, { target: { value: "group-2" } });
+    fireEvent.click(groupRow.querySelector('button[title="Kaydet"]') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(assignCandidateGroupMock).toHaveBeenCalledWith("candidate-1", "group-2");
+      expect(removeActiveGroupAssignmentMock).not.toHaveBeenCalled();
+      expect(onUpdated).toHaveBeenCalled();
+    });
+  });
+
+  it("removes the active group assignment from the drawer", async () => {
+    const onUpdated = vi.fn();
+    const candidateWithGroup = {
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "11111111111",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      currentGroup: {
+        groupId: "group-1",
+        title: "1B",
+        startDate: "2026-04-02",
+        term: {
+          id: "term-2",
+          monthDate: "2026-04-01",
+          sequence: 2,
+          name: null,
+        },
+        assignedAtUtc: "2026-04-01T10:00:00Z",
+      },
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    };
+    getCandidateByIdMock
+      .mockResolvedValueOnce(candidateWithGroup)
+      .mockResolvedValueOnce({ ...candidateWithGroup, currentGroup: null });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+        onUpdated={onUpdated}
+      />
+    );
+
+    const groupValue = await screen.findByText("NİSAN 2026 / 2 - 1B");
+    const groupRow = groupValue.closest(".drawer-row") as HTMLElement;
+    fireEvent.click(groupRow.querySelector('button[title="Düzenle"]') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 });
+    });
+    const groupSelect = groupRow.querySelector("select") as HTMLSelectElement;
+    fireEvent.change(groupSelect, { target: { value: "" } });
+    fireEvent.click(groupRow.querySelector('button[title="Kaydet"]') as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(removeActiveGroupAssignmentMock).toHaveBeenCalledWith("candidate-1");
+      expect(assignCandidateGroupMock).not.toHaveBeenCalled();
+      expect(onUpdated).toHaveBeenCalled();
+    });
   });
 
   it("renders candidate profile photo in the drawer when available", async () => {

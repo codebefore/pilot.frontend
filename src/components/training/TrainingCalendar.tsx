@@ -15,10 +15,7 @@ import {
   type TrainingCalendarEvent,
   type TrainingEventKind,
 } from "../../lib/training-calendar";
-import {
-  colorForBranch,
-  detectBranchFromNotes,
-} from "../../lib/training-branches";
+import type { BranchHelpers } from "../../lib/training-branches";
 import {
   RollingFourWeeksView,
   RollingThreeWeeksView,
@@ -26,10 +23,6 @@ import {
   RollingWeekView,
 } from "./RollingWeekView";
 
-// Quick-assign saat input'u — boş/ara değer yazılabilsin diye local
-// text state taşıyor; geçerli pozitif tam sayı olunca parent'a iletir.
-// Dışarıdan value değişirse senkron olur. Blur'da geçersiz input
-// önceki değere geri döner.
 function GutterDurationInput({
   value,
   onChange,
@@ -86,18 +79,22 @@ type TrainingCalendarProps = {
    * tip render edilirse renk için kullanırız.
    */
   kind: TrainingEventKind;
+  /** Branş katalogundan türetilen renk/label/notes-detect helper'ı. */
+  branchHelpers: BranchHelpers;
   onSelectEvent?: (event: TrainingCalendarEvent) => void;
   onSelectSlot?: (slot: { start: Date; end: Date }) => void;
   /** Event alt/üst kenarından resize edilince çağrılır. */
   onEventResize?: (args: { event: TrainingCalendarEvent; start: Date; end: Date }) => void;
   /** Event body'sinden sürüklenip başka slota bırakılınca çağrılır. */
   onEventDrop?: (args: { event: TrainingCalendarEvent; start: Date; end: Date }) => void;
-  /**
-   * Quick-assign için ders saat sayısı. Teorik takvimde gutter header'ında
-   * (sol-üst boş köşe) küçük bir input olarak render edilir.
-   */
   durationHours?: number;
   onDurationHoursChange?: (hours: number) => void;
+  /** Parent'tan zorlanan navigasyon — değer değiştiğinde takvim o
+   *  tarihe odaklanır. QA'da grup/aday seçilince kullanılır. */
+  focusDate?: Date | null;
+  /** Bu tarihten önceki günler "disabled" (filigran) olarak gösterilir.
+   *  Backend zaten beforeGroupStartDate ile reddediyor; UI ipucu için. */
+  disabledBeforeDate?: Date | null;
 };
 
 // Custom view key'lerimiz — RBC `Views` enum'unda yok, ama `views` map'ine
@@ -138,12 +135,15 @@ const CALENDAR_FORMATS = {
 export function TrainingCalendar({
   events,
   kind: _kind,
+  branchHelpers,
   onSelectEvent,
   onSelectSlot,
   onEventResize,
   onEventDrop,
   durationHours,
   onDurationHoursChange,
+  focusDate,
+  disabledBeforeDate,
 }: TrainingCalendarProps) {
   const [view, setView] = useState<View>(ROLLING_2W_VIEW);
   // Hafta görünümü açılışta 2 gün öncesinden başlasın — kullanıcı
@@ -154,6 +154,16 @@ export function TrainingCalendar({
     d.setHours(0, 0, 0, 0);
     return d;
   });
+
+  // Parent'tan focusDate gelince takvimi o tarihe götür. Pencere "2 gün
+  // önceden başla" kuralına sadık kalsın diye 2 gün geri çekiyoruz.
+  useEffect(() => {
+    if (!focusDate) return;
+    const d = new Date(focusDate);
+    d.setDate(d.getDate() - 2);
+    d.setHours(0, 0, 0, 0);
+    setDate(d);
+  }, [focusDate]);
 
   // Ders saatleri 07:00–23:00 aralığında. RBC `min`/`max` prop'ları
   // gün/hafta görünümlerinin görünür saat aralığını kısıtlar; bu
@@ -181,17 +191,35 @@ export function TrainingCalendar({
     return day === 0 || day === 6;
   };
 
+  // Disabled cutoff (grup startDate öncesi). Günün başlangıcına
+  // normalize edip karşılaştırıyoruz; saat farkı yanlış güne kaydırmasın.
+  const disabledCutoffMs = useMemo(() => {
+    if (!disabledBeforeDate) return null;
+    const d = new Date(disabledBeforeDate);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, [disabledBeforeDate]);
+
   const dayPropGetter = useMemo(
     () => (date: Date) => {
+      const classes: string[] = [];
       if (isWeekend(date)) {
-        const cls = date.getDay() === 0
-          ? "training-day-weekend training-day-sunday"
-          : "training-day-weekend training-day-saturday";
-        return { className: cls };
+        classes.push(
+          date.getDay() === 0
+            ? "training-day-weekend training-day-sunday"
+            : "training-day-weekend training-day-saturday"
+        );
       }
-      return {};
+      if (disabledCutoffMs != null) {
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        if (dayStart.getTime() < disabledCutoffMs) {
+          classes.push("training-day-disabled");
+        }
+      }
+      return classes.length > 0 ? { className: classes.join(" ") } : {};
     },
-    []
+    [disabledCutoffMs]
   );
 
   const WeekHeader = useMemo(
@@ -207,9 +235,6 @@ export function TrainingCalendar({
     []
   );
 
-  // Quick-assign saat input'u takvimin sol-üst gutter köşesine düşüyor.
-  // Hem teorik hem uygulama tarafında aynı süre kuralı geçerli (min 60
-  // dk, 30 dk granülerlik) — iki sayfada da gösteriyoruz.
   const TimeGutterHeader = useMemo(
     () => () => {
       if (!onDurationHoursChange) return null;
@@ -268,8 +293,8 @@ export function TrainingCalendar({
       const branchCode =
         event.kind === "uygulama"
           ? "practice"
-          : detectBranchFromNotes(event.notes);
-      const color = colorForBranch(branchCode);
+          : event.branchCode ?? branchHelpers.detectFromNotes(event.notes);
+      const color = branchHelpers.color(branchCode);
       return color
         ? {
             className: classes.join(" "),
@@ -281,7 +306,7 @@ export function TrainingCalendar({
           }
         : { className: classes.join(" ") };
     },
-    []
+    [branchHelpers]
   );
 
   type InteractionArgs = { event: TrainingCalendarEvent; start: Date | string; end: Date | string };

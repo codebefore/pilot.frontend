@@ -3,7 +3,6 @@ import { Controller, useForm } from "react-hook-form";
 
 import { createInstructor, updateInstructor } from "../../lib/instructors-api";
 import {
-  INSTRUCTOR_BRANCH_OPTIONS,
   INSTRUCTOR_EMPLOYMENT_OPTIONS,
   INSTRUCTOR_ROLE_OPTIONS,
 } from "../../lib/instructor-catalog";
@@ -40,6 +39,7 @@ type InstructorFormValues = {
 type InstructorFormModalProps = {
   open: boolean;
   editing: InstructorResponse | null;
+  branchOptions: Array<{ value: InstructorBranch; label: string }>;
   onClose: () => void;
   onSaved: (saved: InstructorResponse) => void;
   onConcurrencyConflict?: () => void;
@@ -197,6 +197,7 @@ function toggleValue<T extends string>(values: T[], value: T, checked: boolean):
 export function InstructorFormModal({
   open,
   editing,
+  branchOptions,
   onClose,
   onSaved,
   onConcurrencyConflict,
@@ -472,7 +473,7 @@ export function InstructorFormModal({
                 const values = field.value ?? [];
                 return (
                   <div className="settings-checkbox-list">
-                    {INSTRUCTOR_BRANCH_OPTIONS.map((option) => (
+                    {branchOptions.map((option) => (
                       <label className="switch-toggle" key={option.value}>
                         <input
                           checked={values.includes(option.value)}

@@ -11,6 +11,10 @@
 }
 
 /* ─── Sayfa layout: sidebar + takvim ──────────────────────── */
+.training-layout-wrap {
+  padding-top: 12px;
+}
+
 .training-layout {
   display: flex;
   gap: 12px;
@@ -18,10 +22,16 @@
   padding: 0 14px;
 }
 
-.training-layout > .training-calendar {
+.training-layout > .training-calendar,
+.training-layout > .training-calendar-wrap {
   flex: 1 1 auto;
   min-width: 0;
   padding: 0;
+}
+
+.training-calendar-wrap {
+  display: flex;
+  flex-direction: column;
 }
 
 /* ─── Filtre paneli ───────────────────────────────────────── */
@@ -127,6 +137,68 @@
   gap: 2px;
 }
 
+.training-quick-assign-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background: var(--brand-subtle, var(--gray-50));
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--gray-700);
+}
+
+.training-quick-assign-scope-clear {
+  background: transparent;
+  border: none;
+  color: var(--brand-dark, var(--gray-800));
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.training-quick-assign-scope-clear:hover {
+  text-decoration: underline;
+}
+
+.training-filters-search {
+  width: 100%;
+  margin: 4px 0 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--gray-800);
+  background: var(--white, #fff);
+}
+
+.training-filters-search:focus {
+  outline: none;
+  border-color: var(--gray-400);
+}
+
+/* Sidebar listeleri max ~5 satır gösterir, fazlası içeride kayar.
+ * Scrollbar gizli — temiz görünüm için tarayıcıya göre fallback. */
+.training-filters-list-scroll {
+  max-height: 150px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.training-filters-list-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.training-filters-empty {
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--gray-500);
+  font-style: italic;
+}
+
 .training-filters-item {
   display: flex;
   align-items: center;
@@ -174,6 +246,373 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.license-class-badge {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Aday kart galerisi (uygulama eğitim sayfası boş geliş) ── */
+.practice-picker {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+}
+
+.practice-picker-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.practice-picker-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.practice-picker-subtitle {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.practice-picker-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.practice-picker-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.practice-picker-view-btn {
+  background: var(--white, #fff);
+  border: none;
+  border-right: 1px solid var(--gray-200);
+  color: var(--gray-600);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+
+.practice-picker-view-btn:last-child {
+  border-right: none;
+}
+
+.practice-picker-view-btn:hover {
+  background: var(--gray-50);
+  color: var(--gray-900);
+}
+
+.practice-picker-view-btn-active,
+.practice-picker-view-btn-active:hover {
+  background: var(--brand, var(--gray-800));
+  color: var(--white, #fff);
+}
+
+.practice-picker-clear {
+  background: transparent;
+  border: none;
+  color: var(--brand-dark, var(--gray-700));
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.practice-picker-clear:hover {
+  text-decoration: underline;
+}
+
+.practice-picker-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.practice-picker-search {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: var(--white, #fff);
+  color: var(--gray-800);
+}
+
+.practice-picker-search:focus {
+  outline: none;
+  border-color: var(--gray-400);
+}
+
+.practice-picker-empty {
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--gray-500);
+  font-style: italic;
+}
+
+.practice-picker-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+/* Liste modu — gerçek tablo. */
+.practice-picker-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--white, #fff);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.practice-picker-table thead th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  user-select: none;
+}
+
+.practice-picker-th-sort {
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+
+.practice-picker-th-sort:hover {
+  color: var(--gray-800);
+  background: var(--gray-100);
+}
+
+.practice-picker-table tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-800);
+  vertical-align: middle;
+}
+
+.practice-picker-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.practice-picker-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.practice-picker-row:hover {
+  background: var(--gray-50);
+}
+
+.practice-picker-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.practice-picker-row-muted {
+  color: var(--gray-600);
+}
+
+.practice-picker-row-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.practice-picker-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--white, #fff);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s, box-shadow 0.1s, border-color 0.1s;
+}
+
+.practice-picker-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  border-color: var(--gray-300);
+}
+
+.practice-picker-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.practice-picker-card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.practice-picker-card-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.practice-picker-card-name strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.practice-picker-card-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.practice-picker-bar {
+  flex: 1 1 auto;
+  height: 6px;
+  background: var(--gray-100);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.practice-picker-bar-fill {
+  height: 100%;
+  background: var(--brand, var(--gray-700));
+  transition: width 0.2s;
+}
+
+.practice-picker-bar-almost .practice-picker-bar-fill {
+  background: #e08a3f;
+}
+
+.practice-picker-bar-done .practice-picker-bar-fill {
+  background: #4d6b47;
+}
+
+.practice-picker-progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-700);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.practice-picker-progress-text-done {
+  color: #4d6b47;
+}
+
+.practice-picker-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--gray-600);
+}
+
+.practice-picker-card-meta-muted {
+  color: var(--gray-400);
+  font-style: italic;
+}
+
+.practice-picker-card-tag {
+  padding: 2px 8px;
+  background: rgba(224, 138, 63, 0.12);
+  color: #b06420;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Sidebar branş özeti ─────────────────────────────────── */
+.training-branch-summary {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.training-branch-summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.training-branch-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: var(--gray-800);
+}
+
+.training-branch-summary-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.training-branch-summary-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-branch-summary-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.training-branch-summary-count-incomplete {
+  color: var(--danger, #c0392b);
+}
+
+.training-branch-summary-row-ghost {
+  opacity: 0.45;
 }
 
 /* ─── Haftalık özet şeridi ────────────────────────────────── */
@@ -359,8 +798,6 @@
   background: var(--white);
   width: 56px;
   min-width: 56px;
-  border: 2px solid var(--brand);
-  border-radius: 4px;
   /* `.rbc-time-header-content` ile aynı yüksekliği tut: parent flex
    * align-items: stretch default; içeriği dikey ortala. */
   display: flex;
@@ -410,6 +847,21 @@
 .training-calendar .rbc-day-slot.training-day-weekend.rbc-today,
 .training-calendar .rbc-day-bg.training-day-weekend.rbc-today {
   background: var(--brand-subtle);
+}
+
+/* Grup başlangıç tarihi öncesi günler — backend zaten reddediyor,
+ * UI ipucu için filigran. Tıklanabilir kalır (toast'ı handleSelectSlot
+ * gösterir); pointer-events kapatmıyoruz ki tıklayan kullanıcıya
+ * neden engellendiği bildirilsin. */
+.training-calendar .rbc-day-slot.training-day-disabled,
+.training-calendar .rbc-day-bg.training-day-disabled {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.04) 0,
+    rgba(0, 0, 0, 0.04) 6px,
+    transparent 6px,
+    transparent 12px
+  );
 }
 
 /* Header'da hafta sonu günleri için custom span'a class düşüyor;

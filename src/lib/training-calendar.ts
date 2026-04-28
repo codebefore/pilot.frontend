@@ -101,6 +101,7 @@ export type TrainingCalendarEvent = {
   areaId?: string | null;
   routeId?: string | null;
   licenseClassCounts?: TrainingLessonResponse["licenseClassCounts"];
+  branchCode?: string | null;
 };
 
 const joinLicenseClasses = (lesson: TrainingLessonResponse): string => {
@@ -148,6 +149,7 @@ export function trainingLessonToCalendarEvent(
     areaId: lesson.areaId,
     routeId: lesson.routeId,
     licenseClassCounts: lesson.licenseClassCounts,
+    branchCode: lesson.branchCode,
   };
 }
 
@@ -166,6 +168,7 @@ export function calendarEventToTrainingLessonRequest(
     vehicleId: event.kind === "uygulama" ? event.vehicleId ?? null : null,
     areaId: event.areaId ?? null,
     routeId: event.routeId ?? null,
+    branchCode: event.kind === "teorik" ? event.branchCode ?? null : null,
     licenseClass: event.licenseClass === "-" ? null : event.licenseClass,
     notes: event.notes ?? null,
     rowVersion: event.rowVersion,

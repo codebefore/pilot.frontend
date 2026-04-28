@@ -17,12 +17,8 @@ vi.mock("../components/settings/LicenseClassDefinitionsSettingsSection", () => (
   LicenseClassDefinitionsSettingsSection: () => <div>License Classes Section Mock</div>,
 }));
 
-vi.mock("../components/settings/RoutesSettingsSection", () => ({
-  RoutesSettingsSection: () => <div>Routes Section Mock</div>,
-}));
-
-vi.mock("../components/settings/AreasSettingsSection", () => ({
-  AreasSettingsSection: () => <div>Areas Section Mock</div>,
+vi.mock("../components/settings/TrainingBranchesSettingsSection", () => ({
+  TrainingBranchesSettingsSection: () => <div>Training Branches Section Mock</div>,
 }));
 
 function renderSettingsPage(initialPath = "/settings/general") {
@@ -75,13 +71,10 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("link", { name: /Ehliyet Tipleri/i }));
     expect(screen.getByText("License Classes Section Mock")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("link", { name: /Branşlar/i }));
+    expect(screen.getByText("Training Branches Section Mock")).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("link", { name: /Eğitmenler/i }));
     expect(screen.getByText("Instructors Section Mock")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("link", { name: /Güzergahlar/i }));
-    expect(screen.getByText("Routes Section Mock")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("link", { name: /Alanlar/i }));
-    expect(screen.getByText("Areas Section Mock")).toBeInTheDocument();
   });
 });

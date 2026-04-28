@@ -1,5 +1,4 @@
 import type {
-  InstructorBranch,
   InstructorEmploymentType,
   InstructorRole,
 } from "./types";
@@ -29,14 +28,6 @@ export const INSTRUCTOR_EMPLOYMENT_OPTIONS: Option<InstructorEmploymentType>[] =
   { value: "other", label: "Diğer Personel" },
 ];
 
-export const INSTRUCTOR_BRANCH_OPTIONS: Option<InstructorBranch>[] = [
-  { value: "traffic", label: "Trafik ve Çevre" },
-  { value: "first_aid", label: "İlk Yardım" },
-  { value: "vehicle_technique", label: "Araç Tekniği" },
-  { value: "traffic_ethics", label: "Trafik Adabı" },
-  { value: "practice", label: "Uygulama" },
-];
-
 export const INSTRUCTOR_LICENSE_CLASS_OPTIONS = [...REFERENCE_LICENSE_CLASS_OPTIONS];
 
 function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string> {
@@ -48,4 +39,3 @@ function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string
 
 export const INSTRUCTOR_ROLE_LABELS = buildLabelMap(INSTRUCTOR_ROLE_OPTIONS);
 export const INSTRUCTOR_EMPLOYMENT_LABELS = buildLabelMap(INSTRUCTOR_EMPLOYMENT_OPTIONS);
-export const INSTRUCTOR_BRANCH_LABELS = buildLabelMap(INSTRUCTOR_BRANCH_OPTIONS);

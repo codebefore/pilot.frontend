@@ -217,12 +217,42 @@ export type InstructorRole =
   | "accounting"
   | "other";
 export type InstructorEmploymentType = "salaried" | "hourly" | "other";
-export type InstructorBranch =
-  | "traffic"
-  | "first_aid"
-  | "vehicle_technique"
-  | "traffic_ethics"
-  | "practice";
+export type InstructorBranch = string;
+
+export interface TrainingBranchDefinitionResponse {
+  id: string;
+  code: string;
+  name: string;
+  totalLessonHourLimit: number | null;
+  colorHex: string;
+  displayOrder: number;
+  isActive: boolean;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface TrainingBranchDefinitionListSummaryResponse {
+  activeCount: number;
+  limitedCount: number;
+}
+
+export interface TrainingBranchDefinitionListResponse
+  extends PagedResponse<TrainingBranchDefinitionResponse> {
+  summary: TrainingBranchDefinitionListSummaryResponse;
+}
+
+export interface TrainingBranchDefinitionUpsertRequest {
+  code: string;
+  name: string;
+  totalLessonHourLimit?: number | null;
+  colorHex: string;
+  displayOrder: number;
+  isActive: boolean;
+  notes?: string | null;
+  rowVersion?: number;
+}
 
 export interface InstructorResponse {
   id: string;
@@ -594,13 +624,23 @@ export interface TrainingLessonResponse {
   areaName: string | null;
   routeId: string | null;
   routeName: string | null;
+  branchCode: string | null;
   licenseClass: LicenseClass | null;
+  practiceEducationType: PracticeEducationType | null;
   candidateCount: number;
   notes: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
 }
+
+/** MEBBİS `cmbEgitimTuru` karşılığı — uygulama (direksiyon) derslerinde
+ *  zorunlu, teorik derslerde null. Backend canonical English. */
+export type PracticeEducationType =
+  | "normal"
+  | "makeup"
+  | "second_practice"
+  | "failed_candidate";
 
 export interface TrainingLessonListResponse {
   items: TrainingLessonResponse[];
@@ -617,7 +657,9 @@ export interface TrainingLessonUpsertRequest {
   vehicleId?: string | null;
   areaId?: string | null;
   routeId?: string | null;
+  branchCode?: string | null;
   licenseClass?: LicenseClass | null;
+  practiceEducationType?: PracticeEducationType | null;
   notes?: string | null;
   rowVersion?: number;
 }

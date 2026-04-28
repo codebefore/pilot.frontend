@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
@@ -30,6 +30,7 @@ import {
   applyTagsToCandidates,
 } from "../lib/candidate-bulk";
 import {
+  assignCandidateGroup,
   getCandidates,
   getExamScheduleOptions,
   getCandidateById,
@@ -40,9 +41,11 @@ import {
   type CandidateSortField,
   type SortDirection,
 } from "../lib/candidates-api";
+import { getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
 import { syncExamSchedules } from "../lib/exam-schedules-api";
 import { formatLicenseClassTotalSummary } from "../lib/exam-schedule-summary";
+import { setPracticeCandidateScope } from "../lib/practice-candidate-scope";
 import { useLanguage, useT } from "../lib/i18n";
 import {
   candidateExamResultLabel,
@@ -63,11 +66,12 @@ import type {
   CandidateTag,
   ExamScheduleLicenseClassCount,
   ExamScheduleOption,
+  GroupResponse,
 } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
-type BulkActionMode = "status" | "tags" | "export" | "examDate" | null;
+type BulkActionMode = "status" | "tags" | "export" | "examDate" | "group" | null;
 type CandidateListTabKey = string;
 
 const TAB_KEYS: CandidateTab[] = [
@@ -506,6 +510,9 @@ export function CandidatesPage({
   const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
   const [bulkTagValues, setBulkTagValues] = useState<string[]>([]);
   const [bulkExamDateValue, setBulkExamDateValue] = useState("");
+  const [bulkGroupId, setBulkGroupId] = useState("");
+  const [bulkGroupOptions, setBulkGroupOptions] = useState<GroupResponse[]>([]);
+  const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
@@ -534,6 +541,7 @@ export function CandidatesPage({
   const lastCompletedFetchKeyRef = useRef<string | null>(null);
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const selectedId = searchParams.get("selected");
   const [selectedExamDate, setSelectedExamDate] = useState("");
   const [examDateOptions, setExamDateOptions] = useState<ExamScheduleOption[]>([]);
@@ -1138,6 +1146,40 @@ export function CandidatesPage({
     setBulkActionMode("export");
   };
 
+  const openPracticeTrainingForSelected = () => {
+    if (selectedCandidateIds.size === 0) {
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
+      return;
+    }
+    // localStorage'a yaz, sonra uygulama sayfasına yönlendir.
+    // İlk seçili aday QA'da default seçili gelir; diğerleri scope'ta
+    // toggle olarak listelenir.
+    const ids = Array.from(selectedCandidateIds);
+    setPracticeCandidateScope(ids);
+    navigate(`/training/uygulama?candidateId=${encodeURIComponent(ids[0])}`);
+  };
+
+  const openBulkGroupAction = async () => {
+    if (selectedCandidateIds.size === 0) {
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
+      return;
+    }
+
+    setBulkActionMode("group");
+    setBulkGroupId("");
+    if (bulkGroupOptions.length > 0) return;
+
+    setBulkGroupLoading(true);
+    try {
+      const result = await getGroups({ pageSize: 100 });
+      setBulkGroupOptions(result.items);
+    } catch {
+      showToast(t("candidates.toast.bulkGroupFailed"), "error");
+    } finally {
+      setBulkGroupLoading(false);
+    }
+  };
+
   const openBulkExamDateAction = () => {
     if (selectedCandidateIds.size === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
@@ -1253,6 +1295,32 @@ export function CandidatesPage({
       setRefreshKey((k) => k + 1);
     } catch {
       showToast(t("candidates.toast.bulkExamFailed"), "error");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const applyBulkGroupChange = async () => {
+    if (!bulkGroupId || selectedCandidateIds.size === 0) {
+      return;
+    }
+
+    setBulkSaving(true);
+
+    try {
+      const selectedIds = Array.from(selectedCandidateIds);
+      await Promise.all(
+        selectedIds.map((candidateId) => assignCandidateGroup(candidateId, bulkGroupId))
+      );
+
+      showToast(`${selectedIds.length} aday gruba aktarıldı`);
+      setBulkActionMode(null);
+      setBulkSelectEnabled(false);
+      setSelectedCandidateIds(new Set());
+      setBulkGroupId("");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast(t("candidates.toast.bulkGroupFailed"), "error");
     } finally {
       setBulkSaving(false);
     }
@@ -1540,6 +1608,35 @@ export function CandidatesPage({
                     {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
                   </button>
                 </>
+              ) : bulkActionMode === "group" ? (
+                <>
+                  <CustomSelect
+                    aria-label={t("candidates.aria.bulkGroupSelect")}
+                    disabled={bulkGroupLoading}
+                    onChange={(event) => setBulkGroupId(event.target.value)}
+                    size="sm"
+                    value={bulkGroupId}
+                  >
+                    <option value="">
+                      {bulkGroupLoading
+                        ? t("candidates.bulk.loadingGroups")
+                        : t("candidates.bulk.groupPlaceholder")}
+                    </option>
+                    {bulkGroupOptions.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {buildGroupHeading(group.title, group.term, [group.term], lang)}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={selectedCount === 0 || !bulkGroupId || bulkSaving}
+                    onClick={applyBulkGroupChange}
+                    type="button"
+                  >
+                    {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
+                  </button>
+                </>
               ) : (
                 <>
                   {examDateSidebar ? (
@@ -1553,6 +1650,13 @@ export function CandidatesPage({
                   ) : null}
                   <button
                     className="btn btn-secondary btn-sm"
+                    onClick={openBulkGroupAction}
+                    type="button"
+                  >
+                    {t("candidates.bulk.assignGroup")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
                     onClick={openBulkTagAction}
                     type="button"
                   >
@@ -1564,6 +1668,13 @@ export function CandidatesPage({
                     type="button"
                   >
                     {t("candidates.bulk.changeStatus")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={openPracticeTrainingForSelected}
+                    type="button"
+                  >
+                    {t("candidates.bulk.practiceTraining")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"

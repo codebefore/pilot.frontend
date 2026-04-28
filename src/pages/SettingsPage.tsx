@@ -2,10 +2,9 @@ import { useMemo, useState, type ChangeEvent } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
-import { AreasSettingsSection } from "../components/settings/AreasSettingsSection";
 import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
 import { LicenseClassDefinitionsSettingsSection } from "../components/settings/LicenseClassDefinitionsSettingsSection";
-import { RoutesSettingsSection } from "../components/settings/RoutesSettingsSection";
+import { TrainingBranchesSettingsSection } from "../components/settings/TrainingBranchesSettingsSection";
 import { VehiclesSettingsSection } from "../components/settings/VehiclesSettingsSection";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { StatusPill } from "../components/ui/StatusPill";
@@ -21,8 +20,7 @@ type SettingsSectionKey =
   | "vehicles"
   | "instructors"
   | "licenseClasses"
-  | "routes"
-  | "areas";
+  | "trainingBranches";
 
 type SettingsFormValues = {
   institutionName: string;
@@ -122,6 +120,11 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         to: "/settings/definitions/license-classes",
       },
       {
+        labelKey: "settings.nav.trainingBranches.label",
+        descriptionKey: "settings.nav.trainingBranches.description",
+        to: "/settings/definitions/training-branches",
+      },
+      {
         labelKey: "settings.nav.vehicles.label",
         descriptionKey: "settings.nav.vehicles.description",
         to: "/settings/definitions/vehicles",
@@ -130,16 +133,6 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.instructors.label",
         descriptionKey: "settings.nav.instructors.description",
         to: "/settings/definitions/instructors",
-      },
-      {
-        labelKey: "settings.nav.routes.label",
-        descriptionKey: "settings.nav.routes.description",
-        to: "/settings/definitions/routes",
-      },
-      {
-        labelKey: "settings.nav.areas.label",
-        descriptionKey: "settings.nav.areas.description",
-        to: "/settings/definitions/areas",
       },
     ],
   },
@@ -166,12 +159,8 @@ function getActiveSection(pathname: string): SettingsSectionKey {
     return "licenseClasses";
   }
 
-  if (pathname.includes("/settings/definitions/areas")) {
-    return "areas";
-  }
-
-  if (pathname.includes("/settings/definitions/routes")) {
-    return "routes";
+  if (pathname.includes("/settings/definitions/training-branches")) {
+    return "trainingBranches";
   }
 
   if (pathname.includes("/settings/definitions/instructors")) {
@@ -615,10 +604,12 @@ export function SettingsPage() {
                 element={<LicenseClassDefinitionsSettingsSection />}
                 path="definitions/license-classes"
               />
+              <Route
+                element={<TrainingBranchesSettingsSection />}
+                path="definitions/training-branches"
+              />
               <Route element={<VehiclesSettingsSection />} path="definitions/vehicles" />
               <Route element={<InstructorsSettingsSection />} path="definitions/instructors" />
-              <Route element={<RoutesSettingsSection />} path="definitions/routes" />
-              <Route element={<AreasSettingsSection />} path="definitions/areas" />
               <Route element={<Navigate replace to="general" />} path="*" />
             </Routes>
           </div>

@@ -116,6 +116,8 @@ const tr = {
   "settings.nav.integrations.description": "MEB bağlantısı ve senkron ayarları",
   "settings.nav.licenseClasses.label": "Ehliyet Tipleri",
   "settings.nav.licenseClasses.description": "Sınıf, yaş, ders saati ve ücret tanımları",
+  "settings.nav.trainingBranches.label": "Branşlar",
+  "settings.nav.trainingBranches.description": "Ders branşı, limit ve renk tanımları",
   "settings.nav.vehicles.label": "Araçlar",
   "settings.nav.vehicles.description": "Uygulama ve planlama araçları",
   "settings.nav.instructors.label": "Eğitmenler",
@@ -538,6 +540,7 @@ const tr = {
   "candidates.aria.bulkStatusSelect": "Toplu durum seç",
   "candidates.aria.bulkTagSelect": "Toplu etiket seç",
   "candidates.aria.bulkExamDateSelect": "Toplu sınav tarihi seç",
+  "candidates.aria.bulkGroupSelect": "Toplu grup seç",
   "candidates.toast.loadFailed": "Adaylar yüklenemedi",
   "candidates.toast.examScheduleSynced": "Sınav takvimi senkronize edildi",
   "candidates.toast.examScheduleSyncFailed": "Sınav takvimi senkronize edilemedi",
@@ -548,6 +551,7 @@ const tr = {
   "candidates.toast.bulkStatusFailed": "Toplu durum güncellenemedi",
   "candidates.toast.bulkTagFailed": "Toplu etiket ekleme tamamlanamadı",
   "candidates.toast.bulkExamFailed": "Toplu sınav ataması tamamlanamadı",
+  "candidates.toast.bulkGroupFailed": "Toplu grup ataması tamamlanamadı",
   "candidates.bulk.manageTags": "Etiketleri Yönet",
   "candidates.bulk.statusPlaceholder": "Durum seç",
   "candidates.bulk.apply": "Uygula",
@@ -557,11 +561,15 @@ const tr = {
   "candidates.bulk.exporting": "İndiriliyor...",
   "candidates.bulk.exportCsv": "CSV İndir",
   "candidates.bulk.datePlaceholder": "Tarih seç",
+  "candidates.bulk.groupPlaceholder": "Grup seç",
+  "candidates.bulk.loadingGroups": "Gruplar yükleniyor...",
   "candidates.bulk.assigning": "Aktarılıyor...",
   "candidates.bulk.setExamDate": "Sınav Tarihi Belirle",
+  "candidates.bulk.assignGroup": "Gruba Aktar",
   "candidates.bulk.addTag": "Etiket Ekle",
   "candidates.bulk.export": "Dışa Aktar",
   "candidates.bulk.changeStatus": "Durum Değiştir",
+  "candidates.bulk.practiceTraining": "Uygulama Eğitimi",
   "candidates.bulk.close": "Kapat",
   "candidates.csv.completedDocuments": "Tamamlanan Evrak",
   "candidates.csv.examResult": "Sınav Sonucu",
@@ -867,6 +875,12 @@ const tr = {
   "trainingLesson.validation.vehicleNotFound": "Araç bulunamadı",
   "trainingLesson.validation.areaNotFound": "Alan bulunamadı",
   "trainingLesson.validation.routeNotFound": "Güzergah bulunamadı",
+  "trainingLesson.validation.branchRequired": "Teorik ders için branş zorunlu",
+  "trainingLesson.validation.branchNotFound": "Branş bulunamadı",
+  "trainingLesson.validation.groupDailyLimitExceeded":
+    "Aynı şubeye bir günde en fazla 6 saat teorik ders yazılabilir",
+  "trainingLesson.validation.branchTotalLimitExceeded":
+    "Branşın toplam ders saati limiti aşıldı",
   "trainingLesson.validation.instructorConflict":
     "Bu eğitmenin aynı saatte başka bir dersi var",
   "trainingLesson.validation.vehicleConflict":
@@ -875,6 +889,27 @@ const tr = {
     "Bu grubun aynı saatte başka bir dersi var",
   "trainingLesson.validation.candidateConflict":
     "Adayın aynı saatte başka bir dersi var (uygulama veya teorik)",
+  "trainingLesson.validation.beforeGroupStartDate":
+    "Grup {groupStartDate} tarihinden önce başlayamaz, ders bu tarihten önceye atanamaz",
+  "trainingLesson.validation.instructorDailyLimitExceeded":
+    "Eğitmene aynı gün en fazla {maxHours} saat ders yazılabilir",
+  "trainingLesson.validation.candidatePracticeDailyLimitExceeded":
+    "Kursiyere aynı gün en fazla {maxHours} saat uygulama dersi yazılabilir",
+  "trainingLesson.validation.practiceEducationTypeRequired":
+    "Uygulama dersi için eğitim türü seçilmeli",
+  "trainingLesson.validation.practiceEducationTypeInvalid":
+    "Eğitim türü desteklenmiyor",
+  "trainingLesson.validation.practiceEducationTypeNotAllowed":
+    "Eğitim türü sadece uygulama dersinde geçerli",
+  "training.practiceEducation.normal": "Normal Eğitim",
+  "training.practiceEducation.makeup": "Telafi Eğitim (Ön Sınav)",
+  "training.practiceEducation.second_practice": "2. Direksiyon Eğitimi",
+  "training.practiceEducation.failed_candidate": "Başarısız Aday Eğitimi",
+  "training.practiceEducation.popoverTitle": "Eğitim türünü seç",
+  "trainingLesson.validation.instructorWeeklyDayLimitExceeded":
+    "Eğitmen aynı haftada en fazla {maxDays} gün çalışabilir",
+  "trainingLesson.validation.instructorWeeklyHourLimitExceeded":
+    "Eğitmen aynı haftada toplam en fazla {maxHours} saat ders verebilir",
   "trainingLesson.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
   "trainingLesson.validation.concurrencyConflict":
     "Bu kayıt başka bir kullanıcı tarafından güncellendi. Formu kapatıp güncel veriyle tekrar deneyin.",
@@ -891,11 +926,19 @@ const tr = {
   "training.toast.lessonNotDeleted": "Ders silinemedi",
   "training.toast.outsideHours": "Ders 07:00-23:00 aralığında olmalı",
   "training.toast.selectGroupAndInstructorFirst":
-    "Lütfen önce sol panelden Grup ve Eğitmen seçin",
+    "Lütfen önce panelden Grup seçin ve filtreden bir eğitmen işaretleyin",
+  "training.toast.selectExactlyOneInstructor":
+    "Filtrede tam olarak bir eğitmen seçili olmalı",
+  "training.toast.selectExactlyOneVehicle":
+    "Filtrede tam olarak bir araç seçili olmalı",
+  "training.toast.selectCandidateFirst":
+    "Lütfen önce panelden bir aday seçin",
   "training.toast.selectCandidateInstructorVehicleFirst":
     "Lütfen önce sol panelden Aday, Eğitmen ve Araç seçin",
   "training.toast.candidateTheoryConflict":
     "Adayın bu saatlerde teorik dersi var, uygulama dersi atanamaz",
+  "training.toast.groupPracticeConflict":
+    "Grubun adaylarından birinin bu saatlerde uygulama dersi var, teorik ders atanamaz",
   "training.toast.bulkAssigned": "{count} ders oluşturuldu",
   "training.toast.partialAssigned":
     "{success} ders oluştu, {remaining} ders eklenemedi: {message}",
@@ -906,10 +949,30 @@ const tr = {
   "training.filter.vehiclesTitle": "Araçlar",
   "training.filter.instructorsTitle": "Eğitmenler",
   "training.filter.noVehicle": "Araç seçilmedi",
-  "training.quick.header": "Hızlı Ders Atama",
+  "training.filter.searchPlaceholder": "Ara…",
+  "training.filter.noMatches": "Eşleşme yok",
   "training.quick.groupPlaceholder": "Grup seç…",
   "training.quick.instructorPlaceholder": "Eğitmen seç…",
-  "training.quick.candidatePlaceholder": "Aday seç…",
+  "training.quick.candidatePlaceholder": "Aday ara (ad, soyad, TC, telefon)…",
+  "training.quick.candidateSearchHint": "Daha fazlası için aramaya başlayın (+{count} aday)",
+  "training.quick.scopeBadge": "Adaylar sayfasından {count} aday seçildi",
+  "training.quick.scopeClear": "Tümünü göster",
+  "training.picker.title": "Aday seçin",
+  "training.picker.subtitle": "{count} aday gösteriliyor",
+  "training.picker.empty": "Eşleşen aday yok",
+  "training.picker.loading": "Yükleniyor…",
+  "training.picker.lastLesson": "Son ders: {at}",
+  "training.picker.noLessonsYet": "Henüz uygulama dersi yok",
+  "training.picker.almostDone": "{remaining} saat kaldı",
+  "training.picker.backToList": "← Aday listesine dön",
+  "training.picker.view.grid": "Kart görünümü",
+  "training.picker.view.list": "Liste görünümü",
+  "training.picker.col.name": "Ad Soyad",
+  "training.picker.col.licenseClass": "Sınıf",
+  "training.picker.col.group": "Grup",
+  "training.picker.col.progress": "İlerleme",
+  "training.picker.col.lastLesson": "Son Ders",
+  "training.picker.col.phone": "Telefon",
   "training.quick.vehiclePlaceholder": "Araç seç…",
   "training.popover.titleDefault": "Ders Konusu Seçin",
   "training.popover.titleWithSlot": "{start} – {end} ({hours} sa)",
@@ -969,6 +1032,7 @@ const tr = {
   "training.weekSummary.lessons": "ders",
   "training.weekSummary.groups": "grup",
   "training.weekSummary.instructors": "eğitmen",
+  "training.branchSummary.fraction": "{given}/{target}",
   "training.weekSummary.candidates": "aday",
   "training.weekSummary.hours": "saat",
 };
@@ -1082,6 +1146,8 @@ const en: Record<keyof typeof tr, string> = {
   "settings.nav.integrations.description": "MEB connection and sync settings",
   "settings.nav.licenseClasses.label": "License Classes",
   "settings.nav.licenseClasses.description": "Class, age, lesson hours and fee definitions",
+  "settings.nav.trainingBranches.label": "Branches",
+  "settings.nav.trainingBranches.description": "Lesson branch, limit and color definitions",
   "settings.nav.vehicles.label": "Vehicles",
   "settings.nav.vehicles.description": "Practice and planning vehicles",
   "settings.nav.instructors.label": "Instructors",
@@ -1504,6 +1570,7 @@ const en: Record<keyof typeof tr, string> = {
   "candidates.aria.bulkStatusSelect": "Bulk status picker",
   "candidates.aria.bulkTagSelect": "Bulk tag picker",
   "candidates.aria.bulkExamDateSelect": "Bulk exam date picker",
+  "candidates.aria.bulkGroupSelect": "Bulk group picker",
   "candidates.toast.loadFailed": "Failed to load candidates",
   "candidates.toast.examScheduleSynced": "Exam schedule synchronized",
   "candidates.toast.examScheduleSyncFailed": "Failed to sync exam schedule",
@@ -1514,6 +1581,7 @@ const en: Record<keyof typeof tr, string> = {
   "candidates.toast.bulkStatusFailed": "Bulk status update failed",
   "candidates.toast.bulkTagFailed": "Bulk tag update could not complete",
   "candidates.toast.bulkExamFailed": "Bulk exam assignment could not complete",
+  "candidates.toast.bulkGroupFailed": "Bulk group assignment could not complete",
   "candidates.bulk.manageTags": "Manage Tags",
   "candidates.bulk.statusPlaceholder": "Pick status",
   "candidates.bulk.apply": "Apply",
@@ -1523,11 +1591,15 @@ const en: Record<keyof typeof tr, string> = {
   "candidates.bulk.exporting": "Downloading...",
   "candidates.bulk.exportCsv": "Download CSV",
   "candidates.bulk.datePlaceholder": "Pick date",
+  "candidates.bulk.groupPlaceholder": "Pick group",
+  "candidates.bulk.loadingGroups": "Loading groups...",
   "candidates.bulk.assigning": "Assigning...",
   "candidates.bulk.setExamDate": "Set Exam Date",
+  "candidates.bulk.assignGroup": "Assign Group",
   "candidates.bulk.addTag": "Add Tag",
   "candidates.bulk.export": "Export",
   "candidates.bulk.changeStatus": "Change Status",
+  "candidates.bulk.practiceTraining": "Practice Training",
   "candidates.bulk.close": "Close",
   "candidates.csv.completedDocuments": "Completed Documents",
   "candidates.csv.examResult": "Exam Result",
@@ -1839,6 +1911,12 @@ const en: Record<keyof typeof tr, string> = {
   "trainingLesson.validation.vehicleNotFound": "Vehicle not found",
   "trainingLesson.validation.areaNotFound": "Area not found",
   "trainingLesson.validation.routeNotFound": "Route not found",
+  "trainingLesson.validation.branchRequired": "Branch is required for theory lessons",
+  "trainingLesson.validation.branchNotFound": "Branch not found",
+  "trainingLesson.validation.groupDailyLimitExceeded":
+    "A group can have at most 6 theory lesson hours per day",
+  "trainingLesson.validation.branchTotalLimitExceeded":
+    "Branch total lesson hour limit exceeded",
   "trainingLesson.validation.instructorConflict":
     "This instructor already has a lesson at the same time",
   "trainingLesson.validation.vehicleConflict":
@@ -1847,6 +1925,27 @@ const en: Record<keyof typeof tr, string> = {
     "This group already has a lesson at the same time",
   "trainingLesson.validation.candidateConflict":
     "Candidate already has a lesson at the same time (theory or practice)",
+  "trainingLesson.validation.beforeGroupStartDate":
+    "Group starts on {groupStartDate}; lessons cannot be scheduled before that date",
+  "trainingLesson.validation.instructorDailyLimitExceeded":
+    "Instructor can teach at most {maxHours} hours per day",
+  "trainingLesson.validation.candidatePracticeDailyLimitExceeded":
+    "Candidate can be assigned at most {maxHours} hours of practice lessons per day",
+  "trainingLesson.validation.practiceEducationTypeRequired":
+    "Practice lessons require an education type",
+  "trainingLesson.validation.practiceEducationTypeInvalid":
+    "Practice education type is not supported",
+  "trainingLesson.validation.practiceEducationTypeNotAllowed":
+    "Practice education type only applies to practice lessons",
+  "training.practiceEducation.normal": "Normal Training",
+  "training.practiceEducation.makeup": "Make-up Training (Pre-Exam)",
+  "training.practiceEducation.second_practice": "2nd Practice Training",
+  "training.practiceEducation.failed_candidate": "Failed Candidate Training",
+  "training.practiceEducation.popoverTitle": "Pick education type",
+  "trainingLesson.validation.instructorWeeklyDayLimitExceeded":
+    "Instructor can work at most {maxDays} days per week",
+  "trainingLesson.validation.instructorWeeklyHourLimitExceeded":
+    "Instructor can teach at most {maxHours} total hours per week",
   "trainingLesson.validation.rowVersionRequired": "Row version is required",
   "trainingLesson.validation.concurrencyConflict":
     "This lesson was updated by someone else. Close the form and try again with the latest data.",
@@ -1863,11 +1962,19 @@ const en: Record<keyof typeof tr, string> = {
   "training.toast.lessonNotDeleted": "Could not delete lesson",
   "training.toast.outsideHours": "Lesson must be within 07:00–23:00",
   "training.toast.selectGroupAndInstructorFirst":
-    "Please select a Group and Instructor from the side panel first",
+    "Pick a Group from the panel and check exactly one instructor in the filter",
+  "training.toast.selectExactlyOneInstructor":
+    "Exactly one instructor must be checked in the filter",
+  "training.toast.selectExactlyOneVehicle":
+    "Exactly one vehicle must be checked in the filter",
+  "training.toast.selectCandidateFirst":
+    "Pick a candidate from the panel first",
   "training.toast.selectCandidateInstructorVehicleFirst":
     "Please select a Candidate, Instructor and Vehicle from the side panel first",
   "training.toast.candidateTheoryConflict":
     "Candidate has a theory lesson at this time; practice lesson can't be assigned",
+  "training.toast.groupPracticeConflict":
+    "One of the group's candidates has a practice lesson at this time; theory lesson can't be assigned",
   "training.toast.bulkAssigned": "{count} lessons created",
   "training.toast.partialAssigned":
     "{success} lessons created, {remaining} could not be added: {message}",
@@ -1879,10 +1986,30 @@ const en: Record<keyof typeof tr, string> = {
   "training.filter.vehiclesTitle": "Vehicles",
   "training.filter.instructorsTitle": "Instructors",
   "training.filter.noVehicle": "No vehicle",
-  "training.quick.header": "Quick Lesson Assignment",
+  "training.filter.searchPlaceholder": "Search…",
+  "training.filter.noMatches": "No matches",
   "training.quick.groupPlaceholder": "Select group…",
   "training.quick.instructorPlaceholder": "Select instructor…",
-  "training.quick.candidatePlaceholder": "Select candidate…",
+  "training.quick.candidatePlaceholder": "Search candidate (name, ID, phone)…",
+  "training.quick.candidateSearchHint": "Start typing to see more (+{count} candidates)",
+  "training.quick.scopeBadge": "{count} candidates selected from the candidates page",
+  "training.quick.scopeClear": "Show all",
+  "training.picker.title": "Pick a candidate",
+  "training.picker.subtitle": "Showing {count} candidates",
+  "training.picker.empty": "No matching candidates",
+  "training.picker.loading": "Loading…",
+  "training.picker.lastLesson": "Last lesson: {at}",
+  "training.picker.noLessonsYet": "No practice lessons yet",
+  "training.picker.almostDone": "{remaining}h left",
+  "training.picker.backToList": "← Back to candidate list",
+  "training.picker.view.grid": "Card view",
+  "training.picker.view.list": "List view",
+  "training.picker.col.name": "Name",
+  "training.picker.col.licenseClass": "Class",
+  "training.picker.col.group": "Group",
+  "training.picker.col.progress": "Progress",
+  "training.picker.col.lastLesson": "Last Lesson",
+  "training.picker.col.phone": "Phone",
   "training.quick.vehiclePlaceholder": "Select vehicle…",
   "training.popover.titleDefault": "Select Lesson Topic",
   "training.popover.titleWithSlot": "{start} – {end} ({hours} h)",
@@ -1945,6 +2072,7 @@ const en: Record<keyof typeof tr, string> = {
   "training.weekSummary.instructors": "instructors",
   "training.weekSummary.candidates": "candidates",
   "training.weekSummary.hours": "hours",
+  "training.branchSummary.fraction": "{given}/{target}",
 };
 
 export type TranslationKey = keyof typeof tr;

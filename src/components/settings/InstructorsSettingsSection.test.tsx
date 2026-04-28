@@ -9,6 +9,7 @@ const getInstructorsMock = vi.fn();
 const createInstructorMock = vi.fn();
 const updateInstructorMock = vi.fn();
 const deleteInstructorMock = vi.fn();
+const getTrainingBranchDefinitionsMock = vi.fn();
 
 vi.mock("../../lib/instructors-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/instructors-api")>(
@@ -25,6 +26,19 @@ vi.mock("../../lib/instructors-api", async () => {
       updateInstructorMock(...args),
     deleteInstructor: (...args: Parameters<typeof actual.deleteInstructor>) =>
       deleteInstructorMock(...args),
+  };
+});
+
+vi.mock("../../lib/training-branch-definitions-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/training-branch-definitions-api")>(
+    "../../lib/training-branch-definitions-api"
+  );
+
+  return {
+    ...actual,
+    getTrainingBranchDefinitions: (
+      ...args: Parameters<typeof actual.getTrainingBranchDefinitions>
+    ) => getTrainingBranchDefinitionsMock(...args),
   };
 });
 
@@ -50,6 +64,22 @@ const sampleInstructor = {
   rowVersion: 1,
 };
 
+function createBranch(code: string, name: string, displayOrder: number) {
+  return {
+    id: `branch-${code}`,
+    code,
+    name,
+    totalLessonHourLimit: code === "practice" ? null : 16,
+    colorHex: "#3e5660",
+    displayOrder,
+    isActive: true,
+    notes: null,
+    createdAtUtc: "2026-01-01T00:00:00Z",
+    updatedAtUtc: "2026-01-01T00:00:00Z",
+    rowVersion: 1,
+  };
+}
+
 describe("InstructorsSettingsSection", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -57,6 +87,7 @@ describe("InstructorsSettingsSection", () => {
     createInstructorMock.mockReset();
     updateInstructorMock.mockReset();
     deleteInstructorMock.mockReset();
+    getTrainingBranchDefinitionsMock.mockReset();
 
     getInstructorsMock.mockResolvedValue({
       items: [sampleInstructor],
@@ -87,6 +118,24 @@ describe("InstructorsSettingsSection", () => {
       firstName: "MEHMET",
     });
     deleteInstructorMock.mockResolvedValue(undefined);
+    getTrainingBranchDefinitionsMock.mockResolvedValue({
+      items: [
+        createBranch("traffic", "Trafik ve Çevre", 10),
+        createBranch("first_aid", "İlk Yardım", 20),
+        createBranch("vehicle_technique", "Araç Tekniği", 30),
+        createBranch("traffic_ethics", "Trafik Adabı", 40),
+        createBranch("practice", "Uygulama", 50),
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 5,
+      totalPages: 1,
+      summary: {
+        activeCount: 5,
+        inactiveCount: 0,
+        limitedCount: 4,
+      },
+    });
   });
 
   it("loads only active instructors on mount", async () => {

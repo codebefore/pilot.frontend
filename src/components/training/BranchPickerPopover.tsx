@@ -2,19 +2,18 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useT } from "../../lib/i18n";
-import {
-  BRANCH_LABELS,
-  colorForBranch,
-} from "../../lib/training-branches";
-import type { InstructorBranch } from "../../lib/types";
+import type { BranchHelpers } from "../../lib/training-branches";
 
 type BranchPickerPopoverProps = {
   pos: { x: number; y: number };
-  availableBranches: InstructorBranch[];
+  /** Branş code'larından oluşan liste — DB'den gelen kataloğun alt kümesi
+   *  (eğitmenin yetkili olduğu branşlar). */
+  availableBranches: string[];
+  branchHelpers: BranchHelpers;
   /** Header'da slot bilgisi (saat · süre). Null ise gösterilmez. */
   slotInfo: string | null;
   isLoading: boolean;
-  onPick: (branch: InstructorBranch) => void;
+  onPick: (branch: string) => void;
   onClose: () => void;
 };
 
@@ -30,6 +29,7 @@ const POPOVER_WIDTH = 220;
 export function BranchPickerPopover({
   pos,
   availableBranches,
+  branchHelpers,
   slotInfo,
   isLoading,
   onPick,
@@ -97,7 +97,8 @@ export function BranchPickerPopover({
       {availableBranches.length > 0 ? (
         <div className="branch-popover-list">
           {availableBranches.map((branch) => {
-            const color = colorForBranch(branch);
+            const color = branchHelpers.color(branch);
+            const label = branchHelpers.label(branch) ?? branch;
             return (
               <button
                 className="branch-popover-item"
@@ -115,7 +116,7 @@ export function BranchPickerPopover({
                       : undefined
                   }
                 />
-                <span>{BRANCH_LABELS[branch]}</span>
+                <span>{label}</span>
               </button>
             );
           })}

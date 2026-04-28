@@ -16,6 +16,8 @@ const updateCandidateMock = vi.fn();
 const updateCandidateTagMock = vi.fn();
 const deleteCandidateTagMock = vi.fn();
 const searchCandidateTagsMock = vi.fn();
+const assignCandidateGroupMock = vi.fn();
+const getGroupsMock = vi.fn();
 
 vi.mock("../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/candidates-api")>(
@@ -39,7 +41,8 @@ vi.mock("../lib/candidates-api", async () => {
     deleteCandidateTag: (...args: Parameters<typeof actual.deleteCandidateTag>) =>
       deleteCandidateTagMock(...args),
     deleteCandidate: vi.fn(),
-    assignCandidateGroup: vi.fn(),
+    assignCandidateGroup: (...args: Parameters<typeof actual.assignCandidateGroup>) =>
+      assignCandidateGroupMock(...args),
     removeActiveGroupAssignment: vi.fn(),
     searchCandidateTags: (...args: Parameters<typeof actual.searchCandidateTags>) =>
       searchCandidateTagsMock(...args),
@@ -57,6 +60,16 @@ vi.mock("../lib/documents-api", () => ({
   getDocumentTypes: vi.fn().mockResolvedValue([]),
   uploadDocument: vi.fn(),
 }));
+
+vi.mock("../lib/groups-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/groups-api")>(
+    "../lib/groups-api"
+  );
+  return {
+    ...actual,
+    getGroups: (...args: Parameters<typeof actual.getGroups>) => getGroupsMock(...args),
+  };
+});
 
 vi.mock("../components/drawers/CandidateDrawer", () => ({
   CandidateDrawer: () => null,
@@ -139,12 +152,52 @@ describe("CandidatesPage tabs", () => {
     updateCandidateTagMock.mockReset();
     deleteCandidateTagMock.mockReset();
     searchCandidateTagsMock.mockReset();
+    assignCandidateGroupMock.mockReset();
+    getGroupsMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
     syncExamSchedulesMock.mockResolvedValue({
       examType: "e_sinav",
       createdCount: 0,
       dateCount: 0,
+    });
+    assignCandidateGroupMock.mockResolvedValue({
+      id: "assignment-1",
+      candidateId: "cand-1",
+      groupId: "group-2",
+      groupTitle: "2B",
+      startDate: "2026-05-05",
+      assignedAtUtc: "2026-05-01T10:00:00Z",
+      removedAtUtc: null,
+      isActive: true,
+    });
+    getGroupsMock.mockResolvedValue({
+      items: [
+        {
+          id: "group-2",
+          title: "2B",
+          term: {
+            id: "term-2",
+            monthDate: "2026-05-01",
+            sequence: 1,
+            name: null,
+          },
+          capacity: 20,
+          assignedCandidateCount: 5,
+          activeCandidateCount: 5,
+          licenseClassCounts: [],
+          candidatePreview: [],
+          startDate: "2026-05-05",
+          mebStatus: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
     });
     getCandidatesMock.mockResolvedValue({
       items: [],
@@ -1392,6 +1445,96 @@ describe("CandidatesPage tabs", () => {
           status: "parked",
         })
       );
+    });
+  });
+
+  it("assigns selected candidates to a group in bulk", async () => {
+    const candidates = [
+      {
+        id: "cand-1",
+        firstName: "Ayse",
+        lastName: "Demir",
+        nationalId: "12345678901",
+        phoneNumber: null,
+        email: null,
+        birthDate: null,
+        gender: null,
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        currentGroup: null,
+        documentSummary: null,
+        mebExamResult: null,
+        createdAtUtc: "2026-04-01T10:00:00Z",
+        updatedAtUtc: "2026-04-02T10:00:00Z",
+      },
+      {
+        id: "cand-2",
+        firstName: "Mehmet",
+        lastName: "Kaya",
+        nationalId: "12345678902",
+        phoneNumber: null,
+        email: null,
+        birthDate: null,
+        gender: null,
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        currentGroup: {
+          groupId: "old-group",
+          title: "1A",
+          startDate: "2026-04-10",
+          term: {
+            id: "term-1",
+            monthDate: "2026-04-01",
+            sequence: 1,
+            name: null,
+          },
+          assignedAtUtc: "2026-04-01T10:00:00Z",
+        },
+        documentSummary: null,
+        mebExamResult: null,
+        createdAtUtc: "2026-04-01T10:00:00Z",
+        updatedAtUtc: "2026-04-02T10:00:00Z",
+      },
+    ];
+
+    getCandidatesMock.mockResolvedValue({
+      items: candidates,
+      page: 1,
+      pageSize: 10,
+      totalCount: 2,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mehmet Kaya seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gruba Aktar" }));
+
+    await waitFor(() => {
+      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 });
+    });
+
+    fireEvent.change(screen.getByLabelText("Toplu grup seç"), {
+      target: { value: "group-2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    await waitFor(() => {
+      expect(assignCandidateGroupMock).toHaveBeenCalledWith("cand-1", "group-2");
+      expect(assignCandidateGroupMock).toHaveBeenCalledWith("cand-2", "group-2");
     });
   });
 
