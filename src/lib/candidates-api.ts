@@ -110,6 +110,15 @@ export function updateCandidate(
   return httpPut<CandidateResponse>(`/api/candidates/${id}`, body);
 }
 
+export function setCandidateInitialPaymentReceived(
+  id: string,
+  initialPaymentReceived: boolean
+): Promise<void> {
+  return httpPut<void>(`/api/candidates/${id}/initial-payment`, {
+    initialPaymentReceived,
+  });
+}
+
 export function deleteCandidate(id: string): Promise<void> {
   return httpDelete(`/api/candidates/${id}`);
 }

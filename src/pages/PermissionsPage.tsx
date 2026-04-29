@@ -22,6 +22,9 @@ import type {
 } from "../lib/types";
 
 type MatrixValue = "none" | PermissionLevel;
+type PermissionsPageProps = {
+  embedded?: boolean;
+};
 
 const AREA_LABEL_KEY: Record<string, TranslationKey> = {
   candidates: "nav.candidates",
@@ -48,7 +51,7 @@ const PERMISSION_OPTIONS: { value: MatrixValue; label: string }[] = [
   { value: "full", label: LEVEL_LABEL.full },
 ];
 
-export function PermissionsPage() {
+export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const t = useT();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -211,13 +214,17 @@ export function PermissionsPage() {
 
   const handleCreateRole = () => {
     if (!confirmDiscardChanges()) return;
-    navigate("/permissions/roles/new");
+    navigate(embedded ? "/settings/definitions/permissions/roles/new" : "/permissions/roles/new");
   };
 
   const handleEditRole = () => {
     if (!selectedRole) return;
     if (!confirmDiscardChanges()) return;
-    navigate(`/permissions/roles/${selectedRole.id}`);
+    navigate(
+      embedded
+        ? `/settings/definitions/permissions/roles/${selectedRole.id}`
+        : `/permissions/roles/${selectedRole.id}`
+    );
   };
 
   const handleDeleteRole = async () => {
@@ -239,18 +246,14 @@ export function PermissionsPage() {
   const hasRoles = roles.length > 0;
   const activeRoleCount = roles.filter((role) => role.isActive).length;
 
-  return (
-    <>
-      <PageToolbar
-        actions={
-          <button className="btn btn-primary btn-sm" onClick={handleCreateRole} type="button">
-            Yeni Rol
-          </button>
-        }
-        title="Yetki Yönetimi"
-      />
+  const actions = (
+    <button className="btn btn-primary btn-sm" onClick={handleCreateRole} type="button">
+      Yeni Rol
+    </button>
+  );
 
-      <div className="permissions-page-grid spaced">
+  const content = (
+    <div className={embedded ? "permissions-page-grid" : "permissions-page-grid spaced"}>
         <Panel
           action={
             hasRoles ? (
@@ -441,6 +444,26 @@ export function PermissionsPage() {
           )}
         </Panel>
       </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="settings-section-stack">
+          <section className="settings-surface">
+            <div className="settings-surface-header">
+              <div className="settings-surface-title">Yetki Yönetimi</div>
+              <div className="settings-module-actions">{actions}</div>
+            </div>
+            <div className="settings-surface-body">{content}</div>
+          </section>
+        </div>
+      ) : (
+        <>
+          <PageToolbar actions={actions} title="Yetki Yönetimi" />
+          {content}
+        </>
+      )}
     </>
   );
 }

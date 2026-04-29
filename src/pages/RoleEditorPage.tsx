@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { Panel } from "../components/ui/Panel";
@@ -28,6 +28,7 @@ const VALIDATION_FIELD_MAP: Record<string, keyof RoleFormValues> = {
 
 export function RoleEditorPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { roleId } = useParams();
   const { showToast } = useToast();
 
@@ -72,9 +73,12 @@ export function RoleEditorPage() {
     return () => controller.abort();
   }, [reset, roleId, showToast]);
 
-  const backToPermissions = editingRole
-    ? `/permissions?role=${editingRole.id}`
+  const permissionsBasePath = location.pathname.startsWith("/settings/")
+    ? "/settings/definitions/permissions"
     : "/permissions";
+  const backToPermissions = editingRole
+    ? `${permissionsBasePath}?role=${editingRole.id}`
+    : permissionsBasePath;
 
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
@@ -89,7 +93,7 @@ export function RoleEditorPage() {
         : await createRole(payload);
 
       showToast(editingRole ? "Rol güncellendi" : "Rol eklendi");
-      navigate(`/permissions?role=${saved.id}`);
+      navigate(`${permissionsBasePath}?role=${saved.id}`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         for (const [serverField, messages] of Object.entries(error.validationErrors)) {
@@ -113,7 +117,7 @@ export function RoleEditorPage() {
           actions={
             <button
               className="btn btn-secondary btn-sm"
-              onClick={() => navigate("/permissions")}
+              onClick={() => navigate(permissionsBasePath)}
               type="button"
             >
               Listeye Dön

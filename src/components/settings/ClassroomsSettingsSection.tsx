@@ -1,207 +1,177 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
-import { VehicleFormModal } from "../modals/VehicleFormModal";
+import { ClassroomFormModal } from "../modals/ClassroomFormModal";
+import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useT, type TranslationKey } from "../../lib/i18n";
-import { formatDateTR } from "../../lib/status-maps";
 import {
-  deleteVehicle,
-  getVehicles,
-  type VehicleActivityFilter,
-  type VehicleSortDirection,
-  type VehicleSortField,
-} from "../../lib/vehicles-api";
-import {
-  VEHICLE_STATUS_OPTIONS,
-  VEHICLE_STATUS_LABELS,
-} from "../../lib/vehicle-catalog";
+  deleteClassroom,
+  getClassrooms,
+  type ClassroomActivityFilter,
+  type ClassroomSortDirection,
+  type ClassroomSortField,
+} from "../../lib/classrooms-api";
+import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import type {
-  LicenseClass,
-  VehicleListSummaryResponse,
-  VehicleResponse,
-  VehicleStatus,
+  ClassroomListSummaryResponse,
+  ClassroomResponse,
+  TrainingBranchDefinitionResponse,
 } from "../../lib/types";
-import {
-  type LicenseClassOption,
-  useLicenseClassOptions,
-} from "../../lib/use-license-class-options";
+import { useColumnVisibility } from "../../lib/use-column-visibility";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
-type SortState = { field: VehicleSortField; direction: VehicleSortDirection } | null;
-type VehicleFilterValue<T extends string> = T | "all";
-type VehicleFilters = {
-  activity: VehicleActivityFilter;
-  status: VehicleFilterValue<VehicleStatus>;
-  licenseClass: VehicleFilterValue<LicenseClass>;
+
+type SortState = { field: ClassroomSortField; direction: ClassroomSortDirection } | null;
+type ClassroomFilters = {
+  activity: ClassroomActivityFilter;
+  branchId: string | "all";
 };
-type VehicleColumnId =
-  | "plateNumber"
-  | "licenseClass"
-  | "status"
-  | "isActive"
-  | "insuranceEndDate"
-  | "inspectionEndDate"
-  | "cascoEndDate";
-type VehicleColumnDef = {
-  id: VehicleColumnId;
+type ClassroomColumnId = "name" | "capacity" | "branches" | "isActive";
+type ClassroomColumnDef = {
+  id: ClassroomColumnId;
   labelKey: TranslationKey;
-  sortField?: VehicleSortField;
-  renderCell: (vehicle: VehicleResponse) => React.ReactNode;
+  sortField?: ClassroomSortField;
+  renderCell: (classroom: ClassroomResponse) => React.ReactNode;
   skeletonWidth: number;
   skeletonKind?: "line" | "pill";
 };
 
-const EMPTY_SUMMARY: VehicleListSummaryResponse = {
+const EMPTY_SUMMARY: ClassroomListSummaryResponse = {
   activeCount: 0,
-  inUseCount: 0,
-  maintenanceCount: 0,
-  idleCount: 0,
+  inactiveCount: 0,
 };
 
-function parseIsoDate(value: string): Date | null {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
-}
+const CLASSROOM_COLUMN_IDS: ClassroomColumnId[] = ["name", "capacity", "branches", "isActive"];
 
-function formatDateWithRemainingDays(value: string | null): string {
-  if (!value) return "-";
-  const target = parseIsoDate(value);
-  if (!target) return formatDateTR(value);
+const DEFAULT_FILTERS: ClassroomFilters = {
+  activity: "active",
+  branchId: "all",
+};
 
-  const today = new Date();
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const targetStart = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-  const remainingDays = Math.round(
-    (targetStart.getTime() - todayStart.getTime()) / (24 * 60 * 60 * 1000)
-  );
-
-  if (remainingDays === 0) {
-    return `${formatDateTR(value)} (bugün)`;
-  }
-
-  return `${formatDateTR(value)} (${remainingDays} gün)`;
-}
-
-function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
+function buildColumns(t: ReturnType<typeof useT>): ClassroomColumnDef[] {
   return [
     {
-      id: "plateNumber",
-      labelKey: "settings.vehicles.columns.plateNumber",
-      sortField: "plateNumber",
-      renderCell: (vehicle) => <strong>{vehicle.plateNumber}</strong>,
-      skeletonWidth: 84,
+      id: "name",
+      labelKey: "settings.classrooms.columns.name",
+      sortField: "name",
+      renderCell: (classroom) => <strong>{classroom.name}</strong>,
+      skeletonWidth: 140,
     },
     {
-      id: "licenseClass",
-      labelKey: "settings.vehicles.columns.licenseClass",
-      sortField: "licenseClass",
-      renderCell: (vehicle) => vehicle.licenseClass,
-      skeletonWidth: 44,
+      id: "capacity",
+      labelKey: "settings.classrooms.columns.capacity",
+      sortField: "capacity",
+      renderCell: (classroom) => classroom.capacity,
+      skeletonWidth: 60,
     },
     {
-      id: "status",
-      labelKey: "settings.vehicles.columns.status",
-      sortField: "status",
-      renderCell: (vehicle) => (
-        <StatusPill
-          label={VEHICLE_STATUS_LABELS[vehicle.status]}
-          status={
-            vehicle.status === "in_use"
-              ? "running"
-              : vehicle.status === "maintenance"
-                ? "warning"
-                : "manual"
-          }
-        />
+      id: "branches",
+      labelKey: "settings.classrooms.columns.branches",
+      renderCell: (classroom) => (
+        <div className="settings-branch-chips">
+          {classroom.branches.length === 0 ? (
+            <span className="form-subsection-note">—</span>
+          ) : (
+            classroom.branches.map((branch) => (
+              <span
+                className="settings-branch-chip"
+                key={branch.id}
+                style={{ backgroundColor: `${branch.colorHex}22`, borderColor: branch.colorHex }}
+              >
+                <span
+                  className="settings-color-swatch"
+                  style={{ backgroundColor: branch.colorHex }}
+                />
+                {branch.name}
+              </span>
+            ))
+          )}
+        </div>
       ),
-      skeletonWidth: 90,
-      skeletonKind: "pill",
+      skeletonWidth: 200,
     },
     {
       id: "isActive",
-      labelKey: "settings.vehicles.columns.isActive",
+      labelKey: "settings.classrooms.columns.isActive",
       sortField: "isActive",
-      renderCell: (vehicle) => (
+      renderCell: (classroom) => (
         <StatusPill
-          label={vehicle.isActive ? t("settings.vehicles.status.active") : t("settings.vehicles.status.inactive")}
-          status={vehicle.isActive ? "success" : "manual"}
+          label={
+            classroom.isActive
+              ? t("settings.classrooms.filter.isActive.active")
+              : t("settings.classrooms.filter.isActive.inactive")
+          }
+          status={classroom.isActive ? "success" : "manual"}
         />
       ),
-      skeletonWidth: 74,
+      skeletonWidth: 70,
       skeletonKind: "pill",
-    },
-    {
-      id: "insuranceEndDate",
-      labelKey: "settings.vehicles.columns.insuranceEndDate",
-      renderCell: (vehicle) => formatDateWithRemainingDays(vehicle.insuranceEndDate),
-      skeletonWidth: 118,
-    },
-    {
-      id: "inspectionEndDate",
-      labelKey: "settings.vehicles.columns.inspectionEndDate",
-      renderCell: (vehicle) => formatDateWithRemainingDays(vehicle.inspectionEndDate),
-      skeletonWidth: 118,
-    },
-    {
-      id: "cascoEndDate",
-      labelKey: "settings.vehicles.columns.cascoEndDate",
-      renderCell: (vehicle) => formatDateWithRemainingDays(vehicle.cascoEndDate),
-      skeletonWidth: 118,
     },
   ];
 }
-const DEFAULT_FILTERS: VehicleFilters = {
-  activity: "active",
-  status: "all",
-  licenseClass: "all",
-};
 
-export function VehiclesSettingsSection() {
+export function ClassroomsSettingsSection() {
   const { showToast } = useToast();
   const t = useT();
+  const { isVisible, toggle: toggleColumn } = useColumnVisibility(
+    "settings.classrooms.columns.v1",
+    CLASSROOM_COLUMN_IDS
+  );
 
-  const [items, setItems] = useState<VehicleResponse[]>([]);
+  const [items, setItems] = useState<ClassroomResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [summary, setSummary] = useState<VehicleListSummaryResponse>(EMPTY_SUMMARY);
+  const [summary, setSummary] = useState<ClassroomListSummaryResponse>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
-  const [filters, setFilters] = useState<VehicleFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<ClassroomFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<VehicleResponse | null>(null);
-  const [confirmDeleteVehicleId, setConfirmDeleteVehicleId] = useState<string | null>(null);
-  const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
-  const { options: licenseClassOptions } = useLicenseClassOptions();
-  const vehicleColumns = buildVehicleColumns(t);
-  const visibleColumns = vehicleColumns;
+  const [editing, setEditing] = useState<ClassroomResponse | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
+
+  const columns = buildColumns(t);
+  const visibleColumns = columns.filter((column) => isVisible(column.id));
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getTrainingBranchDefinitions(
+      { activity: "active", page: 1, pageSize: 200 },
+      controller.signal
+    )
+      .then((response) => setBranches(response.items))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     const query = {
       activity: filters.activity,
+      branchId: filters.branchId !== "all" ? filters.branchId : undefined,
       page,
       pageSize,
       search: search.trim() || undefined,
-      status: filters.status !== "all" ? filters.status : undefined,
-      licenseClass: filters.licenseClass !== "all" ? filters.licenseClass : undefined,
       ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
     };
 
-    getVehicles(query, controller.signal)
+    getClassrooms(query, controller.signal)
       .then((response) => {
         setItems(response.items);
         setTotalCount(response.totalCount);
@@ -210,72 +180,83 @@ export function VehiclesSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast(t("settings.vehicles.toast.loadError"), "error");
+        showToast(t("settings.classrooms.toast.loadError"), "error");
       })
       .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, [filters, page, pageSize, refreshKey, search, showToast, sort]);
+  }, [filters, page, pageSize, refreshKey, search, showToast, sort, t]);
 
   const counts = useMemo(() => {
+    const totalCapacity = items.reduce((sum, item) => sum + item.capacity, 0);
     return {
       total: totalCount,
-      idle: summary.idleCount,
-      inUse: summary.inUseCount,
-      maintenance: summary.maintenanceCount,
+      active: summary.activeCount,
+      inactive: summary.inactiveCount,
+      capacity: totalCapacity,
     };
-  }, [summary, totalCount]);
+  }, [items, summary, totalCount]);
 
   const hasActiveFilters =
     search.trim().length > 0 ||
     filters.activity !== DEFAULT_FILTERS.activity ||
-    filters.status !== DEFAULT_FILTERS.status ||
-    filters.licenseClass !== DEFAULT_FILTERS.licenseClass;
+    filters.branchId !== DEFAULT_FILTERS.branchId;
 
-  const handleSaved = (_saved: VehicleResponse) => {
-    setFormOpen(false);
-    setEditing(null);
-    setRefreshKey((current) => current + 1);
-    showToast(editing ? t("settings.vehicles.toast.updated") : t("settings.vehicles.toast.created"));
-  };
-
-  const handleSortToggle = (field: VehicleSortField) => {
-    setPage(1);
-    setSort((current) => {
-      if (!current || current.field !== field) {
-        return { field, direction: "asc" };
-      }
-      if (current.direction === "asc") {
-        return { field, direction: "desc" };
-      }
-      return null;
-    });
-  };
-
-  const setFilter = <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => {
+  const setFilter = <K extends keyof ClassroomFilters>(key: K, value: ClassroomFilters[K]) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
   };
 
-  const handleDelete = async (vehicle: VehicleResponse) => {
-    setDeletingVehicleId(vehicle.id);
+  const handleSortToggle = (field: ClassroomSortField) => {
+    setPage(1);
+    setSort((current) => {
+      if (!current || current.field !== field) return { field, direction: "asc" };
+      if (current.direction === "asc") return { field, direction: "desc" };
+      return null;
+    });
+  };
+
+  const handleColumnToggle = (id: string) => {
+    const column = columns.find((item) => item.id === id);
+    if (column?.sortField && isVisible(id) && sort?.field === column.sortField) {
+      setSort(null);
+    }
+    if (isVisible(id)) {
+      if (id === "isActive") setFilter("activity", DEFAULT_FILTERS.activity);
+      if (id === "branches") setFilter("branchId", DEFAULT_FILTERS.branchId);
+    }
+    toggleColumn(id);
+  };
+
+  const handleSaved = () => {
+    setFormOpen(false);
+    const wasEditing = editing !== null;
+    setEditing(null);
+    setRefreshKey((current) => current + 1);
+    showToast(
+      wasEditing
+        ? t("settings.classrooms.toast.updated")
+        : t("settings.classrooms.toast.created")
+    );
+  };
+
+  const handleDelete = async (classroom: ClassroomResponse) => {
+    setDeletingId(classroom.id);
     try {
-      await deleteVehicle(vehicle.id);
-      setConfirmDeleteVehicleId(null);
-      showToast(t("settings.vehicles.toast.deleted"));
+      await deleteClassroom(classroom.id);
+      setConfirmDeleteId(null);
+      showToast(t("settings.classrooms.toast.deleted"));
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast(t("settings.vehicles.toast.deleteError"), "error");
+      showToast(t("settings.classrooms.toast.deleteError"), "error");
     } finally {
-      setDeletingVehicleId(null);
+      setDeletingId(null);
     }
   };
 
@@ -284,26 +265,34 @@ export function VehiclesSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.vehicles.summary.totalVehicles")}</span>
+            <span className="settings-summary-label">
+              {t("settings.classrooms.summary.total")}
+            </span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.vehicles.summary.idle")}</span>
-            <strong className="settings-summary-value">{counts.idle}</strong>
+            <span className="settings-summary-label">
+              {t("settings.classrooms.summary.active")}
+            </span>
+            <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.vehicles.summary.inUse")}</span>
-            <strong className="settings-summary-value">{counts.inUse}</strong>
+            <span className="settings-summary-label">
+              {t("settings.classrooms.summary.inactive")}
+            </span>
+            <strong className="settings-summary-value">{counts.inactive}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.vehicles.summary.maintenance")}</span>
-            <strong className="settings-summary-value">{counts.maintenance}</strong>
+            <span className="settings-summary-label">
+              {t("settings.classrooms.summary.totalCapacity")}
+            </span>
+            <strong className="settings-summary-value">{counts.capacity}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">{t("settings.vehicles.title")}</div>
+            <div className="settings-surface-title">{t("settings.classrooms.title")}</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -312,7 +301,7 @@ export function VehiclesSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder={t("settings.vehicles.search.placeholder")}
+                  placeholder={t("settings.classrooms.search.placeholder")}
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -340,7 +329,7 @@ export function VehiclesSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                {t("settings.vehicles.button.new")}
+                {t("settings.classrooms.button.new")}
               </button>
             </div>
           </div>
@@ -357,7 +346,7 @@ export function VehiclesSettingsSection() {
                           column.id,
                           filters,
                           setFilter,
-                          licenseClassOptions,
+                          branches,
                           t
                         )}
                         key={column.id}
@@ -366,10 +355,25 @@ export function VehiclesSettingsSection() {
                         sort={sort}
                       />
                     ) : (
-                      <th key={column.id}>{t(column.labelKey)}</th>
+                      <th key={column.id}>
+                        <div className="sortable-th-shell">
+                          <span>{t(column.labelKey)}</span>
+                          {buildColumnFilterControl(column.id, filters, setFilter, branches, t)}
+                        </div>
+                      </th>
                     )
                   )}
-                  <th aria-label="İşlemler" />
+                  <th className="col-picker-th">
+                    <ColumnPicker
+                      columns={columns.map((column) => ({
+                        id: column.id,
+                        label: t(column.labelKey),
+                      }))}
+                      isVisible={isVisible}
+                      onToggle={handleColumnToggle}
+                      triggerTitle={t("settings.classrooms.columnPicker.title")}
+                    />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -388,7 +392,7 @@ export function VehiclesSettingsSection() {
                           />
                         </td>
                       ))}
-                      <td>
+                      <td className="col-picker-td">
                         <span className="skeleton" style={{ width: 24 }} />
                       </td>
                     </tr>
@@ -396,7 +400,7 @@ export function VehiclesSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      {t("settings.vehicles.empty")}
+                      {t("settings.classrooms.empty")}
                     </td>
                   </tr>
                 ) : (
@@ -405,53 +409,55 @@ export function VehiclesSettingsSection() {
                       {visibleColumns.map((column) => (
                         <td key={column.id}>{column.renderCell(item)}</td>
                       ))}
-                      <td>
+                      <td className="col-picker-td">
                         <div
                           className={
-                            confirmDeleteVehicleId === item.id
+                            confirmDeleteId === item.id
                               ? "table-row-actions table-row-actions-confirm"
                               : "table-row-actions"
                           }
                         >
-                          {confirmDeleteVehicleId === item.id ? (
+                          {confirmDeleteId === item.id ? (
                             <>
                               <button
                                 className="btn btn-secondary btn-sm"
-                                disabled={deletingVehicleId === item.id}
-                                onClick={() => setConfirmDeleteVehicleId(null)}
+                                disabled={deletingId === item.id}
+                                onClick={() => setConfirmDeleteId(null)}
                                 type="button"
                               >
                                 {t("common.cancel")}
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
-                                disabled={deletingVehicleId === item.id}
+                                disabled={deletingId === item.id}
                                 onClick={() => handleDelete(item)}
                                 type="button"
                               >
-                                {deletingVehicleId === item.id ? t("settings.vehicles.action.deleting") : t("common.delete")}
+                                {deletingId === item.id
+                                  ? t("settings.classrooms.action.deleting")
+                                  : t("common.delete")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
-                                aria-label={t("settings.vehicles.action.edit")}
+                                aria-label={t("settings.classrooms.action.edit")}
                                 className="icon-btn"
                                 onClick={() => {
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title={t("settings.vehicles.action.edit")}
+                                title={t("settings.classrooms.action.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
                               <button
-                                aria-label={t("settings.vehicles.action.delete")}
+                                aria-label={t("settings.classrooms.action.delete")}
                                 className="icon-btn icon-btn-danger"
-                                disabled={deletingVehicleId !== null}
-                                onClick={() => setConfirmDeleteVehicleId(item.id)}
-                                title={t("settings.vehicles.action.delete")}
+                                disabled={deletingId !== null}
+                                onClick={() => setConfirmDeleteId(item.id)}
+                                title={t("settings.classrooms.action.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -482,7 +488,7 @@ export function VehiclesSettingsSection() {
         </section>
       </div>
 
-      <VehicleFormModal
+      <ClassroomFormModal
         editing={editing}
         onClose={() => {
           setFormOpen(false);
@@ -501,11 +507,11 @@ export function VehiclesSettingsSection() {
 }
 
 type SortableThProps = {
-  field: VehicleSortField;
+  field: ClassroomSortField;
   filterControl?: React.ReactNode;
   label: string;
   sort: SortState;
-  onToggle: (field: VehicleSortField) => void;
+  onToggle: (field: ClassroomSortField) => void;
 };
 
 function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThProps) {
@@ -521,11 +527,7 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
   return (
     <th aria-sort={ariaSort} className={isActive ? "sortable-th active" : "sortable-th"}>
       <div className="sortable-th-shell">
-        <button
-          className="sortable-th-btn"
-          onClick={() => onToggle(field)}
-          type="button"
-        >
+        <button className="sortable-th-btn" onClick={() => onToggle(field)} type="button">
           <span>{label}</span>
           <span aria-hidden="true" className="sortable-th-indicator">
             {indicator}
@@ -538,62 +540,39 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
 }
 
 function buildColumnFilterControl(
-  columnId: VehicleColumnId,
-  filters: VehicleFilters,
-  setFilter: <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => void,
-  licenseClassOptions: LicenseClassOption[],
+  columnId: ClassroomColumnId,
+  filters: ClassroomFilters,
+  setFilter: <K extends keyof ClassroomFilters>(key: K, value: ClassroomFilters[K]) => void,
+  branches: TrainingBranchDefinitionResponse[],
   t: ReturnType<typeof useT>
 ) {
   if (columnId === "isActive") {
     return (
       <TableHeaderFilter
         active={filters.activity !== DEFAULT_FILTERS.activity}
-        onChange={(nextValue) => setFilter("activity", nextValue as VehicleActivityFilter)}
+        onChange={(nextValue) => setFilter("activity", nextValue as ClassroomActivityFilter)}
         options={[
-          { value: "active", label: t("settings.vehicles.filter.isActive.active") },
+          { value: "active", label: t("settings.classrooms.filter.isActive.active") },
           { value: "all", label: t("common.all") },
-          { value: "inactive", label: t("settings.vehicles.filter.isActive.inactive") },
+          { value: "inactive", label: t("settings.classrooms.filter.isActive.inactive") },
         ]}
-        title={t("settings.vehicles.filter.isActive.title")}
+        title={t("settings.classrooms.filter.isActive.title")}
         value={filters.activity}
       />
     );
   }
 
-  if (columnId === "status") {
+  if (columnId === "branches") {
     return (
       <TableHeaderFilter
-        active={filters.status !== DEFAULT_FILTERS.status}
-        onChange={(nextValue) => setFilter("status", nextValue as VehicleFilters["status"])}
+        active={filters.branchId !== DEFAULT_FILTERS.branchId}
+        onChange={(nextValue) => setFilter("branchId", nextValue as ClassroomFilters["branchId"])}
         options={[
           { value: "all", label: t("common.all") },
-          ...VEHICLE_STATUS_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          })),
+          ...branches.map((branch) => ({ value: branch.id, label: branch.name })),
         ]}
-        title={t("settings.vehicles.filter.status.title")}
-        value={filters.status}
-      />
-    );
-  }
-
-  if (columnId === "licenseClass") {
-    return (
-      <TableHeaderFilter
-        active={filters.licenseClass !== DEFAULT_FILTERS.licenseClass}
-        onChange={(nextValue) =>
-          setFilter("licenseClass", nextValue as VehicleFilters["licenseClass"])
-        }
-        options={[
-          { value: "all", label: t("common.all") },
-          ...licenseClassOptions.map((option) => ({
-            value: option.value,
-            label: option.label,
-          })),
-        ]}
-        title={t("settings.vehicles.filter.licenseClass.title")}
-        value={filters.licenseClass}
+        title={t("settings.classrooms.filter.branch.title")}
+        value={filters.branchId}
       />
     );
   }

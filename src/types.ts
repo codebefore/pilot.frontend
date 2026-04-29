@@ -3,7 +3,6 @@ export type NavKey =
   | "candidates"
   | "groups"
   | "documents"
-  | "documentTypes"
   | "payments"
   | "training"
   | "trainingTeorik"
@@ -13,8 +12,6 @@ export type NavKey =
   | "examUygulama"
   | "mebjobs"
   | "settings"
-  | "users"
-  | "permissions"
   | "login";
 
 export type JobStatus =

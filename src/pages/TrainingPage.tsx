@@ -26,6 +26,7 @@ import {
   type TrainingCalendarEvent,
 } from "../lib/training-calendar";
 import { getCandidates } from "../lib/candidates-api";
+import { getClassrooms } from "../lib/classrooms-api";
 import { getGroups } from "../lib/groups-api";
 import { getInstructors } from "../lib/instructors-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
@@ -37,12 +38,14 @@ import {
 import {
   createTrainingLesson,
   deleteTrainingLesson,
+  deleteTrainingLessonsByCandidate,
   deleteTrainingLessonsByGroup,
   getTrainingLessons,
   updateTrainingLesson,
 } from "../lib/training-lessons-api";
 import type {
   CandidateResponse,
+  ClassroomResponse,
   GroupResponse,
   InstructorResponse,
   PracticeEducationType,
@@ -67,7 +70,7 @@ const SERVER_FIELD_MAP: Record<string, string> = {
   GroupId: "groupId",
   CandidateId: "candidateId",
   VehicleId: "vehicleId",
-  AreaId: "areaId",
+  ClassroomId: "classroomId",
   RouteId: "routeId",
   BranchCode: "branchCode",
 };
@@ -102,6 +105,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const [vehicles, setVehicles] = useState<VehicleResponse[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomResponse[]>([]);
   // Branş kataloğu DB'den geliyor (Ayarlar > Tanımlar > Branşlar). Renk,
   // toplam saat limiti ve label hepsi burada — popover/calendar/summary
   // bu listeyi kullanır, hardcoded sabit kullanılmaz.
@@ -111,6 +115,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
+  const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
   // Adaylar sayfasından bulk yönlendirme ile gelinen aday kümesi.
   // localStorage kalıcı; her yeni yönlendirme önceki scope'u override
@@ -125,9 +130,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [quickSettings, setQuickSettings] = useState<{
     instructorId: string;
     groupId: string;
+    classroomId: string;
     candidateId: string;
     vehicleId: string;
-  }>({ instructorId: "", groupId: "", candidateId: "", vehicleId: "" });
+  }>({ instructorId: "", groupId: "", classroomId: "", candidateId: "", vehicleId: "" });
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -212,6 +218,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         { activity: "active", pageSize: 100 },
         controller.signal
       ),
+      getClassrooms({ activity: "active", pageSize: 100 }, controller.signal),
     ])
       .then(
         ([
@@ -221,6 +228,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           candidateResult,
           vehicleResult,
           branchResult,
+          classroomResult,
         ]) => {
           setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
           setInstructors(instructorResult.items);
@@ -228,6 +236,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           setCandidates(candidateResult.items);
           setVehicles(vehicleResult.items);
           setBranches(branchResult.items);
+          setClassrooms(classroomResult.items);
         }
       )
       .catch((error) => {
@@ -358,9 +367,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // sağlanır. Filter listeleri yalnızca slot tıklarken anlamlı.
 
   // Backend'den gelen event.groupName ile groups state'indeki group.title
-  // genelde aynı olmalı; ama tutarsızlık olursa (legacy veri, trim farkı,
-  // race) groupId üzerinden de eşleştir — visibilityCollapse `group.title`
-  // yazıyor; eğer event'in groupName'i farklıysa groupId fallback yakalar.
+  // genelde aynı olmalı; ama tutarsızlık olursa groupId üzerinden de eşleştir.
   const groupTitleById = useMemo(
     () => new Map(groups.map((g) => [g.id, g.title])),
     [groups]
@@ -554,7 +561,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const resetFilters = () => {
     setVisibleGroups(new Set());
     setVisibleInstructors(new Set());
-    setQuickSettings({ groupId: "", instructorId: "", candidateId: "", vehicleId: "" });
+    setQuickSettings({ groupId: "", instructorId: "", classroomId: "", candidateId: "", vehicleId: "" });
   };
 
   // Bulk toggle: yalnızca filter listesinde görünen kayıtları etkiler.
@@ -603,8 +610,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
       groupId: values.type === "teorik" ? values.groupId || null : null,
       candidateId: values.type === "uygulama" ? values.candidateId || null : null,
       vehicleId: values.type === "uygulama" ? values.vehicleId || null : null,
-      areaId: null,
+      classroomId: values.type === "teorik" ? values.classroomId || null : null,
       routeId: null,
+      branchCode: values.type === "teorik" ? values.branchCode || null : null,
       licenseClass: values.type === "uygulama" ? candidate?.licenseClass ?? null : null,
       notes: values.notes?.trim() || null,
     };
@@ -646,7 +654,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleQuickAssign = async (branch: string) => {
-    const { instructorId, groupId } = quickSettings;
+    const { instructorId, groupId, classroomId } = quickSettings;
     const startTime = newLessonSlot!.start;
     // Süre takvimden seçilen slot'tan türetiliyor — drag ile 4 saat
     // seçildiyse 4 adet 1 saatlik ders oluşturulur. En az 1 saat.
@@ -670,7 +678,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           groupId,
           candidateId: null,
           vehicleId: null,
-          areaId: null,
+          classroomId,
           routeId: null,
           branchCode: branch,
           licenseClass: null,
@@ -765,7 +773,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           groupId: null,
           candidateId,
           vehicleId,
-          areaId: null,
+          classroomId: null,
           routeId: null,
           branchCode: null,
           licenseClass: candidate?.licenseClass ?? null,
@@ -967,6 +975,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast(t("training.toast.selectGroupAndInstructorFirst"));
       return;
     }
+    if (!quickSettings.classroomId) {
+      showToast(t("training.toast.selectClassroomFirst"));
+      return;
+    }
     if (visibleInstructors.size !== 1) {
       showToast(t("training.toast.selectExactlyOneInstructor"));
       return;
@@ -1134,6 +1146,26 @@ export function TrainingPage({ type }: TrainingPageProps) {
       (event) => event.kind === "teorik" && event.groupId === quickSettings.groupId
     ).length;
   }, [events, quickSettings.groupId, type]);
+  const selectedTheoryGroup = useMemo(
+    () =>
+      type === "teorik" && quickSettings.groupId
+        ? groups.find((group) => group.id === quickSettings.groupId) ?? null
+        : null,
+    [groups, quickSettings.groupId, type]
+  );
+  const selectedPracticeCandidate = useMemo(
+    () =>
+      type === "uygulama" && quickSettings.candidateId
+        ? candidates.find((candidate) => candidate.id === quickSettings.candidateId) ?? null
+        : null,
+    [candidates, quickSettings.candidateId, type]
+  );
+  const selectedCandidateLessonCount = useMemo(() => {
+    if (type !== "uygulama" || !quickSettings.candidateId) return 0;
+    return events.filter(
+      (event) => event.kind === "uygulama" && event.candidateId === quickSettings.candidateId
+    ).length;
+  }, [events, quickSettings.candidateId, type]);
   const bulkDeleteGroupLessonCount = useMemo(() => {
     if (!bulkDeleteGroup) return 0;
     return events.filter(
@@ -1166,20 +1198,83 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
+  const handleBulkDeleteCandidateLessons = async () => {
+    if (!bulkDeleteCandidate) return;
+    setIsBulkDeleteLoading(true);
+    try {
+      const result = await deleteTrainingLessonsByCandidate(bulkDeleteCandidate.id);
+      setEvents((prev) =>
+        prev.filter(
+          (event) => !(event.kind === "uygulama" && event.candidateId === bulkDeleteCandidate.id)
+        )
+      );
+      setSelectedEvent(null);
+      setBulkDeleteCandidate(null);
+      showToast(
+        t("training.toast.bulkLessonsDeleted", {
+          count: result.deletedCount,
+        })
+      );
+    } catch (error) {
+      console.error(error);
+      showToast(t("training.toast.bulkLessonsNotDeleted"));
+    } finally {
+      setIsBulkDeleteLoading(false);
+    }
+  };
+
   return (
     <>
       <PageToolbar
         actions={
-          showBackToCandidateList ? (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() =>
-                setQuickSettings((prev) => ({ ...prev, candidateId: "" }))
-              }
-              type="button"
-            >
-              {t("training.picker.backToList")}
-            </button>
+          showBackToCandidateList || selectedTheoryGroup || selectedPracticeCandidate ? (
+            <>
+              {selectedTheoryGroup ? (
+                <>
+                  <span className="candidate-bulk-count">
+                    {t("training.quick.deleteGroupLessonsHint", {
+                      count: selectedGroupLessonCount,
+                    })}
+                  </span>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={isQuickAssignLoading || isBulkDeleteLoading || selectedGroupLessonCount === 0}
+                    onClick={() => setBulkDeleteGroup(selectedTheoryGroup)}
+                    type="button"
+                  >
+                    {t("training.quick.deleteGroupLessons")}
+                  </button>
+                </>
+              ) : null}
+              {selectedPracticeCandidate ? (
+                <>
+                  <span className="candidate-bulk-count">
+                    {t("training.quick.deleteGroupLessonsHint", {
+                      count: selectedCandidateLessonCount,
+                    })}
+                  </span>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={isQuickAssignLoading || isBulkDeleteLoading || selectedCandidateLessonCount === 0}
+                    onClick={() => setBulkDeleteCandidate(selectedPracticeCandidate)}
+                    type="button"
+                  >
+                    {t("training.quick.deleteCandidateLessons")}
+                  </button>
+                </>
+              ) : null}
+              {showBackToCandidateList ? (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() =>
+                    setQuickSettings((prev) => ({ ...prev, candidateId: "" }))
+                  }
+                  type="button"
+                >
+                  {t("training.picker.backToList")}
+                </button>
+              ) : null}
+            </>
           ) : undefined
         }
         title={title}
@@ -1190,15 +1285,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
         <div className="training-layout">
           <aside className="training-filters-sidebar">
           {type === "teorik" ? (
-              <QuickLessonAssignment
-                groupId={quickSettings.groupId}
-                groups={groups}
+	              <QuickLessonAssignment
+	                classrooms={classrooms}
+	                classroomId={quickSettings.classroomId}
+	                groupId={quickSettings.groupId}
+	                groups={groups}
                 isLoading={isQuickAssignLoading || isBulkDeleteLoading}
-                onDeleteGroupLessons={setBulkDeleteGroup}
                 onSettingsChange={(settings) =>
                   setQuickSettings((prev) => ({ ...prev, ...settings }))
                 }
-                selectedLessonCount={selectedGroupLessonCount}
               />
             ) : (
               <QuickPracticeAssignment
@@ -1267,13 +1362,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
         </div>
       </div>
 
-      <NewTrainingPlanModal
-        defaultType={type}
+	        <NewTrainingPlanModal
+	        branches={branches}
+	        defaultType={type}
         initialSlot={newLessonSlot}
         instructors={instructors}
         groups={groups}
         candidates={candidates}
         vehicles={vehicles}
+        classrooms={classrooms}
         onClose={() => {
           setModalOpen(false);
           setNewLessonSlot(null);
@@ -1320,6 +1417,50 @@ export function TrainingPage({ type }: TrainingPageProps) {
             {t("training.bulkDelete.message", {
               group: bulkDeleteGroup?.title ?? "",
               count: bulkDeleteGroupLessonCount,
+            })}
+          </p>
+          <p className="training-bulk-delete-warning">
+            {t("training.bulkDelete.warning")}
+          </p>
+        </div>
+      </Modal>
+
+      <Modal
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              disabled={isBulkDeleteLoading}
+              onClick={() => setBulkDeleteCandidate(null)}
+              type="button"
+            >
+              {t("training.bulkDelete.cancel")}
+            </button>
+            <button
+              className="btn btn-danger"
+              disabled={isBulkDeleteLoading}
+              onClick={() => void handleBulkDeleteCandidateLessons()}
+              type="button"
+            >
+              {isBulkDeleteLoading
+                ? t("training.bulkDelete.deleting")
+                : t("training.bulkDelete.confirm")}
+            </button>
+          </>
+        }
+        onClose={() => {
+          if (!isBulkDeleteLoading) setBulkDeleteCandidate(null);
+        }}
+        open={bulkDeleteCandidate !== null}
+        title={t("training.bulkDelete.candidateTitle")}
+      >
+        <div className="training-bulk-delete-body">
+          <p>
+            {t("training.bulkDelete.candidateMessage", {
+              candidate: bulkDeleteCandidate
+                ? `${bulkDeleteCandidate.firstName} ${bulkDeleteCandidate.lastName}`.trim()
+                : "",
+              count: selectedCandidateLessonCount,
             })}
           </p>
           <p className="training-bulk-delete-warning">
@@ -1406,6 +1547,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       ) : null}
 
       <TrainingEventDetailModal
+        classrooms={classrooms}
         event={selectedEvent}
         instructors={instructors.map((instructor) => ({
           id: instructor.id,
@@ -1417,6 +1559,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
           const event = events.find((item) => item.id === eventId);
           if (!event) return;
           void persistEventUpdate(event, { instructorId });
+        }}
+        onClassroomChange={async (eventId, classroomId) => {
+          const event = events.find((item) => item.id === eventId);
+          if (!event || event.kind !== "teorik") return;
+          await persistEventUpdate(event, { classroomId });
         }}
         onNotesChange={async (eventId, notes) => {
           const event = events.find((item) => item.id === eventId);

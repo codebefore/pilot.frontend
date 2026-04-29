@@ -1,6 +1,5 @@
 import type {
   VehicleFuelType,
-  VehicleOdometerUnit,
   VehicleOwnershipType,
   VehicleStatus,
   VehicleTransmissionType,
@@ -49,11 +48,6 @@ export const VEHICLE_FUEL_OPTIONS: Option<VehicleFuelType>[] = [
   { value: "hybrid", label: "Hibrit" },
 ];
 
-export const VEHICLE_ODOMETER_UNIT_OPTIONS: Option<VehicleOdometerUnit>[] = [
-  { value: "km", label: "Kilometre" },
-  { value: "hour", label: "Saat" },
-];
-
 export const VEHICLE_LICENSE_CLASS_OPTIONS = [...REFERENCE_LICENSE_CLASS_OPTIONS];
 
 function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string> {
@@ -68,4 +62,3 @@ export const VEHICLE_TRANSMISSION_LABELS = buildLabelMap(VEHICLE_TRANSMISSION_OP
 export const VEHICLE_TYPE_LABELS = buildLabelMap(VEHICLE_TYPE_OPTIONS);
 export const VEHICLE_OWNERSHIP_LABELS = buildLabelMap(VEHICLE_OWNERSHIP_OPTIONS);
 export const VEHICLE_FUEL_LABELS = buildLabelMap(VEHICLE_FUEL_OPTIONS);
-export const VEHICLE_ODOMETER_UNIT_LABELS = buildLabelMap(VEHICLE_ODOMETER_UNIT_OPTIONS);

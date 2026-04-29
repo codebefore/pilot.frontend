@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
@@ -10,10 +10,11 @@ import { ManageDocumentModal } from "../components/modals/ManageDocumentModal";
 import { UploadDocumentModal } from "../components/modals/UploadDocumentModal";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTagsInput";
+import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { Pagination } from "../components/ui/Pagination";
-import { Panel } from "../components/ui/Panel";
 import { SearchInput } from "../components/ui/SearchInput";
+import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { applyTagsToCandidates } from "../lib/candidate-bulk";
 import {
@@ -26,6 +27,7 @@ import {
   assignCandidateGroup,
   createCandidateTag,
   searchCandidateTags,
+  setCandidateInitialPaymentReceived,
 } from "../lib/candidates-api";
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
 import { getGroups } from "../lib/groups-api";
@@ -33,6 +35,7 @@ import { useLanguage, useT } from "../lib/i18n";
 import { buildWhatsAppUrl, formatPhoneNumber } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
+import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import type {
   CandidateTag,
   DocumentChecklistEntry,
@@ -48,20 +51,15 @@ const INITIAL_FILTERS: Filters = {
   search: "",
 };
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 
-type DocumentSortField = "name";
+type DocumentSortField = "name" | "licenseClass" | "term";
 type SortDirection = "asc" | "desc";
 type SortState = { field: DocumentSortField; direction: SortDirection } | null;
 
-type DocumentsTab = "all" | "pre_registered" | "active";
-
-const TABS: { key: DocumentsTab; label: string }[] = [
-  { key: "all", label: "Tümü" },
-  { key: "pre_registered", label: "Ön Kayıt" },
-  { key: "active", label: "Aktif" },
-];
+type DocumentsTab = "all" | "missing" | "complete";
 const DEFAULT_TAB: DocumentsTab = "all";
 
 type BulkActionMode = "tags" | "group" | null;
@@ -133,10 +131,17 @@ function renderPhoneNumber(entry: DocumentChecklistEntry) {
   );
 }
 
+function renderDocumentTerm(entry: DocumentChecklistEntry, lang: "tr" | "en") {
+  return entry.currentGroup
+    ? buildGroupHeading(entry.currentGroup.title, entry.currentGroup.term, [entry.currentGroup.term], lang)
+    : "-";
+}
+
 export function DocumentsPage() {
   const t = useT();
   const { lang } = useLanguage();
   const { showToast } = useToast();
+  const { options: licenseClassOptions } = useLicenseClassOptions();
 
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -151,12 +156,15 @@ export function DocumentsPage() {
   const activeFilterCount = countActiveCandidateFilters(candidateFilters);
 
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalPages, setTotalPages] = useState(1);
+  const [tabCounts, setTabCounts] = useState({ all: 0, missing: 0, complete: 0 });
 
   const [entries, setEntries] = useState<DocumentChecklistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const lastCompletedFetchKeyRef = useRef<string | null>(null);
+  const [paymentUpdatingIds, setPaymentUpdatingIds] = useState<Set<string>>(new Set());
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>([]);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
@@ -183,6 +191,7 @@ export function DocumentsPage() {
   const [bulkGroupOptions, setBulkGroupOptions] = useState<GroupResponse[]>([]);
   const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [hiddenDocumentColumnIds, setHiddenDocumentColumnIds] = useState<Set<string>>(new Set());
 
   const selectedCount = selectedCandidateIds.size;
   const allVisibleSelected =
@@ -198,6 +207,16 @@ export function DocumentsPage() {
       });
     return () => controller.abort();
   }, [showToast, t]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getGroups({ pageSize: 200 }, controller.signal)
+      .then((result) => setBulkGroupOptions(result.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, []);
 
   // Load the full list of candidate tags for the filter chips. Refreshes with
   // refreshKey so bulk-added tags show up here too.
@@ -239,13 +258,15 @@ export function DocumentsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const candidateFilterQuery = filtersToQuery(debouncedCandidateFilters);
     const requestParams = {
       search: normalizeTextQuery(debouncedSearch),
-      candidateStatus: tab === "all" ? undefined : tab,
       tags: activeTags.length > 0 ? activeTags : undefined,
-      ...filtersToQuery(debouncedCandidateFilters),
+      ...candidateFilterQuery,
+      hasMissingDocuments:
+        tab === "missing" ? true : tab === "complete" ? false : candidateFilterQuery.hasMissingDocuments,
       page,
-      pageSize: PAGE_SIZE,
+      pageSize,
     };
     const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
     if (lastCompletedFetchKeyRef.current === fetchKey) {
@@ -269,7 +290,38 @@ export function DocumentsPage() {
       });
 
     return () => controller.abort();
-  }, [activeTags, debouncedCandidateFilters, debouncedSearch, page, refreshKey, showToast, t, tab]);
+  }, [activeTags, debouncedCandidateFilters, debouncedSearch, page, pageSize, refreshKey, showToast, t, tab]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const candidateFilterQuery = filtersToQuery(debouncedCandidateFilters);
+    const { hasMissingDocuments: _ignored, ...baseCandidateFilterQuery } = candidateFilterQuery;
+    const baseParams = {
+      search: normalizeTextQuery(debouncedSearch),
+      tags: activeTags.length > 0 ? activeTags : undefined,
+      ...baseCandidateFilterQuery,
+      page: 1,
+      pageSize: 1,
+    };
+
+    Promise.all([
+      getDocumentChecklist(baseParams, controller.signal),
+      getDocumentChecklist({ ...baseParams, hasMissingDocuments: true }, controller.signal),
+      getDocumentChecklist({ ...baseParams, hasMissingDocuments: false }, controller.signal),
+    ])
+      .then(([allResult, missingResult, completeResult]) => {
+        setTabCounts({
+          all: allResult.totalCount,
+          missing: missingResult.totalCount,
+          complete: completeResult.totalCount,
+        });
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
+
+    return () => controller.abort();
+  }, [activeTags, debouncedCandidateFilters, debouncedSearch, refreshKey]);
 
   const patchFilters = (patch: Partial<Filters>) => {
     setFilters((current) => ({ ...current, ...patch }));
@@ -455,7 +507,7 @@ export function DocumentsPage() {
 
   const openBulkTagAction = () => {
     if (selectedCount === 0) {
-      showToast("Önce en az bir aday seç", "error");
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
     setBulkActionMode("tags");
@@ -463,7 +515,7 @@ export function DocumentsPage() {
 
   const openBulkGroupAction = async () => {
     if (selectedCount === 0) {
-      showToast("Önce en az bir aday seç", "error");
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
 
@@ -473,10 +525,10 @@ export function DocumentsPage() {
 
     setBulkGroupLoading(true);
     try {
-      const result = await getGroups({ pageSize: 100 });
+      const result = await getGroups({ pageSize: 200 });
       setBulkGroupOptions(result.items);
     } catch {
-      showToast("Dönem listesi yüklenemedi", "error");
+      showToast(t("candidates.toast.bulkGroupFailed"), "error");
     } finally {
       setBulkGroupLoading(false);
     }
@@ -494,7 +546,7 @@ export function DocumentsPage() {
       setBulkTagValues([]);
       setRefreshKey((k) => k + 1);
     } catch {
-      showToast("Toplu etiket ekleme tamamlanamadı", "error");
+      showToast(t("candidates.toast.bulkTagFailed"), "error");
     } finally {
       setBulkSaving(false);
     }
@@ -508,13 +560,14 @@ export function DocumentsPage() {
       await Promise.all(
         selectedIds.map((candidateId) => assignCandidateGroup(candidateId, bulkGroupId))
       );
-      showToast(`${selectedIds.length} adayın dönemi güncellendi`);
+      showToast(`${selectedIds.length} aday gruba aktarıldı`);
       setBulkActionMode(null);
+      setBulkSelectEnabled(false);
       setSelectedCandidateIds(new Set());
       setBulkGroupId("");
       setRefreshKey((k) => k + 1);
     } catch {
-      showToast("Toplu dönem değişikliği tamamlanamadı", "error");
+      showToast(t("candidates.toast.bulkGroupFailed"), "error");
     } finally {
       setBulkSaving(false);
     }
@@ -532,6 +585,37 @@ export function DocumentsPage() {
       candidateName: entry?.fullName,
       documentTypeId: firstMissingType,
     });
+  };
+
+  const toggleInitialPayment = async (entry: DocumentChecklistEntry) => {
+    const nextValue = !entry.hasAdvancePayment;
+    setPaymentUpdatingIds((current) => new Set(current).add(entry.candidateId));
+    setEntries((current) =>
+      current.map((item) =>
+        item.candidateId === entry.candidateId
+          ? { ...item, hasAdvancePayment: nextValue }
+          : item
+      )
+    );
+
+    try {
+      await setCandidateInitialPaymentReceived(entry.candidateId, nextValue);
+    } catch {
+      setEntries((current) =>
+        current.map((item) =>
+          item.candidateId === entry.candidateId
+            ? { ...item, hasAdvancePayment: entry.hasAdvancePayment }
+            : item
+        )
+      );
+      showToast("Peşinat durumu güncellenemedi", "error");
+    } finally {
+      setPaymentUpdatingIds((current) => {
+        const next = new Set(current);
+        next.delete(entry.candidateId);
+        return next;
+      });
+    }
   };
 
   const handleUploaded = () => {
@@ -556,14 +640,67 @@ export function DocumentsPage() {
         ? left.name.localeCompare(right.name, "tr", { sensitivity: "base" })
         : left.sortOrder - right.sortOrder
     );
+  const visibleRequiredDocumentTypes = requiredDocumentTypes.filter(
+    (documentType) => !hiddenDocumentColumnIds.has(documentType.id)
+  );
+  const documentColumnOptions: ColumnOption[] = [
+    { id: "candidate", label: t("documents.col.candidate"), locked: true },
+    { id: "licenseClass", label: "Ehliyet Tipi", locked: true },
+    { id: "term", label: "Dönem", locked: true },
+    { id: "advancePayment", label: "Peşinat", locked: true },
+    ...requiredDocumentTypes.map((documentType) => ({
+      id: documentType.id,
+      label: documentType.name,
+    })),
+    { id: "summary", label: t("documents.col.summary"), locked: true },
+  ];
+  const isDocumentColumnVisible = (id: string) =>
+    id === "candidate" ||
+    id === "licenseClass" ||
+    id === "term" ||
+    id === "advancePayment" ||
+    id === "summary" ||
+    !hiddenDocumentColumnIds.has(id);
+  const toggleDocumentColumn = (id: string) => {
+    if (
+      id === "candidate" ||
+      id === "licenseClass" ||
+      id === "term" ||
+      id === "advancePayment" ||
+      id === "summary"
+    ) return;
+    setHiddenDocumentColumnIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+        return next;
+      }
+      if (requiredDocumentTypes.length - next.size <= 1) return current;
+      next.add(id);
+      return next;
+    });
+  };
   const sortedEntries = [...entries].sort((left, right) => {
-    if (!sort || sort.field !== "name") {
+    if (!sort) {
       return 0;
     }
 
-    const byLastName = left.fullName.localeCompare(right.fullName, "tr", { sensitivity: "base" });
-    return sort.direction === "asc" ? byLastName : -byLastName;
+    const multiplier = sort.direction === "asc" ? 1 : -1;
+    if (sort.field === "licenseClass") {
+      return left.licenseClass.localeCompare(right.licenseClass, "tr", { sensitivity: "base" }) * multiplier;
+    }
+    if (sort.field === "term") {
+      return renderDocumentTerm(left, lang).localeCompare(renderDocumentTerm(right, lang), "tr", {
+        sensitivity: "base",
+      }) * multiplier;
+    }
+    return left.fullName.localeCompare(right.fullName, "tr", { sensitivity: "base" }) * multiplier;
   });
+  const tabs: { key: DocumentsTab; label: string }[] = [
+    { key: "all", label: `Tümü (${tabCounts.all})` },
+    { key: "missing", label: `Eksik Evrak (${tabCounts.missing})` },
+    { key: "complete", label: `Tam Evrak (${tabCounts.complete})` },
+  ];
 
   return (
     <>
@@ -577,10 +714,10 @@ export function DocumentsPage() {
               {bulkActionMode === "tags" ? (
                 <>
                   <CandidateTagsInput
-                    ariaLabel="Toplu etiket seç"
+                    ariaLabel={t("candidates.aria.bulkTagSelect")}
                     className="candidate-bulk-tags-input"
                     onChange={setBulkTagValues}
-                    placeholder="Etiket ara veya yeni ekle"
+                    placeholder={t("candidates.bulk.tagSearchPlaceholder")}
                     value={bulkTagValues}
                   />
                   <button
@@ -589,20 +726,22 @@ export function DocumentsPage() {
                     onClick={applyBulkTagChange}
                     type="button"
                   >
-                    {bulkSaving ? "Ekleniyor..." : "Uygula"}
+                    {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
                   </button>
                 </>
               ) : bulkActionMode === "group" ? (
                 <>
                   <CustomSelect
-                    aria-label="Toplu dönem seç"
+                    aria-label={t("candidates.aria.bulkGroupSelect")}
                     disabled={bulkGroupLoading}
                     onChange={(event) => setBulkGroupId(event.target.value)}
                     size="sm"
                     value={bulkGroupId}
                   >
                     <option value="">
-                      {bulkGroupLoading ? "Dönemler yükleniyor..." : "Dönem / grup seç"}
+                      {bulkGroupLoading
+                        ? t("candidates.bulk.loadingGroups")
+                        : t("candidates.bulk.groupPlaceholder")}
                     </option>
                     {bulkGroupOptions.map((group) => (
                       <option key={group.id} value={group.id}>
@@ -616,7 +755,7 @@ export function DocumentsPage() {
                     onClick={applyBulkGroupChange}
                     type="button"
                   >
-                    {bulkSaving ? "Güncelleniyor..." : "Uygula"}
+                    {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
                   </button>
                 </>
               ) : (
@@ -626,14 +765,14 @@ export function DocumentsPage() {
                     onClick={openBulkGroupAction}
                     type="button"
                   >
-                    Dönem Değiştir
+                    {t("candidates.bulk.assignGroup")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={openBulkTagAction}
                     type="button"
                   >
-                    Etiket Ekle
+                    {t("candidates.bulk.addTag")}
                   </button>
                 </>
               )}
@@ -642,7 +781,7 @@ export function DocumentsPage() {
                 onClick={toggleBulkSelection}
                 type="button"
               >
-                Kapat
+                {t("candidates.bulk.close")}
               </button>
             </div>
           ) : (
@@ -686,7 +825,7 @@ export function DocumentsPage() {
       />
 
       <div className="tabs-search-row">
-        <PageTabs active={tab} onChange={handleTabChange} tabs={TABS} />
+        <PageTabs active={tab} onChange={handleTabChange} tabs={tabs} />
         <div className="search-box documents-toolbar-search">
           <SearchInput
             onChange={(value) => patchFilters({ search: value })}
@@ -758,8 +897,7 @@ export function DocumentsPage() {
       </div>
 
       <div className="table-wrap spaced documents-table-wrap">
-        <Panel>
-          <table className="data-table documents-table">
+        <table className="data-table cand-table documents-table">
             <thead>
               <tr>
                 {bulkSelectEnabled && (
@@ -781,7 +919,59 @@ export function DocumentsPage() {
                   onToggle={handleSortToggle}
                   sort={sort}
                 />
-                {requiredDocumentTypes.map((documentType) => (
+                <SortableTh
+                  field="licenseClass"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={candidateFilters.licenseClass !== ""}
+                      onChange={(value) =>
+                        handleCandidateFilterChange(
+                          "licenseClass",
+                          value as CandidateFilterState["licenseClass"]
+                        )
+                      }
+                      options={[
+                        { value: "", label: t("common.all") },
+                        ...licenseClassOptions.map((option) => ({
+                          value: option.value,
+                          label: option.label,
+                        })),
+                      ]}
+                      title="Ehliyet Tipi"
+                      value={candidateFilters.licenseClass}
+                    />
+                  }
+                  label="Ehliyet Tipi"
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
+                <SortableTh
+                  field="term"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={candidateFilters.groupId !== ""}
+                      onChange={(value) => handleCandidateFilterChange("groupId", value)}
+                      options={[
+                        { value: "", label: t("common.all") },
+                        ...bulkGroupOptions.map((group) => ({
+                          value: group.id,
+                          label: buildGroupHeading(group.title, group.term, [group.term], lang),
+                        })),
+                      ]}
+                      title="Dönem"
+                      value={candidateFilters.groupId}
+                    />
+                  }
+                  label="Dönem"
+                  onToggle={handleSortToggle}
+                  sort={sort}
+                />
+                <th>
+                  <div className="sortable-th-shell">
+                    <span>Peşinat</span>
+                  </div>
+                </th>
+                {visibleRequiredDocumentTypes.map((documentType) => (
                   <th
                     className="documents-doc-th"
                     key={documentType.id}
@@ -792,7 +982,32 @@ export function DocumentsPage() {
                     </span>
                   </th>
                 ))}
-                <th>{t("documents.col.summary")}</th>
+                <th>
+                  <div className="sortable-th-shell">
+                    <span>{t("documents.col.summary")}</span>
+                    <div className="sortable-th-filter">
+                      <TableHeaderFilter
+                        active={tab !== "all"}
+                        onChange={(value) => handleTabChange(value as DocumentsTab)}
+                        options={[
+                          { value: "all", label: "Tümü" },
+                          { value: "missing", label: "Eksik Evrak" },
+                          { value: "complete", label: "Tam Evrak" },
+                        ]}
+                        title={t("documents.col.summary")}
+                        value={tab}
+                      />
+                    </div>
+                  </div>
+                </th>
+                <th className="col-picker-th">
+                  <ColumnPicker
+                    columns={documentColumnOptions}
+                    isVisible={isDocumentColumnVisible}
+                    onToggle={toggleDocumentColumn}
+                    triggerTitle={t("candidates.columns.button")}
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -806,7 +1021,16 @@ export function DocumentsPage() {
                     <td>
                       <span className="skeleton" style={{ width: `${110 + (index * 37) % 60}px` }} />
                     </td>
-                    {requiredDocumentTypes.map((documentType, docIndex) => (
+                    <td>
+                      <span className="skeleton" style={{ width: 56 }} />
+                    </td>
+                    <td>
+                      <span className="skeleton" style={{ width: 94 }} />
+                    </td>
+                    <td>
+                      <span className="skeleton" style={{ width: 56 }} />
+                    </td>
+                    {visibleRequiredDocumentTypes.map((documentType, docIndex) => (
                       <td className="documents-doc-td" key={documentType.id}>
                         <span
                           className="skeleton"
@@ -817,13 +1041,14 @@ export function DocumentsPage() {
                     <td>
                       <span className="skeleton" style={{ width: 88 }} />
                     </td>
+                    <td className="col-picker-td" />
                   </tr>
                 ))
               ) : entries.length === 0 ? (
                 <tr>
                   <td
                     className="data-table-empty"
-                    colSpan={requiredDocumentTypes.length + 3 + (bulkSelectEnabled ? 1 : 0)}
+                    colSpan={visibleRequiredDocumentTypes.length + 7 + (bulkSelectEnabled ? 1 : 0)}
                   >
                     {emptyMessage}
                   </td>
@@ -859,7 +1084,30 @@ export function DocumentsPage() {
                         <div className="cand-name">{entry.fullName}</div>
                         {renderPhoneNumber(entry)}
                       </td>
-                      {requiredDocumentTypes.map((documentType) => {
+                      <td>{entry.licenseClass}</td>
+                      <td>{renderDocumentTerm(entry, lang)}</td>
+                      <td>
+                        <button
+                          aria-label={entry.hasAdvancePayment ? "Peşinat var" : "Peşinat yok"}
+                          className="documents-doc-icon-btn"
+                          disabled={paymentUpdatingIds.has(entry.candidateId)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void toggleInitialPayment(entry);
+                          }}
+                          title={
+                            entry.hasAdvancePayment
+                              ? "Peşinat alındı - alınmadı yap"
+                              : "Peşinat alınmadı - alındı yap"
+                          }
+                          type="button"
+                        >
+                          <span className={`documents-doc-icon ${entry.hasAdvancePayment ? "present" : "missing"}`}>
+                            {entry.hasAdvancePayment ? <CheckIcon size={16} /> : <XIcon size={16} />}
+                          </span>
+                        </button>
+                      </td>
+                      {visibleRequiredDocumentTypes.map((documentType) => {
                         const hasDocument = !entry.missingDocumentKeys.includes(documentType.key);
                         const documentTypeId = documentType.id;
                         return (
@@ -911,16 +1159,27 @@ export function DocumentsPage() {
                           })}
                         </span>
                       </td>
+                      <td className="col-picker-td" />
                     </tr>
                   );
                 })
               )}
             </tbody>
           </table>
-        </Panel>
       </div>
 
-      <Pagination onChange={setPage} page={page} totalPages={totalPages} />
+      <Pagination
+        disabled={loading}
+        onChange={setPage}
+        onPageSizeChange={(nextSize) => {
+          setPageSize(nextSize);
+          setPage(1);
+        }}
+        page={page}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        totalPages={totalPages}
+      />
 
       <UploadDocumentModal
         candidateId={uploadTarget?.candidateId ?? null}
@@ -965,12 +1224,13 @@ export function DocumentsPage() {
 
 type SortableThProps = {
   field: DocumentSortField;
+  filterControl?: ReactNode;
   label: string;
   sort: SortState;
   onToggle: (field: DocumentSortField) => void;
 };
 
-function SortableTh({ field, label, sort, onToggle }: SortableThProps) {
+function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThProps) {
   const isActive = sort?.field === field;
   const direction = isActive ? sort.direction : null;
   const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
@@ -982,16 +1242,19 @@ function SortableTh({ field, label, sort, onToggle }: SortableThProps) {
 
   return (
     <th aria-sort={ariaSort} className={isActive ? "sortable-th active" : "sortable-th"}>
-      <button
-        className="sortable-th-btn"
-        onClick={() => onToggle(field)}
-        type="button"
-      >
-        <span>{label}</span>
-        <span aria-hidden="true" className="sortable-th-indicator">
-          {indicator}
-        </span>
-      </button>
+      <div className="sortable-th-shell">
+        <button
+          className="sortable-th-btn"
+          onClick={() => onToggle(field)}
+          type="button"
+        >
+          <span>{label}</span>
+          <span aria-hidden="true" className="sortable-th-indicator">
+            {indicator}
+          </span>
+        </button>
+        {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+      </div>
     </th>
   );
 }

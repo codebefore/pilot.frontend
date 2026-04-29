@@ -38,22 +38,14 @@ const sampleLicenseClass = {
   name: "B Otomobil",
   category: "automobile" as const,
   minimumAge: 18,
-  isAutomatic: false,
-  isDisabled: false,
-  isNewGeneration: false,
+  hasExistingLicense: false,
+  existingLicenseType: null,
+  existingLicensePre2016: false,
   requiresTheoryExam: true,
   requiresPracticeExam: true,
   theoryLessonHours: 34,
-  contractLessonHours: 16,
+  simulatorLessonHours: 2,
   directPracticeLessonHours: 14,
-  upgradePracticeLessonHours: 7,
-  courseFee: 25000,
-  mebbisFee: 1500,
-  theoryExamFee: 750,
-  practiceExamFirstFee: 1200,
-  practiceExamRepeatFee: 1200,
-  additionalPracticeLessonFee: 2000,
-  otherFee: null,
   displayOrder: 20,
   isActive: true,
   notes: null,
@@ -78,9 +70,6 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       totalPages: 1,
       summary: {
         activeCount: 1,
-        automaticCount: 0,
-        disabledCount: 0,
-        pricedCount: 1,
       },
     });
     createLicenseClassDefinitionMock.mockResolvedValue({
@@ -102,25 +91,23 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
 
     await waitFor(() => {
       expect(getLicenseClassDefinitionsMock).toHaveBeenCalledWith(
-        { activity: "active", page: 1, pageSize: 10, search: undefined },
+        { activity: "active", code: undefined, page: 1, pageSize: 10, search: undefined },
         expect.any(AbortSignal)
       );
     });
 
     expect(await screen.findByText("B")).toBeInTheDocument();
-    expect(screen.getByText("B Otomobil")).toBeInTheDocument();
     expect(screen.getByText("Otomobil")).toBeInTheDocument();
-    expect(screen.getByText(/Teo\. 34/)).toBeInTheDocument();
   });
 
   it("applies filters and re-fetches", async () => {
     renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
     await waitFor(() => expect(getLicenseClassDefinitionsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Genel Durum filtresi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: "Pasif" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Kategori filtresi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ehliyet tipi filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: "Motosiklet" }));
 
     await waitFor(() => {
@@ -128,6 +115,31 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
         {
           activity: "inactive",
           category: "motorcycle",
+          code: undefined,
+          page: 1,
+          pageSize: 10,
+          search: undefined,
+        },
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("filters by code from the code column", async () => {
+    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    await waitFor(() => expect(getLicenseClassDefinitionsMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Kod filtresi" }));
+    fireEvent.change(screen.getByPlaceholderText("Kod ara"), {
+      target: { value: " b " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ara" }));
+
+    await waitFor(() => {
+      expect(getLicenseClassDefinitionsMock).toHaveBeenLastCalledWith(
+        {
+          activity: "active",
+          code: "b",
           page: 1,
           pageSize: 10,
           search: undefined,
@@ -141,15 +153,12 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
     await waitFor(() => expect(getLicenseClassDefinitionsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Ehliyet Tipi/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Kural/i }));
 
     fireEvent.change(screen.getByPlaceholderText("B"), {
       target: { value: " a2 " },
     });
     expect(screen.getByPlaceholderText("B")).toHaveValue(" A2 ");
-    fireEvent.change(screen.getByPlaceholderText("B Otomobil"), {
-      target: { value: "A2 Motosiklet" },
-    });
     fireEvent.change(screen.getByDisplayValue("Otomobil"), {
       target: { value: "motorcycle" },
     });
@@ -159,21 +168,15 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     fireEvent.change(screen.getByLabelText("Teorik Ders Saati"), {
       target: { value: "34" },
     });
-    fireEvent.change(screen.getByLabelText("Eğitim Ücreti"), {
-      target: { value: "12500" },
-    });
-
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(createLicenseClassDefinitionMock).toHaveBeenCalledWith(
         expect.objectContaining({
           code: "A2",
-          name: "A2 Motosiklet",
           category: "motorcycle",
           minimumAge: 16,
           theoryLessonHours: 34,
-          courseFee: 12500,
           isActive: true,
           requiresTheoryExam: true,
           requiresPracticeExam: true,
@@ -184,12 +187,9 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
 
   it("includes rowVersion when updating", async () => {
     renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
-    await screen.findByText("B Otomobil");
+    await screen.findByText("B");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
-    fireEvent.change(screen.getByPlaceholderText("B Otomobil"), {
-      target: { value: "B Otomobil Yeni" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
@@ -197,7 +197,6 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
         "lc1",
         expect.objectContaining({
           code: "B",
-          name: "B Otomobil Yeni",
           rowVersion: 1,
         })
       );
@@ -217,7 +216,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     );
 
     renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
-    await screen.findByText("B Otomobil");
+    await screen.findByText("B");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
@@ -227,7 +226,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
 
   it("deletes a license class with inline confirmation", async () => {
     renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
-    await screen.findByText("B Otomobil");
+    await screen.findByText("B");
 
     fireEvent.click(screen.getByRole("button", { name: "Sil" }));
     expect(deleteLicenseClassDefinitionMock).not.toHaveBeenCalled();

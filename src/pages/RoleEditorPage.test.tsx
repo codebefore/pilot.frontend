@@ -33,10 +33,13 @@ describe("RoleEditorPage", () => {
 
   it("creates a role and navigates back to permissions", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={["/permissions/roles/new"]}>
+      <MemoryRouter initialEntries={["/settings/definitions/permissions/roles/new"]}>
         <Routes>
-          <Route element={<RoleEditorPage />} path="/permissions/roles/new" />
-          <Route element={<div>Permissions home</div>} path="/permissions" />
+          <Route
+            element={<RoleEditorPage />}
+            path="/settings/definitions/permissions/roles/new"
+          />
+          <Route element={<div>Permissions home</div>} path="/settings/definitions/permissions" />
         </Routes>
       </MemoryRouter>
     );

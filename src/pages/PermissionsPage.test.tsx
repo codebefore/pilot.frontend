@@ -64,7 +64,7 @@ describe("PermissionsPage", () => {
 
   it("allows switching roles from the side list", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={["/permissions"]}>
+      <MemoryRouter initialEntries={["/settings/definitions/permissions"]}>
         <PermissionsPage />
       </MemoryRouter>
     );
@@ -96,7 +96,7 @@ describe("PermissionsPage", () => {
 
   it("deletes the selected role with inline confirmation", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={["/permissions"]}>
+      <MemoryRouter initialEntries={["/settings/definitions/permissions"]}>
         <PermissionsPage />
       </MemoryRouter>
     );

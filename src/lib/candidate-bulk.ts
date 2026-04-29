@@ -57,6 +57,7 @@ export function buildCandidateUpdatePayload(
     eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
     drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
     examFeePaid: candidate.examFeePaid ?? false,
+    initialPaymentReceived: candidate.initialPaymentReceived ?? false,
     status: overrides?.status ?? (candidate.status as CandidateStatusValue),
     tags: overrides?.tags ?? (candidate.tags?.map((tag) => tag.name) ?? []),
   };

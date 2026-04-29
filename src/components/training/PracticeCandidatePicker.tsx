@@ -20,8 +20,6 @@ type PracticeCandidatePickerProps = {
   onPick: (candidateId: string) => void;
   /** Bulk scope aktifken üstte çıkan "Tümünü göster" linki için. */
   onClearScope?: () => void;
-  /** Ehliyet sınıfı bazlı hedef saat (DB'den). Bulunamazsa 16 fallback. */
-  practiceHourTargetByLicenseClass?: Map<string, number>;
 };
 
 const DEFAULT_TARGET = 16;
@@ -48,7 +46,6 @@ export function PracticeCandidatePicker({
   scopedCandidateIds,
   onPick,
   onClearScope,
-  practiceHourTargetByLicenseClass,
 }: PracticeCandidatePickerProps) {
   const t = useT();
   const [searchInput, setSearchInput] = useState("");
@@ -138,8 +135,7 @@ export function PracticeCandidatePicker({
     return base.map((c) => {
       const own = eventsByCandidate.get(c.id) ?? [];
       const hours = own.reduce((sum, e) => sum + hoursOfEvent(e), 0);
-      const target =
-        practiceHourTargetByLicenseClass?.get(c.licenseClass) ?? DEFAULT_TARGET;
+      const target = c.educationPlan?.practiceLessonHours ?? DEFAULT_TARGET;
       const lastLessonAt = own.reduce<Date | null>(
         (acc, e) => (acc && acc > e.start ? acc : e.start),
         null
@@ -151,7 +147,6 @@ export function PracticeCandidatePicker({
     events,
     scopeActive,
     scopedCandidateIds,
-    practiceHourTargetByLicenseClass,
   ]);
 
   // Local sort (progress, lastLesson) — backend'de yok, frontend uygular.

@@ -28,13 +28,13 @@ import {
   EXISTING_LICENSE_TYPE_OPTIONS,
   existingLicenseTypeLabel,
   formatDateTR,
-  LICENSE_CLASS_OPTIONS,
   normalizeCandidateGender,
   normalizeCandidateExamResultValue,
   normalizeCandidateMebSyncStatusValue,
   normalizeCandidateStatusValue,
   TURKEY_PROVINCE_OPTIONS,
 } from "../../lib/status-maps";
+import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import type {
   CandidateResponse,
   CandidateUpsertRequest,
@@ -81,12 +81,20 @@ const EXAM_FEE_OPTIONS: SelectOption[] = [
   { value: "true", label: "Ödendi" },
   { value: "false", label: "Ödenmedi" },
 ];
+const INITIAL_PAYMENT_OPTIONS: SelectOption[] = [
+  { value: "true", label: "Alındı" },
+  { value: "false", label: "Alınmadı" },
+];
 const EXAM_ATTEMPT_OPTIONS: SelectOption[] = [
   { value: "1", label: "1/4" },
   { value: "2", label: "2/4" },
   { value: "3", label: "3/4" },
   { value: "4", label: "4/4" },
 ];
+
+function formatLessonHours(value: number | null | undefined): string {
+  return value === null || value === undefined ? "-" : `${value} saat`;
+}
 
 type ExistingLicenseDraft = {
   enabled: boolean;
@@ -135,6 +143,7 @@ export function CandidateDrawer({
   const { showToast } = useToast();
   const { lang } = useLanguage();
   const t = useT();
+  const { options: licenseClassOptions } = useLicenseClassOptions();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const today = todayISO();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
@@ -150,6 +159,7 @@ export function CandidateDrawer({
   );
   const [existingLicenseSaving, setExistingLicenseSaving] = useState(false);
   const [existingLicenseError, setExistingLicenseError] = useState<string | null>(null);
+  const educationPlan = candidate?.educationPlan ?? null;
 
   useEffect(() => {
     if (!candidateId) {
@@ -252,6 +262,7 @@ export function CandidateDrawer({
         drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
         status: normalizeCandidateStatusValue(candidate.status),
         examFeePaid: candidate.examFeePaid ?? false,
+        initialPaymentReceived: candidate.initialPaymentReceived ?? false,
         tags: candidate.tags?.map((tag) => tag.name) ?? [],
         rowVersion: candidate.rowVersion,
         ...patch,
@@ -613,7 +624,7 @@ export function CandidateDrawer({
               displayValue={candidate.licenseClass}
               inputValue={candidate.licenseClass}
               label="Ehliyet Tipi"
-              options={LICENSE_CLASS_OPTIONS}
+              options={licenseClassOptions}
               onSave={(v) => saveField({ licenseClass: v as LicenseClass })}
             />
             <EditableRow
@@ -835,6 +846,19 @@ export function CandidateDrawer({
             )}
           </DrawerSection>
 
+          {educationPlan && (
+            <DrawerSection title="Eğitim Planı">
+              <DrawerRow label="Teorik Ders">
+                {educationPlan.requiresTheoryExam ? formatLessonHours(educationPlan.theoryLessonHours) : "Muaf"}
+              </DrawerRow>
+              <DrawerRow label="Simülatör">{formatLessonHours(educationPlan.simulatorLessonHours)}</DrawerRow>
+              <DrawerRow label="Direksiyon">{formatLessonHours(educationPlan.practiceLessonHours)}</DrawerRow>
+              <DrawerRow label="Uygulama Sınavı">
+                {educationPlan.requiresPracticeExam ? "Gerekli" : "Muaf"}
+              </DrawerRow>
+            </DrawerSection>
+          )}
+
           <DrawerSection title="Durum">
             <EditableRow
               displayValue={candidateStatusLabel(candidate.status)}
@@ -967,15 +991,19 @@ export function CandidateDrawer({
 
           <DrawerSection title="Muhasebe">
             <EditableRow
+              displayValue={candidate.initialPaymentReceived ? "Alındı" : "Alınmadı"}
+              inputValue={candidate.initialPaymentReceived ? "true" : "false"}
+              label="Peşinat"
+              options={INITIAL_PAYMENT_OPTIONS}
+              onSave={(value) => saveField({ initialPaymentReceived: value === "true" })}
+            />
+            <EditableRow
               displayValue={candidate.examFeePaid ? "Ödendi" : "Ödenmedi"}
               inputValue={candidate.examFeePaid ? "true" : "false"}
               label="Sınav Ücreti"
               options={EXAM_FEE_OPTIONS}
               onSave={(value) => saveField({ examFeePaid: value === "true" })}
             />
-            <DrawerRow label="Toplam Ücret">—</DrawerRow>
-            <DrawerRow label="Ödenen">—</DrawerRow>
-            <DrawerRow label="Kalan Bakiye">—</DrawerRow>
           </DrawerSection>
         </>
       ) : (

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
-import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
+import { FilterIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { LicenseClassDefinitionFormModal } from "../modals/LicenseClassDefinitionFormModal";
 import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
@@ -37,16 +38,13 @@ type SortState = {
 type LicenseClassDefinitionFilterValue<T extends string> = T | "all";
 type LicenseClassDefinitionFilters = {
   activity: LicenseClassDefinitionActivityFilter;
+  code: string;
   category: LicenseClassDefinitionFilterValue<LicenseClassDefinitionCategory>;
 };
 type LicenseClassDefinitionColumnId =
   | "code"
-  | "name"
   | "category"
   | "minimumAge"
-  | "lessonHours"
-  | "fees"
-  | "displayOrder"
   | "isActive";
 type LicenseClassDefinitionColumnDef = {
   id: LicenseClassDefinitionColumnId;
@@ -59,9 +57,6 @@ type LicenseClassDefinitionColumnDef = {
 
 const EMPTY_SUMMARY: LicenseClassDefinitionListSummaryResponse = {
   activeCount: 0,
-  automaticCount: 0,
-  disabledCount: 0,
-  pricedCount: 0,
 };
 
 function formatOptionalNumber(value: number | null, suffix = ""): string {
@@ -69,26 +64,9 @@ function formatOptionalNumber(value: number | null, suffix = ""): string {
   return `${value}${suffix}`;
 }
 
-function formatMoney(value: number | null): string {
-  if (value === null || value === undefined) return "-";
-  return value.toLocaleString("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatFlags(item: LicenseClassDefinitionResponse, t: ReturnType<typeof useT>): string {
-  return [
-    item.isAutomatic ? t("settings.licenseClasses.flags.automatic") : null,
-    item.isDisabled ? t("settings.licenseClasses.flags.disabled") : null,
-    item.isNewGeneration ? t("settings.licenseClasses.flags.newGeneration") : null,
-  ]
-    .filter(Boolean)
-    .join(" / ");
-}
 const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
   activity: "active",
+  code: "",
   category: "all",
 };
 
@@ -105,25 +83,11 @@ export function LicenseClassDefinitionsSettingsSection() {
       skeletonWidth: 70,
     },
     {
-      id: "name",
-      label: t("settings.licenseClasses.columns.name"),
-      sortField: "name",
-      renderCell: (item) => (
-        <div>
-          {item.name}
-          {formatFlags(item, t) ? (
-            <div className="settings-table-secondary">{formatFlags(item, t)}</div>
-          ) : null}
-        </div>
-      ),
-      skeletonWidth: 180,
-    },
-    {
       id: "category",
       label: t("settings.licenseClasses.columns.category"),
       sortField: "category",
-      renderCell: (item) => LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category],
-      skeletonWidth: 120,
+      renderCell: (item) => LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category] ?? item.category,
+      skeletonWidth: 100,
     },
     {
       id: "minimumAge",
@@ -131,39 +95,6 @@ export function LicenseClassDefinitionsSettingsSection() {
       sortField: "minimumAge",
       renderCell: (item) => formatOptionalNumber(item.minimumAge),
       skeletonWidth: 50,
-    },
-    {
-      id: "lessonHours",
-      label: t("settings.licenseClasses.columns.lessonHours"),
-      renderCell: (item) => (
-        <span>
-          {t("settings.licenseClasses.lessonTypes.theory")} {formatOptionalNumber(item.theoryLessonHours)} / {t("settings.licenseClasses.lessonTypes.contract")}{" "}
-          {formatOptionalNumber(item.contractLessonHours)} / {t("settings.licenseClasses.lessonTypes.directPractice")}{" "}
-          {formatOptionalNumber(item.directPracticeLessonHours)} / {t("settings.licenseClasses.lessonTypes.upgradePractice")}{" "}
-          {formatOptionalNumber(item.upgradePracticeLessonHours)}
-        </span>
-      ),
-      skeletonWidth: 190,
-    },
-    {
-      id: "fees",
-      label: t("settings.licenseClasses.columns.fees"),
-      renderCell: (item) => (
-        <div>
-          {formatMoney(item.courseFee)}
-          <div className="settings-table-secondary">
-            {t("settings.licenseClasses.fees.exam")}: {formatMoney(item.theoryExamFee)} / {formatMoney(item.practiceExamFirstFee)}
-          </div>
-        </div>
-      ),
-      skeletonWidth: 160,
-    },
-    {
-      id: "displayOrder",
-      label: t("settings.licenseClasses.columns.displayOrder"),
-      sortField: "displayOrder",
-      renderCell: (item) => item.displayOrder,
-      skeletonWidth: 52,
     },
     {
       id: "isActive",
@@ -190,7 +121,7 @@ export function LicenseClassDefinitionsSettingsSection() {
     }));
 
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.license-class-definitions.columns.v1",
+    "settings.license-class-definitions.columns.v3",
     LICENSE_CLASS_DEFINITION_COLUMN_IDS
   );
 
@@ -220,6 +151,7 @@ export function LicenseClassDefinitionsSettingsSection() {
     setLoading(true);
     const query = {
       activity: filters.activity,
+      code: filters.code.trim() || undefined,
       page,
       pageSize,
       search: search.trim() || undefined,
@@ -251,14 +183,13 @@ export function LicenseClassDefinitionsSettingsSection() {
     return {
       total: totalCount,
       active: summary.activeCount,
-      automatic: summary.automaticCount,
-      priced: summary.pricedCount,
     };
   }, [summary, totalCount]);
 
   const hasActiveFilters =
     search.trim().length > 0 ||
     filters.activity !== DEFAULT_FILTERS.activity ||
+    filters.code !== DEFAULT_FILTERS.code ||
     filters.category !== DEFAULT_FILTERS.category;
 
   const handleSaved = (_saved: LicenseClassDefinitionResponse) => {
@@ -289,6 +220,8 @@ export function LicenseClassDefinitionsSettingsSection() {
     if (isVisible(id)) {
       if (id === "isActive") {
         setFilter("activity", DEFAULT_FILTERS.activity);
+      } else if (id === "code") {
+        setFilter("code", DEFAULT_FILTERS.code);
       } else if (id === "category") {
         setFilter("category", DEFAULT_FILTERS.category);
       }
@@ -333,14 +266,6 @@ export function LicenseClassDefinitionsSettingsSection() {
           <div className="settings-summary-card">
             <span className="settings-summary-label">{t("settings.licenseClasses.summary.active")}</span>
             <strong className="settings-summary-value">{counts.active}</strong>
-          </div>
-          <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.licenseClasses.summary.automatic")}</span>
-            <strong className="settings-summary-value">{counts.automatic}</strong>
-          </div>
-          <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.licenseClasses.summary.priced")}</span>
-            <strong className="settings-summary-value">{counts.priced}</strong>
           </div>
         </div>
 
@@ -610,6 +535,21 @@ function buildColumnFilterControl(
   ) => void,
   t: ReturnType<typeof useT>
 ) {
+  if (columnId === "code") {
+    return (
+      <TableHeaderTextFilter
+        active={filters.code.trim().length > 0}
+        applyLabel={t("common.search")}
+        clearLabel={t("settings.licenseClasses.button.clearFilters")}
+        onApply={(nextValue) => setFilter("code", nextValue)}
+        onClear={() => setFilter("code", DEFAULT_FILTERS.code)}
+        placeholder={t("settings.licenseClasses.filter.codePlaceholder")}
+        title={t("settings.licenseClasses.filter.codeTitle")}
+        value={filters.code}
+      />
+    );
+  }
+
   if (columnId === "isActive") {
     return (
       <TableHeaderFilter
@@ -633,14 +573,11 @@ function buildColumnFilterControl(
       <TableHeaderFilter
         active={filters.category !== DEFAULT_FILTERS.category}
         onChange={(nextValue) =>
-          setFilter("category", nextValue as LicenseClassDefinitionFilters["category"])
+          setFilter("category", nextValue as LicenseClassDefinitionFilterValue<LicenseClassDefinitionCategory>)
         }
         options={[
           { value: "all", label: t("common.all") },
-          ...LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          })),
+          ...LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS,
         ]}
         title={t("settings.licenseClasses.filter.categoryTitle")}
         value={filters.category}
@@ -649,4 +586,180 @@ function buildColumnFilterControl(
   }
 
   return null;
+}
+
+const FILTER_MENU_VIEWPORT_GAP = 8;
+const FILTER_MENU_TRIGGER_GAP = 6;
+const FILTER_MENU_FALLBACK_WIDTH = 220;
+const FILTER_MENU_FALLBACK_HEIGHT = 150;
+
+type TableHeaderTextFilterProps = {
+  active: boolean;
+  applyLabel: string;
+  clearLabel: string;
+  onApply: (value: string) => void;
+  onClear: () => void;
+  placeholder: string;
+  title: string;
+  value: string;
+};
+
+function TableHeaderTextFilter({
+  active,
+  applyLabel,
+  clearLabel,
+  onApply,
+  onClear,
+  placeholder,
+  title,
+  value,
+}: TableHeaderTextFilterProps) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setDraft(value);
+    }
+  }, [open, value]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const measuredWidth = menuRef.current?.offsetWidth ?? FILTER_MENU_FALLBACK_WIDTH;
+      const measuredHeight = menuRef.current?.offsetHeight ?? FILTER_MENU_FALLBACK_HEIGHT;
+      const maxLeft = Math.max(
+        FILTER_MENU_VIEWPORT_GAP,
+        window.innerWidth - measuredWidth - FILTER_MENU_VIEWPORT_GAP
+      );
+      const left = Math.min(
+        Math.max(triggerRect.right - measuredWidth, FILTER_MENU_VIEWPORT_GAP),
+        maxLeft
+      );
+      const belowTop = triggerRect.bottom + FILTER_MENU_TRIGGER_GAP;
+      const aboveTop = triggerRect.top - measuredHeight - FILTER_MENU_TRIGGER_GAP;
+      const fitsBelow = belowTop + measuredHeight <= window.innerHeight - FILTER_MENU_VIEWPORT_GAP;
+      const fitsAbove = aboveTop >= FILTER_MENU_VIEWPORT_GAP;
+      const top = fitsBelow
+        ? belowTop
+        : fitsAbove
+          ? aboveTop
+          : Math.max(
+              FILTER_MENU_VIEWPORT_GAP,
+              window.innerHeight - measuredHeight - FILTER_MENU_VIEWPORT_GAP
+            );
+
+      setMenuPos({ top, left });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onApply(draft.trim());
+    setOpen(false);
+  };
+
+  return (
+    <div className={open ? "table-header-filter open" : "table-header-filter"} ref={ref}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={title}
+        className={`table-header-filter-trigger${active ? " active" : ""}`}
+        onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
+        title={title}
+        type="button"
+      >
+        <FilterIcon size={12} />
+      </button>
+
+      {open
+        ? createPortal(
+            <div
+              className="table-header-filter-menu table-header-filter-text-menu"
+              ref={menuRef}
+              role="dialog"
+              style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+            >
+              <div className="table-header-filter-title">{title}</div>
+              <form className="table-header-filter-form" onSubmit={submit}>
+                <input
+                  autoFocus
+                  className="table-header-filter-input"
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={placeholder}
+                  type="search"
+                  value={draft}
+                />
+                <div className="table-header-filter-actions">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      onClear();
+                      setOpen(false);
+                    }}
+                    type="button"
+                  >
+                    {clearLabel}
+                  </button>
+                  <button className="btn btn-primary btn-sm" type="submit">
+                    {applyLabel}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
 }

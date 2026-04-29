@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getLicenseClassDefinitions } from "./license-class-definitions-api";
+import { LICENSE_CLASS_DEFINITION_CATEGORY_LABELS } from "./license-class-definition-catalog";
 import type { LicenseClassDefinitionResponse } from "./types";
 
 export type LicenseClassOption = {
@@ -51,13 +52,41 @@ export const REFERENCE_LICENSE_CLASS_OPTIONS: LicenseClassOption[] = [
 ];
 
 function toOption(item: LicenseClassDefinitionResponse): LicenseClassOption {
-  const name = item.name.trim();
   const code = item.code.trim();
-  const label = name.toLocaleUpperCase("tr-TR").startsWith(code.toLocaleUpperCase("tr-TR"))
-    ? name
-    : `${code} - ${name}`;
+  const categoryLabel = LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category] ?? item.category;
 
-  return { value: code, label };
+  return { value: code, label: `${code} - ${categoryLabel}` };
+}
+
+function uniqueTargetOptions(items: LicenseClassDefinitionResponse[]): LicenseClassOption[] {
+  const preferredByCode = new Map<string, LicenseClassDefinitionResponse>();
+
+  for (const item of items) {
+    const key = item.code.trim().toLocaleUpperCase("tr-TR");
+    const current = preferredByCode.get(key);
+    if (!current || isPreferredTargetOption(item, current)) {
+      preferredByCode.set(key, item);
+    }
+  }
+
+  return [...preferredByCode.values()]
+    .sort((a, b) => a.displayOrder - b.displayOrder || a.code.localeCompare(b.code, "tr"))
+    .map(toOption);
+}
+
+function isPreferredTargetOption(
+  candidate: LicenseClassDefinitionResponse,
+  current: LicenseClassDefinitionResponse
+): boolean {
+  if (candidate.hasExistingLicense !== current.hasExistingLicense) {
+    return !candidate.hasExistingLicense;
+  }
+
+  return (
+    candidate.displayOrder < current.displayOrder ||
+    (candidate.displayOrder === current.displayOrder &&
+      candidate.name.localeCompare(current.name, "tr") < 0)
+  );
 }
 
 export function useLicenseClassOptions() {
@@ -72,14 +101,14 @@ export function useLicenseClassOptions() {
       {
         activity: "active",
         page: 1,
-        pageSize: 100,
+        pageSize: 1000,
         sortBy: "displayOrder",
         sortDir: "asc",
       },
       controller.signal
     )
       .then((response) => {
-        const nextOptions = response.items.map(toOption);
+        const nextOptions = uniqueTargetOptions(response.items);
         setOptions(nextOptions.length > 0 ? nextOptions : REFERENCE_LICENSE_CLASS_OPTIONS);
       })
       .catch((error) => {

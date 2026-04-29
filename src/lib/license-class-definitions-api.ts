@@ -18,6 +18,7 @@ export type LicenseClassDefinitionActivityFilter = "active" | "inactive" | "all"
 
 export interface GetLicenseClassDefinitionsOptions {
   search?: string;
+  code?: string;
   includeInactive?: boolean;
   activity?: LicenseClassDefinitionActivityFilter;
   category?: LicenseClassDefinitionCategory;
@@ -33,6 +34,7 @@ export function getLicenseClassDefinitions(
 ): Promise<LicenseClassDefinitionListResponse> {
   const params: QueryParams = {
     search: options?.search || undefined,
+    code: options?.code || undefined,
     includeInactive: options?.includeInactive ?? false,
     activity: options?.activity,
     category: options?.category,

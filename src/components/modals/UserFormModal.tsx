@@ -16,6 +16,8 @@ type UserFormValues = {
   fullName: string;
   email: string;
   phone: string;
+  mebbisUsername: string;
+  mebbisPassword: string;
   roleId: string;
   isActive: boolean;
 };
@@ -34,6 +36,8 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
         fullName: editing.fullName,
         email: editing.email ?? "",
         phone: editing.phone ?? "",
+        mebbisUsername: editing.mebbisUsername ?? "",
+        mebbisPassword: "",
         roleId: editing.roleId ?? "",
         isActive: editing.isActive,
       }
@@ -41,6 +45,8 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
         fullName: "",
         email: "",
         phone: "",
+        mebbisUsername: "",
+        mebbisPassword: "",
         roleId: "",
         isActive: true,
       };
@@ -52,6 +58,10 @@ const VALIDATION_FIELD_MAP: Record<string, keyof UserFormValues> = {
   Email: "email",
   phone: "phone",
   Phone: "phone",
+  mebbisUsername: "mebbisUsername",
+  MebbisUsername: "mebbisUsername",
+  mebbisPassword: "mebbisPassword",
+  MebbisPassword: "mebbisPassword",
   roleId: "roleId",
   RoleId: "roleId",
   isActive: "isActive",
@@ -92,6 +102,8 @@ export function UserFormModal({
       fullName: values.fullName.trim(),
       email: values.email.trim() ? values.email.trim() : null,
       phone: values.phone.trim(),
+      mebbisUsername: values.mebbisUsername.trim() || null,
+      mebbisPassword: values.mebbisPassword.trim() || null,
       roleId: values.roleId || null,
       isActive: values.isActive,
     };
@@ -211,6 +223,36 @@ export function UserFormModal({
               })}
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">MEBBİS Kullanıcı Adı</label>
+            <input
+              className={fieldClass(!!errors.mebbisUsername, "form-input")}
+              placeholder="MEBBİS kullanıcı adı"
+              {...register("mebbisUsername")}
+            />
+            {errors.mebbisUsername && (
+              <div className="form-error">{errors.mebbisUsername.message}</div>
+            )}
+          </div>
+          <div className="form-group">
+            <label className="form-label">MEBBİS Şifresi</label>
+            <input
+              autoComplete="new-password"
+              className={fieldClass(!!errors.mebbisPassword, "form-input")}
+              placeholder={editing?.hasMebbisPassword ? "Değiştirmek için yeni şifre gir" : "MEBBİS şifresi"}
+              type="password"
+              {...register("mebbisPassword")}
+            />
+            {editing?.hasMebbisPassword ? (
+              <div className="form-hint">Mevcut şifre kayıtlı; boş bırakırsan değişmez.</div>
+            ) : null}
+            {errors.mebbisPassword && (
+              <div className="form-error">{errors.mebbisPassword.message}</div>
+            )}
           </div>
         </div>
 

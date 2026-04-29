@@ -6,9 +6,13 @@ import {
   updateLicenseClassDefinition,
 } from "../../lib/license-class-definitions-api";
 import { LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS } from "../../lib/license-class-definition-catalog";
+import { FEE_TYPE_LABELS } from "../../lib/fee-catalog";
+import { getFees } from "../../lib/fees-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { EXISTING_LICENSE_TYPE_OPTIONS } from "../../lib/status-maps";
 import type {
+  FeeResponse,
   LicenseClassDefinitionResponse,
   LicenseClassDefinitionUpsertRequest,
 } from "../../lib/types";
@@ -18,26 +22,16 @@ import { useToast } from "../ui/Toast";
 
 type LicenseClassDefinitionFormValues = {
   code: string;
-  name: string;
   category: LicenseClassDefinitionUpsertRequest["category"];
   minimumAge: string;
-  isAutomatic: boolean;
-  isDisabled: boolean;
-  isNewGeneration: boolean;
+  hasExistingLicense: boolean;
+  existingLicenseType: string;
+  existingLicensePre2016: boolean;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
   theoryLessonHours: string;
-  contractLessonHours: string;
+  simulatorLessonHours: string;
   directPracticeLessonHours: string;
-  upgradePracticeLessonHours: string;
-  courseFee: string;
-  mebbisFee: string;
-  theoryExamFee: string;
-  practiceExamFirstFee: string;
-  practiceExamRepeatFee: string;
-  additionalPracticeLessonFee: string;
-  otherFee: string;
-  displayOrder: string;
   isActive: boolean;
   notes: string;
 };
@@ -53,36 +47,22 @@ type LicenseClassDefinitionFormModalProps = {
 const VALIDATION_FIELD_MAP: Record<string, keyof LicenseClassDefinitionFormValues> = {
   code: "code",
   Code: "code",
-  name: "name",
-  Name: "name",
   category: "category",
   Category: "category",
   minimumAge: "minimumAge",
   MinimumAge: "minimumAge",
+  hasExistingLicense: "hasExistingLicense",
+  HasExistingLicense: "hasExistingLicense",
+  existingLicenseType: "existingLicenseType",
+  ExistingLicenseType: "existingLicenseType",
+  existingLicensePre2016: "existingLicensePre2016",
+  ExistingLicensePre2016: "existingLicensePre2016",
   theoryLessonHours: "theoryLessonHours",
   TheoryLessonHours: "theoryLessonHours",
-  contractLessonHours: "contractLessonHours",
-  ContractLessonHours: "contractLessonHours",
+  simulatorLessonHours: "simulatorLessonHours",
+  SimulatorLessonHours: "simulatorLessonHours",
   directPracticeLessonHours: "directPracticeLessonHours",
   DirectPracticeLessonHours: "directPracticeLessonHours",
-  upgradePracticeLessonHours: "upgradePracticeLessonHours",
-  UpgradePracticeLessonHours: "upgradePracticeLessonHours",
-  courseFee: "courseFee",
-  CourseFee: "courseFee",
-  mebbisFee: "mebbisFee",
-  MebbisFee: "mebbisFee",
-  theoryExamFee: "theoryExamFee",
-  TheoryExamFee: "theoryExamFee",
-  practiceExamFirstFee: "practiceExamFirstFee",
-  PracticeExamFirstFee: "practiceExamFirstFee",
-  practiceExamRepeatFee: "practiceExamRepeatFee",
-  PracticeExamRepeatFee: "practiceExamRepeatFee",
-  additionalPracticeLessonFee: "additionalPracticeLessonFee",
-  AdditionalPracticeLessonFee: "additionalPracticeLessonFee",
-  otherFee: "otherFee",
-  OtherFee: "otherFee",
-  displayOrder: "displayOrder",
-  DisplayOrder: "displayOrder",
   notes: "notes",
   Notes: "notes",
 };
@@ -156,51 +136,31 @@ function getEmptyValues(
   return editing
     ? {
         code: editing.code,
-        name: editing.name,
         category: editing.category,
         minimumAge: stringValue(editing.minimumAge),
-        isAutomatic: editing.isAutomatic,
-        isDisabled: editing.isDisabled,
-        isNewGeneration: editing.isNewGeneration,
+        hasExistingLicense: editing.hasExistingLicense,
+        existingLicenseType: editing.existingLicenseType ?? "",
+        existingLicensePre2016: editing.existingLicensePre2016,
         requiresTheoryExam: editing.requiresTheoryExam,
         requiresPracticeExam: editing.requiresPracticeExam,
         theoryLessonHours: stringValue(editing.theoryLessonHours),
-        contractLessonHours: stringValue(editing.contractLessonHours),
+        simulatorLessonHours: stringValue(editing.simulatorLessonHours),
         directPracticeLessonHours: stringValue(editing.directPracticeLessonHours),
-        upgradePracticeLessonHours: stringValue(editing.upgradePracticeLessonHours),
-        courseFee: stringValue(editing.courseFee),
-        mebbisFee: stringValue(editing.mebbisFee),
-        theoryExamFee: stringValue(editing.theoryExamFee),
-        practiceExamFirstFee: stringValue(editing.practiceExamFirstFee),
-        practiceExamRepeatFee: stringValue(editing.practiceExamRepeatFee),
-        additionalPracticeLessonFee: stringValue(editing.additionalPracticeLessonFee),
-        otherFee: stringValue(editing.otherFee),
-        displayOrder: String(editing.displayOrder),
         isActive: editing.isActive,
         notes: editing.notes ?? "",
       }
     : {
         code: "",
-        name: "",
         category: "automobile",
         minimumAge: "18",
-        isAutomatic: false,
-        isDisabled: false,
-        isNewGeneration: false,
+        hasExistingLicense: false,
+        existingLicenseType: "",
+        existingLicensePre2016: false,
         requiresTheoryExam: true,
         requiresPracticeExam: true,
         theoryLessonHours: "",
-        contractLessonHours: "",
+        simulatorLessonHours: "",
         directPracticeLessonHours: "",
-        upgradePracticeLessonHours: "",
-        courseFee: "",
-        mebbisFee: "",
-        theoryExamFee: "",
-        practiceExamFirstFee: "",
-        practiceExamRepeatFee: "",
-        additionalPracticeLessonFee: "",
-        otherFee: "",
-        displayOrder: "1000",
         isActive: true,
         notes: "",
       };
@@ -212,25 +172,11 @@ function parseOptionalNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseInteger(value: string): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 1000;
-}
-
 function validateOptionalInteger(value: string, min: number, max: number, message: string): true | string {
   const parsed = parseOptionalNumber(value);
   if (parsed === null) return true;
   if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
     return message;
-  }
-  return true;
-}
-
-function validateFee(value: string): true | string {
-  const parsed = parseOptionalNumber(value);
-  if (parsed === null) return true;
-  if (parsed < 0 || parsed > 1000000) {
-    return "Ücret 0 ile 1000000 arasında olmalı";
   }
   return true;
 }
@@ -245,6 +191,8 @@ export function LicenseClassDefinitionFormModal({
   const { showToast } = useToast();
   const t = useT();
   const [submitting, setSubmitting] = useState(false);
+  const [linkedFees, setLinkedFees] = useState<FeeResponse[]>([]);
+  const [linkedFeesLoading, setLinkedFeesLoading] = useState(false);
 
   const {
     control,
@@ -263,31 +211,44 @@ export function LicenseClassDefinitionFormModal({
     reset(getEmptyValues(editing));
   }, [editing, open, reset]);
 
+  useEffect(() => {
+    if (!open || !editing?.id) {
+      setLinkedFees([]);
+      return;
+    }
+    const controller = new AbortController();
+    setLinkedFeesLoading(true);
+    getFees(
+      { activity: "active", licenseClassId: editing.id, page: 1, pageSize: 100 },
+      controller.signal
+    )
+      .then((response) => setLinkedFees(response.items))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setLinkedFees([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLinkedFeesLoading(false);
+      });
+    return () => controller.abort();
+  }, [editing?.id, open]);
+
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
 
     const payload: LicenseClassDefinitionUpsertRequest = {
       code: values.code.trim(),
-      name: values.name.trim(),
       category: values.category,
       minimumAge: parseOptionalNumber(values.minimumAge),
-      isAutomatic: values.isAutomatic,
-      isDisabled: values.isDisabled,
-      isNewGeneration: values.isNewGeneration,
+      hasExistingLicense: values.hasExistingLicense,
+      existingLicenseType: values.hasExistingLicense ? values.existingLicenseType.trim() || null : null,
+      existingLicensePre2016: values.hasExistingLicense ? values.existingLicensePre2016 : false,
       requiresTheoryExam: values.requiresTheoryExam,
       requiresPracticeExam: values.requiresPracticeExam,
       theoryLessonHours: parseOptionalNumber(values.theoryLessonHours),
-      contractLessonHours: parseOptionalNumber(values.contractLessonHours),
+      simulatorLessonHours: parseOptionalNumber(values.simulatorLessonHours),
       directPracticeLessonHours: parseOptionalNumber(values.directPracticeLessonHours),
-      upgradePracticeLessonHours: parseOptionalNumber(values.upgradePracticeLessonHours),
-      courseFee: parseOptionalNumber(values.courseFee),
-      mebbisFee: parseOptionalNumber(values.mebbisFee),
-      theoryExamFee: parseOptionalNumber(values.theoryExamFee),
-      practiceExamFirstFee: parseOptionalNumber(values.practiceExamFirstFee),
-      practiceExamRepeatFee: parseOptionalNumber(values.practiceExamRepeatFee),
-      additionalPracticeLessonFee: parseOptionalNumber(values.additionalPracticeLessonFee),
-      otherFee: parseOptionalNumber(values.otherFee),
-      displayOrder: parseInteger(values.displayOrder),
+      displayOrder: editing?.displayOrder ?? 1000,
       isActive: values.isActive,
       notes: values.notes.trim() || null,
       ...(editing ? { rowVersion: editing.rowVersion } : {}),
@@ -336,16 +297,16 @@ export function LicenseClassDefinitionFormModal({
       }
       onClose={onClose}
       open={open}
-      title={editing ? "Ehliyet Tipi Düzenle" : "Yeni Ehliyet Tipi"}
+      title={editing ? "Ehliyet Kuralı Düzenle" : "Yeni Ehliyet Kuralı"}
     >
       <form className="settings-form" onSubmit={submit}>
-        <div className="form-row">
+        <div className="form-row license-rule-basics-row">
           <div className="form-group">
-            <label className="form-label">Kod</label>
+            <label className="form-label">Hedef Kod</label>
             <Controller
               control={control}
               name="code"
-              rules={{ required: "Kod zorunlu" }}
+              rules={{ required: "Hedef kod zorunlu" }}
               render={({ field }) => (
                 <input
                   {...field}
@@ -360,18 +321,6 @@ export function LicenseClassDefinitionFormModal({
             {errors.code && <div className="form-error">{errors.code.message}</div>}
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Ehliyet Tipi</label>
-            <input
-              className={fieldClass(errors.name?.message)}
-              placeholder="B Otomobil"
-              {...register("name", { required: "Ehliyet tipi zorunlu" })}
-            />
-            {errors.name && <div className="form-error">{errors.name.message}</div>}
-          </div>
-        </div>
-
-        <div className="form-row">
           <div className="form-group">
             <label className="form-label">Kategori</label>
             <Controller
@@ -409,13 +358,6 @@ export function LicenseClassDefinitionFormModal({
         </div>
 
         <div className="settings-checkbox-list">
-          <SwitchField label="Otomatik" switchValue={watch("isAutomatic")} {...register("isAutomatic")} />
-          <SwitchField label="Engelli" switchValue={watch("isDisabled")} {...register("isDisabled")} />
-          <SwitchField
-            label="Yeni Nesil"
-            switchValue={watch("isNewGeneration")}
-            {...register("isNewGeneration")}
-          />
           <SwitchField
             label="Teorik sınav gerekli"
             switchValue={watch("requiresTheoryExam")}
@@ -427,6 +369,48 @@ export function LicenseClassDefinitionFormModal({
             {...register("requiresPracticeExam")}
           />
           <SwitchField label="Genel Durum" switchValue={watch("isActive")} {...register("isActive")} />
+        </div>
+
+        <div className="form-subsection license-existing-section">
+          <div className="form-subsection-header">
+            <div>
+              <div className="form-subsection-title">Mevcut Ehliyet</div>
+            </div>
+          </div>
+
+          <div className="settings-checkbox-list">
+            <SwitchField label="Mevcut ehliyet var" switchValue={watch("hasExistingLicense")} {...register("hasExistingLicense")} />
+            <SwitchField label="2016 öncesi" switchValue={watch("existingLicensePre2016")} {...register("existingLicensePre2016")} />
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <Controller
+                control={control}
+                name="existingLicenseType"
+                rules={{
+                  validate: (value) =>
+                    !watch("hasExistingLicense") || value.trim().length > 0 || "Mevcut tipi zorunlu",
+                }}
+                render={({ field }) => (
+                  <CustomSelect
+                    {...field}
+                    className={selectClass(errors.existingLicenseType?.message)}
+                    disabled={!watch("hasExistingLicense")}
+                    value={field.value ?? ""}
+                  >
+                    <option value="">Mevcut tipi seçin</option>
+                    {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                )}
+              />
+              {errors.existingLicenseType && <div className="form-error">{errors.existingLicenseType.message}</div>}
+            </div>
+          </div>
         </div>
 
         <div className="form-subsection">
@@ -447,96 +431,66 @@ export function LicenseClassDefinitionFormModal({
               })}
             />
             <NumberField
-              error={errors.contractLessonHours?.message}
-              label="Sözleşme Saati"
-              placeholder="16"
-              registerProps={register("contractLessonHours", {
+              error={errors.simulatorLessonHours?.message}
+              label="Simülatör Saati"
+              placeholder="2"
+              registerProps={register("simulatorLessonHours", {
                 validate: (value) =>
                   validateOptionalInteger(value, 0, 999, "Ders saati 0 ile 999 arasında olmalı"),
               })}
             />
             <NumberField
               error={errors.directPracticeLessonHours?.message}
-              label="Doğrudan Direksiyon"
+              label="Direksiyon Saati"
               placeholder="14"
               registerProps={register("directPracticeLessonHours", {
                 validate: (value) =>
                   validateOptionalInteger(value, 0, 999, "Ders saati 0 ile 999 arasında olmalı"),
               })}
             />
-            <NumberField
-              error={errors.upgradePracticeLessonHours?.message}
-              label="Yükseltme Direksiyon"
-              placeholder="7"
-              registerProps={register("upgradePracticeLessonHours", {
-                validate: (value) =>
-                  validateOptionalInteger(value, 0, 999, "Ders saati 0 ile 999 arasında olmalı"),
-              })}
-            />
           </div>
         </div>
 
-        <div className="form-subsection">
-          <div className="form-subsection-header">
-            <div>
-              <div className="form-subsection-title">Ücret Kalemleri</div>
+        {editing ? (
+          <div className="form-subsection">
+            <div className="form-subsection-header">
+              <div>
+                <div className="form-subsection-title">İlgili Ücretler</div>
+                <div className="form-subsection-note">
+                  Bu sınıfa bağlı ücretler. Düzenlemek için Ücretler ekranını kullanın.
+                </div>
+              </div>
+            </div>
+            <div className="settings-table-wrap">
+              <table className="settings-table">
+                <thead>
+                  <tr>
+                    <th>Ders Türü</th>
+                    <th>Ücret (TL)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linkedFeesLoading ? (
+                    <tr>
+                      <td colSpan={2}>…</td>
+                    </tr>
+                  ) : linkedFees.length === 0 ? (
+                    <tr>
+                      <td colSpan={2}>Bu sınıfa bağlı ücret yok.</td>
+                    </tr>
+                  ) : (
+                    linkedFees.map((fee) => (
+                      <tr key={fee.id}>
+                        <td>{FEE_TYPE_LABELS[fee.feeType] ?? fee.feeType}</td>
+                        <td>{fee.amount.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div className="form-row">
-            <MoneyField
-              error={errors.courseFee?.message}
-              label="Eğitim Ücreti"
-              registerProps={register("courseFee", { validate: validateFee })}
-            />
-            <MoneyField
-              error={errors.mebbisFee?.message}
-              label="MEBBIS Ücreti"
-              registerProps={register("mebbisFee", { validate: validateFee })}
-            />
-            <MoneyField
-              error={errors.theoryExamFee?.message}
-              label="Teorik Sınav"
-              registerProps={register("theoryExamFee", { validate: validateFee })}
-            />
-          </div>
-
-          <div className="form-row">
-            <MoneyField
-              error={errors.practiceExamFirstFee?.message}
-              label="1. Uygulama"
-              registerProps={register("practiceExamFirstFee", { validate: validateFee })}
-            />
-            <MoneyField
-              error={errors.practiceExamRepeatFee?.message}
-              label="Tekrar Uygulama"
-              registerProps={register("practiceExamRepeatFee", { validate: validateFee })}
-            />
-            <MoneyField
-              error={errors.additionalPracticeLessonFee?.message}
-              label="2 Saatlik Uygulama"
-              registerProps={register("additionalPracticeLessonFee", { validate: validateFee })}
-            />
-          </div>
-
-          <div className="form-row">
-            <MoneyField
-              error={errors.otherFee?.message}
-              label="Diğer Ücret"
-              registerProps={register("otherFee", { validate: validateFee })}
-            />
-            <NumberField
-              error={errors.displayOrder?.message}
-              label="Sıralama"
-              placeholder="1000"
-              registerProps={register("displayOrder", {
-                required: "Sıralama zorunlu",
-                validate: (value) =>
-                  validateOptionalInteger(value, 0, 100000, "Sıralama 0 ile 100000 arasında olmalı"),
-              })}
-            />
-          </div>
-        </div>
+        ) : null}
 
         <div className="form-row full">
           <div className="form-group">
@@ -582,25 +536,6 @@ function NumberField({ error, label, placeholder, registerProps }: InputFieldPro
         min={0}
         placeholder={placeholder}
         step={1}
-        type="number"
-        {...registerProps}
-      />
-      {error ? <div className="form-error">{error}</div> : null}
-    </div>
-  );
-}
-
-function MoneyField({ error, label, registerProps }: InputFieldProps) {
-  return (
-    <div className="form-group">
-      <label className="form-label">{label}</label>
-      <input
-        aria-label={label}
-        className={error ? "form-input error" : "form-input"}
-        inputMode="decimal"
-        min={0}
-        placeholder="0"
-        step="0.01"
         type="number"
         {...registerProps}
       />

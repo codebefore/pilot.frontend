@@ -223,6 +223,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         existingLicensePre2016: data.hasExistingLicense ? data.existingLicensePre2016 : false,
         status: "pre_registered",
         examFeePaid: false,
+        initialPaymentReceived: false,
         tags: data.tags,
       });
 

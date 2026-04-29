@@ -34,6 +34,17 @@ function renderPage() {
   );
 }
 
+function checklistPageCalls() {
+  return getDocumentChecklistMock.mock.calls.filter(
+    ([params]) => params?.pageSize === 20
+  );
+}
+
+function lastChecklistPageCall() {
+  const calls = checklistPageCalls();
+  return calls[calls.length - 1];
+}
+
 describe("DocumentsPage", () => {
   beforeEach(() => {
     getDocumentChecklistMock.mockReset();
@@ -72,7 +83,7 @@ describe("DocumentsPage", () => {
     ]);
   });
 
-  it("fetches the checklist by default without a tab status filter", async () => {
+  it("fetches the checklist by default without a status tab filter", async () => {
     renderPage();
 
     await waitFor(() => {
@@ -84,6 +95,8 @@ describe("DocumentsPage", () => {
         expect.any(AbortSignal)
       );
     });
+    expect(checklistPageCalls()[0]?.[0]).not.toHaveProperty("candidateStatus");
+    expect(checklistPageCalls()[0]?.[0]?.hasMissingDocuments).toBeUndefined();
   });
 
   it("sends the text search filter", async () => {
@@ -96,21 +109,21 @@ describe("DocumentsPage", () => {
     });
 
     await waitFor(() => {
-      expect(getDocumentChecklistMock).toHaveBeenLastCalledWith(
+      const lastPageCall = lastChecklistPageCall();
+      expect(lastPageCall).toEqual([
         expect.objectContaining({
           search: "Ayse",
           page: 1,
         }),
-        expect.any(AbortSignal)
-      );
+        expect.any(AbortSignal),
+      ]);
     });
   });
 
   it("does not send the document search query until the second character", async () => {
     renderPage();
 
-    await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalled());
-    expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(checklistPageCalls()).toHaveLength(1));
 
     fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
       target: { value: "A" },
@@ -118,21 +131,53 @@ describe("DocumentsPage", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 350));
 
-    expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1);
+    expect(checklistPageCalls()).toHaveLength(1);
 
     fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
       target: { value: "Ay" },
     });
 
     await waitFor(() => {
-      expect(getDocumentChecklistMock).toHaveBeenCalledTimes(2);
-      expect(getDocumentChecklistMock).toHaveBeenLastCalledWith(
+      expect(checklistPageCalls()).toHaveLength(2);
+      expect(lastChecklistPageCall()).toEqual([
         expect.objectContaining({
           search: "Ay",
           page: 1,
         }),
-        expect.any(AbortSignal)
-      );
+        expect.any(AbortSignal),
+      ]);
+    });
+  });
+
+  it("filters by missing and complete document tabs", async () => {
+    renderPage();
+
+    await waitFor(() => expect(checklistPageCalls()).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /Eksik Evrak/i }));
+
+    await waitFor(() => {
+      expect(lastChecklistPageCall()).toEqual([
+        expect.objectContaining({
+          hasMissingDocuments: true,
+          page: 1,
+          pageSize: 20,
+        }),
+        expect.any(AbortSignal),
+      ]);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Tam Evrak/i }));
+
+    await waitFor(() => {
+      expect(lastChecklistPageCall()).toEqual([
+        expect.objectContaining({
+          hasMissingDocuments: false,
+          page: 1,
+          pageSize: 20,
+        }),
+        expect.any(AbortSignal),
+      ]);
     });
   });
 
@@ -144,11 +189,11 @@ describe("DocumentsPage", () => {
   it("renders a sortable candidate header without triggering an extra fetch", async () => {
     renderPage();
 
-    await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(checklistPageCalls()).toHaveLength(1));
 
     fireEvent.click(screen.getByRole("button", { name: /aday/i }));
 
-    await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(checklistPageCalls()).toHaveLength(1));
   });
 
   it("renders required document types as check columns", async () => {
@@ -159,6 +204,19 @@ describe("DocumentsPage", () => {
           fullName: "Ayse Demir",
           phoneNumber: "05321234567",
           licenseClass: "B",
+          hasAdvancePayment: true,
+          currentGroup: {
+            groupId: "g1",
+            title: "NİSAN 2026 - 1A",
+            startDate: "2026-04-01",
+            term: {
+              id: "term-1",
+              monthDate: "2026-04-01",
+              sequence: 1,
+              name: null,
+            },
+            assignedAtUtc: "2026-04-01T00:00:00Z",
+          },
           summary: {
             completedCount: 1,
             missingCount: 1,
@@ -177,6 +235,9 @@ describe("DocumentsPage", () => {
     renderPage();
 
     expect(await screen.findByLabelText("Nüfus Cüzdanı")).toBeInTheDocument();
+    expect(screen.getByText("B")).toBeInTheDocument();
+    expect(screen.getByText("NİSAN 2026 - 1A")).toBeInTheDocument();
+    expect(screen.getByLabelText("Peşinat var")).toBeInTheDocument();
     expect(screen.getByLabelText("Sağlık Raporu")).toBeInTheDocument();
     expect(screen.getByLabelText("Nüfus Cüzdanı: var")).toBeInTheDocument();
     expect(screen.getByLabelText("Sağlık Raporu: yok, yukle")).toBeInTheDocument();

@@ -50,3 +50,11 @@ export function deleteTrainingLessonsByGroup(
     groupId,
   });
 }
+
+export function deleteTrainingLessonsByCandidate(
+  candidateId: string
+): Promise<TrainingLessonBulkDeleteResponse> {
+  return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training-lessons/bulk", {
+    candidateId,
+  });
+}

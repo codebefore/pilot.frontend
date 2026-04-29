@@ -1,9 +1,13 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../test/render-with-providers";
 import { SettingsPage } from "./SettingsPage";
+
+vi.mock("../components/settings/GeneralInstitutionSection", () => ({
+  GeneralInstitutionSection: () => <div>General Section Mock</div>,
+}));
 
 vi.mock("../components/settings/VehiclesSettingsSection", () => ({
   VehiclesSettingsSection: () => <div>Vehicles Section Mock</div>,
@@ -21,6 +25,26 @@ vi.mock("../components/settings/TrainingBranchesSettingsSection", () => ({
   TrainingBranchesSettingsSection: () => <div>Training Branches Section Mock</div>,
 }));
 
+vi.mock("../components/settings/ClassroomsSettingsSection", () => ({
+  ClassroomsSettingsSection: () => <div>Classrooms Section Mock</div>,
+}));
+
+vi.mock("./DocumentTypesPage", () => ({
+  DocumentTypesPage: () => <div>Document Types Section Mock</div>,
+}));
+
+vi.mock("./UsersPage", () => ({
+  UsersPage: () => <div>Users Section Mock</div>,
+}));
+
+vi.mock("./PermissionsPage", () => ({
+  PermissionsPage: () => <div>Permissions Section Mock</div>,
+}));
+
+vi.mock("./RoleEditorPage", () => ({
+  RoleEditorPage: () => <div>Role Editor Section Mock</div>,
+}));
+
 function renderSettingsPage(initialPath = "/settings/general") {
   return renderWithProviders(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -35,35 +59,11 @@ describe("SettingsPage", () => {
   it("redirects /settings to the general section", async () => {
     renderSettingsPage("/settings");
 
-    expect(await screen.findByText("Kurum Bilgileri")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Sezer Surucu Kursu")).toBeInTheDocument();
-  });
-
-  it("enables save after a form change and disables it again after saving", async () => {
-    renderSettingsPage();
-
-    const saveButton = screen.getByRole("button", { name: "Kaydet" });
-    expect(saveButton).toBeDisabled();
-
-    fireEvent.change(screen.getByDisplayValue("Sezer Surucu Kursu"), {
-      target: { value: "Sezer Akademi" },
-    });
-
-    expect(saveButton).not.toBeDisabled();
-
-    fireEvent.click(saveButton);
-
-    await waitFor(() => {
-      expect(saveButton).toBeDisabled();
-    });
+    expect(await screen.findByText("General Section Mock")).toBeInTheDocument();
   });
 
   it("navigates between section routes", async () => {
     renderSettingsPage();
-
-    fireEvent.click(screen.getByRole("link", { name: /Entegrasyonlar/i }));
-    expect(await screen.findByText("MEB Bağlantısı")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("sezer_mtsk")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: /Araçlar/i }));
     expect(screen.getByText("Vehicles Section Mock")).toBeInTheDocument();
@@ -74,7 +74,19 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("link", { name: /Branşlar/i }));
     expect(screen.getByText("Training Branches Section Mock")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("link", { name: /Derslikler/i }));
+    expect(screen.getByText("Classrooms Section Mock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: /Evrak Türleri/i }));
+    expect(screen.getByText("Document Types Section Mock")).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("link", { name: /Eğitmenler/i }));
     expect(screen.getByText("Instructors Section Mock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: /Kullanıcılar/i }));
+    expect(screen.getByText("Users Section Mock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: /Yetki Yönetimi/i }));
+    expect(screen.getByText("Permissions Section Mock")).toBeInTheDocument();
   });
 });

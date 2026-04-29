@@ -4,7 +4,6 @@ import { Controller, useForm } from "react-hook-form";
 import { createVehicle, updateVehicle } from "../../lib/vehicles-api";
 import {
   VEHICLE_FUEL_OPTIONS,
-  VEHICLE_ODOMETER_UNIT_OPTIONS,
   VEHICLE_OWNERSHIP_OPTIONS,
   VEHICLE_STATUS_OPTIONS,
   VEHICLE_TRANSMISSION_OPTIONS,
@@ -32,8 +31,14 @@ type VehicleFormValues = {
   licenseClass: VehicleUpsertRequest["licenseClass"];
   ownershipType: VehicleUpsertRequest["ownershipType"];
   fuelType: VehicleUpsertRequest["fuelType"] | "";
-  odometerValue: string;
-  odometerUnit: VehicleUpsertRequest["odometerUnit"];
+  insuranceStartDate: string;
+  insuranceEndDate: string;
+  inspectionStartDate: string;
+  inspectionEndDate: string;
+  cascoStartDate: string;
+  cascoEndDate: string;
+  accidentNotes: string;
+  otherDetails: string;
   notes: string;
 };
 
@@ -77,10 +82,22 @@ const VALIDATION_FIELD_MAP: Record<string, keyof VehicleFormValues> = {
   OwnershipType: "ownershipType",
   fuelType: "fuelType",
   FuelType: "fuelType",
-  odometerValue: "odometerValue",
-  OdometerValue: "odometerValue",
-  odometerUnit: "odometerUnit",
-  OdometerUnit: "odometerUnit",
+  insuranceStartDate: "insuranceStartDate",
+  InsuranceStartDate: "insuranceStartDate",
+  insuranceEndDate: "insuranceEndDate",
+  InsuranceEndDate: "insuranceEndDate",
+  inspectionStartDate: "inspectionStartDate",
+  InspectionStartDate: "inspectionStartDate",
+  inspectionEndDate: "inspectionEndDate",
+  InspectionEndDate: "inspectionEndDate",
+  cascoStartDate: "cascoStartDate",
+  CascoStartDate: "cascoStartDate",
+  cascoEndDate: "cascoEndDate",
+  CascoEndDate: "cascoEndDate",
+  accidentNotes: "accidentNotes",
+  AccidentNotes: "accidentNotes",
+  otherDetails: "otherDetails",
+  OtherDetails: "otherDetails",
   notes: "notes",
   Notes: "notes",
 };
@@ -100,11 +117,14 @@ function getEmptyValues(editing: VehicleResponse | null): VehicleFormValues {
         licenseClass: editing.licenseClass,
         ownershipType: editing.ownershipType,
         fuelType: editing.fuelType ?? "",
-        odometerValue:
-          editing.odometerValue !== null && editing.odometerValue !== undefined
-            ? String(editing.odometerValue)
-            : "",
-        odometerUnit: editing.odometerUnit,
+        insuranceStartDate: editing.insuranceStartDate ?? "",
+        insuranceEndDate: editing.insuranceEndDate ?? "",
+        inspectionStartDate: editing.inspectionStartDate ?? "",
+        inspectionEndDate: editing.inspectionEndDate ?? "",
+        cascoStartDate: editing.cascoStartDate ?? "",
+        cascoEndDate: editing.cascoEndDate ?? "",
+        accidentNotes: editing.accidentNotes ?? "",
+        otherDetails: editing.otherDetails ?? "",
         notes: editing.notes ?? "",
       }
     : {
@@ -120,8 +140,14 @@ function getEmptyValues(editing: VehicleResponse | null): VehicleFormValues {
         licenseClass: "B",
         ownershipType: "owned",
         fuelType: "diesel",
-        odometerValue: "",
-        odometerUnit: "km",
+        insuranceStartDate: "",
+        insuranceEndDate: "",
+        inspectionStartDate: "",
+        inspectionEndDate: "",
+        cascoStartDate: "",
+        cascoEndDate: "",
+        accidentNotes: "",
+        otherDetails: "",
         notes: "",
       };
 }
@@ -248,8 +274,16 @@ export function VehicleFormModal({
       licenseClass: values.licenseClass,
       ownershipType: values.ownershipType,
       fuelType: values.fuelType || null,
-      odometerValue: parseOptionalNumber(values.odometerValue),
-      odometerUnit: values.odometerUnit,
+      odometerValue: null,
+      odometerUnit: "km",
+      insuranceStartDate: values.insuranceStartDate || null,
+      insuranceEndDate: values.insuranceEndDate || null,
+      inspectionStartDate: values.inspectionStartDate || null,
+      inspectionEndDate: values.inspectionEndDate || null,
+      cascoStartDate: values.cascoStartDate || null,
+      cascoEndDate: values.cascoEndDate || null,
+      accidentNotes: values.accidentNotes.trim() || null,
+      otherDetails: values.otherDetails.trim() || null,
       notes: values.notes.trim() || null,
       ...(editing ? { rowVersion: editing.rowVersion } : {}),
     };
@@ -525,35 +559,128 @@ export function VehicleFormModal({
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Toplam KM / Saat</label>
-            <input
-              className={fieldClass(errors.odometerValue?.message)}
-              inputMode="numeric"
-              placeholder="12000"
-              type="number"
-              {...register("odometerValue")}
-            />
+        <details className="settings-form-details">
+          <summary>Detaylar</summary>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Sigorta Baş.</label>
+              <Controller
+                control={control}
+                name="insuranceStartDate"
+                render={({ field }) => (
+                  <LocalizedDateInput
+                    ariaLabel="Sigorta Baş."
+                    className={fieldClass(errors.insuranceStartDate?.message)}
+                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
+                    placeholder="gg.aa.yyyy"
+                    value={field.value}
+                  />
+                )}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Sigorta Bit.</label>
+              <Controller
+                control={control}
+                name="insuranceEndDate"
+                render={({ field }) => (
+                  <LocalizedDateInput
+                    ariaLabel="Sigorta Bit."
+                    className={fieldClass(errors.insuranceEndDate?.message)}
+                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
+                    placeholder="gg.aa.yyyy"
+                    value={field.value}
+                  />
+                )}
+              />
+            </div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Ölçü Birimi</label>
-            <Controller
-              control={control}
-              name="odometerUnit"
-              render={({ field }) => (
-                <CustomSelect className={selectClass(errors.odometerUnit?.message)} {...field}>
-                  {VEHICLE_ODOMETER_UNIT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </CustomSelect>
-              )}
-            />
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Muayene Baş.</label>
+              <Controller
+                control={control}
+                name="inspectionStartDate"
+                render={({ field }) => (
+                  <LocalizedDateInput
+                    ariaLabel="Muayene Baş."
+                    className={fieldClass(errors.inspectionStartDate?.message)}
+                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
+                    placeholder="gg.aa.yyyy"
+                    value={field.value}
+                  />
+                )}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Muayene Bit.</label>
+              <Controller
+                control={control}
+                name="inspectionEndDate"
+                render={({ field }) => (
+                  <LocalizedDateInput
+                    ariaLabel="Muayene Bit."
+                    className={fieldClass(errors.inspectionEndDate?.message)}
+                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
+                    placeholder="gg.aa.yyyy"
+                    value={field.value}
+                  />
+                )}
+              />
+            </div>
           </div>
-        </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Kasko Baş.</label>
+              <Controller
+                control={control}
+                name="cascoStartDate"
+                render={({ field }) => (
+                  <LocalizedDateInput
+                    ariaLabel="Kasko Baş."
+                    className={fieldClass(errors.cascoStartDate?.message)}
+                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
+                    placeholder="gg.aa.yyyy"
+                    value={field.value}
+                  />
+                )}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Kasko Bit.</label>
+              <Controller
+                control={control}
+                name="cascoEndDate"
+                render={({ field }) => (
+                  <LocalizedDateInput
+                    ariaLabel="Kasko Bit."
+                    className={fieldClass(errors.cascoEndDate?.message)}
+                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
+                    placeholder="gg.aa.yyyy"
+                    value={field.value}
+                  />
+                )}
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Kaza</label>
+              <textarea className="form-input" rows={3} {...register("accidentNotes")} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Diğer</label>
+              <textarea className="form-input" rows={3} {...register("otherDetails")} />
+            </div>
+          </div>
+        </details>
 
         <div className="form-row full">
           <div className="form-group">

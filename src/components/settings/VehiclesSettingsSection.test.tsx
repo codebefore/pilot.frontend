@@ -43,6 +43,14 @@ const sampleVehicle = {
   fuelType: "diesel" as const,
   odometerValue: 12000,
   odometerUnit: "km" as const,
+  insuranceStartDate: null,
+  insuranceEndDate: "2026-05-10",
+  inspectionStartDate: null,
+  inspectionEndDate: "2026-06-15",
+  cascoStartDate: null,
+  cascoEndDate: "2026-07-20",
+  accidentNotes: null,
+  otherDetails: null,
   notes: null,
   createdAtUtc: "2026-01-01T00:00:00Z",
   updatedAtUtc: "2026-01-01T00:00:00Z",
@@ -98,7 +106,11 @@ describe("VehiclesSettingsSection", () => {
     });
 
     expect(await screen.findByText("34 ABC 123")).toBeInTheDocument();
-    expect(screen.getByText("Fiat Egea · 2024")).toBeInTheDocument();
+    expect(screen.queryByText("Fiat Egea · 2024")).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sigorta Bit. Trh. (Kalan Gün)" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Muayene Bit. Trh. (Kalan Gün)" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Kasko Bit. Trh. (Kalan Gün)" })).toBeInTheDocument();
+    expect(screen.getByText(/10\.05\.2026/)).toBeInTheDocument();
   });
 
   it("applies filters and re-fetches", async () => {
@@ -114,16 +126,12 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Belge filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: /^A2 -/ }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Vites filtresi" }));
-    fireEvent.click(screen.getByRole("button", { name: "Otomatik" }));
-
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
         {
           activity: "inactive",
           status: "maintenance",
           licenseClass: "A2",
-          transmissionType: "automatic",
           page: 1,
           pageSize: 10,
           search: undefined,
@@ -246,33 +254,17 @@ describe("VehiclesSettingsSection", () => {
     });
   });
 
-  it("lets the user hide a column and keeps the choice", async () => {
-    const firstRender = renderWithProviders(<VehiclesSettingsSection />);
-    await screen.findByRole("button", { name: "Vites" });
-
-    fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Vites" }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "Vites" })).not.toBeInTheDocument();
-    });
-    expect(localStorage.getItem("settings.vehicles.columns.v1")).toBe(
-      JSON.stringify([
-        "plateNumber",
-        "brandModel",
-        "vehicleType",
-        "licenseClass",
-        "status",
-        "isActive",
-      ])
-    );
-
-    firstRender.unmount();
-
+  it("renders fixed vehicle columns without column picker", async () => {
     renderWithProviders(<VehiclesSettingsSection />);
-    await waitFor(() => expect(getVehiclesMock).toHaveBeenCalled());
+    await screen.findByText("34 ABC 123");
 
+    expect(screen.queryByRole("button", { name: "Sütunlar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vites" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Marka / Model" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plaka" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Belge" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Araç Durumu" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Genel Durum" })).toBeInTheDocument();
   });
 
   it("deletes a vehicle with inline confirmation", async () => {
@@ -329,7 +321,8 @@ describe("VehiclesSettingsSection", () => {
     expect(screen.getByRole("button", { name: "Boşta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Satın Alındı" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dizel" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kilometre" })).toBeInTheDocument();
+    expect(screen.queryByText("Toplam KM / Saat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ölçü Birimi")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("34 ABC 123"), {
       target: { value: " 35 xyz 987 " },
@@ -373,6 +366,14 @@ describe("VehiclesSettingsSection", () => {
         fuelType: "diesel",
         odometerValue: null,
         odometerUnit: "km",
+        insuranceStartDate: null,
+        insuranceEndDate: null,
+        inspectionStartDate: null,
+        inspectionEndDate: null,
+        cascoStartDate: null,
+        cascoEndDate: null,
+        accidentNotes: null,
+        otherDetails: null,
         notes: null,
       });
     });

@@ -66,8 +66,8 @@ describe("DocumentTypesPage", () => {
       );
     });
 
-    expect(await screen.findByText("national_id")).toBeInTheDocument();
-    expect(screen.getByText("Nüfus Cüzdanı")).toBeInTheDocument();
+    expect(await screen.findByText("Nüfus Cüzdanı")).toBeInTheDocument();
+    expect(screen.queryByText("national_id")).not.toBeInTheDocument();
   });
 
   it("toggles includeInactive and re-fetches", async () => {
@@ -84,38 +84,17 @@ describe("DocumentTypesPage", () => {
     });
   });
 
-  it("submits canonical english payload when creating", async () => {
+  it("does not allow creating new document types from the page", async () => {
     renderWithProviders(<DocumentTypesPage />);
     await waitFor(() => expect(getDocumentTypesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Evrak Türü/i }));
-
-    fireEvent.change(screen.getByPlaceholderText("national_id"), {
-      target: { value: "health_report" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Nüfus Cüzdanı"), {
-      target: { value: "Sağlık Raporu" },
-    });
-    // Sıra default = items.length last+1 = 1, leave as is.
-
-    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
-
-    await waitFor(() => {
-      expect(createDocumentTypeMock).toHaveBeenCalledWith({
-        module: "candidate",
-        key: "health_report",
-        name: "Sağlık Raporu",
-        sortOrder: 1,
-        isRequired: true,
-        isActive: true,
-        metadataFields: [],
-      });
-    });
+    expect(screen.queryByRole("button", { name: /Yeni Evrak Türü/i })).not.toBeInTheDocument();
+    expect(createDocumentTypeMock).not.toHaveBeenCalled();
   });
 
   it("submits canonical english payload when editing", async () => {
     renderWithProviders(<DocumentTypesPage />);
-    await waitFor(() => expect(screen.getByText("national_id")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Nüfus Cüzdanı")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Düzenle/i }));
 

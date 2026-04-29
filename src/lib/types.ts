@@ -32,6 +32,15 @@ export interface CandidateTag {
   usageCount?: number | null;
 }
 
+export interface CandidateEducationPlan {
+  licenseClassDefinitionId: string;
+  requiresTheoryExam: boolean;
+  requiresPracticeExam: boolean;
+  theoryLessonHours: number | null;
+  simulatorLessonHours: number | null;
+  practiceLessonHours: number | null;
+}
+
 export interface CandidateResponse {
   id: string;
   firstName: string;
@@ -47,6 +56,7 @@ export interface CandidateResponse {
   existingLicenseNumber: string | null;
   existingLicenseIssuedProvince: string | null;
   existingLicensePre2016: boolean;
+  educationPlan?: CandidateEducationPlan | null;
   status: string;
   mebSyncStatus?: string | null;
   mebExamDate?: string | null;
@@ -55,6 +65,7 @@ export interface CandidateResponse {
   eSinavAttemptCount?: number | null;
   drivingExamAttemptCount?: number | null;
   examFeePaid?: boolean;
+  initialPaymentReceived?: boolean;
   currentGroup: CandidateGroupSummary | null;
   documentSummary: CandidateDocumentSummaryResponse | null;
   photo?: CandidatePhotoSummary | null;
@@ -94,6 +105,7 @@ export interface CandidateUpsertRequest {
   eSinavAttemptCount?: number | null;
   drivingExamAttemptCount?: number | null;
   examFeePaid?: boolean;
+  initialPaymentReceived?: boolean;
   /** Names only — backend resolves or creates tags by name. */
   tags?: string[];
   /** Required for updates; omitted on create. */
@@ -166,6 +178,14 @@ export interface VehicleResponse {
   fuelType: VehicleFuelType | null;
   odometerValue: number | null;
   odometerUnit: VehicleOdometerUnit;
+  insuranceStartDate: string | null;
+  insuranceEndDate: string | null;
+  inspectionStartDate: string | null;
+  inspectionEndDate: string | null;
+  cascoStartDate: string | null;
+  cascoEndDate: string | null;
+  accidentNotes: string | null;
+  otherDetails: string | null;
   notes: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -198,6 +218,14 @@ export interface VehicleUpsertRequest {
   fuelType?: VehicleFuelType | null;
   odometerValue?: number | null;
   odometerUnit: VehicleOdometerUnit;
+  insuranceStartDate?: string | null;
+  insuranceEndDate?: string | null;
+  inspectionStartDate?: string | null;
+  inspectionEndDate?: string | null;
+  cascoStartDate?: string | null;
+  cascoEndDate?: string | null;
+  accidentNotes?: string | null;
+  otherDetails?: string | null;
   notes?: string | null;
   /** Required for updates; omitted on create. */
   rowVersion?: number;
@@ -370,22 +398,14 @@ export interface LicenseClassDefinitionResponse {
   name: string;
   category: LicenseClassDefinitionCategory;
   minimumAge: number | null;
-  isAutomatic: boolean;
-  isDisabled: boolean;
-  isNewGeneration: boolean;
+  hasExistingLicense: boolean;
+  existingLicenseType: string | null;
+  existingLicensePre2016: boolean;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
   theoryLessonHours: number | null;
-  contractLessonHours: number | null;
+  simulatorLessonHours: number | null;
   directPracticeLessonHours: number | null;
-  upgradePracticeLessonHours: number | null;
-  courseFee: number | null;
-  mebbisFee: number | null;
-  theoryExamFee: number | null;
-  practiceExamFirstFee: number | null;
-  practiceExamRepeatFee: number | null;
-  additionalPracticeLessonFee: number | null;
-  otherFee: number | null;
   displayOrder: number;
   isActive: boolean;
   notes: string | null;
@@ -396,9 +416,6 @@ export interface LicenseClassDefinitionResponse {
 
 export interface LicenseClassDefinitionListSummaryResponse {
   activeCount: number;
-  automaticCount: number;
-  disabledCount: number;
-  pricedCount: number;
 }
 
 export interface LicenseClassDefinitionListResponse
@@ -408,77 +425,18 @@ export interface LicenseClassDefinitionListResponse
 
 export interface LicenseClassDefinitionUpsertRequest {
   code: string;
-  name: string;
+  name?: string;
   category: LicenseClassDefinitionCategory;
   minimumAge?: number | null;
-  isAutomatic: boolean;
-  isDisabled: boolean;
-  isNewGeneration: boolean;
+  hasExistingLicense: boolean;
+  existingLicenseType?: string | null;
+  existingLicensePre2016: boolean;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
   theoryLessonHours?: number | null;
-  contractLessonHours?: number | null;
+  simulatorLessonHours?: number | null;
   directPracticeLessonHours?: number | null;
-  upgradePracticeLessonHours?: number | null;
-  courseFee?: number | null;
-  mebbisFee?: number | null;
-  theoryExamFee?: number | null;
-  practiceExamFirstFee?: number | null;
-  practiceExamRepeatFee?: number | null;
-  additionalPracticeLessonFee?: number | null;
-  otherFee?: number | null;
   displayOrder: number;
-  isActive: boolean;
-  notes?: string | null;
-  /** Required for updates; omitted on create. */
-  rowVersion?: number;
-}
-
-/* ── Areas ── */
-
-export type AreaType =
-  | "classroom"
-  | "practice_track"
-  | "exam_area"
-  | "office"
-  | "storage"
-  | "psychotechnic_room"
-  | "src_training_room"
-  | "other";
-
-export interface AreaResponse {
-  id: string;
-  code: string;
-  name: string;
-  areaType: AreaType;
-  capacity: number | null;
-  district: string | null;
-  address: string | null;
-  isActive: boolean;
-  notes: string | null;
-  createdAtUtc: string;
-  updatedAtUtc: string;
-  rowVersion: number;
-}
-
-export interface AreaListSummaryResponse {
-  activeCount: number;
-  classroomCount: number;
-  practiceTrackCount: number;
-  examAreaCount: number;
-}
-
-export interface AreaListResponse extends PagedResponse<AreaResponse> {
-  summary: AreaListSummaryResponse;
-}
-
-export interface AreaUpsertRequest {
-  code: string;
-  name: string;
-  areaType: AreaType;
-  capacity?: number | null;
-  district?: string | null;
-  address?: string | null;
   isActive: boolean;
   notes?: string | null;
   /** Required for updates; omitted on create. */
@@ -620,8 +578,8 @@ export interface TrainingLessonResponse {
   candidateName: string | null;
   vehicleId: string | null;
   vehiclePlate: string | null;
-  areaId: string | null;
-  areaName: string | null;
+  classroomId: string | null;
+  classroomName: string | null;
   routeId: string | null;
   routeName: string | null;
   branchCode: string | null;
@@ -659,7 +617,7 @@ export interface TrainingLessonUpsertRequest {
   groupId?: string | null;
   candidateId?: string | null;
   vehicleId?: string | null;
-  areaId?: string | null;
+  classroomId?: string | null;
   routeId?: string | null;
   branchCode?: string | null;
   licenseClass?: LicenseClass | null;
@@ -723,6 +681,8 @@ export interface DocumentChecklistEntry {
   fullName: string;
   phoneNumber: string | null;
   licenseClass: LicenseClass;
+  currentGroup?: CandidateGroupSummary | null;
+  hasAdvancePayment: boolean;
   summary: CandidateDocumentSummaryResponse;
   photo?: CandidatePhotoSummary | null;
   missingDocumentKeys: string[];
@@ -761,6 +721,8 @@ export interface AppUserResponse {
   fullName: string;
   email: string | null;
   phone: string | null;
+  mebbisUsername: string | null;
+  hasMebbisPassword: boolean;
   roleId: string | null;
   roleName: string | null;
   isSuperAdmin: boolean;
@@ -773,6 +735,8 @@ export interface AppUserUpsertRequest {
   fullName: string;
   email?: string | null;
   phone: string;
+  mebbisUsername?: string | null;
+  mebbisPassword?: string | null;
   roleId?: string | null;
   isActive: boolean;
 }
@@ -799,6 +763,93 @@ export interface RolePermissionResponse {
 export interface PermissionAreasResponse {
   areas: string[];
   levels: PermissionLevel[];
+}
+
+/* ── Classrooms ── */
+
+export interface ClassroomBranchSummary {
+  id: string;
+  code: string;
+  name: string;
+  colorHex: string;
+}
+
+export interface ClassroomResponse {
+  id: string;
+  name: string;
+  capacity: number;
+  isActive: boolean;
+  notes: string | null;
+  branches: ClassroomBranchSummary[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface ClassroomListSummaryResponse {
+  activeCount: number;
+  inactiveCount: number;
+}
+
+export interface ClassroomListResponse extends PagedResponse<ClassroomResponse> {
+  summary: ClassroomListSummaryResponse;
+}
+
+export interface ClassroomUpsertRequest {
+  name: string;
+  capacity: number;
+  isActive: boolean;
+  notes?: string | null;
+  branchIds: string[];
+  /** Required for updates; omitted on create. */
+  rowVersion?: number;
+}
+
+/* ── Fees ── */
+
+export type FeeType =
+  | "theory_lesson"
+  | "practice_lesson"
+  | "theory_exam"
+  | "practice_exam"
+  | "failed_practice_exam"
+  | "mebbis";
+
+export interface FeeLicenseClassSummary {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface FeeResponse {
+  id: string;
+  feeType: FeeType;
+  amount: number;
+  isActive: boolean;
+  notes: string | null;
+  licenseClasses: FeeLicenseClassSummary[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface FeeListSummaryResponse {
+  activeCount: number;
+  inactiveCount: number;
+}
+
+export interface FeeListResponse extends PagedResponse<FeeResponse> {
+  summary: FeeListSummaryResponse;
+}
+
+export interface FeeUpsertRequest {
+  feeType: FeeType;
+  amount: number;
+  isActive: boolean;
+  notes?: string | null;
+  licenseClassIds: string[];
+  /** Required for updates; omitted on create. */
+  rowVersion?: number;
 }
 
 /* ── Stats ── */

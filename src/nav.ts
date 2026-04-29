@@ -6,13 +6,11 @@ import {
   DocumentsIcon,
   ExamsIcon,
   GroupsIcon,
-  KeyIcon,
   LoginIcon,
   MebIcon,
   PaymentsIcon,
   SettingsIcon,
   TrainingIcon,
-  UsersIcon,
 } from "./components/icons";
 import type { TranslationKey } from "./lib/i18n";
 import type { NavKey } from "./types";
@@ -82,9 +80,6 @@ export const navSections: NavSection[] = [
     headingKey: "nav.administration",
     items: [
       { key: "settings",      path: "/settings",      labelKey: "nav.settings",      Icon: SettingsIcon },
-      { key: "documentTypes", path: "/document-types", labelKey: "nav.documentTypes", Icon: DocumentsIcon },
-      { key: "users",         path: "/users",         labelKey: "nav.users",         Icon: UsersIcon },
-      { key: "permissions",   path: "/permissions",   labelKey: "nav.permissions",   Icon: KeyIcon },
       { key: "login",         path: "/login",         labelKey: "nav.login",         Icon: LoginIcon },
     ],
   },

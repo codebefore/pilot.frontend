@@ -1,25 +1,26 @@
 import { useMemo, useState } from "react";
 
 import { useT } from "../../lib/i18n";
-import type { GroupResponse } from "../../lib/types";
+import type { ClassroomResponse, GroupResponse } from "../../lib/types";
+import { CustomSelect } from "../ui/CustomSelect";
 
 type QuickLessonAssignmentProps = {
   groups: GroupResponse[];
+  classrooms: ClassroomResponse[];
   /** Controlled: parent kontrol eder. */
   groupId: string;
+  classroomId: string;
   /** Seçim değişikliğini parent'a (TrainingPage) iletiyor. */
-  onSettingsChange: (params: { groupId: string }) => void;
-  onDeleteGroupLessons?: (group: GroupResponse) => void;
-  selectedLessonCount?: number;
+  onSettingsChange: (params: { groupId?: string; classroomId?: string }) => void;
   isLoading?: boolean;
 };
 
 export function QuickLessonAssignment({
   groups,
+  classrooms,
   groupId,
+  classroomId,
   onSettingsChange,
-  onDeleteGroupLessons,
-  selectedLessonCount = 0,
   isLoading = false,
 }: QuickLessonAssignmentProps) {
   const t = useT();
@@ -57,10 +58,23 @@ export function QuickLessonAssignment({
     onSettingsChange({ groupId: id === groupId ? "" : id });
   };
 
-  const selectedGroup = groups.find((group) => group.id === groupId);
-
   return (
     <div className="training-quick-assign">
+      <CustomSelect
+        className="form-select"
+        disabled={isLoading}
+        onChange={(event) => onSettingsChange({ classroomId: event.target.value })}
+        value={classroomId}
+      >
+        <option value="">{t("training.modal.field.classroom")}</option>
+        {classrooms
+          .filter((classroom) => classroom.isActive)
+          .map((classroom) => (
+            <option key={classroom.id} value={classroom.id}>
+              {classroom.name} ({classroom.capacity})
+            </option>
+          ))}
+      </CustomSelect>
       <input
         className="training-filters-search"
         onChange={(e) => setSearch(e.target.value)}
@@ -96,23 +110,6 @@ export function QuickLessonAssignment({
           </li>
         ) : null}
       </ul>
-      {selectedGroup && onDeleteGroupLessons ? (
-        <div className="training-quick-danger-zone">
-          <button
-            className="btn btn-danger btn-sm"
-            disabled={isLoading || selectedLessonCount === 0}
-            onClick={() => onDeleteGroupLessons(selectedGroup)}
-            type="button"
-          >
-            {t("training.quick.deleteGroupLessons")}
-          </button>
-          <span className="training-quick-danger-hint">
-            {t("training.quick.deleteGroupLessonsHint", {
-              count: selectedLessonCount,
-            })}
-          </span>
-        </div>
-      ) : null}
     </div>
   );
 }
