@@ -88,7 +88,7 @@ describe("DocumentTypesPage", () => {
     renderWithProviders(<DocumentTypesPage />);
     await waitFor(() => expect(getDocumentTypesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Belge Türü/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Evrak Türü/i }));
 
     fireEvent.change(screen.getByPlaceholderText("national_id"), {
       target: { value: "health_report" },

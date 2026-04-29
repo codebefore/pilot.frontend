@@ -1,6 +1,7 @@
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   TrainingLessonKind,
+  TrainingLessonBulkDeleteResponse,
   TrainingLessonListResponse,
   TrainingLessonResponse,
   TrainingLessonUpsertRequest,
@@ -40,4 +41,12 @@ export function updateTrainingLesson(
 
 export function deleteTrainingLesson(id: string): Promise<void> {
   return httpDelete(`/api/training-lessons/${id}`);
+}
+
+export function deleteTrainingLessonsByGroup(
+  groupId: string
+): Promise<TrainingLessonBulkDeleteResponse> {
+  return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training-lessons/bulk", {
+    groupId,
+  });
 }

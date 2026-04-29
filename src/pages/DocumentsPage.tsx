@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
@@ -15,29 +15,29 @@ import { Pagination } from "../components/ui/Pagination";
 import { Panel } from "../components/ui/Panel";
 import { SearchInput } from "../components/ui/SearchInput";
 import { useToast } from "../components/ui/Toast";
-import {
-  applyStatusToCandidates,
-  applyTagsToCandidates,
-} from "../lib/candidate-bulk";
+import { applyTagsToCandidates } from "../lib/candidate-bulk";
 import {
   EMPTY_CANDIDATE_FILTERS,
   countActiveCandidateFilters,
   filtersToQuery,
   type CandidateFilterState,
 } from "../lib/candidate-filters";
-import { createCandidateTag, searchCandidateTags } from "../lib/candidates-api";
+import {
+  assignCandidateGroup,
+  createCandidateTag,
+  searchCandidateTags,
+} from "../lib/candidates-api";
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
-import { useT } from "../lib/i18n";
+import { getGroups } from "../lib/groups-api";
+import { useLanguage, useT } from "../lib/i18n";
 import { buildWhatsAppUrl, formatPhoneNumber } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
-import {
-  CANDIDATE_STATUS_OPTIONS,
-  type CandidateStatusValue,
-} from "../lib/status-maps";
+import { buildGroupHeading } from "../lib/term-label";
 import type {
   CandidateTag,
   DocumentChecklistEntry,
   DocumentTypeResponse,
+  GroupResponse,
 } from "../lib/types";
 
 type Filters = {
@@ -64,8 +64,7 @@ const TABS: { key: DocumentsTab; label: string }[] = [
 ];
 const DEFAULT_TAB: DocumentsTab = "all";
 
-type BulkActionMode = "status" | "tags" | null;
-const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
+type BulkActionMode = "tags" | "group" | null;
 
 type UploadTarget = {
   candidateId?: string;
@@ -136,6 +135,7 @@ function renderPhoneNumber(entry: DocumentChecklistEntry) {
 
 export function DocumentsPage() {
   const t = useT();
+  const { lang } = useLanguage();
   const { showToast } = useToast();
 
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
@@ -178,20 +178,15 @@ export function DocumentsPage() {
   const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
-  const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
   const [bulkTagValues, setBulkTagValues] = useState<string[]>([]);
+  const [bulkGroupId, setBulkGroupId] = useState("");
+  const [bulkGroupOptions, setBulkGroupOptions] = useState<GroupResponse[]>([]);
+  const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
 
   const selectedCount = selectedCandidateIds.size;
   const allVisibleSelected =
     entries.length > 0 && entries.every((entry) => selectedCandidateIds.has(entry.candidateId));
-  const visibleBulkStatusOptions = useMemo(
-    () =>
-      tab === "all"
-        ? BULK_STATUS_OPTIONS
-        : BULK_STATUS_OPTIONS.filter((option) => option.value !== tab),
-    [tab]
-  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -430,8 +425,8 @@ export function DocumentsPage() {
       } else {
         setBulkActionMode(null);
         setSelectedCandidateIds(new Set());
-        setBulkStatusValue("");
         setBulkTagValues([]);
+        setBulkGroupId("");
       }
       return next;
     });
@@ -458,14 +453,6 @@ export function DocumentsPage() {
     });
   };
 
-  const openBulkStatusAction = () => {
-    if (selectedCount === 0) {
-      showToast("Önce en az bir aday seç", "error");
-      return;
-    }
-    setBulkActionMode("status");
-  };
-
   const openBulkTagAction = () => {
     if (selectedCount === 0) {
       showToast("Önce en az bir aday seç", "error");
@@ -474,21 +461,24 @@ export function DocumentsPage() {
     setBulkActionMode("tags");
   };
 
-  const applyBulkStatusChange = async () => {
-    if (!bulkStatusValue || selectedCount === 0) return;
-    setBulkSaving(true);
+  const openBulkGroupAction = async () => {
+    if (selectedCount === 0) {
+      showToast("Önce en az bir aday seç", "error");
+      return;
+    }
+
+    setBulkActionMode("group");
+    setBulkGroupId("");
+    if (bulkGroupOptions.length > 0) return;
+
+    setBulkGroupLoading(true);
     try {
-      const selectedIds = Array.from(selectedCandidateIds);
-      await applyStatusToCandidates(selectedIds, bulkStatusValue);
-      showToast(`${selectedIds.length} aday güncellendi`);
-      setBulkActionMode(null);
-      setSelectedCandidateIds(new Set());
-      setBulkStatusValue("");
-      setRefreshKey((k) => k + 1);
+      const result = await getGroups({ pageSize: 100 });
+      setBulkGroupOptions(result.items);
     } catch {
-      showToast("Toplu durum güncellenemedi", "error");
+      showToast("Dönem listesi yüklenemedi", "error");
     } finally {
-      setBulkSaving(false);
+      setBulkGroupLoading(false);
     }
   };
 
@@ -505,6 +495,26 @@ export function DocumentsPage() {
       setRefreshKey((k) => k + 1);
     } catch {
       showToast("Toplu etiket ekleme tamamlanamadı", "error");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const applyBulkGroupChange = async () => {
+    if (!bulkGroupId || selectedCount === 0) return;
+    setBulkSaving(true);
+    try {
+      const selectedIds = Array.from(selectedCandidateIds);
+      await Promise.all(
+        selectedIds.map((candidateId) => assignCandidateGroup(candidateId, bulkGroupId))
+      );
+      showToast(`${selectedIds.length} adayın dönemi güncellendi`);
+      setBulkActionMode(null);
+      setSelectedCandidateIds(new Set());
+      setBulkGroupId("");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("Toplu dönem değişikliği tamamlanamadı", "error");
     } finally {
       setBulkSaving(false);
     }
@@ -564,33 +574,7 @@ export function DocumentsPage() {
               {selectedCount > 0 ? (
                 <span className="candidate-bulk-count">{selectedCount} seçili</span>
               ) : null}
-              {bulkActionMode === "status" ? (
-                <>
-                  <CustomSelect
-                    aria-label="Toplu durum seç"
-                    onChange={(event) =>
-                      setBulkStatusValue(event.target.value as "" | CandidateStatusValue)
-                    }
-                    size="sm"
-                    value={bulkStatusValue}
-                  >
-                    <option value="">Durum seç</option>
-                    {visibleBulkStatusOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </CustomSelect>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkStatusValue || bulkSaving}
-                    onClick={applyBulkStatusChange}
-                    type="button"
-                  >
-                    {bulkSaving ? "Güncelleniyor..." : "Uygula"}
-                  </button>
-                </>
-              ) : bulkActionMode === "tags" ? (
+              {bulkActionMode === "tags" ? (
                 <>
                   <CandidateTagsInput
                     ariaLabel="Toplu etiket seç"
@@ -608,21 +592,48 @@ export function DocumentsPage() {
                     {bulkSaving ? "Ekleniyor..." : "Uygula"}
                   </button>
                 </>
+              ) : bulkActionMode === "group" ? (
+                <>
+                  <CustomSelect
+                    aria-label="Toplu dönem seç"
+                    disabled={bulkGroupLoading}
+                    onChange={(event) => setBulkGroupId(event.target.value)}
+                    size="sm"
+                    value={bulkGroupId}
+                  >
+                    <option value="">
+                      {bulkGroupLoading ? "Dönemler yükleniyor..." : "Dönem / grup seç"}
+                    </option>
+                    {bulkGroupOptions.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {buildGroupHeading(group.title, group.term, [group.term], lang)}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={selectedCount === 0 || !bulkGroupId || bulkSaving}
+                    onClick={applyBulkGroupChange}
+                    type="button"
+                  >
+                    {bulkSaving ? "Güncelleniyor..." : "Uygula"}
+                  </button>
+                </>
               ) : (
                 <>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={openBulkGroupAction}
+                    type="button"
+                  >
+                    Dönem Değiştir
+                  </button>
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={openBulkTagAction}
                     type="button"
                   >
                     Etiket Ekle
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={openBulkStatusAction}
-                    type="button"
-                  >
-                    Durum Değiştir
                   </button>
                 </>
               )}

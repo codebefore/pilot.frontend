@@ -114,7 +114,10 @@ export function getDocumentChecklist(
 export interface UploadDocumentInput {
   candidateId: string;
   documentTypeId: string;
-  file: File;
+  /** Dosya yüklenmiyorsa null; bu durumda `isPhysicallyAvailable` true olmalı. */
+  file: File | null;
+  /** "Fiziksel evrak elde var, dosya yüklemiyorum" işareti. */
+  isPhysicallyAvailable?: boolean;
   note?: string;
   /**
    * Extra key-value data collected from the schema fields defined on the
@@ -130,7 +133,12 @@ export function uploadDocument(
 ): Promise<DocumentResponse> {
   const form = new FormData();
   form.append("documentTypeId", input.documentTypeId);
-  form.append("file", input.file);
+  if (input.file) {
+    form.append("file", input.file);
+  }
+  if (input.isPhysicallyAvailable) {
+    form.append("isPhysicallyAvailable", "true");
+  }
   if (input.note) form.append("note", input.note);
   if (input.metadata && Object.keys(input.metadata).length > 0) {
     form.append("metadataJson", JSON.stringify(input.metadata));

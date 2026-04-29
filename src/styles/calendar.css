@@ -1332,6 +1332,46 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.training-quick-danger-zone {
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+}
+
+.training-quick-danger-zone .btn {
+  justify-content: center;
+  width: 100%;
+}
+
+.training-quick-danger-hint {
+  color: var(--gray-500);
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.training-bulk-delete-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.training-bulk-delete-body p {
+  margin: 0;
+}
+
+.training-bulk-delete-warning {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px 12px;
+}
+
 /* Sidebar dar (200px) — quick-assign select'lerinde uzun grup adları
  * default 13px ile sığmıyor. Font + padding küçült. */
 .training-quick-assign .form-select,

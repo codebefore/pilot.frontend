@@ -20,6 +20,7 @@ type UploadDocumentForm = {
   candidateId: string;
   documentTypeId: string;
   file: File | null;
+  isPhysicallyAvailable: boolean;
   note: string;
 };
 
@@ -45,6 +46,7 @@ const emptyForm = (
   candidateId: candidateId ?? "",
   documentTypeId: initialDocumentTypeId ?? "",
   file: null,
+  isPhysicallyAvailable: false,
   note: "",
 });
 
@@ -86,6 +88,7 @@ export function UploadDocumentModal({
 
   const selectedCandidateId = watch("candidateId");
   const selectedDocumentTypeId = watch("documentTypeId");
+  const isPhysicallyAvailable = watch("isPhysicallyAvailable");
 
   useEffect(() => {
     if (open) {
@@ -192,7 +195,7 @@ export function UploadDocumentModal({
     if (!resolvedSubmitDocumentTypeId) {
       setError("documentTypeId", {
         message: lockedDocumentTypeKey
-          ? "Biyometrik foto belge türü bulunamadı."
+          ? "Biyometrik foto evrak türü bulunamadı."
           : t("uploadDoc.errors.docTypeRequired"),
       });
       return;
@@ -206,12 +209,18 @@ export function UploadDocumentModal({
       if (value !== "") metadataToSend[field.key] = value;
     }
 
+    if (!data.file && !data.isPhysicallyAvailable) {
+      setError("file", { message: t("uploadDoc.errors.fileRequired") });
+      return;
+    }
+
     setSubmitting(true);
     try {
       await uploadDocument({
         candidateId: resolvedCandidateId,
         documentTypeId: resolvedSubmitDocumentTypeId,
-        file: data.file!,
+        file: data.isPhysicallyAvailable ? null : data.file,
+        isPhysicallyAvailable: data.isPhysicallyAvailable,
         note: data.note.trim() || undefined,
         metadata:
           Object.keys(metadataToSend).length > 0 ? metadataToSend : undefined,
@@ -340,15 +349,24 @@ export function UploadDocumentModal({
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label">{t("uploadDoc.file")}</label>
+            <label className="upload-doc-toggle">
+              <input type="checkbox" {...register("isPhysicallyAvailable")} />
+              <span>{t("uploadDoc.physicallyAvailable")}</span>
+            </label>
             <Controller
               control={control}
               name="file"
               render={({ field, fieldState }) => (
                 <FileDropInput
                   accept={ACCEPT}
+                  disabled={isPhysicallyAvailable}
                   error={!!fieldState.error}
                   file={field.value ?? undefined}
-                  hint={t("uploadDoc.fileHint")}
+                  hint={
+                    isPhysicallyAvailable
+                      ? t("uploadDoc.physicallyAvailableHint")
+                      : t("uploadDoc.fileHint")
+                  }
                   name={field.name}
                   onBlur={field.onBlur}
                   onChange={(list) => field.onChange(list?.[0] ?? null)}
@@ -358,7 +376,12 @@ export function UploadDocumentModal({
               )}
               rules={{
                 validate: (file) => {
-                  if (!file) return t("uploadDoc.errors.fileRequired");
+                  if (!file) {
+                    // "Fiziksel evrak elde var" işaretliyse dosya zorunlu değil.
+                    return isPhysicallyAvailable
+                      ? true
+                      : t("uploadDoc.errors.fileRequired");
+                  }
                   if (file.size > MAX_BYTES) return t("uploadDoc.errors.fileTooLarge");
                   return true;
                 },

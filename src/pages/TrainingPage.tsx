@@ -17,6 +17,7 @@ import { QuickLessonAssignment } from "../components/training/QuickLessonAssignm
 import { QuickPracticeAssignment } from "../components/training/QuickPracticeAssignment";
 import { PracticeCandidatePicker } from "../components/training/PracticeCandidatePicker";
 import { useToast } from "../components/ui/Toast";
+import { Modal } from "../components/ui/Modal";
 import { BranchPickerPopover } from "../components/training/BranchPickerPopover";
 import { PracticeEducationPopover } from "../components/training/PracticeEducationPopover";
 import {
@@ -36,6 +37,7 @@ import {
 import {
   createTrainingLesson,
   deleteTrainingLesson,
+  deleteTrainingLessonsByGroup,
   getTrainingLessons,
   updateTrainingLesson,
 } from "../lib/training-lessons-api";
@@ -108,6 +110,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
   );
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
+  const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
+  const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
   // Adaylar sayfasından bulk yönlendirme ile gelinen aday kümesi.
   // localStorage kalıcı; her yeni yönlendirme önceki scope'u override
   // eder. Boş array → scope yok, tüm aktif adaylar listelenir.
@@ -1124,6 +1128,43 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const showBackToCandidateList =
     type === "uygulama" && Boolean(quickSettings.candidateId);
+  const selectedGroupLessonCount = useMemo(() => {
+    if (type !== "teorik" || !quickSettings.groupId) return 0;
+    return events.filter(
+      (event) => event.kind === "teorik" && event.groupId === quickSettings.groupId
+    ).length;
+  }, [events, quickSettings.groupId, type]);
+  const bulkDeleteGroupLessonCount = useMemo(() => {
+    if (!bulkDeleteGroup) return 0;
+    return events.filter(
+      (event) => event.kind === "teorik" && event.groupId === bulkDeleteGroup.id
+    ).length;
+  }, [bulkDeleteGroup, events]);
+
+  const handleBulkDeleteGroupLessons = async () => {
+    if (!bulkDeleteGroup) return;
+    setIsBulkDeleteLoading(true);
+    try {
+      const result = await deleteTrainingLessonsByGroup(bulkDeleteGroup.id);
+      setEvents((prev) =>
+        prev.filter(
+          (event) => !(event.kind === "teorik" && event.groupId === bulkDeleteGroup.id)
+        )
+      );
+      setSelectedEvent(null);
+      setBulkDeleteGroup(null);
+      showToast(
+        t("training.toast.bulkLessonsDeleted", {
+          count: result.deletedCount,
+        })
+      );
+    } catch (error) {
+      console.error(error);
+      showToast(t("training.toast.bulkLessonsNotDeleted"));
+    } finally {
+      setIsBulkDeleteLoading(false);
+    }
+  };
 
   return (
     <>
@@ -1148,14 +1189,16 @@ export function TrainingPage({ type }: TrainingPageProps) {
         {loading ? <div className="empty-state">Dersler yükleniyor...</div> : null}
         <div className="training-layout">
           <aside className="training-filters-sidebar">
-            {type === "teorik" ? (
+          {type === "teorik" ? (
               <QuickLessonAssignment
                 groupId={quickSettings.groupId}
                 groups={groups}
-                isLoading={isQuickAssignLoading}
+                isLoading={isQuickAssignLoading || isBulkDeleteLoading}
+                onDeleteGroupLessons={setBulkDeleteGroup}
                 onSettingsChange={(settings) =>
                   setQuickSettings((prev) => ({ ...prev, ...settings }))
                 }
+                selectedLessonCount={selectedGroupLessonCount}
               />
             ) : (
               <QuickPracticeAssignment
@@ -1242,6 +1285,48 @@ export function TrainingPage({ type }: TrainingPageProps) {
         serverFieldErrors={serverFieldErrors}
         serverGeneralError={serverGeneralError}
       />
+
+      <Modal
+        footer={
+          <>
+                <button
+                  className="btn btn-secondary"
+                  disabled={isBulkDeleteLoading}
+                  onClick={() => setBulkDeleteGroup(null)}
+                  type="button"
+                >
+              {t("training.bulkDelete.cancel")}
+            </button>
+            <button
+              className="btn btn-danger"
+              disabled={isBulkDeleteLoading}
+              onClick={() => void handleBulkDeleteGroupLessons()}
+              type="button"
+            >
+              {isBulkDeleteLoading
+                ? t("training.bulkDelete.deleting")
+                : t("training.bulkDelete.confirm")}
+            </button>
+          </>
+        }
+        onClose={() => {
+          if (!isBulkDeleteLoading) setBulkDeleteGroup(null);
+        }}
+        open={bulkDeleteGroup !== null}
+        title={t("training.bulkDelete.title")}
+      >
+        <div className="training-bulk-delete-body">
+          <p>
+            {t("training.bulkDelete.message", {
+              group: bulkDeleteGroup?.title ?? "",
+              count: bulkDeleteGroupLessonCount,
+            })}
+          </p>
+          <p className="training-bulk-delete-warning">
+            {t("training.bulkDelete.warning")}
+          </p>
+        </div>
+      </Modal>
 
       {/* Ders konusu seçici popover — tıklanan slotun yanında çıkar
           (chat baloncuğu stili). Outside-click veya Escape ile kapanır;

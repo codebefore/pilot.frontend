@@ -646,6 +646,10 @@ export interface TrainingLessonListResponse {
   items: TrainingLessonResponse[];
 }
 
+export interface TrainingLessonBulkDeleteResponse {
+  deletedCount: number;
+}
+
 export interface TrainingLessonUpsertRequest {
   kind: TrainingLessonKind;
   status: TrainingLessonStatus;
@@ -731,9 +735,16 @@ export interface DocumentResponse {
   documentTypeId: string;
   documentTypeKey: string;
   documentTypeName: string;
-  originalFileName: string;
-  contentType: string;
-  fileSizeBytes: number;
+  /** Dosya yüklenmediyse null. */
+  originalFileName: string | null;
+  /** Dosya yüklenmediyse null. */
+  contentType: string | null;
+  /** Dosya yüklenmediyse null. */
+  fileSizeBytes: number | null;
+  /** Kullanıcı "fiziksel evrak elde var" işaretledi. */
+  isPhysicallyAvailable: boolean;
+  /** Yüklenmiş bir dosya mevcut mu. */
+  hasFile: boolean;
   note: string | null;
   metadata: Record<string, string | null>;
   uploadedAtUtc: string;

@@ -3069,6 +3069,40 @@ button.tag-filter-summary-chip.active {
 }
 .data-table th.sortable:hover { color: var(--brand); }
 
+/* ─── Document — physically available toggle + badge ─── */
+.upload-doc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--gray-700);
+  cursor: pointer;
+  user-select: none;
+}
+.upload-doc-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+.file-drop.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+.document-physical-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+}
+
 /* ─── New MEB Job Modal — candidate picker ─── */
 .meb-modal-candidate-list {
   margin-top: 8px;

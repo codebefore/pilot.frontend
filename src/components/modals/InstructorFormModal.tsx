@@ -494,11 +494,11 @@ export function InstructorFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Belge Türleri</label>
+            <label className="form-label">Evrak Türleri</label>
             <Controller
               control={control}
               name="licenseClassCodes"
-              rules={{ validate: (value) => value.length > 0 || "En az bir belge türü seçilmeli" }}
+              rules={{ validate: (value) => value.length > 0 || "En az bir evrak türü seçilmeli" }}
               render={({ field }) => {
                 const values = field.value ?? [];
                 return (

@@ -323,20 +323,36 @@ export function ManageDocumentModal({
             <div className="form-group">
               <label className="form-label">{t("documents.manage.file")}</label>
               <div className="form-readonly">
-                <div>{document.originalFileName}</div>
-                <div className="form-hint">
-                  {formatBytes(document.fileSizeBytes)} · {formatDateTR(document.uploadedAtUtc)}
-                </div>
+                {document.hasFile ? (
+                  <>
+                    <div>{document.originalFileName}</div>
+                    <div className="form-hint">
+                      {formatBytes(document.fileSizeBytes ?? 0)} ·{" "}
+                      {formatDateTR(document.uploadedAtUtc)}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <span className="document-physical-badge">
+                        {t("documents.physicallyAvailable")}
+                      </span>
+                    </div>
+                    <div className="form-hint">{formatDateTR(document.uploadedAtUtc)}</div>
+                  </>
+                )}
               </div>
               <div className="documents-manage-actions">
-                <a
-                  className="btn btn-secondary btn-sm"
-                  href={buildDocumentDownloadUrl(candidateId!, document.id)}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  {t("documents.manage.open")}
-                </a>
+                {document.hasFile && (
+                  <a
+                    className="btn btn-secondary btn-sm"
+                    href={buildDocumentDownloadUrl(candidateId!, document.id)}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {t("documents.manage.open")}
+                  </a>
+                )}
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={toggleReplaceOpen}

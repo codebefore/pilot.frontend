@@ -928,7 +928,15 @@ export function CandidateDrawer({
 
                 return (
                   <div className="drawer-doc-item" key={doc.id}>
-                    <DrawerRow label={doc.documentTypeName}>{doc.originalFileName}</DrawerRow>
+                    <DrawerRow label={doc.documentTypeName}>
+                      {doc.hasFile ? (
+                        doc.originalFileName
+                      ) : (
+                        <span className="document-physical-badge">
+                          {t("documents.physicallyAvailable")}
+                        </span>
+                      )}
+                    </DrawerRow>
                     {metadataEntries.length > 0 && (
                       <ul className="drawer-list drawer-doc-metadata">
                         {metadataEntries.map(([key, rawValue]) => {

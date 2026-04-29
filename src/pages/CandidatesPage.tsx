@@ -17,6 +17,7 @@ import { CustomSelect } from "../components/ui/CustomSelect";
 import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
+import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import {
   EMPTY_CANDIDATE_FILTERS,
@@ -52,6 +53,7 @@ import {
   candidateGenderLabel,
   candidateMebSyncStatusLabel,
   candidateMebSyncStatusToPill,
+  CANDIDATE_GENDER_OPTIONS,
   CANDIDATE_STATUS_OPTIONS,
   CANDIDATE_STATUS_VALUES,
   candidateStatusLabel,
@@ -67,7 +69,9 @@ import type {
   ExamScheduleLicenseClassCount,
   ExamScheduleOption,
   GroupResponse,
+  LicenseClass,
 } from "../lib/types";
+import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
@@ -442,6 +446,7 @@ export function CandidatesPage({
 }: CandidatesPageProps = {}) {
   const t = useT();
   const { lang } = useLanguage();
+  const { options: licenseClassOptions } = useLicenseClassOptions();
   const columnPageScope: CandidateColumnPageScope =
     examDateSidebar?.field === "eSinavDate"
       ? "eSinav"
@@ -584,6 +589,15 @@ export function CandidatesPage({
         : BULK_STATUS_OPTIONS.filter((option) => option.value !== currentStatusTab),
     [currentStatusTab]
   );
+  const getColumnFilterControl = (col: CandidateColumnDef) =>
+    buildCandidateColumnFilterControl(
+      col.id,
+      filters,
+      handleFilterChange,
+      licenseClassOptions,
+      t,
+      lang
+    );
 
   const pickerOptions: ColumnOption[] = resolvedColumns
     .filter((col) => !col.pickerHidden && !forcedVisibleColumnIds.has(col.id))
@@ -1403,26 +1417,30 @@ export function CandidatesPage({
                   </span>
                 </th>
               )}
-              {visibleColumns.map((col) =>
-                col.sortField ? (
+              {visibleColumns.map((col) => {
+                const label = getColumnLabel(col);
+                const filterControl = getColumnFilterControl(col);
+                return col.sortField ? (
                   <SortableTh
                     className={col.headerClassName}
+                    filterControl={filterControl}
                     key={col.id}
                     field={col.sortField}
-                    label={getColumnLabel(col)}
+                    label={label}
                     onToggle={handleSortToggle}
                     sort={sort}
                   />
                 ) : (
-                  <th
-                    aria-label={getColumnLabel(col)}
-                    className={col.headerClassName}
-                    key={col.id}
-                  >
-                    {col.headerLabel ?? getColumnLabel(col)}
+                  <th aria-label={label} className={col.headerClassName} key={col.id}>
+                    <div className="sortable-th-shell">
+                      <span>{col.headerLabel ?? label}</span>
+                      {filterControl ? (
+                        <div className="sortable-th-filter">{filterControl}</div>
+                      ) : null}
+                    </div>
                   </th>
-                )
-              )}
+                );
+              })}
               <th className="col-picker-th">
                 <ColumnPicker
                   columns={pickerOptions}
@@ -1810,13 +1828,21 @@ export function CandidatesPage({
 
 type SortableThProps = {
   field: CandidateSortField;
+  filterControl?: React.ReactNode;
   label: string;
   sort: SortState;
   onToggle: (field: CandidateSortField) => void;
   className?: string;
 };
 
-function SortableTh({ field, label, sort, onToggle, className }: SortableThProps) {
+function SortableTh({
+  field,
+  filterControl,
+  label,
+  sort,
+  onToggle,
+  className,
+}: SortableThProps) {
   const isActive = sort?.field === field;
   const direction = isActive ? sort!.direction : null;
   const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
@@ -1830,16 +1856,119 @@ function SortableTh({ field, label, sort, onToggle, className }: SortableThProps
     .join(" ");
   return (
     <th aria-sort={ariaSort} className={thClassName}>
-      <button
-        className="sortable-th-btn"
-        onClick={() => onToggle(field)}
-        type="button"
-      >
-        <span>{label}</span>
-        <span className="sortable-th-indicator" aria-hidden="true">
-          {indicator}
-        </span>
-      </button>
+      <div className="sortable-th-shell">
+        <button
+          className="sortable-th-btn"
+          onClick={() => onToggle(field)}
+          type="button"
+        >
+          <span>{label}</span>
+          <span className="sortable-th-indicator" aria-hidden="true">
+            {indicator}
+          </span>
+        </button>
+        {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+      </div>
     </th>
   );
+}
+
+function buildCandidateColumnFilterControl(
+  columnId: CandidateColumnId,
+  filters: CandidateFilterState,
+  setFilter: <K extends keyof CandidateFilterState>(
+    key: K,
+    value: CandidateFilterState[K]
+  ) => void,
+  licenseClassOptions: { value: string; label: string }[],
+  t: ReturnType<typeof useT>,
+  lang: "tr" | "en"
+) {
+  if (columnId === "licenseClass") {
+    return (
+      <TableHeaderFilter
+        active={filters.licenseClass !== ""}
+        onChange={(value) => setFilter("licenseClass", value as LicenseClass | "")}
+        options={[
+          { value: "", label: t("common.all") },
+          ...licenseClassOptions.map((option) => ({
+            value: option.value,
+            label: option.label,
+          })),
+        ]}
+        title={t("candidates.col.licenseClass")}
+        value={filters.licenseClass}
+      />
+    );
+  }
+
+  if (columnId === "gender") {
+    return (
+      <TableHeaderFilter
+        active={filters.gender !== ""}
+        onChange={(value) => setFilter("gender", value as CandidateFilterState["gender"])}
+        options={[
+          { value: "", label: t("common.all") },
+          ...CANDIDATE_GENDER_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          })),
+        ]}
+        title={t("candidates.col.gender")}
+        value={filters.gender}
+      />
+    );
+  }
+
+  if (columnId === "group") {
+    return (
+      <TableHeaderFilter
+        active={filters.hasActiveGroup !== ""}
+        onChange={(value) => setFilter("hasActiveGroup", value as CandidateFilterState["hasActiveGroup"])}
+        options={[
+          { value: "", label: t("common.all") },
+          { value: "true", label: lang === "tr" ? "Grubu var" : "Has group" },
+          { value: "false", label: lang === "tr" ? "Grubu yok" : "No group" },
+        ]}
+        title={t("candidates.filters.hasActiveGroup")}
+        value={filters.hasActiveGroup}
+      />
+    );
+  }
+
+  if (columnId === "documents" || columnId === "missingDocuments") {
+    return (
+      <TableHeaderFilter
+        active={filters.hasMissingDocuments !== ""}
+        onChange={(value) =>
+          setFilter("hasMissingDocuments", value as CandidateFilterState["hasMissingDocuments"])
+        }
+        options={[
+          { value: "", label: t("common.all") },
+          { value: "true", label: lang === "tr" ? "Eksik var" : "Missing" },
+          { value: "false", label: lang === "tr" ? "Eksik yok" : "Complete" },
+        ]}
+        title={t("candidates.filters.hasMissingDocuments")}
+        value={filters.hasMissingDocuments}
+      />
+    );
+  }
+
+  if (columnId === "examFeePaid") {
+    return (
+      <TableHeaderFilter
+        active={filters.examFeePaid !== ""}
+        onChange={(value) => setFilter("examFeePaid", value as CandidateFilterState["examFeePaid"])}
+        options={[
+          { value: "", label: t("common.all") },
+          { value: "true", label: t("candidates.examFee.paidShort") },
+          { value: "false", label: t("candidates.examFee.unpaidShort") },
+        ]}
+        title={t("candidates.filters.examFeePaid")}
+        value={filters.examFeePaid}
+      />
+    );
+  }
+
+  return null;
 }

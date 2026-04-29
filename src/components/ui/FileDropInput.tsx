@@ -7,6 +7,7 @@ type FileDropInputProps = {
   accept?: string;
   hint?: string;
   error?: boolean;
+  disabled?: boolean;
   file?: File;
   onChange: (files: FileList | null) => void;
   onClear: () => void;
@@ -21,17 +22,19 @@ function formatBytes(bytes: number): string {
 
 export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
   function FileDropInput(
-    { name, accept, hint, error, file, onChange, onClear, onBlur },
+    { name, accept, hint, error, disabled, file, onChange, onClear, onBlur },
     ref
   ) {
     const [dragging, setDragging] = useState(false);
 
     const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+      if (disabled) return;
       e.preventDefault();
       setDragging(true);
     };
     const handleDragLeave = () => setDragging(false);
     const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+      if (disabled) return;
       e.preventDefault();
       setDragging(false);
       if (e.dataTransfer.files?.length) onChange(e.dataTransfer.files);
@@ -60,7 +63,9 @@ export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
       );
     }
 
-    const className = `file-drop${dragging ? " dragging" : ""}${error ? " error" : ""}`;
+    const className = `file-drop${dragging ? " dragging" : ""}${
+      error ? " error" : ""
+    }${disabled ? " disabled" : ""}`;
 
     return (
       <div
@@ -78,6 +83,7 @@ export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
         {hint && <div className="file-drop-hint">{hint}</div>}
         <input
           accept={accept}
+          disabled={disabled}
           name={name}
           onBlur={onBlur}
           onChange={handleInput}

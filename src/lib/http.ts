@@ -149,10 +149,14 @@ export async function httpPut<T>(
   return handleResponse<T>(response);
 }
 
-export async function httpDelete(path: string, options?: RequestOptions): Promise<void> {
-  const response = await fetch(buildUrl(path), {
+export async function httpDelete<T = void>(
+  path: string,
+  params?: QueryParams,
+  options?: RequestOptions
+): Promise<T> {
+  const response = await fetch(buildUrl(path, params), {
     method: "DELETE",
     signal: options?.signal,
   });
-  return handleResponse<void>(response);
+  return handleResponse<T>(response);
 }

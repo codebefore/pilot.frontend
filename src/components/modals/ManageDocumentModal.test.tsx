@@ -39,6 +39,8 @@ describe("ManageDocumentModal", () => {
         originalFileName: "rapor.pdf",
         contentType: "application/pdf",
         fileSizeBytes: 2048,
+        isPhysicallyAvailable: false,
+        hasFile: true,
         note: "Mevcut not",
         metadata: {
           issuing_institution: "Mevcut Kurum",

@@ -411,7 +411,7 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Belge Türü</label>
+            <label className="form-label">Evrak Türü</label>
             <Controller
               control={control}
               name="licenseClass"

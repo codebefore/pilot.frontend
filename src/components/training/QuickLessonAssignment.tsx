@@ -9,6 +9,8 @@ type QuickLessonAssignmentProps = {
   groupId: string;
   /** Seçim değişikliğini parent'a (TrainingPage) iletiyor. */
   onSettingsChange: (params: { groupId: string }) => void;
+  onDeleteGroupLessons?: (group: GroupResponse) => void;
+  selectedLessonCount?: number;
   isLoading?: boolean;
 };
 
@@ -16,6 +18,8 @@ export function QuickLessonAssignment({
   groups,
   groupId,
   onSettingsChange,
+  onDeleteGroupLessons,
+  selectedLessonCount = 0,
   isLoading = false,
 }: QuickLessonAssignmentProps) {
   const t = useT();
@@ -52,6 +56,8 @@ export function QuickLessonAssignment({
     if (isLoading) return;
     onSettingsChange({ groupId: id === groupId ? "" : id });
   };
+
+  const selectedGroup = groups.find((group) => group.id === groupId);
 
   return (
     <div className="training-quick-assign">
@@ -90,6 +96,23 @@ export function QuickLessonAssignment({
           </li>
         ) : null}
       </ul>
+      {selectedGroup && onDeleteGroupLessons ? (
+        <div className="training-quick-danger-zone">
+          <button
+            className="btn btn-danger btn-sm"
+            disabled={isLoading || selectedLessonCount === 0}
+            onClick={() => onDeleteGroupLessons(selectedGroup)}
+            type="button"
+          >
+            {t("training.quick.deleteGroupLessons")}
+          </button>
+          <span className="training-quick-danger-hint">
+            {t("training.quick.deleteGroupLessonsHint", {
+              count: selectedLessonCount,
+            })}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
