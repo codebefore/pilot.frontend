@@ -22,7 +22,7 @@ export type JobStatus =
   | "running"
   | "queued"
   | "failed"
-  | "retry"
+  | "warning"
   | "manual";
 
 export type TaskStatus =

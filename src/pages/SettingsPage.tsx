@@ -33,7 +33,6 @@ type SettingsFormValues = {
   mebbisUsername: string;
   mebbisPassword: string;
   syncEnabled: boolean;
-  retryEnabled: boolean;
 };
 
 type SettingsNavItem = {
@@ -76,7 +75,6 @@ const INITIAL_VALUES: SettingsFormValues = {
   mebbisUsername: "sezer_mtsk",
   mebbisPassword: "super-secret",
   syncEnabled: true,
-  retryEnabled: true,
 };
 
 const INSTITUTION_TYPE_LABEL_KEY: Record<InstitutionType, TranslationKey> = {
@@ -404,15 +402,6 @@ function IntegrationSettingsSection({
                   <span>{t("settings.integration.toggle.autoSync")}</span>
                 </label>
 
-                <label className="switch-toggle">
-                  <input
-                    checked={values.retryEnabled}
-                    onChange={onInputChange("retryEnabled")}
-                    type="checkbox"
-                  />
-                  <span className="switch-toggle-control" aria-hidden="true" />
-                  <span>{t("settings.integration.toggle.autoRetry")}</span>
-                </label>
               </div>
             </div>
           </form>

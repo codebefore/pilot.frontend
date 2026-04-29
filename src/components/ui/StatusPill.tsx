@@ -5,7 +5,7 @@ const LABELS: Record<JobStatus, string> = {
   running: "Çalışıyor",
   queued:  "Bekliyor",
   failed:  "Hata",
-  retry:   "Tekrar",
+  warning: "Uyarı",
   manual:  "Manuel",
 };
 

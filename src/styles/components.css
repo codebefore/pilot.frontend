@@ -143,8 +143,8 @@
 .pill-queued  .dot { background: var(--gray-400); }
 .pill-failed  { background: #fee2e2; color: #991b1b; }
 .pill-failed  .dot { background: #dc2626; }
-.pill-retry   { background: #fef3c7; color: #92400e; }
-.pill-retry   .dot { background: #d97706; }
+.pill-warning { background: #fef3c7; color: #92400e; }
+.pill-warning .dot { background: #d97706; }
 .pill-manual  { background: #f5f3ff; color: #6d28d9; }
 .pill-manual  .dot { background: #7c3aed; }
 
@@ -3027,11 +3027,113 @@ button.tag-filter-summary-chip.active {
 .job-type      { font-size: 12px; font-weight: 600; color: var(--gray-800); }
 .job-candidate { font-size: 12px; color: var(--gray-600); }
 .job-time {
-  font-size: 11px; color: var(--gray-400);
+  font-size: 11px; color: var(--gray-500);
   font-family: 'SF Mono', 'Fira Code', monospace;
+  white-space: nowrap;
 }
 .job-id {
   font-size: 11px; color: var(--gray-500);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.job-candidate-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+}
+.job-candidate-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+.job-candidate-secondary {
+  font-size: 11px;
+  color: var(--gray-500);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.job-duration {
+  font-size: 12px;
+  color: var(--gray-600);
+  white-space: nowrap;
+}
+.job-row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.data-table-clickable tbody tr { cursor: pointer; }
+.data-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.data-table th.sortable:hover { color: var(--brand); }
+
+/* ─── New MEB Job Modal — candidate picker ─── */
+.meb-modal-candidate-list {
+  margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+}
+.meb-modal-candidate-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--gray-100);
+  text-align: left;
+  cursor: pointer;
+  transition: background .1s;
+}
+.meb-modal-candidate-item:last-child { border-bottom: none; }
+.meb-modal-candidate-item:hover { background: var(--gray-50); }
+.meb-modal-candidate-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+.meb-modal-candidate-meta {
+  font-size: 11px;
+  color: var(--gray-500);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.meb-modal-candidate-empty {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--gray-500);
+  text-align: center;
+}
+.meb-modal-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--gray-50);
+}
+.meb-modal-selected-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.meb-modal-selected-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+.meb-modal-selected-meta {
+  font-size: 11px;
+  color: var(--gray-500);
   font-family: 'SF Mono', 'Fira Code', monospace;
 }
 

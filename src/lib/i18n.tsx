@@ -158,9 +158,8 @@ const tr = {
   "settings.integration.field.mebbisUsername": "MEBBİS Kullanıcı Adı",
   "settings.integration.field.mebbisPassword": "MEBBİS Şifre",
   "settings.integration.subsection.title": "Senkron Ayarları",
-  "settings.integration.subsection.note": "Gecelik kontrol ve hata tekrar denemesi ayarları.",
+  "settings.integration.subsection.note": "Gecelik kontrol ve senkron ayarları.",
   "settings.integration.toggle.autoSync": "Otomatik senkron açık",
-  "settings.integration.toggle.autoRetry": "Hata durumunda otomatik tekrar dene",
   "settings.integration.toast.credentialsRequired": "MEB bağlantısı için kullanıcı adı ve şifre gerekli",
   "settings.integration.toast.connectionChecked": "MEB bağlantısı kontrol edildi",
 
@@ -1188,9 +1187,8 @@ const en: Record<keyof typeof tr, string> = {
   "settings.integration.field.mebbisUsername": "MEBBIS Username",
   "settings.integration.field.mebbisPassword": "MEBBIS Password",
   "settings.integration.subsection.title": "Sync Settings",
-  "settings.integration.subsection.note": "Nightly checks and retry-on-error settings.",
+  "settings.integration.subsection.note": "Nightly checks and sync settings.",
   "settings.integration.toggle.autoSync": "Auto sync enabled",
-  "settings.integration.toggle.autoRetry": "Retry automatically on error",
   "settings.integration.toast.credentialsRequired": "MEB connection requires a username and password",
   "settings.integration.toast.connectionChecked": "MEB connection verified",
 

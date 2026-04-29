@@ -125,7 +125,7 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
             vehicle.status === "in_use"
               ? "running"
               : vehicle.status === "maintenance"
-                ? "retry"
+                ? "warning"
                 : "manual"
           }
         />
