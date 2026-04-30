@@ -6,6 +6,7 @@ import { NewCandidateModal } from "./NewCandidateModal";
 
 const createCandidateMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
+const getCandidateReuseSourcesMock = vi.fn();
 const getGroupsMock = vi.fn();
 const getTermsMock = vi.fn();
 
@@ -19,6 +20,9 @@ vi.mock("../../lib/candidates-api", async () => {
       createCandidateMock(...args),
     assignCandidateGroup: (...args: Parameters<typeof actual.assignCandidateGroup>) =>
       assignCandidateGroupMock(...args),
+    getCandidateReuseSources: (
+      ...args: Parameters<typeof actual.getCandidateReuseSources>
+    ) => getCandidateReuseSourcesMock(...args),
   };
 });
 
@@ -46,6 +50,7 @@ describe("NewCandidateModal", () => {
   beforeEach(() => {
     createCandidateMock.mockReset();
     assignCandidateGroupMock.mockReset();
+    getCandidateReuseSourcesMock.mockReset();
     getGroupsMock.mockReset();
     getTermsMock.mockReset();
 
@@ -70,6 +75,8 @@ describe("NewCandidateModal", () => {
       createdAtUtc: "2026-04-15T00:00:00Z",
       updatedAtUtc: "2026-04-15T00:00:00Z",
     });
+
+    getCandidateReuseSourcesMock.mockResolvedValue([]);
 
     assignCandidateGroupMock.mockResolvedValue({
       assignmentId: "assignment-1",
@@ -211,6 +218,85 @@ describe("NewCandidateModal", () => {
           existingLicenseNumber: "12345",
           existingLicenseIssuedProvince: "Ankara",
           existingLicensePre2016: true,
+        })
+      );
+    });
+  });
+
+  it("can prefill identity fields and copy selected documents from a reuse source", async () => {
+    getCandidateReuseSourcesMock.mockResolvedValue([
+      {
+        id: "source-1",
+        firstName: "Ayse",
+        lastName: "Demir",
+        nationalId: "11111111111",
+        phoneNumber: "5557654321",
+        email: "ayse@example.com",
+        birthDate: "1998-02-03",
+        gender: "female",
+        licenseClass: "B",
+        existingLicenseType: "b",
+        existingLicenseIssuedAt: "2020-05-06",
+        existingLicenseNumber: "B-12345",
+        existingLicenseIssuedProvince: "Ankara",
+        existingLicensePre2016: true,
+        status: "graduated",
+        createdAtUtc: "2026-01-01T00:00:00Z",
+        documents: [
+          {
+            id: "photo-document-1",
+            documentTypeId: "photo-document-type-1",
+            documentTypeKey: "biometric_photo",
+            documentTypeName: "Biometrik Fotoğraf",
+            originalFileName: "foto.jpg",
+            isPhysicallyAvailable: false,
+            hasFile: true,
+            note: null,
+            uploadedAtUtc: "2026-01-01T00:00:00Z",
+          },
+          {
+            id: "document-1",
+            documentTypeId: "document-type-1",
+            documentTypeKey: "identity",
+            documentTypeName: "Kimlik",
+            originalFileName: "kimlik.pdf",
+            isPhysicallyAvailable: false,
+            hasFile: true,
+            note: null,
+            uploadedAtUtc: "2026-01-02T00:00:00Z",
+          },
+        ],
+      },
+    ]);
+
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    fireEvent.change(screen.getByPlaceholderText("11 haneli TC"), {
+      target: { value: "11111111111" },
+    });
+
+    await screen.findByText(/Ayse Demir/);
+    expect(await screen.findByAltText("Ayse Demir")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ayse Demir eski başvuru/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Kimlik/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(createCandidateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          firstName: "Ayse",
+          lastName: "Demir",
+          phoneNumber: "5557654321",
+          email: "ayse@example.com",
+          gender: "female",
+          existingLicenseType: "b",
+          existingLicenseIssuedAt: "2020-05-06",
+          existingLicenseNumber: "B-12345",
+          existingLicenseIssuedProvince: "Ankara",
+          existingLicensePre2016: true,
+          reuseFromCandidateId: "source-1",
+          documentIdsToCopy: ["document-1"],
         })
       );
     });

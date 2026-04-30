@@ -842,6 +842,8 @@ const tr = {
   "candidate.validation.invalidSortDirection": "Sıralama yönü geçerli değil",
   "candidate.validation.invalidTag": "Etiket geçersiz",
   "candidate.validation.nationalIdConflict": "Bu TC kimlik numarası zaten kayıtlı",
+  "candidate.validation.nationalIdLicenseClassConflict":
+    "Bu TC kimlik numarası ve ehliyet sınıfı için açık başvuru mevcut",
   "candidate.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
   "candidate.validation.concurrencyConflict":
     "Bu aday başka bir kullanıcı tarafından güncellendi. Lütfen listeye dönüp tekrar açın.",
@@ -2024,6 +2026,8 @@ const en: Record<keyof typeof tr, string> = {
   "candidate.validation.invalidSortDirection": "Sort direction is not valid",
   "candidate.validation.invalidTag": "Tag is invalid",
   "candidate.validation.nationalIdConflict": "This national ID is already registered",
+  "candidate.validation.nationalIdLicenseClassConflict":
+    "This national ID already has an open application for this license class",
   "candidate.validation.rowVersionRequired": "Row version is required",
   "candidate.validation.concurrencyConflict":
     "This candidate was updated by someone else. Return to the list and reopen to retry.",

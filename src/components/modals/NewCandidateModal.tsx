@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { assignCandidateGroup, createCandidate } from "../../lib/candidates-api";
+import {
+  assignCandidateGroup,
+  createCandidate,
+  getCandidateReuseSources,
+} from "../../lib/candidates-api";
 import { ApiError } from "../../lib/http";
 import { getGroups } from "../../lib/groups-api";
 import { useLanguage, useT } from "../../lib/i18n";
@@ -12,12 +16,19 @@ import {
 } from "../../lib/status-maps";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
-import type { CandidateGenderValue, GroupResponse, LicenseClass, TermResponse } from "../../lib/types";
+import type {
+  CandidateGenderValue,
+  CandidateReuseSourceResponse,
+  GroupResponse,
+  LicenseClass,
+  TermResponse,
+} from "../../lib/types";
 import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { useToast } from "../ui/Toast";
 
 type NewCandidateForm = {
@@ -37,6 +48,8 @@ type NewCandidateForm = {
   existingLicenseNumber: string;
   existingLicenseIssuedProvince: string;
   existingLicensePre2016: boolean;
+  reuseFromCandidateId: string;
+  documentIdsToCopy: string[];
 };
 
 type NewCandidateModalProps = {
@@ -64,6 +77,28 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function buildReuseSourceAvatarCandidate(source: CandidateReuseSourceResponse) {
+  const photoDocument = source.documents.find(
+    (document) =>
+      (document.documentTypeKey === "biometric_photo" ||
+        document.documentTypeKey === "webcam_photo") &&
+      document.hasFile
+  );
+
+  return {
+    id: source.id,
+    firstName: source.firstName,
+    lastName: source.lastName,
+    gender: source.gender,
+    photo: photoDocument
+      ? {
+          documentId: photoDocument.id,
+          kind: photoDocument.documentTypeKey,
+        }
+      : null,
+  };
+}
+
 const defaultValues = (): NewCandidateForm => ({
   tc: "",
   className: "B",
@@ -81,6 +116,8 @@ const defaultValues = (): NewCandidateForm => ({
   existingLicenseNumber: "",
   existingLicenseIssuedProvince: "",
   existingLicensePre2016: false,
+  reuseFromCandidateId: "",
+  documentIdsToCopy: [],
 });
 
 export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModalProps) {
@@ -93,6 +130,8 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [terms, setTerms] = useState<TermResponse[]>([]);
+  const [reuseSources, setReuseSources] = useState<CandidateReuseSourceResponse[]>([]);
+  const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
 
   const {
     register,
@@ -109,11 +148,17 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const selectedGender = watch("gender");
   const selectedGroupId = watch("groupId");
+  const tc = watch("tc");
+  const normalizedTc = (tc ?? "").replace(/\D/g, "");
+  const reuseFromCandidateId = watch("reuseFromCandidateId");
+  const documentIdsToCopy = watch("documentIdsToCopy");
   const hasExistingLicense = watch("hasExistingLicense");
   const birthDate = watch("birthDate");
   const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
   const tags = watch("tags");
   const availableGroups = groups;
+  const selectedReuseSource =
+    reuseSources.find((source) => source.id === reuseFromCandidateId) ?? null;
   const sortedTerms = terms.length > 0 ? [...terms].sort(compareTermsDesc) : [];
   const classRegistration = register("className", { required: true });
   const birthDateRegistration = register("birthDate", {
@@ -192,6 +237,96 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   }, [open]);
 
   useEffect(() => {
+    if (!open || normalizedTc.length !== 11) {
+      setReuseSources([]);
+      setValue("reuseFromCandidateId", "");
+      setValue("documentIdsToCopy", []);
+      return;
+    }
+
+    const controller = new AbortController();
+    setReuseSourcesLoading(true);
+    getCandidateReuseSources(normalizedTc, controller.signal)
+      .then((sources) => {
+        setReuseSources(sources);
+        if (!sources.some((source) => source.id === reuseFromCandidateId)) {
+          setValue("reuseFromCandidateId", "");
+          setValue("documentIdsToCopy", []);
+        }
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setReuseSources([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setReuseSourcesLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [normalizedTc, open, setValue]);
+
+  useEffect(() => {
+    if (!selectedReuseSource) return;
+
+    const hasSourceExistingLicense =
+      !!selectedReuseSource.existingLicenseType ||
+      !!selectedReuseSource.existingLicenseIssuedAt ||
+      !!selectedReuseSource.existingLicenseNumber ||
+      !!selectedReuseSource.existingLicenseIssuedProvince ||
+      selectedReuseSource.existingLicensePre2016;
+
+    setValue("firstName", selectedReuseSource.firstName, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("lastName", selectedReuseSource.lastName, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("birthDate", selectedReuseSource.birthDate ?? "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("gender", selectedReuseSource.gender ?? "unspecified", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("phone", selectedReuseSource.phoneNumber ?? "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("email", selectedReuseSource.email ?? "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("hasExistingLicense", hasSourceExistingLicense, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("existingLicenseType", selectedReuseSource.existingLicenseType ?? "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("existingLicenseIssuedAt", selectedReuseSource.existingLicenseIssuedAt ?? "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("existingLicenseNumber", selectedReuseSource.existingLicenseNumber ?? "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue(
+      "existingLicenseIssuedProvince",
+      selectedReuseSource.existingLicenseIssuedProvince ?? "",
+      { shouldDirty: true, shouldValidate: true }
+    );
+    setValue("existingLicensePre2016", selectedReuseSource.existingLicensePre2016, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [selectedReuseSource, setValue]);
+
+  useEffect(() => {
     if (
       selectedGroupId &&
       !groups.some((group) => group.id === selectedGroupId)
@@ -225,6 +360,10 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         examFeePaid: false,
         initialPaymentReceived: false,
         tags: data.tags,
+        reuseFromCandidateId: data.documentIdsToCopy.length > 0
+          ? data.reuseFromCandidateId || null
+          : null,
+        documentIdsToCopy: data.documentIdsToCopy,
       });
 
       if (data.groupId) {
@@ -241,7 +380,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
       onSubmit();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        setError("tc", { message: "Bu TC ile kayıtlı aday zaten mevcut" });
+        setError("tc", {
+          message: "Bu TC kimlik numarası ve ehliyet sınıfı için açık başvuru mevcut",
+        });
       } else {
         showToast("Aday kaydedilemedi. Lütfen tekrar deneyin.", "error");
       }
@@ -252,6 +393,21 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
 
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
     hasError ? `${base} error` : base;
+
+  const toggleDocumentToCopy = (documentId: string) => {
+    const next = documentIdsToCopy.includes(documentId)
+      ? documentIdsToCopy.filter((id) => id !== documentId)
+      : [...documentIdsToCopy, documentId];
+    setValue("documentIdsToCopy", next, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const toggleReuseSource = (sourceId: string) => {
+    setValue("reuseFromCandidateId", reuseFromCandidateId === sourceId ? "" : sourceId, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("documentIdsToCopy", [], { shouldDirty: true, shouldValidate: true });
+  };
 
   return (
     <Modal
@@ -270,6 +426,109 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
       title="Yeni Aday Kaydı"
     >
       <form onSubmit={submit}>
+        {reuseSourcesLoading || reuseSources.length > 0 ? (
+          <section className="form-subsection">
+            {reuseSourcesLoading ? (
+              <div className="form-subsection-note">Eski kayıtlar aranıyor...</div>
+            ) : (
+              <>
+                <div className="form-row full">
+                  <div className="form-group">
+                    <label className="form-label">
+                      Eski Başvuru{" "}
+                      {!errors.tc && reuseSources.length > 0 ? (
+                        <span className="candidate-reuse-label-hint">
+                          (Bu kişi uygulamada zaten kayıtlı. İstersen eski bilgileri
+                          otomatik doldurabilirim.)
+                        </span>
+                      ) : null}
+                    </label>
+                    <div className="candidate-reuse-source-list">
+                      {reuseSources.map((source) => {
+                        const checked = reuseFromCandidateId === source.id;
+                        return (
+                          <label
+                            className={[
+                              "candidate-reuse-source-row",
+                              checked ? "selected" : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            key={source.id}
+                          >
+                            <span className="candidate-reuse-source-main">
+                              <CandidateAvatar
+                                candidate={buildReuseSourceAvatarCandidate(source)}
+                                size={42}
+                              />
+                              <span className="candidate-reuse-source-copy">
+                                <strong>
+                                  {source.firstName} {source.lastName}
+                                </strong>
+                                <span>
+                                  {source.licenseClass} · {source.status}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="candidate-reuse-source-toggle">
+                              <input
+                                aria-label={`${source.firstName} ${source.lastName} eski başvuru`}
+                                checked={checked}
+                                onChange={() => toggleReuseSource(source.id)}
+                                type="checkbox"
+                              />
+                              <span className="switch-toggle-control" aria-hidden="true" />
+                              <span>{checked ? "Evet" : "Hayır"}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedReuseSource ? (
+                  <div className="form-row full">
+                    <div className="form-group">
+                      <label className="form-label">Kopyalanacak Evraklar</label>
+                      {selectedReuseSource.documents.length === 0 ? (
+                        <div className="form-subsection-note">Bu kayıtta evrak bulunmuyor.</div>
+                      ) : (
+                        <div className="candidate-reuse-document-list">
+                          {selectedReuseSource.documents.map((document) => (
+                            <label className="candidate-reuse-document-row" key={document.id}>
+                              <span className="candidate-reuse-document-copy">
+                                <strong>{document.documentTypeName}</strong>
+                                <span>
+                                  {document.originalFileName ??
+                                    (document.isPhysicallyAvailable
+                                      ? "Fiziksel evrak"
+                                      : "Dosya yok")}
+                                </span>
+                              </span>
+                              <span className="candidate-reuse-document-toggle">
+                                <input
+                                  checked={documentIdsToCopy.includes(document.id)}
+                                  onChange={() => toggleDocumentToCopy(document.id)}
+                                  type="checkbox"
+                                />
+                                <span className="switch-toggle-control" aria-hidden="true" />
+                                <span>
+                                  {documentIdsToCopy.includes(document.id) ? "Evet" : "Hayır"}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </section>
+        ) : null}
+
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">TC Kimlik No</label>
@@ -284,6 +543,11 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               })}
             />
             {errors.tc && <div className="form-error">{errors.tc.message}</div>}
+            {!errors.tc && normalizedTc.length === 11 && reuseSourcesLoading ? (
+              <div className="candidate-reuse-hint candidate-reuse-hint-muted">
+                Eski kayıtlar kontrol ediliyor...
+              </div>
+            ) : null}
           </div>
           <div className="form-group">
             <label className="form-label">Ehliyet Tipi</label>

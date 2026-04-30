@@ -3,6 +3,7 @@ import type {
   CandidateGenderValue,
   CandidateGroupAssignmentResponse,
   CandidateResponse,
+  CandidateReuseSourceResponse,
   CandidateTag,
   CandidateUpsertRequest,
   ExamScheduleOption,
@@ -95,6 +96,17 @@ export function getCandidateById(
   signal?: AbortSignal
 ): Promise<CandidateResponse> {
   return httpGet<CandidateResponse>(`/api/candidates/${id}`, undefined, { signal });
+}
+
+export function getCandidateReuseSources(
+  nationalId: string,
+  signal?: AbortSignal
+): Promise<CandidateReuseSourceResponse[]> {
+  return httpGet<CandidateReuseSourceResponse[]>(
+    "/api/candidates/reuse-sources",
+    { nationalId },
+    { signal }
+  );
 }
 
 export function createCandidate(

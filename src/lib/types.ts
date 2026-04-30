@@ -108,8 +108,42 @@ export interface CandidateUpsertRequest {
   initialPaymentReceived?: boolean;
   /** Names only — backend resolves or creates tags by name. */
   tags?: string[];
+  reuseFromCandidateId?: string | null;
+  documentIdsToCopy?: string[];
   /** Required for updates; omitted on create. */
   rowVersion?: number;
+}
+
+export interface CandidateReusableDocumentResponse {
+  id: string;
+  documentTypeId: string;
+  documentTypeKey: string;
+  documentTypeName: string;
+  originalFileName: string | null;
+  isPhysicallyAvailable: boolean;
+  hasFile: boolean;
+  note: string | null;
+  uploadedAtUtc: string;
+}
+
+export interface CandidateReuseSourceResponse {
+  id: string;
+  firstName: string;
+  lastName: string;
+  nationalId: string;
+  phoneNumber: string | null;
+  email: string | null;
+  birthDate: string | null;
+  gender: CandidateGenderValue | null;
+  licenseClass: LicenseClass;
+  existingLicenseType: string | null;
+  existingLicenseIssuedAt: string | null;
+  existingLicenseNumber: string | null;
+  existingLicenseIssuedProvince: string | null;
+  existingLicensePre2016: boolean;
+  status: string;
+  createdAtUtc: string;
+  documents: CandidateReusableDocumentResponse[];
 }
 
 export interface CandidateGroupAssignmentResponse {

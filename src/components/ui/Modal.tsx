@@ -4,12 +4,13 @@ import { createPortal } from "react-dom";
 type ModalProps = {
   open: boolean;
   title: string;
+  titleExtra?: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
 };
 
-export function Modal({ open, title, onClose, children, footer }: ModalProps) {
+export function Modal({ open, title, titleExtra, onClose, children, footer }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -30,7 +31,10 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
     >
       <div className="modal" role="dialog" aria-modal="true">
         <div className="modal-header">
-          <span className="modal-title">{title}</span>
+          <div className="modal-title-wrap">
+            <span className="modal-title">{title}</span>
+            {titleExtra}
+          </div>
           <button
             aria-label="Kapat"
             className="modal-close"
