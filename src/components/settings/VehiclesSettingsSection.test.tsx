@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../../lib/http";
@@ -57,6 +58,14 @@ const sampleVehicle = {
   rowVersion: 1,
 };
 
+function renderSection() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/settings/definitions/vehicles"]}>
+      <VehiclesSettingsSection />
+    </MemoryRouter>
+  );
+}
+
 describe("VehiclesSettingsSection", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -96,7 +105,7 @@ describe("VehiclesSettingsSection", () => {
   });
 
   it("loads only active vehicles on mount", async () => {
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
 
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenCalledWith(
@@ -114,7 +123,7 @@ describe("VehiclesSettingsSection", () => {
   });
 
   it("applies filters and re-fetches", async () => {
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
     await waitFor(() => expect(getVehiclesMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: "Genel Durum filtresi" }));
@@ -170,7 +179,7 @@ describe("VehiclesSettingsSection", () => {
         },
       });
 
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
     await screen.findByText("34 ABC 123");
 
     fireEvent.click(screen.getByRole("button", { name: /Sonraki/ }));
@@ -200,7 +209,7 @@ describe("VehiclesSettingsSection", () => {
       },
     });
 
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
     await screen.findByText("34 ABC 123");
 
     fireEvent.click(screen.getByRole("button", { name: /Sonraki/ }));
@@ -255,7 +264,7 @@ describe("VehiclesSettingsSection", () => {
   });
 
   it("renders fixed vehicle columns without column picker", async () => {
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
     await screen.findByText("34 ABC 123");
 
     expect(screen.queryByRole("button", { name: "Sütunlar" })).not.toBeInTheDocument();
@@ -268,7 +277,7 @@ describe("VehiclesSettingsSection", () => {
   });
 
   it("deletes a vehicle with inline confirmation", async () => {
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
     await screen.findByText("34 ABC 123");
 
     fireEvent.click(screen.getByRole("button", { name: "Sil" }));
@@ -300,7 +309,7 @@ describe("VehiclesSettingsSection", () => {
       )
     );
 
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
     await screen.findByText("34 ABC 123");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
@@ -310,7 +319,7 @@ describe("VehiclesSettingsSection", () => {
   });
 
   it("submits canonical payload when creating", async () => {
-    renderWithProviders(<VehiclesSettingsSection />);
+    renderSection();
     await waitFor(() => expect(getVehiclesMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));

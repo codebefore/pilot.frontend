@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../../lib/http";
@@ -54,6 +55,14 @@ const sampleLicenseClass = {
   rowVersion: 1,
 };
 
+function renderSection() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/settings/definitions/license-classes"]}>
+      <LicenseClassDefinitionsSettingsSection />
+    </MemoryRouter>
+  );
+}
+
 describe("LicenseClassDefinitionsSettingsSection", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -87,7 +96,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("loads only active license classes on mount", async () => {
-    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    renderSection();
 
     await waitFor(() => {
       expect(getLicenseClassDefinitionsMock).toHaveBeenCalledWith(
@@ -101,7 +110,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("applies filters and re-fetches", async () => {
-    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    renderSection();
     await waitFor(() => expect(getLicenseClassDefinitionsMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: "Durum filtresi" }));
@@ -126,7 +135,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("filters by code from the code column", async () => {
-    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    renderSection();
     await waitFor(() => expect(getLicenseClassDefinitionsMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: "Kod filtresi" }));
@@ -150,7 +159,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("submits canonical payload when creating", async () => {
-    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    renderSection();
     await waitFor(() => expect(getLicenseClassDefinitionsMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: /Yeni Kural/i }));
@@ -186,7 +195,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("includes rowVersion when updating", async () => {
-    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    renderSection();
     await screen.findByText("B");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
@@ -215,7 +224,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       )
     );
 
-    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    renderSection();
     await screen.findByText("B");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
@@ -225,7 +234,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("deletes a license class with inline confirmation", async () => {
-    renderWithProviders(<LicenseClassDefinitionsSettingsSection />);
+    renderSection();
     await screen.findByText("B");
 
     fireEvent.click(screen.getByRole("button", { name: "Sil" }));

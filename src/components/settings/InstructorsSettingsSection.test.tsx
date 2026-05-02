@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../../lib/http";
@@ -80,6 +81,14 @@ function createBranch(code: string, name: string, displayOrder: number) {
   };
 }
 
+function renderSection() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/settings/definitions/instructors"]}>
+      <InstructorsSettingsSection />
+    </MemoryRouter>
+  );
+}
+
 describe("InstructorsSettingsSection", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -139,7 +148,7 @@ describe("InstructorsSettingsSection", () => {
   });
 
   it("loads only active instructors on mount", async () => {
-    renderWithProviders(<InstructorsSettingsSection />);
+    renderSection();
 
     await waitFor(() => {
       expect(getInstructorsMock).toHaveBeenCalledWith(
@@ -154,7 +163,7 @@ describe("InstructorsSettingsSection", () => {
   });
 
   it("applies filters and re-fetches", async () => {
-    renderWithProviders(<InstructorsSettingsSection />);
+    renderSection();
     await waitFor(() => expect(getInstructorsMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: "Genel Durum filtresi" }));
@@ -204,7 +213,7 @@ describe("InstructorsSettingsSection", () => {
       },
     });
 
-    renderWithProviders(<InstructorsSettingsSection />);
+    renderSection();
     await screen.findByText("EGT-0001");
 
     fireEvent.click(screen.getByRole("button", { name: /Sonraki/ }));
@@ -234,7 +243,7 @@ describe("InstructorsSettingsSection", () => {
   });
 
   it("deletes an instructor with inline confirmation", async () => {
-    renderWithProviders(<InstructorsSettingsSection />);
+    renderSection();
     await screen.findByText("EGT-0001");
 
     fireEvent.click(screen.getByRole("button", { name: "Sil" }));
@@ -248,7 +257,7 @@ describe("InstructorsSettingsSection", () => {
   });
 
   it("submits canonical payload when creating", async () => {
-    renderWithProviders(<InstructorsSettingsSection />);
+    renderSection();
     await waitFor(() => expect(getInstructorsMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
@@ -268,17 +277,6 @@ describe("InstructorsSettingsSection", () => {
     fireEvent.change(screen.getByPlaceholderText("12345678901"), {
       target: { value: "12345678902" },
     });
-    fireEvent.change(screen.getByPlaceholderText("24"), {
-      target: { value: "30" },
-    });
-    fireEvent.change(screen.getByDisplayValue("Usta Öğretici"), {
-      target: { value: "specialist_instructor" },
-    });
-    fireEvent.change(screen.getByDisplayValue("Ders Saat Ücretli"), {
-      target: { value: "salaried" },
-    });
-    fireEvent.click(screen.getByRole("checkbox", { name: "İlk Yardım" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /^A2(?:\s+-)?\s+Motosiklet$/ }));
 
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
@@ -291,20 +289,24 @@ describe("InstructorsSettingsSection", () => {
         phoneNumber: null,
         email: null,
         isActive: true,
-        role: "specialist_instructor",
-        employmentType: "salaried",
-        branches: ["practice", "first_aid"],
-        licenseClassCodes: ["B", "A2"],
-        weeklyLessonHours: 30,
-        mebbisPermitNo: null,
         assignedVehicleId: null,
         notes: null,
+        initialAssignment: {
+          role: "master_instructor",
+          employmentType: "hourly",
+          branches: ["practice"],
+          licenseClassCodes: ["B"],
+          weeklyLessonHours: null,
+          mebPermitNo: null,
+          contractStartDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          contractEndDate: null,
+        },
       });
     });
   });
 
   it("includes rowVersion when updating", async () => {
-    renderWithProviders(<InstructorsSettingsSection />);
+    renderSection();
     await screen.findByText("EGT-0001");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
@@ -322,12 +324,6 @@ describe("InstructorsSettingsSection", () => {
         phoneNumber: "0532 111 22 33",
         email: "hasan@example.com",
         isActive: true,
-        role: "master_instructor",
-        employmentType: "hourly",
-        branches: ["practice", "traffic"],
-        licenseClassCodes: ["B", "A2"],
-        weeklyLessonHours: 24,
-        mebbisPermitNo: "MEB-123",
         assignedVehicleId: null,
         notes: null,
         rowVersion: 1,
@@ -349,7 +345,7 @@ describe("InstructorsSettingsSection", () => {
       )
     );
 
-    renderWithProviders(<InstructorsSettingsSection />);
+    renderSection();
     await screen.findByText("EGT-0001");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
@@ -358,26 +354,4 @@ describe("InstructorsSettingsSection", () => {
     expect(await screen.findByText("Atanan araç bulunamadı")).toBeInTheDocument();
   });
 
-  it("blocks submit when weekly lesson hours is out of range", async () => {
-    renderWithProviders(<InstructorsSettingsSection />);
-    await waitFor(() => expect(getInstructorsMock).toHaveBeenCalled());
-
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
-    fireEvent.change(screen.getByPlaceholderText("HASAN"), {
-      target: { value: "ayse" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("KORKMAZ"), {
-      target: { value: "demir" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("24"), {
-      target: { value: "81" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
-
-    expect(
-      await screen.findByText("Haftalık ders saati 0 ile 80 arasında olmalı")
-    ).toBeInTheDocument();
-    expect(createInstructorMock).not.toHaveBeenCalled();
-  });
 });
