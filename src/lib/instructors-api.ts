@@ -1,6 +1,7 @@
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   InstructorBranch,
+  InstructorCreateRequest,
   InstructorEmploymentType,
   InstructorListResponse,
   InstructorResponse,
@@ -56,7 +57,14 @@ export function getInstructors(
   return httpGet<InstructorListResponse>("/api/instructors", params, { signal });
 }
 
-export function createInstructor(body: InstructorUpsertRequest): Promise<InstructorResponse> {
+export function getInstructor(
+  id: string,
+  signal?: AbortSignal
+): Promise<InstructorResponse> {
+  return httpGet<InstructorResponse>(`/api/instructors/${id}`, undefined, { signal });
+}
+
+export function createInstructor(body: InstructorCreateRequest): Promise<InstructorResponse> {
   return httpPost<InstructorResponse>("/api/instructors", body);
 }
 

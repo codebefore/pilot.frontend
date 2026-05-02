@@ -10,12 +10,16 @@ import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import type {
   InstructorBranch,
+  InstructorCreateRequest,
+  InstructorEmploymentType,
   InstructorResponse,
+  InstructorRole,
   InstructorUpsertRequest,
   LicenseClass,
+  TrainingBranchDefinitionResponse,
 } from "../../lib/types";
 import { useLicenseClassOptions } from "../../lib/use-license-class-options";
-import { CustomSelect } from "../ui/CustomSelect";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
@@ -27,19 +31,22 @@ type InstructorFormValues = {
   phoneNumber: string;
   email: string;
   isActive: boolean;
-  role: InstructorUpsertRequest["role"];
-  employmentType: InstructorUpsertRequest["employmentType"];
-  branches: InstructorBranch[];
   licenseClassCodes: LicenseClass[];
-  weeklyLessonHours: string;
-  mebbisPermitNo: string;
   notes: string;
+	  assignmentRole: InstructorRole;
+	  assignmentEmploymentType: InstructorEmploymentType;
+	  assignmentBranches: InstructorBranch[];
+	  assignmentLicenseClassCodes: LicenseClass[];
+	  assignmentWeeklyLessonHours: string;
+  assignmentMebPermitNo: string;
+  assignmentContractStartDate: string;
+  assignmentContractEndDate: string;
 };
 
 type InstructorFormModalProps = {
   open: boolean;
   editing: InstructorResponse | null;
-  branchOptions: Array<{ value: InstructorBranch; label: string }>;
+  branches: TrainingBranchDefinitionResponse[];
   onClose: () => void;
   onSaved: (saved: InstructorResponse) => void;
   onConcurrencyConflict?: () => void;
@@ -58,18 +65,12 @@ const VALIDATION_FIELD_MAP: Record<string, keyof InstructorFormValues> = {
   PhoneNumber: "phoneNumber",
   email: "email",
   Email: "email",
-  role: "role",
-  Role: "role",
-  employmentType: "employmentType",
-  EmploymentType: "employmentType",
-  branches: "branches",
-  Branches: "branches",
   licenseClassCodes: "licenseClassCodes",
   LicenseClassCodes: "licenseClassCodes",
-  weeklyLessonHours: "weeklyLessonHours",
-  WeeklyLessonHours: "weeklyLessonHours",
-  mebbisPermitNo: "mebbisPermitNo",
-  MebbisPermitNo: "mebbisPermitNo",
+  "initialAssignment.branches": "assignmentBranches",
+  "InitialAssignment.Branches": "assignmentBranches",
+  "initialAssignment.licenseClassCodes": "assignmentLicenseClassCodes",
+  "InitialAssignment.LicenseClassCodes": "assignmentLicenseClassCodes",
   notes: "notes",
   Notes: "notes",
 };
@@ -140,16 +141,17 @@ function getEmptyValues(editing: InstructorResponse | null): InstructorFormValue
         phoneNumber: editing.phoneNumber ?? "",
         email: editing.email ?? "",
         isActive: editing.isActive,
-        role: editing.role,
-        employmentType: editing.employmentType,
-        branches: editing.branches,
         licenseClassCodes: editing.licenseClassCodes,
-        weeklyLessonHours:
-          editing.weeklyLessonHours !== null && editing.weeklyLessonHours !== undefined
-            ? String(editing.weeklyLessonHours)
-            : "",
-        mebbisPermitNo: editing.mebbisPermitNo ?? "",
         notes: editing.notes ?? "",
+        assignmentRole: editing.role,
+        assignmentEmploymentType: editing.employmentType,
+	        assignmentBranches: editing.branches,
+	        assignmentLicenseClassCodes: editing.licenseClassCodes,
+        assignmentWeeklyLessonHours:
+          editing.weeklyLessonHours != null ? String(editing.weeklyLessonHours) : "",
+        assignmentMebPermitNo: editing.mebbisPermitNo ?? "",
+        assignmentContractStartDate: "",
+        assignmentContractEndDate: "",
       }
     : {
         code: "",
@@ -159,31 +161,17 @@ function getEmptyValues(editing: InstructorResponse | null): InstructorFormValue
         phoneNumber: "",
         email: "",
         isActive: true,
-        role: "master_instructor",
-        employmentType: "hourly",
-        branches: ["practice"],
         licenseClassCodes: ["B"],
-        weeklyLessonHours: "",
-        mebbisPermitNo: "",
         notes: "",
+        assignmentRole: "master_instructor",
+        assignmentEmploymentType: "hourly",
+	        assignmentBranches: ["practice"],
+	        assignmentLicenseClassCodes: ["B"],
+        assignmentWeeklyLessonHours: "",
+        assignmentMebPermitNo: "",
+        assignmentContractStartDate: new Date().toISOString().slice(0, 10),
+        assignmentContractEndDate: "",
       };
-}
-
-function parseOptionalNumber(value: string): number | null {
-  if (!value.trim()) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function validateWeeklyLessonHours(value: string): true | string {
-  if (!value.trim()) return true;
-
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 80) {
-    return "Haftalık ders saati 0 ile 80 arasında olmalı";
-  }
-
-  return true;
 }
 
 function toggleValue<T extends string>(values: T[], value: T, checked: boolean): T[] {
@@ -197,7 +185,7 @@ function toggleValue<T extends string>(values: T[], value: T, checked: boolean):
 export function InstructorFormModal({
   open,
   editing,
-  branchOptions,
+  branches,
   onClose,
   onSaved,
   onConcurrencyConflict,
@@ -220,6 +208,7 @@ export function InstructorFormModal({
     defaultValues: getEmptyValues(editing),
   });
   const selectedLicenseClassCodes = watch("licenseClassCodes");
+  const selectedAssignmentBranches = watch("assignmentBranches");
 
   useEffect(() => {
     if (!open) return;
@@ -227,7 +216,7 @@ export function InstructorFormModal({
   }, [editing, open, reset]);
 
   useEffect(() => {
-    if (!open || licenseClassOptions.length === 0) return;
+    if (!open || !editing || licenseClassOptions.length === 0) return;
 
     const supported = new Set(licenseClassOptions.map((option) => option.value));
     const selected = selectedLicenseClassCodes ?? [];
@@ -236,11 +225,15 @@ export function InstructorFormModal({
     }
 
     const activeSelected = selected.filter((value) => supported.has(value));
-    setValue("licenseClassCodes", activeSelected.length > 0 ? activeSelected : [licenseClassOptions[0].value], {
-      shouldDirty: false,
-      shouldValidate: true,
-    });
-  }, [licenseClassOptions, open, selectedLicenseClassCodes, setValue]);
+    setValue(
+      "licenseClassCodes",
+      activeSelected.length > 0 ? activeSelected : [licenseClassOptions[0].value],
+      {
+        shouldDirty: false,
+        shouldValidate: true,
+      }
+    );
+  }, [editing, licenseClassOptions, open, selectedLicenseClassCodes, setValue]);
 
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
@@ -252,22 +245,33 @@ export function InstructorFormModal({
       nationalId: values.nationalId.trim() || null,
       phoneNumber: values.phoneNumber.trim() || null,
       email: values.email.trim() || null,
-      isActive: values.isActive,
-      role: values.role,
-      employmentType: values.employmentType,
-      branches: values.branches,
-      licenseClassCodes: values.licenseClassCodes,
-      weeklyLessonHours: parseOptionalNumber(values.weeklyLessonHours),
-      mebbisPermitNo: values.mebbisPermitNo.trim() || null,
+	      isActive: values.isActive,
       assignedVehicleId: editing?.assignedVehicleId ?? null,
       notes: values.notes.trim() || null,
       ...(editing ? { rowVersion: editing.rowVersion } : {}),
+    };
+    const createPayload: InstructorCreateRequest = {
+      ...payload,
+      initialAssignment: {
+	        role: values.assignmentRole,
+	        employmentType: values.assignmentEmploymentType,
+	        branches: values.assignmentBranches,
+	        licenseClassCodes: values.assignmentBranches.includes("practice")
+	          ? values.assignmentLicenseClassCodes
+	          : [],
+        weeklyLessonHours: values.assignmentWeeklyLessonHours
+          ? Number(values.assignmentWeeklyLessonHours)
+          : null,
+        mebPermitNo: values.assignmentMebPermitNo.trim() || null,
+        contractStartDate: values.assignmentContractStartDate,
+        contractEndDate: values.assignmentContractEndDate || null,
+      },
     };
 
     try {
       const saved = editing
         ? await updateInstructor(editing.id, payload)
-        : await createInstructor(payload);
+        : await createInstructor(createPayload);
       onSaved(saved);
     } catch (error) {
       if (error instanceof ApiError) {
@@ -291,7 +295,6 @@ export function InstructorFormModal({
   });
 
   const fieldClass = (message?: string) => (message ? "form-input error" : "form-input");
-  const selectClass = (message?: string) => (message ? "form-select error" : "form-select");
 
   return (
     <Modal
@@ -307,7 +310,7 @@ export function InstructorFormModal({
       }
       onClose={onClose}
       open={open}
-      title={editing ? "Eğitmen Düzenle" : "Yeni Eğitmen"}
+      title={editing ? "Ekip Üyesini Düzenle" : "Yeni Ekip Üyesi"}
     >
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
@@ -388,7 +391,11 @@ export function InstructorFormModal({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Telefon</label>
-            <input className={fieldClass(errors.phoneNumber?.message)} placeholder="0532 123 45 67" {...register("phoneNumber")} />
+            <input
+              className={fieldClass(errors.phoneNumber?.message)}
+              placeholder="0532 123 45 67"
+              {...register("phoneNumber")}
+            />
           </div>
 
           <div className="form-group">
@@ -399,130 +406,6 @@ export function InstructorFormModal({
               type="email"
               {...register("email")}
             />
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Görev</label>
-            <Controller
-              control={control}
-              name="role"
-              render={({ field }) => (
-                <CustomSelect className={selectClass(errors.role?.message)} {...field}>
-                  {INSTRUCTOR_ROLE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </CustomSelect>
-              )}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Statü</label>
-            <Controller
-              control={control}
-              name="employmentType"
-              render={({ field }) => (
-                <CustomSelect className={selectClass(errors.employmentType?.message)} {...field}>
-                  {INSTRUCTOR_EMPLOYMENT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </CustomSelect>
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Haftalık Ders Saati</label>
-            <input
-              className={fieldClass(errors.weeklyLessonHours?.message)}
-              inputMode="numeric"
-              max={80}
-              min={0}
-              placeholder="24"
-              step={1}
-              type="number"
-              {...register("weeklyLessonHours", { validate: validateWeeklyLessonHours })}
-            />
-            {errors.weeklyLessonHours && (
-              <div className="form-error">{errors.weeklyLessonHours.message}</div>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">MEBBİS İzin No</label>
-            <input className={fieldClass(errors.mebbisPermitNo?.message)} placeholder="MEB izin no" {...register("mebbisPermitNo")} />
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Branş</label>
-            <Controller
-              control={control}
-              name="branches"
-              rules={{ validate: (value) => value.length > 0 || "En az bir branş seçilmeli" }}
-              render={({ field }) => {
-                const values = field.value ?? [];
-                return (
-                  <div className="settings-checkbox-list">
-                    {branchOptions.map((option) => (
-                      <label className="switch-toggle" key={option.value}>
-                        <input
-                          checked={values.includes(option.value)}
-                          onChange={(event) =>
-                            field.onChange(toggleValue(values, option.value, event.target.checked))
-                          }
-                          type="checkbox"
-                        />
-                        <span className="switch-toggle-control" aria-hidden="true" />
-                        <span>{option.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                );
-              }}
-            />
-            {errors.branches && <div className="form-error">{errors.branches.message}</div>}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Evrak Türleri</label>
-            <Controller
-              control={control}
-              name="licenseClassCodes"
-              rules={{ validate: (value) => value.length > 0 || "En az bir evrak türü seçilmeli" }}
-              render={({ field }) => {
-                const values = field.value ?? [];
-                return (
-                  <div className="settings-checkbox-list">
-                    {licenseClassOptions.map((option) => (
-                      <label className="switch-toggle" key={option.value}>
-                        <input
-                          checked={values.includes(option.value)}
-                          onChange={(event) =>
-                            field.onChange(toggleValue(values, option.value, event.target.checked))
-                          }
-                          type="checkbox"
-                        />
-                        <span className="switch-toggle-control" aria-hidden="true" />
-                        <span>{option.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                );
-              }}
-            />
-            {errors.licenseClassCodes && (
-              <div className="form-error">{errors.licenseClassCodes.message}</div>
-            )}
           </div>
         </div>
 
@@ -543,6 +426,185 @@ export function InstructorFormModal({
             <textarea className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>
+
+        {!editing ? (
+          <section className="form-subsection">
+            <div className="form-subsection-header">
+              <div>
+                <div className="form-subsection-title">İlk Atama</div>
+                <div className="form-subsection-note">
+                  Ekip üyesi kaydı için ilk atama bilgileri zorunludur.
+                </div>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Görev</label>
+                <select className="form-input" {...register("assignmentRole")}>
+                  {INSTRUCTOR_ROLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Çalışma Tipi</label>
+                <select className="form-input" {...register("assignmentEmploymentType")}>
+                  {INSTRUCTOR_EMPLOYMENT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-row">
+	              <div className="form-group">
+	                <label className="form-label">Branşlar</label>
+	                <Controller
+	                  control={control}
+	                  name="assignmentBranches"
+                    rules={{ validate: (value) => value.length > 0 || "En az bir branş seçilmeli" }}
+	                  render={({ field }) => {
+	                    const values = field.value ?? [];
+	                    return (
+	                      <div className="settings-checkbox-list">
+	                        {branches.map((branch) => (
+	                          <label className="switch-toggle" key={branch.id}>
+	                            <input
+	                              checked={values.includes(branch.code)}
+	                              onChange={(event) =>
+	                                field.onChange(toggleValue(values, branch.code, event.target.checked))
+	                              }
+	                              type="checkbox"
+	                            />
+	                            <span className="switch-toggle-control" aria-hidden="true" />
+	                            <span>{branch.name}</span>
+	                          </label>
+	                        ))}
+	                      </div>
+	                    );
+	                  }}
+	                />
+                  {errors.assignmentBranches && (
+                    <div className="form-error">{errors.assignmentBranches.message}</div>
+                  )}
+	              </div>
+              <div className="form-group">
+                <label className="form-label">Haftalık Ders Saati</label>
+                <input
+                  className="form-input"
+                  inputMode="numeric"
+                  min={0}
+                  type="number"
+                  {...register("assignmentWeeklyLessonHours", {
+                    validate: (value) => {
+                      if (!value) return true;
+                      const parsed = Number(value);
+                      return (
+                        (Number.isFinite(parsed) && parsed >= 0 && parsed <= 80) ||
+                        "0 ile 80 arasında olmalı"
+                      );
+                    },
+                  })}
+                />
+                {errors.assignmentWeeklyLessonHours && (
+                  <div className="form-error">{errors.assignmentWeeklyLessonHours.message}</div>
+                )}
+              </div>
+	            </div>
+
+	            {selectedAssignmentBranches.includes("practice") ? (
+	              <div className="form-row">
+	                <div className="form-group">
+	                  <label className="form-label">Atama Ehliyet Tipleri</label>
+	                  <Controller
+	                    control={control}
+	                    name="assignmentLicenseClassCodes"
+	                    rules={{
+	                      validate: (value) =>
+	                        !watch("assignmentBranches").includes("practice") ||
+	                        value.length > 0 ||
+	                        "En az bir ehliyet sınıfı seçilmeli",
+	                    }}
+	                    render={({ field }) => {
+	                      const values = field.value ?? [];
+	                      return (
+	                        <div className="settings-checkbox-list">
+	                          {licenseClassOptions.map((option) => (
+	                            <label className="switch-toggle" key={option.value}>
+	                              <input
+	                                checked={values.includes(option.value)}
+	                                onChange={(event) =>
+	                                  field.onChange(toggleValue(values, option.value, event.target.checked))
+	                                }
+	                                type="checkbox"
+	                              />
+	                              <span className="switch-toggle-control" aria-hidden="true" />
+	                              <span>{option.label}</span>
+	                            </label>
+	                          ))}
+	                        </div>
+	                      );
+	                    }}
+	                  />
+	                  {errors.assignmentLicenseClassCodes && (
+	                    <div className="form-error">{errors.assignmentLicenseClassCodes.message}</div>
+	                  )}
+	                </div>
+	              </div>
+	            ) : null}
+
+	            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">MEBBİS İzin No</label>
+                <input className="form-input" {...register("assignmentMebPermitNo")} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Sözleşme Başlangıç</label>
+                <Controller
+                  control={control}
+                  name="assignmentContractStartDate"
+                  rules={{ required: "Başlangıç tarihi zorunlu" }}
+                  render={({ field }) => (
+                    <LocalizedDateInput
+                      ariaLabel="Sözleşme Başlangıç"
+                      className={fieldClass(errors.assignmentContractStartDate?.message)}
+                      lang="tr"
+                      onChange={field.onChange}
+                      value={field.value}
+                    />
+                  )}
+                />
+                {errors.assignmentContractStartDate && (
+                  <div className="form-error">{errors.assignmentContractStartDate.message}</div>
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Sözleşme Bitiş</label>
+                <Controller
+                  control={control}
+                  name="assignmentContractEndDate"
+                  render={({ field }) => (
+                    <LocalizedDateInput
+                      ariaLabel="Sözleşme Bitiş"
+                      className="form-input"
+                      lang="tr"
+                      onChange={field.onChange}
+                      value={field.value}
+                    />
+                  )}
+                />
+              </div>
+            </div>
+          </section>
+        ) : null}
       </form>
     </Modal>
   );

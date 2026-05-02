@@ -1,25 +1,20 @@
 import { useMemo, useState } from "react";
 
 import { useT } from "../../lib/i18n";
-import type { ClassroomResponse, GroupResponse } from "../../lib/types";
-import { CustomSelect } from "../ui/CustomSelect";
+import type { GroupResponse } from "../../lib/types";
 
 type QuickLessonAssignmentProps = {
   groups: GroupResponse[];
-  classrooms: ClassroomResponse[];
   /** Controlled: parent kontrol eder. */
   groupId: string;
-  classroomId: string;
   /** Seçim değişikliğini parent'a (TrainingPage) iletiyor. */
-  onSettingsChange: (params: { groupId?: string; classroomId?: string }) => void;
+  onSettingsChange: (params: { groupId?: string }) => void;
   isLoading?: boolean;
 };
 
 export function QuickLessonAssignment({
   groups,
-  classrooms,
   groupId,
-  classroomId,
   onSettingsChange,
   isLoading = false,
 }: QuickLessonAssignmentProps) {
@@ -60,21 +55,6 @@ export function QuickLessonAssignment({
 
   return (
     <div className="training-quick-assign">
-      <CustomSelect
-        className="form-select"
-        disabled={isLoading}
-        onChange={(event) => onSettingsChange({ classroomId: event.target.value })}
-        value={classroomId}
-      >
-        <option value="">{t("training.modal.field.classroom")}</option>
-        {classrooms
-          .filter((classroom) => classroom.isActive)
-          .map((classroom) => (
-            <option key={classroom.id} value={classroom.id}>
-              {classroom.name} ({classroom.capacity})
-            </option>
-          ))}
-      </CustomSelect>
       <input
         className="training-filters-search"
         onChange={(e) => setSearch(e.target.value)}

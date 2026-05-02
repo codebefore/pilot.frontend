@@ -281,6 +281,17 @@ export const SettingsIcon = (p?: IconProps) =>
     p
   );
 
+export const VehicleIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M3 13l2-5a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 5" />,
+      <path key="2" d="M3 13h18v4a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />,
+      <circle key="3" cx="7.5" cy="15.5" r="1" />,
+      <circle key="4" cx="16.5" cy="15.5" r="1" />,
+    ],
+    p
+  );
+
 export const UsersIcon = (p?: IconProps) =>
   svg(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />, p);
 

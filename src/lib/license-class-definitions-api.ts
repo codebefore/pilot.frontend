@@ -51,6 +51,23 @@ export function getLicenseClassDefinitions(
   );
 }
 
+export async function getLicenseClassDefinition(
+  id: string,
+  signal?: AbortSignal
+): Promise<LicenseClassDefinitionResponse> {
+  // Backend has no GET-by-id endpoint yet; pull from the list and find.
+  const response = await httpGet<LicenseClassDefinitionListResponse>(
+    "/api/license-class-definitions",
+    { activity: "all", page: 1, pageSize: 500 },
+    { signal }
+  );
+  const found = response.items.find((item) => item.id === id);
+  if (!found) {
+    throw new Error(`License class definition not found: ${id}`);
+  }
+  return found;
+}
+
 export function createLicenseClassDefinition(
   body: LicenseClassDefinitionUpsertRequest
 ): Promise<LicenseClassDefinitionResponse> {

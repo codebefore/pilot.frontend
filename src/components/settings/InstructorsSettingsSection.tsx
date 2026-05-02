@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { InstructorFormModal } from "../modals/InstructorFormModal";
@@ -195,6 +196,7 @@ const DEFAULT_FILTERS: InstructorFilters = {
 
 export function InstructorsSettingsSection() {
   const t = useT();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.instructors.columns.v1",
@@ -505,11 +507,15 @@ export function InstructorsSettingsSection() {
                   </tr>
                 ) : (
                   items.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      className="data-table-row-clickable"
+                      key={item.id}
+                      onClick={() => navigate(`/settings/definitions/instructors/${item.id}`)}
+                    >
                       {visibleColumns.map((column) => (
                         <td key={column.id}>{column.renderCell(item)}</td>
                       ))}
-                      <td className="col-picker-td">
+                      <td className="col-picker-td" onClick={(e) => e.stopPropagation()}>
                         <div
                           className={
                             confirmDeleteInstructorId === item.id
@@ -587,7 +593,7 @@ export function InstructorsSettingsSection() {
       </div>
 
       <InstructorFormModal
-        branchOptions={branchOptions}
+        branches={trainingBranches}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

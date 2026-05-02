@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { VehicleFormModal } from "../modals/VehicleFormModal";
@@ -165,6 +166,7 @@ const DEFAULT_FILTERS: VehicleFilters = {
 };
 
 export function VehiclesSettingsSection() {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const t = useT();
 
@@ -401,11 +403,15 @@ export function VehiclesSettingsSection() {
                   </tr>
                 ) : (
                   items.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      className="data-table-row-clickable"
+                      key={item.id}
+                      onClick={() => navigate(`/settings/definitions/vehicles/${item.id}`)}
+                    >
                       {visibleColumns.map((column) => (
                         <td key={column.id}>{column.renderCell(item)}</td>
                       ))}
-                      <td>
+                      <td onClick={(e) => e.stopPropagation()}>
                         <div
                           className={
                             confirmDeleteVehicleId === item.id

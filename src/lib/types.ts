@@ -357,16 +357,57 @@ export interface InstructorUpsertRequest {
   phoneNumber?: string | null;
   email?: string | null;
   isActive: boolean;
-  role: InstructorRole;
-  employmentType: InstructorEmploymentType;
-  branches: InstructorBranch[];
-  licenseClassCodes: LicenseClass[];
-  weeklyLessonHours?: number | null;
-  mebbisPermitNo?: string | null;
   assignedVehicleId?: string | null;
   notes?: string | null;
   /** Required for updates; omitted on create. */
   rowVersion?: number;
+}
+
+/* ── Instructor Assignments ── */
+
+export interface InstructorAssignmentDocument {
+  id: string;
+  name: string;
+  description: string | null;
+  originalFileName: string | null;
+  contentType: string | null;
+  fileSizeBytes: number | null;
+  uploadedAtUtc: string;
+}
+
+export interface InstructorAssignment {
+  id: string;
+  instructorId: string;
+  sequenceNumber: number;
+  role: InstructorRole;
+  employmentType: InstructorEmploymentType;
+  branches: InstructorBranch[];
+  licenseClassCodes: LicenseClass[];
+  weeklyLessonHours: number | null;
+  mebPermitNo: string | null;
+  contractStartDate: string;
+  contractEndDate: string | null;
+  documents: InstructorAssignmentDocument[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface InstructorAssignmentUpsertRequest {
+  role: InstructorRole;
+  employmentType: InstructorEmploymentType;
+  branches: InstructorBranch[];
+  licenseClassCodes: LicenseClass[];
+  weeklyLessonHours: number | null;
+  mebPermitNo: string | null;
+  contractStartDate: string;
+  contractEndDate: string | null;
+  /** Required for updates; omit on create. */
+  rowVersion?: number;
+}
+
+export interface InstructorCreateRequest extends InstructorUpsertRequest {
+  initialAssignment: InstructorAssignmentUpsertRequest;
 }
 
 /* ── Routes ── */

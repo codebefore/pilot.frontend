@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { useT } from "../../lib/i18n";
 import type {
 	  CandidateResponse,
-	  ClassroomResponse,
 	  GroupResponse,
 	  InstructorResponse,
 	  TrainingBranchDefinitionResponse,
@@ -28,7 +27,6 @@ export type TrainingLessonSubmitValues = {
 	  branchCode?: string;
 	  candidateId?: string;
   vehicleId?: string;
-  classroomId?: string;
   notes?: string;
 };
 
@@ -41,7 +39,6 @@ type NewTrainingPlanModalProps = {
 	  branches: TrainingBranchDefinitionResponse[];
 	  candidates: CandidateResponse[];
   vehicles: VehicleResponse[];
-  classrooms: ClassroomResponse[];
   onClose: () => void;
   onSubmit: (values: TrainingLessonSubmitValues) => void;
   /** Backend `errorCodes` -> çevrilmiş mesaj. Parent submit hatasında
@@ -92,7 +89,6 @@ const buildDefaultValues = (
 	    branchCode: "",
     candidateId: "",
     vehicleId: "",
-    classroomId: "",
     notes: "",
   };
 };
@@ -115,7 +111,6 @@ export function NewTrainingPlanModal({
 	  branches,
   candidates,
   vehicles,
-  classrooms,
   onClose,
   onSubmit,
   serverFieldErrors,
@@ -352,31 +347,6 @@ export function NewTrainingPlanModal({
 	                <div className="form-error">{serverErr("branchCode")}</div>
 	              ) : null}
 	            </div>
-	            <div className="form-group">
-	              <label className="form-label">{t("training.modal.field.classroom")}</label>
-	              <CustomSelect
-	                className={fieldClass("classroomId", !!errors.classroomId, "form-select")}
-	                {...register("classroomId", {
-	                  validate: (value) =>
-	                    type !== "teorik" || value ? true : t("training.modal.required.classroom"),
-	                })}
-	              >
-                <option value="">{t("training.modal.placeholder.select")}</option>
-                {classrooms
-                  .filter((c) => c.isActive)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} (kapasite: {c.capacity})
-                    </option>
-                  ))}
-	              </CustomSelect>
-	              {errors.classroomId && (
-	                <div className="form-error">{errors.classroomId.message}</div>
-	              )}
-	              {!errors.classroomId && serverErr("classroomId") ? (
-	                <div className="form-error">{serverErr("classroomId")}</div>
-	              ) : null}
-            </div>
           </div>
         ) : null}
 

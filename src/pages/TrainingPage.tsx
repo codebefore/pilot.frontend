@@ -26,7 +26,6 @@ import {
   type TrainingCalendarEvent,
 } from "../lib/training-calendar";
 import { getCandidates } from "../lib/candidates-api";
-import { getClassrooms } from "../lib/classrooms-api";
 import { getGroups } from "../lib/groups-api";
 import { getInstructors } from "../lib/instructors-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
@@ -45,7 +44,6 @@ import {
 } from "../lib/training-lessons-api";
 import type {
   CandidateResponse,
-  ClassroomResponse,
   GroupResponse,
   InstructorResponse,
   PracticeEducationType,
@@ -70,7 +68,6 @@ const SERVER_FIELD_MAP: Record<string, string> = {
   GroupId: "groupId",
   CandidateId: "candidateId",
   VehicleId: "vehicleId",
-  ClassroomId: "classroomId",
   RouteId: "routeId",
   BranchCode: "branchCode",
 };
@@ -105,7 +102,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const [vehicles, setVehicles] = useState<VehicleResponse[]>([]);
-  const [classrooms, setClassrooms] = useState<ClassroomResponse[]>([]);
   // Branş kataloğu DB'den geliyor (Ayarlar > Tanımlar > Branşlar). Renk,
   // toplam saat limiti ve label hepsi burada — popover/calendar/summary
   // bu listeyi kullanır, hardcoded sabit kullanılmaz.
@@ -130,10 +126,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [quickSettings, setQuickSettings] = useState<{
     instructorId: string;
     groupId: string;
-    classroomId: string;
     candidateId: string;
     vehicleId: string;
-  }>({ instructorId: "", groupId: "", classroomId: "", candidateId: "", vehicleId: "" });
+  }>({ instructorId: "", groupId: "", candidateId: "", vehicleId: "" });
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -218,7 +213,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
         { activity: "active", pageSize: 100 },
         controller.signal
       ),
-      getClassrooms({ activity: "active", pageSize: 100 }, controller.signal),
     ])
       .then(
         ([
@@ -228,7 +222,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
           candidateResult,
           vehicleResult,
           branchResult,
-          classroomResult,
         ]) => {
           setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
           setInstructors(instructorResult.items);
@@ -236,7 +229,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
           setCandidates(candidateResult.items);
           setVehicles(vehicleResult.items);
           setBranches(branchResult.items);
-          setClassrooms(classroomResult.items);
         }
       )
       .catch((error) => {
@@ -561,7 +553,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const resetFilters = () => {
     setVisibleGroups(new Set());
     setVisibleInstructors(new Set());
-    setQuickSettings({ groupId: "", instructorId: "", classroomId: "", candidateId: "", vehicleId: "" });
+    setQuickSettings({ groupId: "", instructorId: "", candidateId: "", vehicleId: "" });
   };
 
   // Bulk toggle: yalnızca filter listesinde görünen kayıtları etkiler.
@@ -610,7 +602,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       groupId: values.type === "teorik" ? values.groupId || null : null,
       candidateId: values.type === "uygulama" ? values.candidateId || null : null,
       vehicleId: values.type === "uygulama" ? values.vehicleId || null : null,
-      classroomId: values.type === "teorik" ? values.classroomId || null : null,
+      classroomId: null,
       routeId: null,
       branchCode: values.type === "teorik" ? values.branchCode || null : null,
       licenseClass: values.type === "uygulama" ? candidate?.licenseClass ?? null : null,
@@ -654,7 +646,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleQuickAssign = async (branch: string) => {
-    const { instructorId, groupId, classroomId } = quickSettings;
+    const { instructorId, groupId } = quickSettings;
     const startTime = newLessonSlot!.start;
     // Süre takvimden seçilen slot'tan türetiliyor — drag ile 4 saat
     // seçildiyse 4 adet 1 saatlik ders oluşturulur. En az 1 saat.
@@ -678,7 +670,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           groupId,
           candidateId: null,
           vehicleId: null,
-          classroomId,
+          classroomId: null,
           routeId: null,
           branchCode: branch,
           licenseClass: null,
@@ -973,10 +965,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
     // 0 ise hiç seçim yok, 2+ ise hangi eğitmenle ders açacağı belirsiz.
     if (!quickSettings.groupId) {
       showToast(t("training.toast.selectGroupAndInstructorFirst"));
-      return;
-    }
-    if (!quickSettings.classroomId) {
-      showToast(t("training.toast.selectClassroomFirst"));
       return;
     }
     if (visibleInstructors.size !== 1) {
@@ -1286,10 +1274,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
           <aside className="training-filters-sidebar">
           {type === "teorik" ? (
 	              <QuickLessonAssignment
-	                classrooms={classrooms}
-	                classroomId={quickSettings.classroomId}
-	                groupId={quickSettings.groupId}
-	                groups={groups}
+		                groupId={quickSettings.groupId}
+		                groups={groups}
                 isLoading={isQuickAssignLoading || isBulkDeleteLoading}
                 onSettingsChange={(settings) =>
                   setQuickSettings((prev) => ({ ...prev, ...settings }))
@@ -1369,9 +1355,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
         instructors={instructors}
         groups={groups}
         candidates={candidates}
-        vehicles={vehicles}
-        classrooms={classrooms}
-        onClose={() => {
+	        vehicles={vehicles}
+	        onClose={() => {
           setModalOpen(false);
           setNewLessonSlot(null);
           setServerFieldErrors({});
@@ -1547,7 +1532,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
       ) : null}
 
       <TrainingEventDetailModal
-        classrooms={classrooms}
         event={selectedEvent}
         instructors={instructors.map((instructor) => ({
           id: instructor.id,
@@ -1559,11 +1543,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
           const event = events.find((item) => item.id === eventId);
           if (!event) return;
           void persistEventUpdate(event, { instructorId });
-        }}
-        onClassroomChange={async (eventId, classroomId) => {
-          const event = events.find((item) => item.id === eventId);
-          if (!event || event.kind !== "teorik") return;
-          await persistEventUpdate(event, { classroomId });
         }}
         onNotesChange={async (eventId, notes) => {
           const event = events.find((item) => item.id === eventId);

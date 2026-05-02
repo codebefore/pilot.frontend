@@ -52,6 +52,24 @@ export function getVehicles(
   return httpGet<VehicleListResponse>("/api/vehicles", params, { signal });
 }
 
+export async function getVehicle(
+  id: string,
+  signal?: AbortSignal
+): Promise<VehicleResponse> {
+  // Backend has no GET-by-id endpoint yet; pull from the list and find.
+  // Replace with `/api/vehicles/${id}` once backend exposes it.
+  const response = await httpGet<VehicleListResponse>(
+    "/api/vehicles",
+    { activity: "all", page: 1, pageSize: 500 },
+    { signal }
+  );
+  const found = response.items.find((item) => item.id === id);
+  if (!found) {
+    throw new Error(`Vehicle not found: ${id}`);
+  }
+  return found;
+}
+
 export function createVehicle(body: VehicleUpsertRequest): Promise<VehicleResponse> {
   return httpPost<VehicleResponse>("/api/vehicles", body);
 }

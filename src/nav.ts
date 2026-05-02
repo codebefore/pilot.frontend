@@ -79,8 +79,8 @@ export const navSections: NavSection[] = [
   {
     headingKey: "nav.administration",
     items: [
-      { key: "settings",      path: "/settings",      labelKey: "nav.settings",      Icon: SettingsIcon },
-      { key: "login",         path: "/login",         labelKey: "nav.login",         Icon: LoginIcon },
+      { key: "settings", path: "/settings", labelKey: "nav.settings", Icon: SettingsIcon },
+      { key: "login",    path: "/login",    labelKey: "nav.login",    Icon: LoginIcon },
     ],
   },
 ];

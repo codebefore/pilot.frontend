@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useT } from "../../lib/i18n";
 import type { TrainingCalendarEvent } from "../../lib/training-calendar";
-import type { ClassroomResponse, TrainingLessonStatus } from "../../lib/types";
+import type { TrainingLessonStatus } from "../../lib/types";
 import { DrawerRow } from "../ui/Drawer";
 import { EditableRow } from "../ui/EditableRow";
 import { Modal } from "../ui/Modal";
@@ -14,10 +14,8 @@ type InstructorOption = { id: string; name: string };
 type TrainingEventDetailModalProps = {
   event: TrainingCalendarEvent | null;
   instructors: InstructorOption[];
-  classrooms: ClassroomResponse[];
   onClose: () => void;
   onInstructorChange?: (eventId: string, instructorId: string, instructorName: string) => void;
-  onClassroomChange?: (eventId: string, classroomId: string | null) => Promise<void> | void;
   onStatusChange?: (eventId: string, status: TrainingLessonStatus) => Promise<void> | void;
   onNotesChange?: (eventId: string, notes: string) => Promise<void> | void;
   onDelete?: (event: TrainingCalendarEvent) => Promise<void> | void;
@@ -37,10 +35,8 @@ const durationHours = (start: Date, end: Date) => {
 export function TrainingEventDetailModal({
   event,
   instructors,
-  classrooms,
   onClose,
   onInstructorChange,
-  onClassroomChange,
   onStatusChange,
   onNotesChange,
   onDelete,
@@ -54,15 +50,6 @@ export function TrainingEventDetailModal({
     [t]
   );
   const instructorOptions = instructors.map((i) => ({ value: i.id, label: i.name }));
-  const classroomOptions = [
-    { value: "", label: t("training.modal.placeholder.select") },
-    ...classrooms
-      .filter((classroom) => classroom.isActive)
-      .map((classroom) => ({
-        value: classroom.id,
-        label: `${classroom.name} (${classroom.capacity})`,
-      })),
-  ];
 
   const saveInstructor = async (newId: string) => {
     if (!event || !onInstructorChange) return;
@@ -75,11 +62,6 @@ export function TrainingEventDetailModal({
     if (!event || !onStatusChange) return;
     if (newValue !== "planned" && newValue !== "completed") return;
     await onStatusChange(event.id, newValue);
-  };
-
-  const saveClassroom = async (newValue: string) => {
-    if (!event || !onClassroomChange) return;
-    await onClassroomChange(event.id, newValue || null);
   };
 
   const saveNotes = async (newValue: string) => {
@@ -166,18 +148,10 @@ export function TrainingEventDetailModal({
 	              <DrawerRow label={t("training.detail.field.group")}>
 	                {event.groupName}
 	              </DrawerRow>
-	              {onClassroomChange ? (
-	                <EditableRow
-	                  displayValue={event.location ?? "—"}
-	                  inputValue={event.classroomId ?? ""}
-	                  label={t("training.detail.field.location")}
-	                  onSave={saveClassroom}
-	                  options={classroomOptions}
-	                />
-	              ) : event.location ? (
-	                <DrawerRow label={t("training.detail.field.location")}>
-	                  {event.location}
-	                </DrawerRow>
+		              {event.location ? (
+		                <DrawerRow label={t("training.detail.field.location")}>
+		                  {event.location}
+		                </DrawerRow>
 	              ) : null}
 	            </>
 	          )}

@@ -251,7 +251,7 @@ describe("InstructorsSettingsSection", () => {
     renderWithProviders(<InstructorsSettingsSection />);
     await waitFor(() => expect(getInstructorsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Eğitmen/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
 
     fireEvent.change(screen.getByPlaceholderText("Boş ise otomatik"), {
       target: { value: " egt-0002 " },
@@ -362,7 +362,7 @@ describe("InstructorsSettingsSection", () => {
     renderWithProviders(<InstructorsSettingsSection />);
     await waitFor(() => expect(getInstructorsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Eğitmen/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
     fireEvent.change(screen.getByPlaceholderText("HASAN"), {
       target: { value: "ayse" },
     });

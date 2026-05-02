@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 
 import { FilterIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { LicenseClassDefinitionFormModal } from "../modals/LicenseClassDefinitionFormModal";
@@ -71,6 +72,7 @@ const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
 };
 
 export function LicenseClassDefinitionsSettingsSection() {
+  const navigate = useNavigate();
   const t = useT();
   const { showToast } = useToast();
 
@@ -374,11 +376,15 @@ export function LicenseClassDefinitionsSettingsSection() {
                   </tr>
                 ) : (
                   items.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      className="data-table-row-clickable"
+                      key={item.id}
+                      onClick={() => navigate(`/settings/definitions/license-classes/${item.id}`)}
+                    >
                       {visibleColumns.map((column) => (
                         <td key={column.id}>{column.renderCell(item)}</td>
                       ))}
-                      <td className="col-picker-td">
+                      <td className="col-picker-td" onClick={(e) => e.stopPropagation()}>
                         <div
                           className={
                             confirmDeleteId === item.id
