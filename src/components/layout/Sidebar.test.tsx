@@ -38,6 +38,7 @@ describe("Sidebar live stats", () => {
       groups: { total: 12 },
       documents: { missingCount: 5 },
       mebJobs: { failed: 2, manualReview: 1 },
+      payments: { dueToday: 0 },
     });
 
     renderSidebar();
@@ -73,6 +74,7 @@ describe("Sidebar live stats", () => {
       groups: { total: 1 },
       documents: { missingCount: 0 },
       mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
     });
 
     renderSidebar();
@@ -91,6 +93,7 @@ describe("Sidebar live stats", () => {
       groups: { total: 2 },
       documents: { missingCount: 0 },
       mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
     });
 
     renderSidebar("/");
@@ -117,6 +120,7 @@ describe("Sidebar live stats", () => {
       groups: { total: 2 },
       documents: { missingCount: 0 },
       mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
     });
 
     renderSidebar("/");
@@ -145,6 +149,7 @@ describe("Sidebar live stats", () => {
       groups: { total: 2 },
       documents: { missingCount: 0 },
       mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
     });
 
     renderSidebar("/exams/e-sinav");
@@ -162,6 +167,7 @@ describe("Sidebar live stats", () => {
       groups: { total: 2 },
       documents: { missingCount: 0 },
       mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
     });
 
     renderSidebar("/training/uygulama");

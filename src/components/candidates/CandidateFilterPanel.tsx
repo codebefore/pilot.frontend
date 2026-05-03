@@ -6,7 +6,10 @@ import type {
   TriState,
 } from "../../lib/candidate-filters";
 import { getGroups } from "../../lib/groups-api";
-import { CANDIDATE_GENDER_OPTIONS } from "../../lib/status-maps";
+import {
+  CANDIDATE_GENDER_OPTIONS,
+  EXISTING_LICENSE_TYPE_OPTIONS,
+} from "../../lib/status-maps";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import type {
   CandidateGenderValue,
@@ -210,6 +213,26 @@ export function CandidateFilterPanel({
           </div>
           <div className="form-group">
             <input
+              aria-label={t("candidates.filters.motherName")}
+              className="form-input"
+              onChange={(event) => onChange("motherName", event.target.value)}
+              placeholder={t("candidates.filters.motherName")}
+              type="text"
+              value={filters.motherName}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              aria-label={t("candidates.filters.fatherName")}
+              className="form-input"
+              onChange={(event) => onChange("fatherName", event.target.value)}
+              placeholder={t("candidates.filters.fatherName")}
+              type="text"
+              value={filters.fatherName}
+            />
+          </div>
+          <div className="form-group">
+            <input
               aria-label={t("candidates.col.phoneNumber")}
               className="form-input"
               inputMode="tel"
@@ -336,6 +359,49 @@ export function CandidateFilterPanel({
           </div>
           <div className="form-group">
             <CustomSelect
+              aria-label={t("candidates.filters.initialPaymentReceived")}
+              className="form-select"
+              onChange={(event) =>
+                onChange("initialPaymentReceived", event.target.value as TriState)
+              }
+              value={filters.initialPaymentReceived}
+            >
+              <option value="">{t("candidates.filters.initialPaymentReceived")}</option>
+              <option value="true">{t("candidates.filters.yes")}</option>
+              <option value="false">{t("candidates.filters.no")}</option>
+            </CustomSelect>
+          </div>
+          <div className="form-group">
+            <CustomSelect
+              aria-label={t("candidates.filters.mebExamResult")}
+              className="form-select"
+              onChange={(event) =>
+                onChange("mebExamResult", event.target.value as "" | "passed" | "failed")
+              }
+              value={filters.mebExamResult}
+            >
+              <option value="">{t("candidates.filters.mebExamResult")}</option>
+              <option value="passed">{t("candidates.filters.mebExamResultPassed")}</option>
+              <option value="failed">{t("candidates.filters.mebExamResultFailed")}</option>
+            </CustomSelect>
+          </div>
+          <div className="form-group">
+            <CustomSelect
+              aria-label={t("candidates.filters.existingLicenseType")}
+              className="form-select"
+              onChange={(event) => onChange("existingLicenseType", event.target.value)}
+              value={filters.existingLicenseType}
+            >
+              <option value="">{t("candidates.filters.existingLicenseType")}</option>
+              {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </CustomSelect>
+          </div>
+          <div className="form-group">
+            <CustomSelect
               aria-label={t("candidates.filters.hasMissingDocuments")}
               className="form-select"
               onChange={(event) =>
@@ -364,6 +430,42 @@ export function CandidateFilterPanel({
               onChange={(value) => onChange("birthDateTo", value)}
               placeholder={`${t("candidates.col.birthDate")} (${t("candidates.filters.rangeTo")})`}
               value={filters.birthDateTo}
+            />
+          </div>
+          <div className="form-group">
+            <LocalizedDateInput
+              ariaLabel={`${t("candidates.filters.mebExamDateRange")} ${t("candidates.filters.rangeFrom")}`}
+              lang={dateInputLang}
+              onChange={(value) => onChange("mebExamDateFrom", value)}
+              placeholder={`${t("candidates.filters.mebExamDateRange")} (${t("candidates.filters.rangeFrom")})`}
+              value={filters.mebExamDateFrom}
+            />
+          </div>
+          <div className="form-group">
+            <LocalizedDateInput
+              ariaLabel={`${t("candidates.filters.mebExamDateRange")} ${t("candidates.filters.rangeTo")}`}
+              lang={dateInputLang}
+              onChange={(value) => onChange("mebExamDateTo", value)}
+              placeholder={`${t("candidates.filters.mebExamDateRange")} (${t("candidates.filters.rangeTo")})`}
+              value={filters.mebExamDateTo}
+            />
+          </div>
+          <div className="form-group">
+            <LocalizedDateInput
+              ariaLabel={`${t("candidates.filters.drivingExamDateRange")} ${t("candidates.filters.rangeFrom")}`}
+              lang={dateInputLang}
+              onChange={(value) => onChange("drivingExamDateFrom", value)}
+              placeholder={`${t("candidates.filters.drivingExamDateRange")} (${t("candidates.filters.rangeFrom")})`}
+              value={filters.drivingExamDateFrom}
+            />
+          </div>
+          <div className="form-group">
+            <LocalizedDateInput
+              ariaLabel={`${t("candidates.filters.drivingExamDateRange")} ${t("candidates.filters.rangeTo")}`}
+              lang={dateInputLang}
+              onChange={(value) => onChange("drivingExamDateTo", value)}
+              placeholder={`${t("candidates.filters.drivingExamDateRange")} (${t("candidates.filters.rangeTo")})`}
+              value={filters.drivingExamDateTo}
             />
           </div>
           <div className="form-group">

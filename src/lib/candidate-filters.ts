@@ -13,6 +13,8 @@ export type CandidateFilterState = {
   firstName: string;
   lastName: string;
   nationalId: string;
+  motherName: string;
+  fatherName: string;
   phoneNumber: string;
   email: string;
   licenseClass: LicenseClass | "";
@@ -23,9 +25,18 @@ export type CandidateFilterState = {
   hasPhoto: TriState;
   hasExamResult: TriState;
   examFeePaid: TriState;
+  initialPaymentReceived: TriState;
   hasMissingDocuments: TriState;
+  /** "" (Tümü) | "passed" | "failed" — backend tolerates synonyms. */
+  mebExamResult: "" | "passed" | "failed";
+  /** Empty string = no filter; otherwise an existing-license catalog code. */
+  existingLicenseType: string;
   birthDateFrom: string;
   birthDateTo: string;
+  mebExamDateFrom: string;
+  mebExamDateTo: string;
+  drivingExamDateFrom: string;
+  drivingExamDateTo: string;
   createdAtFrom: string;
   createdAtTo: string;
   updatedAtFrom: string;
@@ -38,6 +49,8 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   firstName: "",
   lastName: "",
   nationalId: "",
+  motherName: "",
+  fatherName: "",
   phoneNumber: "",
   email: "",
   licenseClass: "",
@@ -47,9 +60,16 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   hasPhoto: "",
   hasExamResult: "",
   examFeePaid: "",
+  initialPaymentReceived: "",
   hasMissingDocuments: "",
+  mebExamResult: "",
+  existingLicenseType: "",
   birthDateFrom: "",
   birthDateTo: "",
+  mebExamDateFrom: "",
+  mebExamDateTo: "",
+  drivingExamDateFrom: "",
+  drivingExamDateTo: "",
   createdAtFrom: "",
   createdAtTo: "",
   updatedAtFrom: "",
@@ -78,6 +98,8 @@ export function filtersToQuery(filters: CandidateFilterState) {
     firstName: normalizeTextQuery(filters.firstName),
     lastName: normalizeTextQuery(filters.lastName),
     nationalId: normalizeTextQuery(filters.nationalId),
+    motherName: normalizeTextQuery(filters.motherName),
+    fatherName: normalizeTextQuery(filters.fatherName),
     phoneNumber: normalizeTextQuery(filters.phoneNumber),
     email: normalizeTextQuery(filters.email),
     licenseClass: filters.licenseClass || undefined,
@@ -87,9 +109,16 @@ export function filtersToQuery(filters: CandidateFilterState) {
     hasPhoto: triToBool(filters.hasPhoto),
     hasExamResult: triToBool(filters.hasExamResult),
     examFeePaid: triToBool(filters.examFeePaid),
+    initialPaymentReceived: triToBool(filters.initialPaymentReceived),
     hasMissingDocuments: triToBool(filters.hasMissingDocuments),
+    mebExamResult: filters.mebExamResult || undefined,
+    existingLicenseType: filters.existingLicenseType || undefined,
     birthDateFrom: filters.birthDateFrom || undefined,
     birthDateTo: filters.birthDateTo || undefined,
+    mebExamDateFrom: filters.mebExamDateFrom || undefined,
+    mebExamDateTo: filters.mebExamDateTo || undefined,
+    drivingExamDateFrom: filters.drivingExamDateFrom || undefined,
+    drivingExamDateTo: filters.drivingExamDateTo || undefined,
     createdAtFrom: filters.createdAtFrom || undefined,
     createdAtTo: filters.createdAtTo || undefined,
     updatedAtFrom: filters.updatedAtFrom || undefined,

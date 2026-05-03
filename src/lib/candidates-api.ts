@@ -172,3 +172,14 @@ export function assignCandidateGroup(
     { groupId }
   );
 }
+
+export function getCandidateGroupAssignments(
+  candidateId: string,
+  signal?: AbortSignal
+): Promise<CandidateGroupAssignmentResponse[]> {
+  return httpGet<CandidateGroupAssignmentResponse[]>(
+    `/api/candidates/${candidateId}/group-assignments`,
+    undefined,
+    { signal }
+  );
+}

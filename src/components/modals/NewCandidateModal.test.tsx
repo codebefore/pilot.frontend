@@ -7,6 +7,7 @@ import { NewCandidateModal } from "./NewCandidateModal";
 const createCandidateMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const getCandidateReuseSourcesMock = vi.fn();
+const getCertificateProgramsMock = vi.fn();
 const getGroupsMock = vi.fn();
 const getTermsMock = vi.fn();
 
@@ -36,6 +37,17 @@ vi.mock("../../lib/groups-api", async () => {
   };
 });
 
+vi.mock("../../lib/certificate-programs-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/certificate-programs-api")>(
+    "../../lib/certificate-programs-api"
+  );
+  return {
+    ...actual,
+    getCertificatePrograms: (...args: Parameters<typeof actual.getCertificatePrograms>) =>
+      getCertificateProgramsMock(...args),
+  };
+});
+
 vi.mock("../../lib/terms-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/terms-api")>(
     "../../lib/terms-api"
@@ -51,6 +63,7 @@ describe("NewCandidateModal", () => {
     createCandidateMock.mockReset();
     assignCandidateGroupMock.mockReset();
     getCandidateReuseSourcesMock.mockReset();
+    getCertificateProgramsMock.mockReset();
     getGroupsMock.mockReset();
     getTermsMock.mockReset();
 
@@ -77,6 +90,14 @@ describe("NewCandidateModal", () => {
     });
 
     getCandidateReuseSourcesMock.mockResolvedValue([]);
+    getCertificateProgramsMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 1000,
+      totalCount: 0,
+      totalPages: 0,
+      summary: { activeCount: 0, inactiveCount: 0 },
+    });
 
     assignCandidateGroupMock.mockResolvedValue({
       assignmentId: "assignment-1",
@@ -130,7 +151,11 @@ describe("NewCandidateModal", () => {
             firstName: "Ada",
             lastName: "Yilmaz",
             nationalId: "11111111111",
-            gender: "male",
+            // birthDate, gender, email are no longer collected at quick
+            // registration — they are edited from the candidate detail page.
+            birthDate: null,
+            gender: null,
+            email: null,
             licenseClass: "B",
             status: "pre_registered",
           })
@@ -138,88 +163,62 @@ describe("NewCandidateModal", () => {
     });
   });
 
-  it("allows overriding default gender before submit", async () => {
+  it("lists target license classes from certificate programs", async () => {
+    getCertificateProgramsMock.mockResolvedValue({
+      items: [
+        {
+          id: "program-1",
+          code: "YOK-A2",
+          sourceLicenseClass: "YOK",
+          sourceLicenseDisplayName: "Yok",
+          sourceLicensePre2016: false,
+          targetLicenseClass: "A2",
+          targetLicenseDisplayName: "A2",
+          minimumAge: 18,
+          theoryLessonHours: 34,
+          practiceLessonHours: 6,
+          displayOrder: 20,
+          isActive: true,
+          notes: null,
+          createdAtUtc: "2026-05-03T00:00:00Z",
+          updatedAtUtc: "2026-05-03T00:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "program-2",
+          code: "YOK-B-OTOMATIK",
+          sourceLicenseClass: "YOK",
+          sourceLicenseDisplayName: "Yok",
+          sourceLicensePre2016: false,
+          targetLicenseClass: "B - OTOMATİK",
+          targetLicenseDisplayName: "B - Otomatik",
+          minimumAge: 18,
+          theoryLessonHours: 34,
+          practiceLessonHours: 14,
+          displayOrder: 40,
+          isActive: true,
+          notes: null,
+          createdAtUtc: "2026-05-03T00:00:00Z",
+          updatedAtUtc: "2026-05-03T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 1000,
+      totalCount: 2,
+      totalPages: 1,
+      summary: { activeCount: 2, inactiveCount: 0 },
+    });
+
     renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
 
-    fireEvent.change(screen.getByPlaceholderText("11 haneli TC"), {
-      target: { value: "11111111111" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Adı"), {
-      target: { value: "Ada" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
-      target: { value: "Yilmaz" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("5XXXXXXXXX"), {
-      target: { value: "5551234567" },
-    });
-    const genderSelect = document.querySelector('select[name="gender"]');
-    expect(genderSelect).not.toBeNull();
-    fireEvent.change(genderSelect!, {
-      target: { value: "female" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
-
     await waitFor(() => {
-      expect(createCandidateMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          gender: "female",
-        })
-      );
-    });
-  });
-
-  it("includes existing license fields when the toggle is enabled", async () => {
-    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
-
-    fireEvent.change(screen.getByPlaceholderText("11 haneli TC"), {
-      target: { value: "11111111111" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Adı"), {
-      target: { value: "Ada" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
-      target: { value: "Yilmaz" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("5XXXXXXXXX"), {
-      target: { value: "5551234567" },
-    });
-
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "Mevcut sürücü belgesi var" })
-    );
-    await screen.findByLabelText("Mevcut Belge");
-    fireEvent.change(screen.getByLabelText("Mevcut Belge"), {
-      target: { value: "b_auto" },
-    });
-    const existingLicenseIssuedAtInput = document.querySelector(
-      'input[name="existingLicenseIssuedAt"]'
-    );
-    expect(existingLicenseIssuedAtInput).not.toBeNull();
-    fireEvent.change(existingLicenseIssuedAtInput!, {
-      target: { value: "2018-03-04" },
-    });
-    fireEvent.change(screen.getByLabelText("Belge No"), {
-      target: { value: " 12345 " },
-    });
-    fireEvent.change(screen.getByLabelText("Belge Veriliş İli"), {
-      target: { value: "Ankara" },
-    });
-    fireEvent.click(screen.getByRole("checkbox", { name: "2016 Ocak öncesi" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
-
-    await waitFor(() => {
-      expect(createCandidateMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          existingLicenseType: "b_auto",
-          existingLicenseIssuedAt: "2018-03-04",
-          existingLicenseNumber: "12345",
-          existingLicenseIssuedProvince: "Ankara",
-          existingLicensePre2016: true,
-        })
-      );
+      const select = document.querySelector<HTMLSelectElement>('select[name="className"]');
+      expect(select).not.toBeNull();
+      expect([...select!.options].map((option) => option.value)).toEqual([
+        "A2",
+        "B - OTOMATİK",
+      ]);
     });
   });
 
@@ -288,13 +287,17 @@ describe("NewCandidateModal", () => {
           firstName: "Ayse",
           lastName: "Demir",
           phoneNumber: "5557654321",
-          email: "ayse@example.com",
-          gender: "female",
-          existingLicenseType: "b",
-          existingLicenseIssuedAt: "2020-05-06",
-          existingLicenseNumber: "B-12345",
-          existingLicenseIssuedProvince: "Ankara",
-          existingLicensePre2016: true,
+          // Birth date, gender, email and existing license info are no longer
+          // copied from a reuse source — they are edited from the candidate
+          // detail page.
+          birthDate: null,
+          gender: null,
+          email: null,
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
           reuseFromCandidateId: "source-1",
           documentIdsToCopy: ["document-1"],
         })

@@ -91,7 +91,7 @@ function formatLocalizedDate(value: string, lang?: string): string {
 
   const [year, month, day] = parts;
   if (lang === "tr-TR") {
-    return `${day}/${month}/${year}`;
+    return `${day}.${month}.${year}`;
   }
 
   return `${year}-${month}-${day}`;
@@ -121,7 +121,7 @@ function defaultPlaceholder(lang?: string, mode: "day" | "month" | "year" = "day
   if (mode === "month") {
     return lang === "tr-TR" ? "aa/yyyy" : "mmm yyyy";
   }
-  return lang === "tr-TR" ? "dd/mm/yyyy" : "yyyy-mm-dd";
+  return lang === "tr-TR" ? "gg.aa.yyyy" : "yyyy-mm-dd";
 }
 
 function weekdayLabels(lang?: string): string[] {

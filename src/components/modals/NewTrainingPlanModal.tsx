@@ -11,8 +11,10 @@ import type {
 	  TrainingLessonStatus,
 	  VehicleResponse,
 } from "../../lib/types";
-import { Modal } from "../ui/Modal";
 import { CustomSelect } from "../ui/CustomSelect";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
+import { Modal } from "../ui/Modal";
 
 type PlanType = TrainingLessonKind;
 
@@ -121,6 +123,7 @@ export function NewTrainingPlanModal({
     register,
     handleSubmit,
     reset,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<TrainingLessonSubmitValues>({
@@ -132,7 +135,13 @@ export function NewTrainingPlanModal({
   }, [defaultType, initialSlot, open, reset]);
 
   const type = watch("type");
+  const date = watch("date");
+  const startTime = watch("startTime");
   const needsPracticeFields = type === "uygulama";
+  const dateRegistration = register("date", { required: t("training.modal.required.date") });
+  const startTimeRegistration = register("startTime", {
+    required: t("training.modal.required.time"),
+  });
 
   const submit = handleSubmit((values) => onSubmit(values));
 
@@ -190,10 +199,15 @@ export function NewTrainingPlanModal({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">{t("training.modal.field.date")}</label>
-            <input
+            <LocalizedDateInput
               className={fieldClass("date", !!errors.date, "form-input")}
-              type="date"
-              {...register("date", { required: t("training.modal.required.date") })}
+              inputRef={dateRegistration.ref}
+              name={dateRegistration.name}
+              onBlur={dateRegistration.onBlur}
+              onChange={(value) =>
+                setValue("date", value, { shouldDirty: true, shouldValidate: true })
+              }
+              value={date}
             />
             {errors.date && <div className="form-error">{errors.date.message}</div>}
             {!errors.date && serverErr("date") ? (
@@ -202,10 +216,15 @@ export function NewTrainingPlanModal({
           </div>
           <div className="form-group">
             <label className="form-label">{t("training.modal.field.startTime")}</label>
-            <input
+            <LocalizedTimeInput
               className={fieldClass("startTime", !!errors.startTime, "form-input")}
-              type="time"
-              {...register("startTime", { required: t("training.modal.required.time") })}
+              inputRef={startTimeRegistration.ref}
+              name={startTimeRegistration.name}
+              onBlur={startTimeRegistration.onBlur}
+              onChange={(value) =>
+                setValue("startTime", value, { shouldDirty: true, shouldValidate: true })
+              }
+              value={startTime}
             />
             {errors.startTime && (
               <div className="form-error">{errors.startTime.message}</div>

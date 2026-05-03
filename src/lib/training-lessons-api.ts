@@ -11,6 +11,8 @@ export interface GetTrainingLessonsOptions {
   kind?: TrainingLessonKind;
   fromUtc?: string;
   toUtc?: string;
+  candidateId?: string;
+  groupId?: string;
 }
 
 export function getTrainingLessons(
@@ -21,6 +23,8 @@ export function getTrainingLessons(
     kind: options?.kind,
     fromUtc: options?.fromUtc,
     toUtc: options?.toUtc,
+    candidateId: options?.candidateId,
+    groupId: options?.groupId,
   };
 
   return httpGet<TrainingLessonListResponse>("/api/training-lessons", params, { signal });

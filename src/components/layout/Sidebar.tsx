@@ -32,6 +32,10 @@ function buildNavBadges(stats: SidebarStatsResponse): Partial<Record<NavKey, Sid
         ? { value: stats.documents.missingCount, tone: "warn" }
         : undefined,
     mebjobs: mebAttention > 0 ? { value: mebAttention, tone: "danger" } : undefined,
+    payments:
+      stats.payments.dueToday > 0
+        ? { value: stats.payments.dueToday, tone: "warn" }
+        : undefined,
   };
 }
 

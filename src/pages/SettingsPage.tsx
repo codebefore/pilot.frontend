@@ -1,8 +1,8 @@
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
+import { CertificateProgramFeeMatrixSettingsSection } from "../components/settings/CertificateProgramFeeMatrixSettingsSection";
 import { ClassroomsSettingsSection } from "../components/settings/ClassroomsSettingsSection";
-import { FeesSettingsSection } from "../components/settings/FeesSettingsSection";
 import { GeneralInstitutionSection } from "../components/settings/GeneralInstitutionSection";
 import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
 import { LicenseClassDefinitionsSettingsSection } from "../components/settings/LicenseClassDefinitionsSettingsSection";
@@ -92,15 +92,22 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   },
 ];
 
+function isFeesRoute(pathname: string) {
+  return pathname.replace(/\/+$/, "") === "/settings/definitions/fees";
+}
+
 export function SettingsPage() {
   const t = useT();
+  const location = useLocation();
+  const fullScreenFees = isFeesRoute(location.pathname);
 
   return (
     <>
-      <PageToolbar title={t("settings.title")} />
+      {!fullScreenFees ? <PageToolbar title={t("settings.title")} /> : null}
 
-      <div className="settings-page">
-        <div className="settings-shell">
+      <div className={fullScreenFees ? "settings-page settings-page-fullscreen" : "settings-page"}>
+        <div className={fullScreenFees ? "settings-shell settings-shell-fullscreen" : "settings-shell"}>
+          {!fullScreenFees ? (
           <aside className="settings-nav">
             <div className="settings-nav-groups">
               {SETTINGS_NAV_GROUPS.map((group) => (
@@ -116,6 +123,7 @@ export function SettingsPage() {
                           }
                           end
                           key={item.labelKey}
+                          state={item.to === "/settings/definitions/fees" ? { from: location.pathname } : undefined}
                           to={item.to}
                         >
                           <span className="settings-nav-link-copy">
@@ -148,6 +156,7 @@ export function SettingsPage() {
               ))}
             </div>
           </aside>
+          ) : null}
 
           <div className="settings-content">
             <Routes>
@@ -167,7 +176,7 @@ export function SettingsPage() {
                 path="definitions/training-branches"
               />
               <Route element={<ClassroomsSettingsSection />} path="definitions/classrooms" />
-              <Route element={<FeesSettingsSection />} path="definitions/fees" />
+              <Route element={<CertificateProgramFeeMatrixSettingsSection />} path="definitions/fees" />
               <Route
                 element={<DocumentTypesPage embedded />}
                 path="definitions/document-types"

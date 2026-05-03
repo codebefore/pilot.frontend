@@ -105,6 +105,22 @@ export function EditableRow({
                 size="sm"
                 value={draft}
               />
+            ) : inputType === "textarea" ? (
+              <textarea
+                className="form-textarea form-textarea-sm"
+                disabled={saving}
+                lang={inputLang}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                    save();
+                  }
+                  if (event.key === "Escape") {
+                    cancel();
+                  }
+                }}
+                value={draft}
+              />
             ) : (
               <input
                 className="form-input-sm"

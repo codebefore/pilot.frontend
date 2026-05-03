@@ -95,6 +95,7 @@ type TrainingCalendarProps = {
   /** Bu tarihten önceki günler "disabled" (filigran) olarak gösterilir.
    *  Backend zaten beforeGroupStartDate ile reddediyor; UI ipucu için. */
   disabledBeforeDate?: Date | null;
+  readOnly?: boolean;
 };
 
 // Custom view key'lerimiz — RBC `Views` enum'unda yok, ama `views` map'ine
@@ -144,6 +145,7 @@ export function TrainingCalendar({
   onDurationHoursChange,
   focusDate,
   disabledBeforeDate,
+  readOnly = false,
 }: TrainingCalendarProps) {
   const [view, setView] = useState<View>(ROLLING_2W_VIEW);
   // Hafta görünümü açılışta 2 gün öncesinden başlasın — kullanıcı
@@ -337,23 +339,23 @@ export function TrainingCalendar({
     formats: CALENDAR_FORMATS,
     localizer: trainingLocalizer,
     messages: ROLLING_MESSAGES,
-    onEventDrop: handleDrop,
-    onEventResize: handleResize,
+    onEventDrop: readOnly ? undefined : handleDrop,
+    onEventResize: readOnly ? undefined : handleResize,
     onNavigate: setDate,
     onSelectEvent,
     onSelectSlot: (slot: { start: Date | string; end: Date | string }) =>
       onSelectSlot?.({ start: toDate(slot.start), end: toDate(slot.end) }),
     onView: setView,
-    resizable: true,
+    resizable: !readOnly,
     // Preview ve dimmed (görünmez eğitmenin dersi) etkileşimsiz.
     draggableAccessor: (event: TrainingCalendarEvent) =>
-      !event.preview && !event.dimmed,
+      !readOnly && !event.preview && !event.dimmed,
     resizableAccessor: (event: TrainingCalendarEvent) =>
-      !event.preview && !event.dimmed,
+      !readOnly && !event.preview && !event.dimmed,
     min: minTime,
     max: maxTime,
     scrollToTime,
-    selectable: true,
+    selectable: !readOnly,
     startAccessor: "start",
     // step=60 + timeslots=1 → her slot 1 saat. Min ders 60 dk olduğu
     // için drag/resize de tam saatlere snap'lenir; yarım saat fractional

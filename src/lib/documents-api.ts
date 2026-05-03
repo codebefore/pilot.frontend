@@ -1,4 +1,5 @@
-import { httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
+import { getApiBaseUrl } from "./api";
+import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
 import type {
   DocumentMetadataField,
   DocumentChecklistEntry,
@@ -181,4 +182,30 @@ export function getCandidateDocuments(
     undefined,
     { signal }
   );
+}
+
+export function deleteCandidateDocument(
+  candidateId: string,
+  documentId: string,
+  signal?: AbortSignal
+): Promise<void> {
+  return httpDelete(
+    `/api/candidates/${candidateId}/documents/${documentId}`,
+    undefined,
+    { signal }
+  );
+}
+
+/** URL the user can hit (in a new tab) to download an attached candidate file. */
+export function getCandidateDocumentDownloadUrl(
+  candidateId: string,
+  documentId: string
+): string {
+  const base = getApiBaseUrl().replace(/\/+$/, "");
+  const path = `/api/candidates/${candidateId}/documents/${documentId}/download`;
+  const dedupedPath =
+    base.endsWith("/api") && path.startsWith("/api/")
+      ? path.slice("/api".length)
+      : path;
+  return new URL(`${base}${dedupedPath}`, window.location.origin).toString();
 }

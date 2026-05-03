@@ -1,4 +1,5 @@
 import { useT } from "../../lib/i18n";
+import { CustomSelect } from "./CustomSelect";
 
 type PaginationProps = {
   page: number;
@@ -43,7 +44,7 @@ export function Pagination({
       {showPageSize ? (
         <label className="pagination-page-size">
           <span className="pagination-page-size-label">{t("common.pageSize")}</span>
-          <select
+          <CustomSelect
             className="pagination-page-size-select"
             disabled={disabled}
             onChange={(event) => onPageSizeChange!(Number(event.target.value))}
@@ -54,7 +55,7 @@ export function Pagination({
                 {size}
               </option>
             ))}
-          </select>
+          </CustomSelect>
         </label>
       ) : null}
       <button

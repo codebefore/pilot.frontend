@@ -15,6 +15,7 @@ const ZERO_STATS: SidebarStatsResponse = {
   groups: { total: 0 },
   documents: { missingCount: 0 },
   mebJobs: { failed: 0, manualReview: 0 },
+  payments: { dueToday: 0 },
 };
 
 type SidebarStatsContextValue = {

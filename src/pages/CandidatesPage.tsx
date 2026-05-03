@@ -1480,7 +1480,7 @@ export function CandidatesPage({
               </tr>
             ) : (
               candidates.map((c) => (
-                <tr key={c.id} onClick={() => openDrawer(c.id)}>
+                <tr key={c.id}>
                   {bulkSelectEnabled && (
                     <td
                       className="cand-select-td"
@@ -1499,11 +1499,23 @@ export function CandidatesPage({
                       </span>
                     </td>
                   )}
-                  {visibleColumns.map((col) => (
-                    <td className={col.cellClassName} key={col.id}>
-                      {col.renderCell(c)}
-                    </td>
-                  ))}
+                  {visibleColumns.map((col) => {
+                    const opensDrawer = col.id === "photo" || col.id === "name";
+                    return (
+                      <td
+                        className={`${col.cellClassName ?? ""} cand-row-cell${
+                          opensDrawer ? " cand-row-cell--drawer" : ""
+                        }`}
+                        key={col.id}
+                        onClick={() =>
+                          opensDrawer ? openDrawer(c.id) : navigate(`/candidates/${c.id}`)
+                        }
+                        title={opensDrawer ? "Hızlı önizleme" : "Detay sayfasına git"}
+                      >
+                        {col.renderCell(c)}
+                      </td>
+                    );
+                  })}
                   <td className="col-picker-td" />
                 </tr>
               ))

@@ -313,6 +313,10 @@
 .main.sidebar-collapsed {
   margin-left: 0;
 }
+.main.main-fullscreen {
+  margin-top: 0;
+  min-height: 100vh;
+}
 
 /* ─── PAGE HEADER / TOOLBAR / TABS ─── */
 .page-toolbar {

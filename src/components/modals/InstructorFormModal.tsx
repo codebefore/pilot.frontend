@@ -19,6 +19,7 @@ import type {
   TrainingBranchDefinitionResponse,
 } from "../../lib/types";
 import { useLicenseClassOptions } from "../../lib/use-license-class-options";
+import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
@@ -441,23 +442,23 @@ export function InstructorFormModal({
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Görev</label>
-                <select className="form-input" {...register("assignmentRole")}>
+                <CustomSelect className="form-select" {...register("assignmentRole")}>
                   {INSTRUCTOR_ROLE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
-                </select>
+                </CustomSelect>
               </div>
               <div className="form-group">
                 <label className="form-label">Çalışma Tipi</label>
-                <select className="form-input" {...register("assignmentEmploymentType")}>
+                <CustomSelect className="form-select" {...register("assignmentEmploymentType")}>
                   {INSTRUCTOR_EMPLOYMENT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
-                </select>
+                </CustomSelect>
               </div>
             </div>
 

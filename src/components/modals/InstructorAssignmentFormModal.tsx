@@ -19,6 +19,7 @@ import type {
 	  TrainingBranchDefinitionResponse,
 } from "../../lib/types";
 import { useLicenseClassOptions } from "../../lib/use-license-class-options";
+import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
@@ -218,8 +219,8 @@ export function InstructorAssignmentFormModal({
             <label className="form-label">
               {t("settings.instructors.detail.assignments.field.role")}
             </label>
-            <select
-              className="form-input"
+            <CustomSelect
+              className="form-select"
               onChange={(e) => set("role", e.target.value as InstructorRole)}
               value={values.role}
             >
@@ -228,14 +229,14 @@ export function InstructorAssignmentFormModal({
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
           </div>
           <div className="form-group">
             <label className="form-label">
               {t("settings.instructors.detail.assignments.field.employmentType")}
             </label>
-            <select
-              className="form-input"
+            <CustomSelect
+              className="form-select"
               onChange={(e) => set("employmentType", e.target.value as InstructorEmploymentType)}
               value={values.employmentType}
             >
@@ -244,7 +245,7 @@ export function InstructorAssignmentFormModal({
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </CustomSelect>
           </div>
         </div>
 

@@ -33,7 +33,8 @@ export interface CandidateTag {
 }
 
 export interface CandidateEducationPlan {
-  licenseClassDefinitionId: string;
+  licenseClassDefinitionId: string | null;
+  certificateProgramId: string | null;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
   theoryLessonHours: number | null;
@@ -41,16 +42,40 @@ export interface CandidateEducationPlan {
   practiceLessonHours: number | null;
 }
 
+export type CandidateContactType = "phone" | "email" | "address" | "other";
+
+export interface CandidateContactResponse {
+  id: string;
+  type: CandidateContactType;
+  label: string | null;
+  value: string;
+  isPrimary: boolean;
+  displayOrder: number;
+}
+
+export interface CandidateContactUpsertRequest {
+  id?: string | null;
+  type: CandidateContactType;
+  label?: string | null;
+  value: string;
+  isPrimary: boolean;
+}
+
 export interface CandidateResponse {
   id: string;
   firstName: string;
   lastName: string;
   nationalId: string;
+  identitySerialNumber: string | null;
+  motherName: string | null;
+  fatherName: string | null;
   phoneNumber: string | null;
   email: string | null;
+  address: string | null;
   birthDate: string | null;
   gender: CandidateGenderValue | null;
   licenseClass: LicenseClass;
+  certificateProgramId?: string | null;
   existingLicenseType: string | null;
   existingLicenseIssuedAt: string | null;
   existingLicenseNumber: string | null;
@@ -69,6 +94,7 @@ export interface CandidateResponse {
   currentGroup: CandidateGroupSummary | null;
   documentSummary: CandidateDocumentSummaryResponse | null;
   photo?: CandidatePhotoSummary | null;
+  contacts?: CandidateContactResponse[];
   tags?: CandidateTag[];
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -86,12 +112,17 @@ export interface CandidateUpsertRequest {
   firstName: string;
   lastName: string;
   nationalId: string;
+  identitySerialNumber?: string | null;
+  motherName?: string | null;
+  fatherName?: string | null;
   phoneNumber?: string | null;
   email?: string | null;
+  address?: string | null;
   birthDate?: string | null;
   /** Write-boundary is strict: only canonical English (or null / omitted). */
   gender?: CandidateGenderValue | null;
   licenseClass: LicenseClass;
+  certificateProgramId?: string | null;
   existingLicenseType?: string | null;
   existingLicenseIssuedAt?: string | null;
   existingLicenseNumber?: string | null;
@@ -106,12 +137,191 @@ export interface CandidateUpsertRequest {
   drivingExamAttemptCount?: number | null;
   examFeePaid?: boolean;
   initialPaymentReceived?: boolean;
+  contacts?: CandidateContactUpsertRequest[];
   /** Names only — backend resolves or creates tags by name. */
   tags?: string[];
   reuseFromCandidateId?: string | null;
   documentIdsToCopy?: string[];
   /** Required for updates; omitted on create. */
   rowVersion?: number;
+}
+
+export type CandidateChargeSourceType = "manual" | "matrix";
+export type CandidateBillingStatus = "active" | "cancelled";
+export type CandidatePaymentMethod = "cash" | "card" | "bank_transfer" | "other";
+
+export interface SuggestedCandidateChargeResponse {
+  sourceType: CandidateChargeSourceType;
+  certificateProgramId: string;
+  feeYear: number;
+  description: string;
+  sourceLicenseClass: string;
+  sourceLicenseDisplayName: string;
+  sourceLicensePre2016: boolean;
+  targetLicenseClass: string;
+  targetLicenseDisplayName: string;
+  theoryLessonHours: number;
+  practiceLessonHours: number;
+  amount: number;
+}
+
+export interface CandidateChargeResponse {
+  id: string;
+  candidateId: string;
+  sourceType: CandidateChargeSourceType;
+  sourceReferenceId: string | null;
+  feeYear: number | null;
+  description: string;
+  amount: number;
+  chargedAtUtc: string;
+  status: CandidateBillingStatus;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CandidatePaymentResponse {
+  id: string;
+  candidateId: string;
+  candidateChargeId: string | null;
+  candidatePaymentInstallmentId: string | null;
+  amount: number;
+  paymentMethod: CandidatePaymentMethod;
+  paidAtUtc: string;
+  note: string | null;
+  status: CandidateBillingStatus;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export type CandidatePaymentInstallmentStatus = "active" | "cancelled";
+export type CandidatePaymentInstallmentPaymentStatus =
+  | "pending"
+  | "partial"
+  | "paid"
+  | "overdue"
+  | "cancelled";
+
+export interface CandidatePaymentInstallmentResponse {
+  id: string;
+  candidateId: string;
+  sequence: number;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  description: string;
+  status: CandidatePaymentInstallmentStatus;
+  paymentStatus: CandidatePaymentInstallmentPaymentStatus;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CandidateBillingSummaryResponse {
+  candidateId: string;
+  suggestedCharge: SuggestedCandidateChargeResponse | null;
+  charges: CandidateChargeResponse[];
+  payments: CandidatePaymentResponse[];
+  installments: CandidatePaymentInstallmentResponse[];
+  totalDebt: number;
+  totalPaid: number;
+  balance: number;
+}
+
+export interface CandidateChargeCreateRequest {
+  sourceType: CandidateChargeSourceType;
+  sourceReferenceId?: string | null;
+  feeYear?: number | null;
+  description: string;
+  amount: number;
+  chargedAtUtc?: string | null;
+}
+
+export interface CandidatePaymentCreateRequest {
+  candidateChargeId?: string | null;
+  candidatePaymentInstallmentId?: string | null;
+  amount: number;
+  paymentMethod: CandidatePaymentMethod;
+  paidAtUtc?: string | null;
+  note?: string | null;
+}
+
+export interface CandidatePaymentPlanCreateRequest {
+  downPaymentAmount: number;
+  installmentCount: number;
+  firstDueDate: string;
+}
+
+export interface PaymentsOverviewResponse {
+  summary: PaymentsOverviewSummaryResponse;
+  payments: PaymentMovementResponse[];
+  installments: PaymentInstallmentOverviewResponse[];
+  charges: PaymentChargeOverviewResponse[];
+}
+
+export interface PaymentsOverviewSummaryResponse {
+  todayCollected: number;
+  monthCollected: number;
+  activeBalance: number;
+  overdueInstallmentTotal: number;
+  cancelledPaymentTotal: number;
+}
+
+export interface PaymentCandidateSummaryResponse {
+  id: string;
+  firstName: string;
+  lastName: string;
+  nationalId: string;
+  licenseClass: string;
+}
+
+export interface PaymentMovementResponse {
+  id: string;
+  candidate: PaymentCandidateSummaryResponse;
+  candidatePaymentInstallmentId: string | null;
+  installmentDescription: string | null;
+  amount: number;
+  paymentMethod: CandidatePaymentMethod;
+  paidAtUtc: string;
+  note: string | null;
+  status: CandidateBillingStatus;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
+}
+
+export interface PaymentInstallmentOverviewResponse {
+  id: string;
+  candidate: PaymentCandidateSummaryResponse;
+  sequence: number;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  description: string;
+  status: CandidatePaymentInstallmentStatus;
+  paymentStatus: CandidatePaymentInstallmentPaymentStatus;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
+}
+
+export interface PaymentChargeOverviewResponse {
+  id: string;
+  candidate: PaymentCandidateSummaryResponse;
+  sourceType: CandidateChargeSourceType;
+  description: string;
+  amount: number;
+  chargedAtUtc: string;
+  status: CandidateBillingStatus;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
 }
 
 export interface CandidateReusableDocumentResponse {
@@ -133,6 +343,7 @@ export interface CandidateReuseSourceResponse {
   nationalId: string;
   phoneNumber: string | null;
   email: string | null;
+  address: string | null;
   birthDate: string | null;
   gender: CandidateGenderValue | null;
   licenseClass: LicenseClass;
@@ -515,6 +726,52 @@ export interface LicenseClassDefinitionUpsertRequest {
   isActive: boolean;
   notes?: string | null;
   /** Required for updates; omitted on create. */
+  rowVersion?: number;
+}
+
+/* ── Certificate Programs ── */
+
+export interface CertificateProgramResponse {
+  id: string;
+  code: string;
+  sourceLicenseClass: string;
+  sourceLicenseDisplayName: string;
+  sourceLicensePre2016: boolean;
+  targetLicenseClass: string;
+  targetLicenseDisplayName: string;
+  minimumAge: number;
+  theoryLessonHours: number;
+  practiceLessonHours: number;
+  displayOrder: number;
+  isActive: boolean;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CertificateProgramListSummaryResponse {
+  activeCount: number;
+  inactiveCount: number;
+}
+
+export interface CertificateProgramListResponse extends PagedResponse<CertificateProgramResponse> {
+  summary: CertificateProgramListSummaryResponse;
+}
+
+export interface CertificateProgramUpsertRequest {
+  code: string;
+  sourceLicenseClass: string;
+  sourceLicenseDisplayName: string;
+  sourceLicensePre2016: boolean;
+  targetLicenseClass: string;
+  targetLicenseDisplayName: string;
+  minimumAge: number;
+  theoryLessonHours: number;
+  practiceLessonHours: number;
+  displayOrder: number;
+  isActive: boolean;
+  notes?: string | null;
   rowVersion?: number;
 }
 
@@ -927,6 +1184,76 @@ export interface FeeUpsertRequest {
   rowVersion?: number;
 }
 
+export interface CertificateProgramFeeProgramResponse {
+  id: string;
+  code: string;
+  sourceLicenseClass: string;
+  sourceLicenseDisplayName: string;
+  sourceLicensePre2016: boolean;
+  targetLicenseClass: string;
+  targetLicenseDisplayName: string;
+  minimumAge: number;
+  theoryLessonHours: number;
+  practiceLessonHours: number;
+}
+
+export interface CertificateProgramFeeRowResponse {
+  id: string | null;
+  year: number;
+  program: CertificateProgramFeeProgramResponse;
+  lessonType: "theory" | "practice";
+  lessonHours: number;
+  vatIncludedHourlyRate: number | null;
+  vatExcludedHourlyRate: number | null;
+  lessonFee: number | null;
+  vatAmount: number | null;
+  contractTotal: number | null;
+  contractTheoryExamFee: number | null;
+  contractPracticeExamFee: number | null;
+  institutionEducationFee: number | null;
+  institutionMebbisEducationFee: number | null;
+  institutionTheoryExamFee: number | null;
+  institutionPracticeExamFee: number | null;
+  institutionRepeatPracticeExamFee: number | null;
+  privateLessonFee: number | null;
+  otherFee: number | null;
+  rowVersion: number | null;
+}
+
+export interface CertificateProgramFeeMatrixResponse {
+  year: number;
+  vatRate: number;
+  rows: CertificateProgramFeeRowResponse[];
+}
+
+export interface CertificateProgramFeeRowUpsertRequest {
+  certificateProgramId: string;
+  lessonType: "theory" | "practice";
+  vatIncludedHourlyRate?: number | null;
+  contractTheoryExamFee?: number | null;
+  contractPracticeExamFee?: number | null;
+  institutionEducationFee?: number | null;
+  institutionMebbisEducationFee?: number | null;
+  institutionTheoryExamFee?: number | null;
+  institutionPracticeExamFee?: number | null;
+  institutionRepeatPracticeExamFee?: number | null;
+  privateLessonFee?: number | null;
+  otherFee?: number | null;
+  rowVersion?: number | null;
+}
+
+export interface CertificateProgramFeeMatrixUpsertRequest {
+  rows: CertificateProgramFeeRowUpsertRequest[];
+}
+
+export interface CertificateProgramFeeBulkApplyRequest {
+  targetLicenseClass?: string | null;
+  certificateProgramIds?: string[] | null;
+  lessonType?: "theory" | "practice" | null;
+  field: string;
+  value?: number | null;
+}
+
 /* ── Stats ── */
 
 export interface SidebarStatsResponse {
@@ -934,4 +1261,5 @@ export interface SidebarStatsResponse {
   groups: { total: number };
   documents: { missingCount: number };
   mebJobs: { failed: number; manualReview: number };
+  payments: { dueToday: number };
 }

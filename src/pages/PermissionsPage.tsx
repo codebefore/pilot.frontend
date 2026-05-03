@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
+import { Modal } from "../components/ui/Modal";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
@@ -67,6 +68,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const [saving, setSaving] = useState(false);
   const [confirmDeleteRoleId, setConfirmDeleteRoleId] = useState<string | null>(null);
   const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
+  const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
 
   const requestedRoleId = searchParams.get("role");
 
@@ -170,15 +172,31 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
     setSearchParams(nextParams, { replace });
   };
 
-  const confirmDiscardChanges = () =>
-    !dirty ||
-    window.confirm("Kaydedilmemiş yetki değişiklikleri silinecek. Devam edilsin mi?");
+  const requestDiscardChanges = (action: () => void) => {
+    if (!dirty) {
+      action();
+      return;
+    }
+
+    setDiscardAction(() => action);
+  };
+
+  const cancelDiscardChanges = () => {
+    setDiscardAction(null);
+  };
+
+  const confirmDiscardChanges = () => {
+    const action = discardAction;
+    setDiscardAction(null);
+    action?.();
+  };
 
   const handleRoleSelect = (roleId: string) => {
     if (roleId === selectedRoleId) return;
-    if (!confirmDiscardChanges()) return;
-    setConfirmDeleteRoleId(null);
-    updateSelectedRole(roleId);
+    requestDiscardChanges(() => {
+      setConfirmDeleteRoleId(null);
+      updateSelectedRole(roleId);
+    });
   };
 
   const handleLevelChange = (area: string, value: MatrixValue) => {
@@ -213,18 +231,20 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   };
 
   const handleCreateRole = () => {
-    if (!confirmDiscardChanges()) return;
-    navigate(embedded ? "/settings/definitions/permissions/roles/new" : "/permissions/roles/new");
+    requestDiscardChanges(() => {
+      navigate(embedded ? "/settings/definitions/permissions/roles/new" : "/permissions/roles/new");
+    });
   };
 
   const handleEditRole = () => {
     if (!selectedRole) return;
-    if (!confirmDiscardChanges()) return;
-    navigate(
-      embedded
-        ? `/settings/definitions/permissions/roles/${selectedRole.id}`
-        : `/permissions/roles/${selectedRole.id}`
-    );
+    requestDiscardChanges(() => {
+      navigate(
+        embedded
+          ? `/settings/definitions/permissions/roles/${selectedRole.id}`
+          : `/permissions/roles/${selectedRole.id}`
+      );
+    });
   };
 
   const handleDeleteRole = async () => {
@@ -464,6 +484,25 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
           {content}
         </>
       )}
+      <Modal
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={cancelDiscardChanges} type="button">
+              Vazgeç
+            </button>
+            <button className="btn btn-danger" onClick={confirmDiscardChanges} type="button">
+              Değişiklikleri Sil
+            </button>
+          </>
+        }
+        onClose={cancelDiscardChanges}
+        open={discardAction !== null}
+        title="Kaydedilmemiş Değişiklikler"
+      >
+        <p className="form-subsection-note">
+          Kaydedilmemiş yetki değişiklikleri silinecek. Devam etmek istiyor musun?
+        </p>
+      </Modal>
     </>
   );
 }

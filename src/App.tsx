@@ -9,6 +9,7 @@ import { LanguageProvider } from "./lib/i18n";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
 import { mockInstitutions } from "./mock/institutions";
 
+const CandidateDetailPage = lazy(() => import("./pages/CandidateDetailPage").then((m) => ({ default: m.CandidateDetailPage })));
 const CandidatesPage = lazy(() => import("./pages/CandidatesPage").then((m) => ({ default: m.CandidatesPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })));
@@ -28,12 +29,17 @@ function RouteFallback() {
   return <div className="page-loading">Yükleniyor...</div>;
 }
 
+function isFeesRoute(pathname: string) {
+  return pathname.replace(/\/+$/, "") === "/settings/definitions/fees";
+}
+
 function AppShell() {
   const [institutionId, setInstitutionId] = useState<string>(mockInstitutions[0].id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHoverOpen, setSidebarHoverOpen] = useState(false);
   const location = useLocation();
+  const fullScreenRoute = isFeesRoute(location.pathname);
   const sidebarVisible = !sidebarCollapsed || sidebarHoverOpen;
 
   // Route değişince mobilde sidebar'ı otomatik kapat.
@@ -49,36 +55,49 @@ function AppShell() {
 
   return (
     <SidebarStatsProvider>
-      <Header
-        activeInstitutionId={institutionId}
-        onInstitutionChange={setInstitutionId}
-        onMenuToggle={() => setSidebarOpen((v) => !v)}
-        onSidebarToggle={toggleDesktopSidebar}
-        sidebarCollapsed={sidebarCollapsed}
-        userInitials="MS"
-      />
-      {sidebarCollapsed && (
+      {!fullScreenRoute ? (
+        <Header
+          activeInstitutionId={institutionId}
+          onInstitutionChange={setInstitutionId}
+          onMenuToggle={() => setSidebarOpen((v) => !v)}
+          onSidebarToggle={toggleDesktopSidebar}
+          sidebarCollapsed={sidebarCollapsed}
+          userInitials="MS"
+        />
+      ) : null}
+      {!fullScreenRoute && sidebarCollapsed && (
         <div
           aria-hidden="true"
           className="sidebar-edge-trigger"
           onMouseEnter={() => setSidebarHoverOpen(true)}
         />
       )}
-      <Sidebar
-        activeInstitutionId={institutionId}
-        desktopVisible={sidebarVisible}
-        onClose={() => setSidebarOpen(false)}
-        onInstitutionChange={setInstitutionId}
-        onMouseLeave={() => {
-          if (sidebarCollapsed) setSidebarHoverOpen(false);
-        }}
-        open={sidebarOpen}
-      />
-      <main className={sidebarCollapsed ? "main sidebar-collapsed" : "main"}>
+      {!fullScreenRoute ? (
+        <Sidebar
+          activeInstitutionId={institutionId}
+          desktopVisible={sidebarVisible}
+          onClose={() => setSidebarOpen(false)}
+          onInstitutionChange={setInstitutionId}
+          onMouseLeave={() => {
+            if (sidebarCollapsed) setSidebarHoverOpen(false);
+          }}
+          open={sidebarOpen}
+        />
+      ) : null}
+      <main
+        className={[
+          "main",
+          sidebarCollapsed || fullScreenRoute ? "sidebar-collapsed" : "",
+          fullScreenRoute ? "main-fullscreen" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route element={<DashboardPage />}  path="/" />
             <Route element={<CandidatesPage />} path="/candidates" />
+            <Route element={<CandidateDetailPage />} path="/candidates/:candidateId" />
             <Route element={<GroupsPage />}     path="/groups" />
             <Route element={<DocumentsPage />}  path="/documents" />
             <Route element={<PaymentsPage />}   path="/payments" />
