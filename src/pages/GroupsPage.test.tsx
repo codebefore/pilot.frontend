@@ -9,6 +9,13 @@ const getGroupsMock = vi.fn();
 const getTermsMock = vi.fn();
 const deleteTermMock = vi.fn();
 
+vi.mock("../lib/authorized-files", () => ({
+  createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
+  openAuthorizedFile: vi.fn(),
+  downloadAuthorizedFile: vi.fn(),
+  printAuthorizedFile: vi.fn(),
+}));
+
 vi.mock("../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/groups-api")>("../lib/groups-api");
   return {

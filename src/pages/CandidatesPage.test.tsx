@@ -19,6 +19,13 @@ const searchCandidateTagsMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const getGroupsMock = vi.fn();
 
+vi.mock("../lib/authorized-files", () => ({
+  createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
+  openAuthorizedFile: vi.fn(),
+  downloadAuthorizedFile: vi.fn(),
+  printAuthorizedFile: vi.fn(),
+}));
+
 vi.mock("../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/candidates-api")>(
     "../lib/candidates-api"
@@ -353,13 +360,13 @@ describe("CandidatesPage tabs", () => {
     const examView = renderESinavPage();
 
     expect(await screen.findByRole("button", { name: "Tarih Ekle" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Senkronize" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mebbis" })).toBeInTheDocument();
 
     examView.unmount();
     renderPage();
 
     expect(screen.queryByRole("button", { name: "Tarih Ekle" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Senkronize" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mebbis" })).not.toBeInTheDocument();
   });
 
   it("keeps the sidebar free of empty-state copy when no exam schedule exists", async () => {
@@ -380,7 +387,7 @@ describe("CandidatesPage tabs", () => {
     ).not.toBeInTheDocument();
     expect(within(sidebar).getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Tarih Ekle",
-      "Senkronize",
+      "Mebbis",
     ]);
   });
 
@@ -452,13 +459,13 @@ describe("CandidatesPage tabs", () => {
       .map((button) => button.textContent?.trim() ?? "");
 
     expect(sidebarButtons[0]).toBe("Tarih Ekle");
-    expect(sidebarButtons[1]).toBe("Senkronize");
+    expect(sidebarButtons[1]).toBe("Mebbis");
   });
 
   it("calls the backend sync endpoint from the e-sinav action", async () => {
     renderESinavPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Senkronize" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mebbis" }));
 
     await waitFor(() => {
       expect(syncExamSchedulesMock).toHaveBeenCalledWith("e_sinav");
@@ -486,14 +493,14 @@ describe("CandidatesPage tabs", () => {
     const groups = Array.from(sidebar.querySelectorAll(".exam-date-option-group"));
 
     const firstDivider = within(sidebar).getByTestId("exam-date-divider");
-    expect(groups.findIndex((group) => group.contains(firstDivider))).toBe(1);
+    expect(groups.findIndex((group) => group.contains(firstDivider))).toBe(2);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_000);
     });
 
     const movedDivider = within(sidebar).getByTestId("exam-date-divider");
-    expect(groups.findIndex((group) => group.contains(movedDivider))).toBe(0);
+    expect(groups.findIndex((group) => group.contains(movedDivider))).toBe(1);
   });
 
   it("moves e-sinav from havuz to randevulu when a date is selected", async () => {
@@ -503,7 +510,7 @@ describe("CandidatesPage tabs", () => {
 
     renderESinavPage();
 
-    const dateButton = await screen.findByRole("button", { name: /12\.05\.2026/i });
+    const dateButton = await screen.findByRole("button", { name: /12\.05\.2026/i, pressed: false });
     fireEvent.click(dateButton);
 
     await waitFor(() => {
@@ -576,7 +583,9 @@ describe("CandidatesPage tabs", () => {
       throw new Error("exam date sidebar not found");
     }
 
-    fireEvent.click(await within(sidebar).findByRole("button", { name: /03\.06\.2026/i }));
+    fireEvent.click(
+      await within(sidebar).findByRole("button", { name: /03\.06\.2026/i, pressed: false })
+    );
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(

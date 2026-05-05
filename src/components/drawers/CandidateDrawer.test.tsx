@@ -16,6 +16,13 @@ function getHiddenSelect(ariaLabel: string) {
   ) as HTMLSelectElement | null;
 }
 
+vi.mock("../../lib/authorized-files", () => ({
+  createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
+  openAuthorizedFile: vi.fn(),
+  downloadAuthorizedFile: vi.fn(),
+  printAuthorizedFile: vi.fn(),
+}));
+
 vi.mock("../../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/candidates-api")>("../../lib/candidates-api");
   return {
