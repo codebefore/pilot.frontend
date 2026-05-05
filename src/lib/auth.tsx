@@ -1,50 +1,68 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-const STORAGE_KEY = "pilot.auth";
-
-type AuthUser = {
-  email: string;
-  name: string;
-};
+import { loginWithPassword } from "./auth-api";
+import {
+  clearStoredAuthSession,
+  readStoredAuthSession,
+  writeStoredAuthSession,
+  type AuthSession,
+  type AuthUser,
+} from "./auth-storage";
 
 type AuthContextValue = {
   user: AuthUser | null;
+  accessToken: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function readStoredUser(): AuthUser | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => readStoredUser());
+  const [session, setSession] = useState<AuthSession | null>(() => readStoredAuthSession());
 
   useEffect(() => {
-    if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    else localStorage.removeItem(STORAGE_KEY);
-  }, [user]);
+    if (session) writeStoredAuthSession(session);
+    else clearStoredAuthSession();
+  }, [session]);
+
+  useEffect(() => {
+    const onUnauthorized = () => setSession(null);
+    window.addEventListener("pilot:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("pilot:unauthorized", onUnauthorized);
+  }, []);
 
   const login = async (email: string, password: string) => {
-    // TODO: backend /api/auth/login endpoint'i hazır olunca burası gerçek çağrıyla değişecek.
-    await new Promise((r) => setTimeout(r, 400));
     if (!email || !password) throw new Error("E-posta ve şifre gerekli");
-    const name = email.split("@")[0] || "Kullanıcı";
-    setUser({ email, name });
+    const response = await loginWithPassword({ email, password });
+    setSession({
+      accessToken: response.accessToken,
+      expiresAtUtc: response.expiresAtUtc,
+      user: {
+        id: response.user.id,
+        email: response.user.email,
+        name: response.user.fullName,
+        roleName: response.user.roleName,
+        isSuperAdmin: response.user.isSuperAdmin,
+      },
+    });
   };
 
-  const logout = () => setUser(null);
+  const logout = () => setSession(null);
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user: session?.user ?? null,
+        accessToken: session?.accessToken ?? null,
+        login,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

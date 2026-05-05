@@ -1,3 +1,4 @@
+import type { AriaAttributes, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -9,6 +10,7 @@ import { FilterChip } from "../components/ui/FilterChip";
 import { JobsSummaryCard } from "../components/ui/JobsSummaryCard";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
+import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { getCandidates } from "../lib/candidates-api";
 import {
@@ -35,6 +37,8 @@ type SortKey =
 
 type SortDir = "asc" | "desc";
 
+type SortState = { field: SortKey; direction: SortDir };
+
 const STATUS_ORDER: Record<JobStatus, number> = {
   running: 0,
   queued: 1,
@@ -44,7 +48,8 @@ const STATUS_ORDER: Record<JobStatus, number> = {
   success: 4,
 };
 
-function sortJobs(jobs: MebJob[], key: SortKey, dir: SortDir): MebJob[] {
+function sortJobs(jobs: MebJob[], sort: SortState): MebJob[] {
+  const { field: key, direction: dir } = sort;
   const factor = dir === "asc" ? 1 : -1;
   const now = Date.now();
   const compareNumber = (a: number, b: number) => (a - b) * factor;
@@ -92,17 +97,24 @@ const FILTERS: { key: StatusFilter; label: string }[] = [
 const ACTIVE_STATUSES: JobStatus[] = ["running", "queued"];
 const POLL_INTERVAL_MS = 5000;
 
-function applyFilter(jobs: MebJob[], filter: StatusFilter): MebJob[] {
-  if (filter === "all") return jobs;
-  return jobs.filter((j) => j.status === filter);
+function applyFilter(
+  jobs: MebJob[],
+  statusFilter: StatusFilter,
+  jobTypeFilter: string
+): MebJob[] {
+  return jobs.filter((j) => {
+    if (statusFilter !== "all" && j.status !== statusFilter) return false;
+    if (jobTypeFilter !== "all" && j.jobType !== jobTypeFilter) return false;
+    return true;
+  });
 }
 
 type CandidateLite = { id: string; firstName: string; lastName: string; nationalId: string };
 
 export function MebJobsPage() {
   const [filter, setFilter] = useState<StatusFilter>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("startedAt");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [jobTypeFilter, setJobTypeFilter] = useState<string>("all");
+  const [sort, setSort] = useState<SortState>({ field: "startedAt", direction: "desc" });
   const [jobs, setJobs] = useState<MebJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -181,21 +193,34 @@ export function MebJobsPage() {
 
   const summary = useMemo(() => buildJobsSummary(jobs), [jobs]);
   const filtered = useMemo(
-    () => sortJobs(applyFilter(jobs, filter), sortKey, sortDir),
-    [jobs, filter, sortKey, sortDir]
+    () => sortJobs(applyFilter(jobs, filter, jobTypeFilter), sort),
+    [jobs, filter, jobTypeFilter, sort]
+  );
+
+  const jobTypeOptions = useMemo<TableHeaderFilterOption[]>(() => {
+    const distinct = Array.from(new Set(jobs.map((j) => j.jobType)))
+      .filter((value) => value && value.trim().length > 0)
+      .sort((a, b) => a.localeCompare(b, "tr", { sensitivity: "base" }));
+    return [
+      { value: "all", label: "Tümü" },
+      ...distinct.map((value) => ({ value, label: value })),
+    ];
+  }, [jobs]);
+
+  const statusFilterOptions = useMemo<TableHeaderFilterOption[]>(
+    () => FILTERS.map((f) => ({ value: f.key, label: f.label })),
+    []
   );
 
   const toggleSort = (key: SortKey) => {
-    if (key === sortKey) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir(key === "startedAt" || key === "duration" ? "desc" : "asc");
-    }
+    setSort((current) => {
+      if (current.field === key) {
+        return { field: key, direction: current.direction === "asc" ? "desc" : "asc" };
+      }
+      const direction: SortDir = key === "startedAt" || key === "duration" ? "desc" : "asc";
+      return { field: key, direction };
+    });
   };
-
-  const sortIndicator = (key: SortKey) =>
-    sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
   const selected = selectedId ? jobs.find((j) => j.id === selectedId) ?? null : null;
 
@@ -270,24 +295,40 @@ export function MebJobsPage() {
           <table className="data-table data-table-clickable">
             <thead>
               <tr>
-                <th className="sortable" onClick={() => toggleSort("jobType")}>
-                  İş Tipi{sortIndicator("jobType")}
-                </th>
-                <th className="sortable" onClick={() => toggleSort("candidate")}>
-                  Aday{sortIndicator("candidate")}
-                </th>
-                <th className="sortable" onClick={() => toggleSort("step")}>
-                  Adım{sortIndicator("step")}
-                </th>
-                <th className="sortable" onClick={() => toggleSort("status")}>
-                  Durum{sortIndicator("status")}
-                </th>
-                <th className="sortable" onClick={() => toggleSort("startedAt")}>
-                  Başlangıç{sortIndicator("startedAt")}
-                </th>
-                <th className="sortable" onClick={() => toggleSort("duration")}>
-                  Süre{sortIndicator("duration")}
-                </th>
+                <SortableTh
+                  field="jobType"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={jobTypeFilter !== "all"}
+                      onChange={setJobTypeFilter}
+                      options={jobTypeOptions}
+                      title="İş Tipi"
+                      value={jobTypeFilter}
+                    />
+                  }
+                  label="İş Tipi"
+                  onToggle={toggleSort}
+                  sort={sort}
+                />
+                <SortableTh field="candidate" label="Aday" onToggle={toggleSort} sort={sort} />
+                <SortableTh field="step" label="Adım" onToggle={toggleSort} sort={sort} />
+                <SortableTh
+                  field="status"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={filter !== "all"}
+                      onChange={(next) => setFilter(next as StatusFilter)}
+                      options={statusFilterOptions}
+                      title="Durum"
+                      value={filter}
+                    />
+                  }
+                  label="Durum"
+                  onToggle={toggleSort}
+                  sort={sort}
+                />
+                <SortableTh field="startedAt" label="Başlangıç" onToggle={toggleSort} sort={sort} />
+                <SortableTh field="duration" label="Süre" onToggle={toggleSort} sort={sort} />
                 <th />
               </tr>
             </thead>
@@ -371,6 +412,39 @@ export function MebJobsPage() {
         open={modalOpen}
       />
     </>
+  );
+}
+
+type SortableThProps = {
+  field: SortKey;
+  filterControl?: ReactNode;
+  label: string;
+  sort: SortState;
+  onToggle: (field: SortKey) => void;
+};
+
+function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThProps) {
+  const isActive = sort.field === field;
+  const direction = isActive ? sort.direction : null;
+  const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
+  const ariaSort: AriaAttributes["aria-sort"] = isActive
+    ? direction === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+
+  return (
+    <th aria-sort={ariaSort} className={isActive ? "sortable-th active" : "sortable-th"}>
+      <div className="sortable-th-shell">
+        <button className="sortable-th-btn" onClick={() => onToggle(field)} type="button">
+          <span>{label}</span>
+          <span aria-hidden="true" className="sortable-th-indicator">
+            {indicator}
+          </span>
+        </button>
+        {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+      </div>
+    </th>
   );
 }
 

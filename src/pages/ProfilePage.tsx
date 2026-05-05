@@ -31,7 +31,7 @@ export function ProfilePage() {
   // Mock — ileride backend /api/me'den gelecek.
   const [profile, setProfile] = useState<ProfileData>(() => ({
     fullName: user?.name ?? "Demo Kullanıcı",
-    email: user?.email ?? "demo@pilot.com",
+    email: user?.email ?? "",
     phone: "+90 555 000 00 00",
     institution: "Pilot Sürücü Kursu",
     joinedAt: "2024-09-01",

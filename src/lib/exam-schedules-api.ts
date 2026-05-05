@@ -1,4 +1,4 @@
-import { httpPost } from "./http";
+import { httpDelete, httpPost } from "./http";
 import type { ExamScheduleOption, ExamScheduleSyncResponse } from "./types";
 
 export interface CreateExamScheduleRequest {
@@ -18,4 +18,8 @@ export function syncExamSchedules(
   examType: "e_sinav" | "uygulama"
 ): Promise<ExamScheduleSyncResponse> {
   return httpPost<ExamScheduleSyncResponse>("/api/exam-schedules/sync", { examType });
+}
+
+export function deleteExamSchedule(id: string): Promise<void> {
+  return httpDelete(`/api/exam-schedules/${id}`);
 }

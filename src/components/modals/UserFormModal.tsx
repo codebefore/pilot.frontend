@@ -16,6 +16,7 @@ type UserFormValues = {
   fullName: string;
   email: string;
   phone: string;
+  password: string;
   mebbisUsername: string;
   mebbisPassword: string;
   roleId: string;
@@ -36,6 +37,7 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
         fullName: editing.fullName,
         email: editing.email ?? "",
         phone: editing.phone ?? "",
+        password: "",
         mebbisUsername: editing.mebbisUsername ?? "",
         mebbisPassword: "",
         roleId: editing.roleId ?? "",
@@ -45,6 +47,7 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
         fullName: "",
         email: "",
         phone: "",
+        password: "",
         mebbisUsername: "",
         mebbisPassword: "",
         roleId: "",
@@ -58,6 +61,8 @@ const VALIDATION_FIELD_MAP: Record<string, keyof UserFormValues> = {
   Email: "email",
   phone: "phone",
   Phone: "phone",
+  password: "password",
+  Password: "password",
   mebbisUsername: "mebbisUsername",
   MebbisUsername: "mebbisUsername",
   mebbisPassword: "mebbisPassword",
@@ -110,6 +115,7 @@ export function UserFormModal({
       fullName: values.fullName.trim(),
       email: values.email.trim() ? values.email.trim() : null,
       phone: values.phone.trim(),
+      password: values.password.trim() || null,
       mebbisUsername: values.mebbisUsername.trim() || null,
       mebbisPassword: values.mebbisPassword.trim() || null,
       roleId: values.roleId || null,
@@ -213,6 +219,25 @@ export function UserFormModal({
             {errors.email && <div className="form-error">{errors.email.message}</div>}
           </div>
           <div className="form-group">
+            <label className="form-label">Panel Şifresi</label>
+            <input
+              autoComplete="new-password"
+              className={fieldClass(!!errors.password, "form-input")}
+              placeholder={editing?.hasPassword ? "Değiştirmek için yeni şifre gir" : "En az 8 karakter"}
+              type="password"
+              {...register("password", {
+                minLength: { value: 8, message: "En az 8 karakter" },
+              })}
+            />
+            {editing?.hasPassword ? (
+              <div className="form-hint">Mevcut panel şifresi kayıtlı; boş bırakırsan değişmez.</div>
+            ) : null}
+            {errors.password && <div className="form-error">{errors.password.message}</div>}
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
             <label className="form-label">Telefon</label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
@@ -229,9 +254,6 @@ export function UserFormModal({
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
           </div>
-        </div>
-
-        <div className="form-row">
           <div className="form-group">
             <label className="form-label">MEBBİS Kullanıcı Adı</label>
             <input

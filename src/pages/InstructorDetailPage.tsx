@@ -5,6 +5,7 @@ import { PencilIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { AssignmentDocumentFormModal } from "../components/modals/AssignmentDocumentFormModal";
 import { InstructorAssignmentFormModal } from "../components/modals/InstructorAssignmentFormModal";
 import { useToast } from "../components/ui/Toast";
+import { openAuthorizedFile } from "../lib/authorized-files";
 import {
   deleteAssignment,
   deleteAssignmentDocument,
@@ -385,14 +386,17 @@ export function InstructorDetailPage() {
                               <li className="assignment-doc-item" key={d.id}>
                                 <div className="assignment-doc-text">
                                   {d.originalFileName ? (
-                                    <a
+                                    <button
                                       className="assignment-doc-name"
-                                      href={getAssignmentDocumentDownloadUrl(a.instructorId, a.id, d.id)}
-                                      rel="noopener noreferrer"
-                                      target="_blank"
+                                      onClick={() => {
+                                        void openAuthorizedFile(
+                                          getAssignmentDocumentDownloadUrl(a.instructorId, a.id, d.id)
+                                        );
+                                      }}
+                                      type="button"
                                     >
                                       <strong>{d.name}</strong>
-                                    </a>
+                                    </button>
                                   ) : (
                                     <strong>{d.name}</strong>
                                   )}

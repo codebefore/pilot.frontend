@@ -41,6 +41,12 @@ import { useColumnVisibility } from "../lib/use-column-visibility";
 import { buildBranchHelpers } from "../lib/training-branches";
 import { buildTermLabel } from "../lib/term-label";
 import { ApiError } from "../lib/http";
+import {
+  createAuthorizedObjectUrl,
+  downloadAuthorizedFile,
+  openAuthorizedFile,
+  printAuthorizedFile,
+} from "../lib/authorized-files";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import {
   deleteCandidateDocument,
@@ -3575,12 +3581,36 @@ function DocRow({
   const inlineFileUrl = upload?.hasFile
     ? getCandidateDocumentDownloadUrl(candidateId, upload.id, { inline: true })
     : null;
-  const previewUrl = isPhotoType && isPreviewableImage(upload) ? fileUrl : null;
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setMetadataValues(buildDocumentMetadataValues(metadataFields, upload));
     setMetadataErrors({});
   }, [metadataFields, upload]);
+
+  useEffect(() => {
+    if (!isPhotoType || !isPreviewableImage(upload) || !fileUrl) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    createAuthorizedObjectUrl(fileUrl)
+      .then((url) => {
+        objectUrl = url;
+        if (!cancelled) setPreviewUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewUrl(null);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setPreviewUrl(null);
+    };
+  }, [fileUrl, isPhotoType, upload]);
 
   const setMetadataValue = (key: string, value: string) => {
     setMetadataValues((current) => ({ ...current, [key]: value }));
@@ -3698,40 +3728,31 @@ function DocRow({
     }
   };
 
-  const handlePrint = () => {
+  const handleOpenFile = async () => {
     if (!inlineFileUrl) return;
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      showToast(`"${type.name}" yazdırma penceresi açılamadı`, "error");
-      return;
+    try {
+      await openAuthorizedFile(inlineFileUrl);
+    } catch {
+      showToast(`"${type.name}" görüntülenemedi`, "error");
     }
+  };
 
-    const escapedTitle = type.name.replace(/[<>&"]/g, (char) => {
-      const entities: Record<string, string> = {
-        "<": "&lt;",
-        ">": "&gt;",
-        "&": "&amp;",
-        "\"": "&quot;",
-      };
-      return entities[char] ?? char;
-    });
-    const escapedUrl = inlineFileUrl.replace(/"/g, "%22");
+  const handleDownloadFile = async () => {
+    if (!fileUrl) return;
+    try {
+      await downloadAuthorizedFile(fileUrl, upload?.originalFileName ?? type.name);
+    } catch {
+      showToast(`"${type.name}" indirilemedi`, "error");
+    }
+  };
 
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <title>${escapedTitle}</title>
-          <style>
-            html, body, iframe { width: 100%; height: 100%; margin: 0; border: 0; }
-          </style>
-        </head>
-        <body>
-          <iframe src="${escapedUrl}" onload="setTimeout(function(){ window.focus(); window.print(); }, 250)"></iframe>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  const handlePrint = async () => {
+    if (!inlineFileUrl) return;
+    try {
+      await printAuthorizedFile(inlineFileUrl, type.name);
+    } catch {
+      showToast(`"${type.name}" yazdırılamadı`, "error");
+    }
   };
 
   const handleSaveMetadata = async () => {
@@ -3872,25 +3893,25 @@ function DocRow({
         </label>
 
         {inlineFileUrl ? (
-          <a
+          <button
             className="btn btn-secondary btn-sm"
-            href={inlineFileUrl}
-            rel="noopener noreferrer"
-            target="_blank"
+            disabled={busy}
+            onClick={handleOpenFile}
+            type="button"
           >
             Görüntüle
-          </a>
+          </button>
         ) : null}
 
         {fileUrl ? (
-          <a
+          <button
             className="btn btn-secondary btn-sm"
-            href={fileUrl}
-            rel="noopener noreferrer"
-            download
+            disabled={busy}
+            onClick={handleDownloadFile}
+            type="button"
           >
             İndir
-          </a>
+          </button>
         ) : null}
 
         {fileUrl && isPrintableType ? (

@@ -54,7 +54,7 @@ export function UserMenu({ userInitials }: UserMenuProps) {
               <div className="user-menu-avatar">{userInitials}</div>
               <div className="user-menu-info">
                 <div className="user-menu-name">{user.name}</div>
-                <div className="user-menu-email">{user.email}</div>
+                <div className="user-menu-email">{user.email ?? user.roleName ?? ""}</div>
               </div>
             </div>
           )}

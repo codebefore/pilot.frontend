@@ -91,6 +91,31 @@ jobs:
             fi
 
             cd "$DEPLOY_PATH"
+
+            if [ ! -f .env.runtime ]; then
+              echo ".env.runtime was not found in $DEPLOY_PATH"
+              exit 1
+            fi
+
+            set -a
+            . ./.env.runtime
+            set +a
+
+            if [ -z "${PILOT_JWT_SIGNING_KEY:-}" ]; then
+              echo "PILOT_JWT_SIGNING_KEY must be configured in server-side .env.runtime"
+              exit 1
+            fi
+
+            if [ "${#PILOT_JWT_SIGNING_KEY}" -lt 32 ]; then
+              echo "PILOT_JWT_SIGNING_KEY must be at least 32 characters"
+              exit 1
+            fi
+
+            if [ "${PILOT_ENABLE_SUPER_ADMIN_PASSWORD_BOOTSTRAP:-false}" = "true" ]; then
+              echo "Warning: PILOT_ENABLE_SUPER_ADMIN_PASSWORD_BOOTSTRAP is true on production"
+            fi
+
+            docker compose --env-file .env.runtime -f docker-compose.production.yml config > /dev/null
             docker compose --env-file .env.runtime -f docker-compose.production.yml pull pilot-frontend
             docker compose --env-file .env.runtime -f docker-compose.production.yml up -d pilot-frontend
 

@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "./api";
+import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
 
 /**
  * Structured validation error delivered through
@@ -72,6 +73,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T;
 
   if (!response.ok) {
+    if (response.status === 401) {
+      notifyUnauthorized();
+    }
+
     let validationErrors: Record<string, string[]> | undefined;
     let validationErrorCodes: Record<string, ApiValidationError[]> | undefined;
     try {
@@ -98,6 +103,7 @@ export async function httpGet<T>(
   options?: RequestOptions
 ): Promise<T> {
   const response = await fetch(buildUrl(path, params), {
+    headers: buildHeaders(),
     signal: options?.signal,
   });
   return handleResponse<T>(response);
@@ -110,7 +116,7 @@ export async function httpPost<T>(
 ): Promise<T> {
   const response = await fetch(buildUrl(path), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
     signal: options?.signal,
   });
@@ -129,6 +135,7 @@ export async function httpPostForm<T>(
 ): Promise<T> {
   const response = await fetch(buildUrl(path), {
     method: "POST",
+    headers: buildHeaders(),
     body: form,
     signal: options?.signal,
   });
@@ -142,7 +149,7 @@ export async function httpPut<T>(
 ): Promise<T> {
   const response = await fetch(buildUrl(path), {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
     signal: options?.signal,
   });
@@ -156,7 +163,17 @@ export async function httpDelete<T = void>(
 ): Promise<T> {
   const response = await fetch(buildUrl(path, params), {
     method: "DELETE",
+    headers: buildHeaders(),
     signal: options?.signal,
   });
   return handleResponse<T>(response);
+}
+
+function buildHeaders(base?: HeadersInit): HeadersInit {
+  const headers = new Headers(base);
+  const token = getStoredAccessToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return headers;
 }

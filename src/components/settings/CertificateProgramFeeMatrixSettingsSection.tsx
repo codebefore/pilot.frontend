@@ -674,7 +674,10 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     });
   };
 
-  const clearProgramSelection = () => setSelectedProgramIds(new Set());
+  const clearProgramSelection = () => {
+    setSelectedProgramIds(new Set());
+    setBulkValues({});
+  };
 
   const toggleSelectionMode = () => {
     setSelectionMode((current) => {

@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { Header } from "./components/layout/Header";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ToastProvider } from "./components/ui/Toast";
-import { AuthProvider } from "./lib/auth";
+import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider } from "./lib/i18n";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
 import { mockInstitutions } from "./mock/institutions";
@@ -34,6 +34,7 @@ function isFeesRoute(pathname: string) {
 }
 
 function AppShell() {
+  const { user } = useAuth();
   const [institutionId, setInstitutionId] = useState<string>(mockInstitutions[0].id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -62,7 +63,7 @@ function AppShell() {
           onMenuToggle={() => setSidebarOpen((v) => !v)}
           onSidebarToggle={toggleDesktopSidebar}
           sidebarCollapsed={sidebarCollapsed}
-          userInitials="MS"
+          userInitials={getInitials(user?.name)}
         />
       ) : null}
       {!fullScreenRoute && sidebarCollapsed && (
@@ -130,7 +131,14 @@ export default function App() {
               <Routes>
                 <Route element={<LoginPage />} path="/login" />
                 <Route element={<ForgotPasswordPage />} path="/forgot-password" />
-                <Route element={<AppShell />} path="/*" />
+                <Route
+                  element={
+                    <RequireAuth>
+                      <AppShell />
+                    </RequireAuth>
+                  }
+                  path="/*"
+                />
               </Routes>
             </Suspense>
           </ToastProvider>
@@ -138,4 +146,15 @@ export default function App() {
       </LanguageProvider>
     </BrowserRouter>
   );
+}
+
+function getInitials(name?: string | null) {
+  const initials = (name ?? "")
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return initials || "P";
 }

@@ -44,7 +44,7 @@ import {
 } from "../lib/candidates-api";
 import { getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
-import { syncExamSchedules } from "../lib/exam-schedules-api";
+import { deleteExamSchedule, syncExamSchedules } from "../lib/exam-schedules-api";
 import { formatLicenseClassTotalSummary } from "../lib/exam-schedule-summary";
 import { setPracticeCandidateScope } from "../lib/practice-candidate-scope";
 import { useLanguage, useT } from "../lib/i18n";
@@ -508,6 +508,7 @@ export function CandidatesPage({
   const [modalOpen, setModalOpen] = useState(false);
   const [examScheduleModalOpen, setExamScheduleModalOpen] = useState(false);
   const [examScheduleSyncing, setExamScheduleSyncing] = useState(false);
+  const [deletingExamScheduleId, setDeletingExamScheduleId] = useState<string | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
@@ -819,6 +820,26 @@ export function CandidatesPage({
       showToast(t("candidates.toast.examScheduleSyncFailed"), "error");
     } finally {
       setExamScheduleSyncing(false);
+    }
+  };
+
+  const handleExamDateDelete = async (option: ExamScheduleOption) => {
+    if (deletingExamScheduleId) {
+      return;
+    }
+
+    setDeletingExamScheduleId(option.id);
+    try {
+      await deleteExamSchedule(option.id);
+      if (selectedExamDate === option.date) {
+        setSelectedExamDate("");
+      }
+      setRefreshKey((current) => current + 1);
+      showToast(t("candidates.toast.examScheduleDeleted"));
+    } catch {
+      showToast(t("candidates.toast.examScheduleDeleteFailed"), "error");
+    } finally {
+      setDeletingExamScheduleId(null);
     }
   };
 
@@ -1777,11 +1798,13 @@ export function CandidatesPage({
             actions={[
               { label: "Tarih Ekle", onClick: handleExamDateAddClick },
               {
-                label: "Senkronize",
+                label: "Mebbis",
                 onClick: handleExamSyncClick,
                 disabled: examScheduleSyncing,
               },
             ]}
+            deletingOptionId={deletingExamScheduleId}
+            onDelete={handleExamDateDelete}
             onSelect={handleExamDateSelect}
             options={displayedExamDateOptions}
             selectedDate={selectedExamDate}

@@ -1196,6 +1196,7 @@ export interface AppUserResponse {
   fullName: string;
   email: string | null;
   phone: string | null;
+  hasPassword: boolean;
   mebbisUsername: string | null;
   hasMebbisPassword: boolean;
   roleId: string | null;
@@ -1210,6 +1211,7 @@ export interface AppUserUpsertRequest {
   fullName: string;
   email?: string | null;
   phone: string;
+  password?: string | null;
   mebbisUsername?: string | null;
   mebbisPassword?: string | null;
   roleId?: string | null;

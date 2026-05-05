@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+import { ApiError } from "../lib/http";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 
@@ -40,7 +41,11 @@ export function LoginPage() {
       await login(data.email, data.password);
       navigate(from, { replace: true });
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : t("login.errors.failed"));
+      if (err instanceof ApiError && err.status === 401) {
+        setFormError(t("login.errors.failed"));
+      } else {
+        setFormError(err instanceof Error ? err.message : t("login.errors.failed"));
+      }
     } finally {
       setSubmitting(false);
     }

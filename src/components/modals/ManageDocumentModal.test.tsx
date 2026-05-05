@@ -7,6 +7,11 @@ import { renderWithProviders } from "../../test/render-with-providers";
 const getCandidateDocumentsMock = vi.fn();
 const updateCandidateDocumentMock = vi.fn();
 const uploadDocumentMock = vi.fn();
+const openAuthorizedFileMock = vi.fn();
+
+vi.mock("../../lib/authorized-files", () => ({
+  openAuthorizedFile: (...args: unknown[]) => openAuthorizedFileMock(...args),
+}));
 
 vi.mock("../../lib/documents-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/documents-api")>(
@@ -29,6 +34,8 @@ describe("ManageDocumentModal", () => {
     getCandidateDocumentsMock.mockReset();
     updateCandidateDocumentMock.mockReset();
     uploadDocumentMock.mockReset();
+    openAuthorizedFileMock.mockReset();
+    openAuthorizedFileMock.mockResolvedValue(undefined);
     getCandidateDocumentsMock.mockResolvedValue([
       {
         id: "doc-1",
@@ -80,7 +87,7 @@ describe("ManageDocumentModal", () => {
     return document.body.querySelector('input[type="file"]') as HTMLInputElement | null;
   }
 
-  it("loads the selected document and shows an open link", async () => {
+  it("loads the selected document and opens the file through authorized fetch", async () => {
     renderWithProviders(
       <ManageDocumentModal
         candidateId="cand-1"
@@ -95,8 +102,8 @@ describe("ManageDocumentModal", () => {
 
     expect(await screen.findByDisplayValue("Mevcut Kurum")).toBeInTheDocument();
     expect(screen.getByLabelText("Not")).toHaveValue("Mevcut not");
-    expect(screen.getByRole("link", { name: "Belgeyi Aç" })).toHaveAttribute(
-      "href",
+    fireEvent.click(screen.getByRole("button", { name: "Belgeyi Aç" }));
+    expect(openAuthorizedFileMock).toHaveBeenCalledWith(
       "http://127.0.0.1:5080/api/candidates/cand-1/documents/doc-1/download"
     );
     expect(screen.getByRole("button", { name: "Belgeyi Değiştir" })).toBeInTheDocument();

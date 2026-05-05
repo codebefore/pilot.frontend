@@ -4473,7 +4473,14 @@ textarea.form-input {
   background: transparent;
   color: var(--gray-400);
   cursor: pointer;
-  transition: color .15s, background .15s;
+  opacity: 0;
+  pointer-events: none;
+  transition: color .15s, background .15s, opacity .15s;
+}
+.exam-date-option-shell:hover .exam-date-option-delete,
+.exam-date-option-shell:focus-within .exam-date-option-delete {
+  opacity: 1;
+  pointer-events: auto;
 }
 .exam-date-option-delete:hover:not(:disabled) {
   color: var(--danger-700, #b91c1c);
@@ -4486,27 +4493,31 @@ textarea.form-input {
 .exam-date-option-confirm {
   position: absolute;
   right: 0;
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 180px;
-  padding: 10px;
-  border-radius: 8px;
+  gap: 6px;
+  min-width: 140px;
+  padding: 6px 8px;
+  border-radius: 6px;
   border: 1px solid var(--gray-200);
   background: var(--white);
-  box-shadow: var(--shadow-lg, 0 8px 24px rgba(15, 23, 42, 0.12));
+  box-shadow: var(--shadow-lg, 0 6px 16px rgba(15, 23, 42, 0.12));
 }
 .exam-date-option-confirm-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--gray-800);
 }
 .exam-date-option-confirm-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
+}
+.exam-date-option-confirm-actions .btn {
+  padding: 3px 8px;
+  font-size: 11px;
 }
 .exam-date-divider {
   width: 100%;

@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
+
 import { getApiBaseUrl } from "../../lib/api";
+import { createAuthorizedObjectUrl } from "../../lib/authorized-files";
 import { normalizeCandidateGender } from "../../lib/status-maps";
 import type { CandidateResponse } from "../../lib/types";
 
@@ -37,23 +40,48 @@ export function CandidateAvatar({
   size = 34,
 }: CandidateAvatarProps) {
   const imageUrl = buildCandidatePhotoUrl(candidate);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const genderToneClass =
     normalizeCandidateGender(candidate.gender) === "male"
       ? "candidate-avatar-male"
-      : "candidate-avatar-female";
+    : "candidate-avatar-female";
   const rootClassName = ["candidate-avatar", genderToneClass, className].filter(Boolean).join(" ");
+
+  useEffect(() => {
+    if (!imageUrl) {
+      setObjectUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    createAuthorizedObjectUrl(imageUrl)
+      .then((url) => {
+        createdUrl = url;
+        if (!cancelled) setObjectUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setObjectUrl(null);
+      });
+
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+      setObjectUrl(null);
+    };
+  }, [imageUrl]);
 
   return (
     <span
       className={rootClassName}
       style={{ ["--candidate-avatar-size" as string]: `${size}px` }}
     >
-      {imageUrl ? (
+      {objectUrl ? (
         <img
           alt={`${candidate.firstName} ${candidate.lastName}`}
           className="candidate-avatar-image"
           loading="lazy"
-          src={imageUrl}
+          src={objectUrl}
         />
       ) : (
         <span className="candidate-avatar-fallback">{candidateInitials(candidate)}</span>

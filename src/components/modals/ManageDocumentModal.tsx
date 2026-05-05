@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { getApiBaseUrl } from "../../lib/api";
+import { openAuthorizedFile } from "../../lib/authorized-files";
 import {
   getCandidateDocuments,
   uploadDocument,
@@ -344,14 +345,15 @@ export function ManageDocumentModal({
               </div>
               <div className="documents-manage-actions">
                 {document.hasFile && (
-                  <a
+                  <button
                     className="btn btn-secondary btn-sm"
-                    href={buildDocumentDownloadUrl(candidateId!, document.id)}
-                    rel="noreferrer"
-                    target="_blank"
+                    onClick={() => {
+                      void openAuthorizedFile(buildDocumentDownloadUrl(candidateId!, document.id));
+                    }}
+                    type="button"
                   >
                     {t("documents.manage.open")}
-                  </a>
+                  </button>
                 )}
                 <button
                   className="btn btn-secondary btn-sm"

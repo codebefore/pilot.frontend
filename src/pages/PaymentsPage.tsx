@@ -1,10 +1,11 @@
+import type { AriaAttributes, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
-import { PaymentCard } from "../components/ui/PaymentCard";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
+import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { getPaymentsOverview } from "../lib/payments-api";
 import { formatDateTR } from "../lib/status-maps";
@@ -18,6 +19,12 @@ import type {
 type TabKey = "payments" | "installments" | "charges" | "cancelled";
 type StatusFilter = "all" | "active" | "cancelled";
 type InstallmentScopeFilter = "all" | "overdue" | "today" | "upcoming";
+type SortDirection = "asc" | "desc";
+type PaymentsSortField = "date" | "candidate" | "amount";
+type InstallmentsSortField = "dueDate" | "candidate" | "remainingAmount";
+type ChargesSortField = "date" | "candidate" | "amount";
+type CancelledSortField = "date" | "candidate" | "type" | "amount";
+type SortState<F extends string> = { field: F; direction: SortDirection } | null;
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "payments", label: "Tahsilatlar" },
@@ -122,6 +129,12 @@ export function PaymentsPage() {
   const [licenseClassFilter, setLicenseClassFilter] = useState("all");
   const [installmentScopeFilter, setInstallmentScopeFilter] = useState<InstallmentScopeFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [paymentsSort, setPaymentsSort] = useState<SortState<PaymentsSortField>>({ field: "date", direction: "desc" });
+  const [installmentsSort, setInstallmentsSort] = useState<SortState<InstallmentsSortField>>(null);
+  const [chargesSort, setChargesSort] = useState<SortState<ChargesSortField>>({ field: "date", direction: "desc" });
+  const [cancelledSort, setCancelledSort] = useState<SortState<CancelledSortField>>({ field: "date", direction: "desc" });
+  const [cancelledTypeFilter, setCancelledTypeFilter] = useState<"all" | "Tahsilat" | "Borç" | "Vade">("all");
+  const [chargeSourceFilter, setChargeSourceFilter] = useState<"all" | "matrix" | "manual">("all");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -194,55 +207,107 @@ export function PaymentsPage() {
 
   const filteredPayments = useMemo(() => {
     if (!overview) return [];
-    return overview.payments.filter((item) => {
+    const items = overview.payments.filter((item) => {
       if (!filterCandidate(item.candidate)) return false;
       if (licenseClassFilter !== "all" && item.candidate.licenseClass !== licenseClassFilter) return false;
       if (statusFilter !== "all" && item.status !== statusFilter) return false;
       if (paymentMethodFilter !== "all" && item.paymentMethod !== paymentMethodFilter) return false;
       return isInDateRange(item.paidAtUtc, fromDate, toDate);
     });
-  }, [fromDate, licenseClassFilter, normalizedQuery, overview, paymentMethodFilter, statusFilter, toDate]);
+    if (!paymentsSort) return items;
+    const factor = paymentsSort.direction === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      switch (paymentsSort.field) {
+        case "date":
+          return a.paidAtUtc.localeCompare(b.paidAtUtc) * factor;
+        case "candidate":
+          return candidateName(a.candidate).localeCompare(candidateName(b.candidate), "tr") * factor;
+        case "amount":
+          return (a.amount - b.amount) * factor;
+      }
+    });
+  }, [fromDate, licenseClassFilter, normalizedQuery, overview, paymentMethodFilter, paymentsSort, statusFilter, toDate]);
 
   const filteredInstallments = useMemo(() => {
     if (!overview) return [];
     const today = todayKey();
-    return overview.installments
-      .filter((item) => {
-        if (!filterCandidate(item.candidate)) return false;
-        if (licenseClassFilter !== "all" && item.candidate.licenseClass !== licenseClassFilter) return false;
-        if (statusFilter !== "all" && item.status !== statusFilter) return false;
-        if (!isInDateRange(item.dueDate, fromDate, toDate)) return false;
-        if (installmentScopeFilter === "overdue") return item.paymentStatus === "overdue";
-        if (installmentScopeFilter === "today") return item.dueDate === today && item.remainingAmount > 0;
-        if (installmentScopeFilter === "upcoming") {
-          return item.dueDate > today && item.status === "active" && item.remainingAmount > 0;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        const priority = installmentPriority(a, today) - installmentPriority(b, today);
-        if (priority !== 0) return priority;
-        return a.dueDate.localeCompare(b.dueDate);
-      });
-  }, [fromDate, installmentScopeFilter, licenseClassFilter, normalizedQuery, overview, statusFilter, toDate]);
-
-  const filteredCharges = useMemo(() => {
-    if (!overview) return [];
-    return overview.charges.filter((item) => {
+    const items = overview.installments.filter((item) => {
       if (!filterCandidate(item.candidate)) return false;
       if (licenseClassFilter !== "all" && item.candidate.licenseClass !== licenseClassFilter) return false;
       if (statusFilter !== "all" && item.status !== statusFilter) return false;
-      return isInDateRange(item.chargedAtUtc, fromDate, toDate);
+      if (!isInDateRange(item.dueDate, fromDate, toDate)) return false;
+      if (installmentScopeFilter === "overdue") return item.paymentStatus === "overdue";
+      if (installmentScopeFilter === "today") return item.dueDate === today && item.remainingAmount > 0;
+      if (installmentScopeFilter === "upcoming") {
+        return item.dueDate > today && item.status === "active" && item.remainingAmount > 0;
+      }
+      return true;
     });
-  }, [fromDate, licenseClassFilter, normalizedQuery, overview, statusFilter, toDate]);
+    if (installmentsSort) {
+      const factor = installmentsSort.direction === "asc" ? 1 : -1;
+      return [...items].sort((a, b) => {
+        switch (installmentsSort.field) {
+          case "dueDate":
+            return a.dueDate.localeCompare(b.dueDate) * factor;
+          case "candidate":
+            return candidateName(a.candidate).localeCompare(candidateName(b.candidate), "tr") * factor;
+          case "remainingAmount":
+            return (a.remainingAmount - b.remainingAmount) * factor;
+        }
+      });
+    }
+    return [...items].sort((a, b) => {
+      const priority = installmentPriority(a, today) - installmentPriority(b, today);
+      if (priority !== 0) return priority;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+  }, [fromDate, installmentScopeFilter, installmentsSort, licenseClassFilter, normalizedQuery, overview, statusFilter, toDate]);
 
-  const filteredCancelledItems = useMemo(() => {
-    return cancelledItems.filter((item) => {
+  const filteredCharges = useMemo(() => {
+    if (!overview) return [];
+    const items = overview.charges.filter((item) => {
       if (!filterCandidate(item.candidate)) return false;
       if (licenseClassFilter !== "all" && item.candidate.licenseClass !== licenseClassFilter) return false;
+      if (statusFilter !== "all" && item.status !== statusFilter) return false;
+      if (chargeSourceFilter !== "all" && item.sourceType !== chargeSourceFilter) return false;
+      return isInDateRange(item.chargedAtUtc, fromDate, toDate);
+    });
+    if (!chargesSort) return items;
+    const factor = chargesSort.direction === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      switch (chargesSort.field) {
+        case "date":
+          return a.chargedAtUtc.localeCompare(b.chargedAtUtc) * factor;
+        case "candidate":
+          return candidateName(a.candidate).localeCompare(candidateName(b.candidate), "tr") * factor;
+        case "amount":
+          return (a.amount - b.amount) * factor;
+      }
+    });
+  }, [chargeSourceFilter, chargesSort, fromDate, licenseClassFilter, normalizedQuery, overview, statusFilter, toDate]);
+
+  const filteredCancelledItems = useMemo(() => {
+    const items = cancelledItems.filter((item) => {
+      if (!filterCandidate(item.candidate)) return false;
+      if (licenseClassFilter !== "all" && item.candidate.licenseClass !== licenseClassFilter) return false;
+      if (cancelledTypeFilter !== "all" && item.type !== cancelledTypeFilter) return false;
       return isInDateRange(item.date, fromDate, toDate);
     });
-  }, [cancelledItems, fromDate, licenseClassFilter, normalizedQuery, toDate]);
+    if (!cancelledSort) return items;
+    const factor = cancelledSort.direction === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      switch (cancelledSort.field) {
+        case "date":
+          return a.date.localeCompare(b.date) * factor;
+        case "candidate":
+          return candidateName(a.candidate).localeCompare(candidateName(b.candidate), "tr") * factor;
+        case "type":
+          return a.type.localeCompare(b.type, "tr") * factor;
+        case "amount":
+          return (a.amount - b.amount) * factor;
+      }
+    });
+  }, [cancelledItems, cancelledSort, cancelledTypeFilter, fromDate, licenseClassFilter, normalizedQuery, toDate]);
 
   const resetFilters = () => {
     setQuery("");
@@ -252,6 +317,37 @@ export function PaymentsPage() {
     setPaymentMethodFilter("all");
     setLicenseClassFilter("all");
     setInstallmentScopeFilter("all");
+    setCancelledTypeFilter("all");
+    setChargeSourceFilter("all");
+  };
+
+  const togglePaymentsSort = (field: PaymentsSortField) => {
+    setPaymentsSort((current) =>
+      current?.field === field
+        ? { field, direction: current.direction === "asc" ? "desc" : "asc" }
+        : { field, direction: field === "amount" ? "desc" : field === "date" ? "desc" : "asc" }
+    );
+  };
+  const toggleInstallmentsSort = (field: InstallmentsSortField) => {
+    setInstallmentsSort((current) =>
+      current?.field === field
+        ? { field, direction: current.direction === "asc" ? "desc" : "asc" }
+        : { field, direction: field === "remainingAmount" ? "desc" : field === "dueDate" ? "asc" : "asc" }
+    );
+  };
+  const toggleChargesSort = (field: ChargesSortField) => {
+    setChargesSort((current) =>
+      current?.field === field
+        ? { field, direction: current.direction === "asc" ? "desc" : "asc" }
+        : { field, direction: field === "amount" || field === "date" ? "desc" : "asc" }
+    );
+  };
+  const toggleCancelledSort = (field: CancelledSortField) => {
+    setCancelledSort((current) =>
+      current?.field === field
+        ? { field, direction: current.direction === "asc" ? "desc" : "asc" }
+        : { field, direction: field === "amount" || field === "date" ? "desc" : "asc" }
+    );
   };
 
   const summary = overview?.summary;
@@ -263,7 +359,34 @@ export function PaymentsPage() {
     paymentMethodFilter !== "all",
     licenseClassFilter !== "all",
     installmentScopeFilter !== "all",
+    cancelledTypeFilter !== "all",
+    chargeSourceFilter !== "all",
   ].filter(Boolean).length;
+
+  const statusFilterOptions: TableHeaderFilterOption[] = [
+    { value: "active", label: "Aktif" },
+    { value: "all", label: "Tümü" },
+    { value: "cancelled", label: "İptal" },
+  ];
+  const paymentMethodFilterOptions: TableHeaderFilterOption[] = [
+    { value: "all", label: "Tümü" },
+    { value: "cash", label: "Nakit" },
+    { value: "bank_transfer", label: "Havale/EFT" },
+    { value: "credit_card", label: "Kredi Kartı" },
+    { value: "mail_order", label: "Mail Order" },
+    { value: "other", label: "Diğer" },
+  ];
+  const chargeSourceFilterOptions: TableHeaderFilterOption[] = [
+    { value: "all", label: "Tümü" },
+    { value: "matrix", label: "Matrix" },
+    { value: "manual", label: "Manuel" },
+  ];
+  const cancelledTypeFilterOptions: TableHeaderFilterOption[] = [
+    { value: "all", label: "Tümü" },
+    { value: "Tahsilat", label: "Tahsilat" },
+    { value: "Borç", label: "Borç" },
+    { value: "Vade", label: "Vade" },
+  ];
   const tabCounts: Record<TabKey, number> = {
     payments: filteredPayments.length,
     installments: filteredInstallments.length,
@@ -287,16 +410,34 @@ export function PaymentsPage() {
             ) : null}
           </button>
         }
-        title="Tahsilatlar"
+        title="Muhasebe"
       />
 
-      <div className="payment-cards">
-        <PaymentCard label="Bugünkü Tahsilat" tone="brand" value={money(summary?.todayCollected ?? 0)} />
-        <PaymentCard label="Bu Ay Tahsilat" tone="blue" value={money(summary?.monthCollected ?? 0)} />
-        <PaymentCard label="Aktif Bakiye" tone="red" value={money(summary?.activeBalance ?? 0)} />
-        <PaymentCard label="Geciken Vadeler" tone="red" value={money(summary?.overdueInstallmentTotal ?? 0)} />
-        <PaymentCard label="İptal Tahsilat" tone="blue" value={money(summary?.cancelledPaymentTotal ?? 0)} />
-      </div>
+      <section className="instructor-detail-card">
+        <h3 className="candidate-detail-section-title">Muhasebe Özeti</h3>
+        <div className="candidate-billing-summary-grid">
+          <div className="candidate-billing-summary-card">
+            <span className="candidate-detail-stat-label">Bugünkü Tahsilat</span>
+            <strong>{money(summary?.todayCollected ?? 0)}</strong>
+          </div>
+          <div className="candidate-billing-summary-card">
+            <span className="candidate-detail-stat-label">Bu Ay Tahsilat</span>
+            <strong>{money(summary?.monthCollected ?? 0)}</strong>
+          </div>
+          <div className="candidate-billing-summary-card is-balance">
+            <span className="candidate-detail-stat-label">Aktif Bakiye</span>
+            <strong>{money(summary?.activeBalance ?? 0)}</strong>
+          </div>
+          <div className="candidate-billing-summary-card">
+            <span className="candidate-detail-stat-label">Geciken Vadeler</span>
+            <strong>{money(summary?.overdueInstallmentTotal ?? 0)}</strong>
+          </div>
+          <div className="candidate-billing-summary-card">
+            <span className="candidate-detail-stat-label">İptal Tahsilat</span>
+            <strong>{money(summary?.cancelledPaymentTotal ?? 0)}</strong>
+          </div>
+        </div>
+      </section>
 
       {filtersOpen ? (
         <div className="payments-filters">
@@ -412,18 +553,45 @@ export function PaymentsPage() {
       ) : !overview ? (
         <Panel title="Finans">Veri bulunamadı.</Panel>
       ) : (
-        <div className="table-wrap">
+        <>
           {activeTab === "payments" ? (
-            <Panel title="Tüm Tahsilatlar">
+            <section className="instructor-detail-card">
+              <h3 className="candidate-detail-section-title">Tüm Tahsilatlar</h3>
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Tarih</th>
-                    <th>Aday</th>
-                    <th>Tutar</th>
-                    <th>Yöntem</th>
+                    <SortableTh field="date" label="Tarih" sort={paymentsSort} onToggle={togglePaymentsSort} />
+                    <SortableTh field="candidate" label="Aday" sort={paymentsSort} onToggle={togglePaymentsSort} />
+                    <SortableTh field="amount" label="Tutar" sort={paymentsSort} onToggle={togglePaymentsSort} />
+                    <th>
+                      <div className="sortable-th-shell">
+                        <span className="sortable-th-label">Yöntem</span>
+                        <div className="sortable-th-filter">
+                          <TableHeaderFilter
+                            active={paymentMethodFilter !== "all"}
+                            onChange={(next) => setPaymentMethodFilter(next as "all" | CandidatePaymentMethod)}
+                            options={paymentMethodFilterOptions}
+                            title="Yöntem"
+                            value={paymentMethodFilter}
+                          />
+                        </div>
+                      </div>
+                    </th>
                     <th>Taksit</th>
-                    <th>Durum</th>
+                    <th>
+                      <div className="sortable-th-shell">
+                        <span className="sortable-th-label">Durum</span>
+                        <div className="sortable-th-filter">
+                          <TableHeaderFilter
+                            active={statusFilter !== "active"}
+                            onChange={(next) => setStatusFilter(next as StatusFilter)}
+                            options={statusFilterOptions}
+                            title="Durum"
+                            value={statusFilter}
+                          />
+                        </div>
+                      </div>
+                    </th>
                     <th>İşlem</th>
                   </tr>
                 </thead>
@@ -472,19 +640,33 @@ export function PaymentsPage() {
                   )}
                 </tbody>
               </table>
-            </Panel>
+            </section>
           ) : null}
 
           {activeTab === "installments" ? (
-            <Panel title="Vadeler">
+            <section className="instructor-detail-card">
+              <h3 className="candidate-detail-section-title">Vadeler</h3>
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Vade</th>
-                    <th>Aday</th>
+                    <SortableTh field="dueDate" label="Vade" sort={installmentsSort} onToggle={toggleInstallmentsSort} />
+                    <SortableTh field="candidate" label="Aday" sort={installmentsSort} onToggle={toggleInstallmentsSort} />
                     <th>Taksit</th>
-                    <th>Kalan</th>
-                    <th>Durum</th>
+                    <SortableTh field="remainingAmount" label="Kalan" sort={installmentsSort} onToggle={toggleInstallmentsSort} />
+                    <th>
+                      <div className="sortable-th-shell">
+                        <span className="sortable-th-label">Durum</span>
+                        <div className="sortable-th-filter">
+                          <TableHeaderFilter
+                            active={statusFilter !== "active"}
+                            onChange={(next) => setStatusFilter(next as StatusFilter)}
+                            options={statusFilterOptions}
+                            title="Durum"
+                            value={statusFilter}
+                          />
+                        </div>
+                      </div>
+                    </th>
                     <th>İşlem</th>
                   </tr>
                 </thead>
@@ -541,20 +723,47 @@ export function PaymentsPage() {
                   )}
                 </tbody>
               </table>
-            </Panel>
+            </section>
           ) : null}
 
           {activeTab === "charges" ? (
-            <Panel title="Aktif Borçlar">
+            <section className="instructor-detail-card">
+              <h3 className="candidate-detail-section-title">Aktif Borçlar</h3>
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Tarih</th>
-                    <th>Aday</th>
+                    <SortableTh field="date" label="Tarih" sort={chargesSort} onToggle={toggleChargesSort} />
+                    <SortableTh field="candidate" label="Aday" sort={chargesSort} onToggle={toggleChargesSort} />
                     <th>Açıklama</th>
-                    <th>Tutar</th>
-                    <th>Kaynak</th>
-                    <th>Durum</th>
+                    <SortableTh field="amount" label="Tutar" sort={chargesSort} onToggle={toggleChargesSort} />
+                    <th>
+                      <div className="sortable-th-shell">
+                        <span className="sortable-th-label">Kaynak</span>
+                        <div className="sortable-th-filter">
+                          <TableHeaderFilter
+                            active={chargeSourceFilter !== "all"}
+                            onChange={(next) => setChargeSourceFilter(next as "all" | "matrix" | "manual")}
+                            options={chargeSourceFilterOptions}
+                            title="Kaynak"
+                            value={chargeSourceFilter}
+                          />
+                        </div>
+                      </div>
+                    </th>
+                    <th>
+                      <div className="sortable-th-shell">
+                        <span className="sortable-th-label">Durum</span>
+                        <div className="sortable-th-filter">
+                          <TableHeaderFilter
+                            active={statusFilter !== "active"}
+                            onChange={(next) => setStatusFilter(next as StatusFilter)}
+                            options={statusFilterOptions}
+                            title="Durum"
+                            value={statusFilter}
+                          />
+                        </div>
+                      </div>
+                    </th>
                     <th>İşlem</th>
                   </tr>
                 </thead>
@@ -602,18 +811,43 @@ export function PaymentsPage() {
                   )}
                 </tbody>
               </table>
-            </Panel>
+            </section>
           ) : null}
 
           {activeTab === "cancelled" ? (
-            <Panel title="İptaller">
+            <section className="instructor-detail-card">
+              <h3 className="candidate-detail-section-title">İptaller</h3>
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Tarih</th>
-                    <th>Aday</th>
-                    <th>Tür</th>
-                    <th>Tutar</th>
+                    <SortableTh field="date" label="Tarih" sort={cancelledSort} onToggle={toggleCancelledSort} />
+                    <SortableTh field="candidate" label="Aday" sort={cancelledSort} onToggle={toggleCancelledSort} />
+                    <th>
+                      <div className="sortable-th-shell">
+                        <button className="sortable-th-btn" onClick={() => toggleCancelledSort("type")} type="button">
+                          <span>Tür</span>
+                          <span aria-hidden="true" className="sortable-th-indicator">
+                            {cancelledSort?.field === "type"
+                              ? cancelledSort.direction === "asc"
+                                ? "▲"
+                                : "▼"
+                              : "↕"}
+                          </span>
+                        </button>
+                        <div className="sortable-th-filter">
+                          <TableHeaderFilter
+                            active={cancelledTypeFilter !== "all"}
+                            onChange={(next) =>
+                              setCancelledTypeFilter(next as "all" | "Tahsilat" | "Borç" | "Vade")
+                            }
+                            options={cancelledTypeFilterOptions}
+                            title="Tür"
+                            value={cancelledTypeFilter}
+                          />
+                        </div>
+                      </div>
+                    </th>
+                    <SortableTh field="amount" label="Tutar" sort={cancelledSort} onToggle={toggleCancelledSort} />
                     <th>Sebep</th>
                     <th>İşlem</th>
                   </tr>
@@ -647,10 +881,43 @@ export function PaymentsPage() {
                   )}
                 </tbody>
               </table>
-            </Panel>
+            </section>
           ) : null}
-        </div>
+        </>
       )}
     </>
+  );
+}
+
+type SortableThProps<F extends string> = {
+  field: F;
+  filterControl?: ReactNode;
+  label: string;
+  sort: SortState<F>;
+  onToggle: (field: F) => void;
+};
+
+function SortableTh<F extends string>({ field, filterControl, label, sort, onToggle }: SortableThProps<F>) {
+  const isActive = sort?.field === field;
+  const direction = isActive ? sort.direction : null;
+  const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
+  const ariaSort: AriaAttributes["aria-sort"] = isActive
+    ? direction === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+
+  return (
+    <th aria-sort={ariaSort} className={isActive ? "sortable-th active" : "sortable-th"}>
+      <div className="sortable-th-shell">
+        <button className="sortable-th-btn" onClick={() => onToggle(field)} type="button">
+          <span>{label}</span>
+          <span aria-hidden="true" className="sortable-th-indicator">
+            {indicator}
+          </span>
+        </button>
+        {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+      </div>
+    </th>
   );
 }
