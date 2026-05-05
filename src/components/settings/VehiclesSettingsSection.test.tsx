@@ -10,6 +10,7 @@ const getVehiclesMock = vi.fn();
 const createVehicleMock = vi.fn();
 const updateVehicleMock = vi.fn();
 const deleteVehicleMock = vi.fn();
+const getLicenseClassDefinitionsMock = vi.fn();
 
 vi.mock("../../lib/vehicles-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/vehicles-api")>(
@@ -25,6 +26,19 @@ vi.mock("../../lib/vehicles-api", async () => {
       updateVehicleMock(...args),
     deleteVehicle: (...args: Parameters<typeof actual.deleteVehicle>) =>
       deleteVehicleMock(...args),
+  };
+});
+
+vi.mock("../../lib/license-class-definitions-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/license-class-definitions-api")>(
+    "../../lib/license-class-definitions-api"
+  );
+
+  return {
+    ...actual,
+    getLicenseClassDefinitions: (
+      ...args: Parameters<typeof actual.getLicenseClassDefinitions>
+    ) => getLicenseClassDefinitionsMock(...args),
   };
 });
 
@@ -73,6 +87,7 @@ describe("VehiclesSettingsSection", () => {
     createVehicleMock.mockReset();
     updateVehicleMock.mockReset();
     deleteVehicleMock.mockReset();
+    getLicenseClassDefinitionsMock.mockReset();
 
     getVehiclesMock.mockResolvedValue({
       items: [sampleVehicle],
@@ -102,6 +117,60 @@ describe("VehiclesSettingsSection", () => {
       brand: "Tofas",
     });
     deleteVehicleMock.mockResolvedValue(undefined);
+    getLicenseClassDefinitionsMock.mockResolvedValue({
+      items: [
+        {
+          id: "license-b",
+          code: "B",
+          name: "B",
+          category: "automobile",
+          minimumAge: 18,
+          hasExistingLicense: false,
+          existingLicenseType: null,
+          existingLicensePre2016: false,
+          requiresTheoryExam: true,
+          requiresPracticeExam: true,
+          theoryLessonHours: 34,
+          simulatorLessonHours: 0,
+          directPracticeLessonHours: 14,
+          displayOrder: 10,
+          isActive: true,
+          notes: null,
+          createdAtUtc: "2026-01-01T00:00:00Z",
+          updatedAtUtc: "2026-01-01T00:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "license-a2",
+          code: "A2",
+          name: "A2",
+          category: "motorcycle",
+          minimumAge: 18,
+          hasExistingLicense: false,
+          existingLicenseType: null,
+          existingLicensePre2016: false,
+          requiresTheoryExam: true,
+          requiresPracticeExam: true,
+          theoryLessonHours: 34,
+          simulatorLessonHours: 0,
+          directPracticeLessonHours: 14,
+          displayOrder: 20,
+          isActive: true,
+          notes: null,
+          createdAtUtc: "2026-01-01T00:00:00Z",
+          updatedAtUtc: "2026-01-01T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 1000,
+      totalCount: 2,
+      totalPages: 1,
+      summary: {
+        activeCount: 2,
+        inactiveCount: 0,
+      },
+    });
   });
 
   it("loads only active vehicles on mount", async () => {
@@ -133,7 +202,7 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Bakımda" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Belge filtresi" }));
-    fireEvent.click(screen.getByRole("button", { name: /^A2 -/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^A2 -/ }));
 
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
@@ -325,7 +394,7 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));
 
     expect(screen.getByRole("button", { name: "Otomobil" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /B .*Otomobil/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /B .*Otomobil/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Düz" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Boşta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Satın Alındı" })).toBeInTheDocument();
