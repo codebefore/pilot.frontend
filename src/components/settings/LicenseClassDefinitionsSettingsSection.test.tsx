@@ -107,6 +107,34 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
 
     expect(await screen.findByText("B")).toBeInTheDocument();
     expect(screen.getByText("Otomobil")).toBeInTheDocument();
+    expect(screen.getByText("Mevcut Ehliyet")).toBeInTheDocument();
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  it("shows existing license type when required", async () => {
+    getLicenseClassDefinitionsMock.mockResolvedValueOnce({
+      items: [
+        {
+          ...sampleLicenseClass,
+          id: "lc2",
+          code: "D",
+          hasExistingLicense: true,
+          existingLicenseType: "b",
+          existingLicensePre2016: true,
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+      summary: {
+        activeCount: 1,
+      },
+    });
+
+    renderSection();
+
+    expect(await screen.findByText("B (2016 öncesi)")).toBeInTheDocument();
   });
 
   it("applies filters and re-fetches", async () => {

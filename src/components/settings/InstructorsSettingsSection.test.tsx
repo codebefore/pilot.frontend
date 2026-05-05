@@ -11,6 +11,7 @@ const createInstructorMock = vi.fn();
 const updateInstructorMock = vi.fn();
 const deleteInstructorMock = vi.fn();
 const getTrainingBranchDefinitionsMock = vi.fn();
+const getLicenseClassDefinitionsMock = vi.fn();
 
 vi.mock("../../lib/instructors-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/instructors-api")>(
@@ -40,6 +41,19 @@ vi.mock("../../lib/training-branch-definitions-api", async () => {
     getTrainingBranchDefinitions: (
       ...args: Parameters<typeof actual.getTrainingBranchDefinitions>
     ) => getTrainingBranchDefinitionsMock(...args),
+  };
+});
+
+vi.mock("../../lib/license-class-definitions-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/license-class-definitions-api")>(
+    "../../lib/license-class-definitions-api"
+  );
+
+  return {
+    ...actual,
+    getLicenseClassDefinitions: (
+      ...args: Parameters<typeof actual.getLicenseClassDefinitions>
+    ) => getLicenseClassDefinitionsMock(...args),
   };
 });
 
@@ -97,6 +111,7 @@ describe("InstructorsSettingsSection", () => {
     updateInstructorMock.mockReset();
     deleteInstructorMock.mockReset();
     getTrainingBranchDefinitionsMock.mockReset();
+    getLicenseClassDefinitionsMock.mockReset();
 
     getInstructorsMock.mockResolvedValue({
       items: [sampleInstructor],
@@ -145,6 +160,40 @@ describe("InstructorsSettingsSection", () => {
         limitedCount: 4,
       },
     });
+    getLicenseClassDefinitionsMock.mockResolvedValue({
+      items: [
+        {
+          id: "license-b",
+          code: "B",
+          name: "B",
+          category: "Otomobil",
+          isActive: true,
+          displayOrder: 10,
+          createdAtUtc: "2026-01-01T00:00:00Z",
+          updatedAtUtc: "2026-01-01T00:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "license-a2",
+          code: "A2",
+          name: "A2",
+          category: "Motosiklet",
+          isActive: true,
+          displayOrder: 20,
+          createdAtUtc: "2026-01-01T00:00:00Z",
+          updatedAtUtc: "2026-01-01T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 1000,
+      totalCount: 2,
+      totalPages: 1,
+      summary: {
+        activeCount: 2,
+        inactiveCount: 0,
+      },
+    });
   });
 
   it("loads only active instructors on mount", async () => {
@@ -160,6 +209,10 @@ describe("InstructorsSettingsSection", () => {
     expect(await screen.findByText("EGT-0001")).toBeInTheDocument();
     expect(screen.getByText("HASAN KORKMAZ")).toBeInTheDocument();
     expect(screen.getByText("MEBBİS: MEB-123")).toBeInTheDocument();
+    expect(getTrainingBranchDefinitionsMock).toHaveBeenCalledWith(
+      { activity: "active", page: 1, pageSize: 100 },
+      expect.any(AbortSignal)
+    );
   });
 
   it("applies filters and re-fetches", async () => {

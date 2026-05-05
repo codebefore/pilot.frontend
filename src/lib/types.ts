@@ -148,7 +148,146 @@ export interface CandidateUpsertRequest {
 
 export type CandidateChargeSourceType = "manual" | "matrix";
 export type CandidateBillingStatus = "active" | "cancelled";
-export type CandidatePaymentMethod = "cash" | "card" | "bank_transfer" | "other";
+export type CandidatePaymentMethod = "cash" | "bank_transfer" | "credit_card" | "mail_order" | "other";
+export type CandidateAccountingType = "kurs" | "teorik_sinav" | "direksiyon_sinav" | "diger";
+
+export interface AccountingCashRegisterSummaryResponse {
+  id: string;
+  name: string;
+  type: CashRegisterType;
+}
+
+export interface CandidateAccountingMovementResponse {
+  id: string;
+  candidateId: string;
+  type: CandidateAccountingType;
+  number: string;
+  description: string;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  refundedAmount: number;
+  remainingAmount: number;
+  status: CandidateBillingStatus;
+  lastPaymentMethod: CandidatePaymentMethod | null;
+  lastPaidAtUtc: string | null;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CandidateAccountingPaymentAllocationResponse {
+  id: string;
+  movementId: string;
+  movementNumber: string;
+  amount: number;
+}
+
+export interface CandidateAccountingPaymentResponse {
+  id: string;
+  candidateId: string;
+  type: CandidateAccountingType;
+  paymentMethod: CandidatePaymentMethod;
+  cashRegisterId: string | null;
+  cashRegister: AccountingCashRegisterSummaryResponse | null;
+  amount: number;
+  refundedAmount: number;
+  paidAtUtc: string;
+  note: string | null;
+  status: CandidateBillingStatus;
+  cancelledAtUtc: string | null;
+  cancellationReason: string | null;
+  allocations: CandidateAccountingPaymentAllocationResponse[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CandidateAccountingRefundResponse {
+  id: string;
+  candidateId: string;
+  paymentId: string;
+  type: CandidateAccountingType;
+  cashRegisterId: string | null;
+  cashRegister: AccountingCashRegisterSummaryResponse | null;
+  amount: number;
+  refundedAtUtc: string;
+  note: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface CandidateAccountingInvoiceResponse {
+  id: string;
+  candidateId: string;
+  invoiceNo: string;
+  invoiceType: string;
+  invoiceDate: string;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  totalAmount: number;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CandidateAccountingFeeSuggestionResponse {
+  type: CandidateAccountingType;
+  feeType: string;
+  feeId: string;
+  amount: number;
+  description: string;
+}
+
+export interface CandidateAccountingSummaryResponse {
+  candidateId: string;
+  movements: CandidateAccountingMovementResponse[];
+  payments: CandidateAccountingPaymentResponse[];
+  refunds: CandidateAccountingRefundResponse[];
+  invoices: CandidateAccountingInvoiceResponse[];
+  feeSuggestions: CandidateAccountingFeeSuggestionResponse[];
+  totalMovementAmount: number;
+  totalPaid: number;
+  totalRefunded: number;
+  balance: number;
+  invoiceTotal: number;
+}
+
+export interface CandidateAccountingMovementCreateRequest {
+  type: CandidateAccountingType;
+  dueDate: string;
+  amount: number;
+  description: string;
+}
+
+export interface CandidateAccountingPaymentCreateRequest {
+  type: CandidateAccountingType;
+  paymentMethod: CandidatePaymentMethod;
+  cashRegisterId?: string | null;
+  amount: number;
+  paidAtUtc?: string | null;
+  note?: string | null;
+}
+
+export interface CandidateAccountingRefundCreateRequest {
+  amount?: number | null;
+  refundedAtUtc?: string | null;
+  note?: string | null;
+}
+
+export interface CandidateAccountingInvoiceUpsertRequest {
+  invoiceNo: string;
+  invoiceType: string;
+  invoiceDate: string;
+  subtotal: number;
+  vatRate: number;
+  notes?: string | null;
+  rowVersion?: number;
+}
 
 export interface SuggestedCandidateChargeResponse {
   sourceType: CandidateChargeSourceType;
@@ -288,6 +427,8 @@ export interface PaymentMovementResponse {
   candidate: PaymentCandidateSummaryResponse;
   candidatePaymentInstallmentId: string | null;
   installmentDescription: string | null;
+  cashRegisterId: string | null;
+  cashRegister: AccountingCashRegisterSummaryResponse | null;
   amount: number;
   paymentMethod: CandidatePaymentMethod;
   paidAtUtc: string;
@@ -1137,6 +1278,39 @@ export interface ClassroomUpsertRequest {
   rowVersion?: number;
 }
 
+/* ── Cash Registers ── */
+
+export type CashRegisterType = "cash" | "bank_transfer" | "credit_card" | "mail_order";
+
+export interface CashRegisterResponse {
+  id: string;
+  name: string;
+  type: CashRegisterType;
+  isActive: boolean;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CashRegisterListSummaryResponse {
+  activeCount: number;
+  inactiveCount: number;
+}
+
+export interface CashRegisterListResponse extends PagedResponse<CashRegisterResponse> {
+  summary: CashRegisterListSummaryResponse;
+}
+
+export interface CashRegisterUpsertRequest {
+  name: string;
+  type: CashRegisterType;
+  isActive: boolean;
+  notes?: string | null;
+  /** Required for updates; omitted on create. */
+  rowVersion?: number;
+}
+
 /* ── Fees ── */
 
 export type FeeType =
@@ -1151,6 +1325,9 @@ export interface FeeLicenseClassSummary {
   id: string;
   code: string;
   name: string;
+  hasExistingLicense: boolean;
+  existingLicenseType: string | null;
+  existingLicensePre2016: boolean;
 }
 
 export interface FeeResponse {
@@ -1195,6 +1372,24 @@ export interface CertificateProgramFeeProgramResponse {
   minimumAge: number;
   theoryLessonHours: number;
   practiceLessonHours: number;
+  courseFee: number | null;
+  mebbisFee: number | null;
+  failureRetryFee: number | null;
+  privateLessonFee: number | null;
+  educationFee: number | null;
+  otherFee1: number | null;
+  yearFeeRowVersion: number | null;
+}
+
+export interface CertificateProgramFeeProgramUpsertRequest {
+  certificateProgramId: string;
+  courseFee?: number | null;
+  mebbisFee?: number | null;
+  failureRetryFee?: number | null;
+  privateLessonFee?: number | null;
+  educationFee?: number | null;
+  otherFee1?: number | null;
+  rowVersion?: number | null;
 }
 
 export interface CertificateProgramFeeRowResponse {
@@ -1207,16 +1402,10 @@ export interface CertificateProgramFeeRowResponse {
   vatExcludedHourlyRate: number | null;
   lessonFee: number | null;
   vatAmount: number | null;
-  contractTotal: number | null;
   contractTheoryExamFee: number | null;
   contractPracticeExamFee: number | null;
-  institutionEducationFee: number | null;
-  institutionMebbisEducationFee: number | null;
   institutionTheoryExamFee: number | null;
   institutionPracticeExamFee: number | null;
-  institutionRepeatPracticeExamFee: number | null;
-  privateLessonFee: number | null;
-  otherFee: number | null;
   rowVersion: number | null;
 }
 
@@ -1232,18 +1421,14 @@ export interface CertificateProgramFeeRowUpsertRequest {
   vatIncludedHourlyRate?: number | null;
   contractTheoryExamFee?: number | null;
   contractPracticeExamFee?: number | null;
-  institutionEducationFee?: number | null;
-  institutionMebbisEducationFee?: number | null;
   institutionTheoryExamFee?: number | null;
   institutionPracticeExamFee?: number | null;
-  institutionRepeatPracticeExamFee?: number | null;
-  privateLessonFee?: number | null;
-  otherFee?: number | null;
   rowVersion?: number | null;
 }
 
 export interface CertificateProgramFeeMatrixUpsertRequest {
   rows: CertificateProgramFeeRowUpsertRequest[];
+  programs?: CertificateProgramFeeProgramUpsertRequest[];
 }
 
 export interface CertificateProgramFeeBulkApplyRequest {

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import {
@@ -8,62 +9,131 @@ import {
 } from "../../lib/certificate-program-fee-matrix-api";
 import type {
   CertificateProgramFeeBulkApplyRequest,
+  CertificateProgramFeeProgramResponse,
+  CertificateProgramFeeProgramUpsertRequest,
   CertificateProgramFeeRowResponse,
   CertificateProgramFeeRowUpsertRequest,
 } from "../../lib/types";
-import { CustomSelect } from "../ui/CustomSelect";
 import { useToast } from "../ui/Toast";
 
-type EditableField = keyof Pick<
+type StoredEditableField = keyof Pick<
   CertificateProgramFeeRowResponse,
   | "vatIncludedHourlyRate"
   | "contractTheoryExamFee"
   | "contractPracticeExamFee"
-  | "institutionEducationFee"
-  | "institutionMebbisEducationFee"
   | "institutionTheoryExamFee"
   | "institutionPracticeExamFee"
-  | "institutionRepeatPracticeExamFee"
-  | "privateLessonFee"
-  | "otherFee"
 >;
+
+/** Virtual editable fields:
+ *  - "contractExamFee" / "institutionExamFee" collapse a per-lessonType pair
+ *    of stored row fields into one column the user edits.
+ *  - "courseFee" is *not* per-row at all — it lives in CertificateProgramYearFee
+ *    keyed by (year, program), shared across both lesson rows of a program. */
+/** Single source of truth for program-scoped (CertificateProgramYearFee)
+ *  fields. Adding a new program-level fee here automatically propagates to:
+ *    - isProgramScopedField type guard
+ *    - readEditableValue lookup
+ *    - updateRow patch
+ *    - collectDirtyProgramFees baseline diff & payload */
+const PROGRAM_FIELD_KEYS = [
+  "courseFee",
+  "mebbisFee",
+  "failureRetryFee",
+  "privateLessonFee",
+  "educationFee",
+  "otherFee1",
+] as const satisfies ReadonlyArray<keyof CertificateProgramFeeProgramResponse>;
+
+type ProgramScopedField = (typeof PROGRAM_FIELD_KEYS)[number];
+
+type EditableField =
+  | StoredEditableField
+  | "contractExamFee"
+  | "institutionExamFee"
+  | ProgramScopedField;
+
+const PROGRAM_FIELD_SET: ReadonlySet<EditableField> = new Set(PROGRAM_FIELD_KEYS);
+
+function isProgramScopedField(field: EditableField): field is ProgramScopedField {
+  return PROGRAM_FIELD_SET.has(field);
+}
+
+function readProgramFee(
+  program: CertificateProgramFeeProgramResponse,
+  field: ProgramScopedField
+): number | null {
+  return program[field] as number | null;
+}
 
 const EDITABLE_FIELDS: { value: EditableField; label: string }[] = [
   { value: "vatIncludedHourlyRate", label: "Saat Ücreti (KDV'li)" },
-  { value: "contractTheoryExamFee", label: "Sözleşme Teorik Sınav" },
-  { value: "contractPracticeExamFee", label: "Sözleşme Direksiyon Sınav" },
-  { value: "institutionEducationFee", label: "Eğitim Ücreti" },
-  { value: "institutionMebbisEducationFee", label: "Eğitim Ücreti MEBBİS" },
-  { value: "institutionTheoryExamFee", label: "Teorik Sınav Ücreti" },
-  { value: "institutionPracticeExamFee", label: "Direksiyon Sınav Ücreti" },
-  { value: "institutionRepeatPracticeExamFee", label: "2-3-4 Hak Ücreti" },
+  { value: "contractExamFee", label: "Sözleşmeli Sınav Ücreti" },
+  { value: "institutionExamFee", label: "Kurum Sınav Ücreti" },
+  { value: "courseFee", label: "Kurs Ücreti" },
+  { value: "mebbisFee", label: "MEBBİS Eğitim Ücreti" },
+  { value: "failureRetryFee", label: "Başarısız Sınav Hak Ücreti" },
   { value: "privateLessonFee", label: "Özel Ders Ücreti" },
-  { value: "otherFee", label: "Diğer" },
+  { value: "educationFee", label: "Eğitim Ücreti" },
+  { value: "otherFee1", label: "Diğer Ücret 1" },
 ];
 
-const BACKEND_FIELD_BY_EDITABLE_FIELD: Record<EditableField, string> = {
+/** Stored row-level fields → EF column names that the BulkApply endpoint
+ *  expects in `field`. Virtual fields (contractExamFee, institutionExamFee,
+ *  program-scoped) are routed by `applyBulkToSelected` separately. */
+const BACKEND_FIELD_BY_STORED: Record<StoredEditableField, string> = {
   vatIncludedHourlyRate: "VatIncludedHourlyRate",
   contractTheoryExamFee: "ContractTheoryExamFee",
   contractPracticeExamFee: "ContractPracticeExamFee",
-  institutionEducationFee: "InstitutionEducationFee",
-  institutionMebbisEducationFee: "InstitutionMebbisEducationFee",
   institutionTheoryExamFee: "InstitutionTheoryExamFee",
   institutionPracticeExamFee: "InstitutionPracticeExamFee",
-  institutionRepeatPracticeExamFee: "InstitutionRepeatPracticeExamFee",
-  privateLessonFee: "PrivateLessonFee",
-  otherFee: "OtherFee",
 };
 
-const BULK_FIELD_LESSON_SCOPE: Partial<Record<EditableField, "theory" | "practice">> = {
-  contractTheoryExamFee: "theory",
-  institutionTheoryExamFee: "theory",
-  contractPracticeExamFee: "practice",
-  institutionPracticeExamFee: "practice",
-  institutionRepeatPracticeExamFee: "practice",
-};
+/** Virtual fields whose single column is logically two cells (one per
+ *  lessonType). Bulk input must offer two slots so theory & practice can
+ *  receive different values; otherwise typing one number would overwrite
+ *  both halves of the program. */
+type SplitExamField = "contractExamFee" | "institutionExamFee";
+const SPLIT_EXAM_FIELDS: ReadonlySet<EditableField> = new Set<EditableField>([
+  "contractExamFee",
+  "institutionExamFee",
+]);
+function isSplitExamField(field: EditableField): field is SplitExamField {
+  return SPLIT_EXAM_FIELDS.has(field);
+}
+function bulkValueKey(field: EditableField, lessonType?: "theory" | "practice"): string {
+  return lessonType ? `${field}.${lessonType}` : field;
+}
 
-function getFieldLessonScope(field: EditableField): "theory" | "practice" | null {
-  return BULK_FIELD_LESSON_SCOPE[field] ?? null;
+const ROW_EDITABLE_FIELDS = EDITABLE_FIELDS.filter(
+  (field): field is { value: Exclude<EditableField, ProgramScopedField>; label: string } =>
+    !isProgramScopedField(field.value)
+);
+
+/** Resolve a virtual exam-fee field to its concrete stored field for a
+ *  given row's lessonType. All non-virtual fields pass through unchanged.
+ *  Must NOT be called with program-scoped fields (e.g. "courseFee"). */
+function resolveStoredField(
+  field: Exclude<EditableField, ProgramScopedField>,
+  lessonType: "theory" | "practice"
+): StoredEditableField {
+  if (field === "contractExamFee") {
+    return lessonType === "theory" ? "contractTheoryExamFee" : "contractPracticeExamFee";
+  }
+  if (field === "institutionExamFee") {
+    return lessonType === "theory" ? "institutionTheoryExamFee" : "institutionPracticeExamFee";
+  }
+  return field;
+}
+
+function readEditableValue(
+  row: CertificateProgramFeeRowResponse,
+  field: EditableField
+): number | null {
+  if (isProgramScopedField(field)) {
+    return readProgramFee(row.program, field);
+  }
+  return row[resolveStoredField(field, row.lessonType)] as number | null;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -111,50 +181,29 @@ function calculateVatAmount(row: CertificateProgramFeeRowResponse): number | nul
     : roundMoney((row.vatIncludedHourlyRate - vatExcludedHourlyRate) * row.lessonHours);
 }
 
-function calculateContractTotal(row: CertificateProgramFeeRowResponse): number | null {
-  const lessonFee = calculateLessonFee(row);
-  return lessonFee == null
+function calculateLessonFeeVatExcluded(row: CertificateProgramFeeRowResponse): number | null {
+  const vatExcludedHourlyRate = calculateVatExcludedHourlyRate(row);
+  return vatExcludedHourlyRate == null
     ? null
-    : roundMoney(
-        lessonFee +
-          (row.contractTheoryExamFee ?? 0) +
-          (row.contractPracticeExamFee ?? 0)
-      );
+    : roundMoney(vatExcludedHourlyRate * row.lessonHours);
 }
 
-function calculateRowTotal(row: CertificateProgramFeeRowResponse): number | null {
-  const lessonFee = calculateLessonFee(row);
-  const manualTotal =
-    (row.contractTheoryExamFee ?? 0) +
-    (row.contractPracticeExamFee ?? 0) +
-    (row.institutionEducationFee ?? 0) +
-    (row.institutionMebbisEducationFee ?? 0) +
-    (row.institutionTheoryExamFee ?? 0) +
-    (row.institutionPracticeExamFee ?? 0) +
-    (row.institutionRepeatPracticeExamFee ?? 0) +
-    (row.privateLessonFee ?? 0) +
-    (row.otherFee ?? 0);
-
-  return lessonFee == null && manualTotal === 0 ? null : roundMoney((lessonFee ?? 0) + manualTotal);
-}
-
-function calculateProgramTotal(
+/** Sum a per-row calculation across both lesson rows (theory + practice) of
+ *  a program, so the contract subtotals can be shown once in a merged cell. */
+function sumByProgram(
   rows: CertificateProgramFeeRowResponse[],
-  programId: string
+  programId: string,
+  perRow: (row: CertificateProgramFeeRowResponse) => number | null
 ): number | null {
   let total = 0;
   let hasValue = false;
-
   for (const row of rows) {
     if (row.program.id !== programId) continue;
-
-    const rowTotal = calculateRowTotal(row);
-    if (rowTotal == null) continue;
-
-    total += rowTotal;
+    const value = perRow(row);
+    if (value == null) continue;
+    total += value;
     hasValue = true;
   }
-
   return hasValue ? roundMoney(total) : null;
 }
 
@@ -162,8 +211,8 @@ function rowKey(row: CertificateProgramFeeRowResponse): string {
   return `${row.program.id}:${row.lessonType}`;
 }
 
-function hasEditableValue(row: CertificateProgramFeeRowResponse): boolean {
-  return EDITABLE_FIELDS.some((field) => row[field.value] != null);
+function hasRowEditableValue(row: CertificateProgramFeeRowResponse): boolean {
+  return ROW_EDITABLE_FIELDS.some((field) => readEditableValue(row, field.value) != null);
 }
 
 function toUpsertRow(row: CertificateProgramFeeRowResponse): CertificateProgramFeeRowUpsertRequest {
@@ -174,21 +223,20 @@ function toUpsertRow(row: CertificateProgramFeeRowResponse): CertificateProgramF
     vatIncludedHourlyRate: row.vatIncludedHourlyRate,
     contractTheoryExamFee: isTheory ? row.contractTheoryExamFee : null,
     contractPracticeExamFee: isTheory ? null : row.contractPracticeExamFee,
-    institutionEducationFee: row.institutionEducationFee,
-    institutionMebbisEducationFee: row.institutionMebbisEducationFee,
     institutionTheoryExamFee: isTheory ? row.institutionTheoryExamFee : null,
     institutionPracticeExamFee: isTheory ? null : row.institutionPracticeExamFee,
-    institutionRepeatPracticeExamFee: isTheory ? null : row.institutionRepeatPracticeExamFee,
-    privateLessonFee: row.privateLessonFee,
-    otherFee: row.otherFee,
     rowVersion: row.rowVersion,
   };
 }
 
 type ColumnKind = "info" | "calculated" | "editable";
+type ColumnGroup = "contract" | "institution";
 type Column = {
   key: string;
   label: string;
+  /** Full, unabbreviated name shown as a hover tooltip when the visible label
+   *  is shortened to fit the column width. */
+  fullLabel?: string;
   kind: ColumnKind;
   editableField?: EditableField;
   /** The cell renderer for non-editable columns. */
@@ -200,6 +248,8 @@ type Column = {
   width?: number;
   /** When true, column header + cells stick to the left while scrolling. */
   sticky?: boolean;
+  /** Collapsible group this column belongs to. Sticky info columns stay grouped as "—". */
+  group?: ColumnGroup;
 };
 
 function renderSourceLicense(row: CertificateProgramFeeRowResponse): React.ReactNode {
@@ -227,7 +277,14 @@ function compareLessonType(
 }
 
 function isMergedProgramColumn(column: Column): boolean {
-  return column.key === "source" || column.key === "target" || column.key === "programTotal";
+  return (
+    column.key === "select" ||
+    column.key === "source" ||
+    column.key === "target" ||
+    column.key === "contractTotalLessonFeeVatExcluded" ||
+    column.key === "contractTotalVat" ||
+    (column.editableField ? isProgramScopedField(column.editableField) : false)
+  );
 }
 
 function isFirstProgramRow(
@@ -246,6 +303,16 @@ function countProgramRows(
 }
 
 const COLUMNS: Column[] = [
+  {
+    // Bulk-selection checkbox; rendered manually in the table body so it can
+    // hook into selection state. The render here is just a placeholder.
+    key: "select",
+    label: "",
+    kind: "info",
+    sticky: true,
+    width: 32,
+    render: () => null,
+  },
   {
     key: "source",
     label: "Mevcut",
@@ -275,134 +342,225 @@ const COLUMNS: Column[] = [
   {
     key: "lessonHours",
     label: "Saat",
+    fullLabel: "Ders Saati",
     kind: "info",
     width: 56,
     render: (row) => row.lessonHours,
   },
   {
+    key: "contractExamFee",
+    label: "Söz. Sınav",
+    fullLabel: "Sözleşmeli Sınav Ücreti",
+    kind: "editable",
+    editableField: "contractExamFee",
+    width: 88,
+    group: "contract",
+  },
+  {
     key: "vatIncludedHourlyRate",
     label: "Saat KDV'li",
+    fullLabel: "Saat Ücreti (KDV dahil)",
     kind: "editable",
     editableField: "vatIncludedHourlyRate",
     width: 92,
+    group: "contract",
   },
   {
     key: "vatExcludedHourlyRate",
     label: "Saat KDV'siz",
+    fullLabel: "Saat Ücreti (KDV hariç)",
     kind: "calculated",
     width: 80,
     render: (row) => formatMoney(calculateVatExcludedHourlyRate(row)),
+    group: "contract",
   },
   {
     key: "lessonFee",
     label: "Ders Ücreti",
+    fullLabel: "Toplam Ders Ücreti (Saat KDV'li × Ders Saati)",
     kind: "calculated",
     width: 84,
     render: (row) => formatMoney(calculateLessonFee(row)),
+    group: "contract",
   },
   {
     key: "vatAmount",
     label: "KDV",
+    fullLabel: "Toplam KDV Tutarı",
     kind: "calculated",
     width: 72,
     render: (row) => formatMoney(calculateVatAmount(row)),
+    group: "contract",
   },
   {
-    key: "contractTotal",
-    label: "Sözleşme Toplam",
+    key: "contractTotalLessonFeeVatExcluded",
+    label: "Söz. Top. KDV'siz",
+    fullLabel: "Sözleşme Toplam Ders Ücreti (KDV hariç, Teorik + Direksiyon)",
+    kind: "calculated",
+    width: 104,
+    render: (row, rows) =>
+      formatMoney(sumByProgram(rows, row.program.id, calculateLessonFeeVatExcluded)),
+    group: "contract",
+  },
+  {
+    key: "contractTotalVat",
+    label: "Söz. Top. KDV",
+    fullLabel: "Sözleşme Toplam KDV (Teorik + Direksiyon)",
     kind: "calculated",
     width: 96,
-    render: (row) => formatMoney(calculateContractTotal(row)),
+    render: (row, rows) =>
+      formatMoney(sumByProgram(rows, row.program.id, calculateVatAmount)),
+    group: "contract",
   },
   {
-    key: "contractTheoryExamFee",
-    label: "Söz. Teorik",
+    key: "institutionExamFee",
+    label: "Sınav Ücreti",
+    fullLabel: "Kurum Sınav Ücreti",
     kind: "editable",
-    editableField: "contractTheoryExamFee",
-    width: 76,
-  },
-  {
-    key: "contractPracticeExamFee",
-    label: "Söz. Direksiyon",
-    kind: "editable",
-    editableField: "contractPracticeExamFee",
-    width: 84,
-  },
-  {
-    key: "institutionEducationFee",
-    label: "Eğitim",
-    kind: "editable",
-    editableField: "institutionEducationFee",
+    editableField: "institutionExamFee",
     width: 92,
+    group: "institution",
   },
   {
-    key: "institutionMebbisEducationFee",
+    key: "courseFee",
+    label: "Kurs Ücreti",
+    fullLabel: "Kurs Ücreti (program bazında, ders türünden bağımsız)",
+    kind: "editable",
+    editableField: "courseFee",
+    width: 96,
+    group: "institution",
+  },
+  {
+    key: "mebbisFee",
     label: "MEBBİS",
+    fullLabel: "MEBBİS Eğitim Ücreti (program bazında, ders türünden bağımsız)",
     kind: "editable",
-    editableField: "institutionMebbisEducationFee",
-    width: 92,
+    editableField: "mebbisFee",
+    width: 96,
+    group: "institution",
   },
   {
-    key: "institutionTheoryExamFee",
-    label: "Teorik Sınav",
+    key: "failureRetryFee",
+    label: "Başarısız Hak",
+    fullLabel: "Başarısız Sınav Hak Ücreti (program bazında, ders türünden bağımsız)",
     kind: "editable",
-    editableField: "institutionTheoryExamFee",
-    width: 80,
-  },
-  {
-    key: "institutionPracticeExamFee",
-    label: "Direksiyon Sınav",
-    kind: "editable",
-    editableField: "institutionPracticeExamFee",
-    width: 84,
-  },
-  {
-    key: "institutionRepeatPracticeExamFee",
-    label: "2-3-4 Hak",
-    kind: "editable",
-    editableField: "institutionRepeatPracticeExamFee",
-    width: 92,
+    editableField: "failureRetryFee",
+    width: 100,
+    group: "institution",
   },
   {
     key: "privateLessonFee",
     label: "Özel Ders",
+    fullLabel: "Özel Ders Ücreti (program bazında, ders türünden bağımsız)",
     kind: "editable",
     editableField: "privateLessonFee",
-    width: 92,
+    width: 96,
+    group: "institution",
   },
   {
-    key: "otherFee",
-    label: "Diğer",
+    key: "educationFee",
+    label: "Eğitim",
+    fullLabel: "Eğitim Ücreti (program bazında, ders türünden bağımsız)",
     kind: "editable",
-    editableField: "otherFee",
-    width: 80,
+    editableField: "educationFee",
+    width: 96,
+    group: "institution",
   },
   {
-    key: "rowTotal",
-    label: "Satır Toplamı",
-    kind: "calculated",
-    width: 88,
-    render: (row) => formatMoney(calculateRowTotal(row)),
-  },
-  {
-    key: "programTotal",
-    label: "Teori + Direksiyon",
-    kind: "calculated",
-    width: 108,
-    render: (row, rows) => formatMoney(calculateProgramTotal(rows, row.program.id)),
+    key: "otherFee1",
+    label: "Diğer Ücret 1",
+    fullLabel: "Diğer Ücret 1 (program bazında, ders türünden bağımsız)",
+    kind: "editable",
+    editableField: "otherFee1",
+    width: 96,
+    group: "institution",
   },
 ];
 
-const STICKY_OFFSETS = (() => {
+const GROUP_LABELS: Record<ColumnGroup, string> = {
+  contract: "Sözleşme",
+  institution: "Kurum",
+};
+
+const GROUP_COLLAPSED_WIDTH = 132;
+
+function countGroupColumns(group: ColumnGroup): number {
+  return COLUMNS.reduce((acc, column) => (column.group === group ? acc + 1 : acc), 0);
+}
+
+function countLeadingUngroupedColumns(): number {
+  let count = 0;
+  for (const column of COLUMNS) {
+    if (column.group) break;
+    count += 1;
+  }
+  return count;
+}
+
+function renderGroupHeaderCells(
+  collapsedGroups: Set<ColumnGroup>,
+  toggleGroup: (group: ColumnGroup) => void
+): React.ReactNode {
+  const leadingCount = countLeadingUngroupedColumns();
+  const cells: React.ReactNode[] = [];
+
+  if (leadingCount > 0) {
+    cells.push(
+      <th
+        aria-hidden="true"
+        className="fee-matrix-group-th fee-matrix-group-th--spacer"
+        colSpan={leadingCount}
+        key="lead-spacer"
+      />
+    );
+  }
+
+  for (const group of ["contract", "institution"] as ColumnGroup[]) {
+    const isCollapsed = collapsedGroups.has(group);
+    const span = isCollapsed ? 1 : countGroupColumns(group);
+    cells.push(
+      <th
+        className={`fee-matrix-group-th fee-matrix-group-th--${group}${
+          isCollapsed ? " is-collapsed" : ""
+        }`}
+        colSpan={span}
+        key={`group-${group}`}
+        scope="colgroup"
+      >
+        <button
+          aria-expanded={!isCollapsed}
+          className="fee-matrix-group-toggle"
+          onClick={() => toggleGroup(group)}
+          title={isCollapsed ? "Grubu aç" : "Grubu kapat"}
+          type="button"
+        >
+          <span aria-hidden="true" className="fee-matrix-group-toggle-chevron">
+            {isCollapsed ? "▸" : "▾"}
+          </span>
+          <span className="fee-matrix-group-toggle-label">{GROUP_LABELS[group]}</span>
+        </button>
+      </th>
+    );
+  }
+
+  return cells;
+}
+
+/** Sticky `left` offsets per column key. The select-checkbox column appears
+ *  only in selection mode, so its width must be excluded from the offsets
+ *  when the mode is off — otherwise every other sticky cell would render
+ *  shifted right by the missing column's width. */
+function buildStickyOffsets(includeSelect: boolean): Map<string, number> {
   let offset = 0;
   const map = new Map<string, number>();
   for (const column of COLUMNS) {
     if (!column.sticky) continue;
+    if (column.key === "select" && !includeSelect) continue;
     map.set(column.key, offset);
     offset += column.width ?? 0;
   }
   return map;
-})();
+}
 
 function countDistinctPrograms(rows: CertificateProgramFeeRowResponse[]): number {
   const ids = new Set<string>();
@@ -412,7 +570,7 @@ function countDistinctPrograms(rows: CertificateProgramFeeRowResponse[]): number
 
 /** A row counts as "dolu" only when every editable field on it has a value. */
 function isRowFullyFilled(row: CertificateProgramFeeRowResponse): boolean {
-  return EDITABLE_FIELDS.every((field) => row[field.value] != null);
+  return EDITABLE_FIELDS.every((field) => readEditableValue(row, field.value) != null);
 }
 
 function countFullyFilledRows(rows: CertificateProgramFeeRowResponse[]): number {
@@ -428,11 +586,43 @@ function snapshotEditableFields(
   for (const row of rows) {
     const fields: Partial<Record<EditableField, number | null>> = {};
     for (const field of EDITABLE_FIELDS) {
-      fields[field.value] = row[field.value] as number | null;
+      fields[field.value] = readEditableValue(row, field.value);
     }
     map.set(rowKey(row), fields);
   }
   return map;
+}
+
+/** Build the programs[] payload for save: one entry per program whose
+ *  any program-scoped fee diverged from baseline since the last sync. The
+ *  payload always includes all current values so the backend can persist
+ *  them together (a single CertificateProgramYearFee row holds them all). */
+function collectDirtyProgramFees(
+  rows: CertificateProgramFeeRowResponse[],
+  baseline: Map<string, Partial<Record<EditableField, number | null>>>
+): CertificateProgramFeeProgramUpsertRequest[] {
+  const result: CertificateProgramFeeProgramUpsertRequest[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (seen.has(row.program.id)) continue;
+    seen.add(row.program.id);
+    const original = baseline.get(rowKey(row));
+    const currentByKey: Partial<Record<ProgramScopedField, number | null>> = {};
+    let dirty = false;
+    for (const key of PROGRAM_FIELD_KEYS) {
+      const baselineValue = original?.[key] ?? null;
+      const currentValue = readProgramFee(row.program, key) ?? null;
+      currentByKey[key] = currentValue;
+      if (baselineValue !== currentValue) dirty = true;
+    }
+    if (!dirty) continue;
+    result.push({
+      certificateProgramId: row.program.id,
+      ...currentByKey,
+      rowVersion: row.program.yearFeeRowVersion,
+    });
+  }
+  return result;
 }
 
 function isRowDirty(
@@ -440,9 +630,9 @@ function isRowDirty(
   baseline: Map<string, Partial<Record<EditableField, number | null>>>
 ): boolean {
   const original = baseline.get(rowKey(row));
-  if (!original) return EDITABLE_FIELDS.some((f) => row[f.value] != null);
+  if (!original) return EDITABLE_FIELDS.some((f) => readEditableValue(row, f.value) != null);
   for (const field of EDITABLE_FIELDS) {
-    if ((original[field.value] ?? null) !== ((row[field.value] as number | null) ?? null)) {
+    if ((original[field.value] ?? null) !== (readEditableValue(row, field.value) ?? null)) {
       return true;
     }
   }
@@ -459,47 +649,43 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedTargets, setExpandedTargets] = useState<Set<string>>(new Set());
-  const [bulkTarget, setBulkTarget] = useState("");
-  const [bulkLessonType, setBulkLessonType] = useState<"" | "theory" | "practice">("");
-  const [bulkField, setBulkField] = useState<EditableField>("vatIncludedHourlyRate");
-  const [bulkValue, setBulkValue] = useState("");
-  const [bulkVisible, setBulkVisible] = useState(false);
-  const scopedBulkLessonType = getFieldLessonScope(bulkField);
-  const effectiveBulkLessonType = scopedBulkLessonType ?? bulkLessonType;
-  const bulkPanelRef = useRef<HTMLDivElement | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<ColumnGroup>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedProgramIds, setSelectedProgramIds] = useState<Set<string>>(new Set());
+  /** Values currently typed into the inline bulk-apply row.
+   *  Key is either the EditableField name (e.g. "courseFee") for single-slot
+   *  fields, or "<field>.theory" / "<field>.practice" for the split exam-fee
+   *  columns where theory and practice need independent values. */
+  const [bulkValues, setBulkValues] = useState<Record<string, string>>({});
   const baselineRef = useRef<Map<string, Partial<Record<EditableField, number | null>>>>(new Map());
-  const [undoSnapshot, setUndoSnapshot] = useState<{
-    rows: CertificateProgramFeeRowResponse[];
-    label: string;
-  } | null>(null);
-  const undoTimerRef = useRef<number | null>(null);
 
-  const clearUndoTimer = () => {
-    if (undoTimerRef.current != null) {
-      window.clearTimeout(undoTimerRef.current);
-      undoTimerRef.current = null;
-    }
+  const visibleColumns = useMemo(
+    () => COLUMNS.filter((column) => column.key !== "select" || selectionMode),
+    [selectionMode]
+  );
+  const stickyOffsets = useMemo(() => buildStickyOffsets(selectionMode), [selectionMode]);
+
+  const toggleProgramSelection = (programId: string) => {
+    setSelectedProgramIds((current) => {
+      const next = new Set(current);
+      if (next.has(programId)) next.delete(programId);
+      else next.add(programId);
+      return next;
+    });
   };
 
-  const offerUndo = (snapshot: CertificateProgramFeeRowResponse[], label: string) => {
-    clearUndoTimer();
-    setUndoSnapshot({ rows: snapshot, label });
-    undoTimerRef.current = window.setTimeout(() => {
-      setUndoSnapshot(null);
-      undoTimerRef.current = null;
-    }, 5000);
-  };
+  const clearProgramSelection = () => setSelectedProgramIds(new Set());
 
-  useEffect(() => () => clearUndoTimer(), []);
-
-  /** Select a section as the bulk target: open the bulk panel, focus only
-   *  that section in the list, and bring the panel into view. */
-  const selectForBulk = (target: string) => {
-    setBulkTarget(target);
-    setBulkVisible(true);
-    setExpandedTargets(new Set([target]));
-    requestAnimationFrame(() => {
-      bulkPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const toggleSelectionMode = () => {
+    setSelectionMode((current) => {
+      const next = !current;
+      if (!next) {
+        // Leaving selection mode: drop any pending selection + bulk inputs
+        // so reopening starts from a clean slate.
+        setSelectedProgramIds(new Set());
+        setBulkValues({});
+      }
+      return next;
     });
   };
 
@@ -552,21 +738,6 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     }));
   }, [rows]);
 
-  const targetOptions = useMemo(
-    () => sections.map((section) => section.target),
-    [sections]
-  );
-
-  const affectedBulkRowCount = useMemo(
-    () =>
-      rows.filter((row) => {
-        if (bulkTarget && row.program.targetLicenseClass !== bulkTarget) return false;
-        if (effectiveBulkLessonType && row.lessonType !== effectiveBulkLessonType) return false;
-        return true;
-      }).length,
-    [bulkTarget, effectiveBulkLessonType, rows]
-  );
-
   const allExpanded =
     sections.length > 0 && sections.every((section) => expandedTargets.has(section.target));
 
@@ -592,8 +763,29 @@ export function CertificateProgramFeeMatrixSettingsSection() {
 
   const updateRow = (key: string, field: EditableField, value: string) => {
     const parsed = parseAmount(value);
+    if (isProgramScopedField(field)) {
+      // Program-scoped fees live on the program, not the row. The clicked
+      // cell identifies the program via its rowKey; mirror the new value
+      // onto every row of that program so the UI stays consistent.
+      const target = rows.find((r) => rowKey(r) === key);
+      if (!target) return;
+      const programId = target.program.id;
+      const programPatch: Partial<CertificateProgramFeeProgramResponse> = { [field]: parsed };
+      setRows((current) =>
+        current.map((row) =>
+          row.program.id === programId
+            ? { ...row, program: { ...row.program, ...programPatch } }
+            : row
+        )
+      );
+      return;
+    }
     setRows((current) =>
-      current.map((row) => (rowKey(row) === key ? { ...row, [field]: parsed } : row))
+      current.map((row) => {
+        if (rowKey(row) !== key) return row;
+        const stored = resolveStoredField(field, row.lessonType);
+        return { ...row, [stored]: parsed };
+      })
     );
   };
 
@@ -613,11 +805,27 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     setExpandedTargets(expand ? new Set(sections.map((s) => s.target)) : new Set());
   };
 
+  const toggleGroup = (group: ColumnGroup) => {
+    setCollapsedGroups((current) => {
+      const otherGroup: ColumnGroup = group === "contract" ? "institution" : "contract";
+      if (current.has(group)) {
+        // Opening this group → collapse the other one so only one stays open.
+        return new Set<ColumnGroup>([otherGroup]);
+      }
+      // Closing this group → open the other one.
+      return new Set<ColumnGroup>([group]);
+    });
+  };
+
   const save = async () => {
     setSaving(true);
     try {
-      const payloadRows = rows.filter((row) => row.id || hasEditableValue(row)).map(toUpsertRow);
-      const response = await updateCertificateProgramFeeMatrix(year, { rows: payloadRows });
+      const payloadRows = rows.filter((row) => row.id || hasRowEditableValue(row)).map(toUpsertRow);
+      const payloadPrograms = collectDirtyProgramFees(rows, baselineRef.current);
+      const response = await updateCertificateProgramFeeMatrix(year, {
+        rows: payloadRows,
+        programs: payloadPrograms,
+      });
       setRows(response.rows);
       baselineRef.current = snapshotEditableFields(response.rows);
       showToast("Ücret matrisi kaydedildi");
@@ -628,61 +836,121 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     }
   };
 
-  const applyBulk = async () => {
-    const value = parseAmount(bulkValue);
-    const payload: CertificateProgramFeeBulkApplyRequest = {
-      targetLicenseClass: bulkTarget || null,
-      lessonType: effectiveBulkLessonType || null,
-      field: BACKEND_FIELD_BY_EDITABLE_FIELD[bulkField],
-      value,
-    };
-    const fieldLabel =
-      EDITABLE_FIELDS.find((f) => f.value === bulkField)?.label ?? bulkField;
-    const snapshot = rows;
+  const selectionCount = selectedProgramIds.size;
+
+  const setBulkValueFor = (
+    field: EditableField,
+    lessonType: "theory" | "practice" | undefined,
+    value: string
+  ) => {
+    const key = bulkValueKey(field, lessonType);
+    setBulkValues((current) => ({ ...current, [key]: value }));
+  };
+
+  /** Push the value typed into the bulk-row's column for `field` to every
+   *  selected program. For split exam fields, `lessonType` picks which half
+   *  receives the value; otherwise the call covers both halves (or the whole
+   *  program-scoped fee). Returns whether the call ran so the caller can
+   *  decide whether to clear the input. */
+  const applyBulkField = async (
+    field: EditableField,
+    lessonType?: "theory" | "practice"
+  ): Promise<boolean> => {
+    const key = bulkValueKey(field, lessonType);
+    const parsed = parseAmount(bulkValues[key] ?? "");
+    if (parsed == null) return false;
+    const targetIds = Array.from(selectedProgramIds);
+    if (targetIds.length === 0) return false;
+
+    // Map the virtual/stored editable field to backend bulk-apply expansions.
+    let expansions: { backendField: string; lessonType: "theory" | "practice" | null }[];
+    if (isProgramScopedField(field)) {
+      expansions = [{ backendField: `yearFee.${field}`, lessonType: null }];
+    } else if (field === "contractExamFee") {
+      const all = [
+        { backendField: "ContractTheoryExamFee", lessonType: "theory" as const },
+        { backendField: "ContractPracticeExamFee", lessonType: "practice" as const },
+      ];
+      expansions = lessonType ? all.filter((e) => e.lessonType === lessonType) : all;
+    } else if (field === "institutionExamFee") {
+      const all = [
+        { backendField: "InstitutionTheoryExamFee", lessonType: "theory" as const },
+        { backendField: "InstitutionPracticeExamFee", lessonType: "practice" as const },
+      ];
+      expansions = lessonType ? all.filter((e) => e.lessonType === lessonType) : all;
+    } else {
+      expansions = [
+        {
+          backendField: BACKEND_FIELD_BY_STORED[field as StoredEditableField],
+          lessonType: null,
+        },
+      ];
+    }
 
     setSaving(true);
     try {
-      const response = await bulkApplyCertificateProgramFeeMatrix(year, payload);
-      setRows(response.rows);
-      baselineRef.current = snapshotEditableFields(response.rows);
-      offerUndo(snapshot, `Toplu giriş uygulandı (${fieldLabel})`);
+      let lastResponse: { rows: CertificateProgramFeeRowResponse[] } | null = null;
+      for (const expansion of expansions) {
+        const payload: CertificateProgramFeeBulkApplyRequest = {
+          targetLicenseClass: null,
+          certificateProgramIds: targetIds,
+          lessonType: expansion.lessonType,
+          field: expansion.backendField,
+          value: parsed,
+        };
+        lastResponse = await bulkApplyCertificateProgramFeeMatrix(year, payload);
+      }
+      if (lastResponse) {
+        setRows(lastResponse.rows);
+        baselineRef.current = snapshotEditableFields(lastResponse.rows);
+      }
+      const fieldLabel = EDITABLE_FIELDS.find((f) => f.value === field)?.label ?? field;
+      const lessonSuffix =
+        lessonType === "theory" ? " (Teorik)" : lessonType === "practice" ? " (Direksiyon)" : "";
+      showToast(`${targetIds.length} programa "${fieldLabel}${lessonSuffix}" uygulandı`);
+      setBulkValueFor(field, lessonType, "");
+      return true;
     } catch {
-      showToast("Toplu giriş uygulanamadı", "error");
+      showToast("Toplu uygulama başarısız", "error");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const undoLastChange = async () => {
-    if (!undoSnapshot) return;
-    const snapshotByKey = new Map(undoSnapshot.rows.map((row) => [rowKey(row), row]));
-    clearUndoTimer();
-    setUndoSnapshot(null);
-    setSaving(true);
-    try {
-      // Use the *current* rows (with fresh rowVersion) but overlay the
-      // snapshot's editable values, so we restore old numbers without
-      // tripping concurrency on the rows the bulk apply just touched.
-      const merged = rows.map((current) => {
-        const old = snapshotByKey.get(rowKey(current));
-        if (!old) return current;
-        const next = { ...current };
-        for (const field of EDITABLE_FIELDS) {
-          (next as Record<string, unknown>)[field.value] = old[field.value];
+  /** Visual-feedback helper for the bulk-row column highlight: does the
+   *  user have a parseable amount typed for this column right now? Split
+   *  exam fields highlight if either of the two slots is filled. */
+  const bulkColumnHasValue = (field: EditableField): boolean => {
+    if (isSplitExamField(field)) {
+      return (
+        parseAmount(bulkValues[bulkValueKey(field, "theory")] ?? "") != null ||
+        parseAmount(bulkValues[bulkValueKey(field, "practice")] ?? "") != null
+      );
+    }
+    return parseAmount(bulkValues[bulkValueKey(field)] ?? "") != null;
+  };
+
+  /** Apply every column whose bulk input has a parseable value. Split exam
+   *  fields contribute one job per filled side. Run sequentially so backend
+   *  writes stay ordered and we don't race ourselves on RowVersion. */
+  const applyAllBulkFields = async () => {
+    const jobs: { field: EditableField; lessonType?: "theory" | "practice" }[] = [];
+    for (const f of EDITABLE_FIELDS) {
+      if (isSplitExamField(f.value)) {
+        for (const lessonType of ["theory", "practice"] as const) {
+          if (parseAmount(bulkValues[bulkValueKey(f.value, lessonType)] ?? "") != null) {
+            jobs.push({ field: f.value, lessonType });
+          }
         }
-        return next;
-      });
-      const payloadRows = merged
-        .filter((row) => row.id || hasEditableValue(row))
-        .map(toUpsertRow);
-      const response = await updateCertificateProgramFeeMatrix(year, { rows: payloadRows });
-      setRows(response.rows);
-      baselineRef.current = snapshotEditableFields(response.rows);
-      showToast("İşlem geri alındı");
-    } catch {
-      showToast("Geri alma başarısız", "error");
-    } finally {
-      setSaving(false);
+      } else if (parseAmount(bulkValues[bulkValueKey(f.value)] ?? "") != null) {
+        jobs.push({ field: f.value });
+      }
+    }
+    if (jobs.length === 0) return;
+    for (const job of jobs) {
+      // eslint-disable-next-line no-await-in-loop
+      await applyBulkField(job.field, job.lessonType);
     }
   };
 
@@ -714,7 +982,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
           Geldiğin sayfaya dön
         </button>
       </div>
-      <section className={`settings-surface fee-matrix${bulkVisible ? " fee-matrix--bulk-open" : ""}`}>
+      <section className="settings-surface fee-matrix">
         <div className="settings-surface-header">
           <div>
             <div className="settings-surface-title">Ehliyet Ücret Matrisi</div>
@@ -726,151 +994,99 @@ export function CertificateProgramFeeMatrixSettingsSection() {
             </div>
           </div>
           <div className="settings-module-actions fee-matrix-toolbar">
-            <label className="fee-matrix-year-field">
-              <span>Yıl</span>
-              <input
-                className="form-input fee-matrix-year-input"
-                min={2000}
-                max={2100}
-                onChange={(event) => setYear(Number(event.target.value) || CURRENT_YEAR)}
-                type="number"
-                value={year}
-              />
-            </label>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setRefreshKey((x) => x + 1)}
-              type="button"
-            >
-              Yenile
-            </button>
+            {selectionMode ? null : (
+              <>
+                <label className="fee-matrix-year-field">
+                  <span>Yıl</span>
+                  <input
+                    className="form-input fee-matrix-year-input"
+                    min={2000}
+                    max={2100}
+                    onChange={(event) => setYear(Number(event.target.value) || CURRENT_YEAR)}
+                    type="number"
+                    value={year}
+                  />
+                </label>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setRefreshKey((x) => x + 1)}
+                  type="button"
+                >
+                  Yenile
+                </button>
+                {sections.length > 0 ? (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setAllExpanded(!allExpanded)}
+                    type="button"
+                  >
+                    {allExpanded ? "Tümünü daralt" : "Tümünü genişlet"}
+                  </button>
+                ) : null}
+                {isDirty ? (
+                  <span className="fee-matrix-dirty-badge" title="Kaydedilmemiş değişiklik var">
+                    {dirtyCount} satır kaydedilmedi
+                  </span>
+                ) : null}
+              </>
+            )}
             {sections.length > 0 ? (
               <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setAllExpanded(!allExpanded)}
+                className={`btn btn-secondary btn-sm${selectionMode ? " active" : ""}`}
+                onClick={toggleSelectionMode}
                 type="button"
               >
-                {allExpanded ? "Tümünü daralt" : "Tümünü genişlet"}
+                {selectionMode ? "Seçimi kapat" : "Toplu seçim"}
               </button>
             ) : null}
-            {isDirty ? (
-              <span className="fee-matrix-dirty-badge" title="Kaydedilmemiş değişiklik var">
-                {dirtyCount} satır kaydedilmedi
-              </span>
-            ) : null}
-            <button
-              className="btn btn-primary btn-sm"
-              disabled={saving || !isDirty}
-              onClick={save}
-              title={isDirty ? "Kaydet (⌘/Ctrl+S)" : "Değişiklik yok"}
-              type="button"
-            >
-              {saving ? "Kaydediliyor..." : "Kaydet"}
-            </button>
-            <button
-              aria-expanded={bulkVisible}
-              className={`btn btn-sm ${bulkVisible ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => setBulkVisible((current) => !current)}
-              type="button"
-            >
-              {bulkVisible ? "Toplu girişi gizle" : "Toplu giriş"}
-            </button>
+            {selectionMode ? null : (
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={saving || !isDirty}
+                onClick={save}
+                title={isDirty ? "Kaydet (⌘/Ctrl+S)" : "Değişiklik yok"}
+                type="button"
+              >
+                {saving ? "Kaydediliyor..." : "Kaydet"}
+              </button>
+            )}
           </div>
         </div>
 
         <div className="settings-surface-body fee-matrix-body">
-          {bulkVisible ? (
-          <div className="fee-matrix-bulk" ref={bulkPanelRef}>
-            <div className="fee-matrix-bulk-header">
-              <span className="fee-matrix-bulk-summary-title">
-                Toplu giriş
-                {bulkTarget ? (
-                  <span className="fee-matrix-bulk-target-pill">{bulkTarget}</span>
-                ) : null}
+          {selectionMode ? (
+            <div className="fee-matrix-bulk-hint" role="status">
+              <span>
+                {selectionCount > 0
+                  ? `${selectionCount} program seçili. `
+                  : "Satırların başındaki kutucuklardan program seçin. "}
+                Tablo başlığının altındaki satıra değer yazıp Enter'a basın —
+                seçili tüm programlarda o alan <em>üzerine yazılır</em>.
               </span>
-              <span className="fee-matrix-bulk-summary-meta">
-                {affectedBulkRowCount} satıra etki edecek
-                {bulkTarget ? (
-                  <button
-                    className="fee-matrix-bulk-clear"
-                    onClick={() => setBulkTarget("")}
-                    title="Hedef ehliyet kısıtlamasını kaldır"
-                    type="button"
-                  >
-                    × Tümünü kapsa
-                  </button>
-                ) : null}
-              </span>
-            </div>
-            <div className="fee-matrix-bulk-grid">
-              <label className="fee-matrix-bulk-field">
-                <span>Hedef ehliyet</span>
-                <CustomSelect
-                  className="form-select"
-                  onChange={(event) => setBulkTarget(event.target.value)}
-                  value={bulkTarget}
-                >
-                  <option value="">Tümü</option>
-                  {targetOptions.map((target) => (
-                    <option key={target} value={target}>
-                      {target} geçişleri
-                    </option>
-                  ))}
-                </CustomSelect>
-              </label>
-              <label className="fee-matrix-bulk-field">
-                <span>Ders türü</span>
-                <CustomSelect
-                  className="form-select"
-                  disabled={scopedBulkLessonType !== null}
-                  onChange={(event) =>
-                    setBulkLessonType(event.target.value as "" | "theory" | "practice")
-                  }
-                  value={effectiveBulkLessonType}
-                >
-                  <option value="">Teorik + Direksiyon</option>
-                  <option value="theory">Sadece teorik</option>
-                  <option value="practice">Sadece direksiyon</option>
-                </CustomSelect>
-              </label>
-              <label className="fee-matrix-bulk-field">
-                <span>Alan</span>
-                <CustomSelect
-                  className="form-select"
-                  onChange={(event) => setBulkField(event.target.value as EditableField)}
-                  value={bulkField}
-                >
-                  {EDITABLE_FIELDS.map((field) => (
-                    <option key={field.value} value={field.value}>
-                      {field.label}
-                    </option>
-                  ))}
-                </CustomSelect>
-              </label>
-              <label className="fee-matrix-bulk-field">
-                <span>Tutar</span>
-                <input
-                  className="form-input"
-                  inputMode="decimal"
-                  onChange={(event) => setBulkValue(event.target.value)}
-                  placeholder="Örn. 1500,00 (boş = sıfırla)"
-                  value={bulkValue}
-                />
-              </label>
-              <div className="fee-matrix-bulk-action">
+              <div className="fee-matrix-bulk-hint-actions">
                 <button
                   className="btn btn-secondary btn-sm"
-                  disabled={saving || affectedBulkRowCount === 0}
-                  onClick={applyBulk}
+                  disabled={saving || selectionCount === 0}
+                  onClick={clearProgramSelection}
                   type="button"
                 >
-                  {affectedBulkRowCount > 0
-                    ? `${affectedBulkRowCount} satıra uygula`
-                    : "Etkilenen satır yok"}
+                  Seçimi temizle
+                </button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={
+                    saving ||
+                    selectionCount === 0 ||
+                    EDITABLE_FIELDS.every((f) => !bulkColumnHasValue(f.value))
+                  }
+                  onClick={applyAllBulkFields}
+                  title="Toplu satırdaki tüm dolu input'ları sırayla uygula"
+                  type="button"
+                >
+                  Tümünü uygula
                 </button>
               </div>
             </div>
-          </div>
           ) : null}
 
           {loading ? (
@@ -884,15 +1100,26 @@ export function CertificateProgramFeeMatrixSettingsSection() {
             <div className="fee-matrix-sections">
               {sections.map((section) => {
                 const expanded = expandedTargets.has(section.target);
-                const isBulkTarget = bulkTarget === section.target;
                 const programCount = countDistinctPrograms(section.rows);
                 const filledRows = countFullyFilledRows(section.rows);
                 const totalRows = section.rows.length;
+                const sectionSelection = (() => {
+                  const programIds = Array.from(
+                    new Set(section.rows.map((r) => r.program.id))
+                  );
+                  const selectedCount = programIds.reduce(
+                    (acc, id) => (selectedProgramIds.has(id) ? acc + 1 : acc),
+                    0
+                  );
+                  return {
+                    programIds,
+                    allSelected: programIds.length > 0 && selectedCount === programIds.length,
+                    someSelected: selectedCount > 0,
+                  };
+                })();
                 return (
                   <section
-                    className={`fee-matrix-section${expanded ? " is-expanded" : ""}${
-                      isBulkTarget ? " is-bulk-target" : ""
-                    }`}
+                    className={`fee-matrix-section${expanded ? " is-expanded" : ""}`}
                     key={section.target}
                   >
                     <div className="fee-matrix-section-header-row">
@@ -924,40 +1151,242 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                           </span>
                         </span>
                       </button>
-                      <button
-                        className={`fee-matrix-section-bulk-btn${
-                          isBulkTarget ? " is-active" : ""
-                        }`}
-                        onClick={() => selectForBulk(section.target)}
-                        title={`Toplu girişi "${section.target} geçişleri" ile sınırla ve panele odaklan`}
-                        type="button"
-                      >
-                        {isBulkTarget ? "Toplu Seçili" : "Toplu Seç"}
-                      </button>
                     </div>
                     {expanded ? (
                       <div className="fee-matrix-table-scroll">
                         <table className="data-table fee-matrix-table">
                           <thead>
-                            <tr>
-                              {COLUMNS.map((column) => (
-                                <th
-                                  className={`fee-matrix-th fee-matrix-th--${column.kind}${
-                                    column.sticky ? " fee-matrix-th--sticky" : ""
-                                  }`}
-                                  key={column.key}
-                                  style={{
-                                    minWidth: column.width,
-                                    left: column.sticky
-                                      ? STICKY_OFFSETS.get(column.key)
-                                      : undefined,
-                                  }}
-                                  scope="col"
-                                >
-                                  {column.label}
-                                </th>
-                              ))}
+                            <tr className="fee-matrix-group-row">
+                              {renderGroupHeaderCells(collapsedGroups, toggleGroup)}
                             </tr>
+                            <tr>
+                              {visibleColumns.map((column, columnIndex) => {
+                                if (column.group && collapsedGroups.has(column.group)) {
+                                  return null;
+                                }
+                                const tooltip = column.fullLabel ?? column.label;
+                                const showTooltip = tooltip !== column.label;
+                                // Inject the collapsed-contract summary header
+                                // immediately before the first institution column
+                                // so it sits to the *left* of the Kurum group.
+                                const injectContractSummary =
+                                  collapsedGroups.has("contract") &&
+                                  column.group === "institution" &&
+                                  visibleColumns.findIndex((c) => c.group === "institution") ===
+                                    columnIndex;
+                                return (
+                                  <Fragment key={column.key}>
+                                    {injectContractSummary ? (
+                                      <th
+                                        className="fee-matrix-th fee-matrix-th--calculated fee-matrix-th--group-summary fee-matrix-th--group-contract"
+                                        scope="col"
+                                        style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
+                                      >
+                                        <ColumnHeaderLabel
+                                          label="Söz. Top. Ders KDV'siz"
+                                          tooltip="Sözleşme Toplam Ders Ücreti (KDV hariç, Teorik + Direksiyon)"
+                                        />
+                                      </th>
+                                    ) : null}
+                                    <th
+                                      className={`fee-matrix-th fee-matrix-th--${column.kind} fee-matrix-th--key-${column.key}${
+                                        column.sticky ? " fee-matrix-th--sticky" : ""
+                                      }${column.group ? ` fee-matrix-th--group-${column.group}` : ""}${
+                                        selectionMode &&
+                                        column.editableField &&
+                                        bulkColumnHasValue(column.editableField)
+                                          ? " is-bulk-target"
+                                          : ""
+                                      }`}
+                                      style={{
+                                        minWidth: column.width,
+                                        left: column.sticky
+                                          ? stickyOffsets.get(column.key)
+                                          : undefined,
+                                      }}
+                                      scope="col"
+                                    >
+                                      {column.key === "select" ? (
+                                        <input
+                                          aria-label={`${section.target} bölümündeki tüm programları seç`}
+                                          checked={sectionSelection.allSelected}
+                                          className="fee-matrix-row-checkbox"
+                                          onChange={() =>
+                                            setSelectedProgramIds((current) => {
+                                              const next = new Set(current);
+                                              if (sectionSelection.allSelected) {
+                                                for (const id of sectionSelection.programIds) {
+                                                  next.delete(id);
+                                                }
+                                              } else {
+                                                for (const id of sectionSelection.programIds) {
+                                                  next.add(id);
+                                                }
+                                              }
+                                              return next;
+                                            })
+                                          }
+                                          ref={(el) => {
+                                            if (el) {
+                                              el.indeterminate =
+                                                sectionSelection.someSelected &&
+                                                !sectionSelection.allSelected;
+                                            }
+                                          }}
+                                          type="checkbox"
+                                        />
+                                      ) : showTooltip ? (
+                                        <ColumnHeaderLabel label={column.label} tooltip={tooltip} />
+                                      ) : (
+                                        column.label
+                                      )}
+                                    </th>
+                                  </Fragment>
+                                );
+                              })}
+                              {/* Contract group fully collapsed AND institution group also collapsed:
+                                   the inject-before-institution branch above never fires (no institution
+                                   columns rendered), so fall back to appending the contract summary here. */}
+                              {collapsedGroups.has("contract") && collapsedGroups.has("institution") ? (
+                                <th
+                                  className="fee-matrix-th fee-matrix-th--calculated fee-matrix-th--group-summary fee-matrix-th--group-contract"
+                                  key="contract-summary-fallback"
+                                  scope="col"
+                                  style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
+                                >
+                                  <ColumnHeaderLabel
+                                    label="Söz. Top. Ders KDV'siz"
+                                    tooltip="Sözleşme Toplam Ders Ücreti (KDV hariç, Teorik + Direksiyon)"
+                                  />
+                                </th>
+                              ) : null}
+                            </tr>
+                            {selectionMode ? (
+                              <tr className="fee-matrix-bulk-row">
+                                {visibleColumns.map((column) => {
+                                  if (column.group && collapsedGroups.has(column.group)) {
+                                    return null;
+                                  }
+                                  const stickyLeft = column.sticky
+                                    ? stickyOffsets.get(column.key)
+                                    : undefined;
+                                  const cellClass = `fee-matrix-th fee-matrix-bulk-cell fee-matrix-th--key-${column.key}${
+                                    column.sticky ? " fee-matrix-th--sticky" : ""
+                                  }${column.group ? ` fee-matrix-th--group-${column.group}` : ""}`;
+
+                                  if (column.key === "select") {
+                                    return (
+                                      <th
+                                        className={`${cellClass} fee-matrix-bulk-cell--label`}
+                                        key={column.key}
+                                        scope="row"
+                                        style={{ minWidth: column.width, left: stickyLeft }}
+                                      >
+                                        Toplu
+                                      </th>
+                                    );
+                                  }
+                                  if (!column.editableField) {
+                                    return (
+                                      <th
+                                        aria-hidden="true"
+                                        className={cellClass}
+                                        key={column.key}
+                                        style={{ minWidth: column.width, left: stickyLeft }}
+                                      />
+                                    );
+                                  }
+                                  const field = column.editableField;
+                                  const fieldLabel =
+                                    EDITABLE_FIELDS.find((f) => f.value === field)?.label ?? field;
+                                  if (isSplitExamField(field)) {
+                                    // Two side-by-side inputs: theory ("T") and
+                                    // practice ("D"), so the user can target
+                                    // each lesson row independently.
+                                    return (
+                                      <th
+                                        className={`${cellClass} fee-matrix-bulk-cell--split`}
+                                        key={column.key}
+                                        style={{ minWidth: column.width, left: stickyLeft }}
+                                      >
+                                        {(["theory", "practice"] as const).map((lessonType) => {
+                                          const slotKey = bulkValueKey(field, lessonType);
+                                          const slotLabel =
+                                            lessonType === "theory" ? "T" : "D";
+                                          const slotTitle =
+                                            lessonType === "theory"
+                                              ? `${fieldLabel} (Teorik) için değer girip Enter'a basın`
+                                              : `${fieldLabel} (Direksiyon) için değer girip Enter'a basın`;
+                                          return (
+                                            <input
+                                              aria-label={`${fieldLabel} ${
+                                                lessonType === "theory" ? "Teorik" : "Direksiyon"
+                                              } için toplu değer`}
+                                              className="form-input fee-matrix-bulk-input fee-matrix-bulk-input--split"
+                                              disabled={saving || selectionCount === 0}
+                                              inputMode="decimal"
+                                              key={lessonType}
+                                              onChange={(event) =>
+                                                setBulkValueFor(
+                                                  field,
+                                                  lessonType,
+                                                  event.target.value
+                                                )
+                                              }
+                                              onKeyDown={(event) => {
+                                                if (event.key === "Enter") {
+                                                  event.preventDefault();
+                                                  void applyBulkField(field, lessonType);
+                                                }
+                                              }}
+                                              placeholder={slotLabel}
+                                              title={slotTitle}
+                                              value={bulkValues[slotKey] ?? ""}
+                                            />
+                                          );
+                                        })}
+                                      </th>
+                                    );
+                                  }
+                                  const value = bulkValues[bulkValueKey(field)] ?? "";
+                                  return (
+                                    <th
+                                      className={cellClass}
+                                      key={column.key}
+                                      style={{ minWidth: column.width, left: stickyLeft }}
+                                    >
+                                      <input
+                                        aria-label={`${fieldLabel} için toplu değer`}
+                                        className="form-input fee-matrix-bulk-input"
+                                        disabled={saving || selectionCount === 0}
+                                        inputMode="decimal"
+                                        onChange={(event) =>
+                                          setBulkValueFor(field, undefined, event.target.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            void applyBulkField(field);
+                                          }
+                                        }}
+                                        placeholder="—"
+                                        title={`${fieldLabel} için değer girip Enter'a basın`}
+                                        value={value}
+                                      />
+                                    </th>
+                                  );
+                                })}
+                                {/* Mirror the contract-summary insertion in the header */}
+                                {collapsedGroups.has("contract") &&
+                                collapsedGroups.has("institution") ? (
+                                  <th
+                                    aria-hidden="true"
+                                    className="fee-matrix-th fee-matrix-bulk-cell"
+                                    key="contract-summary-bulk-fallback"
+                                  />
+                                ) : null}
+                              </tr>
+                            ) : null}
                           </thead>
                           <tbody>
                             {section.rows.map((row, index) => {
@@ -969,25 +1398,81 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                               const dirty = dirtyRowKeys.has(key);
                               return (
                                 <tr className={dirty ? "is-dirty" : undefined} key={key}>
-                                  {COLUMNS.map((column) => {
+                                  {visibleColumns.map((column, columnIndex) => {
+                                    if (column.group && collapsedGroups.has(column.group)) {
+                                      return null;
+                                    }
                                     if (isMergedProgramColumn(column) && !firstProgramRow) {
                                       return null;
                                     }
+                                    // Mirror the header: inject the contract
+                                    // summary cell to the *left* of the first
+                                    // institution column.
+                                    const injectContractSummary =
+                                      collapsedGroups.has("contract") &&
+                                      firstProgramRow &&
+                                      column.group === "institution" &&
+                                      visibleColumns.findIndex((c) => c.group === "institution") ===
+                                        columnIndex;
 
                                     return (
-                                      <MatrixCell
-                                        column={column}
-                                        key={column.key}
-                                        row={row}
-                                        rowKeyValue={key}
-                                        rowSpan={
-                                          isMergedProgramColumn(column) ? programRowSpan : undefined
-                                        }
-                                        sectionRows={section.rows}
-                                        updateRow={updateRow}
-                                      />
+                                      <Fragment key={column.key}>
+                                        {injectContractSummary ? (
+                                          <td
+                                            className="fee-matrix-td fee-matrix-td--calculated fee-matrix-td--group-summary fee-matrix-td--group-contract"
+                                            rowSpan={programRowSpan}
+                                            style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
+                                          >
+                                            {formatMoney(
+                                              sumByProgram(
+                                                section.rows,
+                                                row.program.id,
+                                                calculateLessonFeeVatExcluded
+                                              )
+                                            )}
+                                          </td>
+                                        ) : null}
+                                        <MatrixCell
+                                          column={column}
+                                          isBulkTarget={
+                                            selectionMode &&
+                                            column.editableField !== undefined &&
+                                            bulkColumnHasValue(column.editableField)
+                                          }
+                                          onToggleSelect={toggleProgramSelection}
+                                          row={row}
+                                          rowKeyValue={key}
+                                          rowSpan={
+                                            isMergedProgramColumn(column) ? programRowSpan : undefined
+                                          }
+                                          sectionRows={section.rows}
+                                          selected={selectedProgramIds.has(row.program.id)}
+                                          stickyOffsets={stickyOffsets}
+                                          updateRow={updateRow}
+                                        />
+                                      </Fragment>
                                     );
                                   })}
+                                  {/* Both groups collapsed: the inject-before-institution branch
+                                       above never runs; emit the contract summary here as a fallback. */}
+                                  {collapsedGroups.has("contract") &&
+                                  collapsedGroups.has("institution") &&
+                                  firstProgramRow ? (
+                                    <td
+                                      className="fee-matrix-td fee-matrix-td--calculated fee-matrix-td--group-summary fee-matrix-td--group-contract"
+                                      key="contract-summary-fallback"
+                                      rowSpan={programRowSpan}
+                                      style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
+                                    >
+                                      {formatMoney(
+                                        sumByProgram(
+                                          section.rows,
+                                          row.program.id,
+                                          calculateLessonFeeVatExcluded
+                                        )
+                                      )}
+                                    </td>
+                                  ) : null}
                                 </tr>
                               );
                             })}
@@ -1002,19 +1487,6 @@ export function CertificateProgramFeeMatrixSettingsSection() {
           )}
         </div>
       </section>
-      {undoSnapshot ? (
-        <div className="fee-matrix-undo-snackbar" role="status">
-          <span className="fee-matrix-undo-text">{undoSnapshot.label}</span>
-          <button
-            className="fee-matrix-undo-button"
-            disabled={saving}
-            onClick={undoLastChange}
-            type="button"
-          >
-            Geri al
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -1026,6 +1498,10 @@ function MatrixCell({
   rowSpan,
   sectionRows,
   updateRow,
+  selected,
+  stickyOffsets,
+  onToggleSelect,
+  isBulkTarget,
 }: {
   column: Column;
   row: CertificateProgramFeeRowResponse;
@@ -1033,15 +1509,35 @@ function MatrixCell({
   rowSpan?: number;
   sectionRows: CertificateProgramFeeRowResponse[];
   updateRow: (key: string, field: EditableField, value: string) => void;
+  selected: boolean;
+  stickyOffsets: Map<string, number>;
+  onToggleSelect: (programId: string) => void;
+  isBulkTarget: boolean;
 }) {
-  const stickyOffset = column.sticky ? STICKY_OFFSETS.get(column.key) : undefined;
-  const baseClass = `fee-matrix-td fee-matrix-td--${column.kind}${
+  const stickyOffset = column.sticky ? stickyOffsets.get(column.key) : undefined;
+  const baseClass = `fee-matrix-td fee-matrix-td--${column.kind} fee-matrix-td--key-${column.key}${
     column.sticky ? " fee-matrix-td--sticky" : ""
+  }${column.group ? ` fee-matrix-td--group-${column.group}` : ""}${
+    isBulkTarget ? " is-bulk-target" : ""
   }`;
   const style = {
     minWidth: column.width,
     left: stickyOffset,
   };
+
+  if (column.key === "select") {
+    return (
+      <td className={baseClass} rowSpan={rowSpan} style={style}>
+        <input
+          aria-label={`${row.program.sourceLicenseDisplayName} → ${row.program.targetLicenseDisplayName} programını seç`}
+          checked={selected}
+          className="fee-matrix-row-checkbox"
+          onChange={() => onToggleSelect(row.program.id)}
+          type="checkbox"
+        />
+      </td>
+    );
+  }
 
   if (column.kind === "editable" && column.editableField) {
     const field = column.editableField;
@@ -1093,7 +1589,7 @@ function EditableMoneyCell({
   rowKeyValue: string;
   updateRow: (key: string, field: EditableField, value: string) => void;
 }) {
-  const externalValue = disabled ? null : (row[field] as number | null);
+  const externalValue = disabled ? null : readEditableValue(row, field);
   const [text, setText] = useState<string>(() => serializeAmount(externalValue));
   const lastEmittedRef = useRef<number | null>(externalValue);
 
@@ -1132,5 +1628,48 @@ function EditableMoneyCell({
       placeholder="0,00"
       value={text}
     />
+  );
+}
+
+/** Column header with a portal-rendered tooltip that escapes the table's
+ *  overflow:auto clip. Native <th title="..."> works but is sluggish and
+ *  easy to miss on short uppercase labels, so we render our own. */
+function ColumnHeaderLabel({ label, tooltip }: { label: string; tooltip: string }) {
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+
+  const showTooltip = () => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setCoords({ top: rect.bottom + 6, left: rect.left + rect.width / 2 });
+  };
+  const hideTooltip = () => setCoords(null);
+
+  return (
+    <>
+      <span
+        className="fee-matrix-th-label"
+        onBlur={hideTooltip}
+        onFocus={showTooltip}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        ref={anchorRef}
+        tabIndex={0}
+      >
+        {label}
+      </span>
+      {coords
+        ? createPortal(
+            <div
+              className="fee-matrix-th-tooltip"
+              role="tooltip"
+              style={{ top: coords.top, left: coords.left }}
+            >
+              {tooltip}
+            </div>,
+            document.body
+          )
+        : null}
+    </>
   );
 }

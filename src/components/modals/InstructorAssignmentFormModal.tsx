@@ -85,11 +85,16 @@ export function InstructorAssignmentFormModal({
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | "_global", string>>>({});
 
-  useEffect(() => {
-    if (!open) return;
-    setValues(editing ? fromExisting(editing) : emptyState());
-    setErrors({});
-  }, [open, editing]);
+	  useEffect(() => {
+	    if (!open) return;
+	    const branchCodes = new Set(branches.map((branch) => branch.code));
+	    const licenseCodes = new Set(licenseClassOptions.map((option) => option.value));
+	    const next = editing ? fromExisting(editing) : emptyState();
+	    next.branches = next.branches.filter((branch) => branchCodes.has(branch));
+	    next.licenseClassCodes = next.licenseClassCodes.filter((code) => licenseCodes.has(code));
+	    setErrors({});
+	    setValues(next);
+	  }, [branches, editing, licenseClassOptions, open]);
 
   if (!open) return null;
 

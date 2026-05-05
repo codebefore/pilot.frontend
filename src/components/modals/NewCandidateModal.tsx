@@ -14,7 +14,7 @@ import type {
   LicenseClass,
 } from "../../lib/types";
 import {
-  REFERENCE_LICENSE_CLASS_OPTIONS,
+  getActiveLicenseClassOptions,
   type LicenseClassOption,
 } from "../../lib/use-license-class-options";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
@@ -63,19 +63,25 @@ function buildReuseSourceAvatarCandidate(source: CandidateReuseSourceResponse) {
 }
 
 function buildTargetLicenseClassOptions(
-  programs: CertificateProgramResponse[]
+  programs: CertificateProgramResponse[],
+  activeLicenseClassOptions: LicenseClassOption[]
 ): LicenseClassOption[] {
   const byTarget = new Map<string, LicenseClassOption & { displayOrder: number }>();
+  const activeOptionByValue = new Map(
+    activeLicenseClassOptions.map((option) => [normalizeLicenseClassOptionKey(option.value), option])
+  );
 
   for (const program of programs) {
     const target = program.targetLicenseClass.trim();
     if (!target) continue;
+    const activeOption = activeOptionByValue.get(normalizeLicenseClassOptionKey(target));
+    if (!activeOption) continue;
 
     const existing = byTarget.get(target);
     if (!existing || program.displayOrder < existing.displayOrder) {
       byTarget.set(target, {
-        value: target,
-        label: program.targetLicenseDisplayName || target,
+        value: activeOption.value,
+        label: program.targetLicenseDisplayName || activeOption.label,
         displayOrder: program.displayOrder,
       });
     }
@@ -84,6 +90,40 @@ function buildTargetLicenseClassOptions(
   return [...byTarget.values()]
     .sort((a, b) => a.displayOrder - b.displayOrder || a.label.localeCompare(b.label, "tr"))
     .map(({ value, label }) => ({ value, label }));
+}
+
+function findDefaultCertificateProgram(
+  programs: CertificateProgramResponse[],
+  targetLicenseClass: string
+): CertificateProgramResponse | null {
+  const targetKey = normalizeLicenseClassOptionKey(targetLicenseClass);
+  return (
+    programs
+      .filter(
+        (program) =>
+          normalizeLicenseClassOptionKey(program.targetLicenseClass) === targetKey &&
+          normalizeLicenseClassOptionKey(program.sourceLicenseClass) === "YOK" &&
+          !program.sourceLicensePre2016
+      )
+      .sort(
+        (a, b) =>
+          a.displayOrder - b.displayOrder ||
+          a.targetLicenseDisplayName.localeCompare(b.targetLicenseDisplayName, "tr")
+      )[0] ?? null
+  );
+}
+
+function normalizeLicenseClassOptionKey(value: string) {
+  return value
+    .trim()
+    .toLocaleUpperCase("tr-TR")
+    .replace(/Ç/g, "C")
+    .replace(/Ğ/g, "G")
+    .replace(/İ/g, "I")
+    .replace(/Ö/g, "O")
+    .replace(/Ş/g, "S")
+    .replace(/Ü/g, "U")
+    .replace(/[\s_-]/g, "");
 }
 
 const defaultValues = (): NewCandidateForm => ({
@@ -97,6 +137,19 @@ const defaultValues = (): NewCandidateForm => ({
   documentIdsToCopy: [],
 });
 
+function isValidTurkishNationalId(value: string) {
+  const nationalId = value.trim();
+  if (!/^[1-9]\d{10}$/.test(nationalId)) return false;
+
+  const digits = [...nationalId].map(Number);
+  const oddSum = digits[0] + digits[2] + digits[4] + digits[6] + digits[8];
+  const evenSum = digits[1] + digits[3] + digits[5] + digits[7];
+  const tenthDigit = ((oddSum * 7 - evenSum) % 10 + 10) % 10;
+  const eleventhDigit = digits.slice(0, 10).reduce((sum, digit) => sum + digit, 0) % 10;
+
+  return digits[9] === tenthDigit && digits[10] === eleventhDigit;
+}
+
 export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModalProps) {
   const { showToast } = useToast();
   const t = useT();
@@ -104,6 +157,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const [reuseSources, setReuseSources] = useState<CandidateReuseSourceResponse[]>([]);
   const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
   const [certificatePrograms, setCertificatePrograms] = useState<CertificateProgramResponse[]>([]);
+  const [activeLicenseClassOptions, setActiveLicenseClassOptions] = useState<LicenseClassOption[]>([]);
 
   const {
     register,
@@ -128,13 +182,21 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   // programs catalog so only valid registration targets show up; this list
   // is independent from the now-removed program/group selectors.
   const licenseClassOptions = useMemo(() => {
-    const targetOptions = buildTargetLicenseClassOptions(certificatePrograms);
-    return targetOptions.length > 0 ? targetOptions : REFERENCE_LICENSE_CLASS_OPTIONS;
-  }, [certificatePrograms]);
+    const targetOptions = buildTargetLicenseClassOptions(
+      certificatePrograms,
+      activeLicenseClassOptions
+    );
+    if (targetOptions.length > 0) return targetOptions;
+    return activeLicenseClassOptions;
+  }, [activeLicenseClassOptions, certificatePrograms]);
 
   useEffect(() => {
     if (!open || licenseClassOptions.length === 0) return;
     if (licenseClassOptions.some((option) => option.value === selectedClass)) {
+      setValue("className", selectedClass, {
+        shouldDirty: false,
+        shouldValidate: false,
+      });
       return;
     }
 
@@ -148,14 +210,21 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
     if (!open) return;
     const controller = new AbortController();
 
-    getCertificatePrograms(
-      { activity: "active", page: 1, pageSize: 1000, sortBy: "displayOrder", sortDir: "asc" },
-      controller.signal
-    )
-      .then((response) => setCertificatePrograms(response.items))
+    Promise.all([
+      getCertificatePrograms(
+        { activity: "active", page: 1, pageSize: 1000, sortBy: "displayOrder", sortDir: "asc" },
+        controller.signal
+      ),
+      getActiveLicenseClassOptions(controller.signal),
+    ])
+      .then(([programResponse, licenseOptions]) => {
+        setCertificatePrograms(programResponse.items);
+        setActiveLicenseClassOptions(licenseOptions);
+      })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setCertificatePrograms([]);
+        setActiveLicenseClassOptions([]);
       });
 
     return () => controller.abort();
@@ -218,19 +287,21 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const submit = handleSubmit(async (data) => {
     setSubmitting(true);
     try {
+      const defaultProgram = findDefaultCertificateProgram(certificatePrograms, data.className);
       await createCandidate({
         firstName: data.firstName,
         lastName: data.lastName,
         nationalId: data.tc,
         phoneNumber: data.phone || null,
         // Quick registration captures only identity + phone + license class.
-        // Email, birth date, gender, existing license, certificate program,
-        // and group assignment are all edited from the candidate detail page.
+        // Email, birth date, gender, existing license, and group assignment
+        // are edited from the candidate detail page. Certificate program is
+        // inferred from the selected target license for quick registration.
         email: null,
         birthDate: null,
         gender: null,
         licenseClass: data.className,
-        certificateProgramId: null,
+        certificateProgramId: defaultProgram?.id ?? null,
         existingLicenseType: null,
         existingLicenseIssuedAt: null,
         existingLicenseNumber: null,
@@ -281,6 +352,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
 
   return (
     <Modal
+      closeOnOverlayClick={false}
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} type="button" disabled={submitting}>
@@ -410,6 +482,8 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               {...register("tc", {
                 required: "Zorunlu alan",
                 pattern: { value: /^\d{11}$/, message: "11 haneli rakam olmalı" },
+                validate: (value) =>
+                  isValidTurkishNationalId(value) || "Geçerli bir TC kimlik no girin",
               })}
             />
             {errors.tc && <div className="form-error">{errors.tc.message}</div>}

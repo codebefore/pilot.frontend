@@ -22,6 +22,7 @@ import {
   LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS,
 } from "../../lib/license-class-definition-catalog";
 import { useT } from "../../lib/i18n";
+import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import type {
   LicenseClassDefinitionCategory,
   LicenseClassDefinitionListSummaryResponse,
@@ -45,6 +46,7 @@ type LicenseClassDefinitionFilters = {
 type LicenseClassDefinitionColumnId =
   | "code"
   | "category"
+  | "existingLicenseType"
   | "minimumAge"
   | "isActive";
 type LicenseClassDefinitionColumnDef = {
@@ -65,6 +67,12 @@ function formatOptionalNumber(value: number | null, suffix = ""): string {
   return `${value}${suffix}`;
 }
 
+function formatExistingLicenseRequirement(item: LicenseClassDefinitionResponse): string {
+  if (!item.hasExistingLicense) return "-";
+  const label = existingLicenseTypeLabel(item.existingLicenseType);
+  return item.existingLicensePre2016 ? `${label} (2016 öncesi)` : label;
+}
+
 const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
   activity: "active",
   code: "",
@@ -77,6 +85,12 @@ export function LicenseClassDefinitionsSettingsSection() {
   const { showToast } = useToast();
 
   const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
+    {
+      id: "existingLicenseType",
+      label: t("settings.licenseClasses.columns.existingLicenseType"),
+      renderCell: (item) => formatExistingLicenseRequirement(item),
+      skeletonWidth: 100,
+    },
     {
       id: "code",
       label: t("settings.licenseClasses.columns.code"),
@@ -123,7 +137,7 @@ export function LicenseClassDefinitionsSettingsSection() {
     }));
 
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.license-class-definitions.columns.v3",
+    "settings.license-class-definitions.columns.v4",
     LICENSE_CLASS_DEFINITION_COLUMN_IDS
   );
 

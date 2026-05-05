@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { createUser, updateUser } from "../../lib/users-api";
@@ -84,14 +84,22 @@ export function UserFormModal({
     register,
     reset,
     setError,
+    setValue,
     watch,
   } = useForm<UserFormValues>({ defaultValues: emptyValues(editing) });
   const selectedRoleId = watch("roleId");
+  const activeRoles = useMemo(() => roles.filter((role) => role.isActive), [roles]);
 
   useEffect(() => {
     if (!open) return;
     reset(emptyValues(editing));
   }, [editing, open, reset]);
+
+  useEffect(() => {
+    if (!open || !selectedRoleId) return;
+    if (activeRoles.some((role) => role.id === selectedRoleId)) return;
+    setValue("roleId", "", { shouldDirty: true, shouldValidate: true });
+  }, [activeRoles, open, selectedRoleId, setValue]);
 
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
     hasError ? `${base} error` : base;
@@ -180,14 +188,11 @@ export function UserFormModal({
               {...register("roleId")}
             >
               <option value="">— Rol atanmamış —</option>
-              {roles
-                .filter((r) => r.isActive || r.id === editing?.roleId)
-                .map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                    {!role.isActive ? " (pasif)" : ""}
-                  </option>
-                ))}
+              {activeRoles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
             </CustomSelect>
             {errors.roleId && <div className="form-error">{errors.roleId.message}</div>}
           </div>

@@ -267,7 +267,7 @@ export function InstructorsSettingsSection() {
   useEffect(() => {
     const controller = new AbortController();
     getTrainingBranchDefinitions(
-      { activity: "all", page: 1, pageSize: 100 },
+      { activity: "active", page: 1, pageSize: 100 },
       controller.signal
     )
       .then((response) => setTrainingBranches(response.items))

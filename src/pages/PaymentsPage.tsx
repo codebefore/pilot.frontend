@@ -40,8 +40,9 @@ function candidateName(candidate: { firstName: string; lastName: string }): stri
 
 function paymentMethodLabel(method: CandidatePaymentMethod): string {
   if (method === "cash") return "Nakit";
-  if (method === "card") return "Kart";
+  if (method === "credit_card") return "Kredi Kartı";
   if (method === "bank_transfer") return "Havale/EFT";
+  if (method === "mail_order") return "Mail Order";
   return "Diğer";
 }
 
@@ -352,8 +353,9 @@ export function PaymentsPage() {
             >
               <option value="all">Tümü</option>
               <option value="cash">Nakit</option>
-              <option value="card">Kart</option>
               <option value="bank_transfer">Havale/EFT</option>
+              <option value="credit_card">Kredi Kartı</option>
+              <option value="mail_order">Mail Order</option>
               <option value="other">Diğer</option>
             </select>
           </div>
@@ -515,7 +517,7 @@ export function PaymentsPage() {
                               className="btn btn-primary btn-xs"
                               to={candidatePaymentsPath(installment.candidate.id, {
                                 action: "payment",
-                                installmentId: installment.id,
+                                movementId: installment.id,
                               })}
                             >
                               Öde

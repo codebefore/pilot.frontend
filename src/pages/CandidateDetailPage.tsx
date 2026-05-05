@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { EditableRow } from "../components/ui/EditableRow";
+import { CustomSelect } from "../components/ui/CustomSelect";
+import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { Modal } from "../components/ui/Modal";
+import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import type { SelectOption } from "../components/ui/EditableRow";
 import { useToast } from "../components/ui/Toast";
 import {
@@ -15,13 +18,17 @@ import {
   updateCandidate,
 } from "../lib/candidates-api";
 import {
-  cancelCandidateCharge,
-  cancelCandidatePayment,
-  createCandidatePayment,
-  createCandidatePaymentPlan,
-  createCandidateSuggestedCharge,
-  getCandidateBilling,
-} from "../lib/candidate-billing-api";
+  cancelCandidateAccountingMovement,
+  cancelCandidateAccountingPayment,
+  createCandidateAccountingInvoice,
+  createCandidateAccountingMovement,
+  createCandidateAccountingPayment,
+  createCandidateAccountingRefund,
+  deleteCandidateAccountingInvoice,
+  getCandidateAccounting,
+  updateCandidateAccountingInvoice,
+} from "../lib/candidate-accounting-api";
+import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificatePrograms } from "../lib/certificate-programs-api";
 import { getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
@@ -30,6 +37,7 @@ import {
   trainingLessonToCalendarEvent,
   type TrainingCalendarEvent,
 } from "../lib/training-calendar";
+import { useColumnVisibility } from "../lib/use-column-visibility";
 import { buildBranchHelpers } from "../lib/training-branches";
 import { buildTermLabel } from "../lib/term-label";
 import { ApiError } from "../lib/http";
@@ -65,11 +73,11 @@ import type {
   CandidateContactType,
   CandidateContactUpsertRequest,
   CandidateUpsertRequest,
-  CandidateBillingSummaryResponse,
-  CandidatePaymentInstallmentResponse,
-  CandidatePaymentInstallmentPaymentStatus,
+  CandidateAccountingInvoiceResponse,
+  CandidateAccountingSummaryResponse,
+  CandidateAccountingType,
   CandidatePaymentMethod,
-  CandidatePaymentResponse,
+  CashRegisterResponse,
   CertificateProgramResponse,
   DocumentResponse,
   DocumentTypeResponse,
@@ -90,7 +98,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "training", label: "Eğitim" },
   { key: "exams", label: "Sınavlar" },
   { key: "documents", label: "Evraklar" },
-  { key: "payments", label: "Tahsilat" },
+  { key: "payments", label: "Muhasebe" },
 ];
 
 function calculateAge(birthDateIso: string | null): number | null {
@@ -214,12 +222,12 @@ export function CandidateDetailPage() {
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[] | null>(null);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
-  const [billing, setBilling] = useState<CandidateBillingSummaryResponse | null>(null);
-  const [billingLoading, setBillingLoading] = useState(false);
-  const [billingError, setBillingError] = useState<string | null>(null);
-  const [chargeSaving, setChargeSaving] = useState(false);
+  const [accounting, setAccounting] = useState<CandidateAccountingSummaryResponse | null>(null);
+  const [accountingLoading, setAccountingLoading] = useState(false);
+  const [accountingError, setAccountingError] = useState<string | null>(null);
+  const [movementSaving, setMovementSaving] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
-  const [paymentPlanSaving, setPaymentPlanSaving] = useState(false);
+  const [invoiceSaving, setInvoiceSaving] = useState(false);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -286,114 +294,154 @@ export function CandidateDetailPage() {
     return () => controller.abort();
   }, [activeTab, candidateId, documents, documentTypes]);
 
-  // Lazy-load candidate billing when the Tahsilat tab is first opened.
+  // Lazy-load candidate accounting when the Muhasebe tab is first opened.
   useEffect(() => {
     if (activeTab !== "payments") return;
     if (!candidateId) return;
-    if (billing !== null) return;
+    if (accounting !== null) return;
 
     const controller = new AbortController();
-    setBillingLoading(true);
-    setBillingError(null);
+    setAccountingLoading(true);
+    setAccountingError(null);
 
-    getCandidateBilling(candidateId, controller.signal)
-      .then((response) => setBilling(response))
+    getCandidateAccounting(candidateId, controller.signal)
+      .then((response) => setAccounting(response))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setBillingError("Tahsilat bilgileri yüklenemedi");
+        setAccountingError("Muhasebe bilgileri yüklenemedi");
       })
       .finally(() => {
-        if (!controller.signal.aborted) setBillingLoading(false);
+        if (!controller.signal.aborted) setAccountingLoading(false);
       });
 
     return () => controller.abort();
-  }, [activeTab, billing, candidateId]);
+  }, [activeTab, accounting, candidateId]);
 
-  const refreshBilling = async () => {
+  const refreshAccounting = async () => {
     if (!candidateId) return;
-    const response = await getCandidateBilling(candidateId);
-    setBilling(response);
+    const response = await getCandidateAccounting(candidateId);
+    setAccounting(response);
   };
 
-  const handleCreateSuggestedCharge = async () => {
-    if (!candidate || chargeSaving) return;
-    setChargeSaving(true);
+  const handleCreateMovement = async (
+    type: CandidateAccountingType,
+    dueDate: string,
+    amount: number,
+    description: string
+  ) => {
+    if (!candidate || movementSaving) return;
+    setMovementSaving(true);
     try {
-      await createCandidateSuggestedCharge(candidate.id);
-      await refreshBilling();
-      showToast("Borçlandırma oluşturuldu");
+      await createCandidateAccountingMovement(candidate.id, { type, dueDate, amount, description });
+      await refreshAccounting();
+      showToast("Hareket eklendi");
     } catch (error) {
-      showToast(billingErrorMessage(error, "Borçlandırma oluşturulamadı"), "error");
+      showToast(accountingErrorMessage(error, "Hareket eklenemedi"), "error");
     } finally {
-      setChargeSaving(false);
+      setMovementSaving(false);
     }
   };
 
   const handleCreatePayment = async (
+    type: CandidateAccountingType,
     amount: number,
     paymentMethod: CandidatePaymentMethod,
+    cashRegisterId: string | null,
+    paidAtUtc: string,
     note: string | null,
-    installmentId: string | null
   ) => {
     if (!candidate || paymentSaving) return;
     setPaymentSaving(true);
     try {
-      await createCandidatePayment(candidate.id, {
+      await createCandidateAccountingPayment(candidate.id, {
+        type,
         amount,
         paymentMethod,
-        candidatePaymentInstallmentId: installmentId,
+        cashRegisterId,
+        paidAtUtc,
         note,
       });
-      await refreshBilling();
-      showToast("Tahsilat kaydedildi");
+      await refreshAccounting();
+      showToast("Ödeme kaydedildi");
     } catch (error) {
-      showToast(billingErrorMessage(error, "Tahsilat kaydedilemedi"), "error");
+      showToast(accountingErrorMessage(error, "Ödeme kaydedilemedi"), "error");
     } finally {
       setPaymentSaving(false);
     }
   };
 
-  const handleCreatePaymentPlan = async (
-    downPaymentAmount: number,
-    installmentCount: number,
-    firstDueDate: string
-  ) => {
-    if (!candidate || paymentPlanSaving) return;
-    setPaymentPlanSaving(true);
-    try {
-      const response = await createCandidatePaymentPlan(candidate.id, {
-        downPaymentAmount,
-        installmentCount,
-        firstDueDate,
-      });
-      setBilling(response);
-      showToast("Ödeme planı oluşturuldu");
-    } catch (error) {
-      showToast(billingErrorMessage(error, "Ödeme planı oluşturulamadı"), "error");
-    } finally {
-      setPaymentPlanSaving(false);
-    }
-  };
-
-  const handleCancelCharge = async (chargeId: string, cancellationReason: string) => {
+  const handleCancelMovement = async (movementId: string) => {
     if (!candidate) return;
     try {
-      await cancelCandidateCharge(candidate.id, chargeId, cancellationReason);
-      await refreshBilling();
-      showToast("Borçlandırma iptal edildi");
+      await cancelCandidateAccountingMovement(candidate.id, movementId, "Hareket iptal edildi.");
+      await refreshAccounting();
+      showToast("Hareket iptal edildi");
     } catch (error) {
-      showToast(billingErrorMessage(error, "Borçlandırma iptal edilemedi"), "error");
+      showToast(accountingErrorMessage(error, "Hareket iptal edilemedi"), "error");
     }
   };
 
   const handleCancelPayment = async (paymentId: string, cancellationReason: string) => {
     if (!candidate) return;
     try {
-      await cancelCandidatePayment(candidate.id, paymentId, cancellationReason);
-      await refreshBilling();
-      showToast("Tahsilat iptal edildi");
+      await cancelCandidateAccountingPayment(candidate.id, paymentId, cancellationReason);
+      await refreshAccounting();
+      showToast("Ödeme iptal edildi");
     } catch (error) {
-      showToast(billingErrorMessage(error, "Tahsilat iptal edilemedi"), "error");
+      showToast(accountingErrorMessage(error, "Ödeme iptal edilemedi"), "error");
+    }
+  };
+
+  const handleRefundPayment = async (paymentId: string, amount: number | null, note: string | null) => {
+    if (!candidate) return;
+    try {
+      await createCandidateAccountingRefund(candidate.id, paymentId, { amount, note });
+      await refreshAccounting();
+      showToast("İade kaydedildi");
+    } catch (error) {
+      showToast(accountingErrorMessage(error, "İade kaydedilemedi"), "error");
+    }
+  };
+
+  const handleSaveInvoice = async (
+    invoice: CandidateAccountingInvoiceResponse | null,
+    payload: {
+      invoiceNo: string;
+      invoiceType: string;
+      invoiceDate: string;
+      subtotal: number;
+      vatRate: number;
+      notes?: string | null;
+    }
+  ) => {
+    if (!candidate || invoiceSaving) return;
+    setInvoiceSaving(true);
+    try {
+      if (invoice) {
+        await updateCandidateAccountingInvoice(candidate.id, invoice.id, {
+          ...payload,
+          rowVersion: invoice.rowVersion,
+        });
+      } else {
+        await createCandidateAccountingInvoice(candidate.id, payload);
+      }
+      await refreshAccounting();
+      showToast(invoice ? "Fatura güncellendi" : "Fatura eklendi");
+    } catch (error) {
+      showToast(accountingErrorMessage(error, "Fatura kaydedilemedi"), "error");
+    } finally {
+      setInvoiceSaving(false);
+    }
+  };
+
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    if (!candidate) return;
+    try {
+      await deleteCandidateAccountingInvoice(candidate.id, invoiceId);
+      await refreshAccounting();
+      showToast("Fatura silindi");
+    } catch (error) {
+      showToast(accountingErrorMessage(error, "Fatura silinemedi"), "error");
     }
   };
 
@@ -422,7 +470,6 @@ export function CandidateDetailPage() {
       {!loading && !error && candidate && (
         <>
           <CandidateHero candidate={candidate} age={age} />
-          <CandidateQuickStats candidate={candidate} />
 
           <nav className="candidate-detail-tabs" role="tablist">
             {TABS.map((tab) => (
@@ -486,26 +533,28 @@ export function CandidateDetailPage() {
               />
             )}
             {activeTab === "payments" && (
-              <PaymentsTab
-                billing={billing}
-                billingError={billingError}
-                billingLoading={billingLoading}
+              <AccountingTab
+                accounting={accounting}
+                accountingError={accountingError}
+                accountingLoading={accountingLoading}
                 candidate={candidate}
-                chargeSaving={chargeSaving}
-                onCancelCharge={(chargeId, cancellationReason) =>
-                  void handleCancelCharge(chargeId, cancellationReason)
-                }
+                invoiceSaving={invoiceSaving}
+                movementSaving={movementSaving}
+                onCancelMovement={(movementId) => void handleCancelMovement(movementId)}
                 onCancelPayment={(paymentId, cancellationReason) =>
                   void handleCancelPayment(paymentId, cancellationReason)
                 }
-                onCreatePayment={(amount, method, note, installmentId) =>
-                  void handleCreatePayment(amount, method, note, installmentId)
+                onCreateMovement={(type, dueDate, amount, description) =>
+                  void handleCreateMovement(type, dueDate, amount, description)
                 }
-                onCreatePaymentPlan={(downPaymentAmount, installmentCount, firstDueDate) =>
-                  void handleCreatePaymentPlan(downPaymentAmount, installmentCount, firstDueDate)
+                onCreatePayment={(type, amount, method, cashRegisterId, paidAtUtc, note) =>
+                  void handleCreatePayment(type, amount, method, cashRegisterId, paidAtUtc, note)
                 }
-                onCreateSuggestedCharge={() => void handleCreateSuggestedCharge()}
-                paymentPlanSaving={paymentPlanSaving}
+                onDeleteInvoice={(invoiceId) => void handleDeleteInvoice(invoiceId)}
+                onRefundPayment={(paymentId, amount, note) =>
+                  void handleRefundPayment(paymentId, amount, note)
+                }
+                onSaveInvoice={(invoice, payload) => void handleSaveInvoice(invoice, payload)}
                 paymentSaving={paymentSaving}
               />
             )}
@@ -526,6 +575,16 @@ function CandidateHero({
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
+  const summary = candidate.documentSummary;
+  const docLabel = summary
+    ? `${summary.completedCount} / ${summary.totalRequiredCount}`
+    : "—";
+  const groupLabel = candidate.currentGroup?.title ?? "Atanmamış";
+  const paymentLabel = candidate.initialPaymentReceived
+    ? "Ödendi"
+    : candidate.examFeePaid
+    ? "Sınav ücreti ödendi"
+    : "Bekliyor";
 
   return (
     <header className="candidate-detail-hero">
@@ -544,56 +603,34 @@ function CandidateHero({
         </div>
         <div className="candidate-detail-hero-badges">
           <StatusPill label={statusLabel} status={statusPill} />
-          <span className="candidate-detail-hero-chip">Sınıf {candidate.licenseClass}</span>
-          {candidate.currentGroup ? (
-            <span className="candidate-detail-hero-chip">
-              {candidate.currentGroup.title}
-            </span>
-          ) : null}
           {candidate.tags?.map((tag) => (
             <span className="candidate-detail-hero-tag" key={tag.id}>
               #{tag.name}
             </span>
           ))}
         </div>
+        <div className="candidate-detail-hero-facts">
+          <HeroFact label="Ehliyet Sınıfı" value={candidate.licenseClass} />
+          <HeroFact label="Aktif Grup" value={groupLabel} />
+          <HeroFact
+            label="Evraklar"
+            value={docLabel}
+            sub={summary?.missingCount ? `${summary.missingCount} eksik` : undefined}
+          />
+          <HeroFact label="Kayıt Ücreti" value={paymentLabel} />
+        </div>
       </div>
     </header>
   );
 }
 
-function CandidateQuickStats({ candidate }: { candidate: CandidateResponse }) {
-  const summary = candidate.documentSummary;
-  const docLabel = summary
-    ? `${summary.completedCount} / ${summary.totalRequiredCount}`
-    : "—";
-  const groupLabel = candidate.currentGroup?.title ?? "Atanmamış";
-  const paymentLabel = candidate.initialPaymentReceived
-    ? "Ödendi"
-    : candidate.examFeePaid
-    ? "Sınav ücreti ödendi"
-    : "Bekliyor";
-
+function HeroFact({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="candidate-detail-stats">
-      <Stat label="Ehliyet Sınıfı" value={candidate.licenseClass} />
-      <Stat label="Aktif Grup" value={groupLabel} />
-      <Stat
-        label="Evraklar"
-        value={docLabel}
-        sub={summary?.missingCount ? `${summary.missingCount} eksik` : undefined}
-      />
-      <Stat label="Kayıt Ücreti" value={paymentLabel} />
-    </div>
-  );
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="candidate-detail-stat">
-      <div className="candidate-detail-stat-label">{label}</div>
-      <div className="candidate-detail-stat-value">{value}</div>
-      {sub ? <div className="candidate-detail-stat-sub">{sub}</div> : null}
-    </div>
+    <span className="candidate-detail-hero-fact">
+      <span className="candidate-detail-hero-fact-label">{label}</span>
+      <span className="candidate-detail-hero-fact-value">{value}</span>
+      {sub ? <span className="candidate-detail-hero-fact-sub">{sub}</span> : null}
+    </span>
   );
 }
 
@@ -1471,641 +1508,1691 @@ function parseMoneyInput(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function billingErrorMessage(error: unknown, fallback: string): string {
+function accountingErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) return fallback;
   const messages = Object.values(error.validationErrors ?? {}).flat();
   const firstMessage = messages[0];
   if (!firstMessage) return fallback;
 
-  if (firstMessage.includes("active balance")) return "Tahsilat kalan bakiyeyi aşamaz.";
-  if (firstMessage.includes("selected installment")) return "Tahsilat seçilen taksitin kalan tutarını aşamaz.";
-  if (firstMessage.includes("collected payments exceed active debt")) {
-    return "Bu borç iptal edilirse tahsilatlar aktif borcu aşar. Önce ilgili tahsilatı iptal edin.";
-  }
+  if (firstMessage.includes("open balance")) return "Ödeme seçilen türdeki açık bakiyeyi aşamaz.";
+  if (firstMessage.includes("Cash register is required")) return "Bu ödeme yöntemi için kasa seçilmeli.";
+  if (firstMessage.includes("Cash register type")) return "Seçilen kasa ödeme yöntemiyle uyumlu değil.";
+  if (firstMessage.includes("Paid movement")) return "Ödeme alınmış hareket silinemez. Önce iade/iptal işlemi yapın.";
+  if (firstMessage.includes("Refund amount")) return "İade tutarı iade edilebilir tutarı aşamaz.";
   if (firstMessage.includes("Cancellation reason")) return "İptal sebebi zorunlu.";
   return firstMessage;
 }
 
 function paymentMethodLabel(method: CandidatePaymentMethod): string {
   if (method === "cash") return "Nakit";
-  if (method === "card") return "Kart";
+  if (method === "credit_card") return "Kredi Kartı";
   if (method === "bank_transfer") return "Havale/EFT";
+  if (method === "mail_order") return "Mail Order";
   return "Diğer";
 }
 
-function installmentPaymentStatusLabel(status: CandidatePaymentInstallmentPaymentStatus): string {
-  if (status === "paid") return "Ödendi";
-  if (status === "partial") return "Kısmi";
-  if (status === "overdue") return "Gecikti";
-  if (status === "cancelled") return "İptal";
-  return "Bekliyor";
+function accountingTypeLabel(type: CandidateAccountingType): string {
+  if (type === "kurs") return "Kurs";
+  if (type === "teorik_sinav") return "Teorik Sınavı";
+  if (type === "direksiyon_sinav") return "Direksiyon Sınavı";
+  return "Diğer";
 }
 
-function PaymentsTab({
-  billing,
-  billingLoading,
-  billingError,
+function accountingMovementStatus(
+  movement: CandidateAccountingSummaryResponse["movements"][number]
+): { className: string; label: string } {
+  if (movement.status === "cancelled") {
+    return { className: "status-cancelled", label: "İptal" };
+  }
+
+  return { className: "status-open", label: "Borç" };
+}
+
+function refundShareForMovement(
+  payment: CandidateAccountingSummaryResponse["payments"][number],
+  movementId: string,
+  refundAmount: number
+): number {
+  const grossAllocated = payment.allocations.reduce((sum, item) => sum + item.amount, 0);
+  if (grossAllocated <= 0) return 0;
+
+  let distributedRefund = 0;
+  for (let index = 0; index < payment.allocations.length; index += 1) {
+    const allocation = payment.allocations[index];
+    const allocationRefund =
+      index === payment.allocations.length - 1
+        ? Math.round((refundAmount - distributedRefund) * 100) / 100
+        : Math.round((refundAmount * allocation.amount / grossAllocated) * 100) / 100;
+    distributedRefund += allocationRefund;
+    if (allocation.movementId === movementId) return allocationRefund;
+  }
+
+  return 0;
+}
+
+const ACCOUNTING_TYPES: CandidateAccountingType[] = [
+  "kurs",
+  "teorik_sinav",
+  "direksiyon_sinav",
+  "diger",
+];
+
+const ACCOUNTING_SECTION_DEFINITIONS: Array<{
+  id: "course" | "exam" | "other";
+  title: string;
+  detail: string;
+  types: CandidateAccountingType[];
+}> = [
+  {
+    id: "course",
+    title: "Kurs Ödemesi",
+    detail: "Kurs hareketleri",
+    types: ["kurs"],
+  },
+  {
+    id: "exam",
+    title: "Sınav Ücretleri",
+    detail: "Teorik + direksiyon",
+    types: ["teorik_sinav", "direksiyon_sinav"],
+  },
+  {
+    id: "other",
+    title: "Diğer Ödemeler",
+    detail: "Diğer hareketler",
+    types: ["diger"],
+  },
+];
+
+const PAYMENT_METHODS: CandidatePaymentMethod[] = [
+  "cash",
+  "bank_transfer",
+  "credit_card",
+  "mail_order",
+  "other",
+];
+
+function cashRegisterTypeForMethod(method: CandidatePaymentMethod) {
+  return method === "other" ? null : method;
+}
+
+type AccountingLedgerColumnId =
+  | "type"
+  | "description"
+  | "dueDate"
+  | "amount"
+  | "paidAmount"
+  | "remainingAmount"
+  | "number"
+  | "method"
+  | "cashRegister"
+  | "refundedAmount"
+  | "paidAt"
+  | "actions";
+
+type AccountingLedgerSortField = Exclude<AccountingLedgerColumnId, "actions">;
+type AccountingLedgerFilterKey = "kind" | "status" | "method" | "cashRegister";
+type AccountingLedgerSortState = {
+  field: AccountingLedgerSortField;
+  direction: "asc" | "desc";
+} | null;
+
+type AccountingLedgerFilters = Record<AccountingLedgerFilterKey, string>;
+
+const ACCOUNTING_LEDGER_COLUMNS: Array<{
+  id: AccountingLedgerColumnId;
+  label: string;
+  sortField?: AccountingLedgerSortField;
+  locked?: boolean;
+}> = [
+  { id: "type", label: "Tür", sortField: "type", locked: true },
+  { id: "description", label: "Açıklama", sortField: "description" },
+  { id: "dueDate", label: "Vade Tarihi", sortField: "dueDate" },
+  { id: "amount", label: "Tutar", sortField: "amount" },
+  { id: "paidAmount", label: "Ödenen", sortField: "paidAmount" },
+  { id: "remainingAmount", label: "Kalan", sortField: "remainingAmount" },
+  { id: "number", label: "No", sortField: "number" },
+  { id: "method", label: "Yöntem", sortField: "method" },
+  { id: "cashRegister", label: "Kasa", sortField: "cashRegister" },
+  { id: "refundedAmount", label: "İade", sortField: "refundedAmount" },
+  { id: "paidAt", label: "Ödeme Tarihi", sortField: "paidAt" },
+  { id: "actions", label: "İşlemler", locked: true },
+];
+
+const ACCOUNTING_LEDGER_COLUMN_OPTIONS: ColumnOption[] = ACCOUNTING_LEDGER_COLUMNS.map((column) => ({
+  id: column.id,
+  label: column.label,
+  locked: column.locked,
+}));
+
+const DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS: AccountingLedgerColumnId[] = [
+  "type",
+  "description",
+  "dueDate",
+  "amount",
+  "paidAmount",
+  "remainingAmount",
+  "number",
+  "method",
+  "cashRegister",
+  "refundedAmount",
+  "paidAt",
+  "actions",
+];
+
+const DEFAULT_ACCOUNTING_LEDGER_FILTERS: AccountingLedgerFilters = {
+  kind: "all",
+  status: "all",
+  method: "all",
+  cashRegister: "all",
+};
+
+function AccountingTab({
+  accounting,
+  accountingLoading,
+  accountingError,
   candidate,
-  chargeSaving,
+  movementSaving,
   paymentSaving,
-  paymentPlanSaving,
-  onCreateSuggestedCharge,
-  onCreatePaymentPlan,
+  invoiceSaving,
+  onCreateMovement,
   onCreatePayment,
-  onCancelCharge,
+  onCancelMovement,
   onCancelPayment,
+  onRefundPayment,
+  onSaveInvoice,
+  onDeleteInvoice,
 }: {
-  billing: CandidateBillingSummaryResponse | null;
-  billingLoading: boolean;
-  billingError: string | null;
+  accounting: CandidateAccountingSummaryResponse | null;
+  accountingLoading: boolean;
+  accountingError: string | null;
   candidate: CandidateResponse;
-  chargeSaving: boolean;
+  movementSaving: boolean;
   paymentSaving: boolean;
-  paymentPlanSaving: boolean;
-  onCreateSuggestedCharge: () => void;
-  onCreatePaymentPlan: (
-    downPaymentAmount: number,
-    installmentCount: number,
-    firstDueDate: string
+  invoiceSaving: boolean;
+  onCreateMovement: (
+    type: CandidateAccountingType,
+    dueDate: string,
+    amount: number,
+    description: string
   ) => void;
   onCreatePayment: (
+    type: CandidateAccountingType,
     amount: number,
     method: CandidatePaymentMethod,
-    note: string | null,
-    installmentId: string | null
+    cashRegisterId: string | null,
+    paidAtUtc: string,
+    note: string | null
   ) => void;
-  onCancelCharge: (chargeId: string, cancellationReason: string) => void;
+  onCancelMovement: (movementId: string) => void;
   onCancelPayment: (paymentId: string, cancellationReason: string) => void;
+  onRefundPayment: (paymentId: string, amount: number | null, note: string | null) => void;
+  onSaveInvoice: (
+    invoice: CandidateAccountingInvoiceResponse | null,
+    payload: {
+      invoiceNo: string;
+      invoiceType: string;
+      invoiceDate: string;
+      subtotal: number;
+      vatRate: number;
+      notes?: string | null;
+    }
+  ) => void;
+  onDeleteInvoice: (invoiceId: string) => void;
 }) {
-  const [searchParams] = useSearchParams();
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<CandidatePaymentMethod>("cash");
-  const [paymentNote, setPaymentNote] = useState("");
-  const [paymentInstallmentId, setPaymentInstallmentId] = useState("");
-  const [downPaymentAmount, setDownPaymentAmount] = useState("");
-  const [installmentCount, setInstallmentCount] = useState("4");
-  const [firstDueDate, setFirstDueDate] = useState(todayIsoDate());
-  const [showCancelledInstallments, setShowCancelledInstallments] = useState(false);
-  const [receiptPayment, setReceiptPayment] = useState<CandidatePaymentResponse | null>(null);
-  const [activeBillingAction, setActiveBillingAction] = useState<"payment" | "plan" | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<
-    | { type: "charge"; id: string; label: string }
-    | { type: "payment"; id: string; label: string }
-    | null
-  >(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const handledAccountingQueryRef = useRef("");
+  const [cashRegisters, setCashRegisters] = useState<CashRegisterResponse[]>([]);
+  const [debtModal, setDebtModal] = useState<{
+    open: boolean;
+    type: CandidateAccountingType;
+    amount: string;
+    dueDate: string;
+    description: string;
+  }>({
+    open: false,
+    type: "kurs",
+    amount: "",
+    dueDate: todayIsoDate(),
+    description: "",
+  });
+  const [paymentModal, setPaymentModal] = useState<{
+    open: boolean;
+    type: CandidateAccountingType;
+    amount: string;
+    method: CandidatePaymentMethod;
+    cashRegisterId: string;
+    paidAtUtc: string;
+    note: string;
+  }>({
+    open: false,
+    type: "kurs",
+    amount: "",
+    method: "cash",
+    cashRegisterId: "",
+    paidAtUtc: todayIsoDate(),
+    note: "",
+  });
+  const [invoiceModal, setInvoiceModal] = useState<{
+    open: boolean;
+    invoice: CandidateAccountingInvoiceResponse | null;
+    invoiceNo: string;
+    invoiceType: string;
+    invoiceDate: string;
+    subtotal: string;
+    vatRate: string;
+    notes: string;
+  }>({
+    open: false,
+    invoice: null,
+    invoiceNo: "",
+    invoiceType: "Satış",
+    invoiceDate: todayIsoDate(),
+    subtotal: "",
+    vatRate: "20",
+    notes: "",
+  });
+  const [receiptPayment, setReceiptPayment] =
+    useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
+  const [cancelPayment, setCancelPayment] =
+    useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
+  const [refundPayment, setRefundPayment] =
+    useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
+  const [paymentCancelReason, setPaymentCancelReason] = useState("");
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundNote, setRefundNote] = useState("");
+  const [sectionSummaryOpen, setSectionSummaryOpen] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get("action") !== "payment") return;
-    setActiveBillingAction("payment");
-    const installmentId = searchParams.get("installmentId");
-    if (installmentId) {
-      setPaymentInstallmentId(installmentId);
+    const controller = new AbortController();
+    getCashRegisters({ activity: "active", page: 1, pageSize: 200 }, controller.signal)
+      .then((response) => setCashRegisters(response.items))
+      .catch(() => {
+        /* Kasa yoksa ödeme formu zaten kayıt engeller. */
+      });
+    return () => controller.abort();
+  }, []);
+
+  const allMovements = accounting?.movements ?? [];
+  const activeMovements = allMovements.filter((item) => item.status === "active");
+  const activePayments = accounting?.payments.filter((item) => item.status === "active") ?? [];
+  const sectionMovements = (types: CandidateAccountingType[]) =>
+    allMovements.filter((item) => types.includes(item.type));
+  const sectionSummaries = ACCOUNTING_SECTION_DEFINITIONS.map((section) => {
+    const movements = sectionMovements(section.types);
+
+    return {
+      ...section,
+      movementCount: movements.length,
+      totalAmount: movements.reduce((sum, item) => sum + item.amount, 0),
+      paidAmount: movements.reduce((sum, item) => sum + item.paidAmount, 0),
+      refundedAmount: movements.reduce((sum, item) => sum + item.refundedAmount, 0),
+      remainingAmount: movements.reduce((sum, item) => sum + item.remainingAmount, 0),
+    };
+  });
+  const invoiceSummary = {
+    count: accounting?.invoices.length ?? 0,
+    subtotal: accounting?.invoices.reduce((sum, item) => sum + item.subtotal, 0) ?? 0,
+    vatAmount: accounting?.invoices.reduce((sum, item) => sum + item.vatAmount, 0) ?? 0,
+    totalAmount: accounting?.invoices.reduce((sum, item) => sum + item.totalAmount, 0) ?? 0,
+  };
+  const typeOpenBalance = (type: CandidateAccountingType) =>
+    activeMovements
+      .filter((item) => item.type === type)
+      .reduce((sum, item) => sum + item.remainingAmount, 0);
+
+  const availableCashRegisters = cashRegisters.filter((register) => {
+    const expected = cashRegisterTypeForMethod(paymentModal.method);
+    return expected !== null && register.type === expected;
+  });
+  const parsedDebtAmount = parseMoneyInput(debtModal.amount);
+  const parsedPaymentAmount = parseMoneyInput(paymentModal.amount);
+  const paymentNeedsRegister = cashRegisterTypeForMethod(paymentModal.method) !== null;
+  const canSaveDebt =
+    Boolean(debtModal.description.trim()) &&
+    Boolean(debtModal.dueDate) &&
+    parsedDebtAmount != null &&
+    parsedDebtAmount > 0 &&
+    !movementSaving;
+  const canSavePayment =
+    parsedPaymentAmount != null &&
+    parsedPaymentAmount > 0 &&
+    parsedPaymentAmount <= typeOpenBalance(paymentModal.type) &&
+    (!paymentNeedsRegister || Boolean(paymentModal.cashRegisterId)) &&
+    !paymentSaving;
+  const invoiceSubtotal = parseMoneyInput(invoiceModal.subtotal);
+  const invoiceVatRate = Number(invoiceModal.vatRate);
+  const invoiceVatAmount =
+    invoiceSubtotal != null ? Math.round((invoiceSubtotal * invoiceVatRate / 100) * 100) / 100 : 0;
+  const invoiceTotal = invoiceSubtotal != null ? invoiceSubtotal + invoiceVatAmount : 0;
+  const canSaveInvoice =
+    Boolean(invoiceModal.invoiceNo.trim()) &&
+    Boolean(invoiceModal.invoiceType.trim()) &&
+    Boolean(invoiceModal.invoiceDate) &&
+    invoiceSubtotal != null &&
+    invoiceSubtotal > 0 &&
+    !invoiceSaving;
+
+  const openDebtModal = (
+    type: CandidateAccountingType = "kurs",
+    amount = "",
+    description = ""
+  ) => {
+    setDebtModal({
+      open: true,
+      type,
+      amount,
+      dueDate: todayIsoDate(),
+      description,
+    });
+  };
+  const openPaymentModal = (type: CandidateAccountingType = "kurs", amount = "") => {
+    const defaultMethod: CandidatePaymentMethod = "cash";
+    const firstRegister = cashRegisters.find((register) => register.type === defaultMethod);
+    setPaymentModal({
+      open: true,
+      type,
+      amount,
+      method: defaultMethod,
+      cashRegisterId: firstRegister?.id ?? "",
+      paidAtUtc: todayIsoDate(),
+      note: "",
+    });
+  };
+  const openInvoiceModal = (
+    invoice: CandidateAccountingInvoiceResponse | null = null,
+    amount?: number
+  ) => {
+    setInvoiceModal({
+      open: true,
+      invoice,
+      invoiceNo: invoice?.invoiceNo ?? "",
+      invoiceType: invoice?.invoiceType ?? "Satış",
+      invoiceDate: invoice?.invoiceDate ?? todayIsoDate(),
+      subtotal: invoice ? String(invoice.subtotal) : amount ? String(amount) : "",
+      vatRate: invoice ? String(invoice.vatRate) : "20",
+      notes: invoice?.notes ?? "",
+    });
+  };
+  const openRefundModal = (payment: CandidateAccountingSummaryResponse["payments"][number]) => {
+    setRefundPayment(payment);
+    setRefundAmount(String(Math.max(0, payment.amount - payment.refundedAmount)));
+    setRefundNote("");
+  };
+  useEffect(() => {
+    if (!accounting) return;
+    const queryKey = searchParams.toString();
+    if (!queryKey || handledAccountingQueryRef.current === queryKey) return;
+
+    const paymentId = searchParams.get("paymentId");
+    if (paymentId) {
+      const payment = accounting.payments.find((item) => item.id === paymentId);
+      if (payment) {
+        handledAccountingQueryRef.current = queryKey;
+        setReceiptPayment(payment);
+        setSearchParams({ tab: "payments" }, { replace: true });
+      }
+      return;
     }
-  }, [searchParams]);
-  const activeCharges = billing?.charges.filter((item) => item.status === "active") ?? [];
-  const activePayments = billing?.payments.filter((item) => item.status === "active") ?? [];
-  const activeInstallments = billing?.installments.filter((item) => item.status === "active") ?? [];
-  const visibleInstallments =
-    billing?.installments.filter((item) => showCancelledInstallments || item.status === "active") ?? [];
-  const installmentById = new Map(
-    (billing?.installments ?? []).map((installment) => [installment.id, installment])
-  );
-  const cancelledInstallmentCount =
-    billing?.installments.filter((item) => item.status === "cancelled").length ?? 0;
-  const suggestedAlreadyCharged = Boolean(
-    billing?.suggestedCharge &&
-      activeCharges.some(
-        (charge) =>
-          charge.sourceType === "matrix" &&
-          charge.sourceReferenceId === billing.suggestedCharge?.certificateProgramId &&
-          charge.feeYear === billing.suggestedCharge?.feeYear
-      )
-  );
-  const parsedPaymentAmount = parseMoneyInput(paymentAmount);
-  const canSubmitPayment =
-    parsedPaymentAmount != null && parsedPaymentAmount > 0 && !paymentSaving;
-  const parsedDownPaymentAmount = parseMoneyInput(downPaymentAmount) ?? 0;
-  const parsedInstallmentCount = Number.parseInt(installmentCount, 10);
-  const canCreatePaymentPlan =
-    Boolean(billing) &&
-    billing!.balance > 0 &&
-    parsedDownPaymentAmount >= 0 &&
-    parsedDownPaymentAmount < billing!.balance &&
-    Number.isInteger(parsedInstallmentCount) &&
-    parsedInstallmentCount >= 1 &&
-    parsedInstallmentCount <= 24 &&
-    Boolean(firstDueDate) &&
-    !paymentPlanSaving;
 
-  const submitPayment = () => {
-    if (!canSubmitPayment || parsedPaymentAmount == null) return;
-    onCreatePayment(
-      parsedPaymentAmount,
-      paymentMethod,
-      paymentNote.trim() || null,
-      paymentInstallmentId || null
-    );
-    setPaymentAmount("");
-    setPaymentNote("");
-    setPaymentInstallmentId("");
-  };
-  const selectInstallmentForPayment = (installmentId: string) => {
-    const installment = activeInstallments.find((item) => item.id === installmentId);
-    setPaymentInstallmentId(installmentId);
-    setActiveBillingAction("payment");
-    if (!installment) return;
-
-    setPaymentAmount(String(installment.remainingAmount));
-    setPaymentNote(`${installment.description} tahsilatı`);
-  };
-  const submitPaymentPlan = () => {
-    if (!canCreatePaymentPlan) return;
-    onCreatePaymentPlan(parsedDownPaymentAmount, parsedInstallmentCount, firstDueDate);
-  };
-  const suggestedProgramLabel =
-    billing?.suggestedCharge?.sourceLicenseDisplayName &&
-    billing.suggestedCharge.targetLicenseDisplayName
-      ? `${billing.suggestedCharge.sourceLicenseDisplayName}${
-          billing.suggestedCharge.sourceLicensePre2016 ? " (2016 öncesi)" : ""
-        } -> ${billing.suggestedCharge.targetLicenseDisplayName}`
-      : billing?.suggestedCharge?.description ?? null;
+    if (searchParams.get("action") === "payment") {
+      const movementId = searchParams.get("movementId") ?? searchParams.get("installmentId");
+      const movement = accounting.movements.find(
+        (item) => item.id === movementId && item.status === "active" && item.remainingAmount > 0
+      );
+      if (movement) {
+        handledAccountingQueryRef.current = queryKey;
+        openPaymentModal(movement.type, String(movement.remainingAmount));
+        setSearchParams({ tab: "payments" }, { replace: true });
+      }
+    }
+  }, [accounting, searchParams, setSearchParams]);
 
   return (
     <div className="candidate-detail-tab-content">
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Cari Özet</h3>
-        {billingLoading ? (
-          <div className="instructor-detail-empty">Tahsilat bilgileri yükleniyor...</div>
-        ) : billingError ? (
-          <div className="instructor-detail-error">{billingError}</div>
-        ) : billing ? (
-          <div className="candidate-billing-summary-grid">
-            <div className="candidate-billing-summary-card is-suggested">
-              <span className="candidate-detail-stat-label">Matrix Tutarı</span>
-              <strong>
-                {billing.suggestedCharge
-                  ? formatCurrencyTRY(billing.suggestedCharge.amount)
-                  : "—"}
-              </strong>
-            </div>
-            <div className="candidate-billing-summary-card">
-              <span className="candidate-detail-stat-label">Kesinleşmiş Borç</span>
-              <strong>{formatCurrencyTRY(billing.totalDebt)}</strong>
-            </div>
-            <div className="candidate-billing-summary-card">
-              <span className="candidate-detail-stat-label">Tahsil Edilen</span>
-              <strong>{formatCurrencyTRY(billing.totalPaid)}</strong>
-            </div>
-            <div className="candidate-billing-summary-card is-balance">
-              <span className="candidate-detail-stat-label">Kalan Bakiye</span>
-              <strong>{formatCurrencyTRY(billing.balance)}</strong>
-            </div>
-            {billing.totalDebt === 0 && billing.suggestedCharge ? (
-              <div className="candidate-billing-summary-note">
-                Matrix önerisi henüz borçlandırılmadığı için kesinleşmiş borç 0 görünüyor.
+        <h3 className="candidate-detail-section-title">Muhasebe Özeti</h3>
+        {accountingLoading ? (
+          <div className="instructor-detail-empty">Muhasebe bilgileri yükleniyor...</div>
+        ) : accountingError ? (
+          <div className="instructor-detail-error">{accountingError}</div>
+        ) : accounting ? (
+          <>
+            <div className="candidate-billing-summary-grid">
+              <div className="candidate-billing-summary-card">
+                <span className="candidate-detail-stat-label">Toplam Borç</span>
+                <strong>{formatCurrencyTRY(accounting.totalMovementAmount)}</strong>
               </div>
-            ) : null}
-            {!billing.suggestedCharge ? (
-              <div className="candidate-billing-summary-note">
-                Bu aday için matrixte pozitif sözleşme tutarı bulunamadı.
+              <div className="candidate-billing-summary-card">
+                <span className="candidate-detail-stat-label">Tahsil Edilen</span>
+                <strong>{formatCurrencyTRY(accounting.totalPaid)}</strong>
               </div>
-            ) : null}
-          </div>
+              <div className="candidate-billing-summary-card is-balance">
+                <span className="candidate-detail-stat-label">Kalan Bakiye</span>
+                <strong>{formatCurrencyTRY(accounting.balance)}</strong>
+              </div>
+              <div className="candidate-billing-summary-card">
+                <span className="candidate-detail-stat-label">İade / Fatura</span>
+                <strong>
+                  {formatCurrencyTRY(accounting.totalRefunded)} / {formatCurrencyTRY(accounting.invoiceTotal)}
+                </strong>
+              </div>
+            </div>
+            <div className="candidate-accounting-section-summary-shell">
+              <button
+                aria-expanded={sectionSummaryOpen}
+                className="candidate-accounting-section-summary-toggle"
+                onClick={() => setSectionSummaryOpen((current) => !current)}
+                type="button"
+              >
+                <span>
+                  <strong>Detaylı özet</strong>
+                  <em>Kurs, sınav, diğer ve fatura kırılımı</em>
+                </span>
+                <span aria-hidden="true">{sectionSummaryOpen ? "Kapat" : "Aç"}</span>
+              </button>
+              {sectionSummaryOpen ? (
+                <div className="candidate-accounting-section-summary" aria-label="Bölüm bazlı muhasebe özeti">
+                  {sectionSummaries.map((section) => (
+                    <div className="candidate-accounting-section-summary-row" key={section.id}>
+                      <div className="candidate-accounting-section-summary-title">
+                        <strong>{section.title}</strong>
+                        <span>
+                          {section.detail} · {section.movementCount} hareket
+                        </span>
+                      </div>
+                      <div className="candidate-accounting-section-summary-metrics">
+                        <span>
+                          <em>Hareket</em>
+                          <strong>{formatCurrencyTRY(section.totalAmount)}</strong>
+                        </span>
+                        <span>
+                          <em>Tahsil</em>
+                          <strong>{formatCurrencyTRY(section.paidAmount)}</strong>
+                        </span>
+                        <span>
+                          <em>İade</em>
+                          <strong>{formatCurrencyTRY(section.refundedAmount)}</strong>
+                        </span>
+                        <span className={section.remainingAmount > 0 ? "is-balance" : undefined}>
+                          <em>Kalan</em>
+                          <strong>{formatCurrencyTRY(section.remainingAmount)}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="candidate-accounting-section-summary-row">
+                    <div className="candidate-accounting-section-summary-title">
+                      <strong>Faturalar</strong>
+                      <span>
+                        Manuel fatura kayıtları · {invoiceSummary.count} fatura
+                      </span>
+                    </div>
+                    <div className="candidate-accounting-section-summary-metrics">
+                      <span>
+                        <em>Matrah</em>
+                        <strong>{formatCurrencyTRY(invoiceSummary.subtotal)}</strong>
+                      </span>
+                      <span>
+                        <em>KDV</em>
+                        <strong>{formatCurrencyTRY(invoiceSummary.vatAmount)}</strong>
+                      </span>
+                      <span className="is-balance">
+                        <em>Toplam</em>
+                        <strong>{formatCurrencyTRY(invoiceSummary.totalAmount)}</strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </>
         ) : null}
       </section>
 
       <section className="candidate-billing-action-bar">
         <div className="candidate-billing-action-meta">
           <span>Hızlı işlemler</span>
-          {billing?.suggestedCharge ? (
-            <strong>
-              Matrix: {formatCurrencyTRY(billing.suggestedCharge.amount)}
-              {suggestedProgramLabel ? ` · ${suggestedProgramLabel}` : ""}
-            </strong>
-          ) : (
-            <strong>Matrix önerisi yok</strong>
-          )}
+          <strong>Hareket ekle, ödeme al veya fatura kaydet</strong>
         </div>
         <div className="candidate-billing-action-buttons">
-          {billing?.suggestedCharge ? (
-            <button
-              className="btn btn-primary"
-              disabled={chargeSaving || suggestedAlreadyCharged}
-              onClick={onCreateSuggestedCharge}
-              type="button"
-            >
-              {chargeSaving
-                ? "Borçlandırılıyor..."
-                : suggestedAlreadyCharged
-                ? "Borçlandırıldı"
-                : "Borçlandır"}
-            </button>
-          ) : null}
-          <button
-            className={`btn ${
-              activeBillingAction === "payment" ? "btn-primary" : "btn-secondary"
-            }`}
-            onClick={() =>
-              setActiveBillingAction((current) => (current === "payment" ? null : "payment"))
-            }
-            type="button"
-          >
-            Tahsilat Gir
+          <button className="btn btn-primary" onClick={() => openDebtModal()} type="button">
+            Borç Ekle
           </button>
-          <button
-            className={`btn ${activeBillingAction === "plan" ? "btn-primary" : "btn-secondary"}`}
-            onClick={() =>
-              setActiveBillingAction((current) => (current === "plan" ? null : "plan"))
-            }
-            type="button"
-          >
-            Ödeme Planı
+          <button className="btn btn-secondary" onClick={() => openPaymentModal()} type="button">
+            Ödeme Al
+          </button>
+          <button className="btn btn-secondary" onClick={() => openInvoiceModal()} type="button">
+            Fatura Ekle
           </button>
         </div>
       </section>
 
-      {activeBillingAction ? (
-        <section className="candidate-billing-active-panel">
-          <div className="candidate-billing-active-panel-head">
-            <div>
-              <span>Aktif İşlem</span>
-              <h3>
-                {activeBillingAction === "payment" ? "Tahsilat Al" : "Ödeme Planı Oluştur"}
-              </h3>
-            </div>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setActiveBillingAction(null)}
-              type="button"
-            >
-              Kapat
-            </button>
+      {accounting?.feeSuggestions.length ? (
+        <section className="instructor-detail-card candidate-billing-suggestion">
+          <div className="candidate-billing-suggestion-title">Ücret önerileri</div>
+          <div className="candidate-billing-suggestion-meta">
+            {accounting.feeSuggestions.map((suggestion) => (
+              <button
+                className="btn btn-secondary btn-sm"
+                key={suggestion.feeId}
+                onClick={() =>
+                  openDebtModal(
+                    suggestion.type,
+                    String(suggestion.amount),
+                    suggestion.description
+                  )
+                }
+                type="button"
+              >
+                {accountingTypeLabel(suggestion.type)} · {formatCurrencyTRY(suggestion.amount)}
+              </button>
+            ))}
           </div>
-          {activeBillingAction === "payment" ? (
-            <div className="candidate-billing-payment-form">
-              <input
-                className="form-input"
-                inputMode="decimal"
-                onChange={(event) => setPaymentAmount(event.target.value)}
-                placeholder="Tutar"
-                value={paymentAmount}
-              />
-              <select
-                className="form-select"
-                onChange={(event) => setPaymentMethod(event.target.value as CandidatePaymentMethod)}
-                value={paymentMethod}
-              >
-                <option value="cash">Nakit</option>
-                <option value="card">Kart</option>
-                <option value="bank_transfer">Havale/EFT</option>
-                <option value="other">Diğer</option>
-              </select>
-              <input
-                className="form-input"
-                onChange={(event) => setPaymentNote(event.target.value)}
-                placeholder="Açıklama"
-                value={paymentNote}
-              />
-              <select
-                className="form-select"
-                onChange={(event) => {
-                  const nextInstallmentId = event.target.value;
-                  if (!nextInstallmentId) {
-                    setPaymentInstallmentId("");
-                    return;
-                  }
-                  selectInstallmentForPayment(nextInstallmentId);
-                }}
-                value={paymentInstallmentId}
-              >
-                <option value="">Taksit seçilmedi</option>
-                {activeInstallments.map((installment) => (
-                  <option key={installment.id} value={installment.id}>
-                    {installment.description} · {formatDateTR(installment.dueDate)} ·{" "}
-                    {formatCurrencyTRY(installment.remainingAmount)}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="btn btn-primary"
-                disabled={!canSubmitPayment}
-                onClick={submitPayment}
-                type="button"
-              >
-                {paymentSaving ? "Kaydediliyor..." : "Tahsilat Kaydet"}
-              </button>
-            </div>
-          ) : billing && billing.balance > 0 ? (
-            <div className="candidate-billing-plan-form">
-              <input
-                className="form-input"
-                inputMode="decimal"
-                onChange={(event) => setDownPaymentAmount(event.target.value)}
-                placeholder="Peşinat"
-                value={downPaymentAmount}
-              />
-              <input
-                className="form-input"
-                inputMode="numeric"
-                max={24}
-                min={1}
-                onChange={(event) => setInstallmentCount(event.target.value)}
-                placeholder="Taksit sayısı"
-                type="number"
-                value={installmentCount}
-              />
-              <LocalizedDateInput
-                className="form-input"
-                defaultOnOpen={todayIsoDate()}
-                onChange={setFirstDueDate}
-                placeholder="İlk vade"
-                value={firstDueDate}
-              />
-              <button
-                className="btn btn-primary"
-                disabled={!canCreatePaymentPlan}
-                onClick={submitPaymentPlan}
-                type="button"
-              >
-                {paymentPlanSaving ? "Oluşturuluyor..." : "Plan Oluştur"}
-              </button>
-              {activeInstallments.length > 0 ? (
-                <div className="candidate-billing-plan-warning">
-                  Yeni plan oluşturulursa mevcut aktif plan iptal edilir.
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="instructor-detail-empty">Planlanacak aktif bakiye yok.</div>
-          )}
         </section>
       ) : null}
 
-      <div className="candidate-billing-workspace">
-        <section className="instructor-detail-card candidate-billing-workspace-card">
-          <h3 className="candidate-detail-section-title">Ödeme Planı</h3>
-          {cancelledInstallmentCount > 0 ? (
-            <label className="candidate-billing-history-toggle">
-              <input
-                checked={showCancelledInstallments}
-                onChange={(event) => setShowCancelledInstallments(event.target.checked)}
-                type="checkbox"
-              />
-              <span>İptal edilenleri göster</span>
-            </label>
-          ) : null}
-          {visibleInstallments.length === 0 ? (
-            <div className="candidate-billing-plan-empty">Aktif ödeme planı yok.</div>
-          ) : (
-            <table className="data-table candidate-detail-fee-table candidate-billing-plan-table">
-              <thead>
-                <tr>
-                  <th>Taksit</th>
-                  <th>Vade</th>
-                  <th>Tutar</th>
-                  <th>Ödenen</th>
-                  <th>Kalan</th>
-                  <th>Durum</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleInstallments.map((installment) => (
-                  <tr
-                    className={
-                      installment.status === "cancelled"
-                        ? "candidate-billing-installment-row-cancelled"
-                        : undefined
-                    }
-                    key={installment.id}
-                  >
-                    <td>{installment.description}</td>
-                    <td>{formatDateTR(installment.dueDate)}</td>
-                    <td>{formatCurrencyTRY(installment.amount)}</td>
-                    <td>{formatCurrencyTRY(installment.paidAmount)}</td>
-                    <td>{formatCurrencyTRY(installment.remainingAmount)}</td>
-                    <td>
-                      <span
-                        className={`candidate-billing-installment-status status-${installment.paymentStatus}`}
-                      >
-                        {installmentPaymentStatusLabel(installment.paymentStatus)}
-                      </span>
-                    </td>
-                    <td>
-                      {installment.status === "active" && installment.remainingAmount > 0 ? (
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => selectInstallmentForPayment(installment.id)}
-                          type="button"
-                        >
-                          Öde
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+      <AccountingMovementSection
+        movements={sectionMovements(["kurs"])}
+        onCancelMovement={onCancelMovement}
+        onCancelPayment={(payment) => {
+          setCancelPayment(payment);
+          setPaymentCancelReason("");
+        }}
+        onCreateInvoice={(amount) => openInvoiceModal(null, amount)}
+        onOpenReceipt={(payment) => setReceiptPayment(payment)}
+        onOpenRefund={openRefundModal}
+        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount))}
+        payments={activePayments}
+        refunds={accounting?.refunds ?? []}
+        title="Kurs Ödemesi"
+      />
+      <AccountingMovementSection
+        movements={sectionMovements(["teorik_sinav", "direksiyon_sinav"])}
+        onCancelMovement={onCancelMovement}
+        onCancelPayment={(payment) => {
+          setCancelPayment(payment);
+          setPaymentCancelReason("");
+        }}
+        onCreateInvoice={(amount) => openInvoiceModal(null, amount)}
+        onOpenReceipt={(payment) => setReceiptPayment(payment)}
+        onOpenRefund={openRefundModal}
+        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount))}
+        payments={activePayments}
+        refunds={accounting?.refunds ?? []}
+        title="Sınav Ücretleri"
+      />
+      <AccountingMovementSection
+        movements={sectionMovements(["diger"])}
+        onCancelMovement={onCancelMovement}
+        onCancelPayment={(payment) => {
+          setCancelPayment(payment);
+          setPaymentCancelReason("");
+        }}
+        onCreateInvoice={(amount) => openInvoiceModal(null, amount)}
+        onOpenReceipt={(payment) => setReceiptPayment(payment)}
+        onOpenRefund={openRefundModal}
+        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount))}
+        payments={activePayments}
+        refunds={accounting?.refunds ?? []}
+        title="Diğer Ödemeler"
+      />
 
-        <section className="instructor-detail-card candidate-billing-workspace-card">
-          <h3 className="candidate-detail-section-title">Tahsilatlar</h3>
-          {activePayments.length === 0 ? (
-            <div className="instructor-detail-empty">Tahsilat kaydı yok.</div>
-          ) : (
-            <table className="data-table candidate-detail-fee-table">
-              <thead>
-                <tr>
-                  <th>Tutar</th>
-                  <th>Yöntem</th>
-                  <th>Taksit</th>
-                  <th>Tarih</th>
-                  <th>Açıklama</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {activePayments.map((payment) => (
-                  <tr key={payment.id}>
-                    <td>{formatCurrencyTRY(payment.amount)}</td>
-                    <td>{paymentMethodLabel(payment.paymentMethod)}</td>
-                    <td>
-                      {payment.candidatePaymentInstallmentId
-                        ? installmentById.get(payment.candidatePaymentInstallmentId)?.description ??
-                          "Taksit"
-                        : "—"}
-                    </td>
-                    <td>{formatDateTR(payment.paidAtUtc)}</td>
-                    <td>{payment.note ?? "—"}</td>
-                    <td>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setReceiptPayment(payment)}
-                        type="button"
-                      >
-                        Makbuz
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() =>
-                          setCancelTarget({
-                            type: "payment",
-                            id: payment.id,
-                            label: `${formatCurrencyTRY(payment.amount)} tahsilat`,
-                          })
-                        }
-                        type="button"
-                      >
-                        İptal
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      </div>
-
-      <section className="instructor-detail-card candidate-billing-charges-card">
-        <h3 className="candidate-detail-section-title">Borçlandırmalar</h3>
-        {activeCharges.length === 0 ? (
-          <div className="instructor-detail-empty">Aktif borçlandırma yok.</div>
-        ) : (
-          <table className="data-table candidate-detail-fee-table">
+      <section className="instructor-detail-card candidate-billing-workspace-card">
+        <h3 className="candidate-detail-section-title">Faturalar</h3>
+        {accounting?.invoices.length ? (
+          <table className="data-table candidate-detail-fee-table candidate-accounting-invoice-table">
             <thead>
               <tr>
-                <th>Açıklama</th>
+                <th>Fatura No</th>
+                <th>Fatura Tipi</th>
+                <th>Fatura Tarihi</th>
                 <th>Tutar</th>
-                <th>Tarih</th>
+                <th>KDV</th>
+                <th>Toplam Tutar</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {activeCharges.map((charge) => (
-                <tr key={charge.id}>
-                  <td>{charge.description}</td>
-                  <td>{formatCurrencyTRY(charge.amount)}</td>
-                  <td>{formatDateTR(charge.chargedAtUtc)}</td>
+              {accounting.invoices.map((invoice) => (
+                <tr className={invoiceRowClassName(invoice.invoiceType)} key={invoice.id}>
+                  <td>{invoice.invoiceNo}</td>
+                  <td>{invoice.invoiceType}</td>
+                  <td>{formatDateTR(invoice.invoiceDate)}</td>
+                  <td>{formatCurrencyTRY(invoice.subtotal)}</td>
+                  <td>%{invoice.vatRate} · {formatCurrencyTRY(invoice.vatAmount)}</td>
+                  <td>{formatCurrencyTRY(invoice.totalAmount)}</td>
                   <td>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() =>
-                        setCancelTarget({
-                          type: "charge",
-                          id: charge.id,
-                          label: charge.description,
-                        })
-                      }
-                      type="button"
-                    >
-                      İptal
+                    <button className="btn btn-secondary btn-sm" onClick={() => openInvoiceModal(invoice)} type="button">
+                      Düzenle
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => onDeleteInvoice(invoice.id)} type="button">
+                      Sil
                     </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        ) : (
+          <div className="instructor-detail-empty">Fatura kaydı yok.</div>
         )}
       </section>
-      <PaymentReceiptModal
-        candidate={candidate}
-        installment={
-          receiptPayment?.candidatePaymentInstallmentId
-            ? installmentById.get(receiptPayment.candidatePaymentInstallmentId) ?? null
-            : null
+
+      <Modal
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setDebtModal((current) => ({ ...current, open: false }))} type="button">
+              Vazgeç
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!canSaveDebt}
+              onClick={() => {
+                if (!canSaveDebt || parsedDebtAmount == null) return;
+                onCreateMovement(debtModal.type, debtModal.dueDate, parsedDebtAmount, debtModal.description.trim());
+                setDebtModal((current) => ({ ...current, open: false }));
+              }}
+              type="button"
+            >
+              {movementSaving ? "Kaydediliyor..." : "Kaydet"}
+            </button>
+          </>
         }
+        onClose={() => setDebtModal((current) => ({ ...current, open: false }))}
+        open={debtModal.open}
+        title="Borç Ekle"
+      >
+        <AccountingTypePicker
+          onChange={(type) => setDebtModal((current) => ({ ...current, type }))}
+          value={debtModal.type}
+        />
+        <div className="candidate-accounting-modal-form">
+          <label className="form-group">
+            <span className="form-label">Vade Tarihi</span>
+            <LocalizedDateInput className="form-input" onChange={(dueDate) => setDebtModal((current) => ({ ...current, dueDate }))} value={debtModal.dueDate} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Tutar</span>
+            <input className="form-input" inputMode="decimal" onChange={(event) => setDebtModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={debtModal.amount} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Açıklama</span>
+            <input className="form-input" onChange={(event) => setDebtModal((current) => ({ ...current, description: event.target.value }))} placeholder="1. taksit, ilk ödeme..." value={debtModal.description} />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setPaymentModal((current) => ({ ...current, open: false }))} type="button">
+              Vazgeç
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!canSavePayment}
+              onClick={() => {
+                if (!canSavePayment || parsedPaymentAmount == null) return;
+                onCreatePayment(
+                  paymentModal.type,
+                  parsedPaymentAmount,
+                  paymentModal.method,
+                  paymentModal.cashRegisterId || null,
+                  paymentModal.paidAtUtc,
+                  paymentModal.note.trim() || null
+                );
+                setPaymentModal((current) => ({ ...current, open: false }));
+              }}
+              type="button"
+            >
+              {paymentSaving ? "Kaydediliyor..." : "Ödeme Kaydet"}
+            </button>
+          </>
+        }
+        onClose={() => setPaymentModal((current) => ({ ...current, open: false }))}
+        open={paymentModal.open}
+        title="Ödeme Al"
+      >
+        <AccountingTypePicker
+          onChange={(type) => setPaymentModal((current) => ({ ...current, type }))}
+          value={paymentModal.type}
+        />
+        <div className="candidate-accounting-modal-form">
+          <label className="form-group">
+            <span className="form-label">Yöntem</span>
+	            <CustomSelect
+	              className="form-select"
+	              onChange={(event) => {
+	                const method = event.target.value as CandidatePaymentMethod;
+                const firstRegister = cashRegisters.find((register) => register.type === cashRegisterTypeForMethod(method));
+                setPaymentModal((current) => ({
+                  ...current,
+                  method,
+                  cashRegisterId: firstRegister?.id ?? "",
+                }));
+              }}
+              value={paymentModal.method}
+            >
+	              {PAYMENT_METHODS.map((method) => (
+	                <option key={method} value={method}>{paymentMethodLabel(method)}</option>
+	              ))}
+	            </CustomSelect>
+          </label>
+          <label className="form-group">
+            <span className="form-label">Kasa</span>
+	            <CustomSelect
+	              className="form-select"
+	              disabled={!paymentNeedsRegister}
+	              onChange={(event) => setPaymentModal((current) => ({ ...current, cashRegisterId: event.target.value }))}
+              value={paymentModal.cashRegisterId}
+            >
+              <option value="">{paymentNeedsRegister ? "Kasa seç" : "Kasa gerekmiyor"}</option>
+	              {availableCashRegisters.map((register) => (
+	                <option key={register.id} value={register.id}>{register.name}</option>
+	              ))}
+	            </CustomSelect>
+          </label>
+          <label className="form-group">
+            <span className="form-label">Tutar</span>
+            <input className="form-input" inputMode="decimal" onChange={(event) => setPaymentModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={paymentModal.amount} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Ödeme Tarihi</span>
+            <LocalizedDateInput className="form-input" onChange={(paidAtUtc) => setPaymentModal((current) => ({ ...current, paidAtUtc }))} value={paymentModal.paidAtUtc} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Açıklama</span>
+            <input className="form-input" onChange={(event) => setPaymentModal((current) => ({ ...current, note: event.target.value }))} placeholder="Ödeme açıklaması" value={paymentModal.note} />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setInvoiceModal((current) => ({ ...current, open: false }))} type="button">
+              Vazgeç
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!canSaveInvoice}
+              onClick={() => {
+                if (!canSaveInvoice || invoiceSubtotal == null) return;
+                onSaveInvoice(invoiceModal.invoice, {
+                  invoiceNo: invoiceModal.invoiceNo.trim(),
+                  invoiceType: invoiceModal.invoiceType.trim(),
+                  invoiceDate: invoiceModal.invoiceDate,
+                  subtotal: invoiceSubtotal,
+                  vatRate: invoiceVatRate,
+                  notes: invoiceModal.notes.trim() || null,
+                });
+                setInvoiceModal((current) => ({ ...current, open: false }));
+              }}
+              type="button"
+            >
+              {invoiceSaving ? "Kaydediliyor..." : "Fatura Kaydet"}
+            </button>
+          </>
+        }
+        onClose={() => setInvoiceModal((current) => ({ ...current, open: false }))}
+        open={invoiceModal.open}
+        title={invoiceModal.invoice ? "Fatura Düzenle" : "Fatura Ekle"}
+      >
+        <div className="candidate-accounting-modal-form">
+          <label className="form-group">
+            <span className="form-label">Fatura No</span>
+            <input className="form-input" onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceNo: event.target.value }))} placeholder="Fatura No" value={invoiceModal.invoiceNo} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Fatura Tipi</span>
+            <input className="form-input" onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceType: event.target.value }))} placeholder="Satış" value={invoiceModal.invoiceType} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Fatura Tarihi</span>
+            <LocalizedDateInput className="form-input" onChange={(invoiceDate) => setInvoiceModal((current) => ({ ...current, invoiceDate }))} value={invoiceModal.invoiceDate} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Tutar</span>
+            <input className="form-input" inputMode="decimal" onChange={(event) => setInvoiceModal((current) => ({ ...current, subtotal: event.target.value }))} placeholder="0,00" value={invoiceModal.subtotal} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">KDV Oranı</span>
+	            <CustomSelect className="form-select" onChange={(event) => setInvoiceModal((current) => ({ ...current, vatRate: event.target.value }))} value={invoiceModal.vatRate}>
+	              <option value="0">%0</option>
+	              <option value="1">%1</option>
+	              <option value="10">%10</option>
+	              <option value="20">%20</option>
+	            </CustomSelect>
+          </label>
+          <label className="form-group">
+            <span className="form-label">KDV / Toplam</span>
+            <input className="form-input" readOnly value={`KDV ${formatCurrencyTRY(invoiceVatAmount)} · Toplam ${formatCurrencyTRY(invoiceTotal)}`} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Not</span>
+            <input className="form-input" onChange={(event) => setInvoiceModal((current) => ({ ...current, notes: event.target.value }))} placeholder="Fatura notu" value={invoiceModal.notes} />
+          </label>
+        </div>
+      </Modal>
+
+      <AccountingReceiptModal
+        candidate={candidate}
         onClose={() => setReceiptPayment(null)}
         payment={receiptPayment}
       />
-      <BillingCancelModal
-        onClose={() => setCancelTarget(null)}
-        onConfirm={(reason) => {
-          if (!cancelTarget) return;
-          if (cancelTarget.type === "charge") {
-            onCancelCharge(cancelTarget.id, reason);
-          } else {
-            onCancelPayment(cancelTarget.id, reason);
-          }
-          setCancelTarget(null);
-        }}
-        target={cancelTarget}
-      />
+
+      <Modal
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setCancelPayment(null)} type="button">Vazgeç</button>
+            <button
+              className="btn btn-primary"
+              disabled={paymentCancelReason.trim().length < 3}
+              onClick={() => {
+                if (!cancelPayment) return;
+                onCancelPayment(cancelPayment.id, paymentCancelReason.trim());
+                setCancelPayment(null);
+              }}
+              type="button"
+            >
+              İptal Et
+            </button>
+          </>
+        }
+        onClose={() => setCancelPayment(null)}
+        open={Boolean(cancelPayment)}
+        title="Ödemeyi İptal Et"
+      >
+        <div className="candidate-accounting-modal-form">
+          <label className="form-group">
+            <span className="form-label">İptal Sebebi</span>
+            <textarea className="form-input" onChange={(event) => setPaymentCancelReason(event.target.value)} placeholder="İptal sebebi" rows={3} value={paymentCancelReason} />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setRefundPayment(null)} type="button">Vazgeç</button>
+            <button
+              className="btn btn-primary"
+              disabled={(parseMoneyInput(refundAmount) ?? 0) <= 0}
+              onClick={() => {
+                if (!refundPayment) return;
+                onRefundPayment(refundPayment.id, parseMoneyInput(refundAmount), refundNote.trim() || null);
+                setRefundPayment(null);
+              }}
+              type="button"
+            >
+              İade Et
+            </button>
+          </>
+        }
+        onClose={() => setRefundPayment(null)}
+        open={Boolean(refundPayment)}
+        title="İade Kaydet"
+      >
+        <div className="candidate-accounting-modal-form">
+          <label className="form-group">
+            <span className="form-label">İade Tutarı</span>
+            <input className="form-input" inputMode="decimal" onChange={(event) => setRefundAmount(event.target.value)} placeholder="0,00" value={refundAmount} />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Açıklama</span>
+            <input className="form-input" onChange={(event) => setRefundNote(event.target.value)} placeholder="İade açıklaması" value={refundNote} />
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function BillingCancelModal({
-  target,
-  onClose,
-  onConfirm,
+function AccountingTypePicker({
+  value,
+  onChange,
 }: {
-  target:
-    | { type: "charge"; id: string; label: string }
-    | { type: "payment"; id: string; label: string }
-    | null;
-  onClose: () => void;
-  onConfirm: (reason: string) => void;
+  value: CandidateAccountingType;
+  onChange: (value: CandidateAccountingType) => void;
 }) {
-  const [reason, setReason] = useState("");
-
-  useEffect(() => {
-    if (target) setReason("");
-  }, [target]);
-
-  if (!target) return null;
-
-  const title = target.type === "charge" ? "Borçlandırmayı İptal Et" : "Tahsilatı İptal Et";
-  const canConfirm = reason.trim().length >= 3;
-
   return (
-    <Modal
-      footer={
-        <>
-          <button className="btn btn-secondary" onClick={onClose} type="button">
-            Vazgeç
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={!canConfirm}
-            onClick={() => onConfirm(reason.trim())}
-            type="button"
-          >
-            İptal Et
-          </button>
-        </>
-      }
-      onClose={onClose}
-      open={Boolean(target)}
-      title={title}
-    >
-      <div className="candidate-billing-cancel-modal">
-        <div className="candidate-billing-cancel-target">{target.label}</div>
-        <label className="form-field">
-          <span>İptal sebebi</span>
-          <textarea
-            className="form-input"
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Örn. Yanlış tutar girildi"
-            rows={3}
-            value={reason}
-          />
-        </label>
-      </div>
-    </Modal>
+    <div className="candidate-accounting-type-picker">
+      {ACCOUNTING_TYPES.map((type) => (
+        <button
+          className={value === type ? "candidate-accounting-type active" : "candidate-accounting-type"}
+          key={type}
+          onClick={() => onChange(type)}
+          type="button"
+        >
+          {accountingTypeLabel(type)}
+        </button>
+      ))}
+    </div>
   );
 }
 
-function PaymentReceiptModal({
+function AccountingMovementSection({
+  title,
+  movements,
+  payments,
+  refunds,
+  onPay,
+  onCancelMovement,
+  onCancelPayment,
+  onCreateInvoice,
+  onOpenReceipt,
+  onOpenRefund,
+}: {
+  title: string;
+  movements: CandidateAccountingSummaryResponse["movements"];
+  payments: CandidateAccountingSummaryResponse["payments"];
+  refunds: CandidateAccountingSummaryResponse["refunds"];
+  onPay: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
+  onCancelMovement: (movementId: string) => void;
+  onCancelPayment: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
+  onCreateInvoice: (amount: number) => void;
+  onOpenReceipt: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
+  onOpenRefund: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
+}) {
+  const [openActionMenu, setOpenActionMenu] = useState<{
+    movementId: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const [sort, setSort] = useState<AccountingLedgerSortState>(null);
+  const [filters, setFilters] = useState<AccountingLedgerFilters>(DEFAULT_ACCOUNTING_LEDGER_FILTERS);
+  const { isVisible, toggle: toggleColumn } = useColumnVisibility(
+    `candidate-accounting-ledger-columns:${title}`,
+    ACCOUNTING_LEDGER_COLUMNS.map((column) => column.id),
+    DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS
+  );
+  const visibleColumns = ACCOUNTING_LEDGER_COLUMNS.filter((column) => isVisible(column.id));
+
+  const toggleActionMenu = (
+    movementId: string,
+    event: MouseEvent<HTMLButtonElement>
+  ) => {
+    if (openActionMenu?.movementId === movementId) {
+      setOpenActionMenu(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    setOpenActionMenu({
+      movementId,
+      top: rect.bottom + 6,
+      left: Math.max(8, Math.min(window.innerWidth - 148, rect.right - 132)),
+    });
+  };
+
+  const closeActionMenu = () => setOpenActionMenu(null);
+
+  useEffect(() => {
+    if (!openActionMenu) return;
+
+    const close = () => setOpenActionMenu(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [openActionMenu]);
+
+  const handleSortToggle = (field: AccountingLedgerSortField) => {
+    setSort((current) => {
+      if (!current || current.field !== field) return { field, direction: "asc" };
+      if (current.direction === "asc") return { field, direction: "desc" };
+      return null;
+    });
+  };
+
+  const setFilter = (key: AccountingLedgerFilterKey, value: string) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const cashRegisterFilterOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const payment of payments) {
+      if (payment.cashRegister?.name) names.add(payment.cashRegister.name);
+    }
+    for (const refund of refunds) {
+      if (refund.cashRegister?.name) names.add(refund.cashRegister.name);
+    }
+
+    return [
+      { value: "all", label: "Tümü" },
+      ...[...names].sort((a, b) => a.localeCompare(b, "tr")).map((name) => ({
+        value: name,
+        label: name,
+      })),
+    ];
+  }, [payments, refunds]);
+
+  const sortedMovements = useMemo(() => {
+    if (!sort) return movements;
+
+    return [...movements].sort((left, right) => {
+      const result = compareAccountingSortValues(
+        accountingMovementSortValue(left, payments, sort.field),
+        accountingMovementSortValue(right, payments, sort.field)
+      );
+      return sort.direction === "asc" ? result : -result;
+    });
+  }, [movements, payments, sort]);
+
+  const hasActiveFilters = Object.entries(filters).some(
+    ([key, value]) => value !== DEFAULT_ACCOUNTING_LEDGER_FILTERS[key as AccountingLedgerFilterKey]
+  );
+
+  return (
+    <section className="instructor-detail-card candidate-billing-workspace-card">
+      <h3 className="candidate-detail-section-title">{title}</h3>
+      {movements.length === 0 ? (
+        <div className="instructor-detail-empty">Hareket kaydı yok.</div>
+      ) : (
+        <table className="data-table candidate-detail-fee-table candidate-accounting-ledger-table">
+          <thead>
+            <tr>
+              {visibleColumns.map((column) => {
+                const filterControl = buildAccountingLedgerFilterControl(
+                  column.id,
+                  filters,
+                  setFilter,
+                  cashRegisterFilterOptions
+                );
+                return column.sortField ? (
+                  <AccountingSortableTh
+                    className={`candidate-accounting-col-${column.id}`}
+                    field={column.sortField}
+                    filterControl={filterControl}
+                    key={column.id}
+                    label={column.label}
+                    onToggle={handleSortToggle}
+                    sort={sort}
+                  />
+                ) : (
+                  <th className={`candidate-accounting-col-${column.id}`} key={column.id}>
+                    <div className="sortable-th-shell">
+                      <span>{column.label}</span>
+                      {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+                    </div>
+                  </th>
+                );
+              })}
+              <th className="col-picker-th">
+                <ColumnPicker
+                  columns={ACCOUNTING_LEDGER_COLUMN_OPTIONS}
+                  isVisible={isVisible}
+                  onToggle={toggleColumn}
+                  triggerTitle="Sütunlar"
+                />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedMovements.flatMap((movement) => {
+              const relatedPayments = payments.filter((item) =>
+                item.allocations.some((allocation) => allocation.movementId === movement.id)
+              );
+              const payment = relatedPayments[0] ?? null;
+              const hasPaymentHistory = relatedPayments.length > 0 || movement.paidAmount > 0 || movement.refundedAmount > 0;
+              const status = accountingMovementStatus(movement);
+              const canPay = movement.status === "active" && movement.remainingAmount > 0 && relatedPayments.length === 0;
+              const canCancelMovement = movement.status === "active" && !hasPaymentHistory;
+              const canCreateInvoice = movement.status === "active";
+              const movementMatches = accountingMovementPassesFilters(movement, payment, filters);
+              const childRows = relatedPayments.flatMap((item) => {
+                const allocation = item.allocations.find((entry) => entry.movementId === movement.id);
+                if (!allocation) return [];
+
+                const paymentMatches = accountingPaymentPassesFilters(item, filters);
+                const relatedRefunds = refunds
+                  .filter((refund) => refund.paymentId === item.id)
+                  .map((refund) => ({
+                    refund,
+                    amount: refundShareForMovement(item, movement.id, refund.amount),
+                  }))
+                  .filter(({ refund, amount }) =>
+                    amount > 0 && accountingRefundPassesFilters(item, refund, filters)
+                  );
+
+                return [
+                  ...(paymentMatches ? [{ kind: "payment" as const, item, allocation }] : []),
+                  ...relatedRefunds.map(({ refund, amount }) => ({
+                    kind: "refund" as const,
+                    item,
+                    refund,
+                    amount,
+                  })),
+                ];
+              });
+
+              if (!movementMatches && childRows.length === 0) return [];
+
+              return [
+                <Fragment key={movement.id}>
+                  <tr className={`candidate-accounting-movement-row ${status.className}`}>
+                    {visibleColumns.map((column) => (
+                      <td
+                        className={accountingLedgerCellClassName(column.id)}
+                        key={column.id}
+                      >
+                        {renderAccountingMovementCell({
+                          columnId: column.id,
+                          movement,
+                          payment,
+                          status,
+                          canPay,
+                          canCancelMovement,
+                          canCreateInvoice,
+                          openActionMenu,
+                          toggleActionMenu,
+                          closeActionMenu,
+                          onPay,
+                          onCreateInvoice,
+                          onCancelMovement,
+                        })}
+                      </td>
+                    ))}
+                    <td className="col-picker-td" />
+                  </tr>
+                  {childRows.map((row) => {
+                    if (row.kind === "payment") {
+                      return (
+                        <tr className="candidate-accounting-transaction-row status-paid" key={`payment:${row.item.id}:${movement.id}`}>
+                          {visibleColumns.map((column) => (
+                            <td className={accountingLedgerCellClassName(column.id)} key={column.id}>
+                              {renderAccountingPaymentCell({
+                                columnId: column.id,
+                                movement,
+                                payment: row.item,
+                                allocation: row.allocation,
+                                openActionMenu,
+                                toggleActionMenu,
+                                closeActionMenu,
+                                onOpenReceipt,
+                                onOpenRefund,
+                                onCancelPayment,
+                              })}
+                            </td>
+                          ))}
+                          <td className="col-picker-td" />
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr className="candidate-accounting-transaction-row status-refunded" key={`refund:${row.refund.id}:${movement.id}`}>
+                        {visibleColumns.map((column) => (
+                          <td className={accountingLedgerCellClassName(column.id)} key={column.id}>
+                            {renderAccountingRefundCell({
+                              columnId: column.id,
+                              movement,
+                              payment: row.item,
+                              refund: row.refund,
+                              amount: row.amount,
+                            })}
+                          </td>
+                        ))}
+                        <td className="col-picker-td" />
+                      </tr>
+                    );
+                  })}
+                </Fragment>,
+              ];
+            })}
+            {hasActiveFilters && sortedMovements.length > 0 ? (
+              <tr className="candidate-accounting-filter-note-row">
+                <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
+                  Filtreler aktif. Eşleşmeyen hareketler gizlendi.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+function AccountingSortableTh({
+  className,
+  field,
+  filterControl,
+  label,
+  sort,
+  onToggle,
+}: {
+  className?: string;
+  field: AccountingLedgerSortField;
+  filterControl?: ReactNode;
+  label: string;
+  sort: AccountingLedgerSortState;
+  onToggle: (field: AccountingLedgerSortField) => void;
+}) {
+  const isActive = sort?.field === field;
+  const direction = isActive ? sort.direction : null;
+  const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
+  const ariaSort = isActive
+    ? direction === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+
+  return (
+    <th
+      aria-sort={ariaSort}
+      className={[isActive ? "sortable-th active" : "sortable-th", className]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="sortable-th-shell">
+        <button className="sortable-th-btn" onClick={() => onToggle(field)} type="button">
+          <span>{label}</span>
+          <span aria-hidden="true" className="sortable-th-indicator">
+            {indicator}
+          </span>
+        </button>
+        {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
+      </div>
+    </th>
+  );
+}
+
+function buildAccountingLedgerFilterControl(
+  columnId: AccountingLedgerColumnId,
+  filters: AccountingLedgerFilters,
+  setFilter: (key: AccountingLedgerFilterKey, value: string) => void,
+  cashRegisterOptions: Array<{ value: string; label: string }>
+) {
+  if (columnId === "type") {
+    return (
+      <TableHeaderFilter
+        active={filters.kind !== DEFAULT_ACCOUNTING_LEDGER_FILTERS.kind}
+        onChange={(value) => setFilter("kind", value)}
+        options={[
+          { value: "all", label: "Tümü" },
+          { value: "debt", label: "Borç" },
+          { value: "payment", label: "Ödeme" },
+          { value: "refund", label: "İade" },
+        ]}
+        title="Satır tipi"
+        value={filters.kind}
+      />
+    );
+  }
+
+  if (columnId === "method") {
+    return (
+      <TableHeaderFilter
+        active={filters.method !== DEFAULT_ACCOUNTING_LEDGER_FILTERS.method}
+        onChange={(value) => setFilter("method", value)}
+        options={[
+          { value: "all", label: "Tümü" },
+          ...PAYMENT_METHODS.map((method) => ({
+            value: method,
+            label: paymentMethodLabel(method),
+          })),
+        ]}
+        title="Ödeme yöntemi"
+        value={filters.method}
+      />
+    );
+  }
+
+  if (columnId === "cashRegister") {
+    return (
+      <TableHeaderFilter
+        active={filters.cashRegister !== DEFAULT_ACCOUNTING_LEDGER_FILTERS.cashRegister}
+        onChange={(value) => setFilter("cashRegister", value)}
+        options={cashRegisterOptions}
+        title="Kasa"
+        value={filters.cashRegister}
+      />
+    );
+  }
+
+  if (columnId === "actions") {
+    return (
+      <TableHeaderFilter
+        active={filters.status !== DEFAULT_ACCOUNTING_LEDGER_FILTERS.status}
+        onChange={(value) => setFilter("status", value)}
+        options={[
+          { value: "all", label: "Tümü" },
+          { value: "active", label: "Aktif" },
+          { value: "cancelled", label: "İptal" },
+        ]}
+        title="Durum"
+        value={filters.status}
+      />
+    );
+  }
+
+  return null;
+}
+
+function accountingLedgerCellClassName(columnId: AccountingLedgerColumnId) {
+  return [
+    `candidate-accounting-col-${columnId}`,
+    columnId === "actions" ? "candidate-accounting-actions-cell" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function accountingMovementPassesFilters(
+  movement: CandidateAccountingSummaryResponse["movements"][number],
+  payment: CandidateAccountingSummaryResponse["payments"][number] | null,
+  filters: AccountingLedgerFilters
+) {
+  if (filters.kind !== "all" && filters.kind !== "debt") return false;
+  if (filters.status === "active" && movement.status !== "active") return false;
+  if (filters.status === "cancelled" && movement.status !== "cancelled") return false;
+  if (filters.method !== "all" && movement.lastPaymentMethod !== filters.method) return false;
+  if (filters.cashRegister !== "all" && payment?.cashRegister?.name !== filters.cashRegister) {
+    return false;
+  }
+
+  return true;
+}
+
+function accountingPaymentPassesFilters(
+  payment: CandidateAccountingSummaryResponse["payments"][number],
+  filters: AccountingLedgerFilters
+) {
+  if (filters.kind !== "all" && filters.kind !== "payment") return false;
+  if (filters.status === "cancelled") return false;
+  if (filters.method !== "all" && payment.paymentMethod !== filters.method) return false;
+  if (filters.cashRegister !== "all" && payment.cashRegister?.name !== filters.cashRegister) {
+    return false;
+  }
+
+  return true;
+}
+
+function accountingRefundPassesFilters(
+  payment: CandidateAccountingSummaryResponse["payments"][number],
+  refund: CandidateAccountingSummaryResponse["refunds"][number],
+  filters: AccountingLedgerFilters
+) {
+  if (filters.kind !== "all" && filters.kind !== "refund") return false;
+  if (filters.status === "cancelled") return false;
+  if (filters.method !== "all") return false;
+
+  const registerName = refund.cashRegister?.name ?? payment.cashRegister?.name;
+  if (filters.cashRegister !== "all" && registerName !== filters.cashRegister) {
+    return false;
+  }
+
+  return true;
+}
+
+function accountingMovementSortValue(
+  movement: CandidateAccountingSummaryResponse["movements"][number],
+  payments: CandidateAccountingSummaryResponse["payments"],
+  field: AccountingLedgerSortField
+) {
+  const relatedPayment = payments.find((payment) =>
+    payment.allocations.some((allocation) => allocation.movementId === movement.id)
+  );
+
+  switch (field) {
+    case "type":
+      return accountingTypeLabel(movement.type);
+    case "description":
+      return movement.description;
+    case "dueDate":
+      return movement.dueDate;
+    case "amount":
+      return movement.amount;
+    case "paidAmount":
+      return movement.paidAmount;
+    case "remainingAmount":
+      return movement.remainingAmount;
+    case "number":
+      return movement.number;
+    case "method":
+      return movement.lastPaymentMethod ? paymentMethodLabel(movement.lastPaymentMethod) : "";
+    case "cashRegister":
+      return relatedPayment?.cashRegister?.name ?? "";
+    case "refundedAmount":
+      return movement.refundedAmount;
+    case "paidAt":
+      return movement.lastPaidAtUtc ?? "";
+    default:
+      return "";
+  }
+}
+
+function compareAccountingSortValues(left: string | number, right: string | number) {
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+
+  return String(left).localeCompare(String(right), "tr", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function invoiceRowClassName(invoiceType: string) {
+  const normalized = invoiceType
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i");
+
+  if (normalized.includes("iade") || normalized.includes("refund")) {
+    return "candidate-accounting-invoice-row status-refunded";
+  }
+
+  return "candidate-accounting-invoice-row status-sale";
+}
+
+function renderAccountingMovementCell({
+  columnId,
+  movement,
+  payment,
+  status,
+  canPay,
+  canCancelMovement,
+  canCreateInvoice,
+  openActionMenu,
+  toggleActionMenu,
+  closeActionMenu,
+  onPay,
+  onCreateInvoice,
+  onCancelMovement,
+}: {
+  columnId: AccountingLedgerColumnId;
+  movement: CandidateAccountingSummaryResponse["movements"][number];
+  payment: CandidateAccountingSummaryResponse["payments"][number] | null;
+  status: { className: string; label: string };
+  canPay: boolean;
+  canCancelMovement: boolean;
+  canCreateInvoice: boolean;
+  openActionMenu: { movementId: string; top: number; left: number } | null;
+  toggleActionMenu: (movementId: string, event: MouseEvent<HTMLButtonElement>) => void;
+  closeActionMenu: () => void;
+  onPay: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
+  onCreateInvoice: (amount: number) => void;
+  onCancelMovement: (movementId: string) => void;
+}) {
+  if (columnId === "type") {
+    return (
+      <div className="candidate-accounting-type-cell">
+        <span>{accountingTypeLabel(movement.type)}</span>
+        <span className={`candidate-billing-installment-status ${status.className}`}>
+          {status.label}
+        </span>
+      </div>
+    );
+  }
+  if (columnId === "description") return movement.description;
+  if (columnId === "dueDate") return formatDateTR(movement.dueDate);
+  if (columnId === "amount") return formatCurrencyTRY(movement.amount);
+  if (columnId === "paidAmount") return formatCurrencyTRY(movement.paidAmount);
+  if (columnId === "remainingAmount") return formatCurrencyTRY(movement.remainingAmount);
+  if (columnId === "number") return movement.number;
+  if (columnId === "method") {
+    return movement.lastPaymentMethod ? paymentMethodLabel(movement.lastPaymentMethod) : "—";
+  }
+  if (columnId === "cashRegister") return payment?.cashRegister?.name ?? "—";
+  if (columnId === "refundedAmount") {
+    return formatCurrencyTRY(movement.refundedAmount);
+  }
+  if (columnId === "paidAt") {
+    return movement.lastPaidAtUtc ? formatDateTR(movement.lastPaidAtUtc) : "—";
+  }
+
+  const menuKey = `movement:${movement.id}`;
+  return (
+    <>
+      <button
+        className="candidate-accounting-actions-trigger"
+        onClick={(event) => toggleActionMenu(menuKey, event)}
+        type="button"
+      >
+        İşlemler
+      </button>
+      {openActionMenu?.movementId === menuKey ? (
+        <div
+          className="candidate-accounting-actions-menu"
+          style={{ left: openActionMenu.left, top: openActionMenu.top }}
+        >
+          {canPay ? (
+            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onPay(movement); }} type="button">Öde</button>
+          ) : null}
+          {canCreateInvoice ? (
+            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onCreateInvoice(movement.amount); }} type="button">Fatura</button>
+          ) : null}
+          {canCancelMovement ? (
+            <button className="candidate-accounting-action is-danger" onClick={() => { closeActionMenu(); onCancelMovement(movement.id); }} type="button">Sil</button>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function renderAccountingPaymentCell({
+  columnId,
+  movement,
+  payment,
+  allocation,
+  openActionMenu,
+  toggleActionMenu,
+  closeActionMenu,
+  onOpenReceipt,
+  onOpenRefund,
+  onCancelPayment,
+}: {
+  columnId: AccountingLedgerColumnId;
+  movement: CandidateAccountingSummaryResponse["movements"][number];
+  payment: CandidateAccountingSummaryResponse["payments"][number];
+  allocation: CandidateAccountingSummaryResponse["payments"][number]["allocations"][number];
+  openActionMenu: { movementId: string; top: number; left: number } | null;
+  toggleActionMenu: (movementId: string, event: MouseEvent<HTMLButtonElement>) => void;
+  closeActionMenu: () => void;
+  onOpenReceipt: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
+  onOpenRefund: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
+  onCancelPayment: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
+}) {
+  if (columnId === "type") {
+    return (
+      <div className="candidate-accounting-type-cell">
+        <span>Tahsilat</span>
+        <span className="candidate-billing-installment-status status-paid">Ödeme</span>
+      </div>
+    );
+  }
+  if (columnId === "description") return payment.note || "Ödeme hareketi";
+  if (columnId === "dueDate") return formatDateTR(payment.paidAtUtc);
+  if (columnId === "amount") return formatCurrencyTRY(allocation.amount);
+  if (columnId === "paidAmount") return formatCurrencyTRY(allocation.amount);
+  if (columnId === "remainingAmount") return "—";
+  if (columnId === "number") return movement.number;
+  if (columnId === "method") return paymentMethodLabel(payment.paymentMethod);
+  if (columnId === "cashRegister") return payment.cashRegister?.name ?? "—";
+  if (columnId === "refundedAmount") {
+    return payment.refundedAmount > 0
+      ? formatCurrencyTRY(refundShareForMovement(payment, movement.id, payment.refundedAmount))
+      : "—";
+  }
+  if (columnId === "paidAt") return formatDateTR(payment.paidAtUtc);
+
+  const rowKey = `payment:${payment.id}:${movement.id}`;
+  const refundableAmount = payment.amount - payment.refundedAmount;
+  const isCancellable = payment.refundedAmount <= 0;
+  return (
+    <>
+      <button
+        className="candidate-accounting-actions-trigger"
+        onClick={(event) => toggleActionMenu(rowKey, event)}
+        type="button"
+      >
+        İşlemler
+      </button>
+      {openActionMenu?.movementId === rowKey ? (
+        <div
+          className="candidate-accounting-actions-menu"
+          style={{ left: openActionMenu.left, top: openActionMenu.top }}
+        >
+          <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onOpenReceipt(payment); }} type="button">Makbuz</button>
+          {refundableAmount > 0 ? (
+            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onOpenRefund(payment); }} type="button">İade</button>
+          ) : null}
+          {isCancellable ? (
+            <button className="candidate-accounting-action is-danger" onClick={() => { closeActionMenu(); onCancelPayment(payment); }} type="button">İptal</button>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function renderAccountingRefundCell({
+  columnId,
+  movement,
+  payment,
+  refund,
+  amount,
+}: {
+  columnId: AccountingLedgerColumnId;
+  movement: CandidateAccountingSummaryResponse["movements"][number];
+  payment: CandidateAccountingSummaryResponse["payments"][number];
+  refund: CandidateAccountingSummaryResponse["refunds"][number];
+  amount: number;
+}) {
+  if (columnId === "type") {
+    return (
+      <div className="candidate-accounting-type-cell">
+        <span>İade</span>
+        <span className="candidate-billing-installment-status status-refunded">Kasa çıkışı</span>
+      </div>
+    );
+  }
+  if (columnId === "description") return refund.note || "İade hareketi";
+  if (columnId === "dueDate") return formatDateTR(refund.refundedAtUtc);
+  if (columnId === "amount") return formatCurrencyTRY(amount);
+  if (columnId === "paidAmount") return "—";
+  if (columnId === "remainingAmount") return formatCurrencyTRY(amount);
+  if (columnId === "number") return movement.number;
+  if (columnId === "method") return "İade";
+  if (columnId === "cashRegister") return refund.cashRegister?.name ?? payment.cashRegister?.name ?? "—";
+  if (columnId === "refundedAmount") return formatCurrencyTRY(amount);
+  if (columnId === "paidAt") return formatDateTR(refund.refundedAtUtc);
+  return "—";
+}
+
+function AccountingReceiptModal({
   candidate,
-  installment,
   payment,
   onClose,
 }: {
   candidate: CandidateResponse;
-  installment: CandidatePaymentInstallmentResponse | null;
-  payment: CandidatePaymentResponse | null;
+  payment: CandidateAccountingSummaryResponse["payments"][number] | null;
   onClose: () => void;
 }) {
   if (!payment) return null;
@@ -2114,56 +3201,33 @@ function PaymentReceiptModal({
     <Modal
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose} type="button">
-            Kapat
-          </button>
-          <button className="btn btn-primary" onClick={() => window.print()} type="button">
-            Yazdır
-          </button>
+          <button className="btn btn-secondary" onClick={onClose} type="button">Kapat</button>
+          <button className="btn btn-primary" onClick={() => window.print()} type="button">Yazdır</button>
         </>
       }
       onClose={onClose}
       open={Boolean(payment)}
-      title="Tahsilat Makbuzu"
+      title="Ödeme Makbuzu"
     >
       <div className="candidate-payment-receipt">
         <div className="candidate-payment-receipt-head">
           <div>
             <strong>Pilot Sürücü Kursu</strong>
-            <span>Tahsilat Makbuzu</span>
+            <span>Ödeme Makbuzu</span>
           </div>
           <div className="candidate-payment-receipt-no">
             #{payment.id.slice(0, 8).toLocaleUpperCase("tr-TR")}
           </div>
         </div>
-        <div className="candidate-payment-receipt-amount">
-          {formatCurrencyTRY(payment.amount)}
-        </div>
+        <div className="candidate-payment-receipt-amount">{formatCurrencyTRY(payment.amount)}</div>
         <dl className="candidate-payment-receipt-grid">
-          <div>
-            <dt>Aday</dt>
-            <dd>{candidate.firstName} {candidate.lastName}</dd>
-          </div>
-          <div>
-            <dt>TC Kimlik No</dt>
-            <dd>{candidate.nationalId}</dd>
-          </div>
-          <div>
-            <dt>Ödeme Tarihi</dt>
-            <dd>{formatDateTR(payment.paidAtUtc)}</dd>
-          </div>
-          <div>
-            <dt>Ödeme Yöntemi</dt>
-            <dd>{paymentMethodLabel(payment.paymentMethod)}</dd>
-          </div>
-          <div>
-            <dt>Bağlı Taksit</dt>
-            <dd>{installment ? installment.description : "—"}</dd>
-          </div>
-          <div>
-            <dt>Açıklama</dt>
-            <dd>{payment.note ?? "—"}</dd>
-          </div>
+          <div><dt>Aday</dt><dd>{candidate.firstName} {candidate.lastName}</dd></div>
+          <div><dt>TC Kimlik No</dt><dd>{candidate.nationalId}</dd></div>
+          <div><dt>Tür</dt><dd>{accountingTypeLabel(payment.type)}</dd></div>
+          <div><dt>Ödeme Tarihi</dt><dd>{formatDateTR(payment.paidAtUtc)}</dd></div>
+          <div><dt>Ödeme Yöntemi</dt><dd>{paymentMethodLabel(payment.paymentMethod)}</dd></div>
+          <div><dt>Kasa</dt><dd>{payment.cashRegister?.name ?? "—"}</dd></div>
+          <div><dt>Açıklama</dt><dd>{payment.note ?? "—"}</dd></div>
         </dl>
         <div className="candidate-payment-receipt-footer">
           <span>Tahsil eden</span>

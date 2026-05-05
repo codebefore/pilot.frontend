@@ -77,11 +77,12 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
     setLoading(true);
 
     Promise.all([
-      getRoles({ includeInactive: true }, controller.signal),
+      getRoles({ includeInactive: false }, controller.signal),
       getPermissionAreas(controller.signal),
     ])
-      .then(([roleList, areaResponse]) => {
-        const sortedRoles = roleList
+    .then(([roleList, areaResponse]) => {
+      const sortedRoles = roleList
+          .filter((role) => role.isActive)
           .slice()
           .sort((a, b) => a.name.localeCompare(b.name, "tr"));
         setRoles(sortedRoles);

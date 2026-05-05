@@ -6,6 +6,7 @@ import { FEE_TYPE_OPTIONS } from "../../lib/fee-catalog";
 import { getLicenseClassDefinitions } from "../../lib/license-class-definitions-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import type {
   FeeResponse,
   FeeType,
@@ -61,6 +62,12 @@ function getEmptyValues(editing: FeeResponse | null): FeeFormValues {
         notes: "",
         licenseClassIds: [],
       };
+}
+
+function formatLicenseClassRequirement(cls: LicenseClassDefinitionResponse): string | null {
+  if (!cls.hasExistingLicense) return null;
+  const existing = existingLicenseTypeLabel(cls.existingLicenseType);
+  return cls.existingLicensePre2016 ? `${existing}, 2016 öncesi` : existing;
 }
 
 function hasConcurrencyError(
@@ -292,6 +299,7 @@ export function FeeFormModal({
                     ) : (
                       classes.map((cls) => {
                         const checked = field.value.includes(cls.id);
+                        const requirement = formatLicenseClassRequirement(cls);
                         return (
                           <label className="switch-toggle" key={cls.id}>
                             <input
@@ -308,6 +316,9 @@ export function FeeFormModal({
                             <span className="switch-toggle-control" aria-hidden="true" />
                             <span>
                               <strong>{cls.code}</strong> · {cls.name}
+                              {requirement ? (
+                                <span className="form-subsection-note"> · Mevcut: {requirement}</span>
+                              ) : null}
                             </span>
                           </label>
                         );

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
-import { FeeFormModal } from "../modals/FeeFormModal";
+import { CashRegisterFormModal } from "../modals/CashRegisterFormModal";
 import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
@@ -10,184 +10,147 @@ import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import {
-  deleteFee,
-  getFees,
-  type FeeActivityFilter,
-  type FeeSortDirection,
-  type FeeSortField,
-} from "../../lib/fees-api";
-import { FEE_TYPE_LABELS, FEE_TYPE_OPTIONS } from "../../lib/fee-catalog";
-import { getLicenseClassDefinitions } from "../../lib/license-class-definitions-api";
+  deleteCashRegister,
+  getCashRegisters,
+  type CashRegisterActivityFilter,
+  type CashRegisterSortDirection,
+  type CashRegisterSortField,
+} from "../../lib/cash-registers-api";
 import type {
-  FeeLicenseClassSummary,
-  FeeListSummaryResponse,
-  FeeResponse,
-  FeeType,
-  LicenseClassDefinitionResponse,
+  CashRegisterListSummaryResponse,
+  CashRegisterResponse,
+  CashRegisterType,
 } from "../../lib/types";
-import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
+const CASH_REGISTER_TYPES: CashRegisterType[] = [
+  "cash",
+  "bank_transfer",
+  "credit_card",
+  "mail_order",
+];
 
-type SortState = { field: FeeSortField; direction: FeeSortDirection } | null;
-type FeeFilters = {
-  activity: FeeActivityFilter;
-  feeType: FeeType | "all";
+type SortState = { field: CashRegisterSortField; direction: CashRegisterSortDirection } | null;
+type CashRegisterFilters = {
+  activity: CashRegisterActivityFilter;
+  type: CashRegisterType | "all";
 };
-type FeeColumnId = "feeType" | "amount" | "licenseClasses" | "isActive";
-type FeeColumnDef = {
-  id: FeeColumnId;
+type CashRegisterColumnId = "name" | "type" | "isActive" | "notes";
+type CashRegisterColumnDef = {
+  id: CashRegisterColumnId;
   labelKey: TranslationKey;
-  sortField?: FeeSortField;
-  renderCell: (fee: FeeResponse, totalLicenseClassCount: number, t: ReturnType<typeof useT>) => React.ReactNode;
+  sortField?: CashRegisterSortField;
+  renderCell: (register: CashRegisterResponse) => React.ReactNode;
   skeletonWidth: number;
   skeletonKind?: "line" | "pill";
 };
 
-const EMPTY_SUMMARY: FeeListSummaryResponse = {
+const EMPTY_SUMMARY: CashRegisterListSummaryResponse = {
   activeCount: 0,
   inactiveCount: 0,
 };
 
-const FEE_COLUMN_IDS: FeeColumnId[] = ["feeType", "amount", "licenseClasses", "isActive"];
+const CASH_REGISTER_COLUMN_IDS: CashRegisterColumnId[] = ["name", "type", "isActive", "notes"];
 
-const DEFAULT_FILTERS: FeeFilters = {
+const DEFAULT_FILTERS: CashRegisterFilters = {
   activity: "active",
-  feeType: "all",
+  type: "all",
 };
 
-function formatAmount(value: number): string {
-  return value.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-}
-
-function formatFeeLicenseClassChip(cls: FeeLicenseClassSummary): string {
-  if (!cls.hasExistingLicense) return cls.code;
-  const existing = existingLicenseTypeLabel(cls.existingLicenseType);
-  return cls.existingLicensePre2016
-    ? `${cls.code} (${existing}, 2016 öncesi)`
-    : `${cls.code} (${existing})`;
-}
-
-function buildColumns(): FeeColumnDef[] {
+function buildColumns(t: ReturnType<typeof useT>): CashRegisterColumnDef[] {
   return [
     {
-      id: "feeType",
-      labelKey: "settings.fees.columns.feeType",
-      sortField: "feeType",
-      renderCell: (fee) => <strong>{FEE_TYPE_LABELS[fee.feeType] ?? fee.feeType}</strong>,
-      skeletonWidth: 200,
+      id: "name",
+      labelKey: "settings.cashRegisters.columns.name",
+      sortField: "name",
+      renderCell: (register) => <strong>{register.name}</strong>,
+      skeletonWidth: 140,
     },
     {
-      id: "amount",
-      labelKey: "settings.fees.columns.amount",
-      sortField: "amount",
-      renderCell: (fee) => formatAmount(fee.amount),
-      skeletonWidth: 80,
-    },
-    {
-      id: "licenseClasses",
-      labelKey: "settings.fees.columns.licenseClasses",
-      renderCell: (fee, totalLicenseClassCount, t) => {
-        if (
-          totalLicenseClassCount > 0 &&
-          fee.licenseClasses.length === totalLicenseClassCount
-        ) {
-          return <strong>{t("settings.fees.allLicenseClasses")}</strong>;
-        }
-        return (
-          <div className="settings-branch-chips">
-            {fee.licenseClasses.length === 0 ? (
-              <span className="form-subsection-note">—</span>
-            ) : (
-              fee.licenseClasses.map((cls) => (
-                <span className="settings-branch-chip" key={cls.id}>
-                  {formatFeeLicenseClassChip(cls)}
-                </span>
-              ))
-            )}
-          </div>
-        );
-      },
-      skeletonWidth: 200,
+      id: "type",
+      labelKey: "settings.cashRegisters.columns.type",
+      sortField: "type",
+      renderCell: (register) => (
+        <StatusPill
+          label={t(`settings.cashRegisters.type.${register.type}` as TranslationKey)}
+          status="manual"
+        />
+      ),
+      skeletonWidth: 90,
+      skeletonKind: "pill",
     },
     {
       id: "isActive",
-      labelKey: "settings.fees.columns.isActive",
+      labelKey: "settings.cashRegisters.columns.isActive",
       sortField: "isActive",
-      renderCell: (fee, _, t) => (
+      renderCell: (register) => (
         <StatusPill
           label={
-            fee.isActive
-              ? t("settings.fees.filter.isActive.active")
-              : t("settings.fees.filter.isActive.inactive")
+            register.isActive
+              ? t("settings.cashRegisters.filter.isActive.active")
+              : t("settings.cashRegisters.filter.isActive.inactive")
           }
-          status={fee.isActive ? "success" : "manual"}
+          status={register.isActive ? "success" : "manual"}
         />
       ),
       skeletonWidth: 70,
       skeletonKind: "pill",
     },
+    {
+      id: "notes",
+      labelKey: "settings.cashRegisters.columns.notes",
+      renderCell: (register) => register.notes || <span className="form-subsection-note">—</span>,
+      skeletonWidth: 180,
+    },
   ];
 }
 
-export function FeesSettingsSection() {
+export function CashRegistersSettingsSection() {
   const { showToast } = useToast();
   const t = useT();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.fees.columns.v1",
-    FEE_COLUMN_IDS
+    "settings.cashRegisters.columns.v1",
+    CASH_REGISTER_COLUMN_IDS
   );
 
-  const [items, setItems] = useState<FeeResponse[]>([]);
+  const [items, setItems] = useState<CashRegisterResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [summary, setSummary] = useState<FeeListSummaryResponse>(EMPTY_SUMMARY);
+  const [summary, setSummary] = useState<CashRegisterListSummaryResponse>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
-  const [filters, setFilters] = useState<FeeFilters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<CashRegisterFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<FeeResponse | null>(null);
+  const [editing, setEditing] = useState<CashRegisterResponse | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [licenseClasses, setLicenseClasses] = useState<LicenseClassDefinitionResponse[]>([]);
 
-  const columns = buildColumns();
+  const columns = buildColumns(t);
   const visibleColumns = columns.filter((column) => isVisible(column.id));
 
   useEffect(() => {
     const controller = new AbortController();
-    getLicenseClassDefinitions(
-      { activity: "active", page: 1, pageSize: 1000, sortBy: "displayOrder", sortDir: "asc" },
+    setLoading(true);
+
+    getCashRegisters(
+      {
+        activity: filters.activity,
+        type: filters.type,
+        page,
+        pageSize,
+        search: search.trim() || undefined,
+        ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
+      },
       controller.signal
     )
-      .then((response) => setLicenseClasses(response.items))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    const query = {
-      activity: filters.activity,
-      feeType: filters.feeType !== "all" ? filters.feeType : undefined,
-      page,
-      pageSize,
-      search: search.trim() || undefined,
-      ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
-    };
-
-    getFees(query, controller.signal)
       .then((response) => {
         setItems(response.items);
         setTotalCount(response.totalCount);
@@ -196,7 +159,7 @@ export function FeesSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast(t("settings.fees.toast.loadError"), "error");
+        showToast(t("settings.cashRegisters.toast.loadError"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -205,26 +168,30 @@ export function FeesSettingsSection() {
     return () => controller.abort();
   }, [filters, page, pageSize, refreshKey, search, showToast, sort, t]);
 
-  const counts = useMemo(
-    () => ({
+  const counts = useMemo(() => {
+    const visibleTypes = new Set(items.map((item) => item.type));
+    return {
       total: totalCount,
       active: summary.activeCount,
       inactive: summary.inactiveCount,
-    }),
-    [summary, totalCount]
-  );
+      typeCount: visibleTypes.size,
+    };
+  }, [items, summary, totalCount]);
 
   const hasActiveFilters =
     search.trim().length > 0 ||
     filters.activity !== DEFAULT_FILTERS.activity ||
-    filters.feeType !== DEFAULT_FILTERS.feeType;
+    filters.type !== DEFAULT_FILTERS.type;
 
-  const setFilter = <K extends keyof FeeFilters>(key: K, value: FeeFilters[K]) => {
+  const setFilter = <K extends keyof CashRegisterFilters>(
+    key: K,
+    value: CashRegisterFilters[K]
+  ) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
   };
 
-  const handleSortToggle = (field: FeeSortField) => {
+  const handleSortToggle = (field: CashRegisterSortField) => {
     setPage(1);
     setSort((current) => {
       if (!current || current.field !== field) return { field, direction: "asc" };
@@ -240,7 +207,7 @@ export function FeesSettingsSection() {
     }
     if (isVisible(id)) {
       if (id === "isActive") setFilter("activity", DEFAULT_FILTERS.activity);
-      if (id === "feeType") setFilter("feeType", DEFAULT_FILTERS.feeType);
+      if (id === "type") setFilter("type", DEFAULT_FILTERS.type);
     }
     toggleColumn(id);
   };
@@ -252,24 +219,24 @@ export function FeesSettingsSection() {
     setRefreshKey((current) => current + 1);
     showToast(
       wasEditing
-        ? t("settings.fees.toast.updated")
-        : t("settings.fees.toast.created")
+        ? t("settings.cashRegisters.toast.updated")
+        : t("settings.cashRegisters.toast.created")
     );
   };
 
-  const handleDelete = async (fee: FeeResponse) => {
-    setDeletingId(fee.id);
+  const handleDelete = async (register: CashRegisterResponse) => {
+    setDeletingId(register.id);
     try {
-      await deleteFee(fee.id);
+      await deleteCashRegister(register.id);
       setConfirmDeleteId(null);
-      showToast(t("settings.fees.toast.deleted"));
+      showToast(t("settings.cashRegisters.toast.deleted"));
       if (items.length === 1 && page > 1) {
         setPage((current) => current - 1);
       } else {
         setRefreshKey((current) => current + 1);
       }
     } catch {
-      showToast(t("settings.fees.toast.deleteError"), "error");
+      showToast(t("settings.cashRegisters.toast.deleteError"), "error");
     } finally {
       setDeletingId(null);
     }
@@ -280,22 +247,26 @@ export function FeesSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.fees.summary.total")}</span>
+            <span className="settings-summary-label">{t("settings.cashRegisters.summary.total")}</span>
             <strong className="settings-summary-value">{counts.total}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.fees.summary.active")}</span>
+            <span className="settings-summary-label">{t("settings.cashRegisters.summary.active")}</span>
             <strong className="settings-summary-value">{counts.active}</strong>
           </div>
           <div className="settings-summary-card">
-            <span className="settings-summary-label">{t("settings.fees.summary.inactive")}</span>
+            <span className="settings-summary-label">{t("settings.cashRegisters.summary.inactive")}</span>
             <strong className="settings-summary-value">{counts.inactive}</strong>
+          </div>
+          <div className="settings-summary-card">
+            <span className="settings-summary-label">{t("settings.cashRegisters.summary.visibleTypes")}</span>
+            <strong className="settings-summary-value">{counts.typeCount}</strong>
           </div>
         </div>
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">{t("settings.fees.title")}</div>
+            <div className="settings-surface-title">{t("settings.cashRegisters.title")}</div>
             <div className="settings-module-actions">
               <div className="search-box settings-module-search settings-module-search-compact">
                 <SearchInput
@@ -304,7 +275,7 @@ export function FeesSettingsSection() {
                     setSearch(value);
                     setPage(1);
                   }}
-                  placeholder={t("settings.fees.search.placeholder")}
+                  placeholder={t("settings.cashRegisters.search.placeholder")}
                   resetSignal={searchResetKey}
                   value={search}
                 />
@@ -332,7 +303,7 @@ export function FeesSettingsSection() {
                 type="button"
               >
                 <PlusIcon size={14} />
-                {t("settings.fees.button.new")}
+                {t("settings.cashRegisters.button.new")}
               </button>
             </div>
           </div>
@@ -363,7 +334,7 @@ export function FeesSettingsSection() {
                       }))}
                       isVisible={isVisible}
                       onToggle={handleColumnToggle}
-                      triggerTitle={t("settings.fees.columnPicker.title")}
+                      triggerTitle={t("settings.cashRegisters.columnPicker.title")}
                     />
                   </th>
                 </tr>
@@ -392,16 +363,14 @@ export function FeesSettingsSection() {
                 ) : items.length === 0 ? (
                   <tr>
                     <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                      {t("settings.fees.empty")}
+                      {t("settings.cashRegisters.empty")}
                     </td>
                   </tr>
                 ) : (
                   items.map((item) => (
                     <tr key={item.id}>
                       {visibleColumns.map((column) => (
-                        <td key={column.id}>
-                          {column.renderCell(item, licenseClasses.length, t)}
-                        </td>
+                        <td key={column.id}>{column.renderCell(item)}</td>
                       ))}
                       <td className="col-picker-td">
                         <div
@@ -428,30 +397,30 @@ export function FeesSettingsSection() {
                                 type="button"
                               >
                                 {deletingId === item.id
-                                  ? t("settings.fees.action.deleting")
+                                  ? t("settings.cashRegisters.action.deleting")
                                   : t("common.delete")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
-                                aria-label={t("settings.fees.action.edit")}
+                                aria-label={t("settings.cashRegisters.action.edit")}
                                 className="icon-btn"
                                 onClick={() => {
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title={t("settings.fees.action.edit")}
+                                title={t("settings.cashRegisters.action.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
                               <button
-                                aria-label={t("settings.fees.action.delete")}
+                                aria-label={t("settings.cashRegisters.action.delete")}
                                 className="icon-btn icon-btn-danger"
                                 disabled={deletingId !== null}
                                 onClick={() => setConfirmDeleteId(item.id)}
-                                title={t("settings.fees.action.delete")}
+                                title={t("settings.cashRegisters.action.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -482,7 +451,7 @@ export function FeesSettingsSection() {
         </section>
       </div>
 
-      <FeeFormModal
+      <CashRegisterFormModal
         editing={editing}
         onClose={() => {
           setFormOpen(false);
@@ -501,11 +470,11 @@ export function FeesSettingsSection() {
 }
 
 type SortableThProps = {
-  field: FeeSortField;
+  field: CashRegisterSortField;
   filterControl?: React.ReactNode;
   label: string;
   sort: SortState;
-  onToggle: (field: FeeSortField) => void;
+  onToggle: (field: CashRegisterSortField) => void;
 };
 
 function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThProps) {
@@ -534,38 +503,41 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
 }
 
 function buildColumnFilterControl(
-  columnId: FeeColumnId,
-  filters: FeeFilters,
-  setFilter: <K extends keyof FeeFilters>(key: K, value: FeeFilters[K]) => void,
+  columnId: CashRegisterColumnId,
+  filters: CashRegisterFilters,
+  setFilter: <K extends keyof CashRegisterFilters>(key: K, value: CashRegisterFilters[K]) => void,
   t: ReturnType<typeof useT>
 ) {
   if (columnId === "isActive") {
     return (
       <TableHeaderFilter
         active={filters.activity !== DEFAULT_FILTERS.activity}
-        onChange={(nextValue) => setFilter("activity", nextValue as FeeActivityFilter)}
+        onChange={(nextValue) => setFilter("activity", nextValue as CashRegisterActivityFilter)}
         options={[
-          { value: "active", label: t("settings.fees.filter.isActive.active") },
+          { value: "active", label: t("settings.cashRegisters.filter.isActive.active") },
           { value: "all", label: t("common.all") },
-          { value: "inactive", label: t("settings.fees.filter.isActive.inactive") },
+          { value: "inactive", label: t("settings.cashRegisters.filter.isActive.inactive") },
         ]}
-        title={t("settings.fees.filter.isActive.title")}
+        title={t("settings.cashRegisters.filter.isActive.title")}
         value={filters.activity}
       />
     );
   }
 
-  if (columnId === "feeType") {
+  if (columnId === "type") {
     return (
       <TableHeaderFilter
-        active={filters.feeType !== DEFAULT_FILTERS.feeType}
-        onChange={(nextValue) => setFilter("feeType", nextValue as FeeFilters["feeType"])}
+        active={filters.type !== DEFAULT_FILTERS.type}
+        onChange={(nextValue) => setFilter("type", nextValue as CashRegisterFilters["type"])}
         options={[
           { value: "all", label: t("common.all") },
-          ...FEE_TYPE_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+          ...CASH_REGISTER_TYPES.map((type) => ({
+            value: type,
+            label: t(`settings.cashRegisters.type.${type}` as TranslationKey),
+          })),
         ]}
-        title={t("settings.fees.filter.feeType.title")}
-        value={filters.feeType}
+        title={t("settings.cashRegisters.filter.type.title")}
+        value={filters.type}
       />
     );
   }

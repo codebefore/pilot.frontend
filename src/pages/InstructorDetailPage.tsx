@@ -91,6 +91,7 @@ export function InstructorDetailPage() {
       return acc;
     }, {});
   }, [branches]);
+  const activeBranches = useMemo(() => branches.filter((branch) => branch.isActive), [branches]);
 
   const activeAssignmentId = assignments[0]?.id ?? null;
 
@@ -232,17 +233,19 @@ export function InstructorDetailPage() {
           <section className="instructor-detail-card">
             <div className="instructor-detail-section-header">
               <h3>{t("settings.instructors.detail.assignments.title")}</h3>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  setEditing(null);
-                  setModalOpen(true);
-                }}
-                type="button"
-              >
-                <PlusIcon size={14} />
-                {t("settings.instructors.detail.assignments.add")}
-              </button>
+              {instructor.isActive ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setEditing(null);
+                    setModalOpen(true);
+                  }}
+                  type="button"
+                >
+                  <PlusIcon size={14} />
+                  {t("settings.instructors.detail.assignments.add")}
+                </button>
+              ) : null}
             </div>
 
             {assignments.length === 0 ? (
@@ -293,18 +296,20 @@ export function InstructorDetailPage() {
                             </>
                           ) : (
                             <>
-                              <button
-                                aria-label={t("common.edit")}
-                                className="icon-btn"
-                                onClick={() => {
-                                  setEditing(a);
-                                  setModalOpen(true);
-                                }}
-                                title={t("common.edit")}
-                                type="button"
-                              >
-                                <PencilIcon size={14} />
-                              </button>
+                              {instructor.isActive ? (
+                                <button
+                                  aria-label={t("common.edit")}
+                                  className="icon-btn"
+                                  onClick={() => {
+                                    setEditing(a);
+                                    setModalOpen(true);
+                                  }}
+                                  title={t("common.edit")}
+                                  type="button"
+                                >
+                                  <PencilIcon size={14} />
+                                </button>
+                              ) : null}
                               <button
                                 aria-label={t("common.delete")}
                                 className="icon-btn icon-btn-danger"
@@ -354,14 +359,16 @@ export function InstructorDetailPage() {
                           <div className="assignment-item-docs-label">
                             {t("settings.instructors.detail.assignments.documents.title")}
                           </div>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setDocModalAssignmentId(a.id)}
-                            type="button"
-                          >
-                            <PlusIcon size={12} />
-                            {t("settings.instructors.detail.assignments.documents.add")}
-                          </button>
+                          {instructor.isActive ? (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setDocModalAssignmentId(a.id)}
+                              type="button"
+                            >
+                              <PlusIcon size={12} />
+                              {t("settings.instructors.detail.assignments.documents.add")}
+                            </button>
+                          ) : null}
                         </div>
                         {a.documents.length === 0 ? (
                           <div className="assignment-item-docs-empty">
@@ -423,7 +430,7 @@ export function InstructorDetailPage() {
 
       {instructorId && (
         <InstructorAssignmentFormModal
-          branches={branches}
+          branches={activeBranches}
           editing={editing}
           instructorId={instructorId}
           onClose={() => {

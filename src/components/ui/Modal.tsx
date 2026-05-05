@@ -6,11 +6,20 @@ type ModalProps = {
   title: string;
   titleExtra?: ReactNode;
   onClose: () => void;
+  closeOnOverlayClick?: boolean;
   children: ReactNode;
   footer?: ReactNode;
 };
 
-export function Modal({ open, title, titleExtra, onClose, children, footer }: ModalProps) {
+export function Modal({
+  open,
+  title,
+  titleExtra,
+  onClose,
+  closeOnOverlayClick = true,
+  children,
+  footer
+}: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -26,7 +35,7 @@ export function Modal({ open, title, titleExtra, onClose, children, footer }: Mo
     <div
       className="modal-overlay"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (closeOnOverlayClick && e.target === e.currentTarget) onClose();
       }}
     >
       <div className="modal" role="dialog" aria-modal="true">

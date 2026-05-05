@@ -46,6 +46,14 @@ describe("PermissionsPage", () => {
         createdAtUtc: "2026-01-02T00:00:00Z",
         updatedAtUtc: "2026-01-02T00:00:00Z",
       },
+      {
+        id: "role-3",
+        name: "Pasif Rol",
+        isActive: false,
+        userCount: 0,
+        createdAtUtc: "2026-01-03T00:00:00Z",
+        updatedAtUtc: "2026-01-03T00:00:00Z",
+      },
     ]);
     getPermissionAreasMock.mockResolvedValue({
       areas: ["users"],
@@ -70,7 +78,10 @@ describe("PermissionsPage", () => {
     );
 
     await waitFor(() => {
-      expect(getRolesMock).toHaveBeenCalled();
+      expect(getRolesMock).toHaveBeenCalledWith(
+        { includeInactive: false },
+        expect.any(AbortSignal)
+      );
       expect(getPermissionAreasMock).toHaveBeenCalled();
     });
 
@@ -92,6 +103,7 @@ describe("PermissionsPage", () => {
     });
 
     expect(patronRoleButton).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Pasif Rol rolü" })).not.toBeInTheDocument();
   });
 
   it("deletes the selected role with inline confirmation", async () => {

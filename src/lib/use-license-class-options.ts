@@ -89,31 +89,47 @@ function isPreferredTargetOption(
   );
 }
 
+export async function getActiveLicenseClassOptions(signal?: AbortSignal) {
+  const activeResponse = await getLicenseClassDefinitions(
+    {
+      activity: "active",
+      page: 1,
+      pageSize: 1000,
+      sortBy: "displayOrder",
+      sortDir: "asc",
+    },
+    signal
+  );
+  const activeOptions = uniqueTargetOptions(activeResponse.items);
+  if (activeOptions.length > 0) return activeOptions;
+
+  const allResponse = await getLicenseClassDefinitions(
+    {
+      activity: "all",
+      page: 1,
+      pageSize: 1,
+      sortBy: "displayOrder",
+      sortDir: "asc",
+    },
+    signal
+  );
+
+  return allResponse.totalCount === 0 ? REFERENCE_LICENSE_CLASS_OPTIONS : [];
+}
+
 export function useLicenseClassOptions() {
-  const [options, setOptions] = useState<LicenseClassOption[]>(REFERENCE_LICENSE_CLASS_OPTIONS);
+  const [options, setOptions] = useState<LicenseClassOption[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
 
-    getLicenseClassDefinitions(
-      {
-        activity: "active",
-        page: 1,
-        pageSize: 1000,
-        sortBy: "displayOrder",
-        sortDir: "asc",
-      },
-      controller.signal
-    )
-      .then((response) => {
-        const nextOptions = uniqueTargetOptions(response.items);
-        setOptions(nextOptions.length > 0 ? nextOptions : REFERENCE_LICENSE_CLASS_OPTIONS);
-      })
+    getActiveLicenseClassOptions(controller.signal)
+      .then((nextOptions) => setOptions(nextOptions))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setOptions(REFERENCE_LICENSE_CLASS_OPTIONS);
+        setOptions([]);
       })
       .finally(() => {
         if (!controller.signal.aborted) {

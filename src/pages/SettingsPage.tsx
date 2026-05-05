@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
+import { CashRegistersSettingsSection } from "../components/settings/CashRegistersSettingsSection";
 import { CertificateProgramFeeMatrixSettingsSection } from "../components/settings/CertificateProgramFeeMatrixSettingsSection";
 import { ClassroomsSettingsSection } from "../components/settings/ClassroomsSettingsSection";
 import { GeneralInstitutionSection } from "../components/settings/GeneralInstitutionSection";
@@ -47,6 +48,11 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.vehicles.label",
         descriptionKey: "settings.nav.vehicles.description",
         to: "/settings/definitions/vehicles",
+      },
+      {
+        labelKey: "settings.nav.cashRegisters.label",
+        descriptionKey: "settings.nav.cashRegisters.description",
+        to: "/settings/definitions/cash-registers",
       },
     ],
   },
@@ -183,6 +189,7 @@ export function SettingsPage() {
               />
               <Route element={<VehiclesSettingsSection />} path="definitions/vehicles" />
               <Route element={<VehicleDetailPage />} path="definitions/vehicles/:vehicleId" />
+              <Route element={<CashRegistersSettingsSection />} path="definitions/cash-registers" />
               <Route element={<InstructorsSettingsSection />} path="definitions/instructors" />
               <Route element={<InstructorDetailPage />} path="definitions/instructors/:instructorId" />
               <Route element={<UsersPage embedded />} path="definitions/users" />
