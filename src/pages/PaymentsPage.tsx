@@ -563,7 +563,7 @@ export function PaymentsPage() {
                     <SortableTh field="date" label="Tarih" sort={paymentsSort} onToggle={togglePaymentsSort} />
                     <SortableTh field="candidate" label="Aday" sort={paymentsSort} onToggle={togglePaymentsSort} />
                     <SortableTh field="amount" label="Tutar" sort={paymentsSort} onToggle={togglePaymentsSort} />
-                    <th>
+                    <th className="sortable-th">
                       <div className="sortable-th-shell">
                         <span className="sortable-th-label">Yöntem</span>
                         <div className="sortable-th-filter">
@@ -578,7 +578,7 @@ export function PaymentsPage() {
                       </div>
                     </th>
                     <th>Taksit</th>
-                    <th>
+                    <th className="sortable-th">
                       <div className="sortable-th-shell">
                         <span className="sortable-th-label">Durum</span>
                         <div className="sortable-th-filter">
@@ -653,7 +653,7 @@ export function PaymentsPage() {
                     <SortableTh field="candidate" label="Aday" sort={installmentsSort} onToggle={toggleInstallmentsSort} />
                     <th>Taksit</th>
                     <SortableTh field="remainingAmount" label="Kalan" sort={installmentsSort} onToggle={toggleInstallmentsSort} />
-                    <th>
+                    <th className="sortable-th">
                       <div className="sortable-th-shell">
                         <span className="sortable-th-label">Durum</span>
                         <div className="sortable-th-filter">
@@ -736,7 +736,7 @@ export function PaymentsPage() {
                     <SortableTh field="candidate" label="Aday" sort={chargesSort} onToggle={toggleChargesSort} />
                     <th>Açıklama</th>
                     <SortableTh field="amount" label="Tutar" sort={chargesSort} onToggle={toggleChargesSort} />
-                    <th>
+                    <th className="sortable-th">
                       <div className="sortable-th-shell">
                         <span className="sortable-th-label">Kaynak</span>
                         <div className="sortable-th-filter">
@@ -750,7 +750,7 @@ export function PaymentsPage() {
                         </div>
                       </div>
                     </th>
-                    <th>
+                    <th className="sortable-th">
                       <div className="sortable-th-shell">
                         <span className="sortable-th-label">Durum</span>
                         <div className="sortable-th-filter">
@@ -822,7 +822,7 @@ export function PaymentsPage() {
                   <tr>
                     <SortableTh field="date" label="Tarih" sort={cancelledSort} onToggle={toggleCancelledSort} />
                     <SortableTh field="candidate" label="Aday" sort={cancelledSort} onToggle={toggleCancelledSort} />
-                    <th>
+                    <th className="sortable-th">
                       <div className="sortable-th-shell">
                         <button className="sortable-th-btn" onClick={() => toggleCancelledSort("type")} type="button">
                           <span>Tür</span>
