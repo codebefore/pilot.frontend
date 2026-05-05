@@ -246,11 +246,13 @@ export interface CandidateAccountingFeeSuggestionResponse {
 export interface CandidateAccountingSummaryResponse {
   candidateId: string;
   movements: CandidateAccountingMovementResponse[];
+  debts?: CandidateAccountingMovementResponse[];
   payments: CandidateAccountingPaymentResponse[];
   refunds: CandidateAccountingRefundResponse[];
   invoices: CandidateAccountingInvoiceResponse[];
   feeSuggestions: CandidateAccountingFeeSuggestionResponse[];
   totalMovementAmount: number;
+  totalDebtAmount?: number;
   totalPaid: number;
   totalRefunded: number;
   balance: number;

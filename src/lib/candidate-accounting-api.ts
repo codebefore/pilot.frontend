@@ -27,7 +27,7 @@ export function createCandidateAccountingMovement(
   body: CandidateAccountingMovementCreateRequest
 ): Promise<CandidateAccountingMovementResponse> {
   return httpPost<CandidateAccountingMovementResponse>(
-    `/api/candidates/${candidateId}/accounting/movements`,
+    `/api/candidates/${candidateId}/accounting/debts`,
     body
   );
 }
@@ -37,7 +37,7 @@ export function cancelCandidateAccountingMovement(
   movementId: string,
   cancellationReason?: string
 ): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/accounting/movements/${movementId}`, {
+  return httpDelete(`/api/candidates/${candidateId}/accounting/debts/${movementId}`, {
     cancellationReason,
   });
 }

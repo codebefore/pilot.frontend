@@ -339,9 +339,9 @@ export function CandidateDetailPage() {
     try {
       await createCandidateAccountingMovement(candidate.id, { type, dueDate, amount, description });
       await refreshAccounting();
-      showToast("Hareket eklendi");
+      showToast("Borçlandırma eklendi");
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Hareket eklenemedi"), "error");
+      showToast(accountingErrorMessage(error, "Borçlandırma eklenemedi"), "error");
     } finally {
       setMovementSaving(false);
     }
@@ -378,11 +378,11 @@ export function CandidateDetailPage() {
   const handleCancelMovement = async (movementId: string) => {
     if (!candidate) return;
     try {
-      await cancelCandidateAccountingMovement(candidate.id, movementId, "Hareket iptal edildi.");
+      await cancelCandidateAccountingMovement(candidate.id, movementId, "Borçlandırma iptal edildi.");
       await refreshAccounting();
-      showToast("Hareket iptal edildi");
+      showToast("Borçlandırma iptal edildi");
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Hareket iptal edilemedi"), "error");
+      showToast(accountingErrorMessage(error, "Borçlandırma iptal edilemedi"), "error");
     }
   };
 
@@ -1527,7 +1527,9 @@ function accountingErrorMessage(error: unknown, fallback: string): string {
   if (firstMessage.includes("open balance")) return "Ödeme seçilen türdeki açık bakiyeyi aşamaz.";
   if (firstMessage.includes("Cash register is required")) return "Bu ödeme yöntemi için kasa seçilmeli.";
   if (firstMessage.includes("Cash register type")) return "Seçilen kasa ödeme yöntemiyle uyumlu değil.";
-  if (firstMessage.includes("Paid movement")) return "Ödeme alınmış hareket silinemez. Önce iade/iptal işlemi yapın.";
+  if (firstMessage.includes("Paid movement") || firstMessage.includes("Paid debt")) {
+    return "Ödeme alınmış borçlandırma silinemez. Önce iade/iptal işlemi yapın.";
+  }
   if (firstMessage.includes("Refund amount")) return "İade tutarı iade edilebilir tutarı aşamaz.";
   if (firstMessage.includes("Cancellation reason")) return "İptal sebebi zorunlu.";
   return firstMessage;
@@ -1596,7 +1598,7 @@ const ACCOUNTING_SECTION_DEFINITIONS: Array<{
   {
     id: "course",
     title: "Kurs Ödemesi",
-    detail: "Kurs hareketleri",
+    detail: "Kurs borçlandırmaları",
     types: ["kurs"],
   },
   {
@@ -1608,7 +1610,7 @@ const ACCOUNTING_SECTION_DEFINITIONS: Array<{
   {
     id: "other",
     title: "Diğer Ödemeler",
-    detail: "Diğer hareketler",
+    detail: "Diğer borçlandırmalar",
     types: ["diger"],
   },
 ];
@@ -1822,7 +1824,7 @@ function AccountingTab({
     return () => controller.abort();
   }, []);
 
-  const allMovements = accounting?.movements ?? [];
+  const allMovements = accounting?.debts ?? accounting?.movements ?? [];
   const activeMovements = allMovements.filter((item) => item.status === "active");
   const activePayments = accounting?.payments.filter((item) => item.status === "active") ?? [];
   const sectionMovements = (types: CandidateAccountingType[]) =>
@@ -1970,7 +1972,7 @@ function AccountingTab({
             <div className="candidate-billing-summary-grid">
               <div className="candidate-billing-summary-card">
                 <span className="candidate-detail-stat-label">Toplam Borç</span>
-                <strong>{formatCurrencyTRY(accounting.totalMovementAmount)}</strong>
+                <strong>{formatCurrencyTRY(accounting.totalDebtAmount ?? accounting.totalMovementAmount)}</strong>
               </div>
               <div className="candidate-billing-summary-card">
                 <span className="candidate-detail-stat-label">Tahsil Edilen</span>
@@ -2007,12 +2009,12 @@ function AccountingTab({
                       <div className="candidate-accounting-section-summary-title">
                         <strong>{section.title}</strong>
                         <span>
-                          {section.detail} · {section.movementCount} hareket
+                          {section.detail} · {section.movementCount} borçlandırma
                         </span>
                       </div>
                       <div className="candidate-accounting-section-summary-metrics">
                         <span>
-                          <em>Hareket</em>
+                          <em>Borç</em>
                           <strong>{formatCurrencyTRY(section.totalAmount)}</strong>
                         </span>
                         <span>
@@ -2062,7 +2064,7 @@ function AccountingTab({
       <section className="candidate-billing-action-bar">
         <div className="candidate-billing-action-meta">
           <span>Hızlı işlemler</span>
-          <strong>Hareket ekle, ödeme al veya fatura kaydet</strong>
+          <strong>Borçlandırma ekle, ödeme al veya fatura kaydet</strong>
         </div>
         <div className="candidate-billing-action-buttons">
           <button className="btn btn-primary" onClick={() => openDebtModal()} type="button">
@@ -2600,7 +2602,7 @@ function AccountingMovementSection({
     <section className="instructor-detail-card candidate-billing-workspace-card">
       <h3 className="candidate-detail-section-title">{title}</h3>
       {movements.length === 0 ? (
-        <div className="instructor-detail-empty">Hareket kaydı yok.</div>
+        <div className="instructor-detail-empty">Borçlandırma kaydı yok.</div>
       ) : (
         <table className="data-table candidate-detail-fee-table candidate-accounting-ledger-table">
           <thead>
@@ -2643,16 +2645,19 @@ function AccountingMovementSection({
           </thead>
           <tbody>
             {sortedMovements.flatMap((movement) => {
-              const relatedPayments = payments.filter((item) =>
-                item.allocations.some((allocation) => allocation.movementId === movement.id)
-              );
-              const payment = relatedPayments[0] ?? null;
+              const relatedPayments = payments
+                .filter((item) =>
+                  item.allocations.some((allocation) => allocation.movementId === movement.id)
+                )
+                .sort((left, right) => left.paidAtUtc.localeCompare(right.paidAtUtc));
               const hasPaymentHistory = relatedPayments.length > 0 || movement.paidAmount > 0 || movement.refundedAmount > 0;
               const status = accountingMovementStatus(movement);
-              const canPay = movement.status === "active" && movement.remainingAmount > 0 && relatedPayments.length === 0;
+              const canPay = movement.status === "active" && movement.remainingAmount > 0;
               const canCancelMovement = movement.status === "active" && !hasPaymentHistory;
-              const canCreateInvoice = movement.status === "active";
-              const movementMatches = accountingMovementPassesFilters(movement, payment, filters);
+              const displayDebtAmount = movement.status === "active" ? movement.remainingAmount : movement.amount;
+              const canCreateInvoice = movement.status === "active" && displayDebtAmount > 0;
+              const debtMatches =
+                displayDebtAmount > 0 && accountingMovementPassesFilters(movement, filters);
               const childRows = relatedPayments.flatMap((item) => {
                 const allocation = item.allocations.find((entry) => entry.movementId === movement.id);
                 if (!allocation) return [];
@@ -2679,35 +2684,10 @@ function AccountingMovementSection({
                 ];
               });
 
-              if (!movementMatches && childRows.length === 0) return [];
+              if (!debtMatches && childRows.length === 0) return [];
 
               return [
                 <Fragment key={movement.id}>
-                  <tr className={`candidate-accounting-movement-row ${status.className}`}>
-                    {visibleColumns.map((column) => (
-                      <td
-                        className={accountingLedgerCellClassName(column.id)}
-                        key={column.id}
-                      >
-                        {renderAccountingMovementCell({
-                          columnId: column.id,
-                          movement,
-                          payment,
-                          status,
-                          canPay,
-                          canCancelMovement,
-                          canCreateInvoice,
-                          openActionMenu,
-                          toggleActionMenu,
-                          closeActionMenu,
-                          onPay,
-                          onCreateInvoice,
-                          onCancelMovement,
-                        })}
-                      </td>
-                    ))}
-                    <td className="col-picker-td" />
-                  </tr>
                   {childRows.map((row) => {
                     if (row.kind === "payment") {
                       return (
@@ -2750,13 +2730,40 @@ function AccountingMovementSection({
                       </tr>
                     );
                   })}
+                  {debtMatches ? (
+                    <tr className={`candidate-accounting-movement-row ${status.className}`}>
+                      {visibleColumns.map((column) => (
+                        <td
+                          className={accountingLedgerCellClassName(column.id)}
+                          key={column.id}
+                        >
+                          {renderAccountingMovementCell({
+                            columnId: column.id,
+                            movement,
+                            displayDebtAmount,
+                            status,
+                            canPay,
+                            canCancelMovement,
+                            canCreateInvoice,
+                            openActionMenu,
+                            toggleActionMenu,
+                            closeActionMenu,
+                            onPay,
+                            onCreateInvoice,
+                            onCancelMovement,
+                          })}
+                        </td>
+                      ))}
+                      <td className="col-picker-td" />
+                    </tr>
+                  ) : null}
                 </Fragment>,
               ];
             })}
             {hasActiveFilters && sortedMovements.length > 0 ? (
               <tr className="candidate-accounting-filter-note-row">
                 <td className="data-table-empty" colSpan={visibleColumns.length + 1}>
-                  Filtreler aktif. Eşleşmeyen hareketler gizlendi.
+                  Filtreler aktif. Eşleşmeyen borçlandırmalar gizlendi.
                 </td>
               </tr>
             ) : null}
@@ -2825,7 +2832,7 @@ function buildAccountingLedgerFilterControl(
         options={[
           { value: "all", label: "Tümü" },
           { value: "debt", label: "Borç" },
-          { value: "payment", label: "Ödeme" },
+          { value: "payment", label: "Ödendi" },
           { value: "refund", label: "İade" },
         ]}
         title="Satır tipi"
@@ -2894,16 +2901,13 @@ function accountingLedgerCellClassName(columnId: AccountingLedgerColumnId) {
 
 function accountingMovementPassesFilters(
   movement: CandidateAccountingSummaryResponse["movements"][number],
-  payment: CandidateAccountingSummaryResponse["payments"][number] | null,
   filters: AccountingLedgerFilters
 ) {
   if (filters.kind !== "all" && filters.kind !== "debt") return false;
   if (filters.status === "active" && movement.status !== "active") return false;
   if (filters.status === "cancelled" && movement.status !== "cancelled") return false;
-  if (filters.method !== "all" && movement.lastPaymentMethod !== filters.method) return false;
-  if (filters.cashRegister !== "all" && payment?.cashRegister?.name !== filters.cashRegister) {
-    return false;
-  }
+  if (filters.method !== "all") return false;
+  if (filters.cashRegister !== "all") return false;
 
   return true;
 }
@@ -3003,7 +3007,7 @@ function invoiceRowClassName(invoiceType: string) {
 function renderAccountingMovementCell({
   columnId,
   movement,
-  payment,
+  displayDebtAmount,
   status,
   canPay,
   canCancelMovement,
@@ -3017,7 +3021,7 @@ function renderAccountingMovementCell({
 }: {
   columnId: AccountingLedgerColumnId;
   movement: CandidateAccountingSummaryResponse["movements"][number];
-  payment: CandidateAccountingSummaryResponse["payments"][number] | null;
+  displayDebtAmount: number;
   status: { className: string; label: string };
   canPay: boolean;
   canCancelMovement: boolean;
@@ -3041,19 +3045,19 @@ function renderAccountingMovementCell({
   }
   if (columnId === "description") return movement.description;
   if (columnId === "dueDate") return formatDateTR(movement.dueDate);
-  if (columnId === "amount") return formatCurrencyTRY(movement.amount);
-  if (columnId === "paidAmount") return formatCurrencyTRY(movement.paidAmount);
-  if (columnId === "remainingAmount") return formatCurrencyTRY(movement.remainingAmount);
+  if (columnId === "amount") return formatCurrencyTRY(displayDebtAmount);
+  if (columnId === "paidAmount") return "—";
+  if (columnId === "remainingAmount") return formatCurrencyTRY(displayDebtAmount);
   if (columnId === "number") return movement.number;
   if (columnId === "method") {
-    return movement.lastPaymentMethod ? paymentMethodLabel(movement.lastPaymentMethod) : "—";
+    return "—";
   }
-  if (columnId === "cashRegister") return payment?.cashRegister?.name ?? "—";
+  if (columnId === "cashRegister") return "—";
   if (columnId === "refundedAmount") {
-    return formatCurrencyTRY(movement.refundedAmount);
+    return "—";
   }
   if (columnId === "paidAt") {
-    return movement.lastPaidAtUtc ? formatDateTR(movement.lastPaidAtUtc) : "—";
+    return "—";
   }
 
   const menuKey = `movement:${movement.id}`;
@@ -3075,7 +3079,7 @@ function renderAccountingMovementCell({
             <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onPay(movement); }} type="button">Öde</button>
           ) : null}
           {canCreateInvoice ? (
-            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onCreateInvoice(movement.amount); }} type="button">Fatura</button>
+            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onCreateInvoice(displayDebtAmount); }} type="button">Fatura</button>
           ) : null}
           {canCancelMovement ? (
             <button className="candidate-accounting-action is-danger" onClick={() => { closeActionMenu(); onCancelMovement(movement.id); }} type="button">Sil</button>
@@ -3112,12 +3116,12 @@ function renderAccountingPaymentCell({
   if (columnId === "type") {
     return (
       <div className="candidate-accounting-type-cell">
-        <span>Tahsilat</span>
-        <span className="candidate-billing-installment-status status-paid">Ödeme</span>
+        <span>Ödendi</span>
+        <span className="candidate-billing-installment-status status-paid">Tahsilat</span>
       </div>
     );
   }
-  if (columnId === "description") return payment.note || "Ödeme hareketi";
+  if (columnId === "description") return payment.note || "Ödeme";
   if (columnId === "dueDate") return formatDateTR(payment.paidAtUtc);
   if (columnId === "amount") return formatCurrencyTRY(allocation.amount);
   if (columnId === "paidAmount") return formatCurrencyTRY(allocation.amount);
@@ -3183,7 +3187,7 @@ function renderAccountingRefundCell({
       </div>
     );
   }
-  if (columnId === "description") return refund.note || "İade hareketi";
+  if (columnId === "description") return refund.note || "İade";
   if (columnId === "dueDate") return formatDateTR(refund.refundedAtUtc);
   if (columnId === "amount") return formatCurrencyTRY(amount);
   if (columnId === "paidAmount") return "—";
