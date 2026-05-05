@@ -1176,6 +1176,8 @@ export interface DocumentResponse {
   fileSizeBytes: number | null;
   /** Kullanıcı "fiziksel evrak elde var" işaretledi. */
   isPhysicallyAvailable: boolean;
+  /** Evrak Mebbis'e işlendi/aktarıldı. */
+  isMebbisTransferred: boolean;
   /** Yüklenmiş bir dosya mevcut mu. */
   hasFile: boolean;
   note: string | null;

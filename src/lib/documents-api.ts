@@ -154,6 +154,7 @@ export function uploadDocument(
 export interface UpdateCandidateDocumentInput {
   note?: string | null;
   metadata?: Record<string, string>;
+  isMebbisTransferred?: boolean;
 }
 
 export function updateCandidateDocument(
@@ -168,7 +169,21 @@ export function updateCandidateDocument(
       note: input.note ?? null,
       metadataJson:
         input.metadata !== undefined ? JSON.stringify(input.metadata) : undefined,
+      isMebbisTransferred: input.isMebbisTransferred,
     },
+    { signal }
+  );
+}
+
+export function updateCandidateDocumentMebbisTransfer(
+  candidateId: string,
+  documentTypeId: string,
+  isMebbisTransferred: boolean,
+  signal?: AbortSignal
+): Promise<DocumentResponse> {
+  return httpPut<DocumentResponse>(
+    `/api/candidates/${candidateId}/documents/types/${documentTypeId}/mebbis`,
+    { isMebbisTransferred },
     { signal }
   );
 }
@@ -199,7 +214,8 @@ export function deleteCandidateDocument(
 /** URL the user can hit (in a new tab) to download an attached candidate file. */
 export function getCandidateDocumentDownloadUrl(
   candidateId: string,
-  documentId: string
+  documentId: string,
+  options?: { inline?: boolean }
 ): string {
   const base = getApiBaseUrl().replace(/\/+$/, "");
   const path = `/api/candidates/${candidateId}/documents/${documentId}/download`;
@@ -207,5 +223,9 @@ export function getCandidateDocumentDownloadUrl(
     base.endsWith("/api") && path.startsWith("/api/")
       ? path.slice("/api".length)
       : path;
-  return new URL(`${base}${dedupedPath}`, window.location.origin).toString();
+  const url = new URL(`${base}${dedupedPath}`, window.location.origin);
+  if (options?.inline) {
+    url.searchParams.set("inline", "true");
+  }
+  return url.toString();
 }

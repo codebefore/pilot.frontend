@@ -47,15 +47,14 @@ import {
   getCandidateDocumentDownloadUrl,
   getCandidateDocuments,
   getDocumentTypes,
+  updateCandidateDocument,
+  updateCandidateDocumentMebbisTransfer,
   uploadDocument,
 } from "../lib/documents-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
-  CANDIDATE_MEB_SYNC_STATUS_OPTIONS,
   candidateExamResultLabel,
   candidateGenderLabel,
-  candidateMebSyncStatusLabel,
-  candidateMebSyncStatusToPill,
   candidateStatusLabel,
   candidateStatusToPill,
   EXISTING_LICENSE_TYPE_OPTIONS,
@@ -64,7 +63,6 @@ import {
   formatDateTR,
   normalizeCandidateGender,
   normalizeCandidateExamResultValue,
-  normalizeCandidateMebSyncStatusValue,
 } from "../lib/status-maps";
 import { StatusPill } from "../components/ui/StatusPill";
 import type {
@@ -79,6 +77,7 @@ import type {
   CandidatePaymentMethod,
   CashRegisterResponse,
   CertificateProgramResponse,
+  DocumentMetadataField,
   DocumentResponse,
   DocumentTypeResponse,
   TrainingBranchDefinitionResponse,
@@ -577,14 +576,20 @@ function CandidateHero({
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
   const summary = candidate.documentSummary;
   const docLabel = summary
-    ? `${summary.completedCount} / ${summary.totalRequiredCount}`
-    : "—";
-  const groupLabel = candidate.currentGroup?.title ?? "Atanmamış";
+    ? `${summary.completedCount} / ${summary.totalRequiredCount} evrak`
+    : "Evrak bilgisi yok";
+  const existingLicense = candidate.existingLicenseType
+    ? existingLicenseTypeLabel(candidate.existingLicenseType)
+    : null;
+  const licenseClassLabel = existingLicense
+    ? `${existingLicense} → ${candidate.licenseClass}`
+    : candidate.licenseClass;
+  const groupLabel = candidate.currentGroup?.title ?? "Gruba atanmamış";
   const paymentLabel = candidate.initialPaymentReceived
-    ? "Ödendi"
+    ? "Kayıt ödendi"
     : candidate.examFeePaid
     ? "Sınav ücreti ödendi"
-    : "Bekliyor";
+    : "Ödeme bekleniyor";
 
   return (
     <header className="candidate-detail-hero">
@@ -610,24 +615,23 @@ function CandidateHero({
           ))}
         </div>
         <div className="candidate-detail-hero-facts">
-          <HeroFact label="Ehliyet Sınıfı" value={candidate.licenseClass} />
-          <HeroFact label="Aktif Grup" value={groupLabel} />
+          <HeroFact value={licenseClassLabel} />
+          <HeroFact value={groupLabel} />
           <HeroFact
-            label="Evraklar"
             value={docLabel}
             sub={summary?.missingCount ? `${summary.missingCount} eksik` : undefined}
           />
-          <HeroFact label="Kayıt Ücreti" value={paymentLabel} />
+          <HeroFact value={paymentLabel} />
         </div>
       </div>
     </header>
   );
 }
 
-function HeroFact({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function HeroFact({ label, value, sub }: { label?: string; value: string; sub?: string }) {
   return (
     <span className="candidate-detail-hero-fact">
-      <span className="candidate-detail-hero-fact-label">{label}</span>
+      {label ? <span className="candidate-detail-hero-fact-label">{label}</span> : null}
       <span className="candidate-detail-hero-fact-value">{value}</span>
       {sub ? <span className="candidate-detail-hero-fact-sub">{sub}</span> : null}
     </span>
@@ -3271,32 +3275,8 @@ function ExamsTab({
     }
   };
 
-  const mebSyncLabel = candidateMebSyncStatusLabel(candidate.mebSyncStatus);
-  const mebSyncTone = candidateMebSyncStatusToPill(candidate.mebSyncStatus);
-
   return (
     <div className="candidate-detail-tab-content">
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">MEB Senkronizasyonu</h3>
-        <div className="candidate-detail-edit-list">
-          <div className="candidate-detail-meb-sync">
-            <StatusPill label={mebSyncLabel} status={mebSyncTone} />
-            {candidate.mebSyncStatus ? (
-              <span className="candidate-detail-meb-sync-meta">
-                Son durum: {candidate.mebSyncStatus}
-              </span>
-            ) : null}
-          </div>
-          <EditableRow
-            displayValue={candidateMebSyncStatusLabel(candidate.mebSyncStatus)}
-            inputValue={normalizeCandidateMebSyncStatusValue(candidate.mebSyncStatus) ?? "not_synced"}
-            label="Senkron Durumu"
-            options={CANDIDATE_MEB_SYNC_STATUS_OPTIONS}
-            onSave={(value) => saveField({ mebSyncStatus: value || null }, "Senkron durumu güncellendi")}
-          />
-        </div>
-      </section>
-
       <div className="candidate-detail-grid-cards">
         <section className="instructor-detail-card candidate-detail-exam-card">
           <div className="candidate-detail-exam-head">
@@ -3377,17 +3357,52 @@ function formatFileSize(bytes: number | null): string | null {
 }
 
 type CandidateDocumentStatus = "uploaded" | "physical" | "missing";
-type CandidateDocumentFilter = "all" | CandidateDocumentStatus;
+type CandidateDocumentFilter = "all" | "missing" | "available" | "mebbis";
+const PHOTO_DOCUMENT_TYPE_KEYS = ["biometric_photo", "webcam_photo"] as const;
+const PRINTABLE_DOCUMENT_TYPE_KEYS = [
+  "signature_sample",
+  "contract_front",
+  "contract_back",
+  "application_form",
+] as const;
+
+function isPhotoDocumentType(type: DocumentTypeResponse): boolean {
+  return PHOTO_DOCUMENT_TYPE_KEYS.includes(
+    type.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]
+  );
+}
+
+function isPrintableDocumentType(type: DocumentTypeResponse): boolean {
+  return PRINTABLE_DOCUMENT_TYPE_KEYS.includes(
+    type.key as (typeof PRINTABLE_DOCUMENT_TYPE_KEYS)[number]
+  );
+}
+
+function isPreviewableImage(upload: DocumentResponse | null): boolean {
+  return !!upload?.hasFile && !!upload.contentType?.startsWith("image/");
+}
 
 function getCandidateDocumentStatus(upload: DocumentResponse | null): CandidateDocumentStatus {
   if (!upload) return "missing";
-  return upload.hasFile ? "uploaded" : "physical";
+  if (upload.hasFile) return "uploaded";
+  return upload.isPhysicallyAvailable ? "physical" : "missing";
 }
 
 function candidateDocumentStatusLabel(status: CandidateDocumentStatus): string {
   if (status === "uploaded") return "Yüklendi";
-  if (status === "physical") return "Fiziksel";
-  return "Eksik";
+  if (status === "physical") return "Var";
+  return "Yok";
+}
+
+function buildDocumentMetadataValues(
+  fields: ReadonlyArray<DocumentMetadataField>,
+  upload: DocumentResponse | null
+): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const field of fields) {
+    values[field.key] = upload?.metadata?.[field.key] ?? "";
+  }
+  return values;
 }
 
 function DocumentsTab({
@@ -3428,25 +3443,36 @@ function DocumentsTab({
   const sortedTypes = [...documentTypes].sort((a, b) => a.sortOrder - b.sortOrder);
   const requiredTypes = sortedTypes.filter((t) => t.isRequired);
   const optionalTypes = sortedTypes.filter((t) => !t.isRequired);
-
-  const completedCount = requiredTypes.filter((t) => uploadsByKey.has(t.key)).length;
   const statusCounts = sortedTypes.reduce(
     (acc, type) => {
-      const status = getCandidateDocumentStatus(uploadsByKey.get(type.key) ?? null);
-      acc[status] += 1;
+      const upload = uploadsByKey.get(type.key) ?? null;
+      const status = getCandidateDocumentStatus(upload);
+      if (status === "missing") {
+        acc.missing += 1;
+      } else {
+        acc.available += 1;
+      }
+      if (upload?.isMebbisTransferred) {
+        acc.mebbis += 1;
+      }
       return acc;
     },
-    { uploaded: 0, physical: 0, missing: 0 }
+    { available: 0, mebbis: 0, missing: 0 }
   );
   const filterOptions: { key: CandidateDocumentFilter; label: string; count: number }[] = [
     { key: "all", label: "Tümü", count: sortedTypes.length },
     { key: "missing", label: "Eksik", count: statusCounts.missing },
-    { key: "uploaded", label: "Yüklendi", count: statusCounts.uploaded },
-    { key: "physical", label: "Fiziksel", count: statusCounts.physical },
+    { key: "available", label: "Yüklü", count: statusCounts.available },
+    { key: "mebbis", label: "Mebbis", count: statusCounts.mebbis },
   ];
   const matchesFilter = (type: DocumentTypeResponse) => {
     if (statusFilter === "all") return true;
-    return getCandidateDocumentStatus(uploadsByKey.get(type.key) ?? null) === statusFilter;
+    const upload = uploadsByKey.get(type.key) ?? null;
+    const status = getCandidateDocumentStatus(upload);
+    if (statusFilter === "missing") return status === "missing";
+    if (statusFilter === "available") return status !== "missing";
+    if (statusFilter === "mebbis") return upload?.isMebbisTransferred === true;
+    return true;
   };
   const filteredRequiredTypes = requiredTypes.filter(matchesFilter);
   const filteredOptionalTypes = optionalTypes.filter(matchesFilter);
@@ -3454,29 +3480,6 @@ function DocumentsTab({
   return (
     <div className="candidate-detail-tab-content">
       <section className="instructor-detail-card candidate-detail-doc-overview">
-        <div className="candidate-detail-doc-summary-grid">
-          <div className="candidate-detail-doc-summary-item is-missing">
-            <span className="candidate-detail-stat-label">Eksik</span>
-            <strong>{statusCounts.missing}</strong>
-          </div>
-          <div className="candidate-detail-doc-summary-item is-uploaded">
-            <span className="candidate-detail-stat-label">Yüklendi</span>
-            <strong>{statusCounts.uploaded}</strong>
-          </div>
-          <div className="candidate-detail-doc-summary-item is-physical">
-            <span className="candidate-detail-stat-label">Fiziksel</span>
-            <strong>{statusCounts.physical}</strong>
-          </div>
-          <div className="candidate-detail-doc-summary-item">
-            <span className="candidate-detail-stat-label">Zorunlu</span>
-            <strong>{completedCount} / {requiredTypes.length}</strong>
-          </div>
-          <div className="candidate-detail-doc-summary-item">
-            <span className="candidate-detail-stat-label">Toplam</span>
-            <strong>{sortedTypes.length}</strong>
-          </div>
-        </div>
-
         <div className="candidate-detail-doc-filters" role="tablist" aria-label="Evrak durum filtresi">
           {filterOptions.map((option) => (
             <button
@@ -3554,21 +3557,72 @@ function DocRow({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [markingPhysical, setMarkingPhysical] = useState(false);
+  const [markingMebbis, setMarkingMebbis] = useState(false);
+  const [metadataSaving, setMetadataSaving] = useState(false);
+  const [metadataValues, setMetadataValues] = useState<Record<string, string>>({});
+  const [metadataErrors, setMetadataErrors] = useState<Record<string, string>>({});
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  const metadataFields = type.metadataFields ?? [];
   const status = getCandidateDocumentStatus(upload);
   const statusLabel = candidateDocumentStatusLabel(status);
   const fileSize = upload?.fileSizeBytes != null ? formatFileSize(upload.fileSizeBytes) : null;
-  const uploadedDate = upload?.uploadedAtUtc ? formatDateTR(upload.uploadedAtUtc) : null;
+  const uploadedDate = upload?.uploadedAtUtc && status !== "missing" ? formatDateTR(upload.uploadedAtUtc) : null;
+  const isPhotoType = isPhotoDocumentType(type);
+  const isPrintableType = isPrintableDocumentType(type);
+  const isMebbisTransferred = upload?.isMebbisTransferred ?? false;
+  const fileUrl = upload?.hasFile ? getCandidateDocumentDownloadUrl(candidateId, upload.id) : null;
+  const inlineFileUrl = upload?.hasFile
+    ? getCandidateDocumentDownloadUrl(candidateId, upload.id, { inline: true })
+    : null;
+  const previewUrl = isPhotoType && isPreviewableImage(upload) ? fileUrl : null;
+
+  useEffect(() => {
+    setMetadataValues(buildDocumentMetadataValues(metadataFields, upload));
+    setMetadataErrors({});
+  }, [metadataFields, upload]);
+
+  const setMetadataValue = (key: string, value: string) => {
+    setMetadataValues((current) => ({ ...current, [key]: value }));
+    if (metadataErrors[key]) {
+      setMetadataErrors((current) => {
+        const { [key]: _, ...rest } = current;
+        return rest;
+      });
+    }
+  };
+
+  const buildMetadataPayload = (): Record<string, string> => {
+    const payload: Record<string, string> = {};
+    for (const field of metadataFields) {
+      const value = (metadataValues[field.key] ?? "").trim();
+      if (value) payload[field.key] = value;
+    }
+    return payload;
+  };
+
+  const validateMetadata = (): boolean => {
+    const nextErrors: Record<string, string> = {};
+    for (const field of metadataFields) {
+      const value = (metadataValues[field.key] ?? "").trim();
+      if (field.isRequired && !value) {
+        nextErrors[field.key] = `${field.label} gerekli`;
+      }
+    }
+    setMetadataErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const handleUpload = async (file: File) => {
     if (uploading) return;
+    if (!validateMetadata()) return;
     setUploading(true);
     try {
       await uploadDocument({
         candidateId,
         documentTypeId: type.id,
         file,
+        metadata: buildMetadataPayload(),
       });
       await onRefresh();
       showToast(`"${type.name}" yüklendi`);
@@ -3581,6 +3635,7 @@ function DocRow({
 
   const handleMarkPhysical = async () => {
     if (markingPhysical) return;
+    if (!validateMetadata()) return;
     setMarkingPhysical(true);
     try {
       await uploadDocument({
@@ -3588,6 +3643,7 @@ function DocRow({
         documentTypeId: type.id,
         file: null,
         isPhysicallyAvailable: true,
+        metadata: buildMetadataPayload(),
       });
       await onRefresh();
       showToast(`"${type.name}" fiziksel olarak işaretlendi`);
@@ -3595,6 +3651,21 @@ function DocRow({
       showToast(`"${type.name}" işaretlenemedi`, "error");
     } finally {
       setMarkingPhysical(false);
+    }
+  };
+
+  const handleMarkMissing = async () => {
+    if (!upload || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteCandidateDocument(candidateId, upload.id);
+      await onRefresh();
+      showToast(`"${type.name}" yok olarak işaretlendi`);
+      setConfirmingDelete(false);
+    } catch {
+      showToast(`"${type.name}" güncellenemedi`, "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -3613,11 +3684,81 @@ function DocRow({
     }
   };
 
+  const handleMebbisToggle = async (checked: boolean) => {
+    if (markingMebbis || checked === isMebbisTransferred) return;
+    setMarkingMebbis(true);
+    try {
+      await updateCandidateDocumentMebbisTransfer(candidateId, type.id, checked);
+      await onRefresh();
+      showToast(checked ? `"${type.name}" Mebbis işaretlendi` : `"${type.name}" Mebbis kaldırıldı`);
+    } catch {
+      showToast(`"${type.name}" Mebbis durumu kaydedilemedi`, "error");
+    } finally {
+      setMarkingMebbis(false);
+    }
+  };
+
+  const handlePrint = () => {
+    if (!inlineFileUrl) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      showToast(`"${type.name}" yazdırma penceresi açılamadı`, "error");
+      return;
+    }
+
+    const escapedTitle = type.name.replace(/[<>&"]/g, (char) => {
+      const entities: Record<string, string> = {
+        "<": "&lt;",
+        ">": "&gt;",
+        "&": "&amp;",
+        "\"": "&quot;",
+      };
+      return entities[char] ?? char;
+    });
+    const escapedUrl = inlineFileUrl.replace(/"/g, "%22");
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${escapedTitle}</title>
+          <style>
+            html, body, iframe { width: 100%; height: 100%; margin: 0; border: 0; }
+          </style>
+        </head>
+        <body>
+          <iframe src="${escapedUrl}" onload="setTimeout(function(){ window.focus(); window.print(); }, 250)"></iframe>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleSaveMetadata = async () => {
+    if (!upload || metadataSaving) return;
+    if (!validateMetadata()) return;
+    setMetadataSaving(true);
+    try {
+      await updateCandidateDocument(candidateId, upload.id, {
+        metadata: buildMetadataPayload(),
+      });
+      await onRefresh();
+      showToast(`"${type.name}" bilgileri kaydedildi`);
+    } catch {
+      showToast(`"${type.name}" bilgileri kaydedilemedi`, "error");
+    } finally {
+      setMetadataSaving(false);
+    }
+  };
+
   const inputId = `doc-upload-${type.id}`;
-  const busy = uploading || deleting || markingPhysical;
+  const busy = uploading || deleting || markingPhysical || markingMebbis || metadataSaving;
+  const canUploadFile = status === "missing";
+  const canDeleteFile = !!upload?.hasFile;
+  const hasDocumentAvailable = status !== "missing";
 
   return (
-    <li className={`candidate-detail-doc-row status-${status}`}>
+    <li className={`candidate-detail-doc-row status-${status}${isPhotoType ? " is-photo" : ""}`}>
       <div className={`candidate-detail-doc-status-marker ${status}`} aria-hidden="true" />
       <div className="candidate-detail-doc-main">
         <div className="candidate-detail-doc-title-row">
@@ -3626,72 +3767,191 @@ function DocRow({
           {type.isRequired ? (
             <span className="candidate-detail-doc-required">Zorunlu</span>
           ) : null}
+          <span className="candidate-detail-doc-received-date">
+            Teslim: {uploadedDate ?? "-"}
+          </span>
         </div>
         {upload?.note ? (
           <div className="candidate-detail-doc-note">{upload.note}</div>
         ) : null}
-        <div className="candidate-detail-doc-file">
-          {status === "missing"
-            ? "Henüz yüklenmedi veya fiziksel teslim işaretlenmedi."
-            : upload?.originalFileName ?? "Fiziksel evrak elde var."}
-        </div>
-        {status !== "missing" ? (
+        {isPhotoType ? (
+          <div className="candidate-detail-doc-photo-preview">
+            {previewUrl ? (
+              <img alt={`${type.name} önizleme`} src={previewUrl} />
+            ) : status === "missing" ? (
+              <span>Henüz fotoğraf yok.</span>
+            ) : status === "physical" ? (
+              <span>Fotoğraf elde var.</span>
+            ) : (
+              <span>Önizleme desteklenmiyor.</span>
+            )}
+          </div>
+        ) : (
+          <div className="candidate-detail-doc-file">
+            {status === "missing"
+              ? "Evrak yok olarak işaretli."
+              : upload?.originalFileName ?? "Evrak elde var."}
+          </div>
+        )}
+        {status !== "missing" && !isPhotoType ? (
           <div className="candidate-detail-doc-meta">
             {fileSize ? <span>{fileSize}</span> : null}
-            {uploadedDate ? <span>{uploadedDate}</span> : null}
+          </div>
+        ) : null}
+        {metadataFields.length > 0 ? (
+          <div className="candidate-detail-doc-metadata-fields">
+            {metadataFields.map((field) => {
+              const value = metadataValues[field.key] ?? "";
+              const error = metadataErrors[field.key];
+              const label = field.isRequired ? `${field.label} *` : field.label;
+
+              return (
+                <label className="candidate-detail-doc-metadata-field" key={field.key}>
+                  <span>{label}</span>
+                  {field.inputType === "date" ? (
+                    <LocalizedDateInput
+                      ariaLabel={field.label}
+                      className={error ? "form-input error" : "form-input"}
+                      lang="tr-TR"
+                      onChange={(next) => setMetadataValue(field.key, next)}
+                      placeholder={field.placeholder ?? ""}
+                      size="sm"
+                      value={value}
+                    />
+                  ) : field.inputType === "select" ? (
+                    <CustomSelect
+                      aria-label={field.label}
+                      className={error ? "form-select error" : "form-select"}
+                      onChange={(event) => setMetadataValue(field.key, event.target.value)}
+                      value={value}
+                    >
+                      <option value="">{field.placeholder ?? "Seçin..."}</option>
+                      {field.options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                  ) : (
+                    <input
+                      aria-label={field.label}
+                      className={error ? "form-input error" : "form-input"}
+                      onChange={(event) => setMetadataValue(field.key, event.target.value)}
+                      placeholder={field.placeholder ?? ""}
+                      type="text"
+                      value={value}
+                    />
+                  )}
+                  {error ? <em>{error}</em> : null}
+                </label>
+              );
+            })}
+            {upload ? (
+              <button
+                className="btn btn-secondary btn-sm candidate-detail-doc-metadata-save"
+                disabled={busy}
+                onClick={handleSaveMetadata}
+                type="button"
+              >
+                {metadataSaving ? "Kaydediliyor..." : "Bilgileri Kaydet"}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
       <div className="candidate-detail-doc-actions">
-        {upload?.hasFile ? (
+        <label className="switch-toggle candidate-detail-doc-mebbis-toggle">
+          <input
+            checked={isMebbisTransferred}
+            disabled={busy}
+            onChange={(event) => handleMebbisToggle(event.target.checked)}
+            type="checkbox"
+          />
+          <span aria-hidden="true" className="switch-toggle-control" />
+          <span>Mebbis</span>
+        </label>
+
+        {inlineFileUrl ? (
           <a
             className="btn btn-secondary btn-sm"
-            href={getCandidateDocumentDownloadUrl(candidateId, upload.id)}
+            href={inlineFileUrl}
             rel="noopener noreferrer"
             target="_blank"
+          >
+            Görüntüle
+          </a>
+        ) : null}
+
+        {fileUrl ? (
+          <a
+            className="btn btn-secondary btn-sm"
+            href={fileUrl}
+            rel="noopener noreferrer"
+            download
           >
             İndir
           </a>
         ) : null}
 
-        {/* Hidden input + label-as-button = native, accessible upload trigger. */}
-        <input
-          accept="application/pdf,image/jpeg,image/png"
-          disabled={busy}
-          hidden
-          id={inputId}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) handleUpload(file);
-            event.target.value = "";
-          }}
-          type="file"
-        />
-        <label
-          aria-disabled={busy}
-          className={`btn btn-secondary btn-sm${busy ? " is-disabled" : ""}`}
-          htmlFor={inputId}
-          style={busy ? { pointerEvents: "none", opacity: 0.6 } : undefined}
-        >
-          {uploading
-            ? "Yükleniyor..."
-            : status === "uploaded"
-            ? "Yenile"
-            : "Dosya Yükle"}
-        </label>
-
-        {status === "missing" ? (
+        {fileUrl && isPrintableType ? (
           <button
             className="btn btn-secondary btn-sm"
             disabled={busy}
-            onClick={handleMarkPhysical}
+            onClick={handlePrint}
             type="button"
           >
-            {markingPhysical ? "İşaretleniyor..." : "Fiziksel"}
+            Yazdır
           </button>
         ) : null}
 
-        {upload ? (
+        {canUploadFile ? (
+          <>
+            {/* Hidden input + label-as-button = native, accessible upload trigger. */}
+            <input
+              accept="application/pdf,image/jpeg,image/png"
+              disabled={busy}
+              hidden
+              id={inputId}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) handleUpload(file);
+                event.target.value = "";
+              }}
+              type="file"
+            />
+            <label
+              aria-disabled={busy}
+              className={`btn btn-secondary btn-sm${busy ? " is-disabled" : ""}`}
+              htmlFor={inputId}
+              style={busy ? { pointerEvents: "none", opacity: 0.6 } : undefined}
+            >
+              {uploading ? "Yükleniyor..." : "Dosya Yükle"}
+            </label>
+          </>
+        ) : null}
+
+        <div className="candidate-detail-doc-availability" aria-label={`${type.name} var yok durumu`}>
+          <button
+            aria-pressed={hasDocumentAvailable}
+            className={`candidate-detail-doc-toggle${hasDocumentAvailable ? " active" : ""}`}
+            disabled={busy || hasDocumentAvailable}
+            onClick={handleMarkPhysical}
+            type="button"
+          >
+            {markingPhysical ? "..." : "Var"}
+          </button>
+          <button
+            aria-pressed={status === "missing"}
+            className={`candidate-detail-doc-toggle${status === "missing" ? " active" : ""}`}
+            disabled={busy || status === "missing" || upload?.hasFile}
+            onClick={handleMarkMissing}
+            type="button"
+          >
+            {deleting && !upload?.hasFile ? "..." : "Yok"}
+          </button>
+        </div>
+
+        {canDeleteFile ? (
           confirmingDelete ? (
             <div className="candidate-detail-doc-confirm">
               <span>Silinsin mi?</span>
