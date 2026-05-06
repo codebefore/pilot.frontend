@@ -150,6 +150,49 @@ export type CandidateChargeSourceType = "manual" | "matrix";
 export type CandidateBillingStatus = "active" | "cancelled";
 export type CandidatePaymentMethod = "cash" | "bank_transfer" | "credit_card" | "mail_order" | "other";
 export type CandidateAccountingType = "kurs" | "teorik_sinav" | "direksiyon_sinav" | "diger";
+export type CandidateExamType = "theory" | "practice";
+export type CandidateExamFeeStatus = "pending" | "charged" | "paid";
+export type CandidateExamAttendanceStatus = "attended" | "absent";
+export type CandidateExamResultStatus = "passed" | "failed";
+
+export interface CandidateExamAttemptResponse {
+  id: string;
+  candidateId: string;
+  examType: CandidateExamType;
+  scheduledAt: string;
+  attemptNumber: number;
+  score: number | null;
+  expiresAt: string | null;
+  vehicleId: string | null;
+  vehiclePlate: string | null;
+  instructorId: string | null;
+  instructorFullName: string | null;
+  examAttendanceStatus: CandidateExamAttendanceStatus | null;
+  examResultStatus: CandidateExamResultStatus | null;
+  fee: number;
+  feeStatus: CandidateExamFeeStatus;
+  paidAt: string | null;
+  accountingMovementId: string | null;
+  createdAt: string;
+  rowVersion: number;
+}
+
+export interface CandidateExamAttemptUpsertRequest {
+  examType: CandidateExamType;
+  scheduledAt: string;
+  attemptNumber?: number | null;
+  score?: number | null;
+  expiresAt?: string | null;
+  vehicleId?: string | null;
+  vehiclePlate?: string | null;
+  instructorId?: string | null;
+  instructorFullName?: string | null;
+  examAttendanceStatus?: CandidateExamAttendanceStatus | null;
+  examResultStatus?: CandidateExamResultStatus | null;
+  fee: number;
+  feeStatus: CandidateExamFeeStatus;
+  rowVersion?: number;
+}
 
 export interface AccountingCashRegisterSummaryResponse {
   id: string;

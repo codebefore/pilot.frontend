@@ -89,17 +89,14 @@ const BACKEND_FIELD_BY_STORED: Record<StoredEditableField, string> = {
   institutionPracticeExamFee: "InstitutionPracticeExamFee",
 };
 
-/** Virtual fields whose single column is logically two cells (one per
- *  lessonType). Bulk input must offer two slots so theory & practice can
- *  receive different values; otherwise typing one number would overwrite
- *  both halves of the program. */
-type SplitExamField = "contractExamFee" | "institutionExamFee";
-const SPLIT_EXAM_FIELDS: ReadonlySet<EditableField> = new Set<EditableField>([
-  "contractExamFee",
-  "institutionExamFee",
-]);
-function isSplitExamField(field: EditableField): field is SplitExamField {
-  return SPLIT_EXAM_FIELDS.has(field);
+function isDualLessonBulkField(
+  field: EditableField
+): field is "vatIncludedHourlyRate" | "contractExamFee" | "institutionExamFee" {
+  return (
+    field === "vatIncludedHourlyRate" ||
+    field === "contractExamFee" ||
+    field === "institutionExamFee"
+  );
 }
 function bulkValueKey(field: EditableField, lessonType?: "theory" | "practice"): string {
   return lessonType ? `${field}.${lessonType}` : field;
@@ -654,7 +651,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   const [selectedProgramIds, setSelectedProgramIds] = useState<Set<string>>(new Set());
   /** Values currently typed into the inline bulk-apply row.
    *  Key is either the EditableField name (e.g. "courseFee") for single-slot
-   *  fields, or "<field>.theory" / "<field>.practice" for the split exam-fee
+   *  fields, or "<field>.theory" / "<field>.practice" for split lesson
    *  columns where theory and practice need independent values. */
   const [bulkValues, setBulkValues] = useState<Record<string, string>>({});
   const baselineRef = useRef<Map<string, Partial<Record<EditableField, number | null>>>>(new Map());
@@ -851,19 +848,26 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   };
 
   /** Push the value typed into the bulk-row's column for `field` to every
-   *  selected program. For split exam fields, `lessonType` picks which half
+   *  selected program. For split lesson fields, `lessonType` picks which half
    *  receives the value; otherwise the call covers both halves (or the whole
    *  program-scoped fee). Returns whether the call ran so the caller can
    *  decide whether to clear the input. */
   const applyBulkField = async (
     field: EditableField,
-    lessonType?: "theory" | "practice"
+    lessonType?: "theory" | "practice",
+    valueOverride?: string
   ): Promise<boolean> => {
     const key = bulkValueKey(field, lessonType);
-    const parsed = parseAmount(bulkValues[key] ?? "");
-    if (parsed == null) return false;
+    const parsed = parseAmount(valueOverride ?? bulkValues[key] ?? "");
+    if (parsed == null) {
+      showToast("Toplu uygulama için geçerli bir tutar girin", "error");
+      return false;
+    }
     const targetIds = Array.from(selectedProgramIds);
-    if (targetIds.length === 0) return false;
+    if (targetIds.length === 0) {
+      showToast("Toplu uygulama için önce program seçin", "error");
+      return false;
+    }
 
     // Map the virtual/stored editable field to backend bulk-apply expansions.
     let expansions: { backendField: string; lessonType: "theory" | "practice" | null }[];
@@ -885,7 +889,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
       expansions = [
         {
           backendField: BACKEND_FIELD_BY_STORED[field as StoredEditableField],
-          lessonType: null,
+          lessonType: lessonType ?? null,
         },
       ];
     }
@@ -923,9 +927,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
 
   /** Visual-feedback helper for the bulk-row column highlight: does the
    *  user have a parseable amount typed for this column right now? Split
-   *  exam fields highlight if either of the two slots is filled. */
+   *  lesson fields highlight if either of the two slots is filled. */
   const bulkColumnHasValue = (field: EditableField): boolean => {
-    if (isSplitExamField(field)) {
+    if (isDualLessonBulkField(field)) {
       return (
         parseAmount(bulkValues[bulkValueKey(field, "theory")] ?? "") != null ||
         parseAmount(bulkValues[bulkValueKey(field, "practice")] ?? "") != null
@@ -934,13 +938,13 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     return parseAmount(bulkValues[bulkValueKey(field)] ?? "") != null;
   };
 
-  /** Apply every column whose bulk input has a parseable value. Split exam
+  /** Apply every column whose bulk input has a parseable value. Split lesson
    *  fields contribute one job per filled side. Run sequentially so backend
    *  writes stay ordered and we don't race ourselves on RowVersion. */
   const applyAllBulkFields = async () => {
     const jobs: { field: EditableField; lessonType?: "theory" | "practice" }[] = [];
     for (const f of EDITABLE_FIELDS) {
-      if (isSplitExamField(f.value)) {
+      if (isDualLessonBulkField(f.value)) {
         for (const lessonType of ["theory", "practice"] as const) {
           if (parseAmount(bulkValues[bulkValueKey(f.value, lessonType)] ?? "") != null) {
             jobs.push({ field: f.value, lessonType });
@@ -980,9 +984,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   return (
     <div className="settings-section-stack">
       <div className="fee-matrix-backbar">
-        <button className="btn btn-secondary btn-sm fee-matrix-back-button" onClick={goBack} type="button">
+        <button className="btn btn-secondary fee-matrix-back-button" onClick={goBack} type="button">
           <span aria-hidden="true">←</span>
-          Geldiğin sayfaya dön
+          <span>Geldiğin sayfaya dön</span>
         </button>
       </div>
       <section className="settings-surface fee-matrix">
@@ -1276,9 +1280,28 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                   const cellClass = `fee-matrix-th fee-matrix-bulk-cell fee-matrix-th--key-${column.key}${
                                     column.sticky ? " fee-matrix-th--sticky" : ""
                                   }${column.group ? ` fee-matrix-th--group-${column.group}` : ""}`;
+                                  const injectContractSummary =
+                                    collapsedGroups.has("contract") &&
+                                    column.group === "institution" &&
+                                    visibleColumns.findIndex((c) => c.group === "institution") ===
+                                      visibleColumns.indexOf(column);
+                                  const contractSummaryCell = injectContractSummary ? (
+                                    <th
+                                      aria-hidden="true"
+                                      className="fee-matrix-th fee-matrix-bulk-cell fee-matrix-th--group-summary fee-matrix-th--group-contract"
+                                      key="contract-summary-bulk"
+                                      style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
+                                    />
+                                  ) : null;
+                                  const withContractSummary = (cell: React.ReactNode) => (
+                                    <Fragment key={column.key}>
+                                      {contractSummaryCell}
+                                      {cell}
+                                    </Fragment>
+                                  );
 
                                   if (column.key === "select") {
-                                    return (
+                                    return withContractSummary(
                                       <th
                                         className={`${cellClass} fee-matrix-bulk-cell--label`}
                                         key={column.key}
@@ -1289,8 +1312,23 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                       </th>
                                     );
                                   }
+                                  if (column.key === "lessonType") {
+                                    return withContractSummary(
+                                      <th
+                                        className={`${cellClass} fee-matrix-bulk-cell--lesson-types`}
+                                        key={column.key}
+                                        scope="row"
+                                        style={{ minWidth: column.width, left: stickyLeft }}
+                                      >
+                                        <div className="fee-matrix-bulk-split-stack">
+                                          <span>Teorik</span>
+                                          <span>Direksiyon</span>
+                                        </div>
+                                      </th>
+                                    );
+                                  }
                                   if (!column.editableField) {
-                                    return (
+                                    return withContractSummary(
                                       <th
                                         aria-hidden="true"
                                         className={cellClass}
@@ -1302,57 +1340,61 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                   const field = column.editableField;
                                   const fieldLabel =
                                     EDITABLE_FIELDS.find((f) => f.value === field)?.label ?? field;
-                                  if (isSplitExamField(field)) {
-                                    // Two side-by-side inputs: theory ("T") and
-                                    // practice ("D"), so the user can target
-                                    // each lesson row independently.
-                                    return (
+                                  if (isDualLessonBulkField(field)) {
+                                    return withContractSummary(
                                       <th
                                         className={`${cellClass} fee-matrix-bulk-cell--split`}
                                         key={column.key}
                                         style={{ minWidth: column.width, left: stickyLeft }}
                                       >
-                                        {(["theory", "practice"] as const).map((lessonType) => {
-                                          const slotKey = bulkValueKey(field, lessonType);
-                                          const slotLabel =
-                                            lessonType === "theory" ? "T" : "D";
-                                          const slotTitle =
-                                            lessonType === "theory"
-                                              ? `${fieldLabel} (Teorik) için değer girip Enter'a basın`
-                                              : `${fieldLabel} (Direksiyon) için değer girip Enter'a basın`;
-                                          return (
-                                            <input
-                                              aria-label={`${fieldLabel} ${
-                                                lessonType === "theory" ? "Teorik" : "Direksiyon"
-                                              } için toplu değer`}
-                                              className="form-input fee-matrix-bulk-input fee-matrix-bulk-input--split"
-                                              disabled={saving || selectionCount === 0}
-                                              inputMode="decimal"
-                                              key={lessonType}
-                                              onChange={(event) =>
-                                                setBulkValueFor(
-                                                  field,
-                                                  lessonType,
-                                                  event.target.value
-                                                )
-                                              }
-                                              onKeyDown={(event) => {
-                                                if (event.key === "Enter") {
-                                                  event.preventDefault();
-                                                  void applyBulkField(field, lessonType);
+                                        <div className="fee-matrix-bulk-split-stack">
+                                          {(["theory", "practice"] as const).map((lessonType) => {
+                                            const slotKey = bulkValueKey(field, lessonType);
+                                            const slotLabel =
+                                              lessonType === "theory" ? "T" : "D";
+                                            const slotTitle =
+                                              lessonType === "theory"
+                                                ? `${fieldLabel} (Teorik) için değer girip Enter'a basın`
+                                                : `${fieldLabel} (Direksiyon) için değer girip Enter'a basın`;
+                                            return (
+                                              <input
+                                                aria-label={`${fieldLabel} ${
+                                                  lessonType === "theory" ? "Teorik" : "Direksiyon"
+                                                } için toplu değer`}
+                                                className="form-input fee-matrix-bulk-input fee-matrix-bulk-input--split"
+                                                disabled={saving}
+                                                inputMode="decimal"
+                                                key={lessonType}
+                                                onChange={(event) =>
+                                                  setBulkValueFor(
+                                                    field,
+                                                    lessonType,
+                                                    event.target.value
+                                                  )
                                                 }
-                                              }}
-                                              placeholder={slotLabel}
-                                              title={slotTitle}
-                                              value={bulkValues[slotKey] ?? ""}
-                                            />
-                                          );
-                                        })}
+                                                onKeyDown={(event) => {
+                                                  if (event.key === "Enter") {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    void applyBulkField(
+                                                      field,
+                                                      lessonType,
+                                                      event.currentTarget.value
+                                                    );
+                                                  }
+                                                }}
+                                                placeholder={slotLabel}
+                                                title={slotTitle}
+                                                value={bulkValues[slotKey] ?? ""}
+                                              />
+                                            );
+                                          })}
+                                        </div>
                                       </th>
                                     );
                                   }
                                   const value = bulkValues[bulkValueKey(field)] ?? "";
-                                  return (
+                                  return withContractSummary(
                                     <th
                                       className={cellClass}
                                       key={column.key}
@@ -1361,7 +1403,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                       <input
                                         aria-label={`${fieldLabel} için toplu değer`}
                                         className="form-input fee-matrix-bulk-input"
-                                        disabled={saving || selectionCount === 0}
+                                        disabled={saving}
                                         inputMode="decimal"
                                         onChange={(event) =>
                                           setBulkValueFor(field, undefined, event.target.value)
@@ -1369,7 +1411,12 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
-                                            void applyBulkField(field);
+                                            event.stopPropagation();
+                                            void applyBulkField(
+                                              field,
+                                              undefined,
+                                              event.currentTarget.value
+                                            );
                                           }
                                         }}
                                         placeholder="—"
