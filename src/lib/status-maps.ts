@@ -183,7 +183,7 @@ export const CANDIDATE_STATUS_OPTIONS: { value: CandidateStatusValue; label: str
   { value: "active",         label: "Aktif" },
   { value: "parked",         label: "Park" },
   { value: "graduated",      label: "Mezun" },
-  { value: "dropped",        label: "Dosya Yakan" },
+  { value: "dropped",        label: "Dosya Yakan / Ayrılan" },
 ];
 
 export function normalizeCandidateStatusValue(status: string): string {
@@ -292,7 +292,7 @@ export function candidateStatusLabel(status: string): string {
     case "active":         return "Aktif";
     case "parked":         return "Park";
     case "graduated":      return "Mezun";
-    case "dropped":        return "Dosya Yakan";
+    case "dropped":        return "Dosya Yakan / Ayrılan";
     default:               return status;
   }
 }

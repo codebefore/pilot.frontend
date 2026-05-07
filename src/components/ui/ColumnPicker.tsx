@@ -19,8 +19,12 @@ type ColumnPickerProps = {
   columns: ColumnOption[];
   isVisible: (id: string) => boolean;
   onToggle: (id: string) => void;
+  onReset?: () => void;
   /** Optional button label, defaults to an icon-only trigger. */
   label?: string;
+  /** Optional title inside the menu; defaults to triggerTitle. */
+  menuTitle?: string;
+  resetLabel?: string;
   /** Tooltip / aria-label for the trigger button. */
   triggerTitle?: string;
 };
@@ -29,7 +33,10 @@ export function ColumnPicker({
   columns,
   isVisible,
   onToggle,
+  onReset,
   label,
+  menuTitle,
+  resetLabel = "Varsayılana dön",
   triggerTitle = "Sütunlar",
 }: ColumnPickerProps) {
   const [open, setOpen] = useState(false);
@@ -133,7 +140,18 @@ export function ColumnPicker({
             role="dialog"
             style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
           >
-            <div className="column-picker-title">{triggerTitle}</div>
+            <div className="column-picker-header">
+              <div className="column-picker-title">{menuTitle ?? triggerTitle}</div>
+              {onReset ? (
+                <button
+                  className="column-picker-reset"
+                  onClick={onReset}
+                  type="button"
+                >
+                  {resetLabel}
+                </button>
+              ) : null}
+            </div>
             {columns.map((col) => {
               const checked = isVisible(col.id);
               return (

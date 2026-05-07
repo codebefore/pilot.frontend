@@ -16,6 +16,7 @@ export type ApiValidationError = {
 export class ApiError extends Error {
   status: number;
   statusText: string;
+  errorCode?: string;
   validationErrors?: Record<string, string[]>;
   validationErrorCodes?: Record<string, ApiValidationError[]>;
 
@@ -23,7 +24,8 @@ export class ApiError extends Error {
     status: number,
     statusText: string,
     validationErrors?: Record<string, string[]>,
-    validationErrorCodes?: Record<string, ApiValidationError[]>
+    validationErrorCodes?: Record<string, ApiValidationError[]>,
+    errorCode?: string
   ) {
     super(`API error ${status}: ${statusText}`);
     this.name = "ApiError";
@@ -31,6 +33,7 @@ export class ApiError extends Error {
     this.statusText = statusText;
     this.validationErrors = validationErrors;
     this.validationErrorCodes = validationErrorCodes;
+    this.errorCode = errorCode;
   }
 }
 
@@ -79,10 +82,12 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
     let validationErrors: Record<string, string[]> | undefined;
     let validationErrorCodes: Record<string, ApiValidationError[]> | undefined;
+    let errorCode: string | undefined;
     try {
       const body = await response.json();
       if (body?.errors) validationErrors = body.errors;
       if (body?.errorCodes) validationErrorCodes = body.errorCodes;
+      if (typeof body?.errorCode === "string") errorCode = body.errorCode;
     } catch {
       // ignore parse errors
     }
@@ -90,7 +95,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
       response.status,
       response.statusText,
       validationErrors,
-      validationErrorCodes
+      validationErrorCodes,
+      errorCode
     );
   }
 

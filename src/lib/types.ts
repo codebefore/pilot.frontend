@@ -69,6 +69,7 @@ export interface CandidateResponse {
   identitySerialNumber: string | null;
   motherName: string | null;
   fatherName: string | null;
+  referenceName: string | null;
   phoneNumber: string | null;
   email: string | null;
   address: string | null;
@@ -83,14 +84,20 @@ export interface CandidateResponse {
   existingLicensePre2016: boolean;
   educationPlan?: CandidateEducationPlan | null;
   status: string;
+  terminationReason?: string | null;
+  terminationDate?: string | null;
   mebSyncStatus?: string | null;
   mebExamDate?: string | null;
   drivingExamDate?: string | null;
+  graduationDate?: string | null;
   mebExamResult?: string | null;
   eSinavAttemptCount?: number | null;
   drivingExamAttemptCount?: number | null;
   examFeePaid?: boolean;
   initialPaymentReceived?: boolean;
+  totalFee: number;
+  totalPaid: number;
+  totalDebt: number;
   currentGroup: CandidateGroupSummary | null;
   documentSummary: CandidateDocumentSummaryResponse | null;
   photo?: CandidatePhotoSummary | null;
@@ -115,6 +122,7 @@ export interface CandidateUpsertRequest {
   identitySerialNumber?: string | null;
   motherName?: string | null;
   fatherName?: string | null;
+  referenceName?: string | null;
   phoneNumber?: string | null;
   email?: string | null;
   address?: string | null;
@@ -129,9 +137,12 @@ export interface CandidateUpsertRequest {
   existingLicenseIssuedProvince?: string | null;
   existingLicensePre2016?: boolean;
   status: string;
+  terminationReason?: string | null;
+  terminationDate?: string | null;
   mebSyncStatus?: string | null;
   mebExamDate?: string | null;
   drivingExamDate?: string | null;
+  graduationDate?: string | null;
   mebExamResult?: string | null;
   eSinavAttemptCount?: number | null;
   drivingExamAttemptCount?: number | null;
@@ -311,6 +322,7 @@ export interface CandidateAccountingMovementCreateRequest {
 
 export interface CandidateAccountingPaymentCreateRequest {
   type: CandidateAccountingType;
+  movementId?: string | null;
   paymentMethod: CandidatePaymentMethod;
   cashRegisterId?: string | null;
   amount: number;

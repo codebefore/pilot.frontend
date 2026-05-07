@@ -11,6 +11,7 @@ type CandidatePayloadOverrides = {
   tags?: string[];
   mebExamDate?: string | null;
   drivingExamDate?: string | null;
+  graduationDate?: string | null;
 };
 
 export type BulkCandidateUpdateResult = {
@@ -33,11 +34,15 @@ export function buildCandidateUpdatePayload(
   const hasDrivingExamDateOverride =
     overrides !== undefined &&
     Object.prototype.hasOwnProperty.call(overrides, "drivingExamDate");
+  const hasGraduationDateOverride =
+    overrides !== undefined &&
+    Object.prototype.hasOwnProperty.call(overrides, "graduationDate");
 
   return {
     firstName: candidate.firstName,
     lastName: candidate.lastName,
     nationalId: candidate.nationalId,
+    referenceName: candidate.referenceName,
     phoneNumber: candidate.phoneNumber,
     email: candidate.email,
     birthDate: candidate.birthDate,
@@ -53,12 +58,17 @@ export function buildCandidateUpdatePayload(
     drivingExamDate: hasDrivingExamDateOverride
       ? overrides.drivingExamDate
       : candidate.drivingExamDate,
+    graduationDate: hasGraduationDateOverride
+      ? overrides.graduationDate
+      : candidate.graduationDate,
     mebExamResult: candidate.mebExamResult,
     eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
     drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
     examFeePaid: candidate.examFeePaid ?? false,
     initialPaymentReceived: candidate.initialPaymentReceived ?? false,
     status: overrides?.status ?? (candidate.status as CandidateStatusValue),
+    terminationReason: candidate.terminationReason,
+    terminationDate: candidate.terminationDate,
     tags: overrides?.tags ?? (candidate.tags?.map((tag) => tag.name) ?? []),
   };
 }

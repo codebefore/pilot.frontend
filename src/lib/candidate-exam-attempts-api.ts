@@ -59,3 +59,13 @@ export function markCandidateExamAttemptPaid(
     {}
   );
 }
+
+export function markCandidateExamAttemptSelfPaid(
+  candidateId: string,
+  id: string
+): Promise<CandidateExamAttemptResponse> {
+  return httpPost<CandidateExamAttemptResponse>(
+    `/api/candidates/${candidateId}/exam-attempts/${id}/mark-self-paid`,
+    {}
+  );
+}

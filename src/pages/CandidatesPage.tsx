@@ -100,6 +100,9 @@ export type CandidateColumnId =
   | "photo"
   | "name"
   | "nationalId"
+  | "motherName"
+  | "fatherName"
+  | "referenceName"
   | "phoneNumber"
   | "email"
   | "birthDate"
@@ -109,13 +112,19 @@ export type CandidateColumnId =
   | "groupStartDate"
   | "eSinavDate"
   | "eSinavAttemptCount"
+  | "eSinavPoolStatus"
   | "drivingExamDate"
   | "drivingExamAttemptCount"
+  | "graduationDate"
+  | "terminationReason"
+  | "terminationDate"
+  | "totalFee"
+  | "totalPaid"
+  | "totalDebt"
   | "documents"
   | "missingDocuments"
   | "mebSyncStatus"
   | "examFeePaid"
-  | "balance"
   | "status"
   | "createdAtUtc"
   | "updatedAtUtc";
@@ -128,6 +137,9 @@ type CandidateColumnDef = {
   labelKey: "candidates.col.name"
     | "candidates.col.photo"
     | "candidates.col.nationalId"
+    | "candidates.col.motherName"
+    | "candidates.col.fatherName"
+    | "candidates.col.referenceName"
     | "candidates.col.phoneNumber"
     | "candidates.col.email"
     | "candidates.col.birthDate"
@@ -137,13 +149,19 @@ type CandidateColumnDef = {
     | "candidates.col.groupStartDate"
     | "candidates.col.eSinavDate"
     | "candidates.col.eSinavAttemptCount"
+    | "candidates.col.eSinavPoolStatus"
     | "candidates.col.drivingExamDate"
     | "candidates.col.drivingExamAttemptCount"
+    | "candidates.col.graduationDate"
+    | "candidates.col.terminationReason"
+    | "candidates.col.terminationDate"
+    | "candidates.col.totalFee"
+    | "candidates.col.totalPaid"
+    | "candidates.col.totalDebt"
     | "candidates.col.documents"
     | "candidates.col.missingDocuments"
     | "candidates.col.mebSyncStatus"
     | "candidates.col.examFeePaid"
-    | "candidates.col.balance"
     | "candidates.col.status"
     | "candidates.col.createdAtUtc"
     | "candidates.col.updatedAtUtc";
@@ -152,7 +170,7 @@ type CandidateColumnDef = {
   sortField?: CandidateSortField;
   headerClassName?: string;
   cellClassName?: string;
-  renderCell: (c: CandidateResponse) => React.ReactNode;
+  renderCell: (c: CandidateResponse, pageScope: CandidateColumnPageScope) => React.ReactNode;
   /** Approximate skeleton width in pixels (used while loading). */
   skeletonWidth: number;
 };
@@ -160,6 +178,21 @@ type CandidateColumnDef = {
 function formatOptionalText(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed ? trimmed : "—";
+}
+
+function formatCurrencyTRY(amount: number | null | undefined): string {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 2,
+  }).format(amount ?? 0);
+}
+
+function debtToneClass(amount: number | null | undefined): string {
+  const value = amount ?? 0;
+  if (value > 0) return " is-debt";
+  if (value < 0) return " is-credit";
+  return " is-clear";
 }
 
 function formatGroupWithTerm(candidate: CandidateResponse, lang: "tr" | "en"): string {
@@ -175,6 +208,112 @@ function formatGroupWithTerm(candidate: CandidateResponse, lang: "tr" | "en"): s
 function formatCandidateTerm(candidate: CandidateResponse, lang: "tr" | "en"): string {
   if (!candidate.currentGroup) return "—";
   return buildTermLabel(candidate.currentGroup.term, [candidate.currentGroup.term], lang);
+}
+
+function hasFailedExamResult(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLocaleLowerCase("tr-TR");
+  return normalized.includes("failed") ||
+    normalized.includes("basarisiz") ||
+    normalized.includes("başarısız");
+}
+
+function hasPassedExamResult(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLocaleLowerCase("tr-TR");
+  return normalized.includes("passed") ||
+    normalized.includes("basarili") ||
+    normalized.includes("başarılı");
+}
+
+type CandidateExamStage = "eSinav" | "practice";
+type CandidateUnifiedExamStatus = "havuz" | "randevulu" | "basarisiz" | "basarili";
+
+function candidateUsesPracticeStage(candidate: CandidateResponse): boolean {
+  return candidate.educationPlan?.requiresTheoryExam === false ||
+    hasPassedExamResult(candidate.mebExamResult) ||
+    candidate.status === "graduated";
+}
+
+function candidateUnifiedExamStage(candidate: CandidateResponse): CandidateExamStage {
+  return candidateUsesPracticeStage(candidate) ? "practice" : "eSinav";
+}
+
+function candidateUnifiedExamStatus(candidate: CandidateResponse): {
+  stage: CandidateExamStage;
+  status: CandidateUnifiedExamStatus;
+} {
+  const stage = candidateUnifiedExamStage(candidate);
+  if (stage === "eSinav") {
+    if (hasFailedExamResult(candidate.mebExamResult)) return { stage, status: "basarisiz" };
+    return { stage, status: candidate.mebExamDate ? "randevulu" : "havuz" };
+  }
+
+  if (candidate.status === "graduated") return { stage, status: "basarili" };
+  if (candidate.drivingExamDate) return { stage, status: "randevulu" };
+  if ((candidate.drivingExamAttemptCount ?? 1) > 1) return { stage, status: "basarisiz" };
+  return { stage, status: "havuz" };
+}
+
+function examStageLabel(stage: CandidateExamStage): string {
+  return stage === "practice" ? "Uygulama" : "E-sınav";
+}
+
+function examStatusLabel(status: CandidateUnifiedExamStatus): string {
+  if (status === "randevulu") return "randevulu";
+  if (status === "basarisiz") return "başarısız";
+  if (status === "basarili") return "başarılı";
+  return "havuz";
+}
+
+function examStatusPill(status: CandidateUnifiedExamStatus): "queued" | "running" | "failed" | "success" {
+  if (status === "randevulu") return "running";
+  if (status === "basarisiz") return "failed";
+  if (status === "basarili") return "success";
+  return "queued";
+}
+
+function CandidateUnifiedExamAttemptPill({ candidate }: { candidate: CandidateResponse }) {
+  const stage = candidateUnifiedExamStage(candidate);
+  const value = stage === "practice"
+    ? candidate.drivingExamAttemptCount
+    : candidate.eSinavAttemptCount;
+  const attempt = Math.min(Math.max(value ?? 1, 1), 4);
+  const status = attempt >= 4 ? "failed" : attempt >= 2 ? "manual" : "success";
+  return (
+    <StatusPill
+      label={`${examStageLabel(stage)} ${attempt}/4`}
+      status={status}
+    />
+  );
+}
+
+function CandidateUnifiedExamStatusPill({ candidate }: { candidate: CandidateResponse }) {
+  const { stage, status } = candidateUnifiedExamStatus(candidate);
+  const stageLabel = examStageLabel(stage);
+  const statusLabel = examStatusLabel(status);
+  const title =
+    status === "randevulu"
+      ? `${stageLabel} randevulu: sınav tarihi var`
+      : status === "basarisiz"
+        ? `${stageLabel} başarısız: aday bu aşamada tekrar sınava girmeli`
+        : status === "basarili"
+          ? `${stageLabel} başarılı: aday uygulama sınavını tamamladı`
+          : `${stageLabel} havuz: sınav tarihi yok`;
+  return (
+    <span title={title}>
+      <StatusPill
+        label={`${stageLabel} ${statusLabel}`}
+        status={examStatusPill(status)}
+      />
+    </span>
+  );
+}
+
+function ExamAttemptPill({ value }: { value: number | null | undefined }) {
+  const attempt = Math.min(Math.max(value ?? 1, 1), 4);
+  const status = attempt >= 4 ? "failed" : attempt >= 2 ? "manual" : "success";
+  return <StatusPill label={`${attempt}/4`} status={status} />;
 }
 
 function sortExamDateOptionsNewestFirst(options: ExamScheduleOption[]): ExamScheduleOption[] {
@@ -201,7 +340,7 @@ function columnAvailableOnPage(
   column: Pick<CandidateColumnDef, "pageScope">,
   pageScope: CandidateColumnPageScope
 ): boolean {
-  return !column.pageScope || column.pageScope === "all" || column.pageScope === pageScope;
+  return pageScope === "all" || !column.pageScope || column.pageScope === pageScope;
 }
 
 function ExamFeePill({ paid }: { paid: boolean }) {
@@ -242,6 +381,24 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     labelKey: "candidates.col.nationalId",
     sortField: "nationalId",
     renderCell: (c) => <span className="cand-tc">{c.nationalId}</span>,
+    skeletonWidth: 96,
+  },
+  {
+    id: "motherName",
+    labelKey: "candidates.col.motherName",
+    renderCell: (c) => formatOptionalText(c.motherName),
+    skeletonWidth: 96,
+  },
+  {
+    id: "fatherName",
+    labelKey: "candidates.col.fatherName",
+    renderCell: (c) => formatOptionalText(c.fatherName),
+    skeletonWidth: 96,
+  },
+  {
+    id: "referenceName",
+    labelKey: "candidates.col.referenceName",
+    renderCell: (c) => formatOptionalText(c.referenceName),
     skeletonWidth: 96,
   },
   {
@@ -291,7 +448,6 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "eSinavDate",
     pageScope: "eSinav",
-    pickerHidden: true,
     labelKey: "candidates.col.eSinavDate",
     renderCell: (c) => formatDateTR(c.mebExamDate),
     skeletonWidth: 88,
@@ -299,15 +455,22 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "eSinavAttemptCount",
     pageScope: "eSinav",
-    pickerHidden: true,
     labelKey: "candidates.col.eSinavAttemptCount",
-    renderCell: (c) => `${c.eSinavAttemptCount ?? 1}/4`,
-    skeletonWidth: 64,
+    renderCell: (c, pageScope) =>
+      pageScope === "eSinav"
+        ? <ExamAttemptPill value={c.eSinavAttemptCount} />
+        : <CandidateUnifiedExamAttemptPill candidate={c} />,
+    skeletonWidth: 104,
+  },
+  {
+    id: "eSinavPoolStatus",
+    labelKey: "candidates.col.eSinavPoolStatus",
+    renderCell: (c) => <CandidateUnifiedExamStatusPill candidate={c} />,
+    skeletonWidth: 128,
   },
   {
     id: "drivingExamDate",
     pageScope: "uygulama",
-    pickerHidden: true,
     labelKey: "candidates.col.drivingExamDate",
     renderCell: (c) => formatDateTR(c.drivingExamDate),
     skeletonWidth: 88,
@@ -315,10 +478,63 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "drivingExamAttemptCount",
     pageScope: "uygulama",
-    pickerHidden: true,
     labelKey: "candidates.col.drivingExamAttemptCount",
-    renderCell: (c) => `${c.drivingExamAttemptCount ?? 1}/4`,
+    renderCell: (c) => <ExamAttemptPill value={c.drivingExamAttemptCount} />,
     skeletonWidth: 64,
+  },
+  {
+    id: "graduationDate",
+    labelKey: "candidates.col.graduationDate",
+    renderCell: (c) => formatDateTR(c.graduationDate),
+    skeletonWidth: 88,
+  },
+  {
+    id: "terminationReason",
+    labelKey: "candidates.col.terminationReason",
+    cellClassName: "cand-truncate-td",
+    renderCell: (c) => {
+      const value = formatOptionalText(c.terminationReason);
+      return (
+        <span className="cand-truncate" title={value === "—" ? undefined : value}>
+          {value}
+        </span>
+      );
+    },
+    skeletonWidth: 120,
+  },
+  {
+    id: "terminationDate",
+    labelKey: "candidates.col.terminationDate",
+    renderCell: (c) => formatDateTR(c.terminationDate),
+    skeletonWidth: 88,
+  },
+  {
+    id: "totalFee",
+    labelKey: "candidates.col.totalFee",
+    headerClassName: "cand-money-th",
+    cellClassName: "cand-money-td",
+    renderCell: (c) => <span className="cand-money">{formatCurrencyTRY(c.totalFee)}</span>,
+    skeletonWidth: 88,
+  },
+  {
+    id: "totalPaid",
+    labelKey: "candidates.col.totalPaid",
+    headerClassName: "cand-money-th",
+    cellClassName: "cand-money-td",
+    renderCell: (c) => <span className="cand-money">{formatCurrencyTRY(c.totalPaid)}</span>,
+    skeletonWidth: 88,
+  },
+  {
+    id: "totalDebt",
+    labelKey: "candidates.col.totalDebt",
+    headerClassName: "cand-money-th",
+    cellClassName: "cand-money-td",
+    renderCell: (c) => (
+      <span className={`cand-money cand-debt${debtToneClass(c.totalDebt)}`}>
+        {formatCurrencyTRY(c.totalDebt)}
+      </span>
+    ),
+    skeletonWidth: 88,
   },
   {
     id: "documents",
@@ -365,12 +581,6 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     skeletonWidth: 88,
   },
   {
-    id: "balance",
-    labelKey: "candidates.col.balance",
-    renderCell: () => "—",
-    skeletonWidth: 48,
-  },
-  {
     id: "status",
     labelKey: "candidates.col.status",
     sortField: "status",
@@ -400,13 +610,93 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
 const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
   "photo",
   "name",
-  "nationalId",
+  "licenseClass",
   "group",
   "documents",
   "mebSyncStatus",
   "examFeePaid",
   "status",
 ];
+
+const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, CandidateColumnId[]> = {
+  all: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "status",
+    "eSinavAttemptCount",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  pre_registered: [
+    "photo",
+    "name",
+    "phoneNumber",
+    "licenseClass",
+    "documents",
+    "group",
+    "groupStartDate",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  active: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "eSinavAttemptCount",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  parked: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "eSinavAttemptCount",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  graduated: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "graduationDate",
+    "eSinavAttemptCount",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  dropped: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "terminationReason",
+    "terminationDate",
+    "eSinavAttemptCount",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+};
 
 type ExamDateSidebarConfig = {
   title: string;
@@ -435,8 +725,8 @@ type CandidatesPageProps = {
 
 export function CandidatesPage({
   title,
-  columnStorageKey = "candidates.columns.v8",
-  defaultVisibleColumnIds = DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS,
+  columnStorageKey = "candidates.columns.v12",
+  defaultVisibleColumnIds: defaultVisibleColumnIdsProp,
   columnLabelOverrides,
   showTabs = true,
   defaultTab = DEFAULT_TAB,
@@ -471,10 +761,6 @@ export function CandidatesPage({
       ),
     [columnPageScope]
   );
-  const scopedDefaultVisibleColumnIds = useMemo(
-    () => defaultVisibleColumnIds.filter((id) => availableColumnIds.includes(id)),
-    [availableColumnIds, defaultVisibleColumnIds]
-  );
   const defaultTabs = useMemo(
     () =>
       TAB_KEYS.map((key) => ({
@@ -493,12 +779,6 @@ export function CandidatesPage({
         }),
       },
     [defaultTab, defaultTabs, tabConfig]
-  );
-
-  const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    columnStorageKey,
-    availableColumnIds,
-    scopedDefaultVisibleColumnIds.length > 0 ? scopedDefaultVisibleColumnIds : undefined
   );
 
   const [search, setSearch] = useState("");
@@ -552,6 +832,31 @@ export function CandidatesPage({
   const [selectedExamDate, setSelectedExamDate] = useState("");
   const [examDateOptions, setExamDateOptions] = useState<ExamScheduleOption[]>([]);
   const [examDateOptionsLoading, setExamDateOptionsLoading] = useState(false);
+
+  const defaultVisibleColumnIds = useMemo<CandidateColumnId[]>(() => {
+    if (defaultVisibleColumnIdsProp) return defaultVisibleColumnIdsProp;
+    if (TAB_KEYS.includes(tab as CandidateTab)) {
+      return DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB[tab as CandidateTab];
+    }
+    return DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS;
+  }, [defaultVisibleColumnIdsProp, tab]);
+  const scopedDefaultVisibleColumnIds = useMemo(
+    () => defaultVisibleColumnIds.filter((id) => availableColumnIds.includes(id)),
+    [availableColumnIds, defaultVisibleColumnIds]
+  );
+  const effectiveColumnStorageKey =
+    showTabs && !defaultVisibleColumnIdsProp && TAB_KEYS.includes(tab as CandidateTab)
+      ? `${columnStorageKey}.${tab}`
+      : columnStorageKey;
+  const { isVisible, toggle: toggleColumn, reset: resetColumns } = useColumnVisibility(
+    effectiveColumnStorageKey,
+    availableColumnIds,
+    scopedDefaultVisibleColumnIds.length > 0 ? scopedDefaultVisibleColumnIds : undefined
+  );
+  const currentTabLabel = useMemo(
+    () => resolvedTabConfig.tabs.find((item) => item.key === tab)?.label ?? t("candidates.columns.button"),
+    [resolvedTabConfig.tabs, tab, t]
+  );
 
   const resolvedColumns = useMemo(
     () =>
@@ -1466,7 +1771,10 @@ export function CandidatesPage({
                 <ColumnPicker
                   columns={pickerOptions}
                   isVisible={isVisible}
+                  menuTitle={`${currentTabLabel} kolonları`}
+                  onReset={resetColumns}
                   onToggle={toggleColumn}
+                  resetLabel="Varsayılana dön"
                   triggerTitle={t("candidates.columns.button")}
                 />
               </th>
@@ -1533,7 +1841,7 @@ export function CandidatesPage({
                         }
                         title={opensDrawer ? "Hızlı önizleme" : "Detay sayfasına git"}
                       >
-                        {col.renderCell(c)}
+                        {col.renderCell(c, columnPageScope)}
                       </td>
                     );
                   })}

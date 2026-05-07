@@ -34,38 +34,51 @@ export function useColumnVisibility(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, allColumnIds.join(","), fallback.join(",")]);
 
-  const [visibleIds, setVisibleIds] = useState<string[]>(() => readFromStorage());
+  const [state, setState] = useState<{ storageKey: string; visibleIds: string[] }>(() => ({
+    storageKey,
+    visibleIds: readFromStorage(),
+  }));
 
   useEffect(() => {
+    setState({ storageKey, visibleIds: readFromStorage() });
+  }, [readFromStorage, storageKey]);
+
+  useEffect(() => {
+    if (state.storageKey !== storageKey) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify(visibleIds));
+      localStorage.setItem(storageKey, JSON.stringify(state.visibleIds));
     } catch {
       /* ignore storage errors (quota, private mode) */
     }
-  }, [storageKey, visibleIds]);
+  }, [storageKey, state]);
 
+  const visibleIds = state.visibleIds;
   const visibleSet = useMemo(() => new Set(visibleIds), [visibleIds]);
 
   const isVisible = useCallback((id: string) => visibleSet.has(id), [visibleSet]);
 
   const toggle = useCallback(
     (id: string) => {
-      setVisibleIds((current) => {
+      setState((currentState) => {
+        const current = currentState.visibleIds;
         if (current.includes(id)) {
           // Never allow hiding the last visible column.
-          if (current.length === 1) return current;
-          return current.filter((c) => c !== id);
+          if (current.length === 1) return currentState;
+          return { ...currentState, visibleIds: current.filter((c) => c !== id) };
         }
         // Preserve the original column order defined by `allColumnIds`.
         const next = new Set(current);
         next.add(id);
-        return allColumnIds.filter((c) => next.has(c));
+        return { ...currentState, visibleIds: allColumnIds.filter((c) => next.has(c)) };
       });
     },
     [allColumnIds]
   );
 
-  const reset = useCallback(() => setVisibleIds(fallback), [fallback]);
+  const reset = useCallback(
+    () => setState({ storageKey, visibleIds: fallback }),
+    [fallback, storageKey]
+  );
 
   return { visibleIds, isVisible, toggle, reset };
 }

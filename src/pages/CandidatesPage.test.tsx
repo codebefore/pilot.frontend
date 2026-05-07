@@ -696,7 +696,7 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByRole("button", { name: "Aktif" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Park" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mezun" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dosya Yakan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dosya Yakan / Ayrılan" })).toBeInTheDocument();
 
     // Legacy tabs must not exist anymore.
     expect(screen.queryByRole("button", { name: "Tüm Adaylar" })).not.toBeInTheDocument();
@@ -717,9 +717,11 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("shows status by default and still lets the user hide it from the picker", async () => {
+  it("shows status by default on the Tümü tab and still lets the user hide it from the picker", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
 
     expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
 
@@ -767,11 +769,11 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("sends status='dropped' when the Dosya Yakan tab is selected", async () => {
+  it("sends status='dropped' when the Dosya Yakan / Ayrılan tab is selected", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Dosya Yakan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dosya Yakan / Ayrılan" }));
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
@@ -844,22 +846,20 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByText("E-posta")).toBeInTheDocument();
     expect(screen.getByText("Kayıt Tarihi")).toBeInTheDocument();
     expect(screen.getByText("Güncelleme Tarihi")).toBeInTheDocument();
-    expect(screen.getByText("Ehliyet Tipi")).toBeInTheDocument();
+    const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
+    expect(picker).not.toBeNull();
+    if (!picker) {
+      throw new Error("column picker menu not found");
+    }
+    expect(within(picker).getByText("Ehliyet Tipi")).toBeInTheDocument();
   });
 
-  it("does not render or list exam-only columns on the main candidates page", async () => {
-    localStorage.setItem(
-      "candidates.columns.v8",
-      JSON.stringify(["name", "eSinavDate", "eSinavAttemptCount", "drivingExamDate"])
-    );
-
+  it("renders exam progress columns on the main candidates page", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(screen.queryByRole("columnheader", { name: "E-Sınav Tarihi" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "E-Sınav Hakkı" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Uygulama Tarihi" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Uygulama Hakkı" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sınav Hakkı" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sınav Durumu" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
     const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
@@ -868,10 +868,131 @@ describe("CandidatesPage tabs", () => {
       throw new Error("column picker menu not found");
     }
 
-    expect(within(picker).queryByText("E-Sınav Tarihi")).not.toBeInTheDocument();
-    expect(within(picker).queryByText("E-Sınav Hakkı")).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Uygulama Tarihi")).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Uygulama Hakkı")).not.toBeInTheDocument();
+    expect(within(picker).getByText("E-Sınav Tarihi")).toBeInTheDocument();
+    expect(within(picker).getByText("Uygulama Tarihi")).toBeInTheDocument();
+  });
+
+  it("renders unified exam attempt and status values on the Tümü tab", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "12345678901",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: "2026-05-10",
+          mebExamResult: null,
+          eSinavAttemptCount: 2,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 1,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "cand-2",
+          firstName: "Mehmet",
+          lastName: "Kaya",
+          nationalId: "12345678902",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          educationPlan: { requiresTheoryExam: false },
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: null,
+          eSinavAttemptCount: 1,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 1,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "cand-3",
+          firstName: "Zeynep",
+          lastName: "Acar",
+          nationalId: "12345678903",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "graduated",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: "Başarılı",
+          eSinavAttemptCount: 1,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 3,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 3,
+      totalPages: 1,
+    });
+
+    renderPage();
+    await screen.findByText("Ayse Demir");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
+
+    expect(await screen.findByText("E-sınav 2/4")).toBeInTheDocument();
+    expect(screen.getByText("E-sınav randevulu")).toBeInTheDocument();
+    expect(screen.getByText("Uygulama 1/4")).toBeInTheDocument();
+    expect(screen.getByText("Uygulama havuz")).toBeInTheDocument();
+    expect(screen.getByText("Uygulama 3/4")).toBeInTheDocument();
+    expect(screen.getByText("Uygulama başarılı")).toBeInTheDocument();
   });
 
   it("keeps e-sinav date columns visible but out of the picker", async () => {
@@ -1137,6 +1258,9 @@ describe("CandidatesPage tabs", () => {
     });
 
     renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
+    fireEvent.click(await screen.findByLabelText("Mebbis"));
 
     expect(await screen.findByText("Beklemede")).toBeInTheDocument();
     expect(screen.getByText("Senkronize")).toBeInTheDocument();
@@ -1928,11 +2052,11 @@ describe("CandidatesPage sorting", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /TC Kimlik/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ad Soyad/ }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          sortBy: "nationalId",
+          sortBy: "name",
           sortDir: "asc",
           page: 1,
         }),

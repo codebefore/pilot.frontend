@@ -58,6 +58,11 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatOptionalText(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : "—";
+}
+
 /* ── Drawer ── */
 
 type CandidateDrawerProps = {
@@ -244,6 +249,7 @@ export function CandidateDrawer({
         firstName: candidate.firstName,
         lastName: candidate.lastName,
         nationalId: candidate.nationalId,
+        referenceName: candidate.referenceName,
         phoneNumber: candidate.phoneNumber,
         email: candidate.email,
         birthDate: candidate.birthDate,
@@ -257,10 +263,13 @@ export function CandidateDrawer({
         mebSyncStatus: candidate.mebSyncStatus,
         mebExamDate: candidate.mebExamDate,
         drivingExamDate: candidate.drivingExamDate,
+        graduationDate: candidate.graduationDate,
         mebExamResult: candidate.mebExamResult,
         eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
         drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
         status: normalizeCandidateStatusValue(candidate.status),
+        terminationReason: candidate.terminationReason,
+        terminationDate: candidate.terminationDate,
         examFeePaid: candidate.examFeePaid ?? false,
         initialPaymentReceived: candidate.initialPaymentReceived ?? false,
         tags: candidate.tags?.map((tag) => tag.name) ?? [],
@@ -605,6 +614,12 @@ export function CandidateDrawer({
               label="E-posta"
               onSave={(v) => saveField({ email: v || null })}
             />
+            <EditableRow
+              displayValue={formatOptionalText(candidate.referenceName)}
+              inputValue={candidate.referenceName ?? ""}
+              label="Referans"
+              onSave={(v) => saveField({ referenceName: v || null })}
+            />
           </DrawerSection>
 
           <DrawerSection title={t("candidates.tags.label")}>
@@ -867,6 +882,24 @@ export function CandidateDrawer({
               options={STATUS_OPTIONS}
               onSave={(v) => saveField({ status: v })}
             />
+            {normalizeCandidateStatusValue(candidate.status) === "dropped" ? (
+              <>
+                <EditableRow
+                  displayValue={formatOptionalText(candidate.terminationReason)}
+                  inputValue={candidate.terminationReason ?? ""}
+                  label="Sonlanma Nedeni"
+                  onSave={(value) => saveField({ terminationReason: value || null })}
+                />
+                <EditableRow
+                  displayValue={formatDateTR(candidate.terminationDate)}
+                  inputLang={dateInputLang}
+                  inputType="date"
+                  inputValue={candidate.terminationDate ?? ""}
+                  label="Sonlanma Tarihi"
+                  onSave={(value) => saveField({ terminationDate: value || null })}
+                />
+              </>
+            ) : null}
             <EditableRow
               displayValue={candidateMebSyncStatusLabel(candidate.mebSyncStatus)}
               inputValue={normalizeCandidateMebSyncStatusValue(candidate.mebSyncStatus) ?? "not_synced"}
@@ -891,6 +924,14 @@ export function CandidateDrawer({
               inputValue={candidate.drivingExamDate ?? ""}
               label="Uygulama Tarihi"
               onSave={(value) => saveField({ drivingExamDate: value || null })}
+            />
+            <EditableRow
+              displayValue={formatDateTR(candidate.graduationDate)}
+              inputLang={dateInputLang}
+              inputType="date"
+              inputValue={candidate.graduationDate ?? ""}
+              label="Mezun Tarihi"
+              onSave={(value) => saveField({ graduationDate: value || null })}
             />
             <EditableRow
               displayValue={`${candidate.eSinavAttemptCount ?? 1}/4`}

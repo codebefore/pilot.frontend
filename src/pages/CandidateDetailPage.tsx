@@ -33,7 +33,7 @@ import {
   createCandidateExamAttempt,
   deleteCandidateExamAttempt,
   listCandidateExamAttempts,
-  markCandidateExamAttemptPaid,
+  markCandidateExamAttemptSelfPaid,
 } from "../lib/candidate-exam-attempts-api";
 import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
@@ -93,6 +93,7 @@ import type {
   CandidateExamType,
   CandidatePaymentMethod,
   CashRegisterResponse,
+  CertificateProgramFeeRowResponse,
   CertificateProgramResponse,
   DocumentMetadataField,
   DocumentResponse,
@@ -227,7 +228,7 @@ async function updateCandidateField(
 
 export function CandidateDetailPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { candidateId } = useParams<{ candidateId: string }>();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
@@ -340,6 +341,18 @@ export function CandidateDetailPage() {
     setAccounting(response);
   };
 
+  const openAccountingPayment = (movementId: string) => {
+    setActiveTab("payments");
+    setSearchParams({
+      tab: "payments",
+      action: "payment",
+      movementId,
+    });
+    void refreshAccounting().catch(() => {
+      showToast("Muhasebe bilgileri yüklenemedi", "error");
+    });
+  };
+
   const handleCreateMovement = async (
     type: CandidateAccountingType,
     dueDate: string,
@@ -366,6 +379,7 @@ export function CandidateDetailPage() {
     cashRegisterId: string | null,
     paidAtUtc: string,
     note: string | null,
+    movementId: string | null = null,
   ) => {
     if (!candidate || paymentSaving) return;
     setPaymentSaving(true);
@@ -373,6 +387,7 @@ export function CandidateDetailPage() {
       await createCandidateAccountingPayment(candidate.id, {
         type,
         amount,
+        movementId,
         paymentMethod,
         cashRegisterId,
         paidAtUtc,
@@ -519,7 +534,11 @@ export function CandidateDetailPage() {
             )}
             {activeTab === "training" && (
               <>
-                <CandidateExamAttemptsSection candidate={candidate} />
+                <CandidateExamAttemptsSection
+                  candidate={candidate}
+                  onAccountingChanged={refreshAccounting}
+                  onOpenAccountingPayment={openAccountingPayment}
+                />
                 <TrainingTab candidate={candidate} />
               </>
             )}
@@ -556,8 +575,8 @@ export function CandidateDetailPage() {
                 onCreateMovement={(type, dueDate, amount, description) =>
                   void handleCreateMovement(type, dueDate, amount, description)
                 }
-                onCreatePayment={(type, amount, method, cashRegisterId, paidAtUtc, note) =>
-                  void handleCreatePayment(type, amount, method, cashRegisterId, paidAtUtc, note)
+                onCreatePayment={(type, amount, method, cashRegisterId, paidAtUtc, note, movementId) =>
+                  void handleCreatePayment(type, amount, method, cashRegisterId, paidAtUtc, note, movementId)
                 }
                 onDeleteInvoice={(invoiceId) => void handleDeleteInvoice(invoiceId)}
                 onRefundPayment={(paymentId, amount, note) =>
@@ -1571,17 +1590,6 @@ function formatDateTimeTR(value: string | null | undefined): string {
   }).format(new Date(value));
 }
 
-function toDateTimeLocalValue(value: string | Date): string {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hour}:${minute}`;
-}
-
 function fromDateTimeLocalValue(value: string): string {
   return new Date(value).toISOString();
 }
@@ -1591,16 +1599,75 @@ function datePartFromDateTimeLocal(value: string): string {
 }
 
 function timePartFromDateTimeLocal(value: string): string {
-  return value.slice(11, 16) || "09:00";
+  return value.slice(11, 16) || "00:00";
 }
 
 function combineDateAndTimeLocal(date: string, time: string): string {
-  return `${date || todayIsoDate()}T${time || "09:00"}`;
+  return `${date || todayIsoDate()}T${time || "00:00"}`;
+}
+
+function nextCandidateExamAttemptNumber(
+  attempts: CandidateExamAttemptResponse[],
+  examType: CandidateExamType
+): number {
+  const used = attempts
+    .filter((attempt) => attempt.examType === examType)
+    .map((attempt) => attempt.attemptNumber);
+  for (let number = 1; number <= 4; number += 1) {
+    if (!used.includes(number)) return number;
+  }
+  return 5;
+}
+
+function suggestedCandidateExamFee(
+  row: CertificateProgramFeeRowResponse | undefined,
+  examType: CandidateExamType,
+  attemptNumber: number
+): number | null {
+  if (examType === "theory") return row?.institutionTheoryExamFee ?? null;
+  if (attemptNumber > 1) return row?.program.failureRetryFee ?? null;
+  return row?.institutionPracticeExamFee ?? null;
+}
+
+function suggestedFeeLookupKeyForAttempt(attempt: CandidateExamAttemptResponse): string {
+  const year = new Date(attempt.scheduledAt).getFullYear();
+  if (attempt.examType === "practice" && attempt.attemptNumber > 1) {
+    return `${year}:practice:retry`;
+  }
+  return `${year}:${attempt.examType}`;
+}
+
+const THEORY_EXAM_EXPIRY_DAYS = 45;
+
+function addDaysToISODate(value: string, days: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  return toDateOnlyValue(date);
+}
+
+function toDateOnlyValue(date: Date): string {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function parseMoneyInput(value: string): number | null {
-  const normalized = value.trim().replace(/\./g, "").replace(",", ".");
-  if (!normalized) return null;
+  const raw = value.trim().replace(/\s/g, "");
+  if (!raw) return null;
+  const hasComma = raw.includes(",");
+  const hasDot = raw.includes(".");
+  const normalized = hasComma && hasDot
+    ? raw.lastIndexOf(",") > raw.lastIndexOf(".")
+      ? raw.replace(/\./g, "").replace(",", ".")
+      : raw.replace(/,/g, "")
+    : hasComma
+      ? raw.replace(",", ".")
+    : hasDot && /^\d{1,3}(\.\d{3})+$/.test(raw)
+      ? raw.replace(/\./g, "")
+      : raw;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -1820,7 +1887,8 @@ function AccountingTab({
     method: CandidatePaymentMethod,
     cashRegisterId: string | null,
     paidAtUtc: string,
-    note: string | null
+    note: string | null,
+    movementId: string | null
   ) => void;
   onCancelMovement: (movementId: string) => void;
   onCancelPayment: (paymentId: string, cancellationReason: string) => void;
@@ -1862,6 +1930,7 @@ function AccountingTab({
     cashRegisterId: string;
     paidAtUtc: string;
     note: string;
+    movementId: string;
   }>({
     open: false,
     type: "kurs",
@@ -1870,6 +1939,7 @@ function AccountingTab({
     cashRegisterId: "",
     paidAtUtc: todayIsoDate(),
     note: "",
+    movementId: "",
   });
   const [invoiceModal, setInvoiceModal] = useState<{
     open: boolean;
@@ -1948,6 +2018,10 @@ function AccountingTab({
   const parsedDebtAmount = parseMoneyInput(debtModal.amount);
   const parsedPaymentAmount = parseMoneyInput(paymentModal.amount);
   const paymentNeedsRegister = cashRegisterTypeForMethod(paymentModal.method) !== null;
+  const paymentTargetMovement = paymentModal.movementId
+    ? activeMovements.find((item) => item.id === paymentModal.movementId)
+    : null;
+  const paymentOpenBalance = paymentTargetMovement?.remainingAmount ?? typeOpenBalance(paymentModal.type);
   const canSaveDebt =
     Boolean(debtModal.description.trim()) &&
     Boolean(debtModal.dueDate) &&
@@ -1957,7 +2031,7 @@ function AccountingTab({
   const canSavePayment =
     parsedPaymentAmount != null &&
     parsedPaymentAmount > 0 &&
-    parsedPaymentAmount <= typeOpenBalance(paymentModal.type) &&
+    parsedPaymentAmount <= paymentOpenBalance &&
     (!paymentNeedsRegister || Boolean(paymentModal.cashRegisterId)) &&
     !paymentSaving;
   const invoiceSubtotal = parseMoneyInput(invoiceModal.subtotal);
@@ -1986,7 +2060,19 @@ function AccountingTab({
       description,
     });
   };
-  const openPaymentModal = (type: CandidateAccountingType = "kurs", amount = "") => {
+  const selectPaymentMethod = (method: CandidatePaymentMethod) => {
+    const firstRegister = cashRegisters.find((register) => register.type === cashRegisterTypeForMethod(method));
+    setPaymentModal((current) => ({
+      ...current,
+      method,
+      cashRegisterId: firstRegister?.id ?? "",
+    }));
+  };
+  const openPaymentModal = (
+    type: CandidateAccountingType = "kurs",
+    amount = "",
+    movementId = ""
+  ) => {
     const defaultMethod: CandidatePaymentMethod = "cash";
     const firstRegister = cashRegisters.find((register) => register.type === defaultMethod);
     setPaymentModal({
@@ -1997,6 +2083,7 @@ function AccountingTab({
       cashRegisterId: firstRegister?.id ?? "",
       paidAtUtc: todayIsoDate(),
       note: "",
+      movementId,
     });
   };
   const openInvoiceModal = (
@@ -2042,7 +2129,7 @@ function AccountingTab({
       );
       if (movement) {
         handledAccountingQueryRef.current = queryKey;
-        openPaymentModal(movement.type, String(movement.remainingAmount));
+        openPaymentModal(movement.type, String(movement.remainingAmount), movement.id);
         setSearchParams({ tab: "payments" }, { replace: true });
       }
     }
@@ -2212,7 +2299,7 @@ function AccountingTab({
         onCreateInvoice={(amount) => openInvoiceModal(null, amount)}
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
-        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount))}
+        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
         payments={activePayments}
         refunds={accounting?.refunds ?? []}
         title="Kurs Ödemesi"
@@ -2227,7 +2314,7 @@ function AccountingTab({
         onCreateInvoice={(amount) => openInvoiceModal(null, amount)}
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
-        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount))}
+        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
         payments={activePayments}
         refunds={accounting?.refunds ?? []}
         title="Sınav Ücretleri"
@@ -2242,7 +2329,7 @@ function AccountingTab({
         onCreateInvoice={(amount) => openInvoiceModal(null, amount)}
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
-        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount))}
+        onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
         payments={activePayments}
         refunds={accounting?.refunds ?? []}
         title="Diğer Ödemeler"
@@ -2350,7 +2437,8 @@ function AccountingTab({
                   paymentModal.method,
                   paymentModal.cashRegisterId || null,
                   paymentModal.paidAtUtc,
-                  paymentModal.note.trim() || null
+                  paymentModal.note.trim() || null,
+                  paymentModal.movementId || null
                 );
                 setPaymentModal((current) => ({ ...current, open: false }));
               }}
@@ -2365,44 +2453,26 @@ function AccountingTab({
         title="Ödeme Al"
       >
         <AccountingTypePicker
-          onChange={(type) => setPaymentModal((current) => ({ ...current, type }))}
+          onChange={(type) => setPaymentModal((current) => ({ ...current, type, movementId: "" }))}
           value={paymentModal.type}
         />
         <div className="candidate-accounting-modal-form">
-          <label className="form-group">
+          <div className="form-group">
             <span className="form-label">Yöntem</span>
-	            <CustomSelect
-	              className="form-select"
-	              onChange={(event) => {
-	                const method = event.target.value as CandidatePaymentMethod;
-                const firstRegister = cashRegisters.find((register) => register.type === cashRegisterTypeForMethod(method));
-                setPaymentModal((current) => ({
-                  ...current,
-                  method,
-                  cashRegisterId: firstRegister?.id ?? "",
-                }));
-              }}
+            <PaymentMethodPicker
+              onChange={selectPaymentMethod}
               value={paymentModal.method}
-            >
-	              {PAYMENT_METHODS.map((method) => (
-	                <option key={method} value={method}>{paymentMethodLabel(method)}</option>
-	              ))}
-	            </CustomSelect>
-          </label>
-          <label className="form-group">
+            />
+          </div>
+          <div className="form-group">
             <span className="form-label">Kasa</span>
-	            <CustomSelect
-	              className="form-select"
-	              disabled={!paymentNeedsRegister}
-	              onChange={(event) => setPaymentModal((current) => ({ ...current, cashRegisterId: event.target.value }))}
+            <CashRegisterPicker
+              disabled={!paymentNeedsRegister}
+              onChange={(cashRegisterId) => setPaymentModal((current) => ({ ...current, cashRegisterId }))}
+              registers={availableCashRegisters}
               value={paymentModal.cashRegisterId}
-            >
-              <option value="">{paymentNeedsRegister ? "Kasa seç" : "Kasa gerekmiyor"}</option>
-	              {availableCashRegisters.map((register) => (
-	                <option key={register.id} value={register.id}>{register.name}</option>
-	              ))}
-	            </CustomSelect>
-          </label>
+            />
+          </div>
           <label className="form-group">
             <span className="form-label">Tutar</span>
             <input className="form-input" inputMode="decimal" onChange={(event) => setPaymentModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={paymentModal.amount} />
@@ -2576,6 +2646,76 @@ function AccountingTypePicker({
           type="button"
         >
           {accountingTypeLabel(type)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PaymentMethodPicker({
+  value,
+  onChange,
+}: {
+  value: CandidatePaymentMethod;
+  onChange: (value: CandidatePaymentMethod) => void;
+}) {
+  return (
+    <div className="candidate-accounting-type-picker candidate-accounting-method-picker">
+      {PAYMENT_METHODS.map((method) => (
+        <button
+          className={value === method ? "candidate-accounting-type active" : "candidate-accounting-type"}
+          key={method}
+          onClick={() => onChange(method)}
+          type="button"
+        >
+          {paymentMethodLabel(method)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CashRegisterPicker({
+  disabled,
+  registers,
+  value,
+  onChange,
+}: {
+  disabled: boolean;
+  registers: CashRegisterResponse[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (disabled) {
+    return (
+      <div className="candidate-accounting-type-picker candidate-accounting-register-picker is-disabled">
+        <button className="candidate-accounting-type active" disabled type="button">
+          Kasa gerekmiyor
+        </button>
+      </div>
+    );
+  }
+
+  if (registers.length === 0) {
+    return (
+      <div className="candidate-accounting-type-picker candidate-accounting-register-picker is-disabled">
+        <button className="candidate-accounting-type" disabled type="button">
+          Uygun kasa yok
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="candidate-accounting-type-picker candidate-accounting-register-picker">
+      {registers.map((register) => (
+        <button
+          className={value === register.id ? "candidate-accounting-type active" : "candidate-accounting-type"}
+          key={register.id}
+          onClick={() => onChange(register.id)}
+          type="button"
+        >
+          {register.name}
         </button>
       ))}
     </div>
@@ -3381,7 +3521,15 @@ function examAttemptTimeOptions(selectedTime: string): string[] {
     .sort((left, right) => left.localeCompare(right));
 }
 
-function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateResponse }) {
+function CandidateExamAttemptsSection({
+  candidate,
+  onAccountingChanged,
+  onOpenAccountingPayment,
+}: {
+  candidate: CandidateResponse;
+  onAccountingChanged?: () => Promise<void> | void;
+  onOpenAccountingPayment?: (movementId: string) => void;
+}) {
   const { showToast } = useToast();
   const [attempts, setAttempts] = useState<CandidateExamAttemptResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3389,12 +3537,12 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rowSavingId, setRowSavingId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CandidateExamAttemptResponse | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<VehicleResponse[]>([]);
   const [instructors, setInstructors] = useState<InstructorResponse[]>([]);
   const [form, setForm] = useState({
     examType: "theory" as CandidateExamType,
-    scheduledAt: toDateTimeLocalValue(new Date()),
+    scheduledAt: combineDateAndTimeLocal(todayIsoDate(), "00:00"),
     expiresAt: "",
     vehicleId: "",
     instructorId: "",
@@ -3403,9 +3551,14 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
     fee: "",
   });
   const [suggestedFee, setSuggestedFee] = useState<number | null>(null);
+  const [feeTouched, setFeeTouched] = useState(false);
   const [suggestedFeesByKey, setSuggestedFeesByKey] = useState<Record<string, number | null>>({});
   const theoryAttempts = attempts.filter((attempt) => attempt.examType === "theory");
   const practiceAttempts = attempts.filter((attempt) => attempt.examType === "practice");
+  const theoryExpiryDate = addDaysToISODate(
+    datePartFromDateTimeLocal(form.scheduledAt),
+    THEORY_EXAM_EXPIRY_DAYS
+  );
 
   const reload = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -3447,11 +3600,14 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
             item.program.id === candidate.certificateProgramId &&
             item.lessonType === form.examType
         );
-        const value = form.examType === "practice"
-          ? row?.institutionPracticeExamFee
-          : row?.institutionTheoryExamFee;
+        const attemptNumber = nextCandidateExamAttemptNumber(attempts, form.examType);
+        const value = suggestedCandidateExamFee(row, form.examType, attemptNumber);
         setSuggestedFee(value ?? null);
-        setForm((current) => current.fee ? current : { ...current, fee: value != null ? String(value) : "" });
+        setForm((current) =>
+          feeTouched || current.fee
+            ? current
+            : { ...current, fee: value != null ? String(value) : "" }
+        );
       })
       .catch((err) => {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -3459,7 +3615,14 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
         }
       });
     return () => controller.abort();
-  }, [candidate.certificateProgramId, candidate.licenseClass, form.examType, form.scheduledAt]);
+  }, [
+    attempts,
+    candidate.certificateProgramId,
+    candidate.licenseClass,
+    feeTouched,
+    form.examType,
+    form.scheduledAt,
+  ]);
 
   useEffect(() => {
     if (!candidate.certificateProgramId || attempts.length === 0) {
@@ -3482,6 +3645,7 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
               year,
               theory: theoryRow?.institutionTheoryExamFee ?? null,
               practice: practiceRow?.institutionPracticeExamFee ?? null,
+              practiceRetry: practiceRow?.program.failureRetryFee ?? null,
             };
           })
       )
@@ -3491,6 +3655,7 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
         for (const item of items) {
           next[`${item.year}:theory`] = item.theory;
           next[`${item.year}:practice`] = item.practice;
+          next[`${item.year}:practice:retry`] = item.practiceRetry;
         }
         setSuggestedFeesByKey(next);
       })
@@ -3503,19 +3668,14 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
   }, [attempts, candidate.certificateProgramId, candidate.licenseClass]);
 
   const nextAttemptNumber = (examType: CandidateExamType) => {
-    const used = attempts
-      .filter((attempt) => attempt.examType === examType)
-      .map((attempt) => attempt.attemptNumber);
-    for (let number = 1; number <= 4; number += 1) {
-      if (!used.includes(number)) return number;
-    }
-    return 5;
+    return nextCandidateExamAttemptNumber(attempts, examType);
   };
 
   const openAddForm = (examType: CandidateExamType = "theory") => {
+    setFeeTouched(false);
     setForm({
       examType,
-      scheduledAt: toDateTimeLocalValue(new Date()),
+      scheduledAt: combineDateAndTimeLocal(todayIsoDate(), "00:00"),
       expiresAt: "",
       vehicleId: "",
       instructorId: "",
@@ -3559,7 +3719,11 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
         examType: form.examType,
         scheduledAt: fromDateTimeLocalValue(form.scheduledAt),
         attemptNumber,
-        expiresAt: form.expiresAt ? new Date(`${form.expiresAt}T00:00:00`).toISOString() : null,
+        expiresAt: isPractice
+          ? form.expiresAt
+            ? new Date(`${form.expiresAt}T00:00:00`).toISOString()
+            : null
+          : null,
         vehicleId: isPractice ? vehicle?.id ?? null : null,
         vehiclePlate: isPractice ? vehicle?.plateNumber ?? null : null,
         instructorId: isPractice ? instructor?.id ?? null : null,
@@ -3584,6 +3748,11 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
     try {
       const updated = await chargeCandidateExamAttempt(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
+      try {
+        await onAccountingChanged?.();
+      } catch {
+        showToast("Muhasebe bilgileri güncellenemedi.", "error");
+      }
       showToast("E-sınav ücreti borçlandırıldı");
     } catch {
       showToast("Borçlandırma yapılamadı.", "error");
@@ -3592,29 +3761,57 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
     }
   };
 
-  const markPaid = async (attempt: CandidateExamAttemptResponse) => {
+  const markSelfPaid = async (attempt: CandidateExamAttemptResponse) => {
     setRowSavingId(attempt.id);
     try {
-      const updated = await markCandidateExamAttemptPaid(candidate.id, attempt.id);
+      const updated = await markCandidateExamAttemptSelfPaid(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
-      showToast("E-sınav ücreti yatırıldı olarak işaretlendi");
+      showToast("Sınav ücreti kendi ödedi olarak işaretlendi");
     } catch {
-      showToast("Ödeme işaretlenemedi.", "error");
+      showToast("Kendi ödedi işaretlenemedi.", "error");
     } finally {
       setRowSavingId(null);
     }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    setRowSavingId(deleteTarget.id);
+  const payAttempt = async (attempt: CandidateExamAttemptResponse) => {
+    if (attempt.accountingMovementId) {
+      onOpenAccountingPayment?.(attempt.accountingMovementId);
+      return;
+    }
+
+    setRowSavingId(attempt.id);
     try {
-      await deleteCandidateExamAttempt(candidate.id, deleteTarget.id);
-      setAttempts((items) => items.filter((item) => item.id !== deleteTarget.id));
-      setDeleteTarget(null);
-      showToast("E-sınav denemesi silindi");
+      const updated = await chargeCandidateExamAttempt(candidate.id, attempt.id);
+      setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
+      if (!updated.accountingMovementId) {
+        showToast("Ödenecek muhasebe borcu bulunamadı.", "error");
+        return;
+      }
+
+      onOpenAccountingPayment?.(updated.accountingMovementId);
     } catch {
-      showToast("E-sınav denemesi silinemedi.", "error");
+      showToast("Muhasebe borcu oluşturulamadı.", "error");
+    } finally {
+      setRowSavingId(null);
+    }
+  };
+
+
+  const confirmDelete = async (attempt: CandidateExamAttemptResponse) => {
+    setRowSavingId(attempt.id);
+    try {
+      await deleteCandidateExamAttempt(candidate.id, attempt.id);
+      setAttempts((items) => items.filter((item) => item.id !== attempt.id));
+      setDeleteConfirmId(null);
+      showToast("E-sınav denemesi silindi");
+    } catch (error) {
+      if (error instanceof ApiError && error.errorCode === "candidateExamAttemptHasAccountingMovement") {
+        setDeleteConfirmId(null);
+        showToast("Bu sınav için ödeme/borç kaydı bulunuyor. Önce ödemeyi iade edin veya borcu iptal edin.", "error");
+      } else {
+        showToast("E-sınav denemesi silinemedi.", "error");
+      }
     } finally {
       setRowSavingId(null);
     }
@@ -3645,7 +3842,7 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
                   <th>Puan</th>
                   <th>Hakkın yanacağı tarih</th>
                   <th>Sınav ücreti</th>
-                  <th>Yatırıldı</th>
+                  <th>Ücret Durumu</th>
                   <th>İşlem</th>
                 </tr>
               </thead>
@@ -3658,15 +3855,15 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
                   <CandidateExamAttemptRow
                     attempt={attempt}
                     disabled={rowSavingId === attempt.id}
+                    deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
                     onCharge={() => chargeAttempt(attempt)}
-                    onDelete={() => setDeleteTarget(attempt)}
-                    onMarkPaid={() => markPaid(attempt)}
-                    suggestedFee={
-                      suggestedFeesByKey[
-                        `${new Date(attempt.scheduledAt).getFullYear()}:${attempt.examType}`
-                      ] ?? null
-                    }
+                    onCancelDelete={() => setDeleteConfirmId(null)}
+                    onConfirmDelete={() => void confirmDelete(attempt)}
+                    onRequestDelete={() => setDeleteConfirmId(attempt.id)}
+                    onPay={() => void payAttempt(attempt)}
+                    onSelfPaid={() => markSelfPaid(attempt)}
+                    suggestedFee={suggestedFeesByKey[suggestedFeeLookupKeyForAttempt(attempt)] ?? null}
                   />
                 ))}
               </tbody>
@@ -3712,13 +3909,12 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
                   <CandidatePracticeExamAttemptRow
                     attempt={attempt}
                     disabled={rowSavingId === attempt.id}
+                    deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
-                    onDelete={() => setDeleteTarget(attempt)}
-                    suggestedFee={
-                      suggestedFeesByKey[
-                        `${new Date(attempt.scheduledAt).getFullYear()}:${attempt.examType}`
-                      ] ?? null
-                    }
+                    onCancelDelete={() => setDeleteConfirmId(null)}
+                    onConfirmDelete={() => void confirmDelete(attempt)}
+                    onRequestDelete={() => setDeleteConfirmId(attempt.id)}
+                    suggestedFee={suggestedFeesByKey[suggestedFeeLookupKeyForAttempt(attempt)] ?? null}
                   />
                 ))}
               </tbody>
@@ -3748,7 +3944,8 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
             <CustomSelect
               className="form-select"
               value={form.examType}
-              onChange={(event) =>
+              onChange={(event) => {
+                setFeeTouched(false);
                 setForm((current) => ({
                   ...current,
                   examType: event.target.value as CandidateExamType,
@@ -3757,8 +3954,8 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
                   examAttendanceStatus: "",
                   examResultStatus: "",
                   fee: "",
-                }))
-              }
+                }));
+              }}
             >
               <option value="theory">Teorik</option>
               <option value="practice">Direksiyon</option>
@@ -3804,15 +4001,27 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
             <span>Hak</span>
             <input readOnly value={`${Math.min(nextAttemptNumber(form.examType), 4)}/4`} />
           </label>
-          <label>
-            <span>Yanma tarihi</span>
-            <LocalizedDateInput
-              className="form-input"
-              lang="tr-TR"
-              onChange={(expiresAt) => setForm((current) => ({ ...current, expiresAt }))}
-              value={form.expiresAt}
-            />
-          </label>
+          {form.examType === "theory" ? (
+            <label>
+              <span>Yanma tarihi</span>
+              <input
+                className="form-input"
+                readOnly
+                title={`Sınav tarihinden ${THEORY_EXAM_EXPIRY_DAYS} gün sonrası otomatik hesaplanır.`}
+                value={formatDateTR(theoryExpiryDate)}
+              />
+            </label>
+          ) : (
+            <label>
+              <span>Yanma tarihi</span>
+              <LocalizedDateInput
+                className="form-input"
+                lang="tr-TR"
+                onChange={(expiresAt) => setForm((current) => ({ ...current, expiresAt }))}
+                value={form.expiresAt}
+              />
+            </label>
+          )}
           {form.examType === "practice" ? (
             <>
               <label>
@@ -3891,29 +4100,15 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
               min="0"
               type="number"
               value={form.fee}
-              onChange={(event) => setForm((current) => ({ ...current, fee: event.target.value }))}
+              onChange={(event) => {
+                setFeeTouched(true);
+                setForm((current) => ({ ...current, fee: event.target.value }));
+              }}
             />
           </label>
         </div>
       </Modal>
 
-      <Modal
-        footer={
-          <>
-            <button className="btn btn-secondary" onClick={() => setDeleteTarget(null)} type="button">
-              Vazgeç
-            </button>
-            <button className="btn btn-danger" disabled={rowSavingId === deleteTarget?.id} onClick={confirmDelete} type="button">
-              Sil
-            </button>
-          </>
-        }
-        onClose={() => setDeleteTarget(null)}
-        open={!!deleteTarget}
-        title="E-sınav denemesini sil"
-      >
-        <p>Bu deneme listeden kaldırılacak.</p>
-      </Modal>
     </>
   );
 }
@@ -3921,16 +4116,24 @@ function CandidateExamAttemptsSection({ candidate }: { candidate: CandidateRespo
 function CandidateExamAttemptRow({
   attempt,
   disabled,
+  deleteConfirmOpen,
   onCharge,
-  onDelete,
-  onMarkPaid,
+  onCancelDelete,
+  onConfirmDelete,
+  onPay,
+  onRequestDelete,
+  onSelfPaid,
   suggestedFee,
 }: {
   attempt: CandidateExamAttemptResponse;
   disabled: boolean;
+  deleteConfirmOpen: boolean;
   onCharge: () => void;
-  onDelete: () => void;
-  onMarkPaid: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
+  onPay: () => void;
+  onRequestDelete: () => void;
+  onSelfPaid: () => void;
   suggestedFee: number | null;
 }) {
   const scoreStatus = getScoreStatus(attempt.score);
@@ -3976,12 +4179,22 @@ function CandidateExamAttemptRow({
             {feeStatusLabel(attempt.feeStatus)}
           </span>
           {attempt.feeStatus === "pending" ? (
-            <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onCharge} type="button">
-              Borçlandır
-            </button>
+            <>
+              <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onCharge} type="button">
+                Borçlandır
+              </button>
+              <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onSelfPaid} type="button">
+                Kendi ödedi
+              </button>
+            </>
           ) : attempt.feeStatus === "charged" ? (
-            <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onMarkPaid} type="button">
-              Ödendi olarak işaretle
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={disabled}
+              onClick={onPay}
+              type="button"
+            >
+              Öde
             </button>
           ) : attempt.paidAt ? (
             <small>{formatDateTR(attempt.paidAt)}</small>
@@ -3989,9 +4202,13 @@ function CandidateExamAttemptRow({
         </div>
       </td>
       <td>
-        <button className="btn btn-danger btn-sm" disabled={disabled} onClick={onDelete} type="button">
-          Sil
-        </button>
+        <InlineDeleteConfirm
+          disabled={disabled}
+          open={deleteConfirmOpen}
+          onCancel={onCancelDelete}
+          onConfirm={onConfirmDelete}
+          onRequest={onRequestDelete}
+        />
       </td>
     </tr>
   );
@@ -4000,12 +4217,18 @@ function CandidateExamAttemptRow({
 function CandidatePracticeExamAttemptRow({
   attempt,
   disabled,
-  onDelete,
+  deleteConfirmOpen,
+  onCancelDelete,
+  onConfirmDelete,
+  onRequestDelete,
   suggestedFee,
 }: {
   attempt: CandidateExamAttemptResponse;
   disabled: boolean;
-  onDelete: () => void;
+  deleteConfirmOpen: boolean;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
+  onRequestDelete: () => void;
   suggestedFee: number | null;
 }) {
   return (
@@ -4029,11 +4252,49 @@ function CandidatePracticeExamAttemptRow({
         </div>
       </td>
       <td>
-        <button className="btn btn-danger btn-sm" disabled={disabled} onClick={onDelete} type="button">
-          Sil
-        </button>
+        <InlineDeleteConfirm
+          disabled={disabled}
+          open={deleteConfirmOpen}
+          onCancel={onCancelDelete}
+          onConfirm={onConfirmDelete}
+          onRequest={onRequestDelete}
+        />
       </td>
     </tr>
+  );
+}
+
+function InlineDeleteConfirm({
+  disabled,
+  open,
+  onCancel,
+  onConfirm,
+  onRequest,
+}: {
+  disabled: boolean;
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  onRequest: () => void;
+}) {
+  if (!open) {
+    return (
+      <button className="btn btn-danger btn-sm" disabled={disabled} onClick={onRequest} type="button">
+        Sil
+      </button>
+    );
+  }
+
+  return (
+    <div className="candidate-inline-delete-confirm">
+      <span>Emin misin?</span>
+      <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onCancel} type="button">
+        Vazgeç
+      </button>
+      <button className="btn btn-danger btn-sm" disabled={disabled} onClick={onConfirm} type="button">
+        Sil
+      </button>
+    </div>
   );
 }
 
