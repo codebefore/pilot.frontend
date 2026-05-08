@@ -927,6 +927,11 @@ export interface LicenseClassDefinitionUpsertRequest {
   rowVersion?: number;
 }
 
+export interface LicenseClassDefinitionActivityRequest {
+  isActive: boolean;
+  rowVersion?: number;
+}
+
 /* ── Certificate Programs ── */
 
 export interface CertificateProgramResponse {

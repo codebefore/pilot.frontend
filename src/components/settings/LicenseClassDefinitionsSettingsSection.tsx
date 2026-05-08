@@ -12,7 +12,7 @@ import { useToast } from "../ui/Toast";
 import {
   deleteLicenseClassDefinition,
   getLicenseClassDefinitions,
-  updateLicenseClassDefinition,
+  updateLicenseClassDefinitionActivity,
   type LicenseClassDefinitionActivityFilter,
   type LicenseClassDefinitionSortDirection,
   type LicenseClassDefinitionSortField,
@@ -27,7 +27,6 @@ import type {
   LicenseClassDefinitionCategory,
   LicenseClassDefinitionListSummaryResponse,
   LicenseClassDefinitionResponse,
-  LicenseClassDefinitionUpsertRequest,
 } from "../../lib/types";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 
@@ -72,29 +71,6 @@ function formatExistingLicenseRequirement(item: LicenseClassDefinitionResponse):
   if (!item.hasExistingLicense) return "-";
   const label = existingLicenseTypeLabel(item.existingLicenseType);
   return item.existingLicensePre2016 ? `${label} (2016 öncesi)` : label;
-}
-
-function buildLicenseClassDefinitionUpdatePayload(
-  item: LicenseClassDefinitionResponse,
-  isActive: boolean
-): LicenseClassDefinitionUpsertRequest {
-  return {
-    code: item.code,
-    category: item.category,
-    minimumAge: item.minimumAge,
-    hasExistingLicense: item.hasExistingLicense,
-    existingLicenseType: item.existingLicenseType,
-    existingLicensePre2016: item.existingLicensePre2016,
-    requiresTheoryExam: item.requiresTheoryExam,
-    requiresPracticeExam: item.requiresPracticeExam,
-    theoryLessonHours: item.theoryLessonHours,
-    simulatorLessonHours: item.simulatorLessonHours,
-    directPracticeLessonHours: item.directPracticeLessonHours,
-    displayOrder: item.displayOrder,
-    isActive,
-    notes: item.notes,
-    rowVersion: item.rowVersion,
-  };
 }
 
 const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
@@ -301,10 +277,10 @@ export function LicenseClassDefinitionsSettingsSection() {
   const handleStatusToggle = async (item: LicenseClassDefinitionResponse) => {
     setTogglingId(item.id);
     try {
-      const saved = await updateLicenseClassDefinition(
-        item.id,
-        buildLicenseClassDefinitionUpdatePayload(item, !item.isActive)
-      );
+      const saved = await updateLicenseClassDefinitionActivity(item.id, {
+        isActive: !item.isActive,
+        rowVersion: item.rowVersion,
+      });
       setItems((current) =>
         current
           .map((candidate) => (candidate.id === item.id ? saved : candidate))

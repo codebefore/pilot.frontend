@@ -1,5 +1,6 @@
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
+  LicenseClassDefinitionActivityRequest,
   LicenseClassDefinitionCategory,
   LicenseClassDefinitionListResponse,
   LicenseClassDefinitionResponse,
@@ -80,6 +81,16 @@ export function updateLicenseClassDefinition(
 ): Promise<LicenseClassDefinitionResponse> {
   return httpPut<LicenseClassDefinitionResponse>(
     `/api/license-class-definitions/${id}`,
+    body
+  );
+}
+
+export function updateLicenseClassDefinitionActivity(
+  id: string,
+  body: LicenseClassDefinitionActivityRequest
+): Promise<LicenseClassDefinitionResponse> {
+  return httpPut<LicenseClassDefinitionResponse>(
+    `/api/license-class-definitions/${id}/activity`,
     body
   );
 }

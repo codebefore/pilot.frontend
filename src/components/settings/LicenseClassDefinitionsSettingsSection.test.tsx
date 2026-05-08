@@ -9,6 +9,7 @@ import { LicenseClassDefinitionsSettingsSection } from "./LicenseClassDefinition
 const getLicenseClassDefinitionsMock = vi.fn();
 const createLicenseClassDefinitionMock = vi.fn();
 const updateLicenseClassDefinitionMock = vi.fn();
+const updateLicenseClassDefinitionActivityMock = vi.fn();
 const deleteLicenseClassDefinitionMock = vi.fn();
 
 vi.mock("../../lib/license-class-definitions-api", async () => {
@@ -27,6 +28,9 @@ vi.mock("../../lib/license-class-definitions-api", async () => {
     updateLicenseClassDefinition: (
       ...args: Parameters<typeof actual.updateLicenseClassDefinition>
     ) => updateLicenseClassDefinitionMock(...args),
+    updateLicenseClassDefinitionActivity: (
+      ...args: Parameters<typeof actual.updateLicenseClassDefinitionActivity>
+    ) => updateLicenseClassDefinitionActivityMock(...args),
     deleteLicenseClassDefinition: (
       ...args: Parameters<typeof actual.deleteLicenseClassDefinition>
     ) => deleteLicenseClassDefinitionMock(...args),
@@ -69,6 +73,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     getLicenseClassDefinitionsMock.mockReset();
     createLicenseClassDefinitionMock.mockReset();
     updateLicenseClassDefinitionMock.mockReset();
+    updateLicenseClassDefinitionActivityMock.mockReset();
     deleteLicenseClassDefinitionMock.mockReset();
 
     getLicenseClassDefinitionsMock.mockResolvedValue({
@@ -91,6 +96,11 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     updateLicenseClassDefinitionMock.mockResolvedValue({
       ...sampleLicenseClass,
       name: "B Otomobil Yeni",
+    });
+    updateLicenseClassDefinitionActivityMock.mockResolvedValue({
+      ...sampleLicenseClass,
+      isActive: false,
+      rowVersion: 2,
     });
     deleteLicenseClassDefinitionMock.mockResolvedValue(undefined);
   });
@@ -253,7 +263,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("toggles active status from the status column", async () => {
-    updateLicenseClassDefinitionMock.mockResolvedValueOnce({
+    updateLicenseClassDefinitionActivityMock.mockResolvedValueOnce({
       ...sampleLicenseClass,
       isActive: false,
       rowVersion: 2,
@@ -265,15 +275,15 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "B durumunu pasife al" }));
 
     await waitFor(() => {
-      expect(updateLicenseClassDefinitionMock).toHaveBeenCalledWith(
+      expect(updateLicenseClassDefinitionActivityMock).toHaveBeenCalledWith(
         "lc1",
-        expect.objectContaining({
-          code: "B",
+        {
           isActive: false,
           rowVersion: 1,
-        })
+        }
       );
     });
+    expect(updateLicenseClassDefinitionMock).not.toHaveBeenCalled();
   });
 
   it("shows server validation errors as a toast", async () => {
