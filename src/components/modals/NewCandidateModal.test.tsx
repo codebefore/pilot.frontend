@@ -78,14 +78,14 @@ vi.mock("../../lib/terms-api", async () => {
   };
 });
 
-const licenseClassDefinition = (code: string, displayOrder: number) => ({
+const baseLicenseClassDefinition = (code: string, displayOrder: number) => ({
   id: `license-${code}`,
   code,
   name: code,
-  category: "automobile" as const,
+  category: "automobile" as "automobile" | "heavy_vehicle",
   minimumAge: 18,
   hasExistingLicense: false,
-  existingLicenseType: null,
+  existingLicenseType: null as string | null,
   existingLicensePre2016: false,
   requiresTheoryExam: true,
   requiresPracticeExam: true,
@@ -98,6 +98,15 @@ const licenseClassDefinition = (code: string, displayOrder: number) => ({
   createdAtUtc: "2026-05-03T00:00:00Z",
   updatedAtUtc: "2026-05-03T00:00:00Z",
   rowVersion: 1,
+});
+
+const licenseClassDefinition = (
+  code: string,
+  displayOrder: number,
+  overrides: Partial<ReturnType<typeof baseLicenseClassDefinition>> = {}
+) => ({
+  ...baseLicenseClassDefinition(code, displayOrder),
+  ...overrides,
 });
 
 const certificateProgram = (
@@ -275,6 +284,21 @@ describe("NewCandidateModal", () => {
   });
 
   it("lists target license classes from certificate programs", async () => {
+    getLicenseClassDefinitionsMock.mockImplementation((options) => {
+      const items = [
+        licenseClassDefinition("A2", 20, { name: "Motosiklet" }),
+        licenseClassDefinition("B-OTOMATIK", 40, { name: "Otomatik otomobil" }),
+      ];
+
+      return Promise.resolve({
+        items: options?.activity === "active" ? items : items,
+        page: 1,
+        pageSize: options?.pageSize ?? 1000,
+        totalCount: items.length,
+        totalPages: 1,
+        summary: { activeCount: items.length },
+      });
+    });
     getCertificateProgramsMock.mockResolvedValue({
       items: [
         {
@@ -329,6 +353,55 @@ describe("NewCandidateModal", () => {
       expect([...select!.options].map((option) => option.value)).toEqual([
         "A2",
         "B-OTOMATIK",
+      ]);
+      expect([...select!.options].map((option) => option.textContent)).toEqual([
+        "A2",
+        "B - Otomatik",
+      ]);
+    });
+  });
+
+  it("uses settings names and lists one option per license code when no program exists", async () => {
+    getLicenseClassDefinitionsMock.mockImplementation((options) => {
+      const activeItems = [
+        licenseClassDefinition("B", 10, { name: "Otomobil" }),
+        licenseClassDefinition("C", 20, {
+          id: "license-c-pre-2016",
+          name: "Kamyon",
+          category: "heavy_vehicle",
+          hasExistingLicense: true,
+          existingLicenseType: "B",
+          existingLicensePre2016: true,
+        }),
+        licenseClassDefinition("C", 21, {
+          id: "license-c-after-2016",
+          name: "Kamyon",
+          category: "heavy_vehicle",
+          hasExistingLicense: true,
+          existingLicenseType: "B",
+          existingLicensePre2016: false,
+        }),
+      ];
+
+      return Promise.resolve({
+        items: options?.activity === "active" ? activeItems : activeItems,
+        page: 1,
+        pageSize: options?.pageSize ?? 1000,
+        totalCount: activeItems.length,
+        totalPages: 1,
+        summary: { activeCount: activeItems.length },
+      });
+    });
+
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    await waitFor(() => {
+      const select = document.querySelector<HTMLSelectElement>('select[name="className"]');
+      expect(select).not.toBeNull();
+      expect([...select!.options].map((option) => option.value)).toEqual(["B", "C"]);
+      expect([...select!.options].map((option) => option.textContent)).toEqual([
+        "B - Otomobil",
+        "C - Kamyon",
       ]);
     });
   });

@@ -53,9 +53,11 @@ export const REFERENCE_LICENSE_CLASS_OPTIONS: LicenseClassOption[] = [
 
 function toOption(item: LicenseClassDefinitionResponse): LicenseClassOption {
   const code = item.code.trim();
-  const categoryLabel = LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category] ?? item.category;
+  const name = item.name.trim();
+  const fallbackName = LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category] ?? item.category;
+  const labelName = name || fallbackName;
 
-  return { value: code, label: `${code} - ${categoryLabel}` };
+  return { value: code, label: labelName === code ? code : `${code} - ${labelName}` };
 }
 
 function uniqueTargetOptions(items: LicenseClassDefinitionResponse[]): LicenseClassOption[] {
