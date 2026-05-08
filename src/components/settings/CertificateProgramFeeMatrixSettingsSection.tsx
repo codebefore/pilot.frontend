@@ -74,8 +74,6 @@ const EDITABLE_FIELDS: { value: EditableField; label: string }[] = [
   { value: "mebbisFee", label: "MEBBİS Eğitim Ücreti" },
   { value: "failureRetryFee", label: "Başarısız Sınav Hak Ücreti" },
   { value: "privateLessonFee", label: "Özel Ders Ücreti" },
-  { value: "educationFee", label: "Eğitim Ücreti" },
-  { value: "otherFee1", label: "Diğer Ücret 1" },
 ];
 
 /** Stored row-level fields → EF column names that the BulkApply endpoint
@@ -479,24 +477,6 @@ const COLUMNS: Column[] = [
     fullLabel: "Özel Ders Ücreti (program bazında, ders türünden bağımsız)",
     kind: "editable",
     editableField: "privateLessonFee",
-    width: 96,
-    group: "institution",
-  },
-  {
-    key: "educationFee",
-    label: "Eğitim",
-    fullLabel: "Eğitim Ücreti (program bazında, ders türünden bağımsız)",
-    kind: "editable",
-    editableField: "educationFee",
-    width: 96,
-    group: "institution",
-  },
-  {
-    key: "otherFee1",
-    label: "Diğer Ücret 1",
-    fullLabel: "Diğer Ücret 1 (program bazında, ders türünden bağımsız)",
-    kind: "editable",
-    editableField: "otherFee1",
     width: 96,
     group: "institution",
   },

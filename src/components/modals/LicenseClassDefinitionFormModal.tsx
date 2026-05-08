@@ -209,6 +209,7 @@ export function LicenseClassDefinitionFormModal({
     defaultValues: getEmptyValues(editing),
   });
   const hasExistingLicense = watch("hasExistingLicense");
+  const existingLicensePre2016 = watch("existingLicensePre2016");
   const existingLicenseSelectOptions = useMemo(() => {
     if (!editing?.existingLicenseType) return existingLicenseTypeOptions;
     if (existingLicenseTypeOptions.some((option) => option.value === editing.existingLicenseType)) {
@@ -256,6 +257,12 @@ export function LicenseClassDefinitionFormModal({
       setValue("requiresTheoryExam", false, { shouldDirty: true, shouldValidate: true });
     }
   }, [hasExistingLicense, open, setValue]);
+
+  useEffect(() => {
+    if (open && existingLicensePre2016 && !hasExistingLicense) {
+      setValue("hasExistingLicense", true, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [existingLicensePre2016, hasExistingLicense, open, setValue]);
 
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
