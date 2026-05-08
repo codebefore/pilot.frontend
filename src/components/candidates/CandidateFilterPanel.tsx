@@ -8,7 +8,6 @@ import type {
 import { getGroups } from "../../lib/groups-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
-  EXISTING_LICENSE_TYPE_OPTIONS,
 } from "../../lib/status-maps";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import type {
@@ -16,7 +15,10 @@ import type {
   GroupResponse,
   LicenseClass,
 } from "../../lib/types";
-import { useLicenseClassOptions } from "../../lib/use-license-class-options";
+import {
+  useExistingLicenseTypeOptions,
+  useLicenseClassOptions,
+} from "../../lib/use-license-class-options";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
@@ -62,6 +64,7 @@ export function CandidateFilterPanel({
   const wasOpenRef = useRef(false);
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
 
   // Lazily fetch the group catalog the first time the panel opens so the
   // group filter can resolve ids into readable "{title} · {term}" labels.
@@ -393,7 +396,7 @@ export function CandidateFilterPanel({
               value={filters.existingLicenseType}
             >
               <option value="">{t("candidates.filters.existingLicenseType")}</option>
-              {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+              {existingLicenseTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

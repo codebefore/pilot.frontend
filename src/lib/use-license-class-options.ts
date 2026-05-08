@@ -9,6 +9,12 @@ export type LicenseClassOption = {
   label: string;
 };
 
+export type ExistingLicenseTypeOption = LicenseClassOption;
+
+function toExistingLicenseValue(code: string): string {
+  return code.trim().toLowerCase();
+}
+
 function toOption(item: LicenseClassDefinitionResponse): LicenseClassOption {
   const code = item.code.trim();
   const name = item.name.trim();
@@ -16,6 +22,13 @@ function toOption(item: LicenseClassDefinitionResponse): LicenseClassOption {
   const labelName = name || fallbackName;
 
   return { value: code, label: labelName === code ? code : `${code} - ${labelName}` };
+}
+
+function toExistingLicenseTypeOption(option: LicenseClassOption): ExistingLicenseTypeOption {
+  return {
+    value: toExistingLicenseValue(option.value),
+    label: option.label,
+  };
 }
 
 function uniqueTargetOptions(items: LicenseClassDefinitionResponse[]): LicenseClassOption[] {
@@ -64,6 +77,11 @@ export async function getActiveLicenseClassOptions(signal?: AbortSignal) {
   return activeOptions;
 }
 
+export async function getActiveExistingLicenseTypeOptions(signal?: AbortSignal) {
+  const options = await getActiveLicenseClassOptions(signal);
+  return options.map(toExistingLicenseTypeOption);
+}
+
 export function useLicenseClassOptions() {
   const [options, setOptions] = useState<LicenseClassOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,6 +91,32 @@ export function useLicenseClassOptions() {
     setLoading(true);
 
     getActiveLicenseClassOptions(controller.signal)
+      .then((nextOptions) => setOptions(nextOptions))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setOptions([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  return { options, loading };
+}
+
+export function useExistingLicenseTypeOptions() {
+  const [options, setOptions] = useState<ExistingLicenseTypeOption[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+
+    getActiveExistingLicenseTypeOptions(controller.signal)
       .then((nextOptions) => setOptions(nextOptions))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;

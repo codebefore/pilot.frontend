@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import {
@@ -10,7 +10,8 @@ import { FEE_TYPE_LABELS } from "../../lib/fee-catalog";
 import { getFees } from "../../lib/fees-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
-import { EXISTING_LICENSE_TYPE_OPTIONS } from "../../lib/status-maps";
+import { existingLicenseTypeLabel } from "../../lib/status-maps";
+import { useExistingLicenseTypeOptions } from "../../lib/use-license-class-options";
 import type {
   FeeResponse,
   LicenseClassDefinitionResponse,
@@ -193,6 +194,7 @@ export function LicenseClassDefinitionFormModal({
   const [submitting, setSubmitting] = useState(false);
   const [linkedFees, setLinkedFees] = useState<FeeResponse[]>([]);
   const [linkedFeesLoading, setLinkedFeesLoading] = useState(false);
+  const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
 
   const {
     control,
@@ -205,6 +207,20 @@ export function LicenseClassDefinitionFormModal({
   } = useForm<LicenseClassDefinitionFormValues>({
     defaultValues: getEmptyValues(editing),
   });
+  const existingLicenseSelectOptions = useMemo(() => {
+    if (!editing?.existingLicenseType) return existingLicenseTypeOptions;
+    if (existingLicenseTypeOptions.some((option) => option.value === editing.existingLicenseType)) {
+      return existingLicenseTypeOptions;
+    }
+
+    return [
+      ...existingLicenseTypeOptions,
+      {
+        value: editing.existingLicenseType,
+        label: existingLicenseTypeLabel(editing.existingLicenseType, existingLicenseTypeOptions),
+      },
+    ];
+  }, [editing?.existingLicenseType, existingLicenseTypeOptions]);
 
   useEffect(() => {
     if (!open) return;
@@ -400,7 +416,7 @@ export function LicenseClassDefinitionFormModal({
                     value={field.value ?? ""}
                   >
                     <option value="">Mevcut tipi seçin</option>
-                    {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+                    {existingLicenseSelectOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>

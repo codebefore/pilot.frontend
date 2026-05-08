@@ -25,7 +25,6 @@ import {
   candidateMebSyncStatusLabel,
   candidateStatusLabel,
   CANDIDATE_STATUS_OPTIONS,
-  EXISTING_LICENSE_TYPE_OPTIONS,
   existingLicenseTypeLabel,
   formatDateTR,
   normalizeCandidateGender,
@@ -34,7 +33,10 @@ import {
   normalizeCandidateStatusValue,
   TURKEY_PROVINCE_OPTIONS,
 } from "../../lib/status-maps";
-import { useLicenseClassOptions } from "../../lib/use-license-class-options";
+import {
+  useExistingLicenseTypeOptions,
+  useLicenseClassOptions,
+} from "../../lib/use-license-class-options";
 import type {
   CandidateResponse,
   CandidateUpsertRequest,
@@ -73,10 +75,6 @@ type CandidateDrawerProps = {
 };
 
 const STATUS_OPTIONS: SelectOption[] = CANDIDATE_STATUS_OPTIONS;
-const EXISTING_LICENSE_EDIT_OPTIONS: SelectOption[] = [
-  { value: "", label: "— Belge Yok —" },
-  ...EXISTING_LICENSE_TYPE_OPTIONS,
-];
 const BOOLEAN_OPTIONS: SelectOption[] = [
   { value: "true", label: "Evet" },
   { value: "false", label: "Hayir" },
@@ -149,6 +147,7 @@ export function CandidateDrawer({
   const { lang } = useLanguage();
   const t = useT();
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const today = todayISO();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
@@ -158,6 +157,19 @@ export function CandidateDrawer({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [missingDocs, setMissingDocs] = useState<string[] | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<DocumentResponse[] | null>(null);
+  const existingLicenseEditOptions: SelectOption[] = [
+    { value: "", label: "— Belge Yok —" },
+    ...existingLicenseTypeOptions,
+    ...(candidate?.existingLicenseType &&
+    !existingLicenseTypeOptions.some((option) => option.value === candidate.existingLicenseType)
+      ? [
+          {
+            value: candidate.existingLicenseType,
+            label: existingLicenseTypeLabel(candidate.existingLicenseType, existingLicenseTypeOptions),
+          },
+        ]
+      : []),
+  ];
   const [docTypesForMetadata, setDocTypesForMetadata] = useState<DocumentTypeResponse[]>([]);
   const [existingLicenseDraft, setExistingLicenseDraft] = useState<ExistingLicenseDraft>(
     buildExistingLicenseDraft(null)
@@ -665,10 +677,13 @@ export function CandidateDrawer({
             {candidate.existingLicenseType ? (
               <>
                 <EditableRow
-                  displayValue={existingLicenseTypeLabel(candidate.existingLicenseType)}
+                  displayValue={existingLicenseTypeLabel(
+                    candidate.existingLicenseType,
+                    existingLicenseTypeOptions
+                  )}
                   inputValue={candidate.existingLicenseType}
                   label="Mevcut Belge"
-                  options={EXISTING_LICENSE_EDIT_OPTIONS}
+                  options={existingLicenseEditOptions}
                   onSave={(value) =>
                     saveExistingLicenseField(
                       { existingLicenseType: value || null },
@@ -760,7 +775,7 @@ export function CandidateDrawer({
                         value={existingLicenseDraft.type}
                       >
                         <option value="">Belge seçin</option>
-                        {EXISTING_LICENSE_TYPE_OPTIONS.map((option) => (
+                        {existingLicenseTypeOptions.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
                           </option>

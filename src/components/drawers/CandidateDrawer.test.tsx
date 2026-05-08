@@ -9,6 +9,7 @@ const updateCandidateMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const removeActiveGroupAssignmentMock = vi.fn();
 const getGroupsMock = vi.fn();
+const getLicenseClassDefinitionsMock = vi.fn();
 
 function getHiddenSelect(ariaLabel: string) {
   return document.querySelector(
@@ -42,6 +43,17 @@ vi.mock("../../lib/groups-api", async () => {
   return {
     ...actual,
     getGroups: (...args: Parameters<typeof actual.getGroups>) => getGroupsMock(...args),
+  };
+});
+
+vi.mock("../../lib/license-class-definitions-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/license-class-definitions-api")>(
+    "../../lib/license-class-definitions-api"
+  );
+  return {
+    ...actual,
+    getLicenseClassDefinitions: (...args: Parameters<typeof actual.getLicenseClassDefinitions>) =>
+      getLicenseClassDefinitionsMock(...args),
   };
 });
 
@@ -79,6 +91,7 @@ describe("CandidateDrawer", () => {
     assignCandidateGroupMock.mockReset();
     removeActiveGroupAssignmentMock.mockReset();
     getGroupsMock.mockReset();
+    getLicenseClassDefinitionsMock.mockReset();
 
     getCandidateByIdMock.mockResolvedValue({
       id: "candidate-1",
@@ -137,6 +150,57 @@ describe("CandidateDrawer", () => {
     });
     removeActiveGroupAssignmentMock.mockResolvedValue(undefined);
     getGroupsMock.mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 });
+    getLicenseClassDefinitionsMock.mockResolvedValue({
+      items: [
+        {
+          id: "license-b",
+          code: "B",
+          name: "B",
+          category: "automobile",
+          minimumAge: 18,
+          hasExistingLicense: false,
+          existingLicenseType: null,
+          existingLicensePre2016: false,
+          requiresTheoryExam: true,
+          requiresPracticeExam: true,
+          theoryLessonHours: 34,
+          simulatorLessonHours: null,
+          directPracticeLessonHours: 14,
+          displayOrder: 10,
+          isActive: true,
+          notes: null,
+          createdAtUtc: "2026-04-12T10:00:00Z",
+          updatedAtUtc: "2026-04-12T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "license-b-automatic",
+          code: "B-OTOMATIK",
+          name: "B Otomatik",
+          category: "automobile",
+          minimumAge: 18,
+          hasExistingLicense: false,
+          existingLicenseType: null,
+          existingLicensePre2016: false,
+          requiresTheoryExam: true,
+          requiresPracticeExam: true,
+          theoryLessonHours: 34,
+          simulatorLessonHours: null,
+          directPracticeLessonHours: 14,
+          displayOrder: 11,
+          isActive: true,
+          notes: null,
+          createdAtUtc: "2026-04-12T10:00:00Z",
+          updatedAtUtc: "2026-04-12T10:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 1000,
+      totalCount: 2,
+      totalPages: 1,
+      summary: { activeCount: 2 },
+    });
   });
 
   it("saves only canonical english candidate status values", async () => {
@@ -810,7 +874,7 @@ describe("CandidateDrawer", () => {
       birthDate: null,
       gender: null,
       licenseClass: "B",
-      existingLicenseType: "b_auto",
+      existingLicenseType: "b-otomatik",
       existingLicenseIssuedAt: "2018-03-04",
       existingLicenseNumber: "12345",
       existingLicenseIssuedProvince: "Ankara",
@@ -842,7 +906,7 @@ describe("CandidateDrawer", () => {
 
     const existingLicenseTypeSelect = getHiddenSelect("Mevcut Belge");
     fireEvent.change(existingLicenseTypeSelect!, {
-      target: { value: "b_auto" },
+      target: { value: "b-otomatik" },
     });
     const existingLicenseIssuedAtInput = document.querySelector(
       'input[type="date"]'
@@ -867,7 +931,7 @@ describe("CandidateDrawer", () => {
       expect(updateCandidateMock).toHaveBeenCalledWith(
         "candidate-1",
         expect.objectContaining({
-          existingLicenseType: "b_auto",
+          existingLicenseType: "b-otomatik",
           existingLicenseIssuedAt: "2018-03-04",
           existingLicenseNumber: "12345",
           existingLicenseIssuedProvince: "Ankara",

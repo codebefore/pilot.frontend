@@ -3,53 +3,25 @@ import type { CandidateGenderValue } from "./types";
 
 /* ── Shared select options ── */
 
-export const EXISTING_LICENSE_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "exempt", label: "Muaf" },
-  { value: "m", label: "M" },
-  { value: "m_auto", label: "M - Otomatik" },
-  { value: "a1", label: "A1" },
-  { value: "a1_auto", label: "A1 - Otomatik" },
-  { value: "a1_new_gen", label: "A1 - Yeni Nesil" },
-  { value: "a1_new_gen_auto", label: "A1 - Yeni Nesil Otomatik" },
-  { value: "a2", label: "A2" },
-  { value: "a2_auto", label: "A2 - Otomatik" },
-  { value: "a", label: "A" },
-  { value: "a_auto", label: "A - Otomatik" },
-  { value: "b1", label: "B1" },
-  { value: "b1_auto", label: "B1 - Otomatik" },
-  { value: "b", label: "B" },
-  { value: "b_auto", label: "B - Otomatik" },
-  { value: "b_disabled", label: "B - Engelli" },
-  { value: "be", label: "BE" },
-  { value: "be_auto", label: "BE - Otomatik" },
-  { value: "c1", label: "C1" },
-  { value: "c1_auto", label: "C1 - Otomatik" },
-  { value: "c1e", label: "C1E" },
-  { value: "c1e_auto", label: "C1E - Otomatik" },
-  { value: "c", label: "C" },
-  { value: "c_auto", label: "C - Otomatik" },
-  { value: "ce", label: "CE" },
-  { value: "ce_auto", label: "CE - Otomatik" },
-  { value: "d1", label: "D1" },
-  { value: "d1_auto", label: "D1 - Otomatik" },
-  { value: "d1e", label: "D1E" },
-  { value: "d1e_auto", label: "D1E - Otomatik" },
-  { value: "d", label: "D" },
-  { value: "d_auto", label: "D - Otomatik" },
-  { value: "de", label: "DE" },
-  { value: "de_auto", label: "DE - Otomatik" },
-  { value: "e", label: "E" },
-  { value: "e_auto", label: "E - Otomatik" },
-  { value: "f", label: "F" },
-  { value: "f_auto", label: "F - Otomatik" },
-  { value: "g", label: "G" },
-  { value: "g_auto", label: "G - Otomatik" },
-  { value: "cp_100", label: "100/CP" },
-];
+type Option = { value: string; label: string };
 
-export function existingLicenseTypeLabel(value: string | null | undefined): string {
+function normalizeExistingLicenseLookup(value: string): string {
+  return value.trim().toLocaleUpperCase("tr-TR").replace(/[\s_-]/g, "");
+}
+
+export function existingLicenseTypeLabel(
+  value: string | null | undefined,
+  options: Option[] = []
+): string {
   if (!value) return "—";
-  return EXISTING_LICENSE_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+  const key = normalizeExistingLicenseLookup(value);
+  return (
+    options.find((option) =>
+      [option.value, option.label].some(
+        (candidate) => normalizeExistingLicenseLookup(candidate) === key
+      )
+    )?.label ?? value
+  );
 }
 
 const TURKEY_PROVINCES = [

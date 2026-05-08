@@ -57,7 +57,10 @@ import {
   openAuthorizedFile,
   printAuthorizedFile,
 } from "../lib/authorized-files";
-import { useLicenseClassOptions } from "../lib/use-license-class-options";
+import {
+  useExistingLicenseTypeOptions,
+  useLicenseClassOptions,
+} from "../lib/use-license-class-options";
 import {
   deleteCandidateDocument,
   getCandidateDocumentDownloadUrl,
@@ -72,7 +75,6 @@ import {
   candidateGenderLabel,
   candidateStatusLabel,
   candidateStatusToPill,
-  EXISTING_LICENSE_TYPE_OPTIONS,
   existingLicenseTypeLabel,
   TURKEY_PROVINCE_OPTIONS,
   formatDateTR,
@@ -1182,13 +1184,16 @@ function normalizeLicenseOptionKey(value: string): string {
     .replace(/[^A-Z0-9]/g, "");
 }
 
-function optionForCertificateProgramSource(program: CertificateProgramResponse): SelectOption {
+function optionForCertificateProgramSource(
+  program: CertificateProgramResponse,
+  configuredExistingLicenseTypeOptions: SelectOption[]
+): SelectOption {
   const sourceKeys = [
     normalizeLicenseOptionKey(program.sourceLicenseClass),
     normalizeLicenseOptionKey(program.sourceLicenseDisplayName),
   ];
 
-  const matched = EXISTING_LICENSE_TYPE_OPTIONS.find((option) => {
+  const matched = configuredExistingLicenseTypeOptions.find((option) => {
     const optionKeys = [
       normalizeLicenseOptionKey(option.value),
       normalizeLicenseOptionKey(option.label),
@@ -1204,20 +1209,27 @@ function optionForCertificateProgramSource(program: CertificateProgramResponse):
 
 function buildExistingLicenseOptionsFromPrograms(
   programs: CertificateProgramResponse[],
-  currentExistingLicenseType: string | null
+  currentExistingLicenseType: string | null,
+  configuredExistingLicenseTypeOptions: SelectOption[]
 ): SelectOption[] {
   const byValue = new Map<string, SelectOption>();
 
   for (const program of programs) {
     if (normalizeLicenseOptionKey(program.sourceLicenseClass) === "YOK") continue;
-    const option = optionForCertificateProgramSource(program);
+    const option = optionForCertificateProgramSource(
+      program,
+      configuredExistingLicenseTypeOptions
+    );
     byValue.set(option.value, option);
   }
 
   if (currentExistingLicenseType && !byValue.has(currentExistingLicenseType)) {
     byValue.set(currentExistingLicenseType, {
       value: currentExistingLicenseType,
-      label: existingLicenseTypeLabel(currentExistingLicenseType),
+      label: existingLicenseTypeLabel(
+        currentExistingLicenseType,
+        configuredExistingLicenseTypeOptions
+      ),
     });
   }
 
@@ -1233,6 +1245,7 @@ function LicenseInfoTab({
 }) {
   const { showToast } = useToast();
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const { options: configuredExistingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const [licenseType, setLicenseType] = useState(candidate.existingLicenseType ?? "");
   const [licenseNumber, setLicenseNumber] = useState(candidate.existingLicenseNumber ?? "");
   const [issuedAt, setIssuedAt] = useState(
@@ -1279,7 +1292,8 @@ function LicenseInfoTab({
         setExistingLicenseOptions(
           buildExistingLicenseOptionsFromPrograms(
             response.items,
-            candidate.existingLicenseType
+            candidate.existingLicenseType,
+            configuredExistingLicenseTypeOptions
           )
         );
       })
@@ -1295,7 +1309,7 @@ function LicenseInfoTab({
       });
 
     return () => controller.abort();
-  }, [candidate.existingLicenseType, candidate.licenseClass]);
+  }, [candidate.existingLicenseType, candidate.licenseClass, configuredExistingLicenseTypeOptions]);
 
   useEffect(() => {
     if (existingLicenseOptionsLoading || !licenseType) return;
@@ -1307,14 +1321,17 @@ function LicenseInfoTab({
     existingLicenseType: string
   ): CertificateProgramResponse | null => {
     const selectedKey = normalizeLicenseOptionKey(
-      existingLicenseTypeLabel(existingLicenseType)
+      existingLicenseTypeLabel(existingLicenseType, configuredExistingLicenseTypeOptions)
     );
 
     return existingLicensePrograms.find((program) => {
       if (program.sourceLicensePre2016) return false;
       if (normalizeLicenseOptionKey(program.sourceLicenseClass) === "YOK") return false;
 
-      const option = optionForCertificateProgramSource(program);
+      const option = optionForCertificateProgramSource(
+        program,
+        configuredExistingLicenseTypeOptions
+      );
       return (
         option.value === existingLicenseType ||
         normalizeLicenseOptionKey(option.label) === selectedKey ||
@@ -1480,7 +1497,12 @@ function LicenseInfoTab({
           <div className="candidate-detail-edit-list">
             <EditableRow
               displayValue={
-                hasLicense ? existingLicenseTypeLabel(candidate.existingLicenseType) : ""
+                hasLicense
+                  ? existingLicenseTypeLabel(
+                      candidate.existingLicenseType,
+                      configuredExistingLicenseTypeOptions
+                    )
+                  : ""
               }
               inputValue={hasLicense ? candidate.existingLicenseType ?? "" : licenseType}
               label="Mevcut Belge"
