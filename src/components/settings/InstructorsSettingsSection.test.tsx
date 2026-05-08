@@ -63,7 +63,7 @@ const sampleInstructor = {
   firstName: "HASAN",
   lastName: "KORKMAZ",
   nationalId: "12345678901",
-  phoneNumber: "0532 111 22 33",
+  phoneNumber: "5321112233",
   email: "hasan@example.com",
   isActive: true,
   role: "master_instructor" as const,
