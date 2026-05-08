@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { updateTrainingBranchDefinition } from "../../lib/training-branch-definitions-api";
+import {
+  createTrainingBranchDefinition,
+  updateTrainingBranchDefinition,
+} from "../../lib/training-branch-definitions-api";
 import type {
   TrainingBranchDefinitionResponse,
   TrainingBranchDefinitionUpsertRequest,
@@ -10,6 +13,7 @@ import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
 type TrainingBranchFormValues = {
+  code: string;
   name: string;
   totalLessonHourLimit: string;
   colorHex: string;
@@ -25,6 +29,7 @@ type TrainingBranchFormModalProps = {
 };
 
 const DEFAULT_VALUES: TrainingBranchFormValues = {
+  code: "",
   name: "",
   totalLessonHourLimit: "",
   colorHex: "#3e5660",
@@ -35,6 +40,7 @@ const DEFAULT_VALUES: TrainingBranchFormValues = {
 function getValues(editing: TrainingBranchDefinitionResponse | null): TrainingBranchFormValues {
   if (!editing) return DEFAULT_VALUES;
   return {
+    code: editing.code,
     name: editing.name,
     totalLessonHourLimit: editing.totalLessonHourLimit?.toString() ?? "",
     colorHex: editing.colorHex,
@@ -54,7 +60,7 @@ function buildPayload(
   editing: TrainingBranchDefinitionResponse | null
 ): TrainingBranchDefinitionUpsertRequest {
   return {
-    code: editing?.code ?? "",
+    code: values.code.trim(),
     name: values.name.trim(),
     totalLessonHourLimit: parseOptionalNumber(values.totalLessonHourLimit),
     colorHex: values.colorHex.trim() || "#3e5660",
@@ -88,11 +94,12 @@ export function TrainingBranchFormModal({
   }, [editing, open, reset]);
 
   const submit = handleSubmit(async (values) => {
-    if (!editing) return;
     setSubmitting(true);
     try {
       const payload = buildPayload(values, editing);
-      const saved = await updateTrainingBranchDefinition(editing.id, payload);
+      const saved = editing
+        ? await updateTrainingBranchDefinition(editing.id, payload)
+        : await createTrainingBranchDefinition(payload);
       onSaved(saved);
     } catch (error) {
       console.error(error);
@@ -118,10 +125,26 @@ export function TrainingBranchFormModal({
       }
       onClose={onClose}
       open={open}
-      title="Branş Düzenle"
+      title={editing ? "Branş Düzenle" : "Yeni Branş"}
     >
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Kod</label>
+            <input
+              className={fieldClass(errors.code?.message)}
+              placeholder="trafik_ve_cevre"
+              {...register("code", {
+                required: "Kod zorunlu",
+                pattern: {
+                  value: /^[a-z0-9]+(_[a-z0-9]+)*$/,
+                  message: "Sadece küçük harf, rakam ve _ kullanılabilir",
+                },
+                maxLength: { value: 32, message: "En fazla 32 karakter" },
+              })}
+            />
+            {errors.code ? <div className="form-error">{errors.code.message}</div> : null}
+          </div>
           <div className="form-group">
             <label className="form-label">Ad</label>
             <input
