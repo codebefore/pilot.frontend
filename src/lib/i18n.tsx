@@ -365,6 +365,9 @@ const tr = {
   "settings.licenseClasses.toast.loadFailed": "Ehliyet tipi listesi yüklenemedi",
   "settings.licenseClasses.toast.created": "Ehliyet kuralı oluşturuldu",
   "settings.licenseClasses.toast.updated": "Ehliyet kuralı güncellendi",
+  "settings.licenseClasses.toast.activated": "Ehliyet tipi aktife alındı",
+  "settings.licenseClasses.toast.deactivated": "Ehliyet tipi pasife alındı",
+  "settings.licenseClasses.toast.updateFailed": "Ehliyet tipi güncellenemedi",
   "settings.licenseClasses.toast.deleted": "Ehliyet kuralı silindi",
   "settings.licenseClasses.toast.deleteFailed": "Ehliyet kuralı silinemedi",
 
@@ -1548,6 +1551,9 @@ const en: Record<keyof typeof tr, string> = {
   "settings.licenseClasses.toast.loadFailed": "Failed to load license class list",
   "settings.licenseClasses.toast.created": "License rule created",
   "settings.licenseClasses.toast.updated": "License rule updated",
+  "settings.licenseClasses.toast.activated": "License class activated",
+  "settings.licenseClasses.toast.deactivated": "License class deactivated",
+  "settings.licenseClasses.toast.updateFailed": "Failed to update license class",
   "settings.licenseClasses.toast.deleted": "License rule deleted",
   "settings.licenseClasses.toast.deleteFailed": "Failed to delete license rule",
 

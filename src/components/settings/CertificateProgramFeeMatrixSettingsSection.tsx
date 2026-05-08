@@ -204,6 +204,20 @@ function sumByProgram(
   return hasValue ? roundMoney(total) : null;
 }
 
+function calculateContractTotal(row: CertificateProgramFeeRowResponse): number | null {
+  const lessonFeeVatExcluded = calculateLessonFeeVatExcluded(row);
+  const vatAmount = calculateVatAmount(row);
+  if (lessonFeeVatExcluded == null && vatAmount == null) return null;
+  return roundMoney((lessonFeeVatExcluded ?? 0) + (vatAmount ?? 0));
+}
+
+function calculateContractTotalByProgram(
+  rows: CertificateProgramFeeRowResponse[],
+  programId: string
+): number | null {
+  return sumByProgram(rows, programId, calculateContractTotal);
+}
+
 function rowKey(row: CertificateProgramFeeRowResponse): string {
   return `${row.program.id}:${row.lessonType}`;
 }
@@ -280,6 +294,7 @@ function isMergedProgramColumn(column: Column): boolean {
     column.key === "target" ||
     column.key === "contractTotalLessonFeeVatExcluded" ||
     column.key === "contractTotalVat" ||
+    column.key === "contractTotal" ||
     (column.editableField ? isProgramScopedField(column.editableField) : false)
   );
 }
@@ -297,6 +312,10 @@ function countProgramRows(
   programId: string
 ): number {
   return rows.filter((row) => row.program.id === programId).length;
+}
+
+function isVisibleMatrixRow(row: CertificateProgramFeeRowResponse): boolean {
+  return row.lessonType !== "theory" || row.lessonHours > 0;
 }
 
 const COLUMNS: Column[] = [
@@ -410,6 +429,15 @@ const COLUMNS: Column[] = [
     group: "contract",
   },
   {
+    key: "contractTotal",
+    label: "Söz. Toplam",
+    fullLabel: "Sözleşme Toplamı (KDV hariç toplam + KDV toplamı)",
+    kind: "calculated",
+    width: 104,
+    render: (row, rows) => formatMoney(calculateContractTotalByProgram(rows, row.program.id)),
+    group: "contract",
+  },
+  {
     key: "institutionExamFee",
     label: "Sınav Ücreti",
     fullLabel: "Kurum Sınav Ücreti",
@@ -481,13 +509,13 @@ const GROUP_LABELS: Record<ColumnGroup, string> = {
 
 const GROUP_COLLAPSED_WIDTH = 132;
 
-function countGroupColumns(group: ColumnGroup): number {
-  return COLUMNS.reduce((acc, column) => (column.group === group ? acc + 1 : acc), 0);
+function countGroupColumns(columns: readonly Column[], group: ColumnGroup): number {
+  return columns.reduce((acc, column) => (column.group === group ? acc + 1 : acc), 0);
 }
 
-function countLeadingUngroupedColumns(): number {
+function countLeadingUngroupedColumns(columns: readonly Column[]): number {
   let count = 0;
-  for (const column of COLUMNS) {
+  for (const column of columns) {
     if (column.group) break;
     count += 1;
   }
@@ -496,9 +524,10 @@ function countLeadingUngroupedColumns(): number {
 
 function renderGroupHeaderCells(
   collapsedGroups: Set<ColumnGroup>,
-  toggleGroup: (group: ColumnGroup) => void
+  toggleGroup: (group: ColumnGroup) => void,
+  columns: readonly Column[]
 ): React.ReactNode {
-  const leadingCount = countLeadingUngroupedColumns();
+  const leadingCount = countLeadingUngroupedColumns(columns);
   const cells: React.ReactNode[] = [];
 
   if (leadingCount > 0) {
@@ -514,7 +543,7 @@ function renderGroupHeaderCells(
 
   for (const group of ["contract", "institution"] as ColumnGroup[]) {
     const isCollapsed = collapsedGroups.has(group);
-    const span = isCollapsed ? 1 : countGroupColumns(group);
+    const span = isCollapsed ? 1 : countGroupColumns(columns, group);
     cells.push(
       <th
         className={`fee-matrix-group-th fee-matrix-group-th--${group}${
@@ -523,6 +552,7 @@ function renderGroupHeaderCells(
         colSpan={span}
         key={`group-${group}`}
         scope="colgroup"
+        style={isCollapsed ? { minWidth: GROUP_COLLAPSED_WIDTH } : undefined}
       >
         <button
           aria-expanded={!isCollapsed}
@@ -897,15 +927,34 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     setSaving(true);
     try {
       let lastResponse: { rows: CertificateProgramFeeRowResponse[] } | null = null;
+      let appliedProgramCount = 0;
       for (const expansion of expansions) {
+        const expansionTargetIds = expansion.lessonType
+          ? targetIds.filter((id) =>
+              rows.some(
+                (row) =>
+                  row.program.id === id &&
+                  row.lessonType === expansion.lessonType &&
+                  isVisibleMatrixRow(row)
+              )
+            )
+          : targetIds;
+        if (expansionTargetIds.length === 0) {
+          continue;
+        }
         const payload: CertificateProgramFeeBulkApplyRequest = {
           targetLicenseClass: null,
-          certificateProgramIds: targetIds,
+          certificateProgramIds: expansionTargetIds,
           lessonType: expansion.lessonType,
           field: expansion.backendField,
           value: parsed,
         };
         lastResponse = await bulkApplyCertificateProgramFeeMatrix(year, payload);
+        appliedProgramCount = Math.max(appliedProgramCount, expansionTargetIds.length);
+      }
+      if (!lastResponse) {
+        showToast("Seçili programlarda uygulanabilir satır yok", "error");
+        return false;
       }
       if (lastResponse) {
         setRows(lastResponse.rows);
@@ -914,7 +963,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
       const fieldLabel = EDITABLE_FIELDS.find((f) => f.value === field)?.label ?? field;
       const lessonSuffix =
         lessonType === "theory" ? " (Teorik)" : lessonType === "practice" ? " (Direksiyon)" : "";
-      showToast(`${targetIds.length} programa "${fieldLabel}${lessonSuffix}" uygulandı`);
+      showToast(`${appliedProgramCount} programa "${fieldLabel}${lessonSuffix}" uygulandı`);
       setBulkValueFor(field, lessonType, "");
       return true;
     } catch {
@@ -1107,12 +1156,16 @@ export function CertificateProgramFeeMatrixSettingsSection() {
             <div className="fee-matrix-sections">
               {sections.map((section) => {
                 const expanded = expandedTargets.has(section.target);
-                const programCount = countDistinctPrograms(section.rows);
-                const filledRows = countFullyFilledRows(section.rows);
-                const totalRows = section.rows.length;
+                const visibleSectionRows = section.rows.filter(isVisibleMatrixRow);
+                const visibleLessonTypes = new Set(
+                  visibleSectionRows.map((row) => row.lessonType)
+                );
+                const programCount = countDistinctPrograms(visibleSectionRows);
+                const filledRows = countFullyFilledRows(visibleSectionRows);
+                const totalRows = visibleSectionRows.length;
                 const sectionSelection = (() => {
                   const programIds = Array.from(
-                    new Set(section.rows.map((r) => r.program.id))
+                    new Set(visibleSectionRows.map((r) => r.program.id))
                   );
                   const selectedCount = programIds.reduce(
                     (acc, id) => (selectedProgramIds.has(id) ? acc + 1 : acc),
@@ -1144,7 +1197,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                         </span>
                         <span className="fee-matrix-section-stats">
                           <span>{programCount} program</span>
-                          <span>{section.rows.length} satır</span>
+                          <span>{visibleSectionRows.length} satır</span>
                           <span
                             className={
                               filledRows === totalRows
@@ -1164,7 +1217,11 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                         <table className="data-table fee-matrix-table">
                           <thead>
                             <tr className="fee-matrix-group-row">
-                              {renderGroupHeaderCells(collapsedGroups, toggleGroup)}
+                              {renderGroupHeaderCells(
+                                collapsedGroups,
+                                toggleGroup,
+                                visibleColumns
+                              )}
                             </tr>
                             <tr>
                               {visibleColumns.map((column, columnIndex) => {
@@ -1190,8 +1247,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                         style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                       >
                                         <ColumnHeaderLabel
-                                          label="Söz. Top. Ders KDV'siz"
-                                          tooltip="Sözleşme Toplam Ders Ücreti (KDV hariç, Teorik + Direksiyon)"
+                                          label="Söz. Toplam"
+                                          tooltip="Sözleşme Toplamı (KDV hariç toplam + KDV toplamı)"
                                         />
                                       </th>
                                     ) : null}
@@ -1262,8 +1319,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                   style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                 >
                                   <ColumnHeaderLabel
-                                    label="Söz. Top. Ders KDV'siz"
-                                    tooltip="Sözleşme Toplam Ders Ücreti (KDV hariç, Teorik + Direksiyon)"
+                                    label="Söz. Toplam"
+                                    tooltip="Sözleşme Toplamı (KDV hariç toplam + KDV toplamı)"
                                   />
                                 </th>
                               ) : null}
@@ -1321,8 +1378,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                         style={{ minWidth: column.width, left: stickyLeft }}
                                       >
                                         <div className="fee-matrix-bulk-split-stack">
-                                          <span>Teorik</span>
-                                          <span>Direksiyon</span>
+                                          {visibleLessonTypes.has("theory") ? <span>Teorik</span> : null}
+                                          {visibleLessonTypes.has("practice") ? <span>Direksiyon</span> : null}
                                         </div>
                                       </th>
                                     );
@@ -1348,7 +1405,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                         style={{ minWidth: column.width, left: stickyLeft }}
                                       >
                                         <div className="fee-matrix-bulk-split-stack">
-                                          {(["theory", "practice"] as const).map((lessonType) => {
+                                          {(["theory", "practice"] as const)
+                                            .filter((lessonType) => visibleLessonTypes.has(lessonType))
+                                            .map((lessonType) => {
                                             const slotKey = bulkValueKey(field, lessonType);
                                             const slotLabel =
                                               lessonType === "theory" ? "T" : "D";
@@ -1431,19 +1490,24 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                 collapsedGroups.has("institution") ? (
                                   <th
                                     aria-hidden="true"
-                                    className="fee-matrix-th fee-matrix-bulk-cell"
+                                    className="fee-matrix-th fee-matrix-bulk-cell fee-matrix-th--group-summary fee-matrix-th--group-contract"
                                     key="contract-summary-bulk-fallback"
+                                    style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                   />
                                 ) : null}
                               </tr>
                             ) : null}
                           </thead>
                           <tbody>
-                            {section.rows.map((row, index) => {
+                            {visibleSectionRows.map((row, index) => {
                               const key = rowKey(row);
-                              const firstProgramRow = isFirstProgramRow(section.rows, row, index);
+                              const firstProgramRow = isFirstProgramRow(
+                                visibleSectionRows,
+                                row,
+                                index
+                              );
                               const programRowSpan = firstProgramRow
-                                ? countProgramRows(section.rows, row.program.id)
+                                ? countProgramRows(visibleSectionRows, row.program.id)
                                 : 1;
                               const dirty = dirtyRowKeys.has(key);
                               return (
@@ -1474,10 +1538,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                             style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                           >
                                             {formatMoney(
-                                              sumByProgram(
-                                                section.rows,
-                                                row.program.id,
-                                                calculateLessonFeeVatExcluded
+                                              calculateContractTotalByProgram(
+                                                visibleSectionRows,
+                                                row.program.id
                                               )
                                             )}
                                           </td>
@@ -1495,7 +1558,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                           rowSpan={
                                             isMergedProgramColumn(column) ? programRowSpan : undefined
                                           }
-                                          sectionRows={section.rows}
+                                          sectionRows={visibleSectionRows}
                                           selected={selectedProgramIds.has(row.program.id)}
                                           stickyOffsets={stickyOffsets}
                                           updateRow={updateRow}
@@ -1515,10 +1578,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                       style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                     >
                                       {formatMoney(
-                                        sumByProgram(
-                                          section.rows,
-                                          row.program.id,
-                                          calculateLessonFeeVatExcluded
+                                        calculateContractTotalByProgram(
+                                          visibleSectionRows,
+                                          row.program.id
                                         )
                                       )}
                                     </td>

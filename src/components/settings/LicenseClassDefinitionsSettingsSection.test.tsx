@@ -95,12 +95,20 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     deleteLicenseClassDefinitionMock.mockResolvedValue(undefined);
   });
 
-  it("loads only active license classes on mount", async () => {
+  it("loads all license classes on mount", async () => {
     renderSection();
 
     await waitFor(() => {
       expect(getLicenseClassDefinitionsMock).toHaveBeenCalledWith(
-        { activity: "active", code: undefined, page: 1, pageSize: 10, search: undefined },
+        {
+          activity: "all",
+          code: undefined,
+          page: 1,
+          pageSize: 10,
+          search: undefined,
+          sortBy: "displayOrder",
+          sortDir: "asc",
+        },
         expect.any(AbortSignal)
       );
     });
@@ -156,6 +164,8 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
           page: 1,
           pageSize: 10,
           search: undefined,
+          sortBy: "displayOrder",
+          sortDir: "asc",
         },
         expect.any(AbortSignal)
       );
@@ -175,11 +185,13 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     await waitFor(() => {
       expect(getLicenseClassDefinitionsMock).toHaveBeenLastCalledWith(
         {
-          activity: "active",
+          activity: "all",
           code: "b",
           page: 1,
           pageSize: 10,
           search: undefined,
+          sortBy: "displayOrder",
+          sortDir: "asc",
         },
         expect.any(AbortSignal)
       );
@@ -234,6 +246,30 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
         "lc1",
         expect.objectContaining({
           code: "B",
+          rowVersion: 1,
+        })
+      );
+    });
+  });
+
+  it("toggles active status from the status column", async () => {
+    updateLicenseClassDefinitionMock.mockResolvedValueOnce({
+      ...sampleLicenseClass,
+      isActive: false,
+      rowVersion: 2,
+    });
+
+    renderSection();
+    await screen.findByText("B");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "B durumunu pasife al" }));
+
+    await waitFor(() => {
+      expect(updateLicenseClassDefinitionMock).toHaveBeenCalledWith(
+        "lc1",
+        expect.objectContaining({
+          code: "B",
+          isActive: false,
           rowVersion: 1,
         })
       );

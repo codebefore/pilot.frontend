@@ -7,12 +7,12 @@ import { LicenseClassDefinitionFormModal } from "../modals/LicenseClassDefinitio
 import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
-import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import {
   deleteLicenseClassDefinition,
   getLicenseClassDefinitions,
+  updateLicenseClassDefinition,
   type LicenseClassDefinitionActivityFilter,
   type LicenseClassDefinitionSortDirection,
   type LicenseClassDefinitionSortField,
@@ -27,6 +27,7 @@ import type {
   LicenseClassDefinitionCategory,
   LicenseClassDefinitionListSummaryResponse,
   LicenseClassDefinitionResponse,
+  LicenseClassDefinitionUpsertRequest,
 } from "../../lib/types";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 
@@ -73,8 +74,31 @@ function formatExistingLicenseRequirement(item: LicenseClassDefinitionResponse):
   return item.existingLicensePre2016 ? `${label} (2016 öncesi)` : label;
 }
 
+function buildLicenseClassDefinitionUpdatePayload(
+  item: LicenseClassDefinitionResponse,
+  isActive: boolean
+): LicenseClassDefinitionUpsertRequest {
+  return {
+    code: item.code,
+    category: item.category,
+    minimumAge: item.minimumAge,
+    hasExistingLicense: item.hasExistingLicense,
+    existingLicenseType: item.existingLicenseType,
+    existingLicensePre2016: item.existingLicensePre2016,
+    requiresTheoryExam: item.requiresTheoryExam,
+    requiresPracticeExam: item.requiresPracticeExam,
+    theoryLessonHours: item.theoryLessonHours,
+    simulatorLessonHours: item.simulatorLessonHours,
+    directPracticeLessonHours: item.directPracticeLessonHours,
+    displayOrder: item.displayOrder,
+    isActive,
+    notes: item.notes,
+    rowVersion: item.rowVersion,
+  };
+}
+
 const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
-  activity: "active",
+  activity: "all",
   code: "",
   category: "all",
 };
@@ -117,9 +141,10 @@ export function LicenseClassDefinitionsSettingsSection() {
       label: t("settings.licenseClasses.columns.isActive"),
       sortField: "isActive",
       renderCell: (item) => (
-        <StatusPill
-          label={item.isActive ? t("settings.licenseClasses.status.active") : t("settings.licenseClasses.status.inactive")}
-          status={item.isActive ? "success" : "manual"}
+        <LicenseClassStatusToggle
+          disabled={togglingId === item.id}
+          item={item}
+          onToggle={handleStatusToggle}
         />
       ),
       skeletonWidth: 74,
@@ -158,6 +183,7 @@ export function LicenseClassDefinitionsSettingsSection() {
   const [editing, setEditing] = useState<LicenseClassDefinitionResponse | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const visibleColumns = LICENSE_CLASS_DEFINITION_COLUMNS.filter((column) =>
     isVisible(column.id)
   );
@@ -172,7 +198,8 @@ export function LicenseClassDefinitionsSettingsSection() {
       pageSize,
       search: search.trim() || undefined,
       category: filters.category !== "all" ? filters.category : undefined,
-      ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
+      sortBy: sort?.field ?? "displayOrder",
+      sortDir: sort?.direction ?? "asc",
     };
 
     getLicenseClassDefinitions(query, controller.signal)
@@ -268,6 +295,35 @@ export function LicenseClassDefinitionsSettingsSection() {
       showToast(t("settings.licenseClasses.toast.deleteFailed"), "error");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleStatusToggle = async (item: LicenseClassDefinitionResponse) => {
+    setTogglingId(item.id);
+    try {
+      const saved = await updateLicenseClassDefinition(
+        item.id,
+        buildLicenseClassDefinitionUpdatePayload(item, !item.isActive)
+      );
+      setItems((current) =>
+        current
+          .map((candidate) => (candidate.id === item.id ? saved : candidate))
+          .filter((candidate) => {
+            if (filters.activity === "active") return candidate.isActive;
+            if (filters.activity === "inactive") return !candidate.isActive;
+            return true;
+          })
+      );
+      setRefreshKey((current) => current + 1);
+      showToast(
+        saved.isActive
+          ? t("settings.licenseClasses.toast.activated")
+          : t("settings.licenseClasses.toast.deactivated")
+      );
+    } catch {
+      showToast(t("settings.licenseClasses.toast.updateFailed"), "error");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -543,6 +599,32 @@ function PlainTh({ filterControl, label }: PlainThProps) {
         {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
       </div>
     </th>
+  );
+}
+
+type LicenseClassStatusToggleProps = {
+  disabled: boolean;
+  item: LicenseClassDefinitionResponse;
+  onToggle: (item: LicenseClassDefinitionResponse) => void;
+};
+
+function LicenseClassStatusToggle({ disabled, item, onToggle }: LicenseClassStatusToggleProps) {
+  return (
+    <label
+      className="switch-toggle settings-inline-status-toggle"
+      onClick={(event) => event.stopPropagation()}
+      title={item.isActive ? "Aktif" : "Pasif"}
+    >
+      <input
+        aria-label={`${item.code} durumunu ${item.isActive ? "pasife al" : "aktife al"}`}
+        checked={item.isActive}
+        disabled={disabled}
+        onChange={() => onToggle(item)}
+        type="checkbox"
+      />
+      <span aria-hidden="true" className="switch-toggle-control" />
+      <span>{item.isActive ? "Aktif" : "Pasif"}</span>
+    </label>
   );
 }
 

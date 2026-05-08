@@ -3342,6 +3342,13 @@ textarea.form-input {
   outline: none;
   box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
 }
+.switch-toggle input[type="checkbox"]:disabled + .switch-toggle-control {
+  opacity: 0.65;
+  cursor: wait;
+}
+.settings-inline-status-toggle {
+  min-width: 74px;
+}
 .drawer-form {
   display: flex;
   flex-direction: column;
@@ -7312,7 +7319,8 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   font-weight: 700;
 }
 .fee-matrix-td--key-contractTotalLessonFeeVatExcluded,
-.fee-matrix-td--key-contractTotalVat {
+.fee-matrix-td--key-contractTotalVat,
+.fee-matrix-td--key-contractTotal {
   font-weight: 700;
   font-style: normal;
 }

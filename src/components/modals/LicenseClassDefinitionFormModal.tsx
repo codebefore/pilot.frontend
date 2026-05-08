@@ -203,10 +203,12 @@ export function LicenseClassDefinitionFormModal({
     register,
     reset,
     setError,
+    setValue,
     watch,
   } = useForm<LicenseClassDefinitionFormValues>({
     defaultValues: getEmptyValues(editing),
   });
+  const hasExistingLicense = watch("hasExistingLicense");
   const existingLicenseSelectOptions = useMemo(() => {
     if (!editing?.existingLicenseType) return existingLicenseTypeOptions;
     if (existingLicenseTypeOptions.some((option) => option.value === editing.existingLicenseType)) {
@@ -249,6 +251,12 @@ export function LicenseClassDefinitionFormModal({
     return () => controller.abort();
   }, [editing?.id, open]);
 
+  useEffect(() => {
+    if (open && hasExistingLicense) {
+      setValue("requiresTheoryExam", false, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [hasExistingLicense, open, setValue]);
+
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
 
@@ -259,7 +267,7 @@ export function LicenseClassDefinitionFormModal({
       hasExistingLicense: values.hasExistingLicense,
       existingLicenseType: values.hasExistingLicense ? values.existingLicenseType.trim() || null : null,
       existingLicensePre2016: values.hasExistingLicense ? values.existingLicensePre2016 : false,
-      requiresTheoryExam: values.requiresTheoryExam,
+      requiresTheoryExam: values.hasExistingLicense ? false : values.requiresTheoryExam,
       requiresPracticeExam: values.requiresPracticeExam,
       theoryLessonHours: parseOptionalNumber(values.theoryLessonHours),
       simulatorLessonHours: parseOptionalNumber(values.simulatorLessonHours),

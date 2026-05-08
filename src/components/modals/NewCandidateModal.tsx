@@ -191,8 +191,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
       certificatePrograms,
       activeLicenseClassOptions
     );
-    if (targetOptions.length > 0) return targetOptions;
-    return activeLicenseClassOptions;
+    return targetOptions;
   }, [activeLicenseClassOptions, certificatePrograms]);
 
   useEffect(() => {

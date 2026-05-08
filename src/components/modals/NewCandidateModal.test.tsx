@@ -167,12 +167,16 @@ describe("NewCandidateModal", () => {
 
     getCandidateReuseSourcesMock.mockResolvedValue([]);
     getCertificateProgramsMock.mockResolvedValue({
-      items: [],
+      items: [
+        certificateProgram("program-a2", "YOK", "A2", 20),
+        certificateProgram("program-b", "YOK", "B", 30),
+        certificateProgram("program-b-otomatik", "YOK", "B-OTOMATIK", 40),
+      ],
       page: 1,
       pageSize: 1000,
-      totalCount: 0,
-      totalPages: 0,
-      summary: { activeCount: 0, inactiveCount: 0 },
+      totalCount: 3,
+      totalPages: 1,
+      summary: { activeCount: 3, inactiveCount: 0 },
     });
 
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
@@ -361,7 +365,15 @@ describe("NewCandidateModal", () => {
     });
   });
 
-  it("uses settings names and lists only no-existing-license options when no program exists", async () => {
+  it("does not list license classes without a certificate program", async () => {
+    getCertificateProgramsMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 1000,
+      totalCount: 0,
+      totalPages: 0,
+      summary: { activeCount: 0, inactiveCount: 0 },
+    });
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
       const activeItems = [
         licenseClassDefinition("B", 10, { name: "Otomobil" }),
@@ -398,10 +410,7 @@ describe("NewCandidateModal", () => {
     await waitFor(() => {
       const select = document.querySelector<HTMLSelectElement>('select[name="className"]');
       expect(select).not.toBeNull();
-      expect([...select!.options].map((option) => option.value)).toEqual(["B"]);
-      expect([...select!.options].map((option) => option.textContent)).toEqual([
-        "B - Otomobil",
-      ]);
+      expect([...select!.options].map((option) => option.value)).toEqual([]);
     });
   });
 
