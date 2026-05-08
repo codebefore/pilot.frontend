@@ -77,6 +77,23 @@ export async function getActiveLicenseClassOptions(signal?: AbortSignal) {
   return activeOptions;
 }
 
+export async function getActiveInitialLicenseClassOptions(signal?: AbortSignal) {
+  const activeResponse = await getLicenseClassDefinitions(
+    {
+      activity: "active",
+      page: 1,
+      pageSize: 1000,
+      sortBy: "displayOrder",
+      sortDir: "asc",
+    },
+    signal
+  );
+  const activeOptions = uniqueTargetOptions(
+    activeResponse.items.filter((item) => !item.hasExistingLicense)
+  );
+  return activeOptions;
+}
+
 export async function getActiveExistingLicenseTypeOptions(signal?: AbortSignal) {
   const options = await getActiveLicenseClassOptions(signal);
   return options.map(toExistingLicenseTypeOption);

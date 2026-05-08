@@ -15,7 +15,7 @@ import type {
   LicenseClass,
 } from "../../lib/types";
 import {
-  getActiveLicenseClassOptions,
+  getActiveInitialLicenseClassOptions,
   type LicenseClassOption,
 } from "../../lib/use-license-class-options";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
@@ -220,7 +220,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         { activity: "active", page: 1, pageSize: 1000, sortBy: "displayOrder", sortDir: "asc" },
         controller.signal
       ),
-      getActiveLicenseClassOptions(controller.signal),
+      getActiveInitialLicenseClassOptions(controller.signal),
     ])
       .then(([programResponse, licenseOptions]) => {
         setCertificatePrograms(programResponse.items);

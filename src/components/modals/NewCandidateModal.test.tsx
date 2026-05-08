@@ -361,7 +361,7 @@ describe("NewCandidateModal", () => {
     });
   });
 
-  it("uses settings names and lists one option per license code when no program exists", async () => {
+  it("uses settings names and lists only no-existing-license options when no program exists", async () => {
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
       const activeItems = [
         licenseClassDefinition("B", 10, { name: "Otomobil" }),
@@ -398,10 +398,9 @@ describe("NewCandidateModal", () => {
     await waitFor(() => {
       const select = document.querySelector<HTMLSelectElement>('select[name="className"]');
       expect(select).not.toBeNull();
-      expect([...select!.options].map((option) => option.value)).toEqual(["B", "C"]);
+      expect([...select!.options].map((option) => option.value)).toEqual(["B"]);
       expect([...select!.options].map((option) => option.textContent)).toEqual([
         "B - Otomobil",
-        "C - Kamyon",
       ]);
     });
   });
