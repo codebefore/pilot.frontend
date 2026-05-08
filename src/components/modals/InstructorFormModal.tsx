@@ -8,6 +8,11 @@ import {
 } from "../../lib/instructor-catalog";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import {
+  formatPhoneInput,
+  isValidTurkishPhoneNumber,
+  normalizePhoneForSubmit,
+} from "../../lib/phone";
 import type {
   InstructorBranch,
   InstructorCreateRequest,
@@ -139,7 +144,7 @@ function getEmptyValues(editing: InstructorResponse | null): InstructorFormValue
         firstName: editing.firstName,
         lastName: editing.lastName,
         nationalId: editing.nationalId ?? "",
-        phoneNumber: editing.phoneNumber ?? "",
+        phoneNumber: formatPhoneInput(editing.phoneNumber),
         email: editing.email ?? "",
         isActive: editing.isActive,
         licenseClassCodes: editing.licenseClassCodes,
@@ -210,6 +215,11 @@ export function InstructorFormModal({
   });
   const selectedLicenseClassCodes = watch("licenseClassCodes");
   const selectedAssignmentBranches = watch("assignmentBranches");
+  const phoneNumber = watch("phoneNumber");
+  const phoneNumberRegistration = register("phoneNumber", {
+    validate: (value) =>
+      !value.trim() || isValidTurkishPhoneNumber(value) || "Geçerli bir telefon gir",
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -244,7 +254,7 @@ export function InstructorFormModal({
       firstName: normalizeUppercase(values.firstName.trim()),
       lastName: normalizeUppercase(values.lastName.trim()),
       nationalId: values.nationalId.trim() || null,
-      phoneNumber: values.phoneNumber.trim() || null,
+      phoneNumber: normalizePhoneForSubmit(values.phoneNumber),
       email: values.email.trim() || null,
 	      isActive: values.isActive,
       assignedVehicleId: editing?.assignedVehicleId ?? null,
@@ -394,8 +404,17 @@ export function InstructorFormModal({
             <label className="form-label">Telefon</label>
             <input
               className={fieldClass(errors.phoneNumber?.message)}
-              placeholder="0532 123 45 67"
-              {...register("phoneNumber")}
+              inputMode="numeric"
+              maxLength={15}
+              placeholder="0 532 123 45 67"
+              {...phoneNumberRegistration}
+              onChange={(event) =>
+                setValue("phoneNumber", formatPhoneInput(event.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              value={phoneNumber}
             />
           </div>
 

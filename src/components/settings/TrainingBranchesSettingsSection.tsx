@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { PencilIcon, PlusIcon } from "../icons";
+import { PencilIcon } from "../icons";
 import { TrainingBranchFormModal } from "../modals/TrainingBranchFormModal";
 import { StatusPill } from "../ui/StatusPill";
 import { useToast } from "../ui/Toast";
@@ -50,7 +50,7 @@ export function TrainingBranchesSettingsSection() {
   };
 
   const handleSaved = () => {
-    showToast(editing ? "Branş güncellendi" : "Branş eklendi");
+    showToast("Branş güncellendi");
     closeForm();
     setRefreshKey((value) => value + 1);
   };
@@ -76,21 +76,10 @@ export function TrainingBranchesSettingsSection() {
         <section className="settings-surface">
           <div className="settings-surface-header">
             <div className="settings-surface-title">Branş Listesi</div>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-              type="button"
-            >
-              <PlusIcon size={14} />
-              Yeni Branş
-            </button>
           </div>
 
           <div className="settings-panel-note">
-            Toplam limitler aynı grup/şube içindeki teorik dersler için uygulanır.
+            Branş kodları, sıralama ve saat limitleri sistem tarafından sabit tutulur. Sadece ad ve renk düzenlenebilir.
           </div>
 
           <div className="settings-table-wrap">

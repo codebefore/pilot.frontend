@@ -3,6 +3,11 @@ import { useForm } from "react-hook-form";
 
 import { createUser, updateUser } from "../../lib/users-api";
 import { ApiError } from "../../lib/http";
+import {
+  formatPhoneInput,
+  isValidTurkishMobilePhoneNumber,
+  normalizePhoneForSubmit,
+} from "../../lib/phone";
 import type {
   AppUserResponse,
   AppUserUpsertRequest,
@@ -36,7 +41,7 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
     ? {
         fullName: editing.fullName,
         email: editing.email ?? "",
-        phone: editing.phone ?? "",
+        phone: formatPhoneInput(editing.phone),
         password: "",
         mebbisUsername: editing.mebbisUsername ?? "",
         mebbisPassword: "",
@@ -93,7 +98,13 @@ export function UserFormModal({
     watch,
   } = useForm<UserFormValues>({ defaultValues: emptyValues(editing) });
   const selectedRoleId = watch("roleId");
+  const phone = watch("phone");
   const activeRoles = useMemo(() => roles.filter((role) => role.isActive), [roles]);
+  const phoneRegistration = register("phone", {
+    required: "Zorunlu alan",
+    validate: (value) =>
+      isValidTurkishMobilePhoneNumber(value) || "10 hane, 5 ile başlamalı",
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -114,7 +125,7 @@ export function UserFormModal({
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
       email: values.email.trim() ? values.email.trim() : null,
-      phone: values.phone.trim(),
+      phone: normalizePhoneForSubmit(values.phone) ?? "",
       password: values.password.trim() || null,
       mebbisUsername: values.mebbisUsername.trim() || null,
       mebbisPassword: values.mebbisPassword.trim() || null,
@@ -242,15 +253,16 @@ export function UserFormModal({
             <input
               className={fieldClass(!!errors.phone, "form-input")}
               inputMode="numeric"
-              maxLength={10}
-              placeholder="5XXXXXXXXX"
-              {...register("phone", {
-                required: "Zorunlu alan",
-                pattern: {
-                  value: /^5\d{9}$/,
-                  message: "10 hane, 5 ile başlamalı (başında 0 yok)",
-                },
-              })}
+              maxLength={15}
+              placeholder="0 5xx xxx xx xx"
+              {...phoneRegistration}
+              onChange={(event) =>
+                setValue("phone", formatPhoneInput(event.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              value={phone}
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
           </div>

@@ -8,6 +8,11 @@ import {
 import { getCertificatePrograms } from "../../lib/certificate-programs-api";
 import { ApiError } from "../../lib/http";
 import { useT } from "../../lib/i18n";
+import {
+  formatPhoneInput,
+  isValidTurkishMobilePhoneNumber,
+  normalizePhoneForSubmit,
+} from "../../lib/phone";
 import type {
   CandidateReuseSourceResponse,
   CertificateProgramResponse,
@@ -175,9 +180,15 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const reuseFromCandidateId = watch("reuseFromCandidateId");
   const documentIdsToCopy = watch("documentIdsToCopy");
   const tags = watch("tags");
+  const phone = watch("phone");
   const selectedReuseSource =
     reuseSources.find((source) => source.id === reuseFromCandidateId) ?? null;
   const classRegistration = register("className", { required: true });
+  const phoneRegistration = register("phone", {
+    required: "Zorunlu alan",
+    validate: (value) =>
+      isValidTurkishMobilePhoneNumber(value) || "10 hane, 5 ile başlamalı",
+  });
   // The license-class dropdown is derived from the active certificate
   // programs catalog so only valid registration targets show up; this list
   // is independent from the now-removed program/group selectors.
@@ -275,7 +286,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
       shouldDirty: true,
       shouldValidate: true,
     });
-    setValue("phone", selectedReuseSource.phoneNumber ?? "", {
+    setValue("phone", formatPhoneInput(selectedReuseSource.phoneNumber), {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -292,7 +303,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         firstName: data.firstName,
         lastName: data.lastName,
         nationalId: data.tc,
-        phoneNumber: data.phone || null,
+        phoneNumber: normalizePhoneForSubmit(data.phone),
         // Quick registration captures only identity + phone + license class.
         // Email, birth date, gender, existing license, and group assignment
         // are edited from the candidate detail page. Certificate program is
@@ -542,15 +553,16 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             <input
               className={fieldClass(!!errors.phone, "form-input")}
               inputMode="numeric"
-              maxLength={10}
-              placeholder="5XXXXXXXXX"
-              {...register("phone", {
-                required: "Zorunlu alan",
-                pattern: {
-                  value: /^5\d{9}$/,
-                  message: "10 hane, 5 ile başlamalı (başında 0 yok)",
-                },
-              })}
+              maxLength={15}
+              placeholder="0 5xx xxx xx xx"
+              {...phoneRegistration}
+              onChange={(event) =>
+                setValue("phone", formatPhoneInput(event.target.value), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              value={phone}
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
           </div>

@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "./api";
+import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
 import { httpDelete, httpGet, httpPostForm, httpPut } from "./http";
 
 export type FounderType = "real" | "legal";
@@ -152,4 +153,34 @@ export function getInstitutionLogoUrl(
     url.searchParams.set("v", cacheKey);
   }
   return url.toString();
+}
+
+export async function getInstitutionLogoObjectUrl(
+  logo: InstitutionLogoResponse,
+  cacheKey?: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const response = await fetch(getInstitutionLogoUrl(logo, cacheKey), {
+    headers: buildLogoHeaders(),
+    signal,
+  });
+
+  if (response.status === 401) {
+    notifyUnauthorized();
+  }
+
+  if (!response.ok) {
+    throw new Error(`Logo request failed with status ${response.status}`);
+  }
+
+  return URL.createObjectURL(await response.blob());
+}
+
+function buildLogoHeaders(): HeadersInit {
+  const headers = new Headers();
+  const token = getStoredAccessToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return headers;
 }

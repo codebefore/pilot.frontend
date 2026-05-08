@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 
 import {
   deleteInstitutionLogo,
-  getInstitutionLogoUrl,
+  getInstitutionLogoObjectUrl,
   getInstitutionSettings,
   uploadInstitutionLogo,
   upsertInstitutionSettings,
@@ -12,6 +12,11 @@ import {
 } from "../../lib/institution-settings-api";
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import {
+  formatPhoneInput,
+  isValidTurkishPhoneNumber,
+  normalizePhoneForSubmit,
+} from "../../lib/phone";
 import {
   getTurkeyDistrictOptions,
   resolveTurkeyDistrictValue,
@@ -77,7 +82,7 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     institutionOfficialName: response.institutionOfficialName ?? "",
     institutionCode: response.institutionCode ?? "",
     institutionAddress: response.institutionAddress ?? "",
-    institutionPhone: response.institutionPhone ?? "",
+    institutionPhone: formatPhoneInput(response.institutionPhone),
     institutionEmail: response.institutionEmail ?? "",
     city,
     district: resolveTurkeyDistrictValue(city, response.district),
@@ -86,12 +91,12 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     founderTaxId: response.founder.taxId ?? "",
     founderTaxOffice: response.founder.taxOffice ?? "",
     founderAddress: response.founder.address ?? "",
-    founderPhone: response.founder.phone ?? "",
+    founderPhone: formatPhoneInput(response.founder.phone),
     authorizedPersons: response.authorizedPersons.map((person) => ({
       clientId: person.id,
       serverId: person.id,
       fullName: person.fullName,
-      phone: person.phone ?? "",
+      phone: formatPhoneInput(person.phone),
       title: person.title ?? "",
     })),
   };
@@ -106,7 +111,7 @@ function toUpsertRequest(
     institutionOfficialName: values.institutionOfficialName.trim() || null,
     institutionCode: values.institutionCode.trim() || null,
     institutionAddress: values.institutionAddress.trim() || null,
-    institutionPhone: values.institutionPhone.trim() || null,
+    institutionPhone: normalizePhoneForSubmit(values.institutionPhone),
     institutionEmail: values.institutionEmail.trim() || null,
     city: values.city.trim() || null,
     district: values.district.trim() || null,
@@ -116,12 +121,12 @@ function toUpsertRequest(
       taxId: values.founderTaxId.trim() || null,
       taxOffice: values.founderTaxOffice.trim() || null,
       address: values.founderAddress.trim() || null,
-      phone: values.founderPhone.trim() || null,
+      phone: normalizePhoneForSubmit(values.founderPhone),
     },
     authorizedPersons: values.authorizedPersons.map((person) => ({
       id: person.serverId,
       fullName: person.fullName.trim(),
-      phone: person.phone.trim() || null,
+      phone: normalizePhoneForSubmit(person.phone),
       title: person.title.trim() || null,
     })),
     mebbis: null,
@@ -155,10 +160,6 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function isValidPhone(value: string): boolean {
-  return /^[0-9+\s()/-]{7,24}$/.test(value);
-}
-
 function isValidTaxId(value: string): boolean {
   return /^\d{10,11}$/.test(value);
 }
@@ -171,6 +172,7 @@ export function GeneralInstitutionSection() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removingLogo, setRemovingLogo] = useState(false);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [serverState, setServerState] = useState<InstitutionSettingsResponse | null>(null);
   const [values, setValues] = useState<GeneralFormValues>(EMPTY_VALUES);
   const [errors, setErrors] = useState<GeneralFormErrors>({});
@@ -207,6 +209,36 @@ export function GeneralInstitutionSection() {
     };
   }, [showToast, t]);
 
+  useEffect(() => {
+    const logo = serverState?.logo;
+    if (!logo) {
+      setLogoPreviewUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+
+    setLogoPreviewUrl(null);
+    getInstitutionLogoObjectUrl(logo, String(serverState.rowVersion), controller.signal)
+      .then((url) => {
+        objectUrl = url;
+        setLogoPreviewUrl(url);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          console.error("Institution logo could not be loaded.", error);
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [serverState?.logo, serverState?.rowVersion]);
+
   const dirty = useMemo(() => {
     if (!serverState) {
       return JSON.stringify(values) !== JSON.stringify(EMPTY_VALUES);
@@ -228,6 +260,12 @@ export function GeneralInstitutionSection() {
     (field: keyof GeneralFormValues) =>
     (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setField(field, event.target.value as GeneralFormValues[typeof field]);
+    };
+
+  const handlePhoneInput =
+    (field: "institutionPhone" | "founderPhone") =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setField(field, formatPhoneInput(event.target.value));
     };
 
   const handleCityChange = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -260,6 +298,10 @@ export function GeneralInstitutionSection() {
       delete nextPerson[field];
       return { ...current, [clientId]: nextPerson };
     });
+  };
+
+  const updateAuthorizedPersonPhone = (clientId: string, value: string) => {
+    updateAuthorizedPerson(clientId, "phone", formatPhoneInput(value));
   };
 
   const addAuthorizedPerson = () => {
@@ -301,7 +343,7 @@ export function GeneralInstitutionSection() {
     if (values.institutionEmail.trim() && !isValidEmail(values.institutionEmail.trim())) {
       nextErrors.institutionEmail = t("settings.general.validation.email");
     }
-    if (values.institutionPhone.trim() && !isValidPhone(values.institutionPhone.trim())) {
+    if (values.institutionPhone.trim() && !isValidTurkishPhoneNumber(values.institutionPhone)) {
       nextErrors.institutionPhone = t("settings.general.validation.phone");
     }
     if (values.city && !values.district) {
@@ -316,7 +358,7 @@ export function GeneralInstitutionSection() {
     if (values.founderTaxId.trim() && !isValidTaxId(values.founderTaxId.trim())) {
       nextErrors.founderTaxId = t("settings.general.validation.taxId");
     }
-    if (values.founderPhone.trim() && !isValidPhone(values.founderPhone.trim())) {
+    if (values.founderPhone.trim() && !isValidTurkishPhoneNumber(values.founderPhone)) {
       nextErrors.founderPhone = t("settings.general.validation.phone");
     }
 
@@ -325,7 +367,7 @@ export function GeneralInstitutionSection() {
       if (!person.fullName.trim()) {
         personErrors.fullName = t("settings.general.validation.required");
       }
-      if (person.phone.trim() && !isValidPhone(person.phone.trim())) {
+      if (person.phone.trim() && !isValidTurkishPhoneNumber(person.phone)) {
         personErrors.phone = t("settings.general.validation.phone");
       }
       if (Object.keys(personErrors).length > 0) {
@@ -470,9 +512,6 @@ export function GeneralInstitutionSection() {
     [values.city, values.district]
   );
 
-  const logoUrl = serverState?.logo
-    ? getInstitutionLogoUrl(serverState.logo, String(serverState.rowVersion))
-    : null;
   const tabs: { key: GeneralInstitutionTab; label: string }[] = [
     { key: "institution", label: t("settings.general.section.institution") },
     { key: "founder", label: t("settings.general.section.founder") },
@@ -556,7 +595,8 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t("settings.general.field.phone")}</label>
                 <input
                   className={errors.institutionPhone ? "form-input error" : "form-input"}
-                  onChange={handleInput("institutionPhone")}
+                  inputMode="numeric"
+                  onChange={handlePhoneInput("institutionPhone")}
                   placeholder={t("settings.general.placeholder.phone")}
                   value={values.institutionPhone}
                 />
@@ -638,8 +678,8 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t("settings.general.field.logo")}</label>
                 <div className="settings-logo-row">
                   <div className="settings-logo-preview">
-                    {logoUrl ? (
-                      <img alt={t("settings.general.field.logo")} src={logoUrl} />
+                    {logoPreviewUrl ? (
+                      <img alt={t("settings.general.field.logo")} src={logoPreviewUrl} />
                     ) : (
                       <span className="settings-logo-empty">
                         {t("settings.general.logo.empty")}
@@ -758,7 +798,8 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t("settings.general.founder.phone")}</label>
                 <input
                   className={errors.founderPhone ? "form-input error" : "form-input"}
-                  onChange={handleInput("founderPhone")}
+                  inputMode="numeric"
+                  onChange={handlePhoneInput("founderPhone")}
                   placeholder={t("settings.general.placeholder.phone")}
                   value={values.founderPhone}
                 />
@@ -847,8 +888,9 @@ export function GeneralInstitutionSection() {
                     <input
                       className={authorizedErrors[person.clientId]?.phone ? "form-input error" : "form-input"}
                       onChange={(event) =>
-                        updateAuthorizedPerson(person.clientId, "phone", event.target.value)
+                        updateAuthorizedPersonPhone(person.clientId, event.target.value)
                       }
+                      inputMode="numeric"
                       placeholder={t("settings.general.placeholder.phone")}
                       value={person.phone}
                     />

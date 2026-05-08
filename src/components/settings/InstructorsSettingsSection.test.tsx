@@ -374,7 +374,7 @@ describe("InstructorsSettingsSection", () => {
         firstName: "MEHMET",
         lastName: "KORKMAZ",
         nationalId: "12345678901",
-        phoneNumber: "0532 111 22 33",
+        phoneNumber: "5321112233",
         email: "hasan@example.com",
         isActive: true,
         assignedVehicleId: null,
