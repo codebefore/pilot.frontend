@@ -38,6 +38,7 @@ import {
 import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
 import { getCertificatePrograms } from "../lib/certificate-programs-api";
+import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstructors } from "../lib/instructors-api";
 import { getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
@@ -58,8 +59,8 @@ import {
   printAuthorizedFile,
 } from "../lib/authorized-files";
 import {
+  useInitialLicenseClassOptions,
   useExistingLicenseTypeOptions,
-  useLicenseClassOptions,
 } from "../lib/use-license-class-options";
 import {
   deleteCandidateDocument,
@@ -97,6 +98,7 @@ import type {
   CashRegisterResponse,
   CertificateProgramFeeRowResponse,
   CertificateProgramResponse,
+  LicenseClassDefinitionResponse,
   DocumentMetadataField,
   DocumentResponse,
   DocumentTypeResponse,
@@ -1207,33 +1209,111 @@ function optionForCertificateProgramSource(
   };
 }
 
-function buildExistingLicenseOptionsFromPrograms(
-  programs: CertificateProgramResponse[],
-  currentExistingLicenseType: string | null,
-  configuredExistingLicenseTypeOptions: SelectOption[]
-): SelectOption[] {
-  const byValue = new Map<string, SelectOption>();
+type ExistingLicenseRuleOption = SelectOption & {
+  existingLicenseType: string;
+  existingLicensePre2016: boolean;
+  displayOrder: number;
+};
 
-  for (const program of programs) {
-    if (normalizeLicenseOptionKey(program.sourceLicenseClass) === "YOK") continue;
-    const option = optionForCertificateProgramSource(
-      program,
-      configuredExistingLicenseTypeOptions
-    );
-    byValue.set(option.value, option);
+function encodeExistingLicenseSelection(
+  existingLicenseType: string | null | undefined,
+  existingLicensePre2016: boolean
+): string {
+  if (!existingLicenseType) return "";
+  return `${encodeURIComponent(existingLicenseType.trim().toLowerCase())}|${
+    existingLicensePre2016 ? "1" : "0"
+  }`;
+}
+
+function decodeExistingLicenseSelection(value: string): {
+  existingLicenseType: string | null;
+  existingLicensePre2016: boolean;
+} {
+  if (!value) {
+    return { existingLicenseType: null, existingLicensePre2016: false };
   }
 
-  if (currentExistingLicenseType && !byValue.has(currentExistingLicenseType)) {
-    byValue.set(currentExistingLicenseType, {
-      value: currentExistingLicenseType,
-      label: existingLicenseTypeLabel(
-        currentExistingLicenseType,
-        configuredExistingLicenseTypeOptions
-      ),
+  const [encodedType = "", encodedPre2016 = "0"] = value.split("|");
+  const existingLicenseType = decodeURIComponent(encodedType).trim() || null;
+  return {
+    existingLicenseType,
+    existingLicensePre2016: existingLicenseType ? encodedPre2016 === "1" : false,
+  };
+}
+
+function buildExistingLicenseOptionsFromDefinitions(
+  definitions: LicenseClassDefinitionResponse[],
+  targetLicenseClass: string,
+  currentExistingLicenseType: string | null,
+  currentExistingLicensePre2016: boolean,
+  configuredExistingLicenseTypeOptions: SelectOption[]
+): SelectOption[] {
+  const targetKey = normalizeLicenseOptionKey(targetLicenseClass);
+  const byValue = new Map<string, ExistingLicenseRuleOption>();
+
+  for (const definition of definitions) {
+    if (!definition.hasExistingLicense || !definition.existingLicenseType) continue;
+    if (normalizeLicenseOptionKey(definition.code) !== targetKey) continue;
+
+    const value = encodeExistingLicenseSelection(
+      definition.existingLicenseType,
+      definition.existingLicensePre2016
+    );
+    const baseLabel = existingLicenseTypeLabel(
+      definition.existingLicenseType,
+      configuredExistingLicenseTypeOptions
+    );
+    byValue.set(value, {
+      value,
+      label: definition.existingLicensePre2016
+        ? `${baseLabel} (2016 öncesi)`
+        : baseLabel,
+      existingLicenseType: definition.existingLicenseType,
+      existingLicensePre2016: definition.existingLicensePre2016,
+      displayOrder: definition.displayOrder,
     });
   }
 
-  return [...byValue.values()].sort((a, b) => a.label.localeCompare(b.label, "tr"));
+  const currentValue = encodeExistingLicenseSelection(
+    currentExistingLicenseType,
+    currentExistingLicensePre2016
+  );
+  if (currentExistingLicenseType && !byValue.has(currentValue)) {
+    const baseLabel = existingLicenseTypeLabel(
+      currentExistingLicenseType,
+      configuredExistingLicenseTypeOptions
+    );
+    byValue.set(currentValue, {
+      value: currentValue,
+      label: currentExistingLicensePre2016
+        ? `${baseLabel} (2016 öncesi)`
+        : baseLabel,
+      existingLicenseType: currentExistingLicenseType,
+      existingLicensePre2016: currentExistingLicensePre2016,
+      displayOrder: Number.MAX_SAFE_INTEGER,
+    });
+  }
+
+  return [...byValue.values()]
+    .sort(
+      (a, b) =>
+        a.displayOrder - b.displayOrder ||
+        a.label.localeCompare(b.label, "tr")
+    )
+    .map(({ value, label }) => ({ value, label }));
+}
+
+function formatExistingLicenseSelectionLabel(
+  existingLicenseType: string | null | undefined,
+  existingLicensePre2016: boolean,
+  configuredExistingLicenseTypeOptions: SelectOption[]
+): string {
+  if (!existingLicenseType) return "";
+  const label = existingLicenseTypeLabel(
+    existingLicenseType,
+    configuredExistingLicenseTypeOptions
+  );
+  return existingLicensePre2016 ? `${label} (2016 öncesi)` : label;
 }
 
 function LicenseInfoTab({
@@ -1244,9 +1324,14 @@ function LicenseInfoTab({
   onSaved: (updated: CandidateResponse) => void;
 }) {
   const { showToast } = useToast();
-  const { options: licenseClassOptions } = useLicenseClassOptions();
+  const { options: licenseClassOptions } = useInitialLicenseClassOptions();
   const { options: configuredExistingLicenseTypeOptions } = useExistingLicenseTypeOptions();
-  const [licenseType, setLicenseType] = useState(candidate.existingLicenseType ?? "");
+  const [licenseType, setLicenseType] = useState(
+    encodeExistingLicenseSelection(
+      candidate.existingLicenseType,
+      candidate.existingLicensePre2016
+    )
+  );
   const [licenseNumber, setLicenseNumber] = useState(candidate.existingLicenseNumber ?? "");
   const [issuedAt, setIssuedAt] = useState(
     candidate.existingLicenseIssuedAt ?? (candidate.existingLicenseType ? "" : todayIsoDate())
@@ -1263,7 +1348,12 @@ function LicenseInfoTab({
   const hasLicense = !!candidate.existingLicenseType;
 
   useEffect(() => {
-    setLicenseType(candidate.existingLicenseType ?? "");
+    setLicenseType(
+      encodeExistingLicenseSelection(
+        candidate.existingLicenseType,
+        candidate.existingLicensePre2016
+      )
+    );
     setLicenseNumber(candidate.existingLicenseNumber ?? "");
     setIssuedAt(
       candidate.existingLicenseIssuedAt ?? (candidate.existingLicenseType ? "" : todayIsoDate())
@@ -1276,23 +1366,37 @@ function LicenseInfoTab({
     const controller = new AbortController();
     setExistingLicenseOptionsLoading(true);
 
-    getCertificatePrograms(
-      {
-        activity: "active",
-        targetLicenseClass: candidate.licenseClass,
-        page: 1,
-        pageSize: 1000,
-        sortBy: "source",
-        sortDir: "asc",
-      },
-      controller.signal
-    )
-      .then((response) => {
-        setExistingLicensePrograms(response.items);
+    Promise.all([
+      getCertificatePrograms(
+        {
+          activity: "active",
+          targetLicenseClass: candidate.licenseClass,
+          page: 1,
+          pageSize: 1000,
+          sortBy: "source",
+          sortDir: "asc",
+        },
+        controller.signal
+      ),
+      getLicenseClassDefinitions(
+        {
+          activity: "active",
+          page: 1,
+          pageSize: 1000,
+          sortBy: "displayOrder",
+          sortDir: "asc",
+        },
+        controller.signal
+      ),
+    ])
+      .then(([programResponse, definitionResponse]) => {
+        setExistingLicensePrograms(programResponse.items);
         setExistingLicenseOptions(
-          buildExistingLicenseOptionsFromPrograms(
-            response.items,
+          buildExistingLicenseOptionsFromDefinitions(
+            definitionResponse.items,
+            candidate.licenseClass,
             candidate.existingLicenseType,
+            candidate.existingLicensePre2016,
             configuredExistingLicenseTypeOptions
           )
         );
@@ -1309,7 +1413,12 @@ function LicenseInfoTab({
       });
 
     return () => controller.abort();
-  }, [candidate.existingLicenseType, candidate.licenseClass, configuredExistingLicenseTypeOptions]);
+  }, [
+    candidate.existingLicensePre2016,
+    candidate.existingLicenseType,
+    candidate.licenseClass,
+    configuredExistingLicenseTypeOptions,
+  ]);
 
   useEffect(() => {
     if (existingLicenseOptionsLoading || !licenseType) return;
@@ -1318,15 +1427,16 @@ function LicenseInfoTab({
   }, [existingLicenseOptions, existingLicenseOptionsLoading, licenseType]);
 
   const findCertificateProgramForExistingLicense = (
-    existingLicenseType: string
+    existingLicenseType: string,
+    existingLicensePre2016: boolean
   ): CertificateProgramResponse | null => {
     const selectedKey = normalizeLicenseOptionKey(
       existingLicenseTypeLabel(existingLicenseType, configuredExistingLicenseTypeOptions)
     );
 
     return existingLicensePrograms.find((program) => {
-      if (program.sourceLicensePre2016) return false;
       if (normalizeLicenseOptionKey(program.sourceLicenseClass) === "YOK") return false;
+      if (program.sourceLicensePre2016 !== existingLicensePre2016) return false;
 
       const option = optionForCertificateProgramSource(
         program,
@@ -1361,8 +1471,14 @@ function LicenseInfoTab({
     const nextTypeRaw =
       patch.existingLicenseType !== undefined
         ? patch.existingLicenseType
-        : candidate.existingLicenseType;
-    const nextType = nextTypeRaw?.trim() || null;
+        : encodeExistingLicenseSelection(
+            candidate.existingLicenseType,
+            candidate.existingLicensePre2016
+          );
+    const {
+      existingLicenseType: nextType,
+      existingLicensePre2016: nextPre2016,
+    } = decodeExistingLicenseSelection(nextTypeRaw ?? "");
 
     if (!nextType) {
       return {
@@ -1393,19 +1509,15 @@ function LicenseInfoTab({
       throw new Error("existing license required fields missing");
     }
 
-    const certificateProgram = findCertificateProgramForExistingLicense(nextType);
-    if (!certificateProgram) {
-      showToast("Bu ehliyet tipi için seçilen mevcut belgeyle geçiş tanımlı değil.", "error");
-      throw new Error("certificate program missing");
-    }
+    const certificateProgram = findCertificateProgramForExistingLicense(nextType, nextPre2016);
 
     return {
-      certificateProgramId: certificateProgram.id,
+      certificateProgramId: certificateProgram?.id ?? null,
       existingLicenseType: nextType,
       existingLicenseNumber: nextNumber,
       existingLicenseIssuedAt: nextIssuedAt,
       existingLicenseIssuedProvince: nextProvince,
-      existingLicensePre2016: false,
+      existingLicensePre2016: nextPre2016,
     };
   };
 
@@ -1420,8 +1532,7 @@ function LicenseInfoTab({
     } catch (error) {
       if (
         error instanceof Error &&
-        (error.message === "existing license required fields missing" ||
-          error.message === "certificate program missing")
+        error.message === "existing license required fields missing"
       ) {
         throw error;
       }
@@ -1498,13 +1609,21 @@ function LicenseInfoTab({
             <EditableRow
               displayValue={
                 hasLicense
-                  ? existingLicenseTypeLabel(
+                  ? formatExistingLicenseSelectionLabel(
                       candidate.existingLicenseType,
+                      candidate.existingLicensePre2016,
                       configuredExistingLicenseTypeOptions
                     )
                   : ""
               }
-              inputValue={hasLicense ? candidate.existingLicenseType ?? "" : licenseType}
+              inputValue={
+                hasLicense
+                  ? encodeExistingLicenseSelection(
+                      candidate.existingLicenseType,
+                      candidate.existingLicensePre2016
+                    )
+                  : licenseType
+              }
               label="Mevcut Belge"
               options={[
                 { value: "", label: "— Belge Yok —" },
@@ -1554,7 +1673,7 @@ function LicenseInfoTab({
             />
             {!existingLicenseOptionsLoading && existingLicenseOptions.length === 0 ? (
               <div className="form-subsection-note" style={{ marginTop: 8 }}>
-                Bu ehliyet tipi için mevcut sürücü belgesiyle geçiş tanımlı değil.
+                Bu ehliyet tipi için mevcut sürücü belgesi gerektiren tanım yok.
               </div>
             ) : null}
             {!hasLicense ? (

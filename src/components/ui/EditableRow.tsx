@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CheckIcon, PencilIcon, XIcon } from "../icons";
 import { CustomSelect } from "./CustomSelect";
@@ -37,6 +37,12 @@ export function EditableRow({
   const [options, setOptions] = useState<SelectOption[] | undefined>(staticOptions);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const inputRef = useRef<HTMLInputElement & HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (staticOptions) {
+      setOptions(staticOptions);
+    }
+  }, [staticOptions]);
 
   const startEdit = async () => {
     if (disabled) {

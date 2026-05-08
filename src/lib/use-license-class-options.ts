@@ -125,6 +125,32 @@ export function useLicenseClassOptions() {
   return { options, loading };
 }
 
+export function useInitialLicenseClassOptions() {
+  const [options, setOptions] = useState<LicenseClassOption[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+
+    getActiveInitialLicenseClassOptions(controller.signal)
+      .then((nextOptions) => setOptions(nextOptions))
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setOptions([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  return { options, loading };
+}
+
 export function useExistingLicenseTypeOptions() {
   const [options, setOptions] = useState<ExistingLicenseTypeOption[]>([]);
   const [loading, setLoading] = useState(false);
