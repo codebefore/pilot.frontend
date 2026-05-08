@@ -122,7 +122,7 @@ describe("VehiclesSettingsSection", () => {
         {
           id: "license-b",
           code: "B",
-          name: "B",
+          name: "Otomobil",
           category: "automobile",
           minimumAge: 18,
           hasExistingLicense: false,
@@ -143,7 +143,7 @@ describe("VehiclesSettingsSection", () => {
         {
           id: "license-a2",
           code: "A2",
-          name: "A2",
+          name: "Motosiklet",
           category: "motorcycle",
           minimumAge: 18,
           hasExistingLicense: false,

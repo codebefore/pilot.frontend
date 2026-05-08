@@ -165,7 +165,7 @@ describe("InstructorsSettingsSection", () => {
         {
           id: "license-b",
           code: "B",
-          name: "B",
+          name: "Otomobil",
           category: "Otomobil",
           isActive: true,
           displayOrder: 10,
@@ -176,7 +176,7 @@ describe("InstructorsSettingsSection", () => {
         {
           id: "license-a2",
           code: "A2",
-          name: "A2",
+          name: "Motosiklet",
           category: "Motosiklet",
           isActive: true,
           displayOrder: 20,

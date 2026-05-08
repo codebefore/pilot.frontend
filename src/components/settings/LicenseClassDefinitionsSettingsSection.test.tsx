@@ -112,7 +112,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
   });
 
   it("shows existing license type when required", async () => {
-    getLicenseClassDefinitionsMock.mockResolvedValueOnce({
+    getLicenseClassDefinitionsMock.mockResolvedValue({
       items: [
         {
           ...sampleLicenseClass,

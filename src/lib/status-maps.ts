@@ -9,6 +9,15 @@ function normalizeExistingLicenseLookup(value: string): string {
   return value.trim().toLocaleUpperCase("tr-TR").replace(/[\s_-]/g, "");
 }
 
+function formatExistingLicenseFallback(value: string): string {
+  return value
+    .trim()
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .join("-")
+    .toLocaleUpperCase("tr-TR");
+}
+
 export function existingLicenseTypeLabel(
   value: string | null | undefined,
   options: Option[] = []
@@ -20,7 +29,7 @@ export function existingLicenseTypeLabel(
       [option.value, option.label].some(
         (candidate) => normalizeExistingLicenseLookup(candidate) === key
       )
-    )?.label ?? value
+    )?.label ?? formatExistingLicenseFallback(value)
   );
 }
 
