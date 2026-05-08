@@ -24,7 +24,6 @@ import { getRoles } from "../lib/roles-api";
 import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
-import { formatPhone } from "../mock/users";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -106,7 +105,7 @@ function buildColumns(): UserColumnDef[] {
       id: "phone",
       label: "Telefon",
       sortField: "phone",
-      renderCell: (user) => (user.phone ? formatPhone(user.phone) : "—"),
+      renderCell: (user) => user.phone || "—",
       skeletonWidth: 110,
     },
     {

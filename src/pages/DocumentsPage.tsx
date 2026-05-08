@@ -32,7 +32,7 @@ import {
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
 import { getGroups } from "../lib/groups-api";
 import { useLanguage, useT } from "../lib/i18n";
-import { buildWhatsAppUrl, formatPhoneNumber } from "../lib/phone";
+import { buildWhatsAppUrl } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
@@ -111,7 +111,7 @@ function toAvatarCandidate(entry: DocumentChecklistEntry) {
 }
 
 function renderPhoneNumber(entry: DocumentChecklistEntry) {
-  const phoneNumber = formatPhoneNumber(entry.phoneNumber);
+  const phoneNumber = entry.phoneNumber?.trim() || "—";
   const whatsappUrl = buildWhatsAppUrl(entry.phoneNumber);
 
   if (!whatsappUrl) {

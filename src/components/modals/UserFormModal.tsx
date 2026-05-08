@@ -3,11 +3,7 @@ import { useForm } from "react-hook-form";
 
 import { createUser, updateUser } from "../../lib/users-api";
 import { ApiError } from "../../lib/http";
-import {
-  formatPhoneInput,
-  isValidTurkishMobilePhoneNumber,
-  normalizePhoneForSubmit,
-} from "../../lib/phone";
+import { isPhoneStartingWith5 } from "../../lib/phone";
 import type {
   AppUserResponse,
   AppUserUpsertRequest,
@@ -41,7 +37,7 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
     ? {
         fullName: editing.fullName,
         email: editing.email ?? "",
-        phone: formatPhoneInput(editing.phone),
+        phone: editing.phone ?? "",
         password: "",
         mebbisUsername: editing.mebbisUsername ?? "",
         mebbisPassword: "",
@@ -98,12 +94,10 @@ export function UserFormModal({
     watch,
   } = useForm<UserFormValues>({ defaultValues: emptyValues(editing) });
   const selectedRoleId = watch("roleId");
-  const phone = watch("phone");
   const activeRoles = useMemo(() => roles.filter((role) => role.isActive), [roles]);
   const phoneRegistration = register("phone", {
     required: "Zorunlu alan",
-    validate: (value) =>
-      isValidTurkishMobilePhoneNumber(value) || "10 hane, 5 ile başlamalı",
+    validate: (value) => isPhoneStartingWith5(value) || "5 ile başlamalı",
   });
 
   useEffect(() => {
@@ -125,7 +119,7 @@ export function UserFormModal({
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
       email: values.email.trim() ? values.email.trim() : null,
-      phone: normalizePhoneForSubmit(values.phone) ?? "",
+      phone: values.phone.trim(),
       password: values.password.trim() || null,
       mebbisUsername: values.mebbisUsername.trim() || null,
       mebbisPassword: values.mebbisPassword.trim() || null,
@@ -252,17 +246,9 @@ export function UserFormModal({
             <label className="form-label">Telefon</label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
-              inputMode="numeric"
-              maxLength={15}
-              placeholder="0 5xx xxx xx xx"
+              maxLength={32}
+              placeholder="Telefon"
               {...phoneRegistration}
-              onChange={(event) =>
-                setValue("phone", formatPhoneInput(event.target.value), {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-              value={phone}
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
           </div>

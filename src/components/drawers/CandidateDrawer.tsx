@@ -14,7 +14,7 @@ import {
 } from "../../lib/documents-api";
 import { getGroups } from "../../lib/groups-api";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
-import { buildWhatsAppUrl, formatPhoneNumber } from "../../lib/phone";
+import { buildWhatsAppUrl } from "../../lib/phone";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import {
@@ -522,7 +522,7 @@ export function CandidateDrawer({
   );
 
   const whatsappUrl = buildWhatsAppUrl(candidate?.phoneNumber);
-  const profileContactText = formatPhoneNumber(candidate?.phoneNumber);
+  const profileContactText = candidate?.phoneNumber?.trim() || "—";
 
   return (
     <Drawer actions={actions} onClose={onClose} open title={title}>

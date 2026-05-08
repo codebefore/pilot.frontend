@@ -241,7 +241,7 @@ describe("DocumentsPage", () => {
     expect(screen.getByLabelText("Sağlık Raporu")).toBeInTheDocument();
     expect(screen.getByLabelText("Nüfus Cüzdanı: var")).toBeInTheDocument();
     expect(screen.getByLabelText("Sağlık Raporu: yok, yukle")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "0 532 123 45 67" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "05321234567" })).toHaveAttribute(
       "href",
       "https://wa.me/905321234567"
     );

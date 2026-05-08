@@ -12,11 +12,7 @@ import {
 } from "../../lib/institution-settings-api";
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
-import {
-  formatPhoneInput,
-  isValidTurkishPhoneNumber,
-  normalizePhoneForSubmit,
-} from "../../lib/phone";
+import { isPhoneStartingWith5 } from "../../lib/phone";
 import {
   getTurkeyDistrictOptions,
   resolveTurkeyDistrictValue,
@@ -82,7 +78,7 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     institutionOfficialName: response.institutionOfficialName ?? "",
     institutionCode: response.institutionCode ?? "",
     institutionAddress: response.institutionAddress ?? "",
-    institutionPhone: formatPhoneInput(response.institutionPhone),
+    institutionPhone: response.institutionPhone ?? "",
     institutionEmail: response.institutionEmail ?? "",
     city,
     district: resolveTurkeyDistrictValue(city, response.district),
@@ -91,12 +87,12 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     founderTaxId: response.founder.taxId ?? "",
     founderTaxOffice: response.founder.taxOffice ?? "",
     founderAddress: response.founder.address ?? "",
-    founderPhone: formatPhoneInput(response.founder.phone),
+    founderPhone: response.founder.phone ?? "",
     authorizedPersons: response.authorizedPersons.map((person) => ({
       clientId: person.id,
       serverId: person.id,
       fullName: person.fullName,
-      phone: formatPhoneInput(person.phone),
+      phone: person.phone ?? "",
       title: person.title ?? "",
     })),
   };
@@ -111,7 +107,7 @@ function toUpsertRequest(
     institutionOfficialName: values.institutionOfficialName.trim() || null,
     institutionCode: values.institutionCode.trim() || null,
     institutionAddress: values.institutionAddress.trim() || null,
-    institutionPhone: normalizePhoneForSubmit(values.institutionPhone),
+    institutionPhone: values.institutionPhone.trim() || null,
     institutionEmail: values.institutionEmail.trim() || null,
     city: values.city.trim() || null,
     district: values.district.trim() || null,
@@ -121,12 +117,12 @@ function toUpsertRequest(
       taxId: values.founderTaxId.trim() || null,
       taxOffice: values.founderTaxOffice.trim() || null,
       address: values.founderAddress.trim() || null,
-      phone: normalizePhoneForSubmit(values.founderPhone),
+      phone: values.founderPhone.trim() || null,
     },
     authorizedPersons: values.authorizedPersons.map((person) => ({
       id: person.serverId,
       fullName: person.fullName.trim(),
-      phone: normalizePhoneForSubmit(person.phone),
+      phone: person.phone.trim() || null,
       title: person.title.trim() || null,
     })),
     mebbis: null,
@@ -265,7 +261,7 @@ export function GeneralInstitutionSection() {
   const handlePhoneInput =
     (field: "institutionPhone" | "founderPhone") =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      setField(field, formatPhoneInput(event.target.value));
+      setField(field, event.target.value);
     };
 
   const handleCityChange = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -301,7 +297,7 @@ export function GeneralInstitutionSection() {
   };
 
   const updateAuthorizedPersonPhone = (clientId: string, value: string) => {
-    updateAuthorizedPerson(clientId, "phone", formatPhoneInput(value));
+    updateAuthorizedPerson(clientId, "phone", value);
   };
 
   const addAuthorizedPerson = () => {
@@ -343,8 +339,11 @@ export function GeneralInstitutionSection() {
     if (values.institutionEmail.trim() && !isValidEmail(values.institutionEmail.trim())) {
       nextErrors.institutionEmail = t("settings.general.validation.email");
     }
-    if (values.institutionPhone.trim() && !isValidTurkishPhoneNumber(values.institutionPhone)) {
-      nextErrors.institutionPhone = t("settings.general.validation.phone");
+    if (values.institutionPhone.trim() && !isPhoneStartingWith5(values.institutionPhone)) {
+      nextErrors.institutionPhone = "5 ile başlamalı";
+    }
+    if (values.founderPhone.trim() && !isPhoneStartingWith5(values.founderPhone)) {
+      nextErrors.founderPhone = "5 ile başlamalı";
     }
     if (values.city && !values.district) {
       nextErrors.district = t("settings.general.validation.districtRequired");
@@ -358,17 +357,13 @@ export function GeneralInstitutionSection() {
     if (values.founderTaxId.trim() && !isValidTaxId(values.founderTaxId.trim())) {
       nextErrors.founderTaxId = t("settings.general.validation.taxId");
     }
-    if (values.founderPhone.trim() && !isValidTurkishPhoneNumber(values.founderPhone)) {
-      nextErrors.founderPhone = t("settings.general.validation.phone");
-    }
-
     for (const person of values.authorizedPersons) {
       const personErrors: Partial<Record<"fullName" | "phone" | "title", string>> = {};
       if (!person.fullName.trim()) {
         personErrors.fullName = t("settings.general.validation.required");
       }
-      if (person.phone.trim() && !isValidTurkishPhoneNumber(person.phone)) {
-        personErrors.phone = t("settings.general.validation.phone");
+      if (person.phone.trim() && !isPhoneStartingWith5(person.phone)) {
+        personErrors.phone = "5 ile başlamalı";
       }
       if (Object.keys(personErrors).length > 0) {
         nextAuthorizedErrors[person.clientId] = personErrors;

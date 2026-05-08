@@ -98,7 +98,7 @@ describe("UserFormModal", () => {
     fireEvent.change(screen.getByPlaceholderText("Ad Soyad"), {
       target: { value: "Kemal Can" },
     });
-    fireEvent.change(screen.getByPlaceholderText("0 5xx xxx xx xx"), {
+    fireEvent.change(screen.getByPlaceholderText("Telefon"), {
       target: { value: "5551234567" },
     });
 
