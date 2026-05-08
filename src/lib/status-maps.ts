@@ -1,12 +1,7 @@
 import type { JobStatus } from "../types";
 import type { CandidateGenderValue } from "./types";
-import { REFERENCE_LICENSE_CLASS_OPTIONS } from "./use-license-class-options";
 
 /* ── Shared select options ── */
-
-export const LICENSE_CLASS_OPTIONS: { value: string; label: string }[] = [
-  ...REFERENCE_LICENSE_CLASS_OPTIONS,
-];
 
 export const EXISTING_LICENSE_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "exempt", label: "Muaf" },

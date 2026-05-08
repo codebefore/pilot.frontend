@@ -5,7 +5,6 @@ import type {
   VehicleTransmissionType,
   VehicleType,
 } from "./types";
-import { REFERENCE_LICENSE_CLASS_OPTIONS } from "./use-license-class-options";
 
 type Option<T extends string> = {
   value: T;
@@ -47,8 +46,6 @@ export const VEHICLE_FUEL_OPTIONS: Option<VehicleFuelType>[] = [
   { value: "electric", label: "Elektrik" },
   { value: "hybrid", label: "Hibrit" },
 ];
-
-export const VEHICLE_LICENSE_CLASS_OPTIONS = [...REFERENCE_LICENSE_CLASS_OPTIONS];
 
 function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string> {
   return options.reduce(

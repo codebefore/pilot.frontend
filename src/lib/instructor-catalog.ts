@@ -2,7 +2,6 @@ import type {
   InstructorEmploymentType,
   InstructorRole,
 } from "./types";
-import { REFERENCE_LICENSE_CLASS_OPTIONS } from "./use-license-class-options";
 
 type Option<T extends string> = {
   value: T;
@@ -27,8 +26,6 @@ export const INSTRUCTOR_EMPLOYMENT_OPTIONS: Option<InstructorEmploymentType>[] =
   { value: "hourly", label: "Ders Saat Ücretli" },
   { value: "other", label: "Diğer Personel" },
 ];
-
-export const INSTRUCTOR_LICENSE_CLASS_OPTIONS = [...REFERENCE_LICENSE_CLASS_OPTIONS];
 
 function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string> {
   return options.reduce(
