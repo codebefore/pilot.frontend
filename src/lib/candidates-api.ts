@@ -1,5 +1,6 @@
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
+  CandidateExistingLicenseRequest,
   CandidateGenderValue,
   CandidateGroupAssignmentResponse,
   CandidateResponse,
@@ -129,6 +130,13 @@ export function setCandidateInitialPaymentReceived(
   return httpPut<void>(`/api/candidates/${id}/initial-payment`, {
     initialPaymentReceived,
   });
+}
+
+export function updateCandidateExistingLicense(
+  id: string,
+  body: CandidateExistingLicenseRequest
+): Promise<CandidateResponse> {
+  return httpPut<CandidateResponse>(`/api/candidates/${id}/existing-license`, body);
 }
 
 export function deleteCandidate(id: string): Promise<void> {

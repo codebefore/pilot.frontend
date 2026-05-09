@@ -16,6 +16,7 @@ import {
   getCandidateById,
   removeActiveGroupAssignment,
   updateCandidate,
+  updateCandidateExistingLicense,
 } from "../lib/candidates-api";
 import {
   cancelCandidateAccountingMovement,
@@ -87,6 +88,7 @@ import type {
   CandidateContactResponse,
   CandidateContactType,
   CandidateContactUpsertRequest,
+  CandidateExistingLicenseRequest,
   CandidateUpsertRequest,
   CandidateAccountingInvoiceResponse,
   CandidateAccountingSummaryResponse,
@@ -1342,7 +1344,6 @@ function LicenseInfoTab({
   const [licenseFieldsOpen, setLicenseFieldsOpen] = useState(
     !!candidate.existingLicenseType
   );
-  const [existingLicensePrograms, setExistingLicensePrograms] = useState<CertificateProgramResponse[]>([]);
   const [existingLicenseOptions, setExistingLicenseOptions] = useState<SelectOption[]>([]);
   const [existingLicenseOptionsLoading, setExistingLicenseOptionsLoading] = useState(false);
   const hasLicense = !!candidate.existingLicenseType;
@@ -1366,31 +1367,17 @@ function LicenseInfoTab({
     const controller = new AbortController();
     setExistingLicenseOptionsLoading(true);
 
-    Promise.all([
-      getCertificatePrograms(
-        {
-          activity: "active",
-          targetLicenseClass: candidate.licenseClass,
-          page: 1,
-          pageSize: 1000,
-          sortBy: "source",
-          sortDir: "asc",
-        },
-        controller.signal
-      ),
-      getLicenseClassDefinitions(
-        {
-          activity: "active",
-          page: 1,
-          pageSize: 1000,
-          sortBy: "displayOrder",
-          sortDir: "asc",
-        },
-        controller.signal
-      ),
-    ])
-      .then(([programResponse, definitionResponse]) => {
-        setExistingLicensePrograms(programResponse.items);
+    getLicenseClassDefinitions(
+      {
+        activity: "active",
+        page: 1,
+        pageSize: 1000,
+        sortBy: "displayOrder",
+        sortDir: "asc",
+      },
+      controller.signal
+    )
+      .then((definitionResponse) => {
         setExistingLicenseOptions(
           buildExistingLicenseOptionsFromDefinitions(
             definitionResponse.items,
@@ -1403,7 +1390,6 @@ function LicenseInfoTab({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setExistingLicensePrograms([]);
         setExistingLicenseOptions([]);
       })
       .finally(() => {
@@ -1426,31 +1412,6 @@ function LicenseInfoTab({
     setLicenseType("");
   }, [existingLicenseOptions, existingLicenseOptionsLoading, licenseType]);
 
-  const findCertificateProgramForExistingLicense = (
-    existingLicenseType: string,
-    existingLicensePre2016: boolean
-  ): CertificateProgramResponse | null => {
-    const selectedKey = normalizeLicenseOptionKey(
-      existingLicenseTypeLabel(existingLicenseType, configuredExistingLicenseTypeOptions)
-    );
-
-    return existingLicensePrograms.find((program) => {
-      if (normalizeLicenseOptionKey(program.sourceLicenseClass) === "YOK") return false;
-      if (program.sourceLicensePre2016 !== existingLicensePre2016) return false;
-
-      const option = optionForCertificateProgramSource(
-        program,
-        configuredExistingLicenseTypeOptions
-      );
-      return (
-        option.value === existingLicenseType ||
-        normalizeLicenseOptionKey(option.label) === selectedKey ||
-        normalizeLicenseOptionKey(program.sourceLicenseClass) === selectedKey ||
-        normalizeLicenseOptionKey(program.sourceLicenseDisplayName) === selectedKey
-      );
-    }) ?? null;
-  };
-
   const saveApplicationField = async (
     patch: Partial<CandidateUpsertRequest>,
     message = "Başvuru bilgileri güncellendi"
@@ -1465,9 +1426,9 @@ function LicenseInfoTab({
     }
   };
 
-  const buildExistingLicensePatch = (
+  const buildExistingLicenseRequest = (
     patch: Partial<CandidateUpsertRequest>
-  ): Partial<CandidateUpsertRequest> => {
+  ): CandidateExistingLicenseRequest => {
     const nextTypeRaw =
       patch.existingLicenseType !== undefined
         ? patch.existingLicenseType
@@ -1480,14 +1441,16 @@ function LicenseInfoTab({
       existingLicensePre2016: nextPre2016,
     } = decodeExistingLicenseSelection(nextTypeRaw ?? "");
 
-    if (!nextType) {
+    // Explicitly picking "— Belge Yok —" from the type dropdown clears every
+    // field; partial saves of other fields (without a type yet) keep going.
+    if (patch.existingLicenseType !== undefined && !nextType) {
       return {
-        certificateProgramId: null,
         existingLicenseType: null,
-        existingLicenseNumber: null,
         existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
         existingLicenseIssuedProvince: null,
         existingLicensePre2016: false,
+        rowVersion: candidate.rowVersion,
       };
     }
 
@@ -1504,20 +1467,13 @@ function LicenseInfoTab({
         ? patch.existingLicenseIssuedProvince?.trim() || null
         : candidate.existingLicenseIssuedProvince;
 
-    if (!nextNumber || !nextIssuedAt || !nextProvince) {
-      showToast("Belge türü, tarih, numara ve il birlikte girilmeli.", "error");
-      throw new Error("existing license required fields missing");
-    }
-
-    const certificateProgram = findCertificateProgramForExistingLicense(nextType, nextPre2016);
-
     return {
-      certificateProgramId: certificateProgram?.id ?? null,
       existingLicenseType: nextType,
-      existingLicenseNumber: nextNumber,
       existingLicenseIssuedAt: nextIssuedAt,
+      existingLicenseNumber: nextNumber,
       existingLicenseIssuedProvince: nextProvince,
       existingLicensePre2016: nextPre2016,
+      rowVersion: candidate.rowVersion,
     };
   };
 
@@ -1526,16 +1482,13 @@ function LicenseInfoTab({
     message = "Ehliyet bilgileri güncellendi"
   ) => {
     try {
-      const updated = await updateCandidateField(candidate, buildExistingLicensePatch(patch));
+      const updated = await updateCandidateExistingLicense(
+        candidate.id,
+        buildExistingLicenseRequest(patch)
+      );
       onSaved(updated);
       showToast(message);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "existing license required fields missing"
-      ) {
-        throw error;
-      }
+    } catch {
       showToast("Ehliyet bilgileri kaydedilemedi", "error");
       throw new Error("save failed");
     }
@@ -1630,12 +1583,10 @@ function LicenseInfoTab({
                 ...existingLicenseOptions,
               ]}
               onSave={(value) =>
-                hasLicense
-                  ? saveExistingLicenseField(
-                      { existingLicenseType: value || null },
-                      value ? "Mevcut sürücü belgesi güncellendi" : "Mevcut sürücü belgesi kaldırıldı"
-                    )
-                  : Promise.resolve(setLicenseType(value))
+                saveExistingLicenseField(
+                  { existingLicenseType: value || null },
+                  value ? "Mevcut sürücü belgesi güncellendi" : "Mevcut sürücü belgesi kaldırıldı"
+                )
               }
             />
             <EditableRow
@@ -1645,9 +1596,7 @@ function LicenseInfoTab({
               inputLang="tr-TR"
               label="Belge Tarihi"
               onSave={(value) =>
-                hasLicense
-                  ? saveExistingLicenseField({ existingLicenseIssuedAt: value || null })
-                  : Promise.resolve(setIssuedAt(value || todayIsoDate()))
+                saveExistingLicenseField({ existingLicenseIssuedAt: value || null })
               }
             />
             <EditableRow
@@ -1655,9 +1604,7 @@ function LicenseInfoTab({
               inputValue={hasLicense ? candidate.existingLicenseNumber ?? "" : licenseNumber}
               label="Belge No"
               onSave={(value) =>
-                hasLicense
-                  ? saveExistingLicenseField({ existingLicenseNumber: value || null })
-                  : Promise.resolve(setLicenseNumber(value))
+                saveExistingLicenseField({ existingLicenseNumber: value || null })
               }
             />
             <EditableRow
@@ -1666,9 +1613,7 @@ function LicenseInfoTab({
               label="Belge Veriliş İli"
               options={TURKEY_PROVINCE_OPTIONS}
               onSave={(value) =>
-                hasLicense
-                  ? saveExistingLicenseField({ existingLicenseIssuedProvince: value || null })
-                  : Promise.resolve(setIssuedProvince(value))
+                saveExistingLicenseField({ existingLicenseIssuedProvince: value || null })
               }
             />
             {!existingLicenseOptionsLoading && existingLicenseOptions.length === 0 ? (

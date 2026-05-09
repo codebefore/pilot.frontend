@@ -157,6 +157,15 @@ export interface CandidateUpsertRequest {
   rowVersion?: number;
 }
 
+export interface CandidateExistingLicenseRequest {
+  existingLicenseType: string | null;
+  existingLicenseIssuedAt: string | null;
+  existingLicenseNumber: string | null;
+  existingLicenseIssuedProvince: string | null;
+  existingLicensePre2016: boolean;
+  rowVersion: number;
+}
+
 export type CandidateChargeSourceType = "manual" | "matrix";
 export type CandidateBillingStatus = "active" | "cancelled";
 export type CandidatePaymentMethod = "cash" | "bank_transfer" | "credit_card" | "mail_order" | "other";
