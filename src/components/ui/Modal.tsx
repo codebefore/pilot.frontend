@@ -16,7 +16,7 @@ export function Modal({
   title,
   titleExtra,
   onClose,
-  closeOnOverlayClick = true,
+  closeOnOverlayClick = false,
   children,
   footer
 }: ModalProps) {
