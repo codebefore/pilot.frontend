@@ -38,7 +38,6 @@ import {
 } from "../lib/candidate-exam-attempts-api";
 import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
-import { getCertificatePrograms } from "../lib/certificate-programs-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstructors } from "../lib/instructors-api";
 import { getGroups } from "../lib/groups-api";
@@ -99,7 +98,6 @@ import type {
   CandidatePaymentMethod,
   CashRegisterResponse,
   CertificateProgramFeeRowResponse,
-  CertificateProgramResponse,
   LicenseClassDefinitionResponse,
   DocumentMetadataField,
   DocumentResponse,
@@ -1186,29 +1184,6 @@ function normalizeLicenseOptionKey(value: string): string {
     .replace(/YENI\s*NESIL/g, "NEWGEN")
     .replace(/ENGELLI/g, "DISABLED")
     .replace(/[^A-Z0-9]/g, "");
-}
-
-function optionForCertificateProgramSource(
-  program: CertificateProgramResponse,
-  configuredExistingLicenseTypeOptions: SelectOption[]
-): SelectOption {
-  const sourceKeys = [
-    normalizeLicenseOptionKey(program.sourceLicenseClass),
-    normalizeLicenseOptionKey(program.sourceLicenseDisplayName),
-  ];
-
-  const matched = configuredExistingLicenseTypeOptions.find((option) => {
-    const optionKeys = [
-      normalizeLicenseOptionKey(option.value),
-      normalizeLicenseOptionKey(option.label),
-    ];
-    return optionKeys.some((key) => sourceKeys.includes(key));
-  });
-
-  return {
-    value: matched?.value ?? program.sourceLicenseClass,
-    label: matched?.label ?? program.sourceLicenseDisplayName,
-  };
 }
 
 type ExistingLicenseRuleOption = SelectOption & {
