@@ -232,6 +232,34 @@
   transform: translateX(10px);
 }
 
+label.training-filters-item-selected:not(.training-filters-item-meb-sent) > .switch-toggle-control {
+  background: var(--gray-400);
+}
+
+label.training-filters-item[data-meb-sent="true"] > input[type="checkbox"] + .switch-toggle-control,
+label.training-filters-item-meb-sent > .switch-toggle-control {
+  background: rgba(34, 176, 148, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(34, 176, 148, 0.55);
+  opacity: 1;
+  cursor: pointer;
+}
+
+label.training-filters-item[data-meb-sent="true"] > input[type="checkbox"] + .switch-toggle-control::after,
+label.training-filters-item-meb-sent > .switch-toggle-control::after {
+  transform: translateX(0);
+}
+
+label.training-filters-item[data-meb-sent="true"] > input[type="checkbox"]:checked + .switch-toggle-control,
+label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-toggle-control {
+  background: var(--brand);
+  box-shadow: none;
+}
+
+label.training-filters-item[data-meb-sent="true"] > input[type="checkbox"]:checked + .switch-toggle-control::after,
+label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-toggle-control::after {
+  transform: translateX(10px);
+}
+
 .training-filters-dot {
   display: inline-block;
   width: 10px;

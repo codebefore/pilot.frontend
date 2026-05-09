@@ -65,9 +65,17 @@ export function QuickLessonAssignment({
       <ul className="training-filters-list training-filters-list-scroll">
         {filteredGroups.map((group) => {
           const checked = group.id === groupId;
+          const isMebbisSent = group.mebStatus?.trim().toLowerCase() === "sent";
           return (
             <li key={group.id}>
-              <label className="training-filters-item switch-toggle switch-toggle-sm">
+              <label
+                className={[
+                  "training-filters-item switch-toggle switch-toggle-sm",
+                  checked ? "training-filters-item-selected" : "",
+                  isMebbisSent ? "training-filters-item-meb-sent" : "",
+                ].filter(Boolean).join(" ")}
+                data-meb-sent={isMebbisSent ? "true" : undefined}
+              >
                 <input
                   checked={checked}
                   disabled={isLoading}

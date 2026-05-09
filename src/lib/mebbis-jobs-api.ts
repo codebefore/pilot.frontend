@@ -60,6 +60,10 @@ export async function listMebbisJobs(limit = 100): Promise<MebbisJobResponse[]> 
   return response.items;
 }
 
+export async function getMebbisJob(jobId: string): Promise<MebbisJobResponse> {
+  return httpGet<MebbisJobResponse>(`/api/mebbis/jobs/${jobId}`);
+}
+
 export async function listMebbisJobSteps(jobId: string): Promise<MebbisJobStepResponse[]> {
   const response = await httpGet<MebbisJobStepListResponse>(`/api/mebbis/jobs/${jobId}/steps`);
   return response.items;
@@ -72,6 +76,13 @@ export async function cancelMebbisJob(jobId: string): Promise<MebbisJobResponse>
 export async function createCandidateLookupJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/lookup`,
+    {}
+  );
+}
+
+export async function createTheoryScheduleSyncJob(groupId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/groups/${groupId}/theory-schedule-sync`,
     {}
   );
 }
@@ -108,6 +119,8 @@ export function mebbisJobTypeLabel(jobType: string): string {
       return "Aday Sınav Sonucu";
     case "instructor_permit_create":
       return "Eğitmen İzin Oluşturma";
+    case "theory_schedule_sync":
+      return "Teorik Ders Programı Aktarımı";
     default:
       return jobType;
   }
