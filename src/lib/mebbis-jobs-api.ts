@@ -87,6 +87,13 @@ export async function createTheoryScheduleSyncJob(groupId: string): Promise<Mebb
   );
 }
 
+export async function createTheoryScheduleImportJob(groupId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/groups/${groupId}/theory-schedule-import`,
+    {}
+  );
+}
+
 export function mapMebbisStatusToJobStatus(status: string): JobStatus {
   switch (status) {
     case "succeeded":
@@ -121,6 +128,8 @@ export function mebbisJobTypeLabel(jobType: string): string {
       return "Eğitmen İzin Oluşturma";
     case "theory_schedule_sync":
       return "Teorik Ders Programı Aktarımı";
+    case "theory_schedule_import":
+      return "Teorik Ders Programı Çekme";
     default:
       return jobType;
   }

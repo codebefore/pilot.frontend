@@ -29,7 +29,11 @@ import {
 import { getCandidates } from "../lib/candidates-api";
 import { getGroupById, getGroups } from "../lib/groups-api";
 import { getInstructors } from "../lib/instructors-api";
-import { createTheoryScheduleSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
+import {
+  createTheoryScheduleImportJob,
+  createTheoryScheduleSyncJob,
+  getMebbisJob,
+} from "../lib/mebbis-jobs-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import {
   clearPracticeCandidateScope,
@@ -129,6 +133,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
   const [isMebbisTransferLoading, setIsMebbisTransferLoading] = useState(false);
+  const [isMebbisImportLoading, setIsMebbisImportLoading] = useState(false);
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
@@ -1224,7 +1229,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
         if (job.status === "succeeded") {
           await refreshGroupAfterMebbisTransfer(groupId);
           finishMebbisJobPoll(jobId);
-          showToast(t("training.toast.mebbisTransferCompleted"));
+          showToast(t(
+            job.jobType === "theory_schedule_import"
+              ? "training.toast.mebbisImportCompleted"
+              : "training.toast.mebbisTransferCompleted"
+          ));
           return;
         }
 
@@ -1278,6 +1287,31 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast(message);
     } finally {
       setIsMebbisTransferLoading(false);
+    }
+  };
+
+  const handleCreateTheoryScheduleImportJob = async () => {
+    if (!selectedTheoryGroup) {
+      showToast(t("training.toast.selectGroupForMebbisImport"));
+      return;
+    }
+
+    setIsMebbisImportLoading(true);
+    try {
+      const job = await createTheoryScheduleImportJob(selectedTheoryGroup.id);
+      notifyMebbisJobQueued(job.id, job.jobType);
+      showToast(t("training.toast.mebbisImportQueued"));
+      scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("training.toast.mebbisImportFailed")
+          : t("training.toast.mebbisImportFailed");
+      showToast(message);
+    } finally {
+      setIsMebbisImportLoading(false);
     }
   };
 
@@ -1344,7 +1378,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     !selectedTheoryGroup ||
                     isQuickAssignLoading ||
                     isBulkDeleteLoading ||
-                    isMebbisTransferLoading
+                    isMebbisTransferLoading ||
+                    isMebbisImportLoading
                   }
                   onClick={handleCreateTheoryScheduleSyncJob}
                   type="button"
@@ -1353,6 +1388,25 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   {isMebbisTransferLoading
                     ? t("training.mebbis.transferQueuing")
                     : t("training.mebbis.transfer")}
+                </button>
+              ) : null}
+              {type === "teorik" ? (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={
+                    !selectedTheoryGroup ||
+                    isQuickAssignLoading ||
+                    isBulkDeleteLoading ||
+                    isMebbisTransferLoading ||
+                    isMebbisImportLoading
+                  }
+                  onClick={handleCreateTheoryScheduleImportJob}
+                  type="button"
+                >
+                  <MebIcon size={14} />
+                  {isMebbisImportLoading
+                    ? t("training.mebbis.importQueuing")
+                    : t("training.mebbis.import")}
                 </button>
               ) : null}
               {selectedTheoryGroup ? (
