@@ -70,6 +70,7 @@ export function buildCandidateUpdatePayload(
     terminationReason: candidate.terminationReason,
     terminationDate: candidate.terminationDate,
     tags: overrides?.tags ?? (candidate.tags?.map((tag) => tag.name) ?? []),
+    rowVersion: candidate.rowVersion,
   };
 }
 
