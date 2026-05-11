@@ -973,6 +973,30 @@
   flex-direction: column;
   gap: 14px;
 }
+.candidate-detail-doc-overview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.candidate-detail-doc-overview-head .candidate-detail-section-title {
+  margin: 0;
+}
+.candidate-detail-doc-overview-note {
+  margin: 4px 0 0;
+  color: var(--gray-600);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.candidate-detail-doc-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.candidate-detail-doc-mebbis-action {
+  flex-shrink: 0;
+}
 .candidate-detail-doc-filters {
   display: flex;
   gap: 6px;

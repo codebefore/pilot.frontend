@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type FocusEvent,
   type FocusEventHandler,
   type Ref,
@@ -178,6 +179,9 @@ export function LocalizedDateInput({
     const baseDate = parseIsoDate(value) ?? parseIsoDate(defaultOnOpen) ?? parseIsoDate(todayISO())!;
     return monthStart(baseDate);
   });
+  const initialView: "day" | "month" | "year" = isYearMode ? "year" : isMonthMode ? "month" : "day";
+  const [view, setView] = useState<"day" | "month" | "year">(initialView);
+  const [typedValue, setTypedValue] = useState<string | null>(null);
 
   const selectedDate = useMemo(() => parseIsoDate(value), [value]);
   const selectedMonth = useMemo(
@@ -214,7 +218,8 @@ export function LocalizedDateInput({
   useEffect(() => {
     if (!open) return;
     setVisibleMonth(selectedMonth);
-  }, [open, selectedMonth]);
+    setView(initialView);
+  }, [open, selectedMonth, initialView]);
 
   const assignInputRef = (node: HTMLInputElement | null) => {
     hiddenInputRef.current = node;
@@ -250,10 +255,37 @@ export function LocalizedDateInput({
     setOpen(true);
   };
 
-  const selectDate = (iso: string) => {
+  const commitDate = (iso: string) => {
     onChange(iso);
+    setTypedValue(null);
     setOpen(false);
     notifyBlur();
+  };
+
+  const selectDayCell = (iso: string) => {
+    commitDate(iso);
+  };
+
+  const selectMonthCell = (iso: string) => {
+    if (isMonthMode) {
+      commitDate(iso);
+      return;
+    }
+    const parsed = parseIsoDate(iso);
+    if (parsed) setVisibleMonth(monthStart(parsed));
+    setView("day");
+  };
+
+  const selectYearCell = (iso: string) => {
+    if (isYearMode) {
+      commitDate(iso);
+      return;
+    }
+    const parsed = parseIsoDate(iso);
+    if (parsed) {
+      setVisibleMonth(new Date(Date.UTC(parsed.getUTCFullYear(), visibleMonth.getUTCMonth(), 1)));
+    }
+    setView(isMonthMode ? "month" : "month");
   };
 
   const onHiddenInputChange = (nextValue: string) => {
@@ -323,6 +355,86 @@ export function LocalizedDateInput({
     });
   }, [today, value, visibleMonth]);
 
+  const parseTypedToIso = (raw: string): string | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+
+    if (isYearMode) {
+      if (!/^\d{4}$/.test(trimmed)) return null;
+      const year = Number(trimmed);
+      if (year < 1900 || year > 2999) return null;
+      return `${trimmed}-01-01`;
+    }
+
+    if (isMonthMode) {
+      const m = lang === "tr-TR"
+        ? trimmed.match(/^(\d{1,2})[./-](\d{4})$/)
+        : trimmed.match(/^(\d{1,2})[./-](\d{4})$/) || trimmed.match(/^(\d{4})[./-](\d{1,2})$/);
+      if (!m) return null;
+      let year: number;
+      let month: number;
+      if (lang === "tr-TR") {
+        month = Number(m[1]);
+        year = Number(m[2]);
+      } else if (m[1].length === 4) {
+        year = Number(m[1]);
+        month = Number(m[2]);
+      } else {
+        month = Number(m[1]);
+        year = Number(m[2]);
+      }
+      if (month < 1 || month > 12 || year < 1900 || year > 2999) return null;
+      return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+    }
+
+    const m = lang === "tr-TR"
+      ? trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
+      : trimmed.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
+    if (!m) return null;
+    let year: number;
+    let month: number;
+    let day: number;
+    if (lang === "tr-TR") {
+      day = Number(m[1]);
+      month = Number(m[2]);
+      year = Number(m[3]);
+    } else {
+      year = Number(m[1]);
+      month = Number(m[2]);
+      day = Number(m[3]);
+    }
+    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2999) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      return null;
+    }
+    return toIsoDate(date);
+  };
+
+  const handleTriggerInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const raw = event.target.value;
+    setTypedValue(raw);
+    const iso = parseTypedToIso(raw);
+    if (iso === "") {
+      onChange("");
+      return;
+    }
+    if (iso) {
+      onChange(iso);
+      const parsed = parseIsoDate(iso);
+      if (parsed) setVisibleMonth(monthStart(parsed));
+    }
+  };
+
+  const handleTriggerInputBlur = (event: FocusEvent<HTMLInputElement>) => {
+    setTypedValue(null);
+    if (onBlur) onBlur(event);
+  };
+
   const triggerClassName = [
     className ?? (size === "sm" ? "form-input-sm" : "form-input"),
     "localized-date-trigger",
@@ -354,21 +466,40 @@ export function LocalizedDateInput({
           aria-label={ariaLabel}
           className="localized-date-trigger-input"
           disabled={disabled}
+          onChange={handleTriggerInputChange}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!open) openCalendar();
+          }}
           onFocus={() => {
             if (!open) {
               openCalendar();
             }
           }}
+          onBlur={handleTriggerInputBlur}
           onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+            if (event.key === "ArrowDown") {
               event.preventDefault();
-              openCalendar();
+              if (!open) openCalendar();
+              return;
+            }
+            if (event.key === "Enter") {
+              event.preventDefault();
+              const iso = parseTypedToIso(event.currentTarget.value);
+              if (iso) {
+                commitDate(iso);
+              } else if (iso === "") {
+                commitDate("");
+              }
+            }
+            if (event.key === "Escape") {
+              setTypedValue(null);
+              setOpen(false);
             }
           }}
           placeholder={placeholder || defaultPlaceholder(lang, mode)}
-          readOnly
           type="text"
-          value={displayValue}
+          value={typedValue ?? displayValue}
         />
         <span className="localized-date-icons" aria-hidden="true">
           <CalendarIcon size={size === "sm" ? 14 : 16} />
@@ -400,9 +531,9 @@ export function LocalizedDateInput({
               className="localized-date-nav-btn"
               onClick={() =>
                 setVisibleMonth((current) =>
-                  isYearMode
+                  view === "year"
                     ? addYears(current, -12)
-                    : isMonthMode
+                    : view === "month"
                       ? addYears(current, -1)
                       : addMonths(current, -1)
                 )
@@ -411,20 +542,28 @@ export function LocalizedDateInput({
             >
               ‹
             </button>
-            <div className="localized-date-month-label">
-              {isYearMode
+            <button
+              className="localized-date-month-label localized-date-view-toggle"
+              onClick={() => {
+                if (view === "day") setView("month");
+                else if (view === "month") setView("year");
+              }}
+              type="button"
+              disabled={view === "year"}
+            >
+              {view === "year"
                 ? `${yearCells[0]?.label ?? ""} - ${yearCells[yearCells.length - 1]?.label ?? ""}`
-                : isMonthMode
+                : view === "month"
                 ? String(visibleMonth.getUTCFullYear())
                 : monthLabel(visibleMonth, lang)}
-            </div>
+            </button>
             <button
               className="localized-date-nav-btn"
               onClick={() =>
                 setVisibleMonth((current) =>
-                  isYearMode
+                  view === "year"
                     ? addYears(current, 12)
-                    : isMonthMode
+                    : view === "month"
                       ? addYears(current, 1)
                       : addMonths(current, 1)
                 )
@@ -435,7 +574,7 @@ export function LocalizedDateInput({
             </button>
           </div>
 
-          {isYearMode ? (
+          {view === "year" ? (
             <div className="localized-date-grid localized-month-grid localized-year-grid">
               {yearCells.map((cell) => (
                 <button
@@ -449,14 +588,14 @@ export function LocalizedDateInput({
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  onClick={() => selectDate(cell.iso)}
+                  onClick={() => selectYearCell(cell.iso)}
                   type="button"
                 >
                   {cell.label}
                 </button>
               ))}
             </div>
-          ) : isMonthMode ? (
+          ) : view === "month" ? (
             <div className="localized-date-grid localized-month-grid">
               {monthCells.map((cell) => (
                 <button
@@ -469,7 +608,7 @@ export function LocalizedDateInput({
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  onClick={() => selectDate(cell.iso)}
+                  onClick={() => selectMonthCell(cell.iso)}
                   type="button"
                 >
                   {cell.label}
@@ -498,7 +637,7 @@ export function LocalizedDateInput({
                       ]
                         .filter(Boolean)
                         .join(" ")}
-                      onClick={() => selectDate(cell.iso)}
+                      onClick={() => selectDayCell(cell.iso)}
                       type="button"
                     >
                       {cell.label}
@@ -513,7 +652,7 @@ export function LocalizedDateInput({
             <button
               className="localized-date-footer-btn"
               onClick={() =>
-                selectDate(
+                commitDate(
                   isYearMode
                     ? `${today.slice(0, 4)}-01-01`
                     : isMonthMode

@@ -80,6 +80,13 @@ export async function createCandidateLookupJob(candidateId: string): Promise<Meb
   );
 }
 
+export async function createCandidateSyncJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/sync`,
+    {}
+  );
+}
+
 export async function createTheoryScheduleSyncJob(groupId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/groups/${groupId}/theory-schedule-sync`,

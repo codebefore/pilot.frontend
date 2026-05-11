@@ -71,6 +71,7 @@ import {
   updateCandidateDocumentMebbisTransfer,
   uploadDocument,
 } from "../lib/documents-api";
+import { createCandidateSyncJob } from "../lib/mebbis-jobs-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
   candidateGenderLabel,
@@ -121,6 +122,22 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "documents", label: "Evraklar" },
   { key: "payments", label: "Muhasebe" },
 ];
+
+function notifyMebbisJobQueued(jobId: string, jobType: string): void {
+  const delays = [0, 250, 1000, 2500];
+  for (const delay of delays) {
+    window.setTimeout(() => {
+      window.postMessage(
+        {
+          type: "pilot:mebbis-job-queued",
+          jobId,
+          jobType,
+        },
+        window.location.origin
+      );
+    }, delay);
+  }
+}
 
 function calculateAge(birthDateIso: string | null): number | null {
   if (!birthDateIso) return null;
@@ -4473,7 +4490,10 @@ function DocumentsTab({
   error: string | null;
   onRefresh: () => Promise<void>;
 }) {
+  const { showToast } = useToast();
   const [statusFilter, setStatusFilter] = useState<CandidateDocumentFilter>("all");
+  const [bulkMebbisLoading, setBulkMebbisLoading] = useState(false);
+  const [candidateSyncQueuing, setCandidateSyncQueuing] = useState(false);
 
   if (loading) {
     return <div className="instructor-detail-card instructor-detail-empty">Yükleniyor...</div>;
@@ -4529,10 +4549,82 @@ function DocumentsTab({
   };
   const filteredRequiredTypes = requiredTypes.filter(matchesFilter);
   const filteredOptionalTypes = optionalTypes.filter(matchesFilter);
+  const pendingMebbisTypes = sortedTypes.filter((type) => {
+    const upload = uploadsByKey.get(type.key) ?? null;
+    return getCandidateDocumentStatus(upload) !== "missing" && upload?.isMebbisTransferred !== true;
+  });
+
+  const handleBulkMebbisTransfer = async () => {
+    if (bulkMebbisLoading || pendingMebbisTypes.length === 0) return;
+    setBulkMebbisLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        pendingMebbisTypes.map((type) =>
+          updateCandidateDocumentMebbisTransfer(candidateId, type.id, true)
+        )
+      );
+      const successCount = results.filter((result) => result.status === "fulfilled").length;
+      const failureCount = results.length - successCount;
+      await onRefresh();
+      if (failureCount > 0 && successCount > 0) {
+        showToast(`${successCount} evrak Mebbis işaretlendi, ${failureCount} evrak işaretlenemedi`, "error");
+      } else if (failureCount > 0) {
+        showToast("Evraklar Mebbis işaretlenemedi", "error");
+      } else {
+        showToast(`${successCount} evrak Mebbis işaretlendi`);
+      }
+    } catch {
+      showToast("Evraklar Mebbis işaretlenemedi", "error");
+    } finally {
+      setBulkMebbisLoading(false);
+    }
+  };
+
+  const handleQueueCandidateSync = async () => {
+    if (candidateSyncQueuing) return;
+    setCandidateSyncQueuing(true);
+    try {
+      const job = await createCandidateSyncJob(candidateId);
+      notifyMebbisJobQueued(job.id, job.jobType);
+      showToast("Aday dönem kaydı kuyruğa alındı");
+    } catch {
+      showToast("Aday dönem kaydı kuyruğa alınamadı", "error");
+    } finally {
+      setCandidateSyncQueuing(false);
+    }
+  };
 
   return (
     <div className="candidate-detail-tab-content">
       <section className="instructor-detail-card candidate-detail-doc-overview">
+        <div className="candidate-detail-doc-overview-head">
+          <div>
+            <h3 className="candidate-detail-section-title">Evrak Durumu</h3>
+            <p className="candidate-detail-doc-overview-note">
+              {pendingMebbisTypes.length > 0
+                ? `${pendingMebbisTypes.length} evrak Mebbis işareti bekliyor.`
+                : "Mebbis işareti bekleyen evrak yok."}
+            </p>
+          </div>
+          <div className="candidate-detail-doc-overview-actions">
+            <button
+              className="btn btn-primary btn-sm candidate-detail-doc-mebbis-action"
+              disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0}
+              onClick={handleBulkMebbisTransfer}
+              type="button"
+            >
+              {bulkMebbisLoading ? "İşaretleniyor..." : "Mebbis İşaretle"}
+            </button>
+            <button
+              className="btn btn-primary btn-sm candidate-detail-doc-mebbis-action"
+              disabled={candidateSyncQueuing}
+              onClick={handleQueueCandidateSync}
+              type="button"
+            >
+              {candidateSyncQueuing ? "Kuyruğa alınıyor..." : "Döneme Kaydet"}
+            </button>
+          </div>
+        </div>
         <div className="candidate-detail-doc-filters" role="tablist" aria-label="Evrak durum filtresi">
           {filterOptions.map((option) => (
             <button
