@@ -123,6 +123,9 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "payments", label: "Muhasebe" },
 ];
 
+const HERO_DOCUMENT_KEYS = ["identity_card", "existing_license_copy", "application_form"] as const;
+type HeroDocumentKey = (typeof HERO_DOCUMENT_KEYS)[number];
+
 function notifyMebbisJobQueued(jobId: string, jobType: string): void {
   const delays = [0, 250, 1000, 2500];
   for (const delay of delays) {
@@ -4429,12 +4432,59 @@ function formatFileSize(bytes: number | null): string | null {
 type CandidateDocumentStatus = "uploaded" | "physical" | "missing";
 type CandidateDocumentFilter = "all" | "missing" | "available" | "mebbis";
 const PHOTO_DOCUMENT_TYPE_KEYS = ["biometric_photo", "webcam_photo"] as const;
+const CONTRACT_DOCUMENT_TYPE_KEYS = ["contract_front", "contract_back"] as const;
+const A4_DOCUMENT_TYPE_KEYS = [
+  "education_certificate",
+  "health_report",
+  "criminal_record",
+] as const;
 const PRINTABLE_DOCUMENT_TYPE_KEYS = [
   "signature_sample",
   "contract_front",
   "contract_back",
   "application_form",
 ] as const;
+
+const HEALTH_REPORT_FOREIGN_LANGUAGES: Array<{ value: string; label: string }> = [
+  { value: "arabic", label: "Arapça" },
+  { value: "chinese", label: "Çince" },
+  { value: "english", label: "İngilizce" },
+  { value: "german", label: "Almanca" },
+  { value: "french", label: "Fransızca" },
+  { value: "persian", label: "Farsça" },
+  { value: "russian", label: "Rusça" },
+  { value: "spanish", label: "İspanyolca" },
+];
+
+const HEALTH_REPORT_DISABILITY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "none", label: "Engeli Yok" },
+  {
+    value: "orthopedic_hands",
+    label: "Ortopedik Engelli (Ellerini ve/veya Kollarını Kullanamıyor)",
+  },
+  {
+    value: "orthopedic_legs",
+    label: "Ortopedik Engelli (Yürüyemiyor ve/veya Ayaklarında Problem Var)",
+  },
+  { value: "hearing_speech", label: "İşitme, Dil veya Konuşma Engelli" },
+  { value: "vision_one_eye", label: "Görme Engelli (Bir Gözü Görmüyor)" },
+  { value: "vision_low", label: "Görme Engelli (Büyüteç Yardımı İle Görebiliyor)" },
+  { value: "chronic_illness", label: "Süreğen Hastalığı Var" },
+];
+
+const HEALTH_REPORT_META_KEYS = {
+  foreignLanguage: "foreign_language",
+  disability: "disability",
+  needsTranslator: "needs_translator",
+  needsSignLanguageTranslator: "needs_sign_language_translator",
+} as const;
+
+const HEALTH_REPORT_EXTRA_KEYS = new Set<string>([
+  HEALTH_REPORT_META_KEYS.foreignLanguage,
+  HEALTH_REPORT_META_KEYS.disability,
+  HEALTH_REPORT_META_KEYS.needsTranslator,
+  HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator,
+]);
 
 function isPhotoDocumentType(type: DocumentTypeResponse): boolean {
   return PHOTO_DOCUMENT_TYPE_KEYS.includes(
@@ -4445,6 +4495,22 @@ function isPhotoDocumentType(type: DocumentTypeResponse): boolean {
 function isPrintableDocumentType(type: DocumentTypeResponse): boolean {
   return PRINTABLE_DOCUMENT_TYPE_KEYS.includes(
     type.key as (typeof PRINTABLE_DOCUMENT_TYPE_KEYS)[number]
+  );
+}
+
+function isContractDocumentType(type: DocumentTypeResponse): boolean {
+  return CONTRACT_DOCUMENT_TYPE_KEYS.includes(
+    type.key as (typeof CONTRACT_DOCUMENT_TYPE_KEYS)[number]
+  );
+}
+
+function isSignatureDocumentType(type: DocumentTypeResponse): boolean {
+  return type.key === "signature_sample";
+}
+
+function isA4DocumentType(type: DocumentTypeResponse): boolean {
+  return A4_DOCUMENT_TYPE_KEYS.includes(
+    type.key as (typeof A4_DOCUMENT_TYPE_KEYS)[number]
   );
 }
 
@@ -4514,8 +4580,28 @@ function DocumentsTab({
   }
 
   const sortedTypes = [...documentTypes].sort((a, b) => a.sortOrder - b.sortOrder);
-  const requiredTypes = sortedTypes.filter((t) => t.isRequired);
-  const optionalTypes = sortedTypes.filter((t) => !t.isRequired);
+  const heroTypes = HERO_DOCUMENT_KEYS
+    .map((key) => sortedTypes.find((t) => t.key === key))
+    .filter((t): t is DocumentTypeResponse => t !== undefined);
+  const photoTypes = PHOTO_DOCUMENT_TYPE_KEYS
+    .map((key) => sortedTypes.find((t) => t.key === key))
+    .filter((t): t is DocumentTypeResponse => t !== undefined);
+  const contractTypes = CONTRACT_DOCUMENT_TYPE_KEYS
+    .map((key) => sortedTypes.find((t) => t.key === key))
+    .filter((t): t is DocumentTypeResponse => t !== undefined);
+  const requiredTypes = sortedTypes.filter(
+    (t) =>
+      t.isRequired &&
+      !HERO_DOCUMENT_KEYS.includes(t.key as HeroDocumentKey) &&
+      !PHOTO_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]) &&
+      !CONTRACT_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof CONTRACT_DOCUMENT_TYPE_KEYS)[number])
+  );
+  const optionalTypes = sortedTypes.filter(
+    (t) =>
+      !t.isRequired &&
+      !PHOTO_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]) &&
+      !CONTRACT_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof CONTRACT_DOCUMENT_TYPE_KEYS)[number])
+  );
   const statusCounts = sortedTypes.reduce(
     (acc, type) => {
       const upload = uploadsByKey.get(type.key) ?? null;
@@ -4642,10 +4728,44 @@ function DocumentsTab({
         </div>
       </section>
 
+      {heroTypes.length > 0 && (
+        <section className="instructor-detail-card candidate-detail-doc-hero-card">
+          <h3 className="candidate-detail-section-title">Zorunlu Evraklar</h3>
+          <div className="candidate-detail-doc-hero-grid">
+            {heroTypes.map((type) => (
+              <HeroDocumentCard
+                candidateId={candidateId}
+                key={type.id}
+                onRefresh={onRefresh}
+                type={type}
+                upload={uploadsByKey.get(type.key) ?? null}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {photoTypes.length > 0 && (
+        <section className="instructor-detail-card">
+          <h3 className="candidate-detail-section-title">Fotoğraflar</h3>
+          <ul className="candidate-detail-doc-list candidate-detail-doc-photo-grid">
+            {photoTypes.filter(matchesFilter).map((type) => (
+              <DocRow
+                candidateId={candidateId}
+                key={type.id}
+                onRefresh={onRefresh}
+                type={type}
+                upload={uploadsByKey.get(type.key) ?? null}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Zorunlu Evraklar</h3>
+        <h3 className="candidate-detail-section-title">Diğer Zorunlu Evraklar</h3>
         {requiredTypes.length === 0 ? (
-          <div className="instructor-detail-empty">Tanımlı zorunlu evrak yok.</div>
+          <div className="instructor-detail-empty">Tanımlı diğer zorunlu evrak yok.</div>
         ) : filteredRequiredTypes.length === 0 ? (
           <div className="instructor-detail-empty">Bu filtrede zorunlu evrak yok.</div>
         ) : (
@@ -4683,7 +4803,261 @@ function DocumentsTab({
           )}
         </section>
       )}
+
+      {contractTypes.length > 0 && (
+        <section className="instructor-detail-card">
+          <h3 className="candidate-detail-section-title">Sözleşme</h3>
+          <ul className="candidate-detail-doc-list candidate-detail-doc-photo-grid">
+            {contractTypes.filter(matchesFilter).map((type) => (
+              <DocRow
+                candidateId={candidateId}
+                key={type.id}
+                onRefresh={onRefresh}
+                type={type}
+                upload={uploadsByKey.get(type.key) ?? null}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
+  );
+}
+
+function HeroDocumentCard({
+  candidateId,
+  type,
+  upload,
+  onRefresh,
+}: {
+  candidateId: string;
+  type: DocumentTypeResponse;
+  upload: DocumentResponse | null;
+  onRefresh: () => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const isAvailable = upload !== null && (upload.hasFile || upload.isPhysicallyAvailable);
+  const [saving, setSaving] = useState(false);
+
+  const setAvailable = async () => {
+    if (saving || isAvailable) return;
+    setSaving(true);
+    try {
+      if (upload) {
+        await updateCandidateDocument(candidateId, upload.id, {
+          isPhysicallyAvailable: true,
+          uploadedAtUtc: new Date().toISOString(),
+        });
+      } else {
+        await uploadDocument({
+          candidateId,
+          documentTypeId: type.id,
+          file: null,
+          isPhysicallyAvailable: true,
+        });
+      }
+      await onRefresh();
+    } catch {
+      showToast(`${type.name} işaretlenemedi`, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setUnavailable = async () => {
+    if (saving || !isAvailable) return;
+    if (!upload) return;
+    setSaving(true);
+    try {
+      if (upload.hasFile) {
+        await updateCandidateDocument(candidateId, upload.id, {
+          isPhysicallyAvailable: false,
+        });
+      } else {
+        await deleteCandidateDocument(candidateId, upload.id);
+      }
+      await onRefresh();
+    } catch {
+      showToast(`${type.name} güncellenemedi`, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deliveredAt = isAvailable && upload?.uploadedAtUtc ? formatDateTR(upload.uploadedAtUtc) : "—";
+
+  return (
+    <div className="candidate-detail-doc-hero-item">
+      <div className="candidate-detail-doc-hero-head">
+        <div className="candidate-detail-doc-hero-title">{type.name}</div>
+        <div className="candidate-detail-doc-hero-date">
+          <span>Teslim Tarihi</span>
+          <strong>{deliveredAt}</strong>
+        </div>
+      </div>
+      <button
+        type="button"
+        className={`candidate-detail-doc-hero-switch${isAvailable ? " on" : " off"}`}
+        role="switch"
+        aria-checked={isAvailable}
+        aria-label={`${type.name} durumu`}
+        disabled={saving}
+        onClick={isAvailable ? setUnavailable : setAvailable}
+      >
+        <span className="candidate-detail-doc-hero-switch-track-label">
+          {isAvailable ? "Var" : "Yok"}
+        </span>
+        <span className="candidate-detail-doc-hero-switch-thumb" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function HealthReportExtraFields({
+  candidateId,
+  type,
+  upload,
+  onRefresh,
+}: {
+  candidateId: string;
+  type: DocumentTypeResponse;
+  upload: DocumentResponse | null;
+  onRefresh: () => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const meta = upload?.metadata ?? {};
+  const foreignLanguage = (meta[HEALTH_REPORT_META_KEYS.foreignLanguage] ?? "") as string;
+  const disability = (meta[HEALTH_REPORT_META_KEYS.disability] ?? "") as string;
+  const needsTranslator = meta[HEALTH_REPORT_META_KEYS.needsTranslator] === "yes";
+  const needsSignLanguageTranslator =
+    meta[HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator] === "yes";
+
+  const disabled = !upload;
+
+  const persist = async (nextMetadata: Record<string, string>) => {
+    if (saving || !upload) return;
+    setSaving(true);
+    try {
+      const merged: Record<string, string> = {};
+      for (const [key, value] of Object.entries(meta)) {
+        if (value != null && value !== "") merged[key] = String(value);
+      }
+      for (const [key, value] of Object.entries(nextMetadata)) {
+        if (value === "") delete merged[key];
+        else merged[key] = value;
+      }
+      await updateCandidateDocument(candidateId, upload.id, { metadata: merged });
+      await onRefresh();
+    } catch {
+      showToast("Sağlık raporu bilgileri kaydedilemedi", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="candidate-detail-doc-health-extras">
+      {disabled ? (
+        <div className="candidate-detail-doc-health-extras-hint">
+          Bilgileri girebilmek için önce "Var" işaretleyip Kurum, Belge Tarihi ve Belge Sayısı'nı kaydedin.
+        </div>
+      ) : null}
+      <div className="candidate-detail-doc-health-extras-grid">
+        <label className="candidate-detail-doc-metadata-field">
+          <span>E-Sınav Yabancı Dil Seçimi</span>
+          <CustomSelect
+            aria-label="E-Sınav Yabancı Dil Seçimi"
+            className="form-select"
+            disabled={saving || disabled}
+            onChange={(event) =>
+              persist({ [HEALTH_REPORT_META_KEYS.foreignLanguage]: event.target.value })
+            }
+            value={foreignLanguage}
+          >
+            <option value="">Seçin...</option>
+            {HEALTH_REPORT_FOREIGN_LANGUAGES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </CustomSelect>
+        </label>
+        <label className="candidate-detail-doc-metadata-field">
+          <span>Özür Durumu</span>
+          <CustomSelect
+            aria-label="Özür Durumu"
+            className="form-select"
+            disabled={saving || disabled}
+            onChange={(event) =>
+              persist({ [HEALTH_REPORT_META_KEYS.disability]: event.target.value })
+            }
+            value={disability}
+          >
+            <option value="">Seçin...</option>
+            {HEALTH_REPORT_DISABILITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </CustomSelect>
+        </label>
+      </div>
+      <label className="candidate-detail-doc-health-toggle">
+        <span>Okutman ve/veya yazman (Tercüman) ihtiyacı</span>
+        <span className="switch-toggle">
+          <input
+            checked={needsTranslator}
+            disabled={saving || disabled}
+            onChange={(event) =>
+              persist({
+                [HEALTH_REPORT_META_KEYS.needsTranslator]: event.target.checked ? "yes" : "no",
+              })
+            }
+            type="checkbox"
+          />
+          <span className="switch-toggle-control" aria-hidden="true" />
+        </span>
+      </label>
+      <label className="candidate-detail-doc-health-toggle">
+        <span>İşaret dilini bilen tercüman ihtiyacı</span>
+        <span className="switch-toggle">
+          <input
+            checked={needsSignLanguageTranslator}
+            disabled={saving || disabled}
+            onChange={(event) =>
+              persist({
+                [HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator]: event.target.checked
+                  ? "yes"
+                  : "no",
+              })
+            }
+            type="checkbox"
+          />
+          <span className="switch-toggle-control" aria-hidden="true" />
+        </span>
+      </label>
+    </div>
+  );
+}
+
+function StateChip({
+  on,
+  onLabel,
+  offLabel,
+}: {
+  on: boolean;
+  onLabel: string;
+  offLabel: string;
+}) {
+  return (
+    <span className={`candidate-detail-doc-state-chip${on ? " on" : " off"}`}>
+      <span className="candidate-detail-doc-state-chip-icon" aria-hidden="true">
+        {on ? "✓" : "✕"}
+      </span>
+      <span>{on ? onLabel : offLabel}</span>
+    </span>
   );
 }
 
@@ -4708,12 +5082,22 @@ function DocRow({
   const [metadataErrors, setMetadataErrors] = useState<Record<string, string>>({});
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const metadataFields = type.metadataFields ?? [];
+  const metadataFields = useMemo(
+    () =>
+      type.key === "health_report"
+        ? (type.metadataFields ?? []).filter((field) => !HEALTH_REPORT_EXTRA_KEYS.has(field.key))
+        : type.metadataFields ?? [],
+    [type.key, type.metadataFields]
+  );
   const status = getCandidateDocumentStatus(upload);
   const statusLabel = candidateDocumentStatusLabel(status);
   const fileSize = upload?.fileSizeBytes != null ? formatFileSize(upload.fileSizeBytes) : null;
   const uploadedDate = upload?.uploadedAtUtc && status !== "missing" ? formatDateTR(upload.uploadedAtUtc) : null;
   const isPhotoType = isPhotoDocumentType(type);
+  const isContractType = isContractDocumentType(type);
+  const isSignatureType = isSignatureDocumentType(type);
+  const isA4Type = isA4DocumentType(type);
+  const showsImagePreview = isPhotoType || isContractType || isSignatureType || isA4Type;
   const isPrintableType = isPrintableDocumentType(type);
   const isMebbisTransferred = upload?.isMebbisTransferred ?? false;
   const fileUrl = upload?.hasFile ? getCandidateDocumentDownloadUrl(candidateId, upload.id) : null;
@@ -4728,7 +5112,7 @@ function DocRow({
   }, [metadataFields, upload]);
 
   useEffect(() => {
-    if (!isPhotoType || !isPreviewableImage(upload) || !fileUrl) {
+    if (!showsImagePreview || !isPreviewableImage(upload) || !fileUrl) {
       setPreviewUrl(null);
       return;
     }
@@ -4749,7 +5133,7 @@ function DocRow({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       setPreviewUrl(null);
     };
-  }, [fileUrl, isPhotoType, upload]);
+  }, [fileUrl, showsImagePreview, upload]);
 
   const setMetadataValue = (key: string, value: string) => {
     setMetadataValues((current) => ({ ...current, [key]: value }));
@@ -4918,42 +5302,62 @@ function DocRow({
   const hasDocumentAvailable = status !== "missing";
 
   return (
-    <li className={`candidate-detail-doc-row status-${status}${isPhotoType ? " is-photo" : ""}`}>
+    <li className={`candidate-detail-doc-row status-${status}${showsImagePreview ? " is-photo" : ""}`}>
       <div className={`candidate-detail-doc-status-marker ${status}`} aria-hidden="true" />
       <div className="candidate-detail-doc-main">
-        <div className="candidate-detail-doc-title-row">
-          <div className="candidate-detail-doc-name">{type.name}</div>
-          <span className={`candidate-detail-doc-badge ${status}`}>{statusLabel}</span>
-          {type.isRequired ? (
-            <span className="candidate-detail-doc-required">Zorunlu</span>
-          ) : null}
-          <span className="candidate-detail-doc-received-date">
-            Teslim: {uploadedDate ?? "-"}
-          </span>
-        </div>
-        {upload?.note ? (
-          <div className="candidate-detail-doc-note">{upload.note}</div>
-        ) : null}
-        {isPhotoType ? (
-          <div className="candidate-detail-doc-photo-preview">
+        {showsImagePreview ? (
+          <div
+            className={`candidate-detail-doc-photo-preview${
+              isContractType || isA4Type ? " is-a4" : ""
+            }${isSignatureType ? " is-square" : ""}`}
+          >
             {previewUrl ? (
               <img alt={`${type.name} önizleme`} src={previewUrl} />
             ) : status === "missing" ? (
-              <span>Henüz fotoğraf yok.</span>
+              <span>
+                {isPhotoType
+                  ? "Henüz fotoğraf yok."
+                  : isSignatureType
+                  ? "Henüz imza yok."
+                  : "Henüz yüklenmedi."}
+              </span>
             ) : status === "physical" ? (
-              <span>Fotoğraf elde var.</span>
+              <span>
+                {isPhotoType
+                  ? "Fotoğraf elde var."
+                  : isSignatureType
+                  ? "İmza elde var."
+                  : "Evrak elde var."}
+              </span>
             ) : (
               <span>Önizleme desteklenmiyor.</span>
             )}
           </div>
-        ) : (
+        ) : null}
+        <div className="candidate-detail-doc-side">
+        <div className="candidate-detail-doc-title-row">
+          <div className="candidate-detail-doc-name">{type.name}</div>
+          <div className="candidate-detail-doc-state-chips">
+            <StateChip on={hasDocumentAvailable} onLabel="Var" offLabel="Yok" />
+            <StateChip on={!!upload?.hasFile} onLabel="Yüklendi" offLabel="Yüklenmedi" />
+            <StateChip
+              on={isMebbisTransferred}
+              onLabel="Mebbis Aktarıldı"
+              offLabel="Mebbis Aktarılmadı"
+            />
+          </div>
+        </div>
+        {upload?.note ? (
+          <div className="candidate-detail-doc-note">{upload.note}</div>
+        ) : null}
+        {!showsImagePreview ? (
           <div className="candidate-detail-doc-file">
             {status === "missing"
               ? "Evrak yok olarak işaretli."
               : upload?.originalFileName ?? "Evrak elde var."}
           </div>
-        )}
-        {status !== "missing" && !isPhotoType ? (
+        ) : null}
+        {status !== "missing" && !showsImagePreview ? (
           <div className="candidate-detail-doc-meta">
             {fileSize ? <span>{fileSize}</span> : null}
           </div>
@@ -5018,6 +5422,15 @@ function DocRow({
             ) : null}
           </div>
         ) : null}
+        {type.key === "health_report" ? (
+          <HealthReportExtraFields
+            candidateId={candidateId}
+            type={type}
+            upload={upload}
+            onRefresh={onRefresh}
+          />
+        ) : null}
+        </div>
       </div>
       <div className="candidate-detail-doc-actions">
         <label className="switch-toggle candidate-detail-doc-mebbis-toggle">
@@ -5090,26 +5503,20 @@ function DocRow({
           </>
         ) : null}
 
-        <div className="candidate-detail-doc-availability" aria-label={`${type.name} var yok durumu`}>
-          <button
-            aria-pressed={hasDocumentAvailable}
-            className={`candidate-detail-doc-toggle${hasDocumentAvailable ? " active" : ""}`}
-            disabled={busy || hasDocumentAvailable}
-            onClick={handleMarkPhysical}
-            type="button"
-          >
-            {markingPhysical ? "..." : "Var"}
-          </button>
-          <button
-            aria-pressed={status === "missing"}
-            className={`candidate-detail-doc-toggle${status === "missing" ? " active" : ""}`}
-            disabled={busy || status === "missing" || upload?.hasFile}
-            onClick={handleMarkMissing}
-            type="button"
-          >
-            {deleting && !upload?.hasFile ? "..." : "Yok"}
-          </button>
-        </div>
+        <button
+          type="button"
+          className={`candidate-detail-doc-hero-switch${hasDocumentAvailable ? " on" : " off"}`}
+          role="switch"
+          aria-checked={hasDocumentAvailable}
+          aria-label={`${type.name} var yok durumu`}
+          disabled={busy || upload?.hasFile}
+          onClick={hasDocumentAvailable ? handleMarkMissing : handleMarkPhysical}
+        >
+          <span className="candidate-detail-doc-hero-switch-track-label">
+            {hasDocumentAvailable ? "Var" : "Yok"}
+          </span>
+          <span className="candidate-detail-doc-hero-switch-thumb" aria-hidden="true" />
+        </button>
 
         {canDeleteFile ? (
           confirmingDelete ? (

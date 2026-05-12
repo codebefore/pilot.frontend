@@ -155,6 +155,8 @@ export interface UpdateCandidateDocumentInput {
   note?: string | null;
   metadata?: Record<string, string>;
   isMebbisTransferred?: boolean;
+  isPhysicallyAvailable?: boolean;
+  uploadedAtUtc?: string;
 }
 
 export function updateCandidateDocument(
@@ -170,6 +172,8 @@ export function updateCandidateDocument(
       metadataJson:
         input.metadata !== undefined ? JSON.stringify(input.metadata) : undefined,
       isMebbisTransferred: input.isMebbisTransferred,
+      isPhysicallyAvailable: input.isPhysicallyAvailable,
+      uploadedAtUtc: input.uploadedAtUtc,
     },
     { signal }
   );
