@@ -1215,6 +1215,27 @@
   border-radius: 6px;
   padding: 8px 10px;
 }
+.candidate-detail-doc-actions-card .candidate-detail-doc-actions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.candidate-detail-doc-actions-card .candidate-detail-section-title {
+  margin: 0;
+}
+.candidate-detail-doc-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.candidate-detail-doc-actions-confirm {
+  font-size: 13px;
+  color: var(--gray-700);
+  margin-right: 4px;
+}
 .candidate-detail-doc-row {
   display: grid;
   grid-template-columns: 4px minmax(0, 1fr);

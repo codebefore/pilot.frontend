@@ -13,6 +13,7 @@ import type { SelectOption } from "../components/ui/EditableRow";
 import { useToast } from "../components/ui/Toast";
 import {
   assignCandidateGroup,
+  deleteCandidate,
   getCandidateById,
   removeActiveGroupAssignment,
   updateCandidate,
@@ -582,6 +583,7 @@ export function CandidateDetailPage() {
                     /* swallow — toast already shown by tab */
                   }
                 }}
+                onDeleted={() => navigate("/candidates")}
               />
             )}
             {activeTab === "payments" && (
@@ -4548,6 +4550,7 @@ function DocumentsTab({
   loading,
   error,
   onRefresh,
+  onDeleted,
 }: {
   candidateId: string;
   documents: DocumentResponse[] | null;
@@ -4555,11 +4558,29 @@ function DocumentsTab({
   loading: boolean;
   error: string | null;
   onRefresh: () => Promise<void>;
+  onDeleted: () => void;
 }) {
   const { showToast } = useToast();
   const [statusFilter, setStatusFilter] = useState<CandidateDocumentFilter>("all");
   const [bulkMebbisLoading, setBulkMebbisLoading] = useState(false);
   const [candidateSyncQueuing, setCandidateSyncQueuing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteCandidate = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteCandidate(candidateId);
+      showToast("Aday silindi");
+      onDeleted();
+    } catch {
+      showToast("Aday silinemedi", "error");
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return <div className="instructor-detail-card instructor-detail-empty">Yükleniyor...</div>;
@@ -4682,6 +4703,61 @@ function DocumentsTab({
 
   return (
     <div className="candidate-detail-tab-content">
+      <section className="instructor-detail-card candidate-detail-doc-actions-card">
+        <div className="candidate-detail-doc-actions-head">
+          <h3 className="candidate-detail-section-title">İşlemler</h3>
+          {confirmDelete ? (
+            <div className="candidate-detail-doc-actions-bar">
+              <span className="candidate-detail-doc-actions-confirm">
+                Aday silinsin mi? Bu işlem geri alınamaz.
+              </span>
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={deleting}
+                onClick={() => setConfirmDelete(false)}
+                type="button"
+              >
+                Vazgeç
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                disabled={deleting}
+                onClick={handleDeleteCandidate}
+                type="button"
+              >
+                {deleting ? "Siliniyor..." : "Evet, Sil"}
+              </button>
+            </div>
+          ) : (
+            <div className="candidate-detail-doc-actions-bar">
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0}
+                onClick={handleBulkMebbisTransfer}
+                type="button"
+              >
+                {bulkMebbisLoading ? "İşaretleniyor..." : "Mebbis İşaretle"}
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={candidateSyncQueuing}
+                onClick={handleQueueCandidateSync}
+                type="button"
+              >
+                {candidateSyncQueuing ? "Kuyruğa alınıyor..." : "Döneme Kaydet"}
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={() => setConfirmDelete(true)}
+                type="button"
+              >
+                Aday Sil
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="instructor-detail-card candidate-detail-doc-overview">
         <div className="candidate-detail-doc-overview-head">
           <div>
@@ -4691,24 +4767,6 @@ function DocumentsTab({
                 ? `${pendingMebbisTypes.length} evrak Mebbis işareti bekliyor.`
                 : "Mebbis işareti bekleyen evrak yok."}
             </p>
-          </div>
-          <div className="candidate-detail-doc-overview-actions">
-            <button
-              className="btn btn-primary btn-sm candidate-detail-doc-mebbis-action"
-              disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0}
-              onClick={handleBulkMebbisTransfer}
-              type="button"
-            >
-              {bulkMebbisLoading ? "İşaretleniyor..." : "Mebbis İşaretle"}
-            </button>
-            <button
-              className="btn btn-primary btn-sm candidate-detail-doc-mebbis-action"
-              disabled={candidateSyncQueuing}
-              onClick={handleQueueCandidateSync}
-              type="button"
-            >
-              {candidateSyncQueuing ? "Kuyruğa alınıyor..." : "Döneme Kaydet"}
-            </button>
           </div>
         </div>
         <div className="candidate-detail-doc-filters" role="tablist" aria-label="Evrak durum filtresi">
