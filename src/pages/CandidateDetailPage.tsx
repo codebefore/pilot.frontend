@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
@@ -4435,6 +4436,11 @@ type CandidateDocumentStatus = "uploaded" | "physical" | "missing";
 type CandidateDocumentFilter = "all" | "missing" | "available" | "mebbis";
 const PHOTO_DOCUMENT_TYPE_KEYS = ["biometric_photo", "webcam_photo"] as const;
 const CONTRACT_DOCUMENT_TYPE_KEYS = ["contract_front", "contract_back"] as const;
+const CONTRACT_GROUP_DOCUMENT_TYPE_KEYS = [
+  "contract_front",
+  "contract_back",
+  "signature_sample",
+] as const;
 const A4_DOCUMENT_TYPE_KEYS = [
   "education_certificate",
   "health_report",
@@ -4607,7 +4613,7 @@ function DocumentsTab({
   const photoTypes = PHOTO_DOCUMENT_TYPE_KEYS
     .map((key) => sortedTypes.find((t) => t.key === key))
     .filter((t): t is DocumentTypeResponse => t !== undefined);
-  const contractTypes = CONTRACT_DOCUMENT_TYPE_KEYS
+  const contractTypes = CONTRACT_GROUP_DOCUMENT_TYPE_KEYS
     .map((key) => sortedTypes.find((t) => t.key === key))
     .filter((t): t is DocumentTypeResponse => t !== undefined);
   const requiredTypes = sortedTypes.filter(
@@ -4615,13 +4621,17 @@ function DocumentsTab({
       t.isRequired &&
       !HERO_DOCUMENT_KEYS.includes(t.key as HeroDocumentKey) &&
       !PHOTO_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]) &&
-      !CONTRACT_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof CONTRACT_DOCUMENT_TYPE_KEYS)[number])
+      !CONTRACT_GROUP_DOCUMENT_TYPE_KEYS.includes(
+        t.key as (typeof CONTRACT_GROUP_DOCUMENT_TYPE_KEYS)[number]
+      )
   );
   const optionalTypes = sortedTypes.filter(
     (t) =>
       !t.isRequired &&
       !PHOTO_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]) &&
-      !CONTRACT_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof CONTRACT_DOCUMENT_TYPE_KEYS)[number])
+      !CONTRACT_GROUP_DOCUMENT_TYPE_KEYS.includes(
+        t.key as (typeof CONTRACT_GROUP_DOCUMENT_TYPE_KEYS)[number]
+      )
   );
   const statusCounts = sortedTypes.reduce(
     (acc, type) => {
@@ -4704,57 +4714,89 @@ function DocumentsTab({
   return (
     <div className="candidate-detail-tab-content">
       <section className="instructor-detail-card candidate-detail-doc-actions-card">
-        <div className="candidate-detail-doc-actions-head">
-          <h3 className="candidate-detail-section-title">İşlemler</h3>
-          {confirmDelete ? (
-            <div className="candidate-detail-doc-actions-bar">
-              <span className="candidate-detail-doc-actions-confirm">
-                Aday silinsin mi? Bu işlem geri alınamaz.
-              </span>
-              <button
-                className="btn btn-secondary btn-sm"
-                disabled={deleting}
-                onClick={() => setConfirmDelete(false)}
-                type="button"
-              >
-                Vazgeç
-              </button>
-              <button
-                className="btn btn-danger btn-sm"
-                disabled={deleting}
-                onClick={handleDeleteCandidate}
-                type="button"
-              >
-                {deleting ? "Siliniyor..." : "Evet, Sil"}
-              </button>
-            </div>
-          ) : (
-            <div className="candidate-detail-doc-actions-bar">
-              <button
-                className="btn btn-primary btn-sm"
-                disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0}
-                onClick={handleBulkMebbisTransfer}
-                type="button"
-              >
-                {bulkMebbisLoading ? "İşaretleniyor..." : "Mebbis İşaretle"}
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                disabled={candidateSyncQueuing}
-                onClick={handleQueueCandidateSync}
-                type="button"
-              >
-                {candidateSyncQueuing ? "Kuyruğa alınıyor..." : "Döneme Kaydet"}
-              </button>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => setConfirmDelete(true)}
-                type="button"
-              >
-                Aday Sil
-              </button>
-            </div>
-          )}
+        <div className="candidate-detail-doc-actions-grid">
+          <div className="candidate-detail-doc-actions-column">
+            <h3 className="candidate-detail-section-title">Aday Kontrol</h3>
+            <ul className="candidate-detail-doc-checklist">
+              {[
+                "Tüm zorunlu evraklar yüklü",
+                "Biyometrik ve webcam fotoğrafları tamam",
+                "Ehliyet sınıfı ve mevcut belge bilgisi girildi",
+                "Aktif gruba atandı",
+                "Kayıt ücreti tahsil edildi",
+              ].map((item) => (
+                <li key={item} className="candidate-detail-doc-checklist-item">
+                  <span className="candidate-detail-doc-checklist-mark" aria-hidden="true">
+                    ✓
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="candidate-detail-doc-actions-column">
+            <h3 className="candidate-detail-section-title">İşlemler</h3>
+            {confirmDelete ? (
+              <div className="candidate-detail-doc-actions-bar">
+                <span className="candidate-detail-doc-actions-confirm">
+                  Aday silinsin mi? Bu işlem geri alınamaz.
+                </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                  type="button"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  disabled={deleting}
+                  onClick={handleDeleteCandidate}
+                  type="button"
+                >
+                  {deleting ? "Siliniyor..." : "Evet, Sil"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="candidate-detail-doc-actions-bar">
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0}
+                    onClick={handleBulkMebbisTransfer}
+                    type="button"
+                  >
+                    {bulkMebbisLoading ? "İşaretleniyor..." : "Mebbis İşaretle"}
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={candidateSyncQueuing}
+                    onClick={handleQueueCandidateSync}
+                    type="button"
+                  >
+                    {candidateSyncQueuing ? "Kuyruğa alınıyor..." : "Döneme Kaydet"}
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled
+                    type="button"
+                    title="Yakında"
+                  >
+                    Döneme Kaydet ve Aktar
+                  </button>
+                </div>
+                <button
+                  className="btn btn-danger btn-sm candidate-detail-doc-actions-delete"
+                  onClick={() => setConfirmDelete(true)}
+                  type="button"
+                >
+                  Aday Sil
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
@@ -4865,7 +4907,7 @@ function DocumentsTab({
       {contractTypes.length > 0 && (
         <section className="instructor-detail-card">
           <h3 className="candidate-detail-section-title">Sözleşme</h3>
-          <ul className="candidate-detail-doc-list candidate-detail-doc-photo-grid">
+          <ul className="candidate-detail-doc-list candidate-detail-doc-contract-grid">
             {contractTypes.filter(matchesFilter).map((type) => (
               <DocRow
                 candidateId={candidateId}
@@ -4987,12 +5029,13 @@ function HealthReportExtraFields({
 
   const meta = upload?.metadata ?? {};
   const foreignLanguage = (meta[HEALTH_REPORT_META_KEYS.foreignLanguage] ?? "") as string;
-  const disability = (meta[HEALTH_REPORT_META_KEYS.disability] ?? "") as string;
+  const disability = (meta[HEALTH_REPORT_META_KEYS.disability] ?? "none") as string;
   const needsTranslator = meta[HEALTH_REPORT_META_KEYS.needsTranslator] === "yes";
   const needsSignLanguageTranslator =
     meta[HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator] === "yes";
 
   const disabled = !upload;
+  const storedDisability = meta[HEALTH_REPORT_META_KEYS.disability];
 
   const persist = async (nextMetadata: Record<string, string>) => {
     if (saving || !upload) return;
@@ -5014,6 +5057,13 @@ function HealthReportExtraFields({
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!upload) return;
+    if (storedDisability != null && storedDisability !== "") return;
+    void persist({ [HEALTH_REPORT_META_KEYS.disability]: "none" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upload?.id, storedDisability]);
 
   return (
     <div className="candidate-detail-doc-health-extras">
@@ -5100,6 +5150,52 @@ function HealthReportExtraFields({
   );
 }
 
+function DocLightbox({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="doc-lightbox-overlay"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt}
+    >
+      <button
+        aria-label="Kapat"
+        className="doc-lightbox-close"
+        onClick={onClose}
+        type="button"
+      >
+        ×
+      </button>
+      <img alt={alt} className="doc-lightbox-image" src={src} />
+    </div>,
+    document.body
+  );
+}
+
 function StateChip({
   on,
   onLabel,
@@ -5163,6 +5259,7 @@ function DocRow({
     ? getCandidateDocumentDownloadUrl(candidateId, upload.id, { inline: true })
     : null;
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     setMetadataValues(buildDocumentMetadataValues(metadataFields, upload));
@@ -5212,10 +5309,11 @@ function DocRow({
     return payload;
   };
 
-  const validateMetadata = (): boolean => {
+  const validateMetadata = (source?: Record<string, string>): boolean => {
+    const values = source ?? metadataValues;
     const nextErrors: Record<string, string> = {};
     for (const field of metadataFields) {
-      const value = (metadataValues[field.key] ?? "").trim();
+      const value = (values[field.key] ?? "").trim();
       if (field.isRequired && !value) {
         nextErrors[field.key] = `${field.label} gerekli`;
       }
@@ -5336,16 +5434,19 @@ function DocRow({
     }
   };
 
-  const handleSaveMetadata = async () => {
+  const handleSaveMetadata = async (override?: Record<string, string>) => {
     if (!upload || metadataSaving) return;
-    if (!validateMetadata()) return;
+    const source = override ?? metadataValues;
+    if (!validateMetadata(source)) return;
+    const payload: Record<string, string> = {};
+    for (const field of metadataFields) {
+      const value = (source[field.key] ?? "").trim();
+      if (value) payload[field.key] = value;
+    }
     setMetadataSaving(true);
     try {
-      await updateCandidateDocument(candidateId, upload.id, {
-        metadata: buildMetadataPayload(),
-      });
+      await updateCandidateDocument(candidateId, upload.id, { metadata: payload });
       await onRefresh();
-      showToast(`"${type.name}" bilgileri kaydedildi`);
     } catch {
       showToast(`"${type.name}" bilgileri kaydedilemedi`, "error");
     } finally {
@@ -5370,7 +5471,14 @@ function DocRow({
             }${isSignatureType ? " is-square" : ""}`}
           >
             {previewUrl ? (
-              <img alt={`${type.name} önizleme`} src={previewUrl} />
+              <button
+                aria-label={`${type.name} büyük görüntüle`}
+                className="candidate-detail-doc-photo-preview-btn"
+                onClick={() => setLightboxOpen(true)}
+                type="button"
+              >
+                <img alt={`${type.name} önizleme`} src={previewUrl} />
+              </button>
             ) : status === "missing" ? (
               <span>
                 {isPhotoType
@@ -5404,6 +5512,12 @@ function DocRow({
               offLabel="Mebbis Aktarılmadı"
             />
           </div>
+          {uploadedDate && !isContractType ? (
+            <div className="candidate-detail-doc-delivered-date">
+              <span>Teslim Tarihi</span>
+              <strong>{uploadedDate}</strong>
+            </div>
+          ) : null}
         </div>
         {upload?.note ? (
           <div className="candidate-detail-doc-note">{upload.note}</div>
@@ -5428,14 +5542,21 @@ function DocRow({
               const label = field.isRequired ? `${field.label} *` : field.label;
 
               return (
-                <label className="candidate-detail-doc-metadata-field" key={field.key}>
+                <label
+                  className="candidate-detail-doc-metadata-field"
+                  data-field-key={field.key}
+                  key={field.key}
+                >
                   <span>{label}</span>
                   {field.inputType === "date" ? (
                     <LocalizedDateInput
                       ariaLabel={field.label}
                       className={error ? "form-input error" : "form-input"}
                       lang="tr-TR"
-                      onChange={(next) => setMetadataValue(field.key, next)}
+                      onChange={(next) => {
+                        setMetadataValue(field.key, next);
+                        void handleSaveMetadata({ ...metadataValues, [field.key]: next });
+                      }}
                       placeholder={field.placeholder ?? ""}
                       size="sm"
                       value={value}
@@ -5444,7 +5565,11 @@ function DocRow({
                     <CustomSelect
                       aria-label={field.label}
                       className={error ? "form-select error" : "form-select"}
-                      onChange={(event) => setMetadataValue(field.key, event.target.value)}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setMetadataValue(field.key, next);
+                        void handleSaveMetadata({ ...metadataValues, [field.key]: next });
+                      }}
                       value={value}
                     >
                       <option value="">{field.placeholder ?? "Seçin..."}</option>
@@ -5458,6 +5583,11 @@ function DocRow({
                     <input
                       aria-label={field.label}
                       className={error ? "form-input error" : "form-input"}
+                      onBlur={(event) => {
+                        const next = event.target.value;
+                        if (next === (upload?.metadata?.[field.key] ?? "")) return;
+                        void handleSaveMetadata({ ...metadataValues, [field.key]: next });
+                      }}
                       onChange={(event) => setMetadataValue(field.key, event.target.value)}
                       placeholder={field.placeholder ?? ""}
                       type="text"
@@ -5468,16 +5598,6 @@ function DocRow({
                 </label>
               );
             })}
-            {upload ? (
-              <button
-                className="btn btn-secondary btn-sm candidate-detail-doc-metadata-save"
-                disabled={busy}
-                onClick={handleSaveMetadata}
-                type="button"
-              >
-                {metadataSaving ? "Kaydediliyor..." : "Bilgileri Kaydet"}
-              </button>
-            ) : null}
           </div>
         ) : null}
         {type.key === "health_report" ? (
@@ -5491,16 +5611,18 @@ function DocRow({
         </div>
       </div>
       <div className="candidate-detail-doc-actions">
-        <label className="switch-toggle candidate-detail-doc-mebbis-toggle">
-          <input
-            checked={isMebbisTransferred}
-            disabled={busy}
-            onChange={(event) => handleMebbisToggle(event.target.checked)}
-            type="checkbox"
-          />
-          <span aria-hidden="true" className="switch-toggle-control" />
-          <span>Mebbis</span>
-        </label>
+        <button
+          className={`btn btn-sm ${isMebbisTransferred ? "btn-secondary" : "btn-primary"}`}
+          disabled={busy || status === "missing"}
+          onClick={() => handleMebbisToggle(!isMebbisTransferred)}
+          type="button"
+        >
+          {markingMebbis
+            ? "Kaydediliyor..."
+            : isMebbisTransferred
+            ? "Mebbis Kaldır"
+            : "Mebbis Aktar"}
+        </button>
 
         {inlineFileUrl ? (
           <button
@@ -5609,6 +5731,13 @@ function DocRow({
           )
         ) : null}
       </div>
+      {previewUrl && lightboxOpen ? (
+        <DocLightbox
+          alt={type.name}
+          onClose={() => setLightboxOpen(false)}
+          src={previewUrl}
+        />
+      ) : null}
     </li>
   );
 }
