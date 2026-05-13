@@ -4532,12 +4532,6 @@ function getCandidateDocumentStatus(upload: DocumentResponse | null): CandidateD
   return upload.isPhysicallyAvailable ? "physical" : "missing";
 }
 
-function candidateDocumentStatusLabel(status: CandidateDocumentStatus): string {
-  if (status === "uploaded") return "Yüklendi";
-  if (status === "physical") return "Var";
-  return "Yok";
-}
-
 function buildDocumentMetadataValues(
   fields: ReadonlyArray<DocumentMetadataField>,
   upload: DocumentResponse | null
@@ -5015,12 +5009,10 @@ function HeroDocumentCard({
 
 function HealthReportExtraFields({
   candidateId,
-  type,
   upload,
   onRefresh,
 }: {
   candidateId: string;
-  type: DocumentTypeResponse;
   upload: DocumentResponse | null;
   onRefresh: () => Promise<void>;
 }) {
@@ -5244,7 +5236,6 @@ function DocRow({
     [type.key, type.metadataFields]
   );
   const status = getCandidateDocumentStatus(upload);
-  const statusLabel = candidateDocumentStatusLabel(status);
   const fileSize = upload?.fileSizeBytes != null ? formatFileSize(upload.fileSizeBytes) : null;
   const uploadedDate = upload?.uploadedAtUtc && status !== "missing" ? formatDateTR(upload.uploadedAtUtc) : null;
   const isPhotoType = isPhotoDocumentType(type);
@@ -5603,7 +5594,6 @@ function DocRow({
         {type.key === "health_report" ? (
           <HealthReportExtraFields
             candidateId={candidateId}
-            type={type}
             upload={upload}
             onRefresh={onRefresh}
           />
