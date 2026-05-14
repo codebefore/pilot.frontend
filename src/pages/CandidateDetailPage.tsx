@@ -17,6 +17,7 @@ import {
   deleteCandidate,
   getCandidateById,
   removeActiveGroupAssignment,
+  setCandidateTheoryExemption,
   updateCandidate,
   updateCandidateExistingLicense,
 } from "../lib/candidates-api";
@@ -564,6 +565,11 @@ export function CandidateDetailPage() {
                   candidate={candidate}
                   onAccountingChanged={refreshAccounting}
                   onOpenAccountingPayment={openAccountingPayment}
+                  onTheoryExemptChanged={(value) =>
+                    setCandidate((prev) =>
+                      prev ? { ...prev, isTheoryExempt: value } : prev
+                    )
+                  }
                 />
                 <TrainingTab candidate={candidate} />
               </>
@@ -3609,12 +3615,28 @@ function CandidateExamAttemptsSection({
   candidate,
   onAccountingChanged,
   onOpenAccountingPayment,
+  onTheoryExemptChanged,
 }: {
   candidate: CandidateResponse;
   onAccountingChanged?: () => Promise<void> | void;
   onOpenAccountingPayment?: (movementId: string) => void;
+  onTheoryExemptChanged?: (value: boolean) => void;
 }) {
   const { showToast } = useToast();
+  const [exemptSaving, setExemptSaving] = useState(false);
+  const isTheoryExempt = candidate.isTheoryExempt ?? false;
+  const toggleTheoryExempt = async () => {
+    const next = !isTheoryExempt;
+    setExemptSaving(true);
+    try {
+      await setCandidateTheoryExemption(candidate.id, next);
+      onTheoryExemptChanged?.(next);
+    } catch {
+      showToast("Muafiyet durumu güncellenemedi.", "error");
+    } finally {
+      setExemptSaving(false);
+    }
+  };
   const [attempts, setAttempts] = useState<CandidateExamAttemptResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -3903,13 +3925,31 @@ function CandidateExamAttemptsSection({
 
   return (
     <>
-      <section className="instructor-detail-card candidate-exam-attempts-section">
+      <section
+        className={`instructor-detail-card candidate-exam-attempts-section${isTheoryExempt ? " is-exempt" : ""}`}
+        data-muaf={isTheoryExempt ? "true" : undefined}
+      >
         <div className="candidate-exam-attempts-head">
           <h3 className="candidate-detail-section-title">E-Sınav</h3>
           {!loading && !error ? (
-            <button className="btn btn-primary btn-sm candidate-exam-add-button" onClick={() => openAddForm("theory")} type="button">
-              Yeni
-            </button>
+            <div className="candidate-exam-attempts-head-actions">
+              <label
+                className="switch-toggle candidate-exam-attempts-muaf-toggle"
+                title="Aday teori sınavından muaf"
+              >
+                <input
+                  type="checkbox"
+                  checked={isTheoryExempt}
+                  disabled={exemptSaving}
+                  onChange={toggleTheoryExempt}
+                />
+                <span className="switch-toggle-control" aria-hidden="true" />
+                <span>Muaf</span>
+              </label>
+              <button className="btn btn-primary btn-sm candidate-exam-add-button" onClick={() => openAddForm("theory")} type="button">
+                Yeni
+              </button>
+            </div>
           ) : null}
         </div>
         {loading ? (

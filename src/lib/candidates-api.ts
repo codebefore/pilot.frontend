@@ -1,4 +1,4 @@
-import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { httpDelete, httpGet, httpPatch, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   CandidateExistingLicenseRequest,
   CandidateGenderValue,
@@ -129,6 +129,15 @@ export function setCandidateInitialPaymentReceived(
 ): Promise<void> {
   return httpPut<void>(`/api/candidates/${id}/initial-payment`, {
     initialPaymentReceived,
+  });
+}
+
+export function setCandidateTheoryExemption(
+  id: string,
+  isTheoryExempt: boolean
+): Promise<void> {
+  return httpPatch<void>(`/api/candidates/${id}/theory-exemption`, {
+    isTheoryExempt,
   });
 }
 

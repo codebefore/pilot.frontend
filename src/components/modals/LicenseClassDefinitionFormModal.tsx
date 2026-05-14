@@ -353,7 +353,7 @@ export function LicenseClassDefinitionFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Kategori</label>
+            <label className="form-label">Araç Tipi</label>
             <Controller
               control={control}
               name="category"

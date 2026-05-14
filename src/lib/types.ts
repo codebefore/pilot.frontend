@@ -95,6 +95,7 @@ export interface CandidateResponse {
   drivingExamAttemptCount?: number | null;
   examFeePaid?: boolean;
   initialPaymentReceived?: boolean;
+  isTheoryExempt?: boolean;
   totalFee: number;
   totalPaid: number;
   totalDebt: number;

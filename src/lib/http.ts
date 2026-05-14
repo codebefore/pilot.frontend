@@ -162,6 +162,20 @@ export async function httpPut<T>(
   return handleResponse<T>(response);
 }
 
+export async function httpPatch<T>(
+  path: string,
+  body: unknown,
+  options?: RequestOptions
+): Promise<T> {
+  const response = await fetch(buildUrl(path), {
+    method: "PATCH",
+    headers: buildHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+    signal: options?.signal,
+  });
+  return handleResponse<T>(response);
+}
+
 export async function httpDelete<T = void>(
   path: string,
   params?: QueryParams,

@@ -133,6 +133,10 @@ function readEditableValue(
 
 const CURRENT_YEAR = new Date().getFullYear();
 const VAT_RATE = 0.1;
+// Section key for rows whose source license is "YOK" (candidates starting from
+// scratch). Kept distinct from any real target license code.
+const FROM_SCRATCH_SECTION_KEY = "__FROM_SCRATCH__";
+const FROM_SCRATCH_SECTION_LABEL = "Sıfırdan Başlayanlar";
 
 function formatMoney(value: number | null): string {
   if (value == null) return "—";
@@ -262,14 +266,16 @@ type Column = {
 };
 
 function renderSourceLicense(row: CertificateProgramFeeRowResponse): React.ReactNode {
+  const isNone = row.program.sourceLicenseClass.toUpperCase() === "YOK";
+  const displayName = isNone ? "-" : row.program.sourceLicenseDisplayName;
   return (
     <span
       className="fee-matrix-license-cell"
-      title={`${row.program.sourceLicenseDisplayName}${
+      title={`${displayName}${
         row.program.sourceLicensePre2016 ? " (2016 öncesi)" : ""
       } -> ${row.program.targetLicenseDisplayName}`}
     >
-      <span className="fee-matrix-license-name">{row.program.sourceLicenseDisplayName}</span>
+      <span className="fee-matrix-license-name">{displayName}</span>
       {row.program.sourceLicensePre2016 ? (
         <span className="fee-matrix-period-badge">2016</span>
       ) : null}
@@ -724,17 +730,32 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   }, [refreshKey, showToast, year]);
 
   const sections = useMemo(() => {
+    // Rows whose source license is "YOK" (candidates starting from scratch) are
+    // collapsed into a single section instead of being scattered across every
+    // target-license group. All other rows keep the target-based grouping.
     const map = new Map<string, CertificateProgramFeeRowResponse[]>();
     for (const row of rows) {
-      const key = row.program.targetLicenseClass;
+      const isFromScratch =
+        row.program.sourceLicenseClass.toUpperCase() === "YOK";
+      const key = isFromScratch ? FROM_SCRATCH_SECTION_KEY : row.program.targetLicenseClass;
       const bucket = map.get(key) ?? [];
       bucket.push(row);
       map.set(key, bucket);
     }
 
-    return [...map.entries()].map(([target, sectionRows]) => ({
+    const built = [...map.entries()].map(([target, sectionRows]) => ({
       target,
       rows: sectionRows.sort((a, b) => {
+        // Inside the from-scratch section, order by the target license so the
+        // list reads A1, A2, B, ... rather than by (constant) source name.
+        if (target === FROM_SCRATCH_SECTION_KEY) {
+          const targetCompare = a.program.targetLicenseDisplayName.localeCompare(
+            b.program.targetLicenseDisplayName,
+            "tr"
+          );
+          if (targetCompare !== 0) return targetCompare;
+          return compareLessonType(a, b);
+        }
         const sourceCompare = a.program.sourceLicenseDisplayName.localeCompare(
           b.program.sourceLicenseDisplayName,
           "tr"
@@ -746,6 +767,14 @@ export function CertificateProgramFeeMatrixSettingsSection() {
         return compareLessonType(a, b);
       }),
     }));
+
+    // From-scratch section pinned to the top.
+    built.sort((a, b) => {
+      if (a.target === FROM_SCRATCH_SECTION_KEY) return -1;
+      if (b.target === FROM_SCRATCH_SECTION_KEY) return 1;
+      return 0;
+    });
+    return built;
   }, [rows]);
 
   const allExpanded =
@@ -1173,7 +1202,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                           ▸
                         </span>
                         <span className="fee-matrix-section-title">
-                          {section.target} geçişleri
+                          {section.target === FROM_SCRATCH_SECTION_KEY
+                            ? FROM_SCRATCH_SECTION_LABEL
+                            : `${section.target} geçişleri`}
                         </span>
                         <span className="fee-matrix-section-stats">
                           <span>{programCount} program</span>
@@ -1252,7 +1283,11 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                     >
                                       {column.key === "select" ? (
                                         <input
-                                          aria-label={`${section.target} bölümündeki tüm programları seç`}
+                                          aria-label={`${
+                                            section.target === FROM_SCRATCH_SECTION_KEY
+                                              ? FROM_SCRATCH_SECTION_LABEL
+                                              : section.target
+                                          } bölümündeki tüm programları seç`}
                                           checked={sectionSelection.allSelected}
                                           className="fee-matrix-row-checkbox"
                                           onChange={() =>

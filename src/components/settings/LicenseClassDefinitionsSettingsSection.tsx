@@ -21,6 +21,7 @@ import {
   LICENSE_CLASS_DEFINITION_CATEGORY_LABELS,
   LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS,
 } from "../../lib/license-class-definition-catalog";
+import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import type {
@@ -83,6 +84,8 @@ export function LicenseClassDefinitionsSettingsSection() {
   const navigate = useNavigate();
   const t = useT();
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const canManage = user?.isSuperAdmin ?? false;
 
   const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
     {
@@ -347,17 +350,19 @@ export function LicenseClassDefinitionsSettingsSection() {
                   {t("settings.licenseClasses.button.clearFilters")}
                 </button>
               ) : null}
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-                type="button"
-              >
-                <PlusIcon size={14} />
-                {t("settings.licenseClasses.button.new")}
-              </button>
+              {canManage ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setEditing(null);
+                    setFormOpen(true);
+                  }}
+                  type="button"
+                >
+                  <PlusIcon size={14} />
+                  {t("settings.licenseClasses.button.new")}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -471,16 +476,18 @@ export function LicenseClassDefinitionsSettingsSection() {
                               >
                                 <PencilIcon size={14} />
                               </button>
-                              <button
-                                aria-label={t("common.delete")}
-                                className="icon-btn icon-btn-danger"
-                                disabled={deletingId !== null}
-                                onClick={() => setConfirmDeleteId(item.id)}
-                                title={t("common.delete")}
-                                type="button"
-                              >
-                                <TrashIcon size={14} />
-                              </button>
+                              {canManage ? (
+                                <button
+                                  aria-label={t("common.delete")}
+                                  className="icon-btn icon-btn-danger"
+                                  disabled={deletingId !== null}
+                                  onClick={() => setConfirmDeleteId(item.id)}
+                                  title={t("common.delete")}
+                                  type="button"
+                                >
+                                  <TrashIcon size={14} />
+                                </button>
+                              ) : null}
                             </>
                           )}
                         </div>

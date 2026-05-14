@@ -645,6 +645,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
 }
 .candidate-exam-attempts-head {
   display: flex;
@@ -652,8 +653,41 @@
   justify-content: space-between;
   gap: 12px;
 }
+.candidate-exam-attempts-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.candidate-exam-attempts-muaf-toggle {
+  font-size: 13px;
+}
 .candidate-exam-attempts-head .candidate-detail-section-title {
   margin: 0;
+}
+
+.candidate-exam-attempts-section.is-exempt > *:not(.candidate-exam-attempts-head) {
+  opacity: 0.35;
+  pointer-events: none;
+  filter: grayscale(0.6);
+}
+.candidate-exam-attempts-section.is-exempt::after {
+  content: "MUAF";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  font-size: 96px;
+  font-weight: 800;
+  letter-spacing: 18px;
+  color: rgba(180, 50, 50, 0.18);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+.candidate-exam-attempts-section.is-exempt .candidate-exam-attempts-muaf-toggle {
+  color: rgba(180, 50, 50, 0.85);
+  font-weight: 600;
 }
 .candidate-exam-attempts-table-wrap {
   overflow-x: auto;
