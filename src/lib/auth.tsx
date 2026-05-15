@@ -17,7 +17,9 @@ type AuthContextValue = {
   logout: () => void;
 };
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+// Exported for tests so a deterministic value can be supplied without
+// running the real provider's effects (storage reads, event listeners).
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(() => readStoredAuthSession());
