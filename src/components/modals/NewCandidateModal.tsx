@@ -16,24 +16,32 @@ import type {
 } from "../../lib/types";
 import {
   getActiveInitialLicenseClassOptions,
+  useExistingLicenseTypeOptions,
   type LicenseClassOption,
 } from "../../lib/use-license-class-options";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
 import { CustomSelect } from "../ui/CustomSelect";
+import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { useToast } from "../ui/Toast";
 
 type NewCandidateForm = {
   tc: string;
+  referenceName: string;
   className: LicenseClass;
   firstName: string;
   lastName: string;
   phone: string;
+  hasExistingLicense: boolean;
+  existingLicenseType: string;
+  existingLicenseIssuedAt: string;
   tags: string[];
   reuseFromCandidateId: string;
   documentIdsToCopy: string[];
 };
+
+const REFERENCE_NAME_OPTIONS = ["Referans 1", "Referans 2", "Referans 3"] as const;
 
 type NewCandidateModalProps = {
   open: boolean;
@@ -129,10 +137,14 @@ function normalizeLicenseClassOptionKey(value: string) {
 
 const defaultValues = (): NewCandidateForm => ({
   tc: "",
+  referenceName: "",
   className: "B",
   firstName: "",
   lastName: "",
   phone: "",
+  hasExistingLicense: false,
+  existingLicenseType: "",
+  existingLicenseIssuedAt: "",
   tags: [],
   reuseFromCandidateId: "",
   documentIdsToCopy: [],
@@ -176,6 +188,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const reuseFromCandidateId = watch("reuseFromCandidateId");
   const documentIdsToCopy = watch("documentIdsToCopy");
   const tags = watch("tags");
+  const hasExistingLicense = watch("hasExistingLicense");
+  const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
+  const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const selectedReuseSource =
     reuseSources.find((source) => source.id === reuseFromCandidateId) ?? null;
   const classRegistration = register("className", { required: true });
@@ -296,6 +311,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         firstName: data.firstName,
         lastName: data.lastName,
         nationalId: data.tc,
+        referenceName: data.referenceName.trim() || null,
         phoneNumber: data.phone.trim() || null,
         // Quick registration captures only identity + phone + license class.
         // Email, birth date, gender, existing license, and group assignment
@@ -306,8 +322,14 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         gender: null,
         licenseClass: data.className,
         certificateProgramId: defaultProgram?.id ?? null,
-        existingLicenseType: null,
-        existingLicenseIssuedAt: null,
+        existingLicenseType:
+          data.hasExistingLicense && data.existingLicenseType
+            ? data.existingLicenseType
+            : null,
+        existingLicenseIssuedAt:
+          data.hasExistingLicense && data.existingLicenseIssuedAt
+            ? data.existingLicenseIssuedAt
+            : null,
         existingLicenseNumber: null,
         existingLicenseIssuedProvince: null,
         existingLicensePre2016: false,
@@ -498,15 +520,12 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">Ehliyet Tipi</label>
-            <CustomSelect
-              className={fieldClass(!!errors.className, "form-select")}
-              value={selectedClass}
-              {...classRegistration}
-            >
-              {licenseClassOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+            <label className="form-label">Referans</label>
+            <CustomSelect className="form-select" {...register("referenceName")}>
+              <option value="">Seçiniz</option>
+              {REFERENCE_NAME_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
                 </option>
               ))}
             </CustomSelect>
@@ -562,6 +581,61 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             />
           </div>
         </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Ehliyet Tipi</label>
+            <CustomSelect
+              className={fieldClass(!!errors.className, "form-select")}
+              value={selectedClass}
+              {...classRegistration}
+            >
+              {licenseClassOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </CustomSelect>
+          </div>
+          <div className="form-group">
+            <label
+              className="switch-toggle"
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 28 }}
+            >
+              <span className="form-label" style={{ margin: 0 }}>Mevcut Ehliyet</span>
+              <input type="checkbox" {...register("hasExistingLicense")} />
+              <span className="switch-toggle-control" aria-hidden="true" />
+            </label>
+          </div>
+        </div>
+
+        {hasExistingLicense ? (
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Mevcut Ehliyet</label>
+              <CustomSelect className="form-select" {...register("existingLicenseType")}>
+                <option value="">Mevcut ehliyet tipi seçin</option>
+                {existingLicenseTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Veriliş Tarihi</label>
+              <LocalizedDateInput
+                ariaLabel="Veriliş Tarihi"
+                lang="tr-TR"
+                onChange={(next) =>
+                  setValue("existingLicenseIssuedAt", next, { shouldDirty: true })
+                }
+                placeholder="gg.aa.yyyy"
+                value={existingLicenseIssuedAt}
+              />
+            </div>
+          </div>
+        ) : null}
 
       </form>
     </Modal>
