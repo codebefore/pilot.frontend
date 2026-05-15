@@ -332,7 +332,10 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             : null,
         existingLicenseNumber: null,
         existingLicenseIssuedProvince: null,
-        existingLicensePre2016: false,
+        existingLicensePre2016:
+          data.hasExistingLicense &&
+          !!data.existingLicenseIssuedAt &&
+          data.existingLicenseIssuedAt < "2016-01-01",
         status: "pre_registered",
         examFeePaid: false,
         initialPaymentReceived: false,
@@ -609,33 +612,42 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
           </div>
         </div>
 
-        {hasExistingLicense ? (
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Mevcut Ehliyet</label>
-              <CustomSelect className="form-select" {...register("existingLicenseType")}>
-                <option value="">Mevcut ehliyet tipi seçin</option>
-                {existingLicenseTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </CustomSelect>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Veriliş Tarihi</label>
-              <LocalizedDateInput
-                ariaLabel="Veriliş Tarihi"
-                lang="tr-TR"
-                onChange={(next) =>
-                  setValue("existingLicenseIssuedAt", next, { shouldDirty: true })
-                }
-                placeholder="gg.aa.yyyy"
-                value={existingLicenseIssuedAt}
-              />
-            </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Mevcut Ehliyet</label>
+            <CustomSelect
+              className="form-select"
+              {...register("existingLicenseType", {
+                onChange: (event) => {
+                  // Picking any class auto-enables the "Mevcut Ehliyet" switch;
+                  // clearing the dropdown leaves the switch as the user set it.
+                  if (event.target.value) {
+                    setValue("hasExistingLicense", true, { shouldDirty: true });
+                  }
+                },
+              })}
+            >
+              <option value="">Mevcut ehliyet tipi seçin</option>
+              {existingLicenseTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </CustomSelect>
           </div>
-        ) : null}
+          <div className="form-group">
+            <label className="form-label">Veriliş Tarihi</label>
+            <LocalizedDateInput
+              ariaLabel="Veriliş Tarihi"
+              lang="tr-TR"
+              onChange={(next) =>
+                setValue("existingLicenseIssuedAt", next, { shouldDirty: true })
+              }
+              placeholder="gg.aa.yyyy"
+              value={existingLicenseIssuedAt}
+            />
+          </div>
+        </div>
 
       </form>
     </Modal>
