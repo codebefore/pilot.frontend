@@ -71,15 +71,10 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    headingKey: "nav.mebIntegration",
-    items: [
-      { key: "mebjobs", path: "/meb-jobs", labelKey: "nav.mebJobs", Icon: MebIcon },
-    ],
-  },
-  {
     headingKey: "nav.administration",
     items: [
       { key: "settings", path: "/settings", labelKey: "nav.settings", Icon: SettingsIcon },
+      { key: "mebjobs",  path: "/meb-jobs", labelKey: "nav.mebJobs",  Icon: MebIcon },
       { key: "login",    path: "/login",    labelKey: "nav.login",    Icon: LoginIcon },
     ],
   },

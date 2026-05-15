@@ -17,6 +17,7 @@ import {
   deleteCandidate,
   getCandidateById,
   removeActiveGroupAssignment,
+  setCandidateSecondPracticeRound,
   setCandidateTheoryExemption,
   updateCandidate,
   updateCandidateExistingLicense,
@@ -529,20 +530,32 @@ export function CandidateDetailPage() {
       {!loading && !error && candidate && (
         <>
           <CandidateHero candidate={candidate} age={age} />
+          <SecondPracticeRoundBanner
+            candidate={candidate}
+            onCandidateUpdated={setCandidate}
+          />
 
           <nav className="candidate-detail-tabs" role="tablist">
-            {TABS.map((tab) => (
-              <button
-                aria-selected={activeTab === tab.key}
-                className={`candidate-detail-tab${activeTab === tab.key ? " active" : ""}`}
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                role="tab"
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
+            {TABS.map((tab) => {
+              const summary = candidate.documentSummary;
+              const docInfo =
+                tab.key === "documents" && summary
+                  ? ` (${summary.completedCount} / ${summary.totalRequiredCount})`
+                  : "";
+              return (
+                <button
+                  aria-selected={activeTab === tab.key}
+                  className={`candidate-detail-tab${activeTab === tab.key ? " active" : ""}`}
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  role="tab"
+                  type="button"
+                >
+                  {tab.label}
+                  {docInfo}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="candidate-detail-tab-panel">
@@ -558,6 +571,11 @@ export function CandidateDetailPage() {
                 age={age}
                 candidate={candidate}
                 onSaved={(updated) => setCandidate(updated)}
+                onTheoryExemptChanged={(value) =>
+                  setCandidate((prev) =>
+                    prev ? { ...prev, isTheoryExempt: value } : prev
+                  )
+                }
               />
             )}
             {activeTab === "training" && (
@@ -627,6 +645,24 @@ export function CandidateDetailPage() {
   );
 }
 
+// Map the target license class code to a coarse vehicle category label so the
+// hero can show e.g. "B'den A2 (Otomobil)" without an extra API lookup.
+function vehicleTypeForLicenseClass(licenseClass: string): string | null {
+  const key = licenseClass.trim().toUpperCase().replace(/[\s_-]/g, "");
+  if (!key) return null;
+  if (key === "M" || key.startsWith("A") || key.startsWith("B1")) return "Motosiklet";
+  if (key.startsWith("BENGELLI")) return "Engelli Otomobil";
+  if (key.startsWith("BE")) return "Römorklu Otomobil";
+  if (key.startsWith("B")) return "Otomobil";
+  if (key.startsWith("CE") || key.startsWith("C1E")) return "Römorklu Kamyon";
+  if (key.startsWith("C")) return "Kamyon";
+  if (key.startsWith("DE") || key.startsWith("D1E")) return "Römorklu Otobüs";
+  if (key.startsWith("D")) return "Otobüs";
+  if (key.startsWith("F")) return "Traktör";
+  if (key === "G") return "İş Makinesi";
+  return null;
+}
+
 function CandidateHero({
   candidate,
   age,
@@ -637,22 +673,42 @@ function CandidateHero({
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
-  const summary = candidate.documentSummary;
-  const docLabel = summary
-    ? `${summary.completedCount} / ${summary.totalRequiredCount} evrak`
-    : "Evrak bilgisi yok";
   const existingLicense = candidate.existingLicenseType
     ? existingLicenseTypeLabel(candidate.existingLicenseType)
     : null;
-  const licenseClassLabel = existingLicense
-    ? `${existingLicense} → ${candidate.licenseClass}`
+  const licenseTransitionLabel = existingLicense
+    ? `${existingLicense}'den ${candidate.licenseClass}`
     : candidate.licenseClass;
-  const groupLabel = candidate.currentGroup?.title ?? "Gruba atanmamış";
+  const vehicleTypeLabel = vehicleTypeForLicenseClass(candidate.licenseClass);
+  const termLabel = candidate.currentGroup?.term
+    ? buildTermLabel(candidate.currentGroup.term, []).toLocaleUpperCase("tr-TR")
+    : null;
+  const groupTitle = candidate.currentGroup?.title
+    ? candidate.currentGroup.title.toLocaleUpperCase("tr-TR")
+    : null;
+  const groupHeading = groupTitle ?? termLabel;
+  const groupLine = [
+    licenseTransitionLabel + (vehicleTypeLabel ? ` (${vehicleTypeLabel})` : ""),
+    groupHeading,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const paymentLabel = candidate.initialPaymentReceived
     ? "Kayıt ödendi"
     : candidate.examFeePaid
     ? "Sınav ücreti ödendi"
     : "Ödeme bekleniyor";
+  const accountingLine = candidate.totalFee > 0 ? "Muhasebe Kaydı Var" : "Muhasebe Kaydı Yok";
+  const debtLine = candidate.totalDebt > 0
+    ? `Borcu: ${formatCurrencyTRY(candidate.totalDebt)}`
+    : "Borcu Yok";
+  const statusLine = [
+    candidate.examStageLabel,
+    candidate.appointmentStatusLabel,
+    paymentLabel,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
 
   return (
     <header className="candidate-detail-hero">
@@ -664,55 +720,230 @@ function CandidateHero({
 
       <div className="candidate-detail-hero-body">
         <h2 className="candidate-detail-hero-name">{fullName}</h2>
-        <div className="candidate-detail-hero-meta">
-          <span>TC: {candidate.nationalId}</span>
-          {age != null ? <span>{age} yaş</span> : null}
-          {candidate.gender ? <span>{candidateGenderLabel(candidate.gender)}</span> : null}
+        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--identity">
+          <span>{candidate.nationalId}</span>
+          <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
+          {age != null ? (
+            <>
+              <span>{age} yaş</span>
+              <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
+            </>
+          ) : null}
+          {candidate.gender ? (
+            <>
+              <span>{candidateGenderLabel(candidate.gender)}</span>
+              <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
+            </>
+          ) : null}
+          <span>İstanbul</span>
         </div>
-        <div className="candidate-detail-hero-badges">
-          <StatusPill label={statusLabel} status={statusPill} />
-          {candidate.tags?.map((tag) => (
-            <span className="candidate-detail-hero-tag" key={tag.id}>
-              #{tag.name}
+        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--group">
+          <span>{groupLine || "—"}</span>
+          {candidate.tags?.length ? (
+            <span className="candidate-detail-hero-tags">
+              {candidate.tags.map((tag) => `#${tag.name}`).join(" ")}
             </span>
-          ))}
+          ) : null}
         </div>
-        <div className="candidate-detail-hero-facts">
-          <HeroFact value={licenseClassLabel} />
-          <HeroFact value={groupLabel} />
-          <HeroFact
-            value={docLabel}
-            sub={summary?.missingCount ? `${summary.missingCount} eksik` : undefined}
-          />
-          <HeroFact value={paymentLabel} />
+        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--status">
+          <StatusPill label={statusLabel} status={statusPill} />
+          {statusLine ? <span>{statusLine}</span> : null}
+        </div>
+        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--accounting">
+          <span>{accountingLine}</span>
+          <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
+          <span>{debtLine}</span>
         </div>
       </div>
     </header>
   );
 }
 
-function HeroFact({ label, value, sub }: { label?: string; value: string; sub?: string }) {
+function SecondPracticeRoundBanner({
+  candidate,
+  onCandidateUpdated,
+}: {
+  candidate: CandidateResponse;
+  onCandidateUpdated: (next: CandidateResponse) => void;
+}) {
+  const { showToast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const enabled = candidate.secondPracticeRoundEnabled === true;
+  const canToggle = candidate.canToggleSecondPracticeRound === true;
+
+  if (!enabled && !canToggle) {
+    return null;
+  }
+
+  const action = async (next: boolean) => {
+    setSaving(true);
+    try {
+      const updated = await setCandidateSecondPracticeRound(
+        candidate.id,
+        next,
+        candidate.rowVersion
+      );
+      onCandidateUpdated(updated);
+      showToast(next ? "2. Direksiyon Aşaması açıldı" : "2. Direksiyon Aşaması kapatıldı");
+    } catch (error) {
+      showToast(secondPracticeRoundErrorMessage(error), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <span className="candidate-detail-hero-fact">
-      {label ? <span className="candidate-detail-hero-fact-label">{label}</span> : null}
-      <span className="candidate-detail-hero-fact-value">{value}</span>
-      {sub ? <span className="candidate-detail-hero-fact-sub">{sub}</span> : null}
-    </span>
+    <div className={`candidate-second-round-banner${enabled ? " is-on" : ""}`}>
+      <div className="candidate-second-round-banner-body">
+        <strong>2. Direksiyon Aşaması</strong>
+        <span>
+          {enabled
+            ? "Aday ek 4 sınav hakkı ile devam ediyor."
+            : "Aday 1. round'daki 4 hakkı tamamladı ve başarısız oldu. İsteğe bağlı 2. aşama açılabilir."}
+        </span>
+      </div>
+      {enabled ? (
+        <button
+          className="btn btn-secondary"
+          disabled={saving || !canToggle}
+          onClick={() => action(false)}
+          type="button"
+          title={!canToggle ? "2. aşamada sınav kaydı mevcut, kapatılamaz." : undefined}
+        >
+          Kapat
+        </button>
+      ) : (
+        <button
+          className="btn btn-primary"
+          disabled={saving}
+          onClick={() => action(true)}
+          type="button"
+        >
+          2. Aşamayı Aç
+        </button>
+      )}
+    </div>
   );
 }
 
-function GeneralTab(_props: {
+function GeneralTab({ candidate }: {
   candidate: CandidateResponse;
   age: number | null;
   onSaved: (updated: CandidateResponse) => void;
 }) {
   return (
-    <div className="candidate-detail-tab-content candidate-detail-general-grid">
-      <div className="instructor-detail-empty">
-        Kimlik ve iletişim bilgileri Kayıt Bilgileri sekmesine taşındı.
-      </div>
+    <div className="candidate-detail-tab-content">
+      <CandidateTimeline candidate={candidate} />
     </div>
   );
+}
+
+function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
+  const events = candidate.timeline ?? [];
+  const futureSteps = buildFutureStages(candidate);
+
+  type TimelineRow =
+    | { key: string; kind: "event"; tone: string; dateLabel: string; title: string; detail: string | null }
+    | { key: string; kind: "current"; tone: "current"; dateLabel: string; title: string; detail: string | null }
+    | { key: string; kind: "future"; tone: "future"; dateLabel: string; title: string; detail: null };
+
+  // Newest at the top: future stages first (final goal on top), then "Şu an",
+  // then past events in reverse-chronological order.
+  const rows: TimelineRow[] = [
+    ...[...futureSteps].reverse().map<TimelineRow>((label) => ({
+      key: `future-${label}`,
+      kind: "future",
+      tone: "future",
+      dateLabel: "—",
+      title: label,
+      detail: null,
+    })),
+    ...(candidate.examStageLabel
+      ? [{
+          key: "current",
+          kind: "current" as const,
+          tone: "current" as const,
+          dateLabel: "Şu an",
+          title: candidate.examStageLabel,
+          detail: candidate.appointmentStatusLabel ?? null,
+        }]
+      : []),
+    ...[...events].reverse().map<TimelineRow>((event, index) => ({
+      key: `${event.kind}-${event.occurredAtUtc}-${index}`,
+      kind: "event",
+      tone: event.tone,
+      dateLabel: formatTimelineDate(event.occurredAtUtc),
+      title: event.title,
+      detail: event.detail,
+    })),
+  ];
+
+  if (rows.length === 0) {
+    return (
+      <div className="instructor-detail-card">
+        <h3 className="candidate-timeline-card-title">Aday Yolculuğu</h3>
+        <div className="instructor-detail-empty">
+          Bu aday için henüz olay kaydı yok.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="instructor-detail-card">
+      <h3 className="candidate-timeline-card-title">Aday Yolculuğu</h3>
+      <ol className="candidate-timeline">
+        {(() => {
+          let sideIndex = 0;
+          return rows.map((row) => {
+            const isCentered = row.title === "Mezun";
+            const side = isCentered ? null : sideIndex++ % 2 === 0 ? "left" : "right";
+            const itemClass = [
+              "candidate-timeline-item",
+              isCentered ? "is-centered" : `side-${side}`,
+              row.kind === "current" ? "is-current" : "",
+              row.kind === "future" ? "is-future" : "",
+              row.kind === "event" ? `tone-${row.tone}` : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <li key={row.key} className={itemClass}>
+                <div className="candidate-timeline-content">
+                  <div className="candidate-timeline-title">{row.title}</div>
+                  {row.detail ? (
+                    <div className="candidate-timeline-detail">{row.detail}</div>
+                  ) : null}
+                </div>
+                <div className="candidate-timeline-axis">
+                  <span className="candidate-timeline-marker" aria-hidden="true" />
+                  <span className="candidate-timeline-date">{row.dateLabel}</span>
+                </div>
+              </li>
+            );
+          });
+        })()}
+      </ol>
+    </div>
+  );
+}
+
+function buildFutureStages(candidate: CandidateResponse): string[] {
+  const stage = candidate.examStageLabel;
+  if (!stage || stage === "Mezun" || stage === "Dosya Yakıldı") return [];
+  if (stage === "E-Sınav Aşamasında") return ["Direksiyon Aşaması", "Mezun"];
+  if (stage === "Direksiyon Aşamasında" || stage === "2. Direksiyon Aşaması") return ["Mezun"];
+  return [];
+}
+
+function formatTimelineDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }
 
 function CandidateContactsEditor({
@@ -1192,10 +1423,12 @@ function LicenseInfoTab({
   age,
   candidate,
   onSaved,
+  onTheoryExemptChanged,
 }: {
   age: number | null;
   candidate: CandidateResponse;
   onSaved: (updated: CandidateResponse) => void;
+  onTheoryExemptChanged?: (value: boolean) => void;
 }) {
   const { showToast } = useToast();
   const { options: licenseClassOptions } = useInitialLicenseClassOptions();
@@ -1350,6 +1583,21 @@ function LicenseInfoTab({
     }
   };
 
+  const [exemptSaving, setExemptSaving] = useState(false);
+  const isTheoryExempt = candidate.isTheoryExempt ?? false;
+  const toggleTheoryExempt = async () => {
+    const next = !isTheoryExempt;
+    setExemptSaving(true);
+    try {
+      await setCandidateTheoryExemption(candidate.id, next);
+      onTheoryExemptChanged?.(next);
+    } catch {
+      showToast("Muafiyet durumu güncellenemedi.", "error");
+    } finally {
+      setExemptSaving(false);
+    }
+  };
+
   const buildExistingLicenseRequest = (
     patch: Partial<CandidateUpsertRequest>
   ): CandidateExistingLicenseRequest => {
@@ -1462,6 +1710,22 @@ function LicenseInfoTab({
               )
             }
           />
+        </div>
+
+        <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
+          <span className="form-label" style={{ margin: 0 }}>
+            Teori Muafiyeti
+          </span>
+          <label className="switch-toggle" title="Aday teori sınavından muaf">
+            <input
+              checked={isTheoryExempt}
+              disabled={exemptSaving}
+              onChange={toggleTheoryExempt}
+              type="checkbox"
+            />
+            <span aria-hidden="true" className="switch-toggle-control" />
+            <span>{isTheoryExempt ? "Muaf" : "Değil"}</span>
+          </label>
         </div>
 
         <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
@@ -1748,6 +2012,24 @@ function parseMoneyInput(value: string): number | null {
       : raw;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function secondPracticeRoundErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const codes = Object.values(error.validationErrorCodes ?? {}).flat();
+    for (const entry of codes) {
+      if (entry.code === "candidate.validation.secondPracticeRoundNotEligible") {
+        return "Aday henüz 2. Direksiyon Aşamasına uygun değil (1. round 4/4 ve başarısız olmalı).";
+      }
+      if (entry.code === "candidate.validation.secondPracticeRoundHasAttempts") {
+        return "2. aşamada sınav kaydı mevcut, kapatılamaz.";
+      }
+      if (entry.code === "candidate.validation.concurrencyConflict") {
+        return "Bilgiler başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.";
+      }
+    }
+  }
+  return "2. Direksiyon Aşaması güncellenemedi.";
 }
 
 function accountingErrorMessage(error: unknown, fallback: string): string {

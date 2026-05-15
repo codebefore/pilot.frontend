@@ -107,6 +107,19 @@ export interface CandidateResponse {
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
+  examStageLabel?: string | null;
+  appointmentStatusLabel?: string | null;
+  secondPracticeRoundEnabled?: boolean;
+  canToggleSecondPracticeRound?: boolean;
+  timeline?: CandidateTimelineEvent[];
+}
+
+export interface CandidateTimelineEvent {
+  kind: string;
+  occurredAtUtc: string;
+  title: string;
+  detail: string | null;
+  tone: string;
 }
 
 /**

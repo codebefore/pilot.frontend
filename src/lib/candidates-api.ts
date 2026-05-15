@@ -148,6 +148,17 @@ export function updateCandidateExistingLicense(
   return httpPut<CandidateResponse>(`/api/candidates/${id}/existing-license`, body);
 }
 
+export function setCandidateSecondPracticeRound(
+  id: string,
+  enabled: boolean,
+  rowVersion: number
+): Promise<CandidateResponse> {
+  return httpPatch<CandidateResponse>(`/api/candidates/${id}/second-practice-round`, {
+    enabled,
+    rowVersion,
+  });
+}
+
 export function deleteCandidate(id: string): Promise<void> {
   return httpDelete(`/api/candidates/${id}`);
 }

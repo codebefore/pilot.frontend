@@ -54,6 +54,11 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         descriptionKey: "settings.nav.cashRegisters.description",
         to: "/settings/definitions/cash-registers",
       },
+      {
+        labelKey: "settings.nav.fees.label",
+        descriptionKey: "settings.nav.fees.description",
+        to: "/settings/definitions/fees",
+      },
     ],
   },
   {
@@ -73,11 +78,6 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.classrooms.label",
         descriptionKey: "settings.nav.classrooms.description",
         to: "/settings/definitions/classrooms",
-      },
-      {
-        labelKey: "settings.nav.fees.label",
-        descriptionKey: "settings.nav.fees.description",
-        to: "/settings/definitions/fees",
       },
       {
         labelKey: "settings.nav.documentTypes.label",
