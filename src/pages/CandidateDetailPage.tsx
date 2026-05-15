@@ -43,7 +43,7 @@ import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstructors } from "../lib/instructors-api";
-import { getGroups } from "../lib/groups-api";
+import { getGroupById, getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { getTrainingLessons } from "../lib/training-lessons-api";
 import { getVehicles } from "../lib/vehicles-api";
@@ -120,7 +120,7 @@ type TabKey =
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "general", label: "Genel" },
-  { key: "license", label: "Ehliyet Bilgileri" },
+  { key: "license", label: "Kayıt Bilgileri" },
   { key: "training", label: "Eğitim ve Sınavlar" },
   { key: "documents", label: "Evraklar" },
   { key: "payments", label: "Muhasebe" },
@@ -555,6 +555,7 @@ export function CandidateDetailPage() {
             )}
             {activeTab === "license" && (
               <LicenseInfoTab
+                age={age}
                 candidate={candidate}
                 onSaved={(updated) => setCandidate(updated)}
               />
@@ -700,151 +701,16 @@ function HeroFact({ label, value, sub }: { label?: string; value: string; sub?: 
   );
 }
 
-function GeneralTab({
-  candidate,
-  age,
-  onSaved,
-}: {
+function GeneralTab(_props: {
   candidate: CandidateResponse;
   age: number | null;
   onSaved: (updated: CandidateResponse) => void;
 }) {
-  const { showToast } = useToast();
-  const saveField = async (patch: Partial<CandidateUpsertRequest>, message: string) => {
-    try {
-      const updated = await updateCandidateField(candidate, patch);
-      onSaved(updated);
-      showToast(message);
-    } catch {
-      showToast("Bilgiler kaydedilemedi", "error");
-      throw new Error("save failed");
-    }
-  };
-
-  const loadGroupOptions = async (): Promise<SelectOption[]> => {
-    const response = await getGroups({ pageSize: 200 });
-    return [
-      { value: "", label: "— Atanmamış —" },
-      ...response.items.map((group) => ({
-        value: group.id,
-        label: `${group.title}${group.startDate ? ` · ${formatDateTR(group.startDate)}` : ""}`,
-      })),
-    ];
-  };
-
-  const saveGroup = async (groupId: string) => {
-    try {
-      if (!groupId) {
-        await removeActiveGroupAssignment(candidate.id);
-      } else {
-        await assignCandidateGroup(candidate.id, groupId);
-      }
-
-      const updated = await getCandidateById(candidate.id);
-      onSaved(updated);
-      showToast(groupId ? "Grup atandı" : "Aktif grup ataması kapatıldı");
-    } catch {
-      showToast("Grup ataması kaydedilemedi", "error");
-      throw new Error("save failed");
-    }
-  };
-
   return (
     <div className="candidate-detail-tab-content candidate-detail-general-grid">
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Kimlik Bilgileri</h3>
-        <div className="candidate-detail-edit-list">
-          <EditableRow
-            displayValue={candidate.firstName}
-            inputValue={candidate.firstName}
-            label="Ad"
-            onSave={(value) => saveField({ firstName: value.trim() }, "Ad güncellendi")}
-          />
-          <EditableRow
-            displayValue={candidate.lastName}
-            inputValue={candidate.lastName}
-            label="Soyad"
-            onSave={(value) => saveField({ lastName: value.trim() }, "Soyad güncellendi")}
-          />
-          <EditableRow
-            displayValue={candidate.nationalId}
-            inputType="tel"
-            inputValue={candidate.nationalId}
-            label="TC Kimlik No"
-            onSave={(value) => saveField({ nationalId: value.trim() }, "TC kimlik güncellendi")}
-          />
-          <EditableRow
-            displayValue={candidate.identitySerialNumber ?? ""}
-            inputValue={candidate.identitySerialNumber ?? ""}
-            label="Kimlik Seri No"
-            onSave={(value) =>
-              saveField({ identitySerialNumber: value.trim() || null }, "Kimlik seri no güncellendi")
-            }
-          />
-          <EditableRow
-            displayValue={candidate.motherName ?? ""}
-            inputValue={candidate.motherName ?? ""}
-            label="Anne Adı"
-            onSave={(value) => saveField({ motherName: value.trim() || null }, "Anne adı güncellendi")}
-          />
-          <EditableRow
-            displayValue={candidate.fatherName ?? ""}
-            inputValue={candidate.fatherName ?? ""}
-            label="Baba Adı"
-            onSave={(value) => saveField({ fatherName: value.trim() || null }, "Baba adı güncellendi")}
-          />
-          <EditableRow
-            displayValue={candidateGenderLabel(candidate.gender)}
-            inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
-            label="Cinsiyet"
-            options={CANDIDATE_GENDER_OPTIONS}
-            onSave={(value) =>
-              saveField({ gender: normalizeCandidateGender(value) }, "Cinsiyet güncellendi")
-            }
-          />
-          <EditableRow
-            displayValue={formatDateTR(candidate.birthDate)}
-            inputType="date"
-            inputValue={candidate.birthDate ?? ""}
-            label="Doğum Tarihi"
-            onSave={(value) => saveField({ birthDate: value || null }, "Doğum tarihi güncellendi")}
-          />
-          <Field label="Yaş" value={age != null ? String(age) : "—"} />
-        </div>
-      </section>
-
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">İletişim</h3>
-        <CandidateContactsEditor candidate={candidate} onSave={saveField} />
-      </section>
-
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Grup Yönetimi</h3>
-        <div className="candidate-detail-edit-list">
-          <EditableRow
-            displayValue={candidate.currentGroup?.title ?? "Atanmamış"}
-            inputValue={candidate.currentGroup?.groupId ?? ""}
-            label="Aktif Grup"
-            loadOptions={loadGroupOptions}
-            onSave={saveGroup}
-          />
-          <Field
-            label="Dönem"
-            value={
-              candidate.currentGroup?.term
-                ? buildTermLabel(candidate.currentGroup.term, [])
-                : "—"
-            }
-          />
-          <Field
-            label="Grup Başlangıcı"
-            value={formatDateTR(candidate.currentGroup?.startDate ?? null)}
-          />
-        </div>
-        <div className="form-subsection-note" style={{ marginTop: 8 }}>
-          Yeni bir grup seçildiğinde mevcut aktif atama otomatik kapatılır. Boş seçim aktif atamayı kaldırır.
-        </div>
-      </section>
+      <div className="instructor-detail-empty">
+        Kimlik ve iletişim bilgileri Kayıt Bilgileri sekmesine taşındı.
+      </div>
     </div>
   );
 }
@@ -1323,14 +1189,68 @@ function formatExistingLicenseSelectionLabel(
 }
 
 function LicenseInfoTab({
+  age,
   candidate,
   onSaved,
 }: {
+  age: number | null;
   candidate: CandidateResponse;
   onSaved: (updated: CandidateResponse) => void;
 }) {
   const { showToast } = useToast();
   const { options: licenseClassOptions } = useInitialLicenseClassOptions();
+  const [groupCapacity, setGroupCapacity] = useState<{
+    filled: number;
+    capacity: number;
+  } | null>(null);
+
+  // Pull the active group separately to surface its capacity/utilisation, since
+  // the candidate response only carries summary fields (no counts).
+  useEffect(() => {
+    const groupId = candidate.currentGroup?.groupId;
+    if (!groupId) {
+      setGroupCapacity(null);
+      return;
+    }
+    const controller = new AbortController();
+    getGroupById(groupId, controller.signal)
+      .then((group) =>
+        setGroupCapacity({ filled: group.activeCandidateCount, capacity: group.capacity })
+      )
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setGroupCapacity(null);
+      });
+    return () => controller.abort();
+  }, [candidate.currentGroup?.groupId]);
+
+  const loadGroupOptions = async (): Promise<SelectOption[]> => {
+    const response = await getGroups({ pageSize: 200 });
+    return [
+      { value: "", label: "— Atanmamış —" },
+      ...response.items.map((group) => ({
+        value: group.id,
+        label: `${group.title}${group.startDate ? ` · ${formatDateTR(group.startDate)}` : ""}`,
+      })),
+    ];
+  };
+
+  const saveGroup = async (groupId: string) => {
+    try {
+      if (!groupId) {
+        await removeActiveGroupAssignment(candidate.id);
+      } else {
+        await assignCandidateGroup(candidate.id, groupId);
+      }
+
+      const updated = await getCandidateById(candidate.id);
+      onSaved(updated);
+      showToast(groupId ? "Grup atandı" : "Aktif grup ataması kapatıldı");
+    } catch {
+      showToast("Grup ataması kaydedilemedi", "error");
+      throw new Error("save failed");
+    }
+  };
   const { options: configuredExistingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const [licenseType, setLicenseType] = useState(
     encodeExistingLicenseSelection(
@@ -1543,13 +1463,11 @@ function LicenseInfoTab({
             }
           />
         </div>
-      </section>
 
-      <section className="instructor-detail-card">
-        <div className="instructor-detail-section-header">
-          <h3 className="candidate-detail-section-title" style={{ margin: 0 }}>
+        <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
+          <span className="form-label" style={{ margin: 0 }}>
             Mevcut Sürücü Belgesi
-          </h3>
+          </span>
           <label className="switch-toggle">
             <input
               checked={licenseFieldsOpen}
@@ -1561,8 +1479,7 @@ function LicenseInfoTab({
           </label>
         </div>
 
-        {licenseFieldsOpen ? (
-          <div className="candidate-detail-edit-list">
+        <div className="candidate-detail-edit-list">
             <EditableRow
               displayValue={
                 hasLicense
@@ -1625,40 +1542,111 @@ function LicenseInfoTab({
                 Bu ehliyet tipi için mevcut sürücü belgesi gerektiren tanım yok.
               </div>
             ) : null}
-            {!hasLicense ? (
-              <div className="candidate-detail-license-actions">
-              <button
-                className="btn btn-primary"
-                disabled={
-                  existingLicenseOptions.length === 0 ||
-                  !licenseType ||
-                  !licenseNumber.trim() ||
-                  !issuedAt ||
-                  !issuedProvince.trim()
-                }
-                onClick={() =>
-                  void saveExistingLicenseField(
-                    {
-                      existingLicenseType: licenseType || null,
-                      existingLicenseIssuedAt: issuedAt || null,
-                      existingLicenseNumber: licenseNumber.trim() || null,
-                      existingLicenseIssuedProvince: issuedProvince.trim() || null,
-                    },
-                    "Mevcut sürücü belgesi eklendi"
-                  )
-                }
-                type="button"
-              >
-                Mevcut belgeyi kaydet
-              </button>
-            </div>
-            ) : null}
           </div>
-        ) : (
-          <div className="instructor-detail-empty">
-            Adayda mevcut bir sürücü belgesi yok.
-          </div>
-        )}
+      </section>
+
+      <section className="instructor-detail-card">
+        <h3 className="candidate-detail-section-title">Grup / Dönem Bilgileri</h3>
+        <div className="candidate-detail-edit-list">
+          <Field label="Kayıt Tarihi" value={formatDateTR(candidate.createdAtUtc)} />
+          <EditableRow
+            displayValue={candidate.currentGroup?.title ?? "Atanmamış"}
+            inputValue={candidate.currentGroup?.groupId ?? ""}
+            label="Aktif Grup"
+            loadOptions={loadGroupOptions}
+            onSave={saveGroup}
+          />
+          <Field
+            label="Dönem"
+            value={
+              candidate.currentGroup?.term
+                ? buildTermLabel(candidate.currentGroup.term, [])
+                : "—"
+            }
+          />
+          <Field
+            label="Grup Başlangıcı"
+            value={formatDateTR(candidate.currentGroup?.startDate ?? null)}
+          />
+          <Field
+            label="Kontenjan"
+            value={
+              groupCapacity
+                ? `${groupCapacity.filled}/${groupCapacity.capacity}`
+                : "—"
+            }
+          />
+        </div>
+        <div className="form-subsection-note" style={{ marginTop: 8 }}>
+          Yeni bir grup seçildiğinde mevcut aktif atama otomatik kapatılır. Boş seçim aktif atamayı kaldırır.
+        </div>
+      </section>
+
+      <section className="instructor-detail-card">
+        <h3 className="candidate-detail-section-title">Kimlik Bilgileri</h3>
+        <div className="candidate-detail-edit-list">
+          <EditableRow
+            displayValue={candidate.firstName}
+            inputValue={candidate.firstName}
+            label="Ad"
+            onSave={(value) => saveApplicationField({ firstName: value.trim() }, "Ad güncellendi")}
+          />
+          <EditableRow
+            displayValue={candidate.lastName}
+            inputValue={candidate.lastName}
+            label="Soyad"
+            onSave={(value) => saveApplicationField({ lastName: value.trim() }, "Soyad güncellendi")}
+          />
+          <EditableRow
+            displayValue={candidate.nationalId}
+            inputType="tel"
+            inputValue={candidate.nationalId}
+            label="TC Kimlik No"
+            onSave={(value) => saveApplicationField({ nationalId: value.trim() }, "TC kimlik güncellendi")}
+          />
+          <EditableRow
+            displayValue={candidate.identitySerialNumber ?? ""}
+            inputValue={candidate.identitySerialNumber ?? ""}
+            label="Kimlik Seri No"
+            onSave={(value) =>
+              saveApplicationField({ identitySerialNumber: value.trim() || null }, "Kimlik seri no güncellendi")
+            }
+          />
+          <EditableRow
+            displayValue={candidate.motherName ?? ""}
+            inputValue={candidate.motherName ?? ""}
+            label="Anne Adı"
+            onSave={(value) => saveApplicationField({ motherName: value.trim() || null }, "Anne adı güncellendi")}
+          />
+          <EditableRow
+            displayValue={candidate.fatherName ?? ""}
+            inputValue={candidate.fatherName ?? ""}
+            label="Baba Adı"
+            onSave={(value) => saveApplicationField({ fatherName: value.trim() || null }, "Baba adı güncellendi")}
+          />
+          <EditableRow
+            displayValue={candidateGenderLabel(candidate.gender)}
+            inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
+            label="Cinsiyet"
+            options={CANDIDATE_GENDER_OPTIONS}
+            onSave={(value) =>
+              saveApplicationField({ gender: normalizeCandidateGender(value) }, "Cinsiyet güncellendi")
+            }
+          />
+          <EditableRow
+            displayValue={formatDateTR(candidate.birthDate)}
+            inputType="date"
+            inputValue={candidate.birthDate ?? ""}
+            label="Doğum Tarihi"
+            onSave={(value) => saveApplicationField({ birthDate: value || null }, "Doğum tarihi güncellendi")}
+          />
+          <Field label="Yaş" value={age != null ? String(age) : "—"} />
+        </div>
+      </section>
+
+      <section className="instructor-detail-card">
+        <h3 className="candidate-detail-section-title">İletişim</h3>
+        <CandidateContactsEditor candidate={candidate} onSave={saveApplicationField} />
       </section>
     </div>
   );
