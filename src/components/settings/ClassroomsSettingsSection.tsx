@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
+import { PencilIcon, PlusIcon } from "../icons";
 import { ClassroomFormModal } from "../modals/ClassroomFormModal";
 import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
@@ -10,7 +10,6 @@ import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import {
-  deleteClassroom,
   getClassrooms,
   type ClassroomActivityFilter,
   type ClassroomSortDirection,
@@ -139,8 +138,6 @@ export function ClassroomsSettingsSection() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ClassroomResponse | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
 
   const columns = buildColumns(t);
@@ -199,6 +196,11 @@ export function ClassroomsSettingsSection() {
     };
   }, [items, summary, totalCount]);
 
+  // Classrooms are capped at a fixed maximum; hide the create action once full.
+  const MAX_CLASSROOM_COUNT = 3;
+  const classroomCount = summary.activeCount + summary.inactiveCount;
+  const canCreateClassroom = classroomCount < MAX_CLASSROOM_COUNT;
+
   const hasActiveFilters =
     search.trim().length > 0 ||
     filters.activity !== DEFAULT_FILTERS.activity ||
@@ -240,24 +242,6 @@ export function ClassroomsSettingsSection() {
         ? t("settings.classrooms.toast.updated")
         : t("settings.classrooms.toast.created")
     );
-  };
-
-  const handleDelete = async (classroom: ClassroomResponse) => {
-    setDeletingId(classroom.id);
-    try {
-      await deleteClassroom(classroom.id);
-      setConfirmDeleteId(null);
-      showToast(t("settings.classrooms.toast.deleted"));
-      if (items.length === 1 && page > 1) {
-        setPage((current) => current - 1);
-      } else {
-        setRefreshKey((current) => current + 1);
-      }
-    } catch {
-      showToast(t("settings.classrooms.toast.deleteError"), "error");
-    } finally {
-      setDeletingId(null);
-    }
   };
 
   return (
@@ -320,17 +304,19 @@ export function ClassroomsSettingsSection() {
                   {t("common.clearFilters")}
                 </button>
               ) : null}
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-                type="button"
-              >
-                <PlusIcon size={14} />
-                {t("settings.classrooms.button.new")}
-              </button>
+              {canCreateClassroom ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setEditing(null);
+                    setFormOpen(true);
+                  }}
+                  type="button"
+                >
+                  <PlusIcon size={14} />
+                  {t("settings.classrooms.button.new")}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -410,60 +396,19 @@ export function ClassroomsSettingsSection() {
                         <td key={column.id}>{column.renderCell(item)}</td>
                       ))}
                       <td className="col-picker-td">
-                        <div
-                          className={
-                            confirmDeleteId === item.id
-                              ? "table-row-actions table-row-actions-confirm"
-                              : "table-row-actions"
-                          }
-                        >
-                          {confirmDeleteId === item.id ? (
-                            <>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                disabled={deletingId === item.id}
-                                onClick={() => setConfirmDeleteId(null)}
-                                type="button"
-                              >
-                                {t("common.cancel")}
-                              </button>
-                              <button
-                                className="btn btn-danger btn-sm"
-                                disabled={deletingId === item.id}
-                                onClick={() => handleDelete(item)}
-                                type="button"
-                              >
-                                {deletingId === item.id
-                                  ? t("settings.classrooms.action.deleting")
-                                  : t("common.delete")}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                aria-label={t("settings.classrooms.action.edit")}
-                                className="icon-btn"
-                                onClick={() => {
-                                  setEditing(item);
-                                  setFormOpen(true);
-                                }}
-                                title={t("settings.classrooms.action.edit")}
-                                type="button"
-                              >
-                                <PencilIcon size={14} />
-                              </button>
-                              <button
-                                aria-label={t("settings.classrooms.action.delete")}
-                                className="icon-btn icon-btn-danger"
-                                disabled={deletingId !== null}
-                                onClick={() => setConfirmDeleteId(item.id)}
-                                title={t("settings.classrooms.action.delete")}
-                                type="button"
-                              >
-                                <TrashIcon size={14} />
-                              </button>
-                            </>
-                          )}
+                        <div className="table-row-actions">
+                          <button
+                            aria-label={t("settings.classrooms.action.edit")}
+                            className="icon-btn"
+                            onClick={() => {
+                              setEditing(item);
+                              setFormOpen(true);
+                            }}
+                            title={t("settings.classrooms.action.edit")}
+                            type="button"
+                          >
+                            <PencilIcon size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>

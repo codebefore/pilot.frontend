@@ -223,6 +223,7 @@ export function ClassroomFormModal({
             <input
               className={fieldClass(errors.name?.message)}
               placeholder={t("settings.classrooms.form.namePlaceholder")}
+              readOnly={editing !== null}
               {...register("name", { required: t("classroom.validation.required") })}
             />
             {errors.name && <div className="form-error">{errors.name.message}</div>}

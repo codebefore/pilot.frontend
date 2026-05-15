@@ -4862,6 +4862,23 @@ function DocumentsTab({
         </div>
       </section>
 
+      {contractTypes.length > 0 && (
+        <section className="instructor-detail-card">
+          <h3 className="candidate-detail-section-title">Sözleşme</h3>
+          <ul className="candidate-detail-doc-list candidate-detail-doc-contract-grid">
+            {contractTypes.filter(matchesFilter).map((type) => (
+              <DocRow
+                candidateId={candidateId}
+                key={type.id}
+                onRefresh={onRefresh}
+                type={type}
+                upload={uploadsByKey.get(type.key) ?? null}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
       {heroTypes.length > 0 && (
         <section className="instructor-detail-card candidate-detail-doc-hero-card">
           <h3 className="candidate-detail-section-title">Zorunlu Evraklar</h3>
@@ -4935,23 +4952,6 @@ function DocumentsTab({
               ))}
             </ul>
           )}
-        </section>
-      )}
-
-      {contractTypes.length > 0 && (
-        <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">Sözleşme</h3>
-          <ul className="candidate-detail-doc-list candidate-detail-doc-contract-grid">
-            {contractTypes.filter(matchesFilter).map((type) => (
-              <DocRow
-                candidateId={candidateId}
-                key={type.id}
-                onRefresh={onRefresh}
-                type={type}
-                upload={uploadsByKey.get(type.key) ?? null}
-              />
-            ))}
-          </ul>
         </section>
       )}
     </div>
@@ -5375,7 +5375,6 @@ function DocRow({
 
   const handleMarkPhysical = async () => {
     if (markingPhysical) return;
-    if (!validateMetadata()) return;
     setMarkingPhysical(true);
     try {
       await uploadDocument({
@@ -5487,7 +5486,7 @@ function DocRow({
 
   const inputId = `doc-upload-${type.id}`;
   const busy = uploading || deleting || markingPhysical || markingMebbis || metadataSaving;
-  const canUploadFile = status === "missing";
+  const canUploadFile = status !== "uploaded";
   const canDeleteFile = !!upload?.hasFile;
   const hasDocumentAvailable = status !== "missing";
 
