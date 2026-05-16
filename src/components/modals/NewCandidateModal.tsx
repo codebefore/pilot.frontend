@@ -188,7 +188,6 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const reuseFromCandidateId = watch("reuseFromCandidateId");
   const documentIdsToCopy = watch("documentIdsToCopy");
   const tags = watch("tags");
-  const hasExistingLicense = watch("hasExistingLicense");
   const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const selectedReuseSource =
