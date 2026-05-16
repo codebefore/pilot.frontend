@@ -748,6 +748,7 @@ function CandidateHero({
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--status">
           <StatusPill label={statusLabel} status={statusPill} />
           {statusLine ? <span>{statusLine}</span> : null}
+          <HeroBadges candidate={candidate} />
         </div>
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--accounting">
           <span>{accountingLine}</span>
@@ -756,6 +757,38 @@ function CandidateHero({
         </div>
       </div>
     </header>
+  );
+}
+
+function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
+  // Compact filigran rozetleri — adayın iş kuralı bypass'larını ve aktif
+  // round'unu görsel olarak işaretler. Senaryo diyagramında "Direk Geçiş
+  // Filigran" notuna karşılık gelir.
+  const badges: { key: string; label: string; tone: "info" | "primary" }[] = [];
+  if (candidate.isTheoryExempt) {
+    badges.push({ key: "exempt", label: "Muaf", tone: "info" });
+  } else if (candidate.existingLicenseType) {
+    badges.push({
+      key: "existing-license",
+      label: `Mevcut Ehliyet (${candidate.existingLicenseType})`,
+      tone: "info",
+    });
+  }
+  if (candidate.secondPracticeRoundEnabled) {
+    badges.push({ key: "second-round", label: "2. Aşama", tone: "primary" });
+  }
+  if (badges.length === 0) return null;
+  return (
+    <span className="candidate-detail-hero-badges">
+      {badges.map((badge) => (
+        <span
+          key={badge.key}
+          className={`candidate-detail-hero-badge tone-${badge.tone}`}
+        >
+          {badge.label}
+        </span>
+      ))}
+    </span>
   );
 }
 

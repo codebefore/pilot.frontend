@@ -551,6 +551,33 @@
   color: var(--gray-600);
   font-size: 12px;
 }
+.candidate-detail-hero-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.candidate-detail-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.candidate-detail-hero-badge.tone-info {
+  background: color-mix(in srgb, var(--gray-200) 80%, white);
+  color: var(--gray-700);
+  border: 1px solid color-mix(in srgb, var(--gray-300) 70%, transparent);
+}
+.candidate-detail-hero-badge.tone-primary {
+  background: color-mix(in srgb, var(--primary-100, #dbeafe) 70%, white);
+  color: var(--primary-700, #1d4ed8);
+  border: 1px solid color-mix(in srgb, var(--primary-300, #93c5fd) 60%, transparent);
+}
 .candidate-second-round-banner {
   display: flex;
   align-items: center;
