@@ -141,6 +141,15 @@ export function setCandidateTheoryExemption(
   });
 }
 
+export function setCandidateTheoryCourseResult(
+  id: string,
+  score: number | null
+): Promise<void> {
+  return httpPatch<void>(`/api/candidates/${id}/theory-course-result`, {
+    score,
+  });
+}
+
 export function updateCandidateExistingLicense(
   id: string,
   body: CandidateExistingLicenseRequest

@@ -892,6 +892,28 @@
 .candidate-exam-attempts-muaf-toggle {
   font-size: 13px;
 }
+.candidate-exam-attempts-course-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--gray-700);
+}
+.candidate-exam-attempts-course-score input {
+  width: 56px;
+  padding: 4px 6px;
+  font-size: 13px;
+  text-align: center;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  background: white;
+  color: var(--gray-900);
+}
+.candidate-exam-attempts-course-score input:disabled {
+  background: var(--gray-100);
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
 .candidate-exam-attempts-head .candidate-detail-section-title {
   margin: 0;
 }

@@ -18,6 +18,7 @@ import {
   getCandidateById,
   removeActiveGroupAssignment,
   setCandidateSecondPracticeRound,
+  setCandidateTheoryCourseResult,
   setCandidateTheoryExemption,
   updateCandidate,
   updateCandidateExistingLicense,
@@ -589,6 +590,17 @@ export function CandidateDetailPage() {
                       prev ? { ...prev, isTheoryExempt: value } : prev
                     )
                   }
+                  onTheoryCourseScoreChanged={async () => {
+                    // Score değişimi resolver çıktısını (stage / appointment /
+                    // hero badge / timeline) etkiler — tek alan patch yetmez,
+                    // tam aday verisini backend'den çekelim.
+                    try {
+                      const updated = await getCandidateById(candidate.id);
+                      setCandidate(updated);
+                    } catch {
+                      /* sessizce yut; toast zaten section'da gösterildi */
+                    }
+                  }}
                 />
                 <TrainingTab candidate={candidate} />
               </>
@@ -765,12 +777,20 @@ function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
   // round'unu görsel olarak işaretler. Senaryo diyagramında "Direk Geçiş
   // Filigran" notuna karşılık gelir.
   const badges: { key: string; label: string; tone: "info" | "primary" }[] = [];
+  // Direksiyon'a geçiş yolu (priority): operatör onayı (Muaf) > otomatik
+  // tespit (Mevcut Ehliyet) > manuel sınav notu (Teorik Kurs).
   if (candidate.isTheoryExempt) {
     badges.push({ key: "exempt", label: "Muaf", tone: "info" });
   } else if (candidate.existingLicenseType) {
     badges.push({
       key: "existing-license",
       label: `Mevcut Ehliyet (${candidate.existingLicenseType})`,
+      tone: "info",
+    });
+  } else if (candidate.theoryCourseScore != null && candidate.theoryCourseScore >= 70) {
+    badges.push({
+      key: "theory-course",
+      label: `Teorik Kurs Geçti (${candidate.theoryCourseScore})`,
       tone: "info",
     });
   }
@@ -3985,11 +4005,13 @@ function CandidateExamAttemptsSection({
   onAccountingChanged,
   onOpenAccountingPayment,
   onTheoryExemptChanged,
+  onTheoryCourseScoreChanged,
 }: {
   candidate: CandidateResponse;
   onAccountingChanged?: () => Promise<void> | void;
   onOpenAccountingPayment?: (movementId: string) => void;
   onTheoryExemptChanged?: (value: boolean) => void;
+  onTheoryCourseScoreChanged?: (score: number | null) => void;
 }) {
   const { showToast } = useToast();
   const [exemptSaving, setExemptSaving] = useState(false);
@@ -4004,6 +4026,49 @@ function CandidateExamAttemptsSection({
       showToast("Muafiyet durumu güncellenemedi.", "error");
     } finally {
       setExemptSaving(false);
+    }
+  };
+  const [courseScoreSaving, setCourseScoreSaving] = useState(false);
+  const [courseScoreInput, setCourseScoreInput] = useState<string>(
+    candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : ""
+  );
+  useEffect(() => {
+    setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
+  }, [candidate.theoryCourseScore]);
+  const submitCourseScore = async (nextScore: number | null) => {
+    setCourseScoreSaving(true);
+    try {
+      await setCandidateTheoryCourseResult(candidate.id, nextScore);
+      onTheoryCourseScoreChanged?.(nextScore);
+      showToast(
+        nextScore == null
+          ? "Teorik kurs sonucu silindi"
+          : nextScore >= 70
+            ? "Teorik kurs geçildi olarak kaydedildi"
+            : "Teorik kurs sonucu kaydedildi"
+      );
+    } catch {
+      showToast("Teorik kurs sonucu kaydedilemedi.", "error");
+    } finally {
+      setCourseScoreSaving(false);
+    }
+  };
+  const onCourseScoreBlur = () => {
+    const raw = courseScoreInput.trim();
+    if (raw === "") {
+      if (candidate.theoryCourseScore != null) {
+        void submitCourseScore(null);
+      }
+      return;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) {
+      showToast("Not 0-100 arası olmalı", "error");
+      setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
+      return;
+    }
+    if (parsed !== candidate.theoryCourseScore) {
+      void submitCourseScore(parsed);
     }
   };
   const [attempts, setAttempts] = useState<CandidateExamAttemptResponse[]>([]);
@@ -4314,6 +4379,27 @@ function CandidateExamAttemptsSection({
                 />
                 <span className="switch-toggle-control" aria-hidden="true" />
                 <span>Muaf</span>
+              </label>
+              <label
+                className="candidate-exam-attempts-course-score"
+                title="Teorik kurs sınav notu (0-100). 70+ aday Direksiyon aşamasına geçer."
+              >
+                <span>Kurs Notu</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="—"
+                  value={courseScoreInput}
+                  disabled={courseScoreSaving || isTheoryExempt}
+                  onChange={(event) => setCourseScoreInput(event.target.value)}
+                  onBlur={onCourseScoreBlur}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                />
               </label>
               <button className="btn btn-primary btn-sm candidate-exam-add-button" onClick={() => openAddForm("theory")} type="button">
                 Yeni
