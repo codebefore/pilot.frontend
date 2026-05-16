@@ -801,6 +801,7 @@ function SecondPracticeRoundBanner({
 }) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [confirmingDrop, setConfirmingDrop] = useState(false);
   const enabled = candidate.secondPracticeRoundEnabled === true;
   const canToggle = candidate.canToggleSecondPracticeRound === true;
 
@@ -808,7 +809,7 @@ function SecondPracticeRoundBanner({
     return null;
   }
 
-  const action = async (next: boolean) => {
+  const toggleSecondRound = async (next: boolean) => {
     setSaving(true);
     try {
       const updated = await setCandidateSecondPracticeRound(
@@ -822,6 +823,26 @@ function SecondPracticeRoundBanner({
       showToast(secondPracticeRoundErrorMessage(error), "error");
     } finally {
       setSaving(false);
+      setConfirmingDrop(false);
+    }
+  };
+
+  const markDropped = async () => {
+    setSaving(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const updated = await updateCandidateField(candidate, {
+        status: "dropped",
+        terminationDate: today,
+      });
+      onCandidateUpdated(updated);
+      showToast("Aday dosyası yakıldı olarak işaretlendi");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Dosya yakıldı işaretlenemedi";
+      showToast(message, "error");
+    } finally {
+      setSaving(false);
+      setConfirmingDrop(false);
     }
   };
 
@@ -832,28 +853,58 @@ function SecondPracticeRoundBanner({
         <span>
           {enabled
             ? "Aday ek 4 sınav hakkı ile devam ediyor."
-            : "Aday 1. round'daki 4 hakkı tamamladı ve başarısız oldu. İsteğe bağlı 2. aşama açılabilir."}
+            : "Aday 1. round'daki 4 hakkı tamamladı ve başarısız oldu. 2. Aşamayı açın veya dosyayı yakın."}
         </span>
       </div>
       {enabled ? (
         <button
           className="btn btn-secondary"
           disabled={saving || !canToggle}
-          onClick={() => action(false)}
+          onClick={() => toggleSecondRound(false)}
           type="button"
           title={!canToggle ? "2. aşamada sınav kaydı mevcut, kapatılamaz." : undefined}
         >
           Kapat
         </button>
+      ) : confirmingDrop ? (
+        <div className="candidate-second-round-banner-confirm" role="group">
+          <span>Adayın dosyasını yakmak istediğinize emin misiniz?</span>
+          <button
+            className="btn btn-danger"
+            disabled={saving}
+            onClick={markDropped}
+            type="button"
+          >
+            Evet, yak
+          </button>
+          <button
+            className="btn btn-tertiary"
+            disabled={saving}
+            onClick={() => setConfirmingDrop(false)}
+            type="button"
+          >
+            Vazgeç
+          </button>
+        </div>
       ) : (
-        <button
-          className="btn btn-primary"
-          disabled={saving}
-          onClick={() => action(true)}
-          type="button"
-        >
-          2. Aşamayı Aç
-        </button>
+        <div className="candidate-second-round-banner-actions">
+          <button
+            className="btn btn-secondary"
+            disabled={saving}
+            onClick={() => setConfirmingDrop(true)}
+            type="button"
+          >
+            Dosya Yakıldı
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={saving}
+            onClick={() => toggleSecondRound(true)}
+            type="button"
+          >
+            2. Aşamayı Aç
+          </button>
+        </div>
       )}
     </div>
   );

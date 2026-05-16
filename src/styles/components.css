@@ -607,6 +607,27 @@
   font-size: 12px;
   color: var(--gray-700);
 }
+.candidate-second-round-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.candidate-second-round-banner-confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.candidate-second-round-banner-confirm span {
+  font-size: 12px;
+  color: var(--gray-700);
+}
+@media (max-width: 720px) {
+  .candidate-second-round-banner-actions,
+  .candidate-second-round-banner-confirm {
+    flex-wrap: wrap;
+  }
+}
 .candidate-timeline-card-title {
   margin: 0 0 12px;
   font-size: 14px;
