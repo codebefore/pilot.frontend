@@ -87,6 +87,7 @@ import {
   formatDateTR,
   normalizeCandidateGender,
 } from "../lib/status-maps";
+import { toTurkishUpperCase } from "../lib/text-format";
 import { StatusPill } from "../components/ui/StatusPill";
 import type {
   CandidateResponse,
@@ -1941,12 +1942,14 @@ function LicenseInfoTab({
             displayValue={candidate.firstName}
             inputValue={candidate.firstName}
             label="Ad"
+            transform={toTurkishUpperCase}
             onSave={(value) => saveApplicationField({ firstName: value.trim() }, "Ad güncellendi")}
           />
           <EditableRow
             displayValue={candidate.lastName}
             inputValue={candidate.lastName}
             label="Soyad"
+            transform={toTurkishUpperCase}
             onSave={(value) => saveApplicationField({ lastName: value.trim() }, "Soyad güncellendi")}
           />
           <EditableRow
@@ -1968,12 +1971,14 @@ function LicenseInfoTab({
             displayValue={candidate.motherName ?? ""}
             inputValue={candidate.motherName ?? ""}
             label="Anne Adı"
+            transform={toTurkishUpperCase}
             onSave={(value) => saveApplicationField({ motherName: value.trim() || null }, "Anne adı güncellendi")}
           />
           <EditableRow
             displayValue={candidate.fatherName ?? ""}
             inputValue={candidate.fatherName ?? ""}
             label="Baba Adı"
+            transform={toTurkishUpperCase}
             onSave={(value) => saveApplicationField({ fatherName: value.trim() || null }, "Baba adı güncellendi")}
           />
           <EditableRow

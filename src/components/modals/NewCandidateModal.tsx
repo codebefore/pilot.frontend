@@ -9,6 +9,7 @@ import { getCertificatePrograms } from "../../lib/certificate-programs-api";
 import { ApiError } from "../../lib/http";
 import { useT } from "../../lib/i18n";
 import { isPhoneStartingWith5 } from "../../lib/phone";
+import { toTurkishUpperCase } from "../../lib/text-format";
 import type {
   CandidateReuseSourceResponse,
   CertificateProgramResponse,
@@ -543,6 +544,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               {...register("firstName", {
                 required: "Zorunlu alan",
                 minLength: { value: 2, message: "En az 2 karakter" },
+                onChange: (event) => {
+                  event.target.value = toTurkishUpperCase(event.target.value);
+                },
               })}
             />
             {errors.firstName && <div className="form-error">{errors.firstName.message}</div>}
@@ -555,6 +559,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
               {...register("lastName", {
                 required: "Zorunlu alan",
                 minLength: { value: 2, message: "En az 2 karakter" },
+                onChange: (event) => {
+                  event.target.value = toTurkishUpperCase(event.target.value);
+                },
               })}
             />
             {errors.lastName && <div className="form-error">{errors.lastName.message}</div>}

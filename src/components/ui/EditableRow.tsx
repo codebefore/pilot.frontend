@@ -16,6 +16,11 @@ type EditableRowProps = {
   disabledTitle?: string;
   options?: SelectOption[];
   loadOptions?: () => Promise<SelectOption[]>;
+  /**
+   * Her onChange'te draft değerine uygulanır (canlı). Örn. Türkçe büyük
+   * harf normalizasyonu. Save sırasında ayrıca çağrılmaz.
+   */
+  transform?: (value: string) => string;
   onSave: (value: string) => Promise<void>;
 };
 
@@ -29,6 +34,7 @@ export function EditableRow({
   disabledTitle,
   options: staticOptions,
   loadOptions,
+  transform,
   onSave,
 }: EditableRowProps) {
   const [editing, setEditing] = useState(false);
@@ -116,7 +122,7 @@ export function EditableRow({
                 className="form-textarea form-textarea-sm"
                 disabled={saving}
                 lang={inputLang}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => setDraft(transform ? transform(e.target.value) : e.target.value)}
                 onKeyDown={(event) => {
                   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                     save();
@@ -132,7 +138,7 @@ export function EditableRow({
                 className="form-input-sm"
                 disabled={saving}
                 lang={inputLang}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => setDraft(transform ? transform(e.target.value) : e.target.value)}
                 onKeyDown={onKeyDown}
                 ref={inputRef as React.Ref<HTMLInputElement>}
                 type={inputType}
