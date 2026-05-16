@@ -2136,6 +2136,24 @@ function secondPracticeRoundErrorMessage(error: unknown): string {
   return "2. Direksiyon Aşaması güncellenemedi.";
 }
 
+function theoryCourseErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const codes = Object.values(error.validationErrorCodes ?? {}).flat();
+    for (const entry of codes) {
+      if (entry.code === "candidate.validation.scoreOutOfRange") {
+        return "Not 0-100 aralığında olmalı.";
+      }
+      if (entry.code === "candidate.validation.concurrencyConflict") {
+        return "Bilgiler başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.";
+      }
+      if (entry.code === "candidate.validation.rowVersionRequired") {
+        return "Eşzamanlılık doğrulaması gerekli. Sayfayı yenileyip tekrar deneyin.";
+      }
+    }
+  }
+  return "Teorik kurs sonucu kaydedilemedi.";
+}
+
 function examAttemptCreateErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const codes = Object.values(error.validationErrorCodes ?? {}).flat();
@@ -4038,17 +4056,17 @@ function CandidateExamAttemptsSection({
   const submitCourseScore = async (nextScore: number | null) => {
     setCourseScoreSaving(true);
     try {
-      await setCandidateTheoryCourseResult(candidate.id, nextScore);
+      await setCandidateTheoryCourseResult(candidate.id, nextScore, candidate.rowVersion);
       onTheoryCourseScoreChanged?.(nextScore);
       showToast(
         nextScore == null
           ? "Teorik kurs sonucu silindi"
           : nextScore >= 70
-            ? "Teorik kurs geçildi olarak kaydedildi"
-            : "Teorik kurs sonucu kaydedildi"
+            ? `Teorik kurs geçildi (${nextScore}/100). Aday Direksiyon aşamasına geçti.`
+            : `Teorik kurs sonucu kaydedildi (${nextScore}/100). 70 altında — aday Direksiyon'a geçmedi.`
       );
-    } catch {
-      showToast("Teorik kurs sonucu kaydedilemedi.", "error");
+    } catch (error) {
+      showToast(theoryCourseErrorMessage(error), "error");
     } finally {
       setCourseScoreSaving(false);
     }
@@ -4400,6 +4418,17 @@ function CandidateExamAttemptsSection({
                     }
                   }}
                 />
+                {candidate.theoryCourseScore != null && !isTheoryExempt ? (
+                  <span
+                    className={
+                      candidate.theoryCourseScore >= 70
+                        ? "candidate-exam-attempts-course-badge tone-pass"
+                        : "candidate-exam-attempts-course-badge tone-fail"
+                    }
+                  >
+                    {candidate.theoryCourseScore >= 70 ? "Geçti" : "Kaldı"}
+                  </span>
+                ) : null}
               </label>
               <button className="btn btn-primary btn-sm candidate-exam-add-button" onClick={() => openAddForm("theory")} type="button">
                 Yeni
