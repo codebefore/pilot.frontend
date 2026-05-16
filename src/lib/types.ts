@@ -96,8 +96,6 @@ export interface CandidateResponse {
   examFeePaid?: boolean;
   initialPaymentReceived?: boolean;
   isTheoryExempt?: boolean;
-  theoryCourseScore?: number | null;
-  theoryCourseCompletedAt?: string | null;
   totalFee: number;
   totalPaid: number;
   totalDebt: number;

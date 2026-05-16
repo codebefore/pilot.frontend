@@ -892,46 +892,6 @@
 .candidate-exam-attempts-muaf-toggle {
   font-size: 13px;
 }
-.candidate-exam-attempts-course-score {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--gray-700);
-}
-.candidate-exam-attempts-course-score input {
-  width: 56px;
-  padding: 4px 6px;
-  font-size: 13px;
-  text-align: center;
-  border: 1px solid var(--gray-300);
-  border-radius: 6px;
-  background: white;
-  color: var(--gray-900);
-}
-.candidate-exam-attempts-course-score input:disabled {
-  background: var(--gray-100);
-  color: var(--gray-500);
-  cursor: not-allowed;
-}
-.candidate-exam-attempts-course-badge {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 2px 8px;
-  border-radius: 999px;
-  text-transform: uppercase;
-}
-.candidate-exam-attempts-course-badge.tone-pass {
-  background: color-mix(in srgb, var(--success-100, #d1fae5) 70%, white);
-  color: var(--success-700, #047857);
-  border: 1px solid color-mix(in srgb, var(--success-300, #6ee7b7) 60%, transparent);
-}
-.candidate-exam-attempts-course-badge.tone-fail {
-  background: color-mix(in srgb, var(--danger-100, #fee2e2) 70%, white);
-  color: var(--danger-700, #b91c1c);
-  border: 1px solid color-mix(in srgb, var(--danger-300, #fca5a5) 60%, transparent);
-}
 .candidate-exam-attempts-head .candidate-detail-section-title {
   margin: 0;
 }

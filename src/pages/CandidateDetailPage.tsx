@@ -18,7 +18,6 @@ import {
   getCandidateById,
   removeActiveGroupAssignment,
   setCandidateSecondPracticeRound,
-  setCandidateTheoryCourseResult,
   setCandidateTheoryExemption,
   updateCandidate,
   updateCandidateExistingLicense,
@@ -590,17 +589,6 @@ export function CandidateDetailPage() {
                       prev ? { ...prev, isTheoryExempt: value } : prev
                     )
                   }
-                  onTheoryCourseScoreChanged={async () => {
-                    // Score değişimi resolver çıktısını (stage / appointment /
-                    // hero badge / timeline) etkiler — tek alan patch yetmez,
-                    // tam aday verisini backend'den çekelim.
-                    try {
-                      const updated = await getCandidateById(candidate.id);
-                      setCandidate(updated);
-                    } catch {
-                      /* sessizce yut; toast zaten section'da gösterildi */
-                    }
-                  }}
                 />
                 <TrainingTab candidate={candidate} />
               </>
@@ -778,19 +766,14 @@ function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
   // Filigran" notuna karşılık gelir.
   const badges: { key: string; label: string; tone: "info" | "primary" }[] = [];
   // Direksiyon'a geçiş yolu (priority): operatör onayı (Muaf) > otomatik
-  // tespit (Mevcut Ehliyet) > manuel sınav notu (Teorik Kurs).
+  // tespit (Mevcut Ehliyet). E-Sınav puanı resolver tarafından
+  // MebExamResult üzerinden değerlendirilir, hero'da ayrı rozet yok.
   if (candidate.isTheoryExempt) {
     badges.push({ key: "exempt", label: "Muaf", tone: "info" });
   } else if (candidate.existingLicenseType) {
     badges.push({
       key: "existing-license",
       label: `Mevcut Ehliyet (${candidate.existingLicenseType})`,
-      tone: "info",
-    });
-  } else if (candidate.theoryCourseScore != null && candidate.theoryCourseScore >= 70) {
-    badges.push({
-      key: "theory-course",
-      label: `Teorik Kurs Geçti (${candidate.theoryCourseScore})`,
       tone: "info",
     });
   }
@@ -2134,24 +2117,6 @@ function secondPracticeRoundErrorMessage(error: unknown): string {
     }
   }
   return "2. Direksiyon Aşaması güncellenemedi.";
-}
-
-function theoryCourseErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    const codes = Object.values(error.validationErrorCodes ?? {}).flat();
-    for (const entry of codes) {
-      if (entry.code === "candidate.validation.scoreOutOfRange") {
-        return "Not 0-100 aralığında olmalı.";
-      }
-      if (entry.code === "candidate.validation.concurrencyConflict") {
-        return "Bilgiler başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.";
-      }
-      if (entry.code === "candidate.validation.rowVersionRequired") {
-        return "Eşzamanlılık doğrulaması gerekli. Sayfayı yenileyip tekrar deneyin.";
-      }
-    }
-  }
-  return "Teorik kurs sonucu kaydedilemedi.";
 }
 
 function examAttemptCreateErrorMessage(error: unknown): string {
@@ -4023,13 +3988,11 @@ function CandidateExamAttemptsSection({
   onAccountingChanged,
   onOpenAccountingPayment,
   onTheoryExemptChanged,
-  onTheoryCourseScoreChanged,
 }: {
   candidate: CandidateResponse;
   onAccountingChanged?: () => Promise<void> | void;
   onOpenAccountingPayment?: (movementId: string) => void;
   onTheoryExemptChanged?: (value: boolean) => void;
-  onTheoryCourseScoreChanged?: (score: number | null) => void;
 }) {
   const { showToast } = useToast();
   const [exemptSaving, setExemptSaving] = useState(false);
@@ -4044,62 +4007,6 @@ function CandidateExamAttemptsSection({
       showToast("Muafiyet durumu güncellenemedi.", "error");
     } finally {
       setExemptSaving(false);
-    }
-  };
-  const [courseScoreSaving, setCourseScoreSaving] = useState(false);
-  const [courseScoreInput, setCourseScoreInput] = useState<string>(
-    candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : ""
-  );
-  const courseScoreInputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    // Operatör tam yazarken parent refetch (ör. başka bir alandan
-    // gelen güncelleme) input'u silmesin — focus'taysa atla.
-    if (courseScoreInputRef.current === document.activeElement) {
-      return;
-    }
-    setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
-  }, [candidate.theoryCourseScore]);
-  const submitCourseScore = async (nextScore: number | null) => {
-    setCourseScoreSaving(true);
-    try {
-      await setCandidateTheoryCourseResult(candidate.id, nextScore, candidate.rowVersion);
-      onTheoryCourseScoreChanged?.(nextScore);
-      showToast(
-        nextScore == null
-          ? "Teorik kurs sonucu silindi"
-          : nextScore >= 70
-            ? `Teorik kurs geçildi (${nextScore}/100). Aday Direksiyon aşamasına geçti.`
-            : `Teorik kurs sonucu kaydedildi (${nextScore}/100). 70 altında — aday Direksiyon'a geçmedi.`
-      );
-    } catch (error) {
-      showToast(theoryCourseErrorMessage(error), "error");
-    } finally {
-      setCourseScoreSaving(false);
-    }
-  };
-  const onCourseScoreBlur = () => {
-    const raw = courseScoreInput.trim();
-    if (raw === "") {
-      if (candidate.theoryCourseScore != null) {
-        void submitCourseScore(null);
-      }
-      return;
-    }
-    // Strict tam sayı eşleşmesi: parseInt "70.5" / "75abc" / "-0" gibi
-    // değerleri silently kabul ederdi. 0-100 arası 1-3 hane bekliyoruz.
-    if (!/^\d{1,3}$/.test(raw)) {
-      showToast("Not sadece 0-100 arası tam sayı olmalı", "error");
-      setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
-      return;
-    }
-    const parsed = Number.parseInt(raw, 10);
-    if (parsed > 100) {
-      showToast("Not 0-100 arası olmalı", "error");
-      setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
-      return;
-    }
-    if (parsed !== candidate.theoryCourseScore) {
-      void submitCourseScore(parsed);
     }
   };
   const [attempts, setAttempts] = useState<CandidateExamAttemptResponse[]>([]);
@@ -4119,6 +4026,7 @@ function CandidateExamAttemptsSection({
     instructorId: "",
     examAttendanceStatus: "" as "" | "attended" | "absent",
     examResultStatus: "" as "" | "passed" | "failed",
+    score: "",
     fee: "",
   });
   const [suggestedFee, setSuggestedFee] = useState<number | null>(null);
@@ -4252,6 +4160,7 @@ function CandidateExamAttemptsSection({
       instructorId: "",
       examAttendanceStatus: "",
       examResultStatus: "",
+      score: "",
       fee: "",
     });
     setAddOpen(true);
@@ -4280,6 +4189,21 @@ function CandidateExamAttemptsSection({
       showToast("Sınav sonucu sadece aday sınava girdiyse seçilebilir.", "error");
       return;
     }
+    // Score 0..100 opsiyonel; boş ise null gönderilir.
+    const trimmedScore = form.score.trim();
+    let scoreValue: number | null = null;
+    if (trimmedScore !== "") {
+      if (!/^\d{1,3}$/.test(trimmedScore)) {
+        showToast("Puan sadece 0-100 arası tam sayı olmalı.", "error");
+        return;
+      }
+      const parsedScore = Number.parseInt(trimmedScore, 10);
+      if (parsedScore > 100) {
+        showToast("Puan 0-100 arası olmalı.", "error");
+        return;
+      }
+      scoreValue = parsedScore;
+    }
 
     setSaving(true);
     try {
@@ -4290,6 +4214,7 @@ function CandidateExamAttemptsSection({
         examType: form.examType,
         scheduledAt: fromDateTimeLocalValue(form.scheduledAt),
         attemptNumber,
+        score: scoreValue,
         expiresAt: isPractice
           ? form.expiresAt
             ? new Date(`${form.expiresAt}T00:00:00`).toISOString()
@@ -4410,43 +4335,6 @@ function CandidateExamAttemptsSection({
                 />
                 <span className="switch-toggle-control" aria-hidden="true" />
                 <span>Muaf</span>
-              </label>
-              <label
-                className="candidate-exam-attempts-course-score"
-                title="Teorik kurs sınav notu (0-100). 70+ aday Direksiyon aşamasına geçer."
-              >
-                <span>Kurs Notu</span>
-                <input
-                  ref={courseScoreInputRef}
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="—"
-                  value={courseScoreInput}
-                  disabled={courseScoreSaving || isTheoryExempt}
-                  onChange={(event) => {
-                    // Sadece rakam — yapıştırma / decimal nokta / harf
-                    // yazarken sessizce dropped olmasın diye filtrele.
-                    const next = event.target.value.replace(/[^\d]/g, "").slice(0, 3);
-                    setCourseScoreInput(next);
-                  }}
-                  onBlur={onCourseScoreBlur}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.currentTarget.blur();
-                    }
-                  }}
-                />
-                {candidate.theoryCourseScore != null && !isTheoryExempt ? (
-                  <span
-                    className={
-                      candidate.theoryCourseScore >= 70
-                        ? "candidate-exam-attempts-course-badge tone-pass"
-                        : "candidate-exam-attempts-course-badge tone-fail"
-                    }
-                  >
-                    {candidate.theoryCourseScore >= 70 ? "Geçti" : "Kaldı"}
-                  </span>
-                ) : null}
               </label>
               <button className="btn btn-primary btn-sm candidate-exam-add-button" onClick={() => openAddForm("theory")} type="button">
                 Yeni
@@ -4579,6 +4467,7 @@ function CandidateExamAttemptsSection({
                   instructorId: "",
                   examAttendanceStatus: "",
                   examResultStatus: "",
+                  score: "",
                   fee: "",
                 }));
               }}
@@ -4729,6 +4618,21 @@ function CandidateExamAttemptsSection({
               onChange={(event) => {
                 setFeeTouched(true);
                 setForm((current) => ({ ...current, fee: event.target.value }));
+              }}
+            />
+          </label>
+          <label>
+            <span>Puan (0-100, opsiyonel)</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="—"
+              value={form.score}
+              onChange={(event) => {
+                // Sadece rakam + 3 hane sınırı; "70.5" / "75abc" silent
+                // kabul etmesin diye onChange'te filtrele.
+                const next = event.target.value.replace(/[^\d]/g, "").slice(0, 3);
+                setForm((current) => ({ ...current, score: next }));
               }}
             />
           </label>
