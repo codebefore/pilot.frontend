@@ -4050,7 +4050,13 @@ function CandidateExamAttemptsSection({
   const [courseScoreInput, setCourseScoreInput] = useState<string>(
     candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : ""
   );
+  const courseScoreInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
+    // Operatör tam yazarken parent refetch (ör. başka bir alandan
+    // gelen güncelleme) input'u silmesin — focus'taysa atla.
+    if (courseScoreInputRef.current === document.activeElement) {
+      return;
+    }
     setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
   }, [candidate.theoryCourseScore]);
   const submitCourseScore = async (nextScore: number | null) => {
@@ -4079,8 +4085,15 @@ function CandidateExamAttemptsSection({
       }
       return;
     }
+    // Strict tam sayı eşleşmesi: parseInt "70.5" / "75abc" / "-0" gibi
+    // değerleri silently kabul ederdi. 0-100 arası 1-3 hane bekliyoruz.
+    if (!/^\d{1,3}$/.test(raw)) {
+      showToast("Not sadece 0-100 arası tam sayı olmalı", "error");
+      setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
+      return;
+    }
     const parsed = Number.parseInt(raw, 10);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) {
+    if (parsed > 100) {
       showToast("Not 0-100 arası olmalı", "error");
       setCourseScoreInput(candidate.theoryCourseScore != null ? String(candidate.theoryCourseScore) : "");
       return;
@@ -4404,13 +4417,18 @@ function CandidateExamAttemptsSection({
               >
                 <span>Kurs Notu</span>
                 <input
-                  type="number"
-                  min={0}
-                  max={100}
+                  ref={courseScoreInputRef}
+                  type="text"
+                  inputMode="numeric"
                   placeholder="—"
                   value={courseScoreInput}
                   disabled={courseScoreSaving || isTheoryExempt}
-                  onChange={(event) => setCourseScoreInput(event.target.value)}
+                  onChange={(event) => {
+                    // Sadece rakam — yapıştırma / decimal nokta / harf
+                    // yazarken sessizce dropped olmasın diye filtrele.
+                    const next = event.target.value.replace(/[^\d]/g, "").slice(0, 3);
+                    setCourseScoreInput(next);
+                  }}
                   onBlur={onCourseScoreBlur}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
