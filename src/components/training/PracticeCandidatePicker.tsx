@@ -37,6 +37,24 @@ const BACKEND_SORT_FIELDS: ReadonlySet<SortField> = new Set<SortField>([
   "groupTitle",
 ]);
 
+type StageFilter = "all" | "fresh" | "failed";
+
+// Backend `appointmentStatusLabel` üzerinden filtre:
+// - "Havuz (1/4)..." → hiç practice attempt yok = aday "Yeni"
+// - "Havuz/Başarısız..." → son sınavı başarısız = "Başarısız"
+// Diğerleri (Randevulu, Havuz (2+/4)) iki tab'da da yer almaz; "Tümü"
+// modunda görünür. Mezun/Dosya Yakıldı listede zaten yok (status=active).
+function matchesStageFilter(
+  candidate: CandidateResponse,
+  filter: StageFilter
+): boolean {
+  if (filter === "all") return true;
+  const label = candidate.appointmentStatusLabel ?? "";
+  if (filter === "failed") return label.startsWith("Havuz/Başarısız");
+  // "fresh": hiç practice attempt yok — etiket "Havuz (1/4)" ile başlar.
+  return label.startsWith("Havuz (1/4)");
+}
+
 function hoursOfEvent(e: TrainingCalendarEvent): number {
   return (e.end.getTime() - e.start.getTime()) / (60 * 60 * 1000);
 }
@@ -57,6 +75,7 @@ export function PracticeCandidatePicker({
 
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [stageFilter, setStageFilter] = useState<StageFilter>("all");
 
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     try {
@@ -129,9 +148,10 @@ export function PracticeCandidatePicker({
       list.push(e);
       eventsByCandidate.set(e.candidateId, list);
     }
-    const base = scopeActive
+    const scoped = scopeActive
       ? candidates.filter((c) => scopedCandidateIds!.includes(c.id))
       : candidates;
+    const base = scoped.filter((c) => matchesStageFilter(c, stageFilter));
     return base.map((c) => {
       const own = eventsByCandidate.get(c.id) ?? [];
       const hours = own.reduce((sum, e) => sum + hoursOfEvent(e), 0);
@@ -147,6 +167,7 @@ export function PracticeCandidatePicker({
     events,
     scopeActive,
     scopedCandidateIds,
+    stageFilter,
   ]);
 
   // Local sort (progress, lastLesson) — backend'de yok, frontend uygular.
@@ -268,6 +289,23 @@ export function PracticeCandidatePicker({
           type="search"
           value={searchInput}
         />
+        <div className="practice-picker-stage-tabs" role="tablist">
+          {(["all", "fresh", "failed"] as const).map((value) => (
+            <button
+              aria-pressed={stageFilter === value}
+              className={
+                stageFilter === value
+                  ? "practice-picker-stage-tab is-active"
+                  : "practice-picker-stage-tab"
+              }
+              key={value}
+              onClick={() => setStageFilter(value)}
+              type="button"
+            >
+              {t(`training.picker.stage.${value}`)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {sortedCards.length === 0 ? (
