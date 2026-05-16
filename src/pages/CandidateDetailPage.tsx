@@ -2116,6 +2116,21 @@ function secondPracticeRoundErrorMessage(error: unknown): string {
   return "2. Direksiyon Aşaması güncellenemedi.";
 }
 
+function examAttemptCreateErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const codes = Object.values(error.validationErrorCodes ?? {}).flat();
+    for (const entry of codes) {
+      if (entry.code === "candidateExamAttemptFailedCandidateNeedsTraining") {
+        return "Aday geçen sınavda başarısız oldu. Yeni randevudan önce en az 2 saat uygulama eğitimi planlanmalı.";
+      }
+      if (entry.code === "candidateExamAttemptAttemptLimitReached") {
+        return "Aday bu round için 4 sınav hakkını tamamladı.";
+      }
+    }
+  }
+  return "Sınav denemesi eklenemedi.";
+}
+
 function accountingErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) return fallback;
   const messages = Object.values(error.validationErrors ?? {}).flat();
@@ -4196,8 +4211,8 @@ function CandidateExamAttemptsSection({
       setAttempts((items) => [...items, created].sort(compareExamAttempts));
       setAddOpen(false);
       showToast("Yeni e-sınav denemesi eklendi");
-    } catch {
-      showToast("E-sınav denemesi eklenemedi.", "error");
+    } catch (error) {
+      showToast(examAttemptCreateErrorMessage(error), "error");
     } finally {
       setSaving(false);
     }
