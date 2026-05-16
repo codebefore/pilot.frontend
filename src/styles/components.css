@@ -948,13 +948,48 @@
 .candidate-exam-attempts-table--practice th:nth-child(4) { width: 70px; }
 .candidate-exam-attempts-table--practice th:nth-child(5) { width: 120px; }
 .candidate-exam-attempts-table--practice th:nth-child(6) { width: 120px; }
-.candidate-exam-attempts-table--practice th:nth-child(8) { width: 190px; }
+.candidate-exam-attempts-table--practice th:nth-child(7) { width: 100px; }
+.candidate-exam-attempts-table--practice th:nth-child(9) { width: 190px; }
 .candidate-exam-score-cell,
 .candidate-exam-fee-cell {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+}
+.candidate-exam-score-cell--button {
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: text;
+  font: inherit;
+  color: inherit;
+  min-width: 56px;
+  justify-content: flex-start;
+}
+.candidate-exam-score-cell--button:hover:not(:disabled) {
+  border-color: var(--gray-300);
+  background: color-mix(in srgb, var(--gray-100) 60%, white);
+}
+.candidate-exam-score-cell--button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.candidate-exam-score-input {
+  width: 68px;
+  padding: 4px 8px;
+  font: inherit;
+  text-align: center;
+  border: 1px solid var(--primary-400, #60a5fa);
+  border-radius: 6px;
+  background: white;
+  color: var(--gray-900);
+  outline: none;
+}
+.candidate-exam-score-input:focus {
+  border-color: var(--primary-500, #3b82f6);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-300, #93c5fd) 40%, transparent);
 }
 .candidate-exam-fee-status {
   display: inline-flex;

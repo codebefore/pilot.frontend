@@ -39,6 +39,7 @@ import {
   deleteCandidateExamAttempt,
   listCandidateExamAttempts,
   markCandidateExamAttemptSelfPaid,
+  updateCandidateExamAttempt,
 } from "../lib/candidate-exam-attempts-api";
 import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
@@ -4257,6 +4258,44 @@ function CandidateExamAttemptsSection({
     }
   };
 
+  const updateAttemptScore = async (
+    attempt: CandidateExamAttemptResponse,
+    nextScore: number | null
+  ): Promise<boolean> => {
+    setRowSavingId(attempt.id);
+    try {
+      // PUT endpoint full upsert kabul ediyor — score dışında her şeyi
+      // mevcut response'tan ayna olarak yansıt.
+      const updated = await updateCandidateExamAttempt(candidate.id, attempt.id, {
+        examType: attempt.examType,
+        scheduledAt: attempt.scheduledAt,
+        attemptNumber: attempt.attemptNumber,
+        score: nextScore,
+        expiresAt: attempt.expiresAt ?? null,
+        vehicleId: attempt.vehicleId ?? null,
+        vehiclePlate: attempt.vehiclePlate ?? null,
+        instructorId: attempt.instructorId ?? null,
+        instructorFullName: attempt.instructorFullName ?? null,
+        examAttendanceStatus: attempt.examAttendanceStatus ?? null,
+        examResultStatus: attempt.examResultStatus ?? null,
+        fee: attempt.fee,
+        feeStatus: attempt.feeStatus,
+        rowVersion: attempt.rowVersion,
+      });
+      setAttempts((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      showToast(nextScore == null ? "Puan silindi" : `Puan kaydedildi (${nextScore})`);
+      return true;
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 409
+        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
+        : "Puan kaydedilemedi.";
+      showToast(message, "error");
+      return false;
+    } finally {
+      setRowSavingId(null);
+    }
+  };
+
   const markSelfPaid = async (attempt: CandidateExamAttemptResponse) => {
     setRowSavingId(attempt.id);
     try {
@@ -4377,6 +4416,7 @@ function CandidateExamAttemptsSection({
                     onRequestDelete={() => setDeleteConfirmId(attempt.id)}
                     onPay={() => void payAttempt(attempt)}
                     onSelfPaid={() => markSelfPaid(attempt)}
+                    onScoreSave={(nextScore) => updateAttemptScore(attempt, nextScore)}
                     suggestedFee={suggestedFeesByKey[suggestedFeeLookupKeyForAttempt(attempt)] ?? null}
                   />
                 ))}
@@ -4410,6 +4450,7 @@ function CandidateExamAttemptsSection({
                   <th>Hak</th>
                   <th>Sınav Durumu</th>
                   <th>Sınav Sonucu</th>
+                  <th>Puan</th>
                   <th>Sınav Ücreti</th>
                   <th>İşlem</th>
                 </tr>
@@ -4417,7 +4458,7 @@ function CandidateExamAttemptsSection({
               <tbody>
                 {practiceAttempts.length === 0 ? (
                   <tr>
-                    <td className="data-table-empty" colSpan={8}>Henüz direksiyon sınavı yok.</td>
+                    <td className="data-table-empty" colSpan={9}>Henüz direksiyon sınavı yok.</td>
                   </tr>
                 ) : practiceAttempts.map((attempt) => (
                   <CandidatePracticeExamAttemptRow
@@ -4428,6 +4469,7 @@ function CandidateExamAttemptsSection({
                     onCancelDelete={() => setDeleteConfirmId(null)}
                     onConfirmDelete={() => void confirmDelete(attempt)}
                     onRequestDelete={() => setDeleteConfirmId(attempt.id)}
+                    onScoreSave={(nextScore) => updateAttemptScore(attempt, nextScore)}
                     suggestedFee={suggestedFeesByKey[suggestedFeeLookupKeyForAttempt(attempt)] ?? null}
                   />
                 ))}
@@ -4653,6 +4695,7 @@ function CandidateExamAttemptRow({
   onPay,
   onRequestDelete,
   onSelfPaid,
+  onScoreSave,
   suggestedFee,
 }: {
   attempt: CandidateExamAttemptResponse;
@@ -4664,9 +4707,9 @@ function CandidateExamAttemptRow({
   onPay: () => void;
   onRequestDelete: () => void;
   onSelfPaid: () => void;
+  onScoreSave: (nextScore: number | null) => Promise<boolean>;
   suggestedFee: number | null;
 }) {
-  const scoreStatus = getScoreStatus(attempt.score);
   const expiry = getExpiryDisplay(attempt.expiresAt);
 
   return (
@@ -4674,14 +4717,11 @@ function CandidateExamAttemptRow({
       <td>{formatDateTimeTR(attempt.scheduledAt)}</td>
       <td>{attempt.attemptNumber}/4</td>
       <td>
-        <div className="candidate-exam-score-cell">
-          <span>{attempt.score ?? "—"}</span>
-          {scoreStatus ? (
-            <span className={`candidate-exam-pill ${scoreStatus.kind}`}>
-              {scoreStatus.label}
-            </span>
-          ) : null}
-        </div>
+        <EditableScoreCell
+          score={attempt.score}
+          disabled={disabled}
+          onSave={onScoreSave}
+        />
       </td>
       <td>
         {attempt.expiresAt ? (
@@ -4751,6 +4791,7 @@ function CandidatePracticeExamAttemptRow({
   onCancelDelete,
   onConfirmDelete,
   onRequestDelete,
+  onScoreSave,
   suggestedFee,
 }: {
   attempt: CandidateExamAttemptResponse;
@@ -4759,6 +4800,7 @@ function CandidatePracticeExamAttemptRow({
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
   onRequestDelete: () => void;
+  onScoreSave: (nextScore: number | null) => Promise<boolean>;
   suggestedFee: number | null;
 }) {
   return (
@@ -4769,6 +4811,13 @@ function CandidatePracticeExamAttemptRow({
       <td>{attempt.attemptNumber}/4</td>
       <td>{practiceAttendanceLabel(attempt.examAttendanceStatus)}</td>
       <td>{practiceResultLabel(attempt.examResultStatus)}</td>
+      <td>
+        <EditableScoreCell
+          score={attempt.score}
+          disabled={disabled}
+          onSave={onScoreSave}
+        />
+      </td>
       <td>
         <div className="candidate-exam-fee-cell">
           {suggestedFee != null && suggestedFee !== attempt.fee ? (
@@ -4791,6 +4840,110 @@ function CandidatePracticeExamAttemptRow({
         />
       </td>
     </tr>
+  );
+}
+
+function EditableScoreCell({
+  score,
+  disabled,
+  onSave,
+}: {
+  score: number | null;
+  disabled: boolean;
+  onSave: (nextScore: number | null) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string>(score != null ? String(score) : "");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const { showToast } = useToast();
+  const scoreStatus = getScoreStatus(score);
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(score != null ? String(score) : "");
+    }
+  }, [editing, score]);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const commit = async () => {
+    const raw = draft.trim();
+    let nextScore: number | null;
+    if (raw === "") {
+      nextScore = null;
+    } else if (!/^\d{1,3}$/.test(raw)) {
+      showToast("Puan sadece 0-100 arası tam sayı olmalı", "error");
+      setDraft(score != null ? String(score) : "");
+      setEditing(false);
+      return;
+    } else {
+      const parsed = Number.parseInt(raw, 10);
+      if (parsed > 100) {
+        showToast("Puan 0-100 arası olmalı", "error");
+        setDraft(score != null ? String(score) : "");
+        setEditing(false);
+        return;
+      }
+      nextScore = parsed;
+    }
+    if (nextScore === score) {
+      setEditing(false);
+      return;
+    }
+    const ok = await onSave(nextScore);
+    if (ok) {
+      setEditing(false);
+    } else {
+      // Hata sonrası eski değere dön
+      setDraft(score != null ? String(score) : "");
+      setEditing(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="candidate-exam-score-cell candidate-exam-score-cell--button"
+        disabled={disabled}
+        onClick={() => setEditing(true)}
+        title="Puanı düzenlemek için tıkla"
+      >
+        <span>{score ?? "—"}</span>
+        {scoreStatus ? (
+          <span className={`candidate-exam-pill ${scoreStatus.kind}`}>{scoreStatus.label}</span>
+        ) : null}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      className="candidate-exam-score-input"
+      type="text"
+      inputMode="numeric"
+      placeholder="—"
+      value={draft}
+      onChange={(event) => {
+        const next = event.target.value.replace(/[^\d]/g, "").slice(0, 3);
+        setDraft(next);
+      }}
+      onBlur={() => void commit()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        } else if (event.key === "Escape") {
+          setDraft(score != null ? String(score) : "");
+          setEditing(false);
+        }
+      }}
+    />
   );
 }
 
