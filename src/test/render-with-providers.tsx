@@ -10,7 +10,7 @@ type AuthOverride = { user?: AuthUser | null } | undefined;
 
 const defaultUser: AuthUser = {
   id: "test-user",
-  email: "test@example.com",
+  phone: "5000000000",
   name: "Test User",
   roleName: "super_admin",
   isSuperAdmin: true,

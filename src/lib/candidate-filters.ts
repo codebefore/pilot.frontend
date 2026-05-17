@@ -16,7 +16,6 @@ export type CandidateFilterState = {
   motherName: string;
   fatherName: string;
   phoneNumber: string;
-  email: string;
   licenseClass: LicenseClass | "";
   /** Canonical gender value or empty string (= "Tümü"). Never free text. */
   gender: CandidateGenderValue | "";
@@ -52,7 +51,6 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   motherName: "",
   fatherName: "",
   phoneNumber: "",
-  email: "",
   licenseClass: "",
   gender: "",
   groupId: "",
@@ -101,7 +99,6 @@ export function filtersToQuery(filters: CandidateFilterState) {
     motherName: normalizeTextQuery(filters.motherName),
     fatherName: normalizeTextQuery(filters.fatherName),
     phoneNumber: normalizeTextQuery(filters.phoneNumber),
-    email: normalizeTextQuery(filters.email),
     licenseClass: filters.licenseClass || undefined,
     gender: filters.gender || undefined,
     groupId: filters.groupId || undefined,

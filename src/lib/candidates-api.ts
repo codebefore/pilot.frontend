@@ -141,6 +141,28 @@ export function setCandidateTheoryExemption(
   });
 }
 
+export function setCandidateRegistrationNumber(
+  id: string,
+  registrationNumber: string,
+  rowVersion: number
+): Promise<void> {
+  return httpPatch<void>(`/api/candidates/${id}/registration-number`, {
+    registrationNumber,
+    rowVersion,
+  });
+}
+
+export function setCandidateRegistrationDate(
+  id: string,
+  registrationDate: string,
+  rowVersion: number
+): Promise<void> {
+  return httpPatch<void>(`/api/candidates/${id}/registration-date`, {
+    registrationDate,
+    rowVersion,
+  });
+}
+
 export function updateCandidateExistingLicense(
   id: string,
   body: CandidateExistingLicenseRequest

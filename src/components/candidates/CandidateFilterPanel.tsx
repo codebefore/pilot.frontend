@@ -246,16 +246,6 @@ export function CandidateFilterPanel({
             />
           </div>
           <div className="form-group">
-            <input
-              aria-label={t("candidates.col.email")}
-              className="form-input"
-              onChange={(event) => onChange("email", event.target.value)}
-              placeholder={t("candidates.col.email")}
-              type="text"
-              value={filters.email}
-            />
-          </div>
-          <div className="form-group">
             <CustomSelect
               aria-label={t("candidates.col.licenseClass")}
               className="form-select"

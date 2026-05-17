@@ -263,7 +263,6 @@ export function CandidateDrawer({
         nationalId: candidate.nationalId,
         referenceName: candidate.referenceName,
         phoneNumber: candidate.phoneNumber,
-        email: candidate.email,
         birthDate: candidate.birthDate,
         gender: normalizeCandidateGender(candidate.gender),
         licenseClass: candidate.licenseClass,
@@ -618,13 +617,6 @@ export function CandidateDrawer({
               inputValue={candidate.phoneNumber ?? ""}
               label="Telefon"
               onSave={(v) => saveField({ phoneNumber: v || null })}
-            />
-            <EditableRow
-              displayValue={candidate.email ?? ""}
-              inputType="email"
-              inputValue={candidate.email ?? ""}
-              label="E-posta"
-              onSave={(v) => saveField({ email: v || null })}
             />
             <EditableRow
               displayValue={formatOptionalText(candidate.referenceName)}

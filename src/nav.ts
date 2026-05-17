@@ -45,19 +45,8 @@ export const navSections: NavSection[] = [
     headingKey: "nav.operations",
     items: [
       { key: "candidates", path: "/candidates", labelKey: "nav.candidates", Icon: CandidatesIcon },
-      { key: "groups",     path: "/groups",     labelKey: "nav.groups",     Icon: GroupsIcon },
       { key: "documents",  path: "/documents",  labelKey: "nav.documents",  Icon: DocumentsIcon },
-      { key: "payments",   path: "/payments",   labelKey: "nav.payments",   Icon: PaymentsIcon },
-      {
-        key: "training",
-        path: "/training",
-        labelKey: "nav.training",
-        Icon: TrainingIcon,
-        children: [
-          { key: "trainingTeorik", path: "/training/teorik", labelKey: "nav.trainingTeorik" },
-          { key: "trainingUygulama", path: "/training/uygulama", labelKey: "nav.trainingUygulama" },
-        ],
-      },
+      { key: "groups",     path: "/groups",     labelKey: "nav.groups",     Icon: GroupsIcon },
       {
         key: "exams",
         path: "/exams",
@@ -68,6 +57,17 @@ export const navSections: NavSection[] = [
           { key: "examUygulama", path: "/exams/uygulama", labelKey: "nav.examUygulama" },
         ],
       },
+      {
+        key: "training",
+        path: "/training",
+        labelKey: "nav.training",
+        Icon: TrainingIcon,
+        children: [
+          { key: "trainingTeorik", path: "/training/teorik", labelKey: "nav.trainingTeorik" },
+          { key: "trainingUygulama", path: "/training/uygulama", labelKey: "nav.trainingUygulama" },
+        ],
+      },
+      { key: "payments",   path: "/payments",   labelKey: "nav.payments",   Icon: PaymentsIcon },
     ],
   },
   {

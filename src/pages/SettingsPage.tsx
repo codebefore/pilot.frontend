@@ -7,6 +7,7 @@ import { ClassroomsSettingsSection } from "../components/settings/ClassroomsSett
 import { GeneralInstitutionSection } from "../components/settings/GeneralInstitutionSection";
 import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
 import { LicenseClassDefinitionsSettingsSection } from "../components/settings/LicenseClassDefinitionsSettingsSection";
+import { ReferencesSettingsSection } from "../components/settings/ReferencesSettingsSection";
 import { TrainingBranchesSettingsSection } from "../components/settings/TrainingBranchesSettingsSection";
 import { VehiclesSettingsSection } from "../components/settings/VehiclesSettingsSection";
 import { useT, type TranslationKey } from "../lib/i18n";
@@ -73,6 +74,11 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.trainingBranches.label",
         descriptionKey: "settings.nav.trainingBranches.description",
         to: "/settings/definitions/training-branches",
+      },
+      {
+        labelKey: "settings.nav.references.label",
+        descriptionKey: "settings.nav.references.description",
+        to: "/settings/definitions/references",
       },
       {
         labelKey: "settings.nav.classrooms.label",
@@ -181,6 +187,7 @@ export function SettingsPage() {
                 element={<TrainingBranchesSettingsSection />}
                 path="definitions/training-branches"
               />
+              <Route element={<ReferencesSettingsSection />} path="definitions/references" />
               <Route element={<ClassroomsSettingsSection />} path="definitions/classrooms" />
               <Route element={<CertificateProgramFeeMatrixSettingsSection />} path="definitions/fees" />
               <Route

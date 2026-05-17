@@ -104,7 +104,6 @@ export type CandidateColumnId =
   | "fatherName"
   | "referenceName"
   | "phoneNumber"
-  | "email"
   | "birthDate"
   | "gender"
   | "licenseClass"
@@ -141,7 +140,6 @@ type CandidateColumnDef = {
     | "candidates.col.fatherName"
     | "candidates.col.referenceName"
     | "candidates.col.phoneNumber"
-    | "candidates.col.email"
     | "candidates.col.birthDate"
     | "candidates.col.gender"
     | "candidates.col.licenseClass"
@@ -406,12 +404,6 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     labelKey: "candidates.col.phoneNumber",
     renderCell: (c) => formatOptionalText(c.phoneNumber),
     skeletonWidth: 110,
-  },
-  {
-    id: "email",
-    labelKey: "candidates.col.email",
-    renderCell: (c) => formatOptionalText(c.email),
-    skeletonWidth: 180,
   },
   {
     id: "birthDate",
@@ -1324,7 +1316,6 @@ export function CandidatesPage({
       t("candidates.col.name"),
       t("candidates.col.nationalId"),
       t("candidates.col.phoneNumber"),
-      t("candidates.col.email"),
       t("candidates.col.birthDate"),
       t("candidates.col.gender"),
       t("candidates.col.licenseClass"),
@@ -1346,7 +1337,6 @@ export function CandidatesPage({
       `${candidate.firstName} ${candidate.lastName}`.trim(),
       candidate.nationalId,
       formatOptionalText(candidate.phoneNumber),
-      formatOptionalText(candidate.email),
       formatDateTR(candidate.birthDate),
       formatOptionalText(candidateGenderLabel(candidate.gender)),
       candidate.licenseClass,

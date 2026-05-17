@@ -1373,13 +1373,46 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 .training-quick-assign-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  width: 100%;
+  padding: 4px 2px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--gray-500);
+  text-align: left;
+}
+
+.training-quick-assign-header:hover {
+  color: var(--gray-700);
+}
+
+.training-quick-assign-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.training-quick-assign-header.is-open .training-quick-assign-chevron {
+  transform: rotate(0deg);
+}
+
+.training-quick-assign-count {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .training-quick-assign-slot {

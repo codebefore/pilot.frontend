@@ -1,7 +1,7 @@
 import { httpPost } from "./http";
 
 export type LoginRequest = {
-  email: string;
+  phone: string;
   password: string;
 };
 
@@ -11,7 +11,7 @@ export type LoginResponse = {
   user: {
     id: string;
     fullName: string;
-    email: string | null;
+    phone: string | null;
     roleName: string | null;
     isSuperAdmin: boolean;
   };

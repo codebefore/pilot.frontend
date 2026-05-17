@@ -5,6 +5,10 @@ import {
   createCandidate,
   getCandidateReuseSources,
 } from "../../lib/candidates-api";
+import {
+  getCandidateReferences,
+  type CandidateReferenceResponse,
+} from "../../lib/candidate-references-api";
 import { getCertificatePrograms } from "../../lib/certificate-programs-api";
 import { ApiError } from "../../lib/http";
 import { useT } from "../../lib/i18n";
@@ -41,8 +45,6 @@ type NewCandidateForm = {
   reuseFromCandidateId: string;
   documentIdsToCopy: string[];
 };
-
-const REFERENCE_NAME_OPTIONS = ["Referans 1", "Referans 2", "Referans 3"] as const;
 
 type NewCandidateModalProps = {
   open: boolean;
@@ -172,6 +174,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
   const [certificatePrograms, setCertificatePrograms] = useState<CertificateProgramResponse[]>([]);
   const [activeLicenseClassOptions, setActiveLicenseClassOptions] = useState<LicenseClassOption[]>([]);
+  const [references, setReferences] = useState<CandidateReferenceResponse[]>([]);
 
   const {
     register,
@@ -247,6 +250,21 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
       });
 
     return () => controller.abort();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    getCandidateReferences()
+      .then((items) => {
+        if (!cancelled) setReferences(items);
+      })
+      .catch(() => {
+        if (!cancelled) setReferences([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   // Reset form when modal closes
@@ -526,9 +544,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
             <label className="form-label">Referans</label>
             <CustomSelect className="form-select" {...register("referenceName")}>
               <option value="">Seçiniz</option>
-              {REFERENCE_NAME_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              {references.map((option) => (
+                <option key={option.id} value={option.name}>
+                  {option.name}
                 </option>
               ))}
             </CustomSelect>

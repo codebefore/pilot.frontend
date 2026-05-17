@@ -17,6 +17,8 @@ import {
   deleteCandidate,
   getCandidateById,
   removeActiveGroupAssignment,
+  setCandidateRegistrationDate,
+  setCandidateRegistrationNumber,
   setCandidateSecondPracticeRound,
   setCandidateTheoryExemption,
   updateCandidate,
@@ -33,6 +35,7 @@ import {
   getCandidateAccounting,
   updateCandidateAccountingInvoice,
 } from "../lib/candidate-accounting-api";
+import { getCandidateReferences } from "../lib/candidate-references-api";
 import {
   chargeCandidateExamAttempt,
   createCandidateExamAttempt,
@@ -173,7 +176,6 @@ function buildCandidateUpdatePayload(
     motherName: candidate.motherName,
     fatherName: candidate.fatherName,
     phoneNumber: candidate.phoneNumber,
-    email: candidate.email,
     address: candidate.address,
     birthDate: candidate.birthDate,
     gender: normalizeCandidateGender(candidate.gender),
@@ -202,18 +204,29 @@ function buildCandidateUpdatePayload(
 
 const CONTACT_TYPE_OPTIONS: SelectOption[] = [
   { value: "phone", label: "Telefon" },
-  { value: "email", label: "E-posta" },
   { value: "address", label: "Adres" },
   { value: "other", label: "Diğer" },
 ];
+
+async function loadReferenceOptions(currentValue: string | null): Promise<SelectOption[]> {
+  // Aktif referanslar listesi. Aday detayda kayıtlı eski bir değer aktif listede
+  // yoksa (silinmiş ya da pasif yapılmış olabilir) seçimin kaybolmaması için
+  // mevcut değeri options'a ek olarak ekliyoruz.
+  const items = await getCandidateReferences();
+  const options: SelectOption[] = [
+    { value: "", label: "—" },
+    ...items.map((item) => ({ value: item.name, label: item.name })),
+  ];
+  if (currentValue && !items.some((item) => item.name === currentValue)) {
+    options.push({ value: currentValue, label: `${currentValue} (pasif)` });
+  }
+  return options;
+}
 
 function contactTypeLabel(type: CandidateContactType): string {
   return CONTACT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Diğer";
 }
 
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
 
 function buildCandidateContacts(candidate: CandidateResponse): CandidateContactResponse[] {
   if (candidate.contacts && candidate.contacts.length > 0) {
@@ -230,11 +243,11 @@ function buildCandidateContacts(candidate: CandidateResponse): CandidateContactR
       value,
       isPrimary: true,
       displayOrder: contacts.length,
+      ownerName: null,
     });
   };
 
   push("phone", "Telefon", candidate.phoneNumber);
-  push("email", "E-posta", candidate.email);
   push("address", "Adres", candidate.address);
   return contacts;
 }
@@ -246,6 +259,7 @@ function buildCandidateContactPayload(candidate: CandidateResponse): CandidateCo
     label: contact.label,
     value: contact.value,
     isPrimary: contact.isPrimary,
+    ownerName: contact.ownerName,
   }));
 }
 
@@ -1047,12 +1061,7 @@ function CandidateContactsEditor({
   const contacts = buildCandidateContacts(candidate);
 
   const validateContactValue = (type: CandidateContactType, value: string): boolean => {
-    if (type !== "email" || isValidEmail(value)) {
-      return true;
-    }
-
-    showToast("Geçerli bir e-posta adresi girin.", "error");
-    return false;
+    return true;
   };
 
   const saveContacts = async (
@@ -1060,14 +1069,12 @@ function CandidateContactsEditor({
     message: string
   ) => {
     const firstPhone = nextContacts.find((contact) => contact.type === "phone")?.value ?? null;
-    const firstEmail = nextContacts.find((contact) => contact.type === "email")?.value ?? null;
     const firstAddress = nextContacts.find((contact) => contact.type === "address")?.value ?? null;
 
     await onSave(
       {
         contacts: nextContacts,
         phoneNumber: firstPhone,
-        email: firstEmail,
         address: firstAddress,
       },
       message
@@ -1089,6 +1096,7 @@ function CandidateContactsEditor({
             label: contactTypeLabel(item.type),
             value: normalizedValue,
             isPrimary: item.isPrimary,
+            ownerName: item.ownerName,
           }
         : {
             id: item.id || null,
@@ -1096,9 +1104,34 @@ function CandidateContactsEditor({
             label: item.label,
             value: item.value,
             isPrimary: item.isPrimary,
+            ownerName: item.ownerName,
           }
     );
     await saveContacts(nextContacts, "İletişim bilgisi güncellendi");
+  };
+
+  const updateContactOwner = async (contact: CandidateContactResponse, ownerName: string) => {
+    const normalized = ownerName.trim();
+    const nextContacts = contacts.map((item) =>
+      item === contact
+        ? {
+            id: item.id || null,
+            type: item.type,
+            label: item.label,
+            value: item.value,
+            isPrimary: item.isPrimary,
+            ownerName: normalized || null,
+          }
+        : {
+            id: item.id || null,
+            type: item.type,
+            label: item.label,
+            value: item.value,
+            isPrimary: item.isPrimary,
+            ownerName: item.ownerName,
+          }
+    );
+    await saveContacts(nextContacts, "Telefon sahibi güncellendi");
   };
 
   const deleteContact = async (contact: CandidateContactResponse) => {
@@ -1110,15 +1143,21 @@ function CandidateContactsEditor({
         label: item.label,
         value: item.value,
         isPrimary: item.isPrimary,
+        ownerName: item.ownerName,
       }));
     await saveContacts(nextContacts, "İletişim bilgisi silindi");
   };
 
-  const createContact = async (draftId: string, type: CandidateContactType, value: string) => {
+  const createContact = async (
+    draftId: string,
+    type: CandidateContactType,
+    value: string,
+    ownerName: string | null,
+  ) => {
     const normalizedValue = value.trim();
     if (!normalizedValue) return;
     if (!validateContactValue(type, normalizedValue)) {
-      throw new Error("invalid email");
+      throw new Error("invalid value");
     }
 
     const nextContacts = [
@@ -1128,6 +1167,7 @@ function CandidateContactsEditor({
         label: contact.label,
         value: contact.value,
         isPrimary: contact.isPrimary,
+        ownerName: contact.ownerName,
       })),
       {
         id: null,
@@ -1135,6 +1175,7 @@ function CandidateContactsEditor({
         label: contactTypeLabel(type),
         value: normalizedValue,
         isPrimary: !contacts.some((item) => item.type === type),
+        ownerName: type === "phone" ? ownerName : null,
       },
     ];
 
@@ -1181,6 +1222,14 @@ function CandidateContactsEditor({
                 label={label}
                 onSave={(value) => updateContactValue(contact, value)}
               />
+              {contact.type === "phone" ? (
+                <EditableRow
+                  displayValue={contact.ownerName ?? ""}
+                  inputValue={contact.ownerName ?? ""}
+                  label="Sahibi"
+                  onSave={(value) => updateContactOwner(contact, value)}
+                />
+              ) : null}
               <button
                 className="btn btn-danger btn-sm"
                 onClick={() => void deleteContact(contact)}
@@ -1195,12 +1244,13 @@ function CandidateContactsEditor({
           <CandidateContactDraftRow
             draftId={draft.id}
             inputType={contactInputType(draft.type)}
+            isPhone={draft.type === "phone"}
             key={draft.id}
             label={`Yeni ${contactTypeLabel(draft.type)}`}
             onCancel={(draftId) =>
               setDrafts((current) => current.filter((item) => item.id !== draftId))
             }
-            onCreate={(value) => createContact(draft.id, draft.type, value)}
+            onCreate={(value, ownerName) => createContact(draft.id, draft.type, value, ownerName)}
           />
         ))}
       </div>
@@ -1211,14 +1261,13 @@ function CandidateContactsEditor({
 const CONTACT_KINDS: Array<{
   type: CandidateContactType;
   singular: string;
-  inputType: "text" | "tel" | "email" | "textarea";
+  inputType: "text" | "tel" | "textarea";
 }> = [
   { type: "phone", singular: "Telefon", inputType: "tel" },
-  { type: "email", singular: "E-posta", inputType: "email" },
   { type: "address", singular: "Adres", inputType: "textarea" },
 ];
 
-function contactInputType(type: CandidateContactType): "text" | "tel" | "email" | "textarea" {
+function contactInputType(type: CandidateContactType): "text" | "tel" | "textarea" {
   return CONTACT_KINDS.find((kind) => kind.type === type)?.inputType ?? "text";
 }
 
@@ -1226,31 +1275,29 @@ function CandidateContactDraftRow({
   draftId,
   label,
   inputType,
+  isPhone,
   onCreate,
   onCancel,
 }: {
   draftId: string;
   label: string;
-  inputType: "text" | "tel" | "email" | "textarea";
-  onCreate: (value: string) => Promise<void>;
+  inputType: "text" | "tel" | "textarea";
+  isPhone: boolean;
+  onCreate: (value: string, ownerName: string | null) => Promise<void>;
   onCancel: (draftId: string) => void;
 }) {
   const [value, setValue] = useState("");
+  const [ownerName, setOwnerName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
-  const isEmail = inputType === "email";
 
   const save = async () => {
     if (!trimmedValue || saving) return;
-    if (isEmail && !isValidEmail(trimmedValue)) {
-      setError("Geçerli bir e-posta adresi girin.");
-      return;
-    }
 
     setSaving(true);
     try {
-      await onCreate(trimmedValue);
+      await onCreate(trimmedValue, ownerName.trim() || null);
       setError(null);
     } finally {
       setSaving(false);
@@ -1283,6 +1330,17 @@ function CandidateContactDraftRow({
             value={value}
           />
         )}
+        {isPhone ? (
+          <input
+            aria-label="Telefon sahibi"
+            className="form-input-sm"
+            disabled={saving}
+            onChange={(event) => setOwnerName(event.target.value)}
+            placeholder="Sahibi (Anne, Baba…)"
+            type="text"
+            value={ownerName}
+          />
+        ) : null}
         <button
           className="btn btn-primary btn-sm"
           disabled={!trimmedValue || saving}
@@ -1307,9 +1365,9 @@ function CandidateContactDraftRow({
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="assignment-field">
-      <span className="assignment-field-label">{label}</span>
-      <span className="assignment-field-value">{value}</span>
+    <div className="drawer-row">
+      <span className="label">{label}</span>
+      <span className="value">{value}</span>
     </div>
   );
 }
@@ -1672,9 +1730,44 @@ function LicenseInfoTab({
     }
   };
 
+  const saveRegistrationNumber = async (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      showToast("Aday numarası boş olamaz", "error");
+      throw new Error("registration number empty");
+    }
+    try {
+      await setCandidateRegistrationNumber(candidate.id, trimmed, candidate.rowVersion);
+      const refreshed = await getCandidateById(candidate.id);
+      onSaved(refreshed);
+      showToast("Aday numarası güncellendi");
+    } catch {
+      showToast("Aday numarası güncellenemedi", "error");
+      throw new Error("save failed");
+    }
+  };
+
+  const saveRegistrationDate = async (value: string) => {
+    if (!value) {
+      showToast("Kayıt tarihi boş olamaz", "error");
+      throw new Error("registration date empty");
+    }
+    try {
+      await setCandidateRegistrationDate(candidate.id, value, candidate.rowVersion);
+      const refreshed = await getCandidateById(candidate.id);
+      onSaved(refreshed);
+      showToast("Kayıt tarihi güncellendi");
+    } catch {
+      showToast("Kayıt tarihi güncellenemedi", "error");
+      throw new Error("save failed");
+    }
+  };
+
   const [exemptSaving, setExemptSaving] = useState(false);
   const isTheoryExempt = candidate.isTheoryExempt ?? false;
+  const hasExistingLicense = !!candidate.existingLicenseType;
   const toggleTheoryExempt = async () => {
+    if (hasExistingLicense) return;
     const next = !isTheoryExempt;
     setExemptSaving(true);
     try {
@@ -1805,10 +1898,15 @@ function LicenseInfoTab({
           <span className="form-label" style={{ margin: 0 }}>
             Teori Muafiyeti
           </span>
-          <label className="switch-toggle" title="Aday teori sınavından muaf">
+          <label
+            className="switch-toggle"
+            title={hasExistingLicense
+              ? "Mevcut ehliyet sahibi olduğu için otomatik muaf."
+              : "Aday teori sınavından muaf"}
+          >
             <input
               checked={isTheoryExempt}
-              disabled={exemptSaving}
+              disabled={exemptSaving || hasExistingLicense}
               onChange={toggleTheoryExempt}
               type="checkbox"
             />
@@ -1898,10 +1996,48 @@ function LicenseInfoTab({
           </div>
       </section>
 
+      <div className="candidate-detail-registration-stack">
+        <section className="instructor-detail-card">
+          <h3 className="candidate-detail-section-title">Kayıt Bilgileri</h3>
+          <div className="candidate-detail-edit-list">
+            <EditableRow
+              displayValue={candidate.registrationNumber}
+              inputValue={candidate.registrationNumber}
+              label="Aday No"
+              onSave={saveRegistrationNumber}
+            />
+            <EditableRow
+              displayValue={formatDateTR(candidate.createdAtUtc)}
+              inputType="date"
+              inputValue={candidate.createdAtUtc.slice(0, 10)}
+              label="Kayıt Tarihi"
+              onSave={saveRegistrationDate}
+            />
+          </div>
+        </section>
+
+        <section className="instructor-detail-card">
+          <h3 className="candidate-detail-section-title">Referans</h3>
+          <div className="candidate-detail-edit-list">
+            <EditableRow
+              displayValue={candidate.referenceName ?? ""}
+              inputValue={candidate.referenceName ?? ""}
+              label="Referans"
+              loadOptions={() => loadReferenceOptions(candidate.referenceName)}
+              onSave={(value) =>
+                saveApplicationField(
+                  { referenceName: value.trim() || null },
+                  "Referans güncellendi",
+                )
+              }
+            />
+          </div>
+        </section>
+      </div>
+
       <section className="instructor-detail-card">
         <h3 className="candidate-detail-section-title">Grup / Dönem Bilgileri</h3>
         <div className="candidate-detail-edit-list">
-          <Field label="Kayıt Tarihi" value={formatDateTR(candidate.createdAtUtc)} />
           <EditableRow
             displayValue={candidate.currentGroup?.title ?? "Atanmamış"}
             inputValue={candidate.currentGroup?.groupId ?? ""}
@@ -4003,7 +4139,9 @@ function CandidateExamAttemptsSection({
   const { showToast } = useToast();
   const [exemptSaving, setExemptSaving] = useState(false);
   const isTheoryExempt = candidate.isTheoryExempt ?? false;
+  const hasExistingLicense = !!candidate.existingLicenseType;
   const toggleTheoryExempt = async () => {
+    if (hasExistingLicense) return;
     const next = !isTheoryExempt;
     setExemptSaving(true);
     try {
@@ -4369,12 +4507,14 @@ function CandidateExamAttemptsSection({
             <div className="candidate-exam-attempts-head-actions">
               <label
                 className="switch-toggle candidate-exam-attempts-muaf-toggle"
-                title="Aday teori sınavından muaf"
+                title={hasExistingLicense
+                  ? "Mevcut ehliyet sahibi olduğu için otomatik muaf."
+                  : "Aday teori sınavından muaf"}
               >
                 <input
                   type="checkbox"
                   checked={isTheoryExempt}
-                  disabled={exemptSaving}
+                  disabled={exemptSaving || hasExistingLicense}
                   onChange={toggleTheoryExempt}
                 />
                 <span className="switch-toggle-control" aria-hidden="true" />
@@ -6128,7 +6268,7 @@ function DocRow({
             {fileSize ? <span>{fileSize}</span> : null}
           </div>
         ) : null}
-        {metadataFields.length > 0 ? (
+        {metadataFields.length > 0 || (isContractType && uploadedDate) ? (
           <div className="candidate-detail-doc-metadata-fields">
             {metadataFields.map((field) => {
               const value = metadataValues[field.key] ?? "";
@@ -6192,6 +6332,12 @@ function DocRow({
                 </label>
               );
             })}
+            {isContractType && uploadedDate ? (
+              <div className="candidate-detail-doc-metadata-field is-readonly">
+                <span>Teslim Tarihi</span>
+                <strong>{uploadedDate}</strong>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {type.key === "health_report" ? (

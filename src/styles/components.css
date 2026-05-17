@@ -1116,6 +1116,12 @@
   align-items: start;
 }
 
+.candidate-detail-registration-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .candidate-detail-training-top {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
@@ -1177,9 +1183,6 @@
 }
 .candidate-detail-edit-list .edit-trigger {
   opacity: 1;
-}
-.candidate-detail-edit-list .assignment-field {
-  padding: 6px 0;
 }
 .candidate-detail-timeline {
   list-style: none;
@@ -1824,6 +1827,18 @@
   font-size: 11px;
   font-style: normal;
   color: var(--danger-700, #b91c1c);
+}
+.candidate-detail-doc-metadata-field.is-readonly strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
 }
 .candidate-detail-doc-metadata-save {
   align-self: end;

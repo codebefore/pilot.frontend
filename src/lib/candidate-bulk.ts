@@ -44,7 +44,6 @@ export function buildCandidateUpdatePayload(
     nationalId: candidate.nationalId,
     referenceName: candidate.referenceName,
     phoneNumber: candidate.phoneNumber,
-    email: candidate.email,
     birthDate: candidate.birthDate,
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,

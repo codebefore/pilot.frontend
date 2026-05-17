@@ -7,7 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 
 type LoginForm = {
-  email: string;
+  phone: string;
   password: string;
 };
 
@@ -24,7 +24,7 @@ export function LoginPage() {
     handleSubmit,
     register,
   } = useForm<LoginForm>({
-    defaultValues: { email: "", password: "" },
+    defaultValues: { phone: "", password: "" },
   });
 
   const from = (location.state as { from?: Location } | null)?.from?.pathname ?? "/";
@@ -38,7 +38,7 @@ export function LoginPage() {
     setFormError(null);
     setSubmitting(true);
     try {
-      await login(data.email, data.password);
+      await login(data.phone, data.password);
       navigate(from, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -62,15 +62,16 @@ export function LoginPage() {
 
         <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
           <div className="login-field">
-            <label htmlFor="login-email">{t("login.email")}</label>
+            <label htmlFor="login-phone">{t("login.phone")}</label>
             <input
-              autoComplete="email"
-              id="login-email"
-              placeholder={t("login.emailPlaceholder")}
-              type="email"
-              {...register("email", { required: t("login.errors.emailRequired") })}
+              autoComplete="tel"
+              id="login-phone"
+              inputMode="tel"
+              placeholder={t("login.phonePlaceholder")}
+              type="tel"
+              {...register("phone", { required: t("login.errors.phoneRequired") })}
             />
-            {errors.email && <span className="login-error">{errors.email.message}</span>}
+            {errors.phone && <span className="login-error">{errors.phone.message}</span>}
           </div>
 
           <div className="login-field">

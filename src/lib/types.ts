@@ -42,7 +42,7 @@ export interface CandidateEducationPlan {
   practiceLessonHours: number | null;
 }
 
-export type CandidateContactType = "phone" | "email" | "address" | "other";
+export type CandidateContactType = "phone" | "address" | "other";
 
 export interface CandidateContactResponse {
   id: string;
@@ -51,6 +51,7 @@ export interface CandidateContactResponse {
   value: string;
   isPrimary: boolean;
   displayOrder: number;
+  ownerName: string | null;
 }
 
 export interface CandidateContactUpsertRequest {
@@ -59,10 +60,12 @@ export interface CandidateContactUpsertRequest {
   label?: string | null;
   value: string;
   isPrimary: boolean;
+  ownerName?: string | null;
 }
 
 export interface CandidateResponse {
   id: string;
+  registrationNumber: string;
   firstName: string;
   lastName: string;
   nationalId: string;
@@ -71,7 +74,6 @@ export interface CandidateResponse {
   fatherName: string | null;
   referenceName: string | null;
   phoneNumber: string | null;
-  email: string | null;
   address: string | null;
   birthDate: string | null;
   gender: CandidateGenderValue | null;
@@ -138,7 +140,6 @@ export interface CandidateUpsertRequest {
   fatherName?: string | null;
   referenceName?: string | null;
   phoneNumber?: string | null;
-  email?: string | null;
   address?: string | null;
   birthDate?: string | null;
   /** Write-boundary is strict: only canonical English (or null / omitted). */
@@ -563,7 +564,6 @@ export interface CandidateReuseSourceResponse {
   lastName: string;
   nationalId: string;
   phoneNumber: string | null;
-  email: string | null;
   address: string | null;
   birthDate: string | null;
   gender: CandidateGenderValue | null;
@@ -755,7 +755,6 @@ export interface InstructorResponse {
   lastName: string;
   nationalId: string | null;
   phoneNumber: string | null;
-  email: string | null;
   isActive: boolean;
   role: InstructorRole;
   employmentType: InstructorEmploymentType;
@@ -787,7 +786,6 @@ export interface InstructorUpsertRequest {
   lastName: string;
   nationalId?: string | null;
   phoneNumber?: string | null;
-  email?: string | null;
   isActive: boolean;
   assignedVehicleId?: string | null;
   notes?: string | null;
@@ -1081,7 +1079,6 @@ export interface GroupCandidateResponse {
   lastName: string;
   nationalId: string;
   phoneNumber: string | null;
-  email: string | null;
   photo?: CandidatePhotoSummary | null;
   status: string;
   assignedAtUtc: string;

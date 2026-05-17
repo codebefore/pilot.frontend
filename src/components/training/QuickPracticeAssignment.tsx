@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
+import { ChevronDownIcon } from "../icons";
 import { useT } from "../../lib/i18n";
 import type { CandidateResponse } from "../../lib/types";
 
@@ -11,9 +12,8 @@ type QuickPracticeAssignmentProps = {
   onSettingsChange: (params: { candidateId: string }) => void;
   isLoading?: boolean;
   /** Adaylar sayfasından bulk yönlendirme ile gelinen aday kümesi.
-   *  Boş array → scope yok, tüm aktif adaylar listelenir. Doluysa
-   *  search boşken sadece o ID'lerdeki adaylar görünür; search yazılınca
-   *  tüm aktif aday havuzunda filtre yapılır (scope dışı erişim için). */
+   *  Boş array → scope yok, panel başta kapalı; açılırsa tüm aktif adaylar listelenir.
+   *  Doluysa scope adayları gösterilir ve panel açık gelir. */
   scopedCandidateIds?: readonly string[];
   /** Scope aktifken kullanıcıya "temizle" linki için. */
   onClearScope?: () => void;
@@ -28,7 +28,13 @@ export function QuickPracticeAssignment({
   onClearScope,
 }: QuickPracticeAssignmentProps) {
   const t = useT();
-  const [search, setSearch] = useState("");
+  const scopeActive = (scopedCandidateIds?.length ?? 0) > 0;
+  const [expanded, setExpanded] = useState(scopeActive);
+  const panelId = useId();
+
+  useEffect(() => {
+    if (scopeActive) setExpanded(true);
+  }, [scopeActive]);
 
   const sortedCandidates = useMemo(
     () =>
@@ -44,34 +50,13 @@ export function QuickPracticeAssignment({
     [candidates]
   );
 
-  const scopeActive = (scopedCandidateIds?.length ?? 0) > 0;
-
-  // Search boşken: scope varsa sadece scope, yoksa ilk N kayıt + hint.
-  // Search yazılınca her zaman tüm aktif adaylar (scope dışı erişim).
-  const PREVIEW_LIMIT = 20;
-  const filteredCandidates = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase("tr");
-    if (!q) {
-      if (scopeActive) {
-        const set = new Set(scopedCandidateIds);
-        return sortedCandidates.filter((c) => set.has(c.id));
-      }
-      return sortedCandidates.slice(0, PREVIEW_LIMIT);
+  const visibleCandidates = useMemo(() => {
+    if (scopeActive) {
+      const set = new Set(scopedCandidateIds);
+      return sortedCandidates.filter((c) => set.has(c.id));
     }
-    return sortedCandidates.filter((c) => {
-      const name = `${c.firstName} ${c.lastName}`.toLocaleLowerCase("tr");
-      return (
-        name.includes(q) ||
-        c.nationalId.toLocaleLowerCase("tr").includes(q) ||
-        (c.phoneNumber?.toLocaleLowerCase("tr").includes(q) ?? false)
-      );
-    });
-  }, [sortedCandidates, search, scopeActive, scopedCandidateIds]);
-
-  const hiddenCount =
-    search.trim().length === 0 && !scopeActive
-      ? Math.max(0, sortedCandidates.length - PREVIEW_LIMIT)
-      : 0;
+    return sortedCandidates;
+  }, [sortedCandidates, scopeActive, scopedCandidateIds]);
 
   const toggle = (id: string) => {
     if (isLoading) return;
@@ -80,60 +65,69 @@ export function QuickPracticeAssignment({
 
   return (
     <div className="training-quick-assign">
-      {scopeActive ? (
-        <div className="training-quick-assign-scope">
-          <span>
-            {t("training.quick.scopeBadge", {
-              count: scopedCandidateIds?.length ?? 0,
-            })}
-          </span>
-          <button
-            className="training-quick-assign-scope-clear"
-            onClick={onClearScope}
-            type="button"
-          >
-            {t("training.quick.scopeClear")}
-          </button>
-        </div>
-      ) : null}
-      <input
-        className="training-filters-search"
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t("training.quick.candidatePlaceholder")}
-        type="search"
-        value={search}
-      />
-      <ul className="training-filters-list training-filters-list-scroll">
-        {filteredCandidates.map((c) => {
-          const checked = c.id === candidateId;
-          return (
-            <li key={c.id}>
-              <label className="training-filters-item switch-toggle switch-toggle-sm">
-                <input
-                  checked={checked}
-                  disabled={isLoading}
-                  onChange={() => toggle(c.id)}
-                  type="checkbox"
-                />
-                <span className="switch-toggle-control" />
-                <span className="training-filters-name">
-                  {c.firstName} {c.lastName} ({c.licenseClass})
+      <button
+        type="button"
+        className={`training-quick-assign-header${expanded ? " is-open" : ""}`}
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+      >
+        <span className="training-quick-assign-chevron" aria-hidden="true">
+          <ChevronDownIcon size={14} />
+        </span>
+        <span>{t("training.quick.candidateListTitle")}</span>
+        <span className="training-quick-assign-count">
+          {visibleCandidates.length}
+        </span>
+      </button>
+      <div id={panelId} hidden={!expanded}>
+        {expanded ? (
+          <>
+            {scopeActive ? (
+              <div className="training-quick-assign-scope">
+                <span>
+                  {t("training.quick.scopeBadge", {
+                    count: scopedCandidateIds?.length ?? 0,
+                  })}
                 </span>
-              </label>
-            </li>
-          );
-        })}
-        {filteredCandidates.length === 0 ? (
-          <li className="training-filters-empty">
-            {t("training.filter.noMatches")}
-          </li>
+                <button
+                  className="training-quick-assign-scope-clear"
+                  onClick={onClearScope}
+                  type="button"
+                >
+                  {t("training.quick.scopeClear")}
+                </button>
+              </div>
+            ) : null}
+            <ul className="training-filters-list training-filters-list-scroll">
+              {visibleCandidates.map((c) => {
+                const checked = c.id === candidateId;
+                return (
+                  <li key={c.id}>
+                    <label className="training-filters-item switch-toggle switch-toggle-sm">
+                      <input
+                        checked={checked}
+                        disabled={isLoading}
+                        onChange={() => toggle(c.id)}
+                        type="checkbox"
+                      />
+                      <span className="switch-toggle-control" />
+                      <span className="training-filters-name">
+                        {c.firstName} {c.lastName} ({c.licenseClass})
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+              {visibleCandidates.length === 0 ? (
+                <li className="training-filters-empty">
+                  {t("training.filter.noMatches")}
+                </li>
+              ) : null}
+            </ul>
+          </>
         ) : null}
-        {hiddenCount > 0 ? (
-          <li className="training-filters-empty">
-            {t("training.quick.candidateSearchHint", { count: hiddenCount })}
-          </li>
-        ) : null}
-      </ul>
+      </div>
     </div>
   );
 }

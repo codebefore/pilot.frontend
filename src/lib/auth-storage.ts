@@ -2,7 +2,7 @@ const STORAGE_KEY = "pilot.auth";
 
 export type AuthUser = {
   id: string;
-  email: string | null;
+  phone: string | null;
   name: string;
   roleName: string | null;
   isSuperAdmin: boolean;

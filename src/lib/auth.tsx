@@ -13,7 +13,7 @@ import {
 type AuthContextValue = {
   user: AuthUser | null;
   accessToken: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (phone: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -35,15 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("pilot:unauthorized", onUnauthorized);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    if (!email || !password) throw new Error("E-posta ve şifre gerekli");
-    const response = await loginWithPassword({ email, password });
+  const login = async (phone: string, password: string) => {
+    if (!phone || !password) throw new Error("Telefon ve şifre gerekli");
+    const response = await loginWithPassword({ phone, password });
     setSession({
       accessToken: response.accessToken,
       expiresAtUtc: response.expiresAtUtc,
       user: {
         id: response.user.id,
-        email: response.user.email,
+        phone: response.user.phone,
         name: response.user.fullName,
         roleName: response.user.roleName,
         isSuperAdmin: response.user.isSuperAdmin,
