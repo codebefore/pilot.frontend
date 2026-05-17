@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
+import { GridIcon, ListIcon } from "../components/icons";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { EditableRow } from "../components/ui/EditableRow";
 import { CustomSelect } from "../components/ui/CustomSelect";
@@ -356,9 +357,10 @@ export function CandidateDetailPage() {
     return () => controller.abort();
   }, [activeTab, candidateId, documents, documentTypes]);
 
-  // Lazy-load candidate accounting when the Muhasebe tab is first opened.
+  // Hero accounting status badge requires the full accounting snapshot
+  // (installment due dates), so fetch it as soon as the candidate is known
+  // rather than waiting for the Muhasebe tab.
   useEffect(() => {
-    if (activeTab !== "payments") return;
     if (!candidateId) return;
     if (accounting !== null) return;
 
@@ -377,7 +379,7 @@ export function CandidateDetailPage() {
       });
 
     return () => controller.abort();
-  }, [activeTab, accounting, candidateId]);
+  }, [accounting, candidateId]);
 
   const refreshAccounting = async () => {
     if (!candidateId) return;
@@ -545,7 +547,7 @@ export function CandidateDetailPage() {
 
       {!loading && !error && candidate && (
         <>
-          <CandidateHero candidate={candidate} age={age} />
+          <CandidateHero candidate={candidate} age={age} accounting={accounting} />
           <SecondPracticeRoundBanner
             candidate={candidate}
             onCandidateUpdated={setCandidate}
@@ -682,9 +684,11 @@ function vehicleTypeForLicenseClass(licenseClass: string): string | null {
 function CandidateHero({
   candidate,
   age,
+  accounting,
 }: {
   candidate: CandidateResponse;
   age: number | null;
+  accounting: CandidateAccountingSummaryResponse | null;
 }) {
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
@@ -709,22 +713,9 @@ function CandidateHero({
   ]
     .filter(Boolean)
     .join(" · ");
-  const paymentLabel = candidate.initialPaymentReceived
-    ? "Kayıt ödendi"
-    : candidate.examFeePaid
-    ? "Sınav ücreti ödendi"
-    : "Ödeme bekleniyor";
-  const accountingLine = candidate.totalFee > 0 ? "Muhasebe Kaydı Var" : "Muhasebe Kaydı Yok";
-  const debtLine = candidate.totalDebt > 0
-    ? `Borcu: ${formatCurrencyTRY(candidate.totalDebt)}`
-    : "Borcu Yok";
-  const statusLine = [
-    candidate.examStageLabel,
-    candidate.appointmentStatusLabel,
-    paymentLabel,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join(" · ");
+  const accountingStatus = computeAccountingStatus(candidate, accounting);
+  const stageTone = stagePillTone(candidate.examStageLabel ?? null);
+  const appointmentTone = appointmentPillTone(candidate.appointmentStatusLabel ?? null);
 
   return (
     <header className="candidate-detail-hero">
@@ -763,17 +754,85 @@ function CandidateHero({
         </div>
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--status">
           <StatusPill label={statusLabel} status={statusPill} />
-          {statusLine ? <span>{statusLine}</span> : null}
+          {candidate.examStageLabel ? (
+            <span className={`candidate-detail-hero-stage-pill tone-${stageTone}`}>
+              {candidate.examStageLabel}
+            </span>
+          ) : null}
+          {candidate.appointmentStatusLabel ? (
+            <span className={`candidate-detail-hero-stage-pill tone-${appointmentTone}`}>
+              {candidate.appointmentStatusLabel}
+            </span>
+          ) : null}
           <HeroBadges candidate={candidate} />
         </div>
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--accounting">
-          <span>{accountingLine}</span>
-          <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
-          <span>{debtLine}</span>
+          <span className={`candidate-detail-hero-accounting-pill tone-${accountingStatus.tone}`}>
+            {accountingStatus.label}
+          </span>
         </div>
       </div>
     </header>
   );
+}
+
+type AccountingStatus = {
+  label: string;
+  tone: "neutral" | "info" | "success" | "danger";
+};
+
+function computeAccountingStatus(
+  candidate: CandidateResponse,
+  accounting: CandidateAccountingSummaryResponse | null,
+): AccountingStatus {
+  if (candidate.totalFee <= 0 && (!accounting || accounting.movements.length === 0)) {
+    return { label: "Muhasebe kaydı yok", tone: "neutral" };
+  }
+  if (accounting) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const hasOverdue = accounting.movements.some((m) => {
+      if (m.status !== "active") return false;
+      if (m.remainingAmount <= 0) return false;
+      const due = new Date(m.dueDate);
+      return !Number.isNaN(due.getTime()) && due < today;
+    });
+    if (hasOverdue) return { label: "Gecikmiş ödemesi var", tone: "danger" };
+  }
+  if (candidate.totalDebt <= 0 && candidate.totalFee > 0) {
+    return { label: "Ödeme tamamlandı", tone: "success" };
+  }
+  return { label: "Ödeme süreci devam ediyor", tone: "info" };
+}
+
+type PillTone = "neutral" | "info" | "success" | "warning" | "danger";
+
+function stagePillTone(label: string | null): PillTone {
+  switch (label) {
+    case "Mezun":
+      return "success";
+    case "Dosya Yakıldı":
+      return "danger";
+    case "2. Direksiyon Aşaması":
+      return "warning";
+    case "E-Sınav Aşamasında":
+    case "Direksiyon Aşamasında":
+      return "info";
+    default:
+      return "neutral";
+  }
+}
+
+function appointmentPillTone(label: string | null): PillTone {
+  if (!label) return "neutral";
+  // "Havuz/Başarısız ..." — son deneme başarısız, kritik
+  if (label.startsWith("Havuz/Başarısız")) return "danger";
+  // "(4/4)" — son hak; warning
+  if (/\(4\/4\)/.test(label)) return "warning";
+  // "Randevulu (...)" — tarih atanmış, pozitif akış
+  if (label.startsWith("Randevulu")) return "info";
+  // "Havuz (n/4)" — bekleme
+  return "neutral";
 }
 
 function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
@@ -936,19 +995,25 @@ function GeneralTab({ candidate }: {
 }) {
   return (
     <div className="candidate-detail-tab-content">
-      <CandidateTimeline candidate={candidate} />
+      <div className="candidate-general-grid">
+        <div className="candidate-general-grid-col">
+          <CandidateTimeline candidate={candidate} />
+        </div>
+        <div className="candidate-general-grid-col" />
+      </div>
     </div>
   );
 }
 
 function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
+  const [view, setView] = useState<"timeline" | "feed">("feed");
   const events = candidate.timeline ?? [];
   const futureSteps = buildFutureStages(candidate);
 
   type TimelineRow =
-    | { key: string; kind: "event"; tone: string; dateLabel: string; title: string; detail: string | null }
-    | { key: string; kind: "current"; tone: "current"; dateLabel: string; title: string; detail: string | null }
-    | { key: string; kind: "future"; tone: "future"; dateLabel: string; title: string; detail: null };
+    | { key: string; kind: "event"; tone: string; dateLabel: string; title: string; detail: string | null; actorName: string | null }
+    | { key: string; kind: "current"; tone: "current"; dateLabel: string; title: string; detail: string | null; actorName: null }
+    | { key: string; kind: "future"; tone: "future"; dateLabel: string; title: string; detail: null; actorName: null };
 
   // Newest at the top: future stages first (final goal on top), then "Şu an",
   // then past events in reverse-chronological order.
@@ -960,6 +1025,7 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
       dateLabel: "—",
       title: label,
       detail: null,
+      actorName: null,
     })),
     ...(candidate.examStageLabel
       ? [{
@@ -969,6 +1035,7 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
           dateLabel: "Şu an",
           title: candidate.examStageLabel,
           detail: candidate.appointmentStatusLabel ?? null,
+          actorName: null,
         }]
       : []),
     ...[...events].reverse().map<TimelineRow>((event, index) => ({
@@ -978,13 +1045,42 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
       dateLabel: formatTimelineDate(event.occurredAtUtc),
       title: event.title,
       detail: event.detail,
+      actorName: event.actorName ?? null,
     })),
   ];
+
+  const header = (
+    <div className="candidate-timeline-card-header">
+      <h3 className="candidate-timeline-card-title">
+        {view === "feed" ? "Aday Hareketleri" : "Aday Yolculuğu"}
+      </h3>
+      <div className="candidate-timeline-view-toggle" role="group" aria-label="Görünüm">
+        <button
+          type="button"
+          className={`candidate-timeline-view-btn${view === "timeline" ? " is-active" : ""}`}
+          onClick={() => setView("timeline")}
+          aria-label="Zaman çizgisi görünümü"
+          aria-pressed={view === "timeline"}
+        >
+          <GridIcon size={14} />
+        </button>
+        <button
+          type="button"
+          className={`candidate-timeline-view-btn${view === "feed" ? " is-active" : ""}`}
+          onClick={() => setView("feed")}
+          aria-label="Akış görünümü"
+          aria-pressed={view === "feed"}
+        >
+          <ListIcon size={14} />
+        </button>
+      </div>
+    </div>
+  );
 
   if (rows.length === 0) {
     return (
       <div className="instructor-detail-card">
-        <h3 className="candidate-timeline-card-title">Aday Yolculuğu</h3>
+        {header}
         <div className="instructor-detail-empty">
           Bu aday için henüz olay kaydı yok.
         </div>
@@ -994,41 +1090,99 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
 
   return (
     <div className="instructor-detail-card">
-      <h3 className="candidate-timeline-card-title">Aday Yolculuğu</h3>
-      <ol className="candidate-timeline">
-        {(() => {
-          let sideIndex = 0;
-          return rows.map((row) => {
-            const isCentered = row.title === "Mezun";
-            const side = isCentered ? null : sideIndex++ % 2 === 0 ? "left" : "right";
+      {header}
+      {view === "timeline" ? (
+        <ol className="candidate-timeline">
+          {(() => {
+            let sideIndex = 0;
+            return rows.map((row) => {
+              const isCentered = row.title === "Mezun";
+              const side = isCentered ? null : sideIndex++ % 2 === 0 ? "left" : "right";
+              const itemClass = [
+                "candidate-timeline-item",
+                isCentered ? "is-centered" : `side-${side}`,
+                row.kind === "current" ? "is-current" : "",
+                row.kind === "future" ? "is-future" : "",
+                row.kind === "event" ? `tone-${row.tone}` : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <li key={row.key} className={itemClass}>
+                  <div className="candidate-timeline-content">
+                    <div className="candidate-timeline-title">{row.title}</div>
+                    {row.detail ? (
+                      <div className="candidate-timeline-detail">{row.detail}</div>
+                    ) : null}
+                  </div>
+                  <div className="candidate-timeline-axis">
+                    <span className="candidate-timeline-marker" aria-hidden="true" />
+                    <span className="candidate-timeline-date">{row.dateLabel}</span>
+                  </div>
+                </li>
+              );
+            });
+          })()}
+        </ol>
+      ) : (
+        <ul className="candidate-timeline-feed">
+          {rows.map((row) => {
+            const tone = row.kind === "event" ? row.tone : row.kind;
+            const actor = row.actorName?.trim() || null;
+            const initial = (actor ?? row.title)?.trim()?.[0]?.toUpperCase() ?? "•";
+            const avatarTone = actor ? actorAvatarTone(actor) : mapToneToAvatar(tone);
+            const meta = [actor, row.dateLabel].filter(Boolean).join(" · ");
             const itemClass = [
-              "candidate-timeline-item",
-              isCentered ? "is-centered" : `side-${side}`,
-              row.kind === "current" ? "is-current" : "",
+              "activity-item",
+              "candidate-timeline-feed-item",
               row.kind === "future" ? "is-future" : "",
-              row.kind === "event" ? `tone-${row.tone}` : "",
             ]
               .filter(Boolean)
               .join(" ");
             return (
               <li key={row.key} className={itemClass}>
-                <div className="candidate-timeline-content">
-                  <div className="candidate-timeline-title">{row.title}</div>
-                  {row.detail ? (
-                    <div className="candidate-timeline-detail">{row.detail}</div>
-                  ) : null}
+                <div className={`activity-avatar tone-${avatarTone}`} title={actor ?? undefined}>
+                  {initial}
                 </div>
-                <div className="candidate-timeline-axis">
-                  <span className="candidate-timeline-marker" aria-hidden="true" />
-                  <span className="candidate-timeline-date">{row.dateLabel}</span>
+                <div>
+                  <div className="activity-text">
+                    <strong>{row.title}</strong>
+                    {row.detail ? ` — ${row.detail}` : ""}
+                  </div>
+                  <div className="activity-time">{meta}</div>
                 </div>
               </li>
             );
-          });
-        })()}
-      </ol>
+          })}
+        </ul>
+      )}
     </div>
   );
+}
+
+function actorAvatarTone(name: string): "brand" | "blue" | "purple" | "amber" {
+  const palette = ["brand", "blue", "purple", "amber"] as const;
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return palette[Math.abs(hash) % palette.length];
+}
+
+function mapToneToAvatar(tone: string): "brand" | "blue" | "purple" | "amber" {
+  switch (tone) {
+    case "current":
+      return "brand";
+    case "future":
+      return "purple";
+    case "warning":
+    case "danger":
+    case "amber":
+      return "amber";
+    case "info":
+    case "blue":
+      return "blue";
+    default:
+      return "brand";
+  }
 }
 
 function buildFutureStages(candidate: CandidateResponse): string[] {

@@ -11,12 +11,9 @@ type QuickPracticeAssignmentProps = {
   /** Seçim değişikliğini parent'a (TrainingPage) iletiyor. */
   onSettingsChange: (params: { candidateId: string }) => void;
   isLoading?: boolean;
-  /** Adaylar sayfasından bulk yönlendirme ile gelinen aday kümesi.
-   *  Boş array → scope yok, panel başta kapalı; açılırsa tüm aktif adaylar listelenir.
-   *  Doluysa scope adayları gösterilir ve panel açık gelir. */
+  /** Adaylar sayfasından bulk yönlendirme veya picker seçimi ile kurulan
+   *  scope. Boş → panel render edilmez; dolu → sadece bu adaylar listelenir. */
   scopedCandidateIds?: readonly string[];
-  /** Scope aktifken kullanıcıya "temizle" linki için. */
-  onClearScope?: () => void;
 };
 
 export function QuickPracticeAssignment({
@@ -25,7 +22,6 @@ export function QuickPracticeAssignment({
   onSettingsChange,
   isLoading = false,
   scopedCandidateIds,
-  onClearScope,
 }: QuickPracticeAssignmentProps) {
   const t = useT();
   const scopeActive = (scopedCandidateIds?.length ?? 0) > 0;
@@ -36,10 +32,16 @@ export function QuickPracticeAssignment({
     if (scopeActive) setExpanded(true);
   }, [scopeActive]);
 
+  // Scope explicit kullanıcı seçimidir — durum filtresi uygulamadan
+  // scope'taki adayları geçir. Scope yokken sadece aktifler.
+  const scopeSet = useMemo(
+    () => new Set(scopedCandidateIds ?? []),
+    [scopedCandidateIds]
+  );
   const sortedCandidates = useMemo(
     () =>
       candidates
-        .filter((c) => c.status === "active")
+        .filter((c) => scopeSet.has(c.id) || c.status === "active")
         .slice()
         .sort((a, b) =>
           `${a.firstName} ${a.lastName}`.localeCompare(
@@ -47,21 +49,22 @@ export function QuickPracticeAssignment({
             "tr"
           )
         ),
-    [candidates]
+    [candidates, scopeSet]
   );
 
   const visibleCandidates = useMemo(() => {
     if (scopeActive) {
-      const set = new Set(scopedCandidateIds);
-      return sortedCandidates.filter((c) => set.has(c.id));
+      return sortedCandidates.filter((c) => scopeSet.has(c.id));
     }
     return sortedCandidates;
-  }, [sortedCandidates, scopeActive, scopedCandidateIds]);
+  }, [sortedCandidates, scopeActive, scopeSet]);
 
   const toggle = (id: string) => {
     if (isLoading) return;
     onSettingsChange({ candidateId: id === candidateId ? "" : id });
   };
+
+  if (!scopeActive) return null;
 
   return (
     <div className="training-quick-assign">
@@ -83,22 +86,6 @@ export function QuickPracticeAssignment({
       <div id={panelId} hidden={!expanded}>
         {expanded ? (
           <>
-            {scopeActive ? (
-              <div className="training-quick-assign-scope">
-                <span>
-                  {t("training.quick.scopeBadge", {
-                    count: scopedCandidateIds?.length ?? 0,
-                  })}
-                </span>
-                <button
-                  className="training-quick-assign-scope-clear"
-                  onClick={onClearScope}
-                  type="button"
-                >
-                  {t("training.quick.scopeClear")}
-                </button>
-              </div>
-            ) : null}
             <ul className="training-filters-list training-filters-list-scroll">
               {visibleCandidates.map((c) => {
                 const checked = c.id === candidateId;

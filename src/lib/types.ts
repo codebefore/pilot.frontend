@@ -122,6 +122,7 @@ export interface CandidateTimelineEvent {
   title: string;
   detail: string | null;
   tone: string;
+  actorName?: string | null;
 }
 
 /**

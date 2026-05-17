@@ -16,8 +16,10 @@ type PracticeCandidatePickerProps = {
   /** Bulk yönlendirme ile gelinen aday kümesi; varsa fetch yerine
    *  sadece bu ID'ler frontend'de filtrelenir. */
   scopedCandidateIds?: readonly string[];
-  /** Kart tıklanınca QA'ya yazılır. */
-  onPick: (candidateId: string) => void;
+  /** Kart tıklanınca QA'ya yazılır. İkinci argüman seçilen aday object'i —
+   *  parent'ın kendi candidates listesinde olmasa bile sidebar'da
+   *  gösterebilmesi için. */
+  onPick: (candidateId: string, candidate: CandidateResponse) => void;
   /** Bulk scope aktifken üstte çıkan "Tümünü göster" linki için. */
   onClearScope?: () => void;
 };
@@ -369,7 +371,7 @@ export function PracticeCandidatePicker({
                 <tr
                   className="practice-picker-row"
                   key={candidate.id}
-                  onClick={() => onPick(candidate.id)}
+                  onClick={() => onPick(candidate.id, candidate)}
                 >
                   <td className="practice-picker-row-name">
                     <CandidateAvatar
@@ -438,7 +440,7 @@ export function PracticeCandidatePicker({
               <li key={candidate.id}>
                 <button
                   className="practice-picker-card"
-                  onClick={() => onPick(candidate.id)}
+                  onClick={() => onPick(candidate.id, candidate)}
                   type="button"
                 >
                   <div className="practice-picker-card-head">

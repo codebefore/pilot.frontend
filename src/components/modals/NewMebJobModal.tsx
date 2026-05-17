@@ -217,7 +217,7 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
         <div className="info-box">
           <span className="info-icon">i</span>
           <span>
-            İş arka planda çalışacak. Sonucu MEB İşleri sayfasından takip edebilirsiniz.
+            İş arka planda çalışacak. Sonucu Meb Sync sayfasından takip edebilirsiniz.
             Hata durumunda otomatik bildirim alırsınız.
           </span>
         </div>

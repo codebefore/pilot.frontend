@@ -621,8 +621,6 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 
 /* ─── Sidebar branş özeti ─────────────────────────────────── */
 .training-branch-summary {
-  margin-top: 8px;
-  padding-top: 10px;
   border-top: 1px solid var(--gray-100);
 }
 

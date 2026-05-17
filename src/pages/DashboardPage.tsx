@@ -126,7 +126,7 @@ export function DashboardPage() {
           <Panel
             action={<button className="panel-action" type="button">Tüm işler</button>}
             icon={<span className="icon-brand"><MebIcon /></span>}
-            title="Son MEB İşleri"
+            title="Son Meb Sync"
           >
             <table className="data-table">
               <thead>

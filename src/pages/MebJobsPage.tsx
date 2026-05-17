@@ -264,7 +264,7 @@ export function MebJobsPage() {
             </button>
           </>
         }
-        title="MEB İşleri"
+        title="Meb Sync"
       />
 
       <div className="jobs-summary">

@@ -18,7 +18,7 @@ export const PERMISSION_AREAS: { key: PermissionArea; label: string }[] = [
   { key: "documents",  label: "Evrak" },
   { key: "payments",   label: "Muhasebe" },
   { key: "training",   label: "Eğitim Planı" },
-  { key: "mebjobs",    label: "MEB İşleri" },
+  { key: "mebjobs",    label: "Meb Sync" },
   { key: "users",      label: "Kullanıcılar" },
   { key: "settings",   label: "Kurum Ayarları" },
 ];
