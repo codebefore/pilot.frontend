@@ -149,7 +149,6 @@ describe("NewCandidateModal", () => {
       lastName: "Yilmaz",
       nationalId: "10000000146",
       phoneNumber: null,
-      email: null,
       birthDate: "2000-01-01",
       gender: null,
       licenseClass: "B",
@@ -253,11 +252,11 @@ describe("NewCandidateModal", () => {
             firstName: "Ada",
             lastName: "Yilmaz",
             nationalId: "10000000146",
-            // birthDate, gender, email are no longer collected at quick
-            // registration — they are edited from the candidate detail page.
+            // birthDate, gender are no longer collected at quick registration —
+            // they are edited from the candidate detail page. email is removed
+            // from CandidateUpsertRequest entirely.
             birthDate: null,
             gender: null,
-            email: null,
             licenseClass: "B",
             status: "pre_registered",
           })
@@ -540,7 +539,6 @@ describe("NewCandidateModal", () => {
         lastName: "Demir",
         nationalId: "10000000146",
         phoneNumber: "5557654321",
-        email: "ayse@example.com",
         birthDate: "1998-02-03",
         gender: "female",
         licenseClass: "B",
@@ -597,12 +595,11 @@ describe("NewCandidateModal", () => {
           firstName: "Ayse",
           lastName: "Demir",
           phoneNumber: "5557654321",
-          // Birth date, gender, email and existing license info are no longer
+          // Birth date, gender, and existing license info are no longer
           // copied from a reuse source — they are edited from the candidate
           // detail page.
           birthDate: null,
           gender: null,
-          email: null,
           existingLicenseType: null,
           existingLicenseIssuedAt: null,
           existingLicenseNumber: null,

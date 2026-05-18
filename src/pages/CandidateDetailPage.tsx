@@ -1216,11 +1216,10 @@ function CandidateContactsEditor({
   candidate: CandidateResponse;
   onSave: (patch: Partial<CandidateUpsertRequest>, message: string) => Promise<void>;
 }) {
-  const { showToast } = useToast();
   const [drafts, setDrafts] = useState<Array<{ id: string; type: CandidateContactType }>>([]);
   const contacts = buildCandidateContacts(candidate);
 
-  const validateContactValue = (type: CandidateContactType, value: string): boolean => {
+  const validateContactValue = (_type: CandidateContactType, _value: string): boolean => {
     return true;
   };
 

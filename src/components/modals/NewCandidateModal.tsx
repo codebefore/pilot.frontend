@@ -333,10 +333,9 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         referenceName: data.referenceName.trim() || null,
         phoneNumber: data.phone.trim() || null,
         // Quick registration captures only identity + phone + license class.
-        // Email, birth date, gender, existing license, and group assignment
-        // are edited from the candidate detail page. Certificate program is
+        // Birth date, gender, existing license, and group assignment are
+        // edited from the candidate detail page. Certificate program is
         // inferred from the selected target license for quick registration.
-        email: null,
         birthDate: null,
         gender: null,
         licenseClass: data.className,

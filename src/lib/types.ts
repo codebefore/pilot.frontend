@@ -772,6 +772,7 @@ export interface InstructorResponse {
   lastName: string;
   nationalId: string | null;
   phoneNumber: string | null;
+  email: string | null;
   isActive: boolean;
   role: InstructorRole;
   employmentType: InstructorEmploymentType;
@@ -807,6 +808,7 @@ export interface InstructorUpsertRequest {
   lastName: string;
   nationalId?: string | null;
   phoneNumber?: string | null;
+  email?: string | null;
   isActive: boolean;
   assignedVehicleId?: string | null;
   notes?: string | null;
