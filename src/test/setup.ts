@@ -10,6 +10,24 @@ if (!URL.revokeObjectURL) {
   URL.revokeObjectURL = vi.fn();
 }
 
+// jsdom bazı sürümlerde localStorage'i Storage instance olarak setup
+// etmiyor; in-memory fallback ile test'ler beforeEach'te clear çağırabilsin.
+if (typeof localStorage === "undefined" || typeof localStorage.clear !== "function") {
+  const store = new Map<string, string>();
+  const memoryStorage: Storage = {
+    get length() { return store.size; },
+    clear: () => store.clear(),
+    getItem: (key: string) => store.get(key) ?? null,
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => { store.delete(key); },
+    setItem: (key: string, value: string) => { store.set(key, value); },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: memoryStorage,
+    writable: true,
+  });
+}
+
 afterEach(() => {
   cleanup();
 });

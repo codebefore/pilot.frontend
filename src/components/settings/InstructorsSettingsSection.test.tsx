@@ -59,7 +59,6 @@ vi.mock("../../lib/license-class-definitions-api", async () => {
 
 const sampleInstructor = {
   id: "i1",
-  code: "EGT-0001",
   firstName: "HASAN",
   lastName: "KORKMAZ",
   nationalId: "12345678901",
@@ -72,8 +71,13 @@ const sampleInstructor = {
   licenseClassCodes: ["B", "A2"] as const,
   weeklyLessonHours: 24,
   mebbisPermitNo: "MEB-123",
+  contractStartDate: null,
+  contractEndDate: null,
   assignedVehicleId: null,
   notes: null,
+  hasPhoto: false,
+  leftAtDate: null,
+  leaveReason: null,
   createdAtUtc: "2026-01-01T00:00:00Z",
   updatedAtUtc: "2026-01-01T00:00:00Z",
   rowVersion: 1,
@@ -129,7 +133,6 @@ describe("InstructorsSettingsSection", () => {
     createInstructorMock.mockResolvedValue({
       ...sampleInstructor,
       id: "i2",
-      code: "EGT-0002",
       firstName: "AYSE",
       lastName: "DEMIR",
       role: "specialist_instructor",
@@ -206,8 +209,7 @@ describe("InstructorsSettingsSection", () => {
       );
     });
 
-    expect(await screen.findByText("EGT-0001")).toBeInTheDocument();
-    expect(screen.getByText("HASAN KORKMAZ")).toBeInTheDocument();
+    expect(await screen.findByText("HASAN KORKMAZ")).toBeInTheDocument();
     expect(screen.getByText("MEBBİS: MEB-123")).toBeInTheDocument();
     expect(getTrainingBranchDefinitionsMock).toHaveBeenCalledWith(
       { activity: "active", page: 1, pageSize: 100 },
@@ -251,7 +253,7 @@ describe("InstructorsSettingsSection", () => {
     });
   });
 
-  it("cycles Kod sorting and resets pagination to page 1", async () => {
+  it("cycles Ad Soyad sorting and resets pagination to page 1", async () => {
     getInstructorsMock.mockResolvedValue({
       items: [sampleInstructor],
       page: 1,
@@ -267,7 +269,7 @@ describe("InstructorsSettingsSection", () => {
     });
 
     renderSection();
-    await screen.findByText("EGT-0001");
+    await screen.findByText("HASAN KORKMAZ");
 
     fireEvent.click(screen.getByRole("button", { name: /Sonraki/ }));
 
@@ -278,7 +280,7 @@ describe("InstructorsSettingsSection", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^Kod/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Ad Soyad/ }));
 
     await waitFor(() => {
       expect(getInstructorsMock).toHaveBeenLastCalledWith(
@@ -287,7 +289,7 @@ describe("InstructorsSettingsSection", () => {
           page: 1,
           pageSize: 10,
           search: undefined,
-          sortBy: "code",
+          sortBy: "fullName",
           sortDir: "asc",
         },
         expect.any(AbortSignal)
@@ -297,7 +299,7 @@ describe("InstructorsSettingsSection", () => {
 
   it("deletes an instructor with inline confirmation", async () => {
     renderSection();
-    await screen.findByText("EGT-0001");
+    await screen.findByText("HASAN KORKMAZ");
 
     fireEvent.click(screen.getByRole("button", { name: "Sil" }));
     expect(deleteInstructorMock).not.toHaveBeenCalled();
@@ -315,10 +317,6 @@ describe("InstructorsSettingsSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
 
-    fireEvent.change(screen.getByPlaceholderText("Boş ise otomatik"), {
-      target: { value: " egt-0002 " },
-    });
-    expect(screen.getByPlaceholderText("Boş ise otomatik")).toHaveValue(" EGT-0002 ");
     fireEvent.change(screen.getByPlaceholderText("HASAN"), {
       target: { value: "ayse" },
     });
@@ -335,7 +333,6 @@ describe("InstructorsSettingsSection", () => {
 
     await waitFor(() => {
       expect(createInstructorMock).toHaveBeenCalledWith({
-        code: "EGT-0002",
         firstName: "AYSE",
         lastName: "DEMİR",
         nationalId: "12345678902",
@@ -344,23 +341,13 @@ describe("InstructorsSettingsSection", () => {
         isActive: true,
         assignedVehicleId: null,
         notes: null,
-        initialAssignment: {
-          role: "master_instructor",
-          employmentType: "hourly",
-          branches: ["practice"],
-          licenseClassCodes: ["B"],
-          weeklyLessonHours: null,
-          mebPermitNo: null,
-          contractStartDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          contractEndDate: null,
-        },
       });
     });
   });
 
   it("includes rowVersion when updating", async () => {
     renderSection();
-    await screen.findByText("EGT-0001");
+    await screen.findByText("HASAN KORKMAZ");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
     fireEvent.change(screen.getByPlaceholderText("HASAN"), {
@@ -370,7 +357,6 @@ describe("InstructorsSettingsSection", () => {
 
     await waitFor(() => {
       expect(updateInstructorMock).toHaveBeenCalledWith("i1", {
-        code: "EGT-0001",
         firstName: "MEHMET",
         lastName: "KORKMAZ",
         nationalId: "12345678901",
@@ -399,7 +385,7 @@ describe("InstructorsSettingsSection", () => {
     );
 
     renderSection();
-    await screen.findByText("EGT-0001");
+    await screen.findByText("HASAN KORKMAZ");
 
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));

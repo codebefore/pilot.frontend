@@ -60,9 +60,9 @@ const sampleVehicle = {
   odometerUnit: "km" as const,
   registrationDate: null,
   serviceStartDate: null,
-  latestInsuranceEndDate: null,
-  latestInspectionEndDate: null,
-  latestCascoEndDate: null,
+  latestInsuranceEndDate: "2026-05-10",
+  latestInspectionEndDate: "2026-06-15",
+  latestCascoEndDate: "2026-07-20",
   accidentNotes: null,
   otherDetails: null,
   notes: null,
@@ -184,9 +184,11 @@ describe("VehiclesSettingsSection", () => {
 
     expect(await screen.findByText("34 ABC 123")).toBeInTheDocument();
     expect(screen.queryByText("Fiat Egea · 2024")).not.toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Sigorta Bit. Trh. (Kalan Gün)" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Muayene Bit. Trh. (Kalan Gün)" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Kasko Bit. Trh. (Kalan Gün)" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sigorta Bitiş" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Muayene Bitiş" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Kasko Bitiş" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Marka / Model" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Vites" })).toBeInTheDocument();
     expect(screen.getByText(/10\.05\.2026/)).toBeInTheDocument();
   });
 
@@ -393,7 +395,6 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));
 
     expect(screen.getByRole("button", { name: "Otomobil" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /B .*Otomobil/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Düz" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Boşta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Satın Alındı" })).toBeInTheDocument();
@@ -418,9 +419,12 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.change(screen.getByDisplayValue("Otomobil"), {
       target: { value: "motorcycle" },
     });
-    fireEvent.change(screen.getByDisplayValue(/B .*Otomobil/), {
-      target: { value: "A2" },
-    });
+    // Yeni form: licenseClasses checkbox listesi. Default'ta B seçili; B'yi
+    // kaldırıp A2'yi seç.
+    const a2Checkbox = await screen.findByRole("checkbox", { name: /A2 - / });
+    const bCheckbox = screen.getByRole("checkbox", { name: /B - Otomobil/ });
+    fireEvent.click(a2Checkbox);
+    fireEvent.click(bCheckbox);
     fireEvent.change(screen.getByDisplayValue("Düz"), {
       target: { value: "automatic" },
     });

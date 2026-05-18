@@ -837,13 +837,11 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     expect(screen.queryByText("Telefon")).not.toBeInTheDocument();
-    expect(screen.queryByText("E-posta")).not.toBeInTheDocument();
     expect(screen.queryByText("Kayıt Tarihi")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
 
     expect(screen.getByText("Telefon")).toBeInTheDocument();
-    expect(screen.getByText("E-posta")).toBeInTheDocument();
     expect(screen.getByText("Kayıt Tarihi")).toBeInTheDocument();
     expect(screen.getByText("Güncelleme Tarihi")).toBeInTheDocument();
     const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
