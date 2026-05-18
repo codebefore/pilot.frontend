@@ -8,6 +8,7 @@ import { PageToolbar } from "../components/layout/PageToolbar";
 import { NewMebJobModal } from "../components/modals/NewMebJobModal";
 import { FilterChip } from "../components/ui/FilterChip";
 import { JobsSummaryCard } from "../components/ui/JobsSummaryCard";
+import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
@@ -117,6 +118,10 @@ export function MebJobsPage() {
   const [sort, setSort] = useState<SortState>({ field: "startedAt", direction: "desc" });
   const [jobs, setJobs] = useState<MebJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const [pollFailing, setPollFailing] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [modalOpen, setModalOpen] = useState(false);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
   const [candidatesById, setCandidatesById] = useState<Map<string, CandidateLite>>(new Map());
@@ -137,18 +142,24 @@ export function MebJobsPage() {
 
   const loadJobs = useCallback(
     async (showSpinner = true) => {
-      if (showSpinner) setLoading(true);
+      if (showSpinner) {
+        setLoading(true);
+        setLoadError(false);
+      }
       try {
         const items = await listMebbisJobs(100);
         const { byId, byNationalId } = candidateMapsRef.current;
         setJobs(items.map((item) => mapBackendJob(item, byId, byNationalId)));
+        setLastSyncedAt(Date.now());
+        setPollFailing(false);
       } catch {
-        if (showSpinner) showToast("MEB işleri yüklenemedi", "error");
+        if (showSpinner) setLoadError(true);
+        else setPollFailing(true);
       } finally {
         if (showSpinner) setLoading(false);
       }
     },
-    [showToast]
+    []
   );
 
   useEffect(() => {
@@ -190,6 +201,13 @@ export function MebJobsPage() {
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [hasActiveJob, loadJobs]);
+
+  // pollFailing banner'ı "X dk önce güncellendi" metnini canlı tutmak için tick.
+  useEffect(() => {
+    if (!pollFailing) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [pollFailing]);
 
   const summary = useMemo(() => buildJobsSummary(jobs), [jobs]);
   const filtered = useMemo(
@@ -290,7 +308,29 @@ export function MebJobsPage() {
         ))}
       </div>
 
+      {pollFailing && (
+        <div className="meb-jobs-stale-banner" role="status">
+          <span>
+            Arka plan güncellemeleri alınamıyor — {formatStaleSince(lastSyncedAt, nowTick)}.
+          </span>
+          <button
+            className="btn btn-link btn-sm"
+            onClick={() => void loadJobs()}
+            type="button"
+          >
+            Yenile
+          </button>
+        </div>
+      )}
+
       <div className="table-wrap">
+        {loadError ? (
+          <PageLoadError
+            title="MEB işleri yüklenemedi"
+            description="MEB iş listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+            onRetry={() => void loadJobs()}
+          />
+        ) : (
         <Panel>
           <table className="data-table data-table-clickable">
             <thead>
@@ -393,6 +433,7 @@ export function MebJobsPage() {
             </tbody>
           </table>
         </Panel>
+        )}
       </div>
 
       <JobDrawer
@@ -501,6 +542,16 @@ function buildStepText(job: MebbisJobResponse): string {
     default:
       return job.status;
   }
+}
+
+function formatStaleSince(ts: number | null, now: number): string {
+  if (ts == null) return "henüz senkronize edilmedi";
+  const diffSec = Math.max(0, Math.floor((now - ts) / 1000));
+  if (diffSec < 60) return `${diffSec} sn önce güncellendi`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} dk önce güncellendi`;
+  const diffHr = Math.floor(diffMin / 60);
+  return `${diffHr} sa önce güncellendi`;
 }
 
 function formatJobTime(value: string): string {

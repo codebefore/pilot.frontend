@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 
 import { Modal } from "../ui/Modal";
 import { mockCandidates } from "../../mock/candidates";
@@ -39,6 +39,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const {
+    control,
     register,
     handleSubmit,
     reset,
@@ -116,11 +117,24 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Ödeme Tipi</label>
-            <CustomSelect className="form-select" {...register("method", { required: true })}>
-              <option value="Nakit">Nakit</option>
-              <option value="Havale">Havale / EFT</option>
-              <option value="KrediKarti">Kredi Kartı</option>
-            </CustomSelect>
+            <Controller
+              control={control}
+              name="method"
+              rules={{ required: true }}
+              render={({ field }) => (
+                <CustomSelect
+                  className="form-select"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  value={field.value}
+                >
+                  <option value="Nakit">Nakit</option>
+                  <option value="Havale">Havale / EFT</option>
+                  <option value="KrediKarti">Kredi Kartı</option>
+                </CustomSelect>
+              )}
+            />
           </div>
           <div className="form-group">
             <label className="form-label">Tarih</label>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 
 import {
   createCandidate,
@@ -177,6 +177,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   const [references, setReferences] = useState<CandidateReferenceResponse[]>([]);
 
   const {
+    control,
     register,
     handleSubmit,
     reset,
@@ -542,14 +543,26 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
           </div>
           <div className="form-group">
             <label className="form-label">Referans</label>
-            <CustomSelect className="form-select" {...register("referenceName")}>
-              <option value="">Seçiniz</option>
-              {references.map((option) => (
-                <option key={option.id} value={option.name}>
-                  {option.name}
-                </option>
-              ))}
-            </CustomSelect>
+            <Controller
+              control={control}
+              name="referenceName"
+              render={({ field }) => (
+                <CustomSelect
+                  className="form-select"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  value={field.value ?? ""}
+                >
+                  <option value="">Seçiniz</option>
+                  {references.map((option) => (
+                    <option key={option.id} value={option.name}>
+                      {option.name}
+                    </option>
+                  ))}
+                </CustomSelect>
+              )}
+            />
           </div>
         </div>
 

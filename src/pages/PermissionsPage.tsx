@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { Modal } from "../components/ui/Modal";
+import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
@@ -64,6 +65,8 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const originalMatrixRef = useRef<Record<string, MatrixValue>>({});
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDeleteRoleId, setConfirmDeleteRoleId] = useState<string | null>(null);
@@ -75,6 +78,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
+    setLoadError(false);
 
     Promise.all([
       getRoles({ includeInactive: false }, controller.signal),
@@ -90,14 +94,14 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        showToast("Roller yüklenemedi", "error");
+        setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, [showToast]);
+  }, [reloadKey]);
 
   const selectedRoleId = useMemo(() => {
     if (requestedRoleId && roles.some((role) => role.id === requestedRoleId)) {
@@ -273,7 +277,15 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
     </button>
   );
 
-  const content = (
+  const content = loadError ? (
+    <div className={embedded ? undefined : "spaced"}>
+      <PageLoadError
+        title="Roller yüklenemedi"
+        description="Rol listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+        onRetry={() => setReloadKey((k) => k + 1)}
+      />
+    </div>
+  ) : (
     <div className={embedded ? "permissions-page-grid" : "permissions-page-grid spaced"}>
         <Panel
           action={

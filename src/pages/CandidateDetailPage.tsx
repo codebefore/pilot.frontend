@@ -13,6 +13,7 @@ import { Modal } from "../components/ui/Modal";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import type { SelectOption } from "../components/ui/EditableRow";
 import { useToast } from "../components/ui/Toast";
+import { PageLoadError } from "../components/ui/PageLoadError";
 import {
   assignCandidateGroup,
   deleteCandidate,
@@ -306,6 +307,8 @@ export function CandidateDetailPage() {
     }
   }, [searchParams]);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     if (!candidateId) return;
     const controller = new AbortController();
@@ -317,14 +320,13 @@ export function CandidateDetailPage() {
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError("Aday bilgileri yüklenemedi");
-        showToast("Aday bilgileri yüklenemedi", "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, [candidateId, showToast]);
+  }, [candidateId, reloadKey]);
 
   const age = useMemo(() => calculateAge(candidate?.birthDate ?? null), [candidate]);
 
@@ -542,7 +544,11 @@ export function CandidateDetailPage() {
       )}
 
       {!loading && error && (
-        <div className="instructor-detail-card instructor-detail-error">{error}</div>
+        <PageLoadError
+          title="Aday bilgileri yüklenemedi"
+          description="Aday detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       )}
 
       {!loading && !error && candidate && (

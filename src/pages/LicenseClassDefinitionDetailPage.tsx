@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { useToast } from "../components/ui/Toast";
+import { PageLoadError } from "../components/ui/PageLoadError";
 import { LICENSE_CLASS_DEFINITION_CATEGORY_LABELS } from "../lib/license-class-definition-catalog";
 import { getLicenseClassDefinition } from "../lib/license-class-definitions-api";
 import type { LicenseClassDefinitionResponse } from "../lib/types";
@@ -16,11 +16,11 @@ function formatHours(value: number | null): string {
 
 export function LicenseClassDefinitionDetailPage() {
   const navigate = useNavigate();
-  const { showToast } = useToast();
   const { definitionId } = useParams<{ definitionId: string }>();
   const [definition, setDefinition] = useState<LicenseClassDefinitionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!definitionId) return;
@@ -33,14 +33,13 @@ export function LicenseClassDefinitionDetailPage() {
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError("Ehliyet tipi bilgileri yüklenemedi");
-        showToast("Ehliyet tipi bilgileri yüklenemedi", "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, [definitionId, showToast]);
+  }, [definitionId, reloadKey]);
 
   return (
     <div className="instructor-detail">
@@ -61,7 +60,11 @@ export function LicenseClassDefinitionDetailPage() {
       )}
 
       {!loading && error && (
-        <div className="instructor-detail-card instructor-detail-error">{error}</div>
+        <PageLoadError
+          title="Ehliyet tipi bilgileri yüklenemedi"
+          description="Tanım detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       )}
 
       {!loading && !error && definition && (

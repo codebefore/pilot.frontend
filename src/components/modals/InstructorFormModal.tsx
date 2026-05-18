@@ -1,32 +1,27 @@
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
-import { createInstructor, updateInstructor } from "../../lib/instructors-api";
 import {
-  INSTRUCTOR_EMPLOYMENT_OPTIONS,
-  INSTRUCTOR_ROLE_OPTIONS,
-} from "../../lib/instructor-catalog";
+  createInstructor,
+  deleteInstructorPhoto,
+  updateInstructor,
+  uploadInstructorPhoto,
+} from "../../lib/instructors-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { isPhoneStartingWith5 } from "../../lib/phone";
 import type {
-  InstructorBranch,
   InstructorCreateRequest,
-  InstructorEmploymentType,
   InstructorResponse,
-  InstructorRole,
   InstructorUpsertRequest,
   LicenseClass,
-  TrainingBranchDefinitionResponse,
 } from "../../lib/types";
 import { useLicenseClassOptions } from "../../lib/use-license-class-options";
-import { CustomSelect } from "../ui/CustomSelect";
-import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { InstructorAvatar } from "../ui/InstructorAvatar";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
 type InstructorFormValues = {
-  code: string;
   firstName: string;
   lastName: string;
   nationalId: string;
@@ -35,28 +30,17 @@ type InstructorFormValues = {
   isActive: boolean;
   licenseClassCodes: LicenseClass[];
   notes: string;
-	  assignmentRole: InstructorRole;
-	  assignmentEmploymentType: InstructorEmploymentType;
-	  assignmentBranches: InstructorBranch[];
-	  assignmentLicenseClassCodes: LicenseClass[];
-	  assignmentWeeklyLessonHours: string;
-  assignmentMebPermitNo: string;
-  assignmentContractStartDate: string;
-  assignmentContractEndDate: string;
 };
 
 type InstructorFormModalProps = {
   open: boolean;
   editing: InstructorResponse | null;
-  branches: TrainingBranchDefinitionResponse[];
   onClose: () => void;
   onSaved: (saved: InstructorResponse) => void;
   onConcurrencyConflict?: () => void;
 };
 
 const VALIDATION_FIELD_MAP: Record<string, keyof InstructorFormValues> = {
-  code: "code",
-  Code: "code",
   firstName: "firstName",
   FirstName: "firstName",
   lastName: "lastName",
@@ -69,10 +53,6 @@ const VALIDATION_FIELD_MAP: Record<string, keyof InstructorFormValues> = {
   Email: "email",
   licenseClassCodes: "licenseClassCodes",
   LicenseClassCodes: "licenseClassCodes",
-  "initialAssignment.branches": "assignmentBranches",
-  "InitialAssignment.Branches": "assignmentBranches",
-  "initialAssignment.licenseClassCodes": "assignmentLicenseClassCodes",
-  "InitialAssignment.LicenseClassCodes": "assignmentLicenseClassCodes",
   notes: "notes",
   Notes: "notes",
 };
@@ -136,7 +116,6 @@ function normalizeUppercase(value: string): string {
 function getEmptyValues(editing: InstructorResponse | null): InstructorFormValues {
   return editing
     ? {
-        code: editing.code,
         firstName: editing.firstName,
         lastName: editing.lastName,
         nationalId: editing.nationalId ?? "",
@@ -145,18 +124,8 @@ function getEmptyValues(editing: InstructorResponse | null): InstructorFormValue
         isActive: editing.isActive,
         licenseClassCodes: editing.licenseClassCodes,
         notes: editing.notes ?? "",
-        assignmentRole: editing.role,
-        assignmentEmploymentType: editing.employmentType,
-	        assignmentBranches: editing.branches,
-	        assignmentLicenseClassCodes: editing.licenseClassCodes,
-        assignmentWeeklyLessonHours:
-          editing.weeklyLessonHours != null ? String(editing.weeklyLessonHours) : "",
-        assignmentMebPermitNo: editing.mebbisPermitNo ?? "",
-        assignmentContractStartDate: "",
-        assignmentContractEndDate: "",
       }
     : {
-        code: "",
         firstName: "",
         lastName: "",
         nationalId: "",
@@ -165,29 +134,12 @@ function getEmptyValues(editing: InstructorResponse | null): InstructorFormValue
         isActive: true,
         licenseClassCodes: ["B"],
         notes: "",
-        assignmentRole: "master_instructor",
-        assignmentEmploymentType: "hourly",
-	        assignmentBranches: ["practice"],
-	        assignmentLicenseClassCodes: ["B"],
-        assignmentWeeklyLessonHours: "",
-        assignmentMebPermitNo: "",
-        assignmentContractStartDate: new Date().toISOString().slice(0, 10),
-        assignmentContractEndDate: "",
       };
-}
-
-function toggleValue<T extends string>(values: T[], value: T, checked: boolean): T[] {
-  if (checked) {
-    return values.includes(value) ? values : [...values, value];
-  }
-
-  return values.filter((item) => item !== value);
 }
 
 export function InstructorFormModal({
   open,
   editing,
-  branches,
   onClose,
   onSaved,
   onConcurrencyConflict,
@@ -195,6 +147,8 @@ export function InstructorFormModal({
   const { showToast } = useToast();
   const t = useT();
   const [submitting, setSubmitting] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoInstructor, setPhotoInstructor] = useState<InstructorResponse | null>(editing);
   const { options: licenseClassOptions } = useLicenseClassOptions();
 
   const {
@@ -210,7 +164,6 @@ export function InstructorFormModal({
     defaultValues: getEmptyValues(editing),
   });
   const selectedLicenseClassCodes = watch("licenseClassCodes");
-  const selectedAssignmentBranches = watch("assignmentBranches");
   const phoneNumberRegistration = register("phoneNumber", {
     validate: (value) =>
       !value.trim() || isPhoneStartingWith5(value) || "5 ile başlamalı",
@@ -219,6 +172,7 @@ export function InstructorFormModal({
   useEffect(() => {
     if (!open) return;
     reset(getEmptyValues(editing));
+    setPhotoInstructor(editing);
   }, [editing, open, reset]);
 
   useEffect(() => {
@@ -245,7 +199,6 @@ export function InstructorFormModal({
     setSubmitting(true);
 
     const payload: InstructorUpsertRequest = {
-      code: values.code.trim() || null,
       firstName: normalizeUppercase(values.firstName.trim()),
       lastName: normalizeUppercase(values.lastName.trim()),
       nationalId: values.nationalId.trim() || null,
@@ -256,23 +209,7 @@ export function InstructorFormModal({
       notes: values.notes.trim() || null,
       ...(editing ? { rowVersion: editing.rowVersion } : {}),
     };
-    const createPayload: InstructorCreateRequest = {
-      ...payload,
-      initialAssignment: {
-	        role: values.assignmentRole,
-	        employmentType: values.assignmentEmploymentType,
-	        branches: values.assignmentBranches,
-	        licenseClassCodes: values.assignmentBranches.includes("practice")
-	          ? values.assignmentLicenseClassCodes
-	          : [],
-        weeklyLessonHours: values.assignmentWeeklyLessonHours
-          ? Number(values.assignmentWeeklyLessonHours)
-          : null,
-        mebPermitNo: values.assignmentMebPermitNo.trim() || null,
-        contractStartDate: values.assignmentContractStartDate,
-        contractEndDate: values.assignmentContractEndDate || null,
-      },
-    };
+    const createPayload: InstructorCreateRequest = { ...payload };
 
     try {
       const saved = editing
@@ -302,6 +239,37 @@ export function InstructorFormModal({
 
   const fieldClass = (message?: string) => (message ? "form-input error" : "form-input");
 
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !photoInstructor) return;
+
+    setPhotoBusy(true);
+    try {
+      const updated = await uploadInstructorPhoto(photoInstructor.id, file);
+      setPhotoInstructor(updated);
+      onSaved(updated);
+    } catch {
+      showToast("Resim yüklenemedi", "error");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!photoInstructor || !photoInstructor.hasPhoto) return;
+    setPhotoBusy(true);
+    try {
+      const updated = await deleteInstructorPhoto(photoInstructor.id);
+      setPhotoInstructor(updated);
+      onSaved(updated);
+    } catch {
+      showToast("Resim silinemedi", "error");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   return (
     <Modal
       footer={
@@ -319,26 +287,41 @@ export function InstructorFormModal({
       title={editing ? "Ekip Üyesini Düzenle" : "Yeni Ekip Üyesi"}
     >
       <form className="settings-form" onSubmit={submit}>
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Personel Kodu</label>
-            <Controller
-              control={control}
-              name="code"
-              render={({ field }) => (
-                <input
-                  {...field}
-                  autoCapitalize="characters"
-                  className={fieldClass(errors.code?.message)}
-                  placeholder="Boş ise otomatik"
-                  value={field.value ?? ""}
-                  onChange={(event) => field.onChange(normalizeUppercase(event.target.value))}
-                />
-              )}
-            />
-            {errors.code && <div className="form-error">{errors.code.message}</div>}
+        {!photoInstructor ? (
+          <div className="instructor-photo-hint instructor-photo-hint--banner">
+            Profil resmi kayıttan sonra eklenebilir.
           </div>
+        ) : null}
+        {photoInstructor ? (
+          <div className="instructor-photo-row">
+            <InstructorAvatar instructor={photoInstructor} size={72} />
+            <div className="instructor-photo-actions">
+              <label className="btn btn-secondary btn-sm">
+                {photoBusy ? "Yükleniyor..." : photoInstructor.hasPhoto ? "Değiştir" : "Resim Yükle"}
+                <input
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={photoBusy}
+                  hidden
+                  onChange={handlePhotoChange}
+                  type="file"
+                />
+              </label>
+              {photoInstructor.hasPhoto ? (
+                <button
+                  className="btn btn-link btn-sm btn-link-danger"
+                  disabled={photoBusy}
+                  onClick={handlePhotoDelete}
+                  type="button"
+                >
+                  Kaldır
+                </button>
+              ) : null}
+              <div className="instructor-photo-hint">JPEG, PNG, WEBP — en fazla 5 MB</div>
+            </div>
+          </div>
+        ) : null}
 
+        <div className="form-row">
           <div className="form-group">
             <label className="form-label">TC Kimlik No</label>
             <input
@@ -399,7 +382,9 @@ export function InstructorFormModal({
             <label className="form-label">Telefon</label>
             <input
               className={fieldClass(errors.phoneNumber?.message)}
+              inputMode="numeric"
               maxLength={32}
+              placeholder="5XXXXXXXXX"
               {...phoneNumberRegistration}
             />
           </div>
@@ -433,184 +418,6 @@ export function InstructorFormModal({
           </div>
         </div>
 
-        {!editing ? (
-          <section className="form-subsection">
-            <div className="form-subsection-header">
-              <div>
-                <div className="form-subsection-title">İlk Atama</div>
-                <div className="form-subsection-note">
-                  Ekip üyesi kaydı için ilk atama bilgileri zorunludur.
-                </div>
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Görev</label>
-                <CustomSelect className="form-select" {...register("assignmentRole")}>
-                  {INSTRUCTOR_ROLE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </CustomSelect>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Çalışma Tipi</label>
-                <CustomSelect className="form-select" {...register("assignmentEmploymentType")}>
-                  {INSTRUCTOR_EMPLOYMENT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </CustomSelect>
-              </div>
-            </div>
-
-            <div className="form-row">
-	              <div className="form-group">
-	                <label className="form-label">Branşlar</label>
-	                <Controller
-	                  control={control}
-	                  name="assignmentBranches"
-                    rules={{ validate: (value) => value.length > 0 || "En az bir branş seçilmeli" }}
-	                  render={({ field }) => {
-	                    const values = field.value ?? [];
-	                    return (
-	                      <div className="settings-checkbox-list">
-	                        {branches.map((branch) => (
-	                          <label className="switch-toggle" key={branch.id}>
-	                            <input
-	                              checked={values.includes(branch.code)}
-	                              onChange={(event) =>
-	                                field.onChange(toggleValue(values, branch.code, event.target.checked))
-	                              }
-	                              type="checkbox"
-	                            />
-	                            <span className="switch-toggle-control" aria-hidden="true" />
-	                            <span>{branch.name}</span>
-	                          </label>
-	                        ))}
-	                      </div>
-	                    );
-	                  }}
-	                />
-                  {errors.assignmentBranches && (
-                    <div className="form-error">{errors.assignmentBranches.message}</div>
-                  )}
-	              </div>
-              <div className="form-group">
-                <label className="form-label">Haftalık Ders Saati</label>
-                <input
-                  className="form-input"
-                  inputMode="numeric"
-                  min={0}
-                  type="number"
-                  {...register("assignmentWeeklyLessonHours", {
-                    validate: (value) => {
-                      if (!value) return true;
-                      const parsed = Number(value);
-                      return (
-                        (Number.isFinite(parsed) && parsed >= 0 && parsed <= 80) ||
-                        "0 ile 80 arasında olmalı"
-                      );
-                    },
-                  })}
-                />
-                {errors.assignmentWeeklyLessonHours && (
-                  <div className="form-error">{errors.assignmentWeeklyLessonHours.message}</div>
-                )}
-              </div>
-	            </div>
-
-	            {selectedAssignmentBranches.includes("practice") ? (
-	              <div className="form-row">
-	                <div className="form-group">
-	                  <label className="form-label">Atama Ehliyet Tipleri</label>
-	                  <Controller
-	                    control={control}
-	                    name="assignmentLicenseClassCodes"
-	                    rules={{
-	                      validate: (value) =>
-	                        !watch("assignmentBranches").includes("practice") ||
-	                        value.length > 0 ||
-	                        "En az bir ehliyet sınıfı seçilmeli",
-	                    }}
-	                    render={({ field }) => {
-	                      const values = field.value ?? [];
-	                      return (
-	                        <div className="settings-checkbox-list">
-	                          {licenseClassOptions.map((option) => (
-	                            <label className="switch-toggle" key={option.value}>
-	                              <input
-	                                checked={values.includes(option.value)}
-	                                onChange={(event) =>
-	                                  field.onChange(toggleValue(values, option.value, event.target.checked))
-	                                }
-	                                type="checkbox"
-	                              />
-	                              <span className="switch-toggle-control" aria-hidden="true" />
-	                              <span>{option.label}</span>
-	                            </label>
-	                          ))}
-	                        </div>
-	                      );
-	                    }}
-	                  />
-	                  {errors.assignmentLicenseClassCodes && (
-	                    <div className="form-error">{errors.assignmentLicenseClassCodes.message}</div>
-	                  )}
-	                </div>
-	              </div>
-	            ) : null}
-
-	            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">MEBBİS İzin No</label>
-                <input className="form-input" {...register("assignmentMebPermitNo")} />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Sözleşme Başlangıç</label>
-                <Controller
-                  control={control}
-                  name="assignmentContractStartDate"
-                  rules={{ required: "Başlangıç tarihi zorunlu" }}
-                  render={({ field }) => (
-                    <LocalizedDateInput
-                      ariaLabel="Sözleşme Başlangıç"
-                      className={fieldClass(errors.assignmentContractStartDate?.message)}
-                      lang="tr"
-                      onChange={field.onChange}
-                      value={field.value}
-                    />
-                  )}
-                />
-                {errors.assignmentContractStartDate && (
-                  <div className="form-error">{errors.assignmentContractStartDate.message}</div>
-                )}
-              </div>
-              <div className="form-group">
-                <label className="form-label">Sözleşme Bitiş</label>
-                <Controller
-                  control={control}
-                  name="assignmentContractEndDate"
-                  render={({ field }) => (
-                    <LocalizedDateInput
-                      ariaLabel="Sözleşme Bitiş"
-                      className="form-input"
-                      lang="tr"
-                      onChange={field.onChange}
-                      value={field.value}
-                    />
-                  )}
-                />
-              </div>
-            </div>
-          </section>
-        ) : null}
       </form>
     </Modal>
   );

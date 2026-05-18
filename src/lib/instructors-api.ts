@@ -1,4 +1,4 @@
-import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
 import type {
   InstructorBranch,
   InstructorCreateRequest,
@@ -11,7 +11,6 @@ import type {
 } from "./types";
 
 export type InstructorSortField =
-  | "code"
   | "fullName"
   | "role"
   | "employmentType"
@@ -77,4 +76,34 @@ export function updateInstructor(
 
 export function deleteInstructor(id: string): Promise<void> {
   return httpDelete(`/api/instructors/${id}`);
+}
+
+export function uploadInstructorPhoto(
+  id: string,
+  file: File
+): Promise<InstructorResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  return httpPostForm<InstructorResponse>(`/api/instructors/${id}/photo`, form);
+}
+
+export function deleteInstructorPhoto(id: string): Promise<InstructorResponse> {
+  return httpDelete<InstructorResponse>(`/api/instructors/${id}/photo`);
+}
+
+export interface InstructorLeaveRequest {
+  leftAtDate: string;
+  reason?: string | null;
+  rowVersion: number;
+}
+
+export function markInstructorLeft(
+  id: string,
+  body: InstructorLeaveRequest
+): Promise<InstructorResponse> {
+  return httpPost<InstructorResponse>(`/api/instructors/${id}/leave`, body);
+}
+
+export function clearInstructorLeft(id: string): Promise<InstructorResponse> {
+  return httpDelete<InstructorResponse>(`/api/instructors/${id}/leave`);
 }

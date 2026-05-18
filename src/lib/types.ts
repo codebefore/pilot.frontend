@@ -640,17 +640,16 @@ export interface VehicleResponse {
   isActive: boolean;
   transmissionType: VehicleTransmissionType;
   vehicleType: VehicleType;
-  licenseClass: LicenseClass;
+  licenseClasses: LicenseClass[];
   ownershipType: VehicleOwnershipType;
   fuelType: VehicleFuelType | null;
   odometerValue: number | null;
   odometerUnit: VehicleOdometerUnit;
-  insuranceStartDate: string | null;
-  insuranceEndDate: string | null;
-  inspectionStartDate: string | null;
-  inspectionEndDate: string | null;
-  cascoStartDate: string | null;
-  cascoEndDate: string | null;
+  registrationDate: string | null;
+  serviceStartDate: string | null;
+  latestInsuranceEndDate: string | null;
+  latestInspectionEndDate: string | null;
+  latestCascoEndDate: string | null;
   accidentNotes: string | null;
   otherDetails: string | null;
   notes: string | null;
@@ -680,21 +679,39 @@ export interface VehicleUpsertRequest {
   isActive: boolean;
   transmissionType: VehicleTransmissionType;
   vehicleType: VehicleType;
-  licenseClass: LicenseClass;
+  licenseClasses: LicenseClass[];
   ownershipType: VehicleOwnershipType;
   fuelType?: VehicleFuelType | null;
   odometerValue?: number | null;
   odometerUnit: VehicleOdometerUnit;
-  insuranceStartDate?: string | null;
-  insuranceEndDate?: string | null;
-  inspectionStartDate?: string | null;
-  inspectionEndDate?: string | null;
-  cascoStartDate?: string | null;
-  cascoEndDate?: string | null;
+  registrationDate?: string | null;
+  serviceStartDate?: string | null;
   accidentNotes?: string | null;
   otherDetails?: string | null;
   notes?: string | null;
   /** Required for updates; omitted on create. */
+  rowVersion?: number;
+}
+
+export type VehicleDocumentType = "insurance" | "inspection" | "casco";
+
+export interface VehicleDocumentResponse {
+  id: string;
+  vehicleId: string;
+  documentType: VehicleDocumentType;
+  startDate: string;
+  endDate: string;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface VehicleDocumentUpsertRequest {
+  documentType: VehicleDocumentType;
+  startDate: string;
+  endDate: string;
+  notes?: string | null;
   rowVersion?: number;
 }
 
@@ -751,7 +768,6 @@ export interface TrainingBranchDefinitionUpsertRequest {
 
 export interface InstructorResponse {
   id: string;
-  code: string;
   firstName: string;
   lastName: string;
   nationalId: string | null;
@@ -763,8 +779,13 @@ export interface InstructorResponse {
   licenseClassCodes: LicenseClass[];
   weeklyLessonHours: number | null;
   mebbisPermitNo: string | null;
+  contractStartDate: string | null;
+  contractEndDate: string | null;
   assignedVehicleId: string | null;
   notes: string | null;
+  hasPhoto: boolean;
+  leftAtDate: string | null;
+  leaveReason: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -782,7 +803,6 @@ export interface InstructorListResponse extends PagedResponse<InstructorResponse
 }
 
 export interface InstructorUpsertRequest {
-  code?: string | null;
   firstName: string;
   lastName: string;
   nationalId?: string | null;
@@ -838,7 +858,7 @@ export interface InstructorAssignmentUpsertRequest {
 }
 
 export interface InstructorCreateRequest extends InstructorUpsertRequest {
-  initialAssignment: InstructorAssignmentUpsertRequest;
+  initialAssignment?: InstructorAssignmentUpsertRequest;
 }
 
 /* ── Routes ── */

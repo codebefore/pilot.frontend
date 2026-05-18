@@ -14,6 +14,7 @@ import { PageToolbar } from "../components/layout/PageToolbar";
 import { FilterIcon, PencilIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { UserFormModal } from "../components/modals/UserFormModal";
 import { ColumnPicker } from "../components/ui/ColumnPicker";
+import { PageLoadError } from "../components/ui/PageLoadError";
 import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
@@ -150,6 +151,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   const [users, setUsers] = useState<AppUserResponse[]>([]);
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [sort, setSort] = useState<SortState>(null);
   const [search, setSearch] = useState("");
@@ -166,6 +168,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
+    setLoadError(false);
 
     Promise.all([
       getUsers({ includeInactive: true }, controller.signal),
@@ -177,14 +180,14 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        showToast("Kullanıcılar yüklenemedi", "error");
+        setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, [refreshKey, showToast]);
+  }, [refreshKey]);
 
   const roleFilterOptions = useMemo(
     () => [
@@ -392,8 +395,26 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     </>
   );
 
-  const table = (
+  const table = loadError && users.length === 0 ? (
+    <PageLoadError
+      title="Kullanıcılar yüklenemedi"
+      description="Kullanıcı listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+      onRetry={() => setRefreshKey((k) => k + 1)}
+    />
+  ) : (
     <>
+      {loadError && (
+        <div className="inline-refresh-error" role="status">
+          <span>Liste güncellenemedi. Görüntülenen veriler son başarılı yüklemeden.</span>
+          <button
+            className="btn btn-link btn-sm"
+            onClick={() => setRefreshKey((k) => k + 1)}
+            type="button"
+          >
+            Tekrar Dene
+          </button>
+        </div>
+      )}
       <table className="data-table">
         <thead>
           <tr>

@@ -64,6 +64,17 @@ export function TrainingFilters({
     return set;
   }, [allInstructors, kind]);
 
+  const expiredInstructorIds = useMemo(() => {
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const set = new Set<string>();
+    allInstructors.forEach((inst) => {
+      const end = inst.contractEndDate;
+      if (end && end.slice(0, 10) < todayKey) set.add(inst.id);
+    });
+    return set;
+  }, [allInstructors]);
+
   const instructors = useMemo(() => {
     const map = new Map<string, string>();
     // Önce dersi olan eğitmenler (event'ten alınan canlı isim önceliklidir).
@@ -78,9 +89,9 @@ export function TrainingFilters({
       map.set(inst.id, `${inst.firstName} ${inst.lastName}`.trim());
     });
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, name]) => ({ id, name, expired: expiredInstructorIds.has(id) }))
       .sort((a, b) => a.name.localeCompare(b.name, "tr"));
-  }, [ownEvents, eligibleInstructorIds, allInstructors]);
+  }, [ownEvents, eligibleInstructorIds, allInstructors, expiredInstructorIds]);
 
   // Araç listesi (sadece uygulama tarafında): aktif kataloğun tamamı +
   // event'lerde plakası geçen araçlar (öncelikli sıra).
@@ -95,12 +106,12 @@ export function TrainingFilters({
     return Array.from(set).sort();
   }, [ownEvents, allVehiclesCatalog, kind, noVehicleLabel]);
 
-  // Plaka → ehliyet sınıfı map. "Araç seçilmedi" placeholder için
+  // Plaka → ehliyet sınıfı/sınıfları map. "Araç seçilmedi" placeholder için
   // sınıf yok.
   const licenseClassByPlate = useMemo(() => {
     const map = new Map<string, string>();
     for (const v of allVehiclesCatalog) {
-      map.set(v.plateNumber, v.licenseClass);
+      map.set(v.plateNumber, v.licenseClasses.join(", "));
     }
     return map;
   }, [allVehiclesCatalog]);
@@ -252,7 +263,13 @@ export function TrainingFilters({
             const checked = visibleInstructors.has(instructor.id);
             return (
               <li key={instructor.id}>
-                <label className="training-filters-item switch-toggle switch-toggle-sm">
+                <label
+                  className={
+                    "training-filters-item switch-toggle switch-toggle-sm" +
+                    (instructor.expired ? " training-filters-item--expired" : "")
+                  }
+                  title={instructor.expired ? "Sözleşmesi sona ermiş" : undefined}
+                >
                   <input
                     checked={checked}
                     onChange={() => onToggleInstructor(instructor.id)}

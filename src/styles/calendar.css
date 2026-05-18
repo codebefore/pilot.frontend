@@ -215,6 +215,12 @@
   background: var(--gray-50);
 }
 
+.training-filters-item--expired .training-filters-name {
+  opacity: 0.45;
+  text-decoration: line-through;
+  font-style: italic;
+}
+
 /* switch-toggle kompakt varyant — filter listesinde her satıra
  * yerleşecek kadar küçük (24×14, knob 10px). Genel `.switch-toggle`
  * stilinin üstüne yazıyor. */

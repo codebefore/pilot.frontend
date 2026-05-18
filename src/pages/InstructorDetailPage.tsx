@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { AssignmentDocumentFormModal } from "../components/modals/AssignmentDocumentFormModal";
 import { InstructorAssignmentFormModal } from "../components/modals/InstructorAssignmentFormModal";
+import { InstructorAvatar } from "../components/ui/InstructorAvatar";
+import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
+import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/ui/Toast";
 import { openAuthorizedFile } from "../lib/authorized-files";
 import {
@@ -16,7 +19,11 @@ import {
   INSTRUCTOR_EMPLOYMENT_LABELS,
   INSTRUCTOR_ROLE_LABELS,
 } from "../lib/instructor-catalog";
-import { getInstructor } from "../lib/instructors-api";
+import {
+  clearInstructorLeft,
+  getInstructor,
+  markInstructorLeft,
+} from "../lib/instructors-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { useT } from "../lib/i18n";
 import type {
@@ -44,6 +51,7 @@ export function InstructorDetailPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { instructorId } = useParams<{ instructorId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [instructor, setInstructor] = useState<InstructorResponse | null>(null);
   const [assignments, setAssignments] = useState<InstructorAssignment[]>([]);
   const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
@@ -55,6 +63,10 @@ export function InstructorDetailPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [docModalAssignmentId, setDocModalAssignmentId] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveDate, setLeaveDate] = useState<string>("");
+  const [leaveReason, setLeaveReason] = useState<string>("");
+  const [leaveBusy, setLeaveBusy] = useState(false);
 
   useEffect(() => {
     if (!instructorId) return;
@@ -96,10 +108,27 @@ export function InstructorDetailPage() {
 
   const activeAssignmentId = assignments[0]?.id ?? null;
 
+  useEffect(() => {
+    if (loading) return;
+    if (!instructor) return;
+    if (searchParams.get("newAssignment") !== "1") return;
+    setEditing(null);
+    setModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("newAssignment");
+    setSearchParams(next, { replace: true });
+  }, [instructor, loading, searchParams, setSearchParams]);
+
   const refreshAssignments = async () => {
     if (!instructorId) return;
-    const list = await listAssignments(instructorId);
+    // Instructor header (MEBBİS, sözleşme tarihleri vb.) backend'de latest
+    // assignment'tan flatten edildiği için atama değişince beraber yenile.
+    const [list, freshInstructor] = await Promise.all([
+      listAssignments(instructorId),
+      getInstructor(instructorId),
+    ]);
     setAssignments(list);
+    setInstructor(freshInstructor);
   };
 
   const handleSaved = async () => {
@@ -140,6 +169,48 @@ export function InstructorDetailPage() {
     }
   };
 
+  const openLeaveModal = () => {
+    if (!instructor) return;
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    setLeaveDate(instructor.leftAtDate ?? iso);
+    setLeaveReason(instructor.leaveReason ?? "");
+    setLeaveModalOpen(true);
+  };
+
+  const submitLeave = async () => {
+    if (!instructor || !instructorId || !leaveDate) return;
+    setLeaveBusy(true);
+    try {
+      const updated = await markInstructorLeft(instructorId, {
+        leftAtDate: leaveDate,
+        reason: leaveReason.trim() || null,
+        rowVersion: instructor.rowVersion,
+      });
+      setInstructor(updated);
+      setLeaveModalOpen(false);
+      showToast("İşten ayrılma kaydedildi");
+    } catch {
+      showToast("İşten ayrılma kaydedilemedi", "error");
+    } finally {
+      setLeaveBusy(false);
+    }
+  };
+
+  const restoreInstructor = async () => {
+    if (!instructorId) return;
+    setLeaveBusy(true);
+    try {
+      const updated = await clearInstructorLeft(instructorId);
+      setInstructor(updated);
+      showToast("Eğitmen aktif duruma alındı");
+    } catch {
+      showToast("Aktif duruma alınamadı", "error");
+    } finally {
+      setLeaveBusy(false);
+    }
+  };
+
   return (
     <div className="instructor-detail">
       <div className="instructor-detail-breadcrumb">
@@ -165,31 +236,59 @@ export function InstructorDetailPage() {
       {!loading && !error && instructor && (
         <>
           <header className="instructor-detail-card instructor-detail-header">
-            <div className="instructor-detail-header-main">
-              <div className="instructor-detail-code">{instructor.code}</div>
-              <h2 className="instructor-detail-name">
-                {instructor.firstName} {instructor.lastName}
-              </h2>
-              <div className="instructor-detail-meta">
-                <span
-                  className={`instructor-detail-status${instructor.isActive ? " active" : " inactive"}`}
-                >
-                  {instructor.isActive ? "Aktif" : "Pasif"}
-                </span>
-                {instructor.phoneNumber ? <span>{instructor.phoneNumber}</span> : null}
-                {instructor.email ? <span>{instructor.email}</span> : null}
+            <div className="instructor-detail-header-top">
+              <InstructorAvatar instructor={instructor} size={64} />
+              <div className="instructor-detail-header-main">
+                <h2 className="instructor-detail-name">
+                  {instructor.firstName} {instructor.lastName}
+                </h2>
+                <div className="instructor-detail-meta">
+                  <span
+                    className={`instructor-detail-status${instructor.isActive ? " active" : " inactive"}`}
+                  >
+                    {instructor.isActive ? "Aktif" : "Pasif"}
+                  </span>
+                  {instructor.leftAtDate ? (
+                    <span className="instructor-detail-leave-pill" title={instructor.leaveReason ?? undefined}>
+                      Ayrıldı · {instructor.leftAtDate.slice(0, 10).split("-").reverse().join(".")}
+                    </span>
+                  ) : null}
+                  {instructor.phoneNumber ? <span>{instructor.phoneNumber}</span> : null}
+                  {instructor.email ? <span>{instructor.email}</span> : null}
+                </div>
+              </div>
+              <div className="instructor-detail-header-actions">
+                {instructor.leftAtDate ? (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={leaveBusy}
+                    onClick={restoreInstructor}
+                    type="button"
+                  >
+                    Aktif Et
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={leaveBusy}
+                    onClick={openLeaveModal}
+                    type="button"
+                  >
+                    İşten Ayrıldı
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="instructor-detail-summary-grid">
               <Field label="TC Kimlik No" value={instructor.nationalId ?? "—"} />
               <Field
-                label="Görev"
-                value={INSTRUCTOR_ROLE_LABELS[instructor.role] ?? "—"}
-              />
-              <Field
                 label="Statü"
                 value={INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType] ?? "—"}
+              />
+              <Field
+                label="Görev"
+                value={INSTRUCTOR_ROLE_LABELS[instructor.role] ?? "—"}
               />
               <Field
                 label="Branş"
@@ -268,9 +367,13 @@ export function InstructorDetailPage() {
                         <div className="assignment-item-title">
                           {INSTRUCTOR_ROLE_LABELS[a.role]}
                         </div>
-                        {isActive && (
+                        {isActive ? (
                           <span className="assignment-item-badge">
                             {t("settings.instructors.detail.assignments.active")}
+                          </span>
+                        ) : (
+                          <span className="assignment-item-badge assignment-item-badge-inactive">
+                            {t("settings.instructors.detail.assignments.inactive")}
                           </span>
                         )}
                         <div className="assignment-item-actions">
@@ -458,6 +561,58 @@ export function InstructorDetailPage() {
           open
         />
       )}
+
+      <Modal
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              disabled={leaveBusy}
+              onClick={() => setLeaveModalOpen(false)}
+              type="button"
+            >
+              İptal
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={leaveBusy || !leaveDate}
+              onClick={submitLeave}
+              type="button"
+            >
+              {leaveBusy ? "Kaydediliyor..." : "Kaydet"}
+            </button>
+          </>
+        }
+        onClose={() => setLeaveModalOpen(false)}
+        open={leaveModalOpen}
+        title="İşten Ayrılma"
+      >
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Ayrılış Tarihi</label>
+            <LocalizedDateInput
+              ariaLabel="Ayrılış tarihi"
+              className="form-input"
+              lang="tr"
+              onChange={(value) => setLeaveDate(value)}
+              value={leaveDate}
+            />
+          </div>
+        </div>
+        <div className="form-row full">
+          <div className="form-group">
+            <label className="form-label">Ayrılış Nedeni</label>
+            <textarea
+              className="form-input"
+              maxLength={500}
+              onChange={(event) => setLeaveReason(event.target.value)}
+              placeholder="Opsiyonel — neden, açıklama vb."
+              rows={4}
+              value={leaveReason}
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import type {
 } from "../../lib/types";
 import { CheckIcon, PencilIcon, PlusIcon, XIcon } from "../icons";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
+import { PageLoadError } from "../ui/PageLoadError";
 import { CustomSelect } from "../ui/CustomSelect";
 import { EditableRow } from "../ui/EditableRow";
 import type { SelectOption } from "../ui/EditableRow";
@@ -48,6 +49,8 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const [group, setGroup] = useState<GroupDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [terms, setTerms] = useState<TermResponse[]>([]);
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -67,21 +70,24 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
       setSearchQuery("");
       setSearchResults([]);
       setConfirmDelete(false);
+      setLoadError(false);
       return;
     }
     const controller = new AbortController();
     setLoading(true);
+    setLoadError(false);
     getGroupById(groupId, controller.signal)
       .then((data) => setGroup(data))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setGroup(null);
+        setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [groupId]);
+  }, [groupId, reloadKey]);
 
   // Load term catalog lazily so the term selector can build the correct
   // "Nisan 2026 / 2" style labels and so the user can reassign the group to
@@ -416,11 +422,14 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
             )}
           </DrawerSection>
         </>
-      ) : (
-        <div style={{ padding: "24px 0", textAlign: "center", color: "var(--gray-500)", fontSize: 13 }}>
-          Grup bilgisi yüklenemedi.
-        </div>
-      )}
+      ) : loadError ? (
+        <PageLoadError
+          variant="card"
+          title="Grup bilgisi yüklenemedi"
+          description="Grup detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      ) : null}
     </Drawer>
   );
 }

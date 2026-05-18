@@ -6,7 +6,7 @@ import { PageToolbar } from "../components/layout/PageToolbar";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
-import { useToast } from "../components/ui/Toast";
+import { PageLoadError } from "../components/ui/PageLoadError";
 import { getPaymentsOverview } from "../lib/payments-api";
 import { formatDateTR } from "../lib/status-maps";
 import type {
@@ -117,9 +117,10 @@ function installmentPriority(
 }
 
 export function PaymentsPage() {
-  const { showToast } = useToast();
   const [overview, setOverview] = useState<PaymentsOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>("payments");
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -139,17 +140,18 @@ export function PaymentsPage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
+    setLoadError(false);
     getPaymentsOverview(controller.signal)
       .then(setOverview)
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Tahsilat verileri yüklenemedi", "error");
+        setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [showToast]);
+  }, [reloadKey]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase("tr-TR");
   const filterCandidate = (candidate: { firstName: string; lastName: string; nationalId: string }) => {
@@ -550,6 +552,12 @@ export function PaymentsPage() {
 
       {loading ? (
         <div className="page-loading">Yükleniyor...</div>
+      ) : loadError ? (
+        <PageLoadError
+          title="Tahsilat verileri yüklenemedi"
+          description="Tahsilat listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       ) : !overview ? (
         <Panel title="Finans">Veri bulunamadı.</Panel>
       ) : (

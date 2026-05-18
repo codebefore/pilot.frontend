@@ -9,7 +9,6 @@ import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useT, type TranslationKey } from "../../lib/i18n";
-import { formatDateTR } from "../../lib/status-maps";
 import {
   deleteVehicle,
   getVehicles,
@@ -20,6 +19,7 @@ import {
 import {
   VEHICLE_STATUS_OPTIONS,
   VEHICLE_STATUS_LABELS,
+  VEHICLE_TRANSMISSION_LABELS,
 } from "../../lib/vehicle-catalog";
 import type {
   LicenseClass,
@@ -45,11 +45,46 @@ type VehicleFilters = {
 type VehicleColumnId =
   | "plateNumber"
   | "licenseClass"
-  | "status"
   | "isActive"
+  | "status"
   | "insuranceEndDate"
   | "inspectionEndDate"
-  | "cascoEndDate";
+  | "cascoEndDate"
+  | "brandModel"
+  | "transmissionType";
+
+function daysUntil(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const target = new Date(iso.slice(0, 10) + "T00:00:00Z").getTime();
+  if (!Number.isFinite(target)) return null;
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((target - today) / (1000 * 60 * 60 * 24));
+}
+
+function formatDateTR(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}.${m}.${y}`;
+}
+
+function renderDocumentEndCell(iso: string | null) {
+  if (!iso) return "—";
+  const days = daysUntil(iso);
+  const tone =
+    days == null ? "default" : days < 0 ? "expired" : days <= 30 ? "warning" : "default";
+  return (
+    <div className={`instructor-contract-end instructor-contract-end--${tone}`}>
+      <span>{formatDateTR(iso)}</span>
+      {days != null && days >= 0 && days <= 60 ? (
+        <span className="instructor-contract-end-days">{days} gün</span>
+      ) : days != null && days < 0 ? (
+        <span className="instructor-contract-end-days">geçti</span>
+      ) : null}
+    </div>
+  );
+}
 type VehicleColumnDef = {
   id: VehicleColumnId;
   labelKey: TranslationKey;
@@ -66,31 +101,6 @@ const EMPTY_SUMMARY: VehicleListSummaryResponse = {
   idleCount: 0,
 };
 
-function parseIsoDate(value: string): Date | null {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
-}
-
-function formatDateWithRemainingDays(value: string | null): string {
-  if (!value) return "-";
-  const target = parseIsoDate(value);
-  if (!target) return formatDateTR(value);
-
-  const today = new Date();
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const targetStart = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-  const remainingDays = Math.round(
-    (targetStart.getTime() - todayStart.getTime()) / (24 * 60 * 60 * 1000)
-  );
-
-  if (remainingDays === 0) {
-    return `${formatDateTR(value)} (bugün)`;
-  }
-
-  return `${formatDateTR(value)} (${remainingDays} gün)`;
-}
-
 function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
   return [
     {
@@ -104,8 +114,21 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
       id: "licenseClass",
       labelKey: "settings.vehicles.columns.licenseClass",
       sortField: "licenseClass",
-      renderCell: (vehicle) => vehicle.licenseClass,
-      skeletonWidth: 44,
+      renderCell: (vehicle) => vehicle.licenseClasses.join(", "),
+      skeletonWidth: 60,
+    },
+    {
+      id: "isActive",
+      labelKey: "settings.vehicles.columns.isActive",
+      sortField: "isActive",
+      renderCell: (vehicle) => (
+        <StatusPill
+          label={vehicle.isActive ? t("settings.vehicles.status.active") : t("settings.vehicles.status.inactive")}
+          status={vehicle.isActive ? "success" : "manual"}
+        />
+      ),
+      skeletonWidth: 74,
+      skeletonKind: "pill",
     },
     {
       id: "status",
@@ -127,35 +150,37 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
       skeletonKind: "pill",
     },
     {
-      id: "isActive",
-      labelKey: "settings.vehicles.columns.isActive",
-      sortField: "isActive",
-      renderCell: (vehicle) => (
-        <StatusPill
-          label={vehicle.isActive ? t("settings.vehicles.status.active") : t("settings.vehicles.status.inactive")}
-          status={vehicle.isActive ? "success" : "manual"}
-        />
-      ),
-      skeletonWidth: 74,
-      skeletonKind: "pill",
-    },
-    {
       id: "insuranceEndDate",
       labelKey: "settings.vehicles.columns.insuranceEndDate",
-      renderCell: (vehicle) => formatDateWithRemainingDays(vehicle.insuranceEndDate),
-      skeletonWidth: 118,
+      renderCell: (vehicle) => renderDocumentEndCell(vehicle.latestInsuranceEndDate),
+      skeletonWidth: 110,
     },
     {
       id: "inspectionEndDate",
       labelKey: "settings.vehicles.columns.inspectionEndDate",
-      renderCell: (vehicle) => formatDateWithRemainingDays(vehicle.inspectionEndDate),
-      skeletonWidth: 118,
+      renderCell: (vehicle) => renderDocumentEndCell(vehicle.latestInspectionEndDate),
+      skeletonWidth: 110,
     },
     {
       id: "cascoEndDate",
       labelKey: "settings.vehicles.columns.cascoEndDate",
-      renderCell: (vehicle) => formatDateWithRemainingDays(vehicle.cascoEndDate),
-      skeletonWidth: 118,
+      renderCell: (vehicle) => renderDocumentEndCell(vehicle.latestCascoEndDate),
+      skeletonWidth: 110,
+    },
+    {
+      id: "brandModel",
+      labelKey: "settings.vehicles.columns.brandModel",
+      renderCell: (vehicle) => {
+        const parts = [vehicle.brand, vehicle.model].filter(Boolean).join(" ");
+        return vehicle.modelYear ? `${parts} (${vehicle.modelYear})` : parts || "—";
+      },
+      skeletonWidth: 160,
+    },
+    {
+      id: "transmissionType",
+      labelKey: "settings.vehicles.columns.transmissionType",
+      renderCell: (vehicle) => VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType] ?? "—",
+      skeletonWidth: 80,
     },
   ];
 }

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 
 import { useT } from "../../lib/i18n";
 import type {
@@ -120,6 +120,7 @@ export function NewTrainingPlanModal({
 }: NewTrainingPlanModalProps) {
   const t = useT();
   const {
+    control,
     register,
     handleSubmit,
     reset,
@@ -182,17 +183,43 @@ export function NewTrainingPlanModal({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">{t("training.modal.field.planType")}</label>
-            <CustomSelect className="form-select" {...register("type", { required: true })}>
-              <option value="teorik">{t("training.modal.kindTheory")}</option>
-              <option value="uygulama">{t("training.modal.kindPractice")}</option>
-            </CustomSelect>
+            <Controller
+              control={control}
+              name="type"
+              rules={{ required: true }}
+              render={({ field }) => (
+                <CustomSelect
+                  className="form-select"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  value={field.value}
+                >
+                  <option value="teorik">{t("training.modal.kindTheory")}</option>
+                  <option value="uygulama">{t("training.modal.kindPractice")}</option>
+                </CustomSelect>
+              )}
+            />
           </div>
           <div className="form-group">
             <label className="form-label">{t("training.modal.field.status")}</label>
-            <CustomSelect className="form-select" {...register("status", { required: true })}>
-              <option value="planned">{t("training.modal.statusPlanned")}</option>
-              <option value="completed">{t("training.modal.statusCompleted")}</option>
-            </CustomSelect>
+            <Controller
+              control={control}
+              name="status"
+              rules={{ required: true }}
+              render={({ field }) => (
+                <CustomSelect
+                  className="form-select"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  value={field.value}
+                >
+                  <option value="planned">{t("training.modal.statusPlanned")}</option>
+                  <option value="completed">{t("training.modal.statusCompleted")}</option>
+                </CustomSelect>
+              )}
+            />
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
+import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
 import { useToast } from "../components/ui/Toast";
 import { ApiError } from "../lib/http";
@@ -35,6 +36,8 @@ export function RoleEditorPage() {
   const [loading, setLoading] = useState(Boolean(roleId));
   const [submitting, setSubmitting] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleResponse | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const {
     formState: { errors },
@@ -49,12 +52,14 @@ export function RoleEditorPage() {
     if (!roleId) {
       setEditingRole(null);
       setLoading(false);
+      setLoadError(false);
       reset(EMPTY_VALUES);
       return;
     }
 
     const controller = new AbortController();
     setLoading(true);
+    setLoadError(false);
 
     getRoles({ includeInactive: true }, controller.signal)
       .then((roles) => {
@@ -64,14 +69,14 @@ export function RoleEditorPage() {
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        showToast("Rol bilgisi yüklenemedi", "error");
+        setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, [reset, roleId, showToast]);
+  }, [reset, roleId, reloadKey]);
 
   const permissionsBasePath = location.pathname.startsWith("/settings/")
     ? "/settings/definitions/permissions"
@@ -109,6 +114,33 @@ export function RoleEditorPage() {
       setSubmitting(false);
     }
   });
+
+  if (roleId && !loading && loadError) {
+    return (
+      <>
+        <PageToolbar
+          actions={
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => navigate(permissionsBasePath)}
+              type="button"
+            >
+              Listeye Dön
+            </button>
+          }
+          title="Rol Bilgisi Yüklenemedi"
+        />
+
+        <div className="role-editor-page spaced">
+          <PageLoadError
+            title="Rol bilgisi yüklenemedi"
+            description="Rol detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
+        </div>
+      </>
+    );
+  }
 
   if (roleId && !loading && !editingRole) {
     return (

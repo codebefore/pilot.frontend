@@ -28,15 +28,11 @@ type VehicleFormValues = {
   isActive: boolean;
   transmissionType: VehicleUpsertRequest["transmissionType"];
   vehicleType: VehicleUpsertRequest["vehicleType"];
-  licenseClass: VehicleUpsertRequest["licenseClass"];
+  licenseClasses: VehicleUpsertRequest["licenseClasses"];
   ownershipType: VehicleUpsertRequest["ownershipType"];
   fuelType: VehicleUpsertRequest["fuelType"] | "";
-  insuranceStartDate: string;
-  insuranceEndDate: string;
-  inspectionStartDate: string;
-  inspectionEndDate: string;
-  cascoStartDate: string;
-  cascoEndDate: string;
+  registrationDate: string;
+  serviceStartDate: string;
   accidentNotes: string;
   otherDetails: string;
   notes: string;
@@ -76,24 +72,16 @@ const VALIDATION_FIELD_MAP: Record<string, keyof VehicleFormValues> = {
   TransmissionType: "transmissionType",
   vehicleType: "vehicleType",
   VehicleType: "vehicleType",
-  licenseClass: "licenseClass",
-  LicenseClass: "licenseClass",
+  licenseClasses: "licenseClasses",
+  LicenseClasses: "licenseClasses",
   ownershipType: "ownershipType",
   OwnershipType: "ownershipType",
   fuelType: "fuelType",
   FuelType: "fuelType",
-  insuranceStartDate: "insuranceStartDate",
-  InsuranceStartDate: "insuranceStartDate",
-  insuranceEndDate: "insuranceEndDate",
-  InsuranceEndDate: "insuranceEndDate",
-  inspectionStartDate: "inspectionStartDate",
-  InspectionStartDate: "inspectionStartDate",
-  inspectionEndDate: "inspectionEndDate",
-  InspectionEndDate: "inspectionEndDate",
-  cascoStartDate: "cascoStartDate",
-  CascoStartDate: "cascoStartDate",
-  cascoEndDate: "cascoEndDate",
-  CascoEndDate: "cascoEndDate",
+  registrationDate: "registrationDate",
+  RegistrationDate: "registrationDate",
+  serviceStartDate: "serviceStartDate",
+  ServiceStartDate: "serviceStartDate",
   accidentNotes: "accidentNotes",
   AccidentNotes: "accidentNotes",
   otherDetails: "otherDetails",
@@ -114,15 +102,11 @@ function getEmptyValues(editing: VehicleResponse | null): VehicleFormValues {
         isActive: editing.isActive,
         transmissionType: editing.transmissionType,
         vehicleType: editing.vehicleType,
-        licenseClass: editing.licenseClass,
+        licenseClasses: editing.licenseClasses,
         ownershipType: editing.ownershipType,
         fuelType: editing.fuelType ?? "",
-        insuranceStartDate: editing.insuranceStartDate ?? "",
-        insuranceEndDate: editing.insuranceEndDate ?? "",
-        inspectionStartDate: editing.inspectionStartDate ?? "",
-        inspectionEndDate: editing.inspectionEndDate ?? "",
-        cascoStartDate: editing.cascoStartDate ?? "",
-        cascoEndDate: editing.cascoEndDate ?? "",
+        registrationDate: editing.registrationDate ?? "",
+        serviceStartDate: editing.serviceStartDate ?? "",
         accidentNotes: editing.accidentNotes ?? "",
         otherDetails: editing.otherDetails ?? "",
         notes: editing.notes ?? "",
@@ -137,15 +121,11 @@ function getEmptyValues(editing: VehicleResponse | null): VehicleFormValues {
         isActive: true,
         transmissionType: "manual",
         vehicleType: "automobile",
-        licenseClass: "B",
+        licenseClasses: ["B"],
         ownershipType: "owned",
         fuelType: "diesel",
-        insuranceStartDate: "",
-        insuranceEndDate: "",
-        inspectionStartDate: "",
-        inspectionEndDate: "",
-        cascoStartDate: "",
-        cascoEndDate: "",
+        registrationDate: "",
+        serviceStartDate: "",
         accidentNotes: "",
         otherDetails: "",
         notes: "",
@@ -239,7 +219,7 @@ export function VehicleFormModal({
   } = useForm<VehicleFormValues>({
     defaultValues: getEmptyValues(editing),
   });
-  const selectedLicenseClass = watch("licenseClass");
+  const selectedLicenseClasses = watch("licenseClasses");
 
   useEffect(() => {
     if (!open) return;
@@ -248,15 +228,18 @@ export function VehicleFormModal({
 
   useEffect(() => {
     if (!open || licenseClassOptions.length === 0) return;
-    if (licenseClassOptions.some((option) => option.value === selectedLicenseClass)) {
+    const supported = new Set(licenseClassOptions.map((option) => option.value));
+    const selected = selectedLicenseClasses ?? [];
+    if (selected.length > 0 && selected.every((value) => supported.has(value))) {
       return;
     }
-
-    setValue("licenseClass", licenseClassOptions[0].value, {
-      shouldDirty: false,
-      shouldValidate: true,
-    });
-  }, [licenseClassOptions, open, selectedLicenseClass, setValue]);
+    const activeSelected = selected.filter((value) => supported.has(value));
+    setValue(
+      "licenseClasses",
+      activeSelected.length > 0 ? activeSelected : [licenseClassOptions[0].value],
+      { shouldDirty: false, shouldValidate: true },
+    );
+  }, [licenseClassOptions, open, selectedLicenseClasses, setValue]);
 
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
@@ -271,17 +254,13 @@ export function VehicleFormModal({
       isActive: values.isActive,
       transmissionType: values.transmissionType,
       vehicleType: values.vehicleType,
-      licenseClass: values.licenseClass,
+      licenseClasses: values.licenseClasses,
       ownershipType: values.ownershipType,
       fuelType: values.fuelType || null,
       odometerValue: null,
       odometerUnit: "km",
-      insuranceStartDate: values.insuranceStartDate || null,
-      insuranceEndDate: values.insuranceEndDate || null,
-      inspectionStartDate: values.inspectionStartDate || null,
-      inspectionEndDate: values.inspectionEndDate || null,
-      cascoStartDate: values.cascoStartDate || null,
-      cascoEndDate: values.cascoEndDate || null,
+      registrationDate: values.registrationDate || null,
+      serviceStartDate: values.serviceStartDate || null,
       accidentNotes: values.accidentNotes.trim() || null,
       otherDetails: values.otherDetails.trim() || null,
       notes: values.notes.trim() || null,
@@ -445,21 +424,40 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Evrak Türü</label>
+            <label className="form-label">Ehliyet Tipleri</label>
             <Controller
               control={control}
-              name="licenseClass"
-              render={({ field }) => (
-                <CustomSelect className={selectClass(errors.licenseClass?.message)} {...field}>
-                  {licenseClassOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </CustomSelect>
-              )}
+              name="licenseClasses"
+              rules={{ validate: (value) => (value && value.length > 0) || "En az bir ehliyet tipi seçilmeli" }}
+              render={({ field }) => {
+                const values = field.value ?? [];
+                const toggle = (option: string, checked: boolean) => {
+                  if (checked) {
+                    if (!values.includes(option as never)) {
+                      field.onChange([...values, option]);
+                    }
+                  } else {
+                    field.onChange(values.filter((v) => v !== option));
+                  }
+                };
+                return (
+                  <div className="settings-checkbox-list">
+                    {licenseClassOptions.map((option) => (
+                      <label className="switch-toggle" key={option.value}>
+                        <input
+                          checked={values.includes(option.value as never)}
+                          onChange={(event) => toggle(option.value, event.target.checked)}
+                          type="checkbox"
+                        />
+                        <span className="switch-toggle-control" aria-hidden="true" />
+                        <span>{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                );
+              }}
             />
-            {errors.licenseClass && <div className="form-error">{errors.licenseClass.message}</div>}
+            {errors.licenseClasses && <div className="form-error">{errors.licenseClasses.message as string}</div>}
           </div>
         </div>
 
@@ -563,14 +561,14 @@ export function VehicleFormModal({
           <summary>Detaylar</summary>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Sigorta Baş.</label>
+              <label className="form-label">Tescil Tarihi</label>
               <Controller
                 control={control}
-                name="insuranceStartDate"
+                name="registrationDate"
                 render={({ field }) => (
                   <LocalizedDateInput
-                    ariaLabel="Sigorta Baş."
-                    className={fieldClass(errors.insuranceStartDate?.message)}
+                    ariaLabel="Tescil Tarihi"
+                    className={fieldClass(errors.registrationDate?.message)}
                     onChange={(nextValue) => field.onChange(nextValue ?? "")}
                     placeholder="gg.aa.yyyy"
                     value={field.value}
@@ -580,86 +578,14 @@ export function VehicleFormModal({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Sigorta Bit.</label>
+              <label className="form-label">Hizmete Giriş Tarihi</label>
               <Controller
                 control={control}
-                name="insuranceEndDate"
+                name="serviceStartDate"
                 render={({ field }) => (
                   <LocalizedDateInput
-                    ariaLabel="Sigorta Bit."
-                    className={fieldClass(errors.insuranceEndDate?.message)}
-                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
-                    placeholder="gg.aa.yyyy"
-                    value={field.value}
-                  />
-                )}
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Muayene Baş.</label>
-              <Controller
-                control={control}
-                name="inspectionStartDate"
-                render={({ field }) => (
-                  <LocalizedDateInput
-                    ariaLabel="Muayene Baş."
-                    className={fieldClass(errors.inspectionStartDate?.message)}
-                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
-                    placeholder="gg.aa.yyyy"
-                    value={field.value}
-                  />
-                )}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Muayene Bit.</label>
-              <Controller
-                control={control}
-                name="inspectionEndDate"
-                render={({ field }) => (
-                  <LocalizedDateInput
-                    ariaLabel="Muayene Bit."
-                    className={fieldClass(errors.inspectionEndDate?.message)}
-                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
-                    placeholder="gg.aa.yyyy"
-                    value={field.value}
-                  />
-                )}
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Kasko Baş.</label>
-              <Controller
-                control={control}
-                name="cascoStartDate"
-                render={({ field }) => (
-                  <LocalizedDateInput
-                    ariaLabel="Kasko Baş."
-                    className={fieldClass(errors.cascoStartDate?.message)}
-                    onChange={(nextValue) => field.onChange(nextValue ?? "")}
-                    placeholder="gg.aa.yyyy"
-                    value={field.value}
-                  />
-                )}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Kasko Bit.</label>
-              <Controller
-                control={control}
-                name="cascoEndDate"
-                render={({ field }) => (
-                  <LocalizedDateInput
-                    ariaLabel="Kasko Bit."
-                    className={fieldClass(errors.cascoEndDate?.message)}
+                    ariaLabel="Hizmete Giriş Tarihi"
+                    className={fieldClass(errors.serviceStartDate?.message)}
                     onChange={(nextValue) => field.onChange(nextValue ?? "")}
                     placeholder="gg.aa.yyyy"
                     value={field.value}

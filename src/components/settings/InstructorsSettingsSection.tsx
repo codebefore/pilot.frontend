@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { InstructorFormModal } from "../modals/InstructorFormModal";
 import { ColumnPicker } from "../ui/ColumnPicker";
+import { InstructorAvatar } from "../ui/InstructorAvatar";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
@@ -33,6 +34,7 @@ import type {
   TrainingBranchDefinitionResponse,
 } from "../../lib/types";
 import { useT } from "../../lib/i18n";
+import { formatDateTR } from "../../lib/status-maps";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 import {
   type LicenseClassOption,
@@ -52,14 +54,24 @@ type InstructorFilters = {
   licenseClass: InstructorFilterValue<LicenseClass>;
 };
 type InstructorColumnId =
-  | "code"
   | "fullName"
   | "role"
   | "employmentType"
   | "branches"
   | "licenseClassCodes"
   | "weeklyLessonHours"
+  | "contractEndDate"
+  | "leaveReason"
   | "isActive";
+
+function daysUntil(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const target = new Date(iso.slice(0, 10) + "T00:00:00Z").getTime();
+  if (!Number.isFinite(target)) return null;
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((target - today) / (1000 * 60 * 60 * 24));
+}
 type InstructorColumnDef = {
   id: InstructorColumnId;
   label: string;
@@ -103,25 +115,21 @@ function getInstructorColumns(
 ): InstructorColumnDef[] {
   return [
     {
-      id: "code",
-      label: t("settings.instructors.table.code"),
-      sortField: "code",
-      renderCell: (instructor) => <strong>{instructor.code}</strong>,
-      skeletonWidth: 76,
-    },
-    {
       id: "fullName",
       label: t("settings.instructors.table.fullName"),
       sortField: "fullName",
       renderCell: (instructor) => (
-        <div>
-          {instructor.firstName} {instructor.lastName}
-          {instructor.mebbisPermitNo ? (
-            <div className="settings-table-secondary">MEBBİS: {instructor.mebbisPermitNo}</div>
-          ) : null}
+        <div className="instructor-row-name">
+          <InstructorAvatar instructor={instructor} size={32} />
+          <div>
+            {instructor.firstName} {instructor.lastName}
+            {instructor.mebbisPermitNo ? (
+              <div className="settings-table-secondary">MEBBİS: {instructor.mebbisPermitNo}</div>
+            ) : null}
+          </div>
         </div>
       ),
-      skeletonWidth: 180,
+      skeletonWidth: 220,
     },
     {
       id: "role",
@@ -162,6 +170,47 @@ function getInstructorColumns(
       skeletonWidth: 70,
     },
     {
+      id: "contractEndDate",
+      label: t("settings.instructors.table.contractEndDate"),
+      renderCell: (instructor) => {
+        if (!instructor.contractEndDate) return "—";
+        const days = daysUntil(instructor.contractEndDate);
+        const tone =
+          days == null ? "default" : days < 0 ? "expired" : days <= 10 ? "warning" : "default";
+        return (
+          <div className={`instructor-contract-end instructor-contract-end--${tone}`}>
+            <span>{formatDateTR(instructor.contractEndDate)}</span>
+            {days != null && days >= 0 && days <= 30 ? (
+              <span className="instructor-contract-end-days">{days} gün</span>
+            ) : null}
+            {days != null && days < 0 ? (
+              <span className="instructor-contract-end-days">geçti</span>
+            ) : null}
+          </div>
+        );
+      },
+      skeletonWidth: 110,
+    },
+    {
+      id: "leaveReason",
+      label: t("settings.instructors.table.leaveReason"),
+      renderCell: (instructor) => {
+        if (!instructor.leftAtDate) return "—";
+        const date = formatDateTR(instructor.leftAtDate);
+        return (
+          <div className="instructor-leave-cell">
+            <div className="instructor-leave-cell-date">{date}</div>
+            {instructor.leaveReason ? (
+              <div className="instructor-leave-cell-reason" title={instructor.leaveReason}>
+                {instructor.leaveReason}
+              </div>
+            ) : null}
+          </div>
+        );
+      },
+      skeletonWidth: 140,
+    },
+    {
       id: "isActive",
       label: t("settings.instructors.table.status"),
       sortField: "isActive",
@@ -177,13 +226,14 @@ function getInstructorColumns(
   ];
 }
 const INSTRUCTOR_COLUMN_IDS: InstructorColumnId[] = [
-  "code",
   "fullName",
   "role",
   "employmentType",
   "branches",
   "licenseClassCodes",
   "weeklyLessonHours",
+  "contractEndDate",
+  "leaveReason",
   "isActive",
 ];
 const DEFAULT_FILTERS: InstructorFilters = {
@@ -296,11 +346,15 @@ export function InstructorsSettingsSection() {
     filters.branch !== DEFAULT_FILTERS.branch ||
     filters.licenseClass !== DEFAULT_FILTERS.licenseClass;
 
-  const handleSaved = (_saved: InstructorResponse) => {
+  const handleSaved = (saved: InstructorResponse) => {
+    const wasCreate = !editing;
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
     showToast(editing ? t("settings.instructors.toasts.updated") : t("settings.instructors.toasts.created"));
+    if (wasCreate) {
+      navigate(`/settings/definitions/instructors/${saved.id}?newAssignment=1`);
+    }
   };
 
   const handleSortToggle = (field: InstructorSortField) => {
@@ -593,7 +647,6 @@ export function InstructorsSettingsSection() {
       </div>
 
       <InstructorFormModal
-        branches={trainingBranches}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

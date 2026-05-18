@@ -51,6 +51,7 @@ import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
+import { PageLoadError } from "../ui/PageLoadError";
 import { EditableRow } from "../ui/EditableRow";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import type { SelectOption } from "../ui/EditableRow";
@@ -152,6 +153,8 @@ export function CandidateDrawer({
   const today = todayISO();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -185,21 +188,24 @@ export function CandidateDrawer({
       setMissingDocs(null);
       setExistingLicenseDraft(buildExistingLicenseDraft(null));
       setExistingLicenseError(null);
+      setLoadError(false);
       return;
     }
     const controller = new AbortController();
     setLoading(true);
+    setLoadError(false);
     getCandidateById(candidateId, controller.signal)
       .then((data) => setCandidate(data))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setCandidate(null);
+        setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [candidateId]);
+  }, [candidateId, reloadKey]);
 
   useEffect(() => {
     setExistingLicenseDraft(buildExistingLicenseDraft(candidate));
@@ -1054,11 +1060,14 @@ export function CandidateDrawer({
             />
           </DrawerSection>
         </>
-      ) : (
-        <div style={{ padding: "24px 0", textAlign: "center", color: "var(--gray-500)", fontSize: 13 }}>
-          Aday bilgisi yüklenemedi.
-        </div>
-      )}
+      ) : loadError ? (
+        <PageLoadError
+          variant="card"
+          title="Aday bilgisi yüklenemedi"
+          description="Aday detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      ) : null}
 
       <UploadDocumentModal
         candidateId={candidate ? candidateId : null}
