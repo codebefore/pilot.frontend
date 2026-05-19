@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { DashboardNotesPanel } from "../components/dashboard/DashboardNotesPanel";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
 import { NewPaymentModal } from "../components/modals/NewPaymentModal";
 import {
@@ -167,6 +168,8 @@ export function DashboardPage() {
               </div>
             ))}
           </Panel>
+
+          <DashboardNotesPanel />
 
           <Panel title="Hızlı İşlemler">
             <div className="quick-actions">

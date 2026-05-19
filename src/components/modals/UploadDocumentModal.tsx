@@ -38,6 +38,12 @@ type UploadDocumentModalProps = {
 
 const ACCEPT = "image/jpeg,image/png,application/pdf";
 const MAX_BYTES = 10 * 1024 * 1024;
+const HEALTH_REPORT_META_KEYS = {
+  disability: "disability",
+} as const;
+const HEALTH_REPORT_DEFAULT_METADATA: Record<string, string> = {
+  [HEALTH_REPORT_META_KEYS.disability]: "none",
+};
 
 const emptyForm = (
   candidateId?: string | null,
@@ -49,6 +55,18 @@ const emptyForm = (
   isPhysicallyAvailable: false,
   note: "",
 });
+
+function applyDocumentMetadataDefaults(
+  documentType: DocumentTypeResponse | null,
+  metadata: Record<string, string>
+): Record<string, string> {
+  if (documentType?.key !== "health_report") return metadata;
+
+  return {
+    ...HEALTH_REPORT_DEFAULT_METADATA,
+    ...metadata,
+  };
+}
 
 export function UploadDocumentModal({
   open,
@@ -203,11 +221,12 @@ export function UploadDocumentModal({
 
     if (!validateMetadata()) return;
 
-    const metadataToSend: Record<string, string> = {};
+    let metadataToSend: Record<string, string> = {};
     for (const field of metadataFields) {
       const value = (metadataValues[field.key] ?? "").trim();
       if (value !== "") metadataToSend[field.key] = value;
     }
+    metadataToSend = applyDocumentMetadataDefaults(activeDocumentType, metadataToSend);
 
     if (!data.file && !data.isPhysicallyAvailable) {
       setError("file", { message: t("uploadDoc.errors.fileRequired") });

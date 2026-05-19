@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { getApiBaseUrl } from "../../lib/api";
-import { openAuthorizedFile } from "../../lib/authorized-files";
 import {
+  downloadAuthorizedFile,
+  openAuthorizedFile,
+  printAuthorizedFile,
+} from "../../lib/authorized-files";
+import {
+  deleteCandidateDocument,
   getCandidateDocuments,
+  getCandidateDocumentDownloadUrl,
   uploadDocument,
   updateCandidateDocument,
+  updateCandidateDocumentMebbisTransfer,
 } from "../../lib/documents-api";
 import { ApiError } from "../../lib/http";
 import { useLanguage, useT } from "../../lib/i18n";
@@ -46,14 +52,44 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function buildDocumentDownloadUrl(candidateId: string, documentId: string): string {
-  const base = getApiBaseUrl().replace(/\/+$/, "");
-  const path = `/api/candidates/${candidateId}/documents/${documentId}/download`;
-  return base.endsWith("/api") ? `${base}${path.slice("/api".length)}` : `${base}${path}`;
-}
-
 const ACCEPT = "image/jpeg,image/png,application/pdf";
 const MAX_BYTES = 10 * 1024 * 1024;
+const PRINTABLE_DOCUMENT_TYPE_KEYS = new Set([
+  "signature_sample",
+  "contract_front",
+  "contract_back",
+  "application_form",
+]);
+const HEALTH_REPORT_META_KEYS = {
+  disability: "disability",
+} as const;
+const HEALTH_REPORT_DEFAULT_METADATA: Record<string, string> = {
+  [HEALTH_REPORT_META_KEYS.disability]: "none",
+};
+
+function isPrintableDocumentType(documentType: DocumentTypeResponse | null): boolean {
+  return documentType ? PRINTABLE_DOCUMENT_TYPE_KEYS.has(documentType.key) : false;
+}
+
+function applyDocumentMetadataDefaults(
+  documentType: DocumentTypeResponse | null,
+  metadata: Record<string, string>
+): Record<string, string> {
+  if (documentType?.key !== "health_report") return metadata;
+
+  return {
+    ...HEALTH_REPORT_DEFAULT_METADATA,
+    ...metadata,
+  };
+}
+
+function hasMissingDocumentMetadataDefaults(
+  documentType: DocumentTypeResponse | null,
+  metadata: Record<string, string>
+): boolean {
+  if (documentType?.key !== "health_report") return false;
+  return !metadata[HEALTH_REPORT_META_KEYS.disability];
+}
 
 export function ManageDocumentModal({
   open,
@@ -78,6 +114,10 @@ export function ManageDocumentModal({
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [actionPending, setActionPending] = useState<
+    "mebbis" | "delete" | "download" | "print" | null
+  >(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const {
     formState: { errors },
@@ -98,6 +138,8 @@ export function ManageDocumentModal({
       setReplaceOpen(false);
       setReplacementFile(null);
       setFileError(null);
+      setActionPending(null);
+      setConfirmDelete(false);
       reset(emptyForm());
       return;
     }
@@ -138,16 +180,21 @@ export function ManageDocumentModal({
     }
 
     reset(emptyForm(document.note));
-    const nextMetadata: Record<string, string> = {};
+    let nextMetadata: Record<string, string> = {};
     for (const [key, value] of Object.entries(document.metadata ?? {})) {
       if (value) nextMetadata[key] = value;
     }
+    const resolvedDocumentType =
+      documentTypes.find((item) => item.id === document.documentTypeId) ?? null;
+    nextMetadata = applyDocumentMetadataDefaults(resolvedDocumentType, nextMetadata);
     setMetadataValues(nextMetadata);
     setMetadataErrors({});
     setReplaceOpen(false);
     setReplacementFile(null);
     setFileError(null);
-  }, [document, reset]);
+    setActionPending(null);
+    setConfirmDelete(false);
+  }, [document, documentTypes, reset]);
 
   const activeDocumentType = useMemo(() => {
     const resolvedDocumentTypeId = document?.documentTypeId ?? documentTypeId;
@@ -155,6 +202,16 @@ export function ManageDocumentModal({
   }, [document?.documentTypeId, documentTypeId, documentTypes]);
 
   const metadataFields: DocumentMetadataField[] = activeDocumentType?.metadataFields ?? [];
+  const fileUrl =
+    candidateId && document?.hasFile
+      ? getCandidateDocumentDownloadUrl(candidateId, document.id)
+      : null;
+  const inlineFileUrl =
+    candidateId && document?.hasFile
+      ? getCandidateDocumentDownloadUrl(candidateId, document.id, { inline: true })
+      : null;
+  const isMebbisTransferred = document?.isMebbisTransferred ?? false;
+  const busy = submitting || actionPending !== null;
 
   const setMetadataValue = (key: string, value: string) => {
     setMetadataValues((current) => ({ ...current, [key]: value }));
@@ -201,11 +258,12 @@ export function ManageDocumentModal({
       return;
     }
 
-    const metadataToSend: Record<string, string> = {};
+    let metadataToSend: Record<string, string> = {};
     for (const field of metadataFields) {
       const value = (metadataValues[field.key] ?? "").trim();
       if (value !== "") metadataToSend[field.key] = value;
     }
+    metadataToSend = applyDocumentMetadataDefaults(activeDocumentType, metadataToSend);
 
     setSubmitting(true);
     try {
@@ -257,6 +315,78 @@ export function ManageDocumentModal({
     }
   });
 
+  const handleMebbisToggle = async () => {
+    if (!candidateId || !document || !activeDocumentType || actionPending) return;
+
+    setActionPending("mebbis");
+    try {
+      const existingMetadata: Record<string, string> = {};
+      for (const [key, value] of Object.entries(document.metadata ?? {})) {
+        if (value) existingMetadata[key] = value;
+      }
+      const metadataWithDefaults = applyDocumentMetadataDefaults(
+        activeDocumentType,
+        existingMetadata
+      );
+      if (hasMissingDocumentMetadataDefaults(activeDocumentType, existingMetadata)) {
+        await updateCandidateDocument(candidateId, document.id, {
+          note: document.note ?? null,
+          metadata: metadataWithDefaults,
+        });
+      }
+      await updateCandidateDocumentMebbisTransfer(
+        candidateId,
+        activeDocumentType.id,
+        !isMebbisTransferred
+      );
+      onSaved();
+    } catch {
+      showToast(t("documents.manage.mebbisFailed"), "error");
+    } finally {
+      setActionPending(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!candidateId || !document || actionPending) return;
+
+    setActionPending("delete");
+    try {
+      await deleteCandidateDocument(candidateId, document.id);
+      onSaved();
+    } catch {
+      showToast(t("documents.manage.deleteFailed"), "error");
+    } finally {
+      setActionPending(null);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!fileUrl || !document || actionPending) return;
+
+    setActionPending("download");
+    try {
+      await downloadAuthorizedFile(fileUrl, document.originalFileName);
+    } catch {
+      showToast(t("documents.manage.downloadFailed"), "error");
+    } finally {
+      setActionPending(null);
+    }
+  };
+
+  const handlePrint = async () => {
+    if (!inlineFileUrl || !activeDocumentType || actionPending) return;
+
+    setActionPending("print");
+    try {
+      await printAuthorizedFile(inlineFileUrl, activeDocumentType.name);
+    } catch {
+      showToast(t("documents.manage.printFailed"), "error");
+    } finally {
+      setActionPending(null);
+    }
+  };
+
   if (!open) return null;
 
   const footer =
@@ -264,7 +394,7 @@ export function ManageDocumentModal({
       <>
         <button
           className="btn btn-secondary"
-          disabled={submitting}
+          disabled={busy}
           onClick={onClose}
           type="button"
         >
@@ -272,7 +402,7 @@ export function ManageDocumentModal({
         </button>
         <button
           className="btn btn-primary"
-          disabled={submitting}
+          disabled={busy}
           onClick={submit}
           type="button"
         >
@@ -348,15 +478,39 @@ export function ManageDocumentModal({
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={() => {
-                      void openAuthorizedFile(buildDocumentDownloadUrl(candidateId!, document.id));
+                      void openAuthorizedFile(
+                        getCandidateDocumentDownloadUrl(candidateId!, document.id)
+                      );
                     }}
+                    disabled={busy}
                     type="button"
                   >
                     {t("documents.manage.open")}
                   </button>
                 )}
+                {fileUrl && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    onClick={handleDownload}
+                    type="button"
+                  >
+                    {t("documents.manage.download")}
+                  </button>
+                )}
+                {inlineFileUrl && isPrintableDocumentType(activeDocumentType) && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    onClick={handlePrint}
+                    type="button"
+                  >
+                    {t("documents.manage.print")}
+                  </button>
+                )}
                 <button
                   className="btn btn-secondary btn-sm"
+                  disabled={busy}
                   onClick={toggleReplaceOpen}
                   type="button"
                 >
@@ -364,6 +518,53 @@ export function ManageDocumentModal({
                     ? t("documents.manage.cancelReplace")
                     : t("documents.manage.replace")}
                 </button>
+                <button
+                  className={`btn btn-sm ${
+                    isMebbisTransferred ? "btn-secondary" : "btn-primary"
+                  }`}
+                  disabled={busy}
+                  onClick={handleMebbisToggle}
+                  type="button"
+                >
+                  {actionPending === "mebbis"
+                    ? t("documents.manage.mebbisSaving")
+                    : isMebbisTransferred
+                    ? t("documents.manage.mebbisUnset")
+                    : t("documents.manage.mebbisSet")}
+                </button>
+                {confirmDelete ? (
+                  <>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      disabled={busy}
+                      onClick={handleDelete}
+                      type="button"
+                    >
+                      {actionPending === "delete"
+                        ? t("documents.manage.deleting")
+                        : t("common.yes")}
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={busy}
+                      onClick={() => setConfirmDelete(false)}
+                      type="button"
+                    >
+                      {t("common.cancel")}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(true)}
+                    type="button"
+                  >
+                    {document.hasFile
+                      ? t("documents.manage.delete")
+                      : t("documents.manage.markMissing")}
+                  </button>
+                )}
               </div>
             </div>
           </div>

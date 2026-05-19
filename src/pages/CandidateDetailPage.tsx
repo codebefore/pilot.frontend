@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
+import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
 import { GridIcon, ListIcon } from "../components/icons";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { EditableRow } from "../components/ui/EditableRow";
@@ -66,7 +67,6 @@ import { ApiError } from "../lib/http";
 import {
   createAuthorizedObjectUrl,
   downloadAuthorizedFile,
-  openAuthorizedFile,
   printAuthorizedFile,
 } from "../lib/authorized-files";
 import {
@@ -135,8 +135,23 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "payments", label: "Muhasebe" },
 ];
 
-const HERO_DOCUMENT_KEYS = ["identity_card", "existing_license_copy", "application_form"] as const;
+const HERO_DOCUMENT_KEYS = ["application_form", "identity_card", "existing_license_copy"] as const;
 type HeroDocumentKey = (typeof HERO_DOCUMENT_KEYS)[number];
+
+function hasExistingLicenseValue(value: string | null | undefined): boolean {
+  const normalized = value?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  return normalized !== "" && normalized !== "-" && normalized !== "yok" && normalized !== "none" && normalized !== "exempt";
+}
+
+function isExistingLicenseCopyType(type: DocumentTypeResponse): boolean {
+  const normalizedName = type.name.trim().toLocaleLowerCase("tr-TR");
+  return (
+    type.key === "existing_license_copy" ||
+    (normalizedName.includes("mevcut") &&
+      normalizedName.includes("ehliyet") &&
+      normalizedName.includes("fotokopi"))
+  );
+}
 
 function notifyMebbisJobQueued(jobId: string, jobType: string): void {
   const delays = [0, 250, 1000, 2500];
@@ -184,6 +199,7 @@ function buildCandidateUpdatePayload(
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
     certificateProgramId: candidate.certificateProgramId ?? null,
+    hasExistingLicense: candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType),
     existingLicenseType: candidate.existingLicenseType,
     existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
     existingLicenseNumber: candidate.existingLicenseNumber,
@@ -641,6 +657,7 @@ export function CandidateDetailPage() {
             )}
             {activeTab === "documents" && (
               <DocumentsTab
+                candidate={candidate}
                 candidateId={candidate.id}
                 documents={documents}
                 documentTypes={documentTypes}
@@ -722,7 +739,9 @@ function CandidateHero({
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
-  const existingLicense = candidate.existingLicenseType
+  const candidateHasExistingLicense =
+    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const existingLicense = candidateHasExistingLicense && candidate.existingLicenseType
     ? existingLicenseTypeLabel(candidate.existingLicenseType)
     : null;
   const licenseTransitionLabel = existingLicense
@@ -874,10 +893,12 @@ function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
   // MebExamResult üzerinden değerlendirilir, hero'da ayrı rozet yok.
   if (candidate.isTheoryExempt) {
     badges.push({ key: "exempt", label: "Muaf", tone: "info" });
-  } else if (candidate.existingLicenseType) {
+  } else if (candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)) {
     badges.push({
       key: "existing-license",
-      label: `Mevcut Ehliyet (${candidate.existingLicenseType})`,
+      label: candidate.existingLicenseType
+        ? `Mevcut Ehliyet (${candidate.existingLicenseType})`
+        : "Mevcut Ehliyet",
       tone: "info",
     });
   }
@@ -1028,7 +1049,34 @@ function GeneralTab({ candidate }: {
         <div className="candidate-general-grid-col">
           <CandidateTimeline candidate={candidate} />
         </div>
-        <div className="candidate-general-grid-col" />
+        <div className="candidate-general-grid-col">
+          <CandidateNotesPanel candidateId={candidate.id} />
+        </div>
+        <div className="candidate-general-grid-col">
+          <section className="instructor-detail-card candidate-whatsapp-card">
+            <div className="candidate-whatsapp-card-head">
+              <div>
+                <h3 className="candidate-detail-section-title">WhatsApp</h3>
+                <p>Mesajlar ve hatırlatmalar yakında burada.</p>
+              </div>
+              <span className="candidate-whatsapp-badge">Coming soon</span>
+            </div>
+            <div className="candidate-whatsapp-preview" aria-hidden="true">
+              <span className="candidate-whatsapp-avatar skeleton" />
+              <div className="candidate-whatsapp-lines">
+                <span className="skeleton candidate-whatsapp-line long" />
+                <span className="skeleton candidate-whatsapp-line medium" />
+                <span className="skeleton candidate-whatsapp-line short" />
+              </div>
+            </div>
+            <div className="candidate-whatsapp-preview is-reply" aria-hidden="true">
+              <div className="candidate-whatsapp-lines">
+                <span className="skeleton candidate-whatsapp-line medium" />
+                <span className="skeleton candidate-whatsapp-line short" />
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -1900,6 +1948,7 @@ function LicenseInfoTab({
     }
   };
   const { options: configuredExistingLicenseTypeOptions } = useExistingLicenseTypeOptions();
+  const hasLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
   const [licenseType, setLicenseType] = useState(
     encodeExistingLicenseSelection(
       candidate.existingLicenseType,
@@ -1908,17 +1957,17 @@ function LicenseInfoTab({
   );
   const [licenseNumber, setLicenseNumber] = useState(candidate.existingLicenseNumber ?? "");
   const [issuedAt, setIssuedAt] = useState(
-    candidate.existingLicenseIssuedAt ?? (candidate.existingLicenseType ? "" : todayIsoDate())
+    candidate.existingLicenseIssuedAt ?? (hasLicense ? "" : todayIsoDate())
   );
   const [issuedProvince, setIssuedProvince] = useState(
     candidate.existingLicenseIssuedProvince ?? ""
   );
   const [licenseFieldsOpen, setLicenseFieldsOpen] = useState(
-    !!candidate.existingLicenseType
+    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)
   );
   const [existingLicenseOptions, setExistingLicenseOptions] = useState<SelectOption[]>([]);
   const [existingLicenseOptionsLoading, setExistingLicenseOptionsLoading] = useState(false);
-  const hasLicense = !!candidate.existingLicenseType;
+  const [existingLicenseToggleSaving, setExistingLicenseToggleSaving] = useState(false);
 
   useEffect(() => {
     setLicenseType(
@@ -1929,10 +1978,10 @@ function LicenseInfoTab({
     );
     setLicenseNumber(candidate.existingLicenseNumber ?? "");
     setIssuedAt(
-      candidate.existingLicenseIssuedAt ?? (candidate.existingLicenseType ? "" : todayIsoDate())
+      candidate.existingLicenseIssuedAt ?? (hasLicense ? "" : todayIsoDate())
     );
     setIssuedProvince(candidate.existingLicenseIssuedProvince ?? "");
-    setLicenseFieldsOpen(!!candidate.existingLicenseType);
+    setLicenseFieldsOpen(candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType));
   }, [candidate]);
 
   useEffect(() => {
@@ -2032,10 +2081,11 @@ function LicenseInfoTab({
   };
 
   const [exemptSaving, setExemptSaving] = useState(false);
-  const isTheoryExempt = candidate.isTheoryExempt ?? false;
-  const hasExistingLicense = !!candidate.existingLicenseType;
+  const hasExistingLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const hasExistingLicenseDraft = hasExistingLicense || licenseFieldsOpen;
+  const isTheoryExempt = hasExistingLicenseDraft || (candidate.isTheoryExempt ?? false);
   const toggleTheoryExempt = async () => {
-    if (hasExistingLicense) return;
+    if (hasExistingLicenseDraft) return;
     const next = !isTheoryExempt;
     setExemptSaving(true);
     try {
@@ -2062,11 +2112,14 @@ function LicenseInfoTab({
       existingLicenseType: nextType,
       existingLicensePre2016: nextPre2016,
     } = decodeExistingLicenseSelection(nextTypeRaw ?? "");
+    const nextHasExistingLicense =
+      patch.hasExistingLicense ?? candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
 
     // Explicitly picking "— Belge Yok —" from the type dropdown clears every
     // field; partial saves of other fields (without a type yet) keep going.
-    if (patch.existingLicenseType !== undefined && !nextType) {
+    if (patch.hasExistingLicense === false || (patch.existingLicenseType !== undefined && !nextType)) {
       return {
+        hasExistingLicense: false,
         existingLicenseType: null,
         existingLicenseIssuedAt: null,
         existingLicenseNumber: null,
@@ -2090,6 +2143,7 @@ function LicenseInfoTab({
         : candidate.existingLicenseIssuedProvince;
 
     return {
+      hasExistingLicense: nextHasExistingLicense || !!nextType,
       existingLicenseType: nextType,
       existingLicenseIssuedAt: nextIssuedAt,
       existingLicenseNumber: nextNumber,
@@ -2116,22 +2170,67 @@ function LicenseInfoTab({
     }
   };
 
-  const handleToggleExistingLicense = (checked: boolean) => {
+  const resetExistingLicenseDraft = () => {
+    setLicenseType("");
+    setLicenseNumber("");
+    setIssuedAt(todayIsoDate());
+    setIssuedProvince("");
+  };
+
+  const handleToggleExistingLicense = async (checked: boolean) => {
+    if (existingLicenseToggleSaving) return;
     if (checked) {
       if (!issuedAt) {
         setIssuedAt(todayIsoDate());
       }
       setLicenseFieldsOpen(true);
+      setExistingLicenseToggleSaving(true);
+      try {
+        await saveExistingLicenseField(
+          { hasExistingLicense: true },
+          "Mevcut sürücü belgesi var olarak işaretlendi"
+        );
+      } catch {
+        setLicenseFieldsOpen(false);
+      } finally {
+        setExistingLicenseToggleSaving(false);
+      }
       return;
     }
 
     setLicenseFieldsOpen(false);
+    resetExistingLicenseDraft();
 
-    if (!hasLicense) {
-      setLicenseType("");
-      setLicenseNumber("");
-      setIssuedAt(todayIsoDate());
-      setIssuedProvince("");
+    if (hasLicense) {
+      setExistingLicenseToggleSaving(true);
+      try {
+        await saveExistingLicenseField(
+          {
+            existingLicenseType: null,
+            existingLicenseIssuedAt: null,
+            existingLicenseNumber: null,
+            existingLicenseIssuedProvince: null,
+            existingLicensePre2016: false,
+            hasExistingLicense: false,
+          },
+          "Mevcut sürücü belgesi kaldırıldı"
+        );
+      } catch {
+        setLicenseFieldsOpen(true);
+        setLicenseType(
+          encodeExistingLicenseSelection(
+            candidate.existingLicenseType,
+            candidate.existingLicensePre2016
+          )
+        );
+        setLicenseNumber(candidate.existingLicenseNumber ?? "");
+        setIssuedAt(
+          candidate.existingLicenseIssuedAt ?? (hasLicense ? "" : todayIsoDate())
+        );
+        setIssuedProvince(candidate.existingLicenseIssuedProvince ?? "");
+      } finally {
+        setExistingLicenseToggleSaving(false);
+      }
     }
   };
 
@@ -2168,13 +2267,13 @@ function LicenseInfoTab({
           </span>
           <label
             className="switch-toggle switch-toggle-knob-right"
-            title={hasExistingLicense
+            title={hasExistingLicenseDraft
               ? "Mevcut ehliyet sahibi olduğu için otomatik muaf."
               : "Aday teori sınavından muaf"}
           >
             <input
               checked={isTheoryExempt}
-              disabled={exemptSaving || hasExistingLicense}
+              disabled={exemptSaving || hasExistingLicenseDraft}
               onChange={toggleTheoryExempt}
               type="checkbox"
             />
@@ -2190,6 +2289,7 @@ function LicenseInfoTab({
           <label className="switch-toggle switch-toggle-knob-right">
             <input
               checked={licenseFieldsOpen}
+              disabled={existingLicenseToggleSaving}
               onChange={(event) => handleToggleExistingLicense(event.target.checked)}
               type="checkbox"
             />
@@ -4646,7 +4746,7 @@ function CandidateExamAttemptsSection({
   const { showToast } = useToast();
   const [exemptSaving, setExemptSaving] = useState(false);
   const isTheoryExempt = candidate.isTheoryExempt ?? false;
-  const hasExistingLicense = !!candidate.existingLicenseType;
+  const hasExistingLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
   const toggleTheoryExempt = async () => {
     if (hasExistingLicense) return;
     const next = !isTheoryExempt;
@@ -5685,6 +5785,12 @@ function formatFileSize(bytes: number | null): string | null {
 
 type CandidateDocumentStatus = "uploaded" | "physical" | "missing";
 type CandidateDocumentFilter = "all" | "missing" | "available" | "mebbis";
+type CandidateDocumentChecklistStatus = "done" | "missing" | "not_applicable";
+type CandidateDocumentChecklistItem = {
+  label: string;
+  status: CandidateDocumentChecklistStatus;
+  value?: string;
+};
 const PHOTO_DOCUMENT_TYPE_KEYS = ["biometric_photo", "webcam_photo"] as const;
 const CONTRACT_DOCUMENT_TYPE_KEYS = ["contract_front", "contract_back"] as const;
 const CONTRACT_GROUP_DOCUMENT_TYPE_KEYS = [
@@ -5783,6 +5889,138 @@ function getCandidateDocumentStatus(upload: DocumentResponse | null): CandidateD
   return upload.isPhysicallyAvailable ? "physical" : "missing";
 }
 
+function isDocumentAvailableForChecklist(upload: DocumentResponse | null | undefined): boolean {
+  return upload !== null && upload !== undefined && (upload.hasFile || upload.isPhysicallyAvailable);
+}
+
+function getDocumentMetadataValue(
+  uploadsByKey: Map<string, DocumentResponse>,
+  documentKey: string,
+  metadataKey: string
+): string | null {
+  const value = uploadsByKey.get(documentKey)?.metadata?.[metadataKey];
+  return value?.trim() || null;
+}
+
+function getDocumentMetadataDisplayValue(
+  documentTypes: DocumentTypeResponse[],
+  documentKey: string,
+  metadataKey: string,
+  value: string | null
+): string | null {
+  if (!value) return null;
+  const field = documentTypes
+    .find((type) => type.key === documentKey)
+    ?.metadataFields.find((item) => item.key === metadataKey);
+  if (field?.inputType === "date") return formatDateTR(value);
+  return field?.options.find((option) => option.value === value)?.label ?? value;
+}
+
+function buildCandidateDocumentChecklistItems({
+  candidate,
+  documentTypes,
+  uploadsByKey,
+}: {
+  candidate: CandidateResponse;
+  documentTypes: DocumentTypeResponse[];
+  uploadsByKey: Map<string, DocumentResponse>;
+}): CandidateDocumentChecklistItem[] {
+  const hasExistingLicense =
+    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const valueItem = (label: string, value: string | null | undefined): CandidateDocumentChecklistItem => ({
+    label,
+    status: value?.trim() ? "done" : "missing",
+    value: value?.trim() || undefined,
+  });
+  const documentItem = (
+    label: string,
+    key: string,
+    options?: { notApplicable?: boolean; value?: string | null }
+  ): CandidateDocumentChecklistItem => {
+    if (options?.notApplicable) {
+      return { label, status: "not_applicable", value: options.value ?? "Gerekli değil" };
+    }
+    const upload = uploadsByKey.get(key);
+    return {
+      label,
+      status: isDocumentAvailableForChecklist(upload) ? "done" : "missing",
+      value: isDocumentAvailableForChecklist(upload) ? "Var" : undefined,
+    };
+  };
+  const metadataItem = (
+    label: string,
+    documentKey: string,
+    metadataKey: string
+  ): CandidateDocumentChecklistItem => {
+    const rawValue = getDocumentMetadataValue(uploadsByKey, documentKey, metadataKey);
+    return {
+      label,
+      status: rawValue ? "done" : "missing",
+      value: getDocumentMetadataDisplayValue(documentTypes, documentKey, metadataKey, rawValue) ?? undefined,
+    };
+  };
+
+  const contractFrontAvailable = isDocumentAvailableForChecklist(uploadsByKey.get("contract_front"));
+  const contractBackAvailable = isDocumentAvailableForChecklist(uploadsByKey.get("contract_back"));
+
+  return [
+    valueItem("T.C. Kimlik No", candidate.nationalId),
+    valueItem("T.C. Kimlik Seri No", candidate.identitySerialNumber),
+    valueItem("Doğum Tarihi", candidate.birthDate ? formatDateTR(candidate.birthDate) : null),
+    valueItem("Baba Adı", candidate.fatherName),
+    documentItem("Kimlik Fotokopisi", "identity_card"),
+    valueItem("İstenilen Ehliyet Tipi", candidate.licenseClass),
+    hasExistingLicense
+      ? valueItem(
+          "Mevcut Ehliyet Tipi",
+          candidate.existingLicenseType
+            ? existingLicenseTypeLabel(candidate.existingLicenseType)
+            : null
+        )
+      : { label: "Mevcut Ehliyet Tipi", status: "not_applicable", value: "Mevcut ehliyet yok" },
+    hasExistingLicense
+      ? valueItem("Mevcut Ehliyet Numarası", candidate.existingLicenseNumber)
+      : { label: "Mevcut Ehliyet Numarası", status: "not_applicable", value: "Mevcut ehliyet yok" },
+    documentItem("Mevcut Ehliyet Fotokopisi", "existing_license_copy", {
+      notApplicable: !hasExistingLicense,
+      value: "Mevcut ehliyet yok",
+    }),
+    {
+      label: "Sözleşme Ücreti",
+      status: candidate.totalFee > 0 ? "done" : "missing",
+      value: candidate.totalFee > 0 ? formatCurrencyTRY(candidate.totalFee) : undefined,
+    },
+    {
+      label: "Sözleşme",
+      status: contractFrontAvailable && contractBackAvailable ? "done" : "missing",
+      value:
+        contractFrontAvailable && contractBackAvailable
+          ? "Ön ve arka yüz var"
+          : contractFrontAvailable || contractBackAvailable
+            ? "Eksik yüz var"
+            : undefined,
+    },
+    metadataItem("Sözleşme Tarihi", "contract_back", "contract_date"),
+    documentItem("İmza Örneği", "signature_sample"),
+    documentItem("Başvuru Formu", "application_form"),
+    documentItem("Biyometrik Fotoğraf", "biometric_photo"),
+    documentItem("Webcam Fotoğraf", "webcam_photo"),
+    documentItem("Öğrenim Belgesi", "education_certificate"),
+    metadataItem("Öğrenim Belgesi Veren Kurum", "education_certificate", "issuing_institution"),
+    metadataItem("Öğrenim Belgesi Belge Türü", "education_certificate", "certificate_type"),
+    metadataItem("Öğrenim Belgesi Belge Tarihi", "education_certificate", "issued_on"),
+    metadataItem("Öğrenim Belgesi Belge No", "education_certificate", "document_number"),
+    documentItem("Sağlık Raporu", "health_report"),
+    metadataItem("Sağlık Raporu Veren Kurum", "health_report", "issuing_institution"),
+    metadataItem("Sağlık Raporu Belge Tarihi", "health_report", "issued_on"),
+    metadataItem("Sağlık Raporu Belge No", "health_report", "document_number"),
+    documentItem("Adli Sicil Kaydı", "criminal_record"),
+    metadataItem("Adli Sicil Kaydı Veren Kurum", "criminal_record", "issuing_institution"),
+    metadataItem("Adli Sicil Kaydı Belge Tarihi", "criminal_record", "issued_on"),
+    metadataItem("Adli Sicil Kaydı Belge No", "criminal_record", "document_number"),
+  ];
+}
+
 function buildDocumentMetadataValues(
   fields: ReadonlyArray<DocumentMetadataField>,
   upload: DocumentResponse | null
@@ -5795,6 +6033,7 @@ function buildDocumentMetadataValues(
 }
 
 function DocumentsTab({
+  candidate,
   candidateId,
   documents,
   documentTypes,
@@ -5803,6 +6042,7 @@ function DocumentsTab({
   onRefresh,
   onDeleted,
 }: {
+  candidate: CandidateResponse;
   candidateId: string;
   documents: DocumentResponse[] | null;
   documentTypes: DocumentTypeResponse[] | null;
@@ -5817,6 +6057,7 @@ function DocumentsTab({
   const [candidateSyncQueuing, setCandidateSyncQueuing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [checklistOpen, setChecklistOpen] = useState(false);
 
   const handleDeleteCandidate = async () => {
     if (deleting) return;
@@ -5852,6 +6093,10 @@ function DocumentsTab({
   }
 
   const sortedTypes = [...documentTypes].sort((a, b) => a.sortOrder - b.sortOrder);
+  const hasExistingLicenseInfo =
+    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const isNotApplicable = (type: DocumentTypeResponse) =>
+    isExistingLicenseCopyType(type) && !hasExistingLicenseInfo;
   const heroTypes = HERO_DOCUMENT_KEYS
     .map((key) => sortedTypes.find((t) => t.key === key))
     .filter((t): t is DocumentTypeResponse => t !== undefined);
@@ -5880,6 +6125,7 @@ function DocumentsTab({
   );
   const statusCounts = sortedTypes.reduce(
     (acc, type) => {
+      if (isNotApplicable(type)) return acc;
       const upload = uploadsByKey.get(type.key) ?? null;
       const status = getCandidateDocumentStatus(upload);
       if (status === "missing") {
@@ -5901,6 +6147,7 @@ function DocumentsTab({
     { key: "mebbis", label: "Mebbis", count: statusCounts.mebbis },
   ];
   const matchesFilter = (type: DocumentTypeResponse) => {
+    if (isNotApplicable(type)) return statusFilter === "all";
     if (statusFilter === "all") return true;
     const upload = uploadsByKey.get(type.key) ?? null;
     const status = getCandidateDocumentStatus(upload);
@@ -5912,9 +6159,17 @@ function DocumentsTab({
   const filteredRequiredTypes = requiredTypes.filter(matchesFilter);
   const filteredOptionalTypes = optionalTypes.filter(matchesFilter);
   const pendingMebbisTypes = sortedTypes.filter((type) => {
+    if (isNotApplicable(type)) return false;
     const upload = uploadsByKey.get(type.key) ?? null;
     return getCandidateDocumentStatus(upload) !== "missing" && upload?.isMebbisTransferred !== true;
   });
+  const documentChecklistItems = buildCandidateDocumentChecklistItems({
+    candidate,
+    documentTypes,
+    uploadsByKey,
+  });
+  const completedChecklistCount = documentChecklistItems.filter((item) => item.status === "done").length;
+  const actionableChecklistCount = documentChecklistItems.filter((item) => item.status !== "not_applicable").length;
 
   const handleBulkMebbisTransfer = async () => {
     if (bulkMebbisLoading || pendingMebbisTypes.length === 0) return;
@@ -5958,28 +6213,39 @@ function DocumentsTab({
 
   return (
     <div className="candidate-detail-tab-content">
-      <section className="instructor-detail-card candidate-detail-doc-actions-card">
-        <div className="candidate-detail-doc-actions-grid">
-          <div className="candidate-detail-doc-actions-column">
-            <h3 className="candidate-detail-section-title">Aday Kontrol</h3>
-            <ul className="candidate-detail-doc-checklist">
-              {[
-                "Tüm zorunlu evraklar yüklü",
-                "Biyometrik ve webcam fotoğrafları tamam",
-                "Ehliyet sınıfı ve mevcut belge bilgisi girildi",
-                "Aktif gruba atandı",
-                "Kayıt ücreti tahsil edildi",
-              ].map((item) => (
-                <li key={item} className="candidate-detail-doc-checklist-item">
-                  <span className="candidate-detail-doc-checklist-mark" aria-hidden="true">
-                    ✓
-                  </span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
+      <div className="candidate-detail-doc-top-grid">
+        <section className="instructor-detail-card candidate-detail-doc-overview">
+          <div className="candidate-detail-doc-overview-head">
+            <div>
+              <h3 className="candidate-detail-section-title">Evrak Durumu</h3>
+            </div>
           </div>
+          <div className="candidate-detail-doc-filters" role="tablist" aria-label="Evrak durum filtresi">
+            {filterOptions.map((option) => (
+              <button
+                aria-selected={statusFilter === option.key}
+                className={`candidate-detail-doc-filter${statusFilter === option.key ? " active" : ""}`}
+                key={option.key}
+                onClick={() => setStatusFilter(option.key)}
+                role="tab"
+                type="button"
+              >
+                <span>{option.label}</span>
+                <strong>{option.count}</strong>
+              </button>
+            ))}
+            <button
+              className="candidate-detail-doc-filter candidate-detail-doc-checklist-button"
+              onClick={() => setChecklistOpen(true)}
+              type="button"
+            >
+              <span>Checklist</span>
+              <strong>{completedChecklistCount}/{actionableChecklistCount}</strong>
+            </button>
+          </div>
+        </section>
 
+        <section className="instructor-detail-card candidate-detail-doc-actions-card">
           <div className="candidate-detail-doc-actions-column">
             <h3 className="candidate-detail-section-title">İşlemler</h3>
             {confirmDelete ? (
@@ -6031,119 +6297,86 @@ function DocumentsTab({
                   >
                     Döneme Kaydet ve Aktar
                   </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => setConfirmDelete(true)}
+                    type="button"
+                  >
+                    Aday Sil
+                  </button>
                 </div>
-                <button
-                  className="btn btn-danger btn-sm candidate-detail-doc-actions-delete"
-                  onClick={() => setConfirmDelete(true)}
-                  type="button"
-                >
-                  Aday Sil
-                </button>
               </>
             )}
           </div>
-        </div>
-      </section>
-
-      <section className="instructor-detail-card candidate-detail-doc-overview">
-        <div className="candidate-detail-doc-overview-head">
-          <div>
-            <h3 className="candidate-detail-section-title">Evrak Durumu</h3>
-            <p className="candidate-detail-doc-overview-note">
-              {pendingMebbisTypes.length > 0
-                ? `${pendingMebbisTypes.length} evrak Mebbis işareti bekliyor.`
-                : "Mebbis işareti bekleyen evrak yok."}
-            </p>
-          </div>
-        </div>
-        <div className="candidate-detail-doc-filters" role="tablist" aria-label="Evrak durum filtresi">
-          {filterOptions.map((option) => (
-            <button
-              aria-selected={statusFilter === option.key}
-              className={`candidate-detail-doc-filter${statusFilter === option.key ? " active" : ""}`}
-              key={option.key}
-              onClick={() => setStatusFilter(option.key)}
-              role="tab"
-              type="button"
-            >
-              <span>{option.label}</span>
-              <strong>{option.count}</strong>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {contractTypes.length > 0 && (
-        <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">Sözleşme</h3>
-          <ul className="candidate-detail-doc-list candidate-detail-doc-contract-grid">
-            {contractTypes.filter(matchesFilter).map((type) => (
-              <DocRow
-                candidateId={candidateId}
-                key={type.id}
-                onRefresh={onRefresh}
-                type={type}
-                upload={uploadsByKey.get(type.key) ?? null}
-              />
-            ))}
-          </ul>
         </section>
-      )}
+      </div>
+
+      <CandidateDocumentChecklistModal
+        items={documentChecklistItems}
+        onClose={() => setChecklistOpen(false)}
+        open={checklistOpen}
+      />
 
       {heroTypes.length > 0 && (
-        <section className="instructor-detail-card candidate-detail-doc-hero-card">
-          <h3 className="candidate-detail-section-title">Zorunlu Evraklar</h3>
-          <div className="candidate-detail-doc-hero-grid">
-            {heroTypes.map((type) => (
-              <HeroDocumentCard
-                candidateId={candidateId}
-                key={type.id}
-                onRefresh={onRefresh}
-                type={type}
-                upload={uploadsByKey.get(type.key) ?? null}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="candidate-detail-doc-hero-grid">
+          {heroTypes.map((type) => (
+            <HeroDocumentCard
+              candidateId={candidateId}
+              key={type.id}
+              notApplicable={isNotApplicable(type)}
+              onRefresh={onRefresh}
+              type={type}
+              upload={uploadsByKey.get(type.key) ?? null}
+            />
+          ))}
+        </div>
       )}
 
       {photoTypes.length > 0 && (
-        <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">Fotoğraflar</h3>
-          <ul className="candidate-detail-doc-list candidate-detail-doc-photo-grid">
-            {photoTypes.filter(matchesFilter).map((type) => (
-              <DocRow
-                candidateId={candidateId}
-                key={type.id}
-                onRefresh={onRefresh}
-                type={type}
-                upload={uploadsByKey.get(type.key) ?? null}
-              />
-            ))}
-          </ul>
-        </section>
+        <ul className="candidate-detail-doc-list candidate-detail-doc-photo-grid">
+          {photoTypes.filter(matchesFilter).map((type) => (
+            <DocRow
+              candidateId={candidateId}
+              key={type.id}
+              onRefresh={onRefresh}
+              type={type}
+              upload={uploadsByKey.get(type.key) ?? null}
+            />
+          ))}
+        </ul>
       )}
 
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Diğer Zorunlu Evraklar</h3>
-        {requiredTypes.length === 0 ? (
-          <div className="instructor-detail-empty">Tanımlı diğer zorunlu evrak yok.</div>
-        ) : filteredRequiredTypes.length === 0 ? (
-          <div className="instructor-detail-empty">Bu filtrede zorunlu evrak yok.</div>
-        ) : (
-          <ul className="candidate-detail-doc-list">
-            {filteredRequiredTypes.map((type) => (
-              <DocRow
-                candidateId={candidateId}
-                key={type.id}
-                onRefresh={onRefresh}
-                type={type}
-                upload={uploadsByKey.get(type.key) ?? null}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+      {contractTypes.length > 0 && (
+        <ul className="candidate-detail-doc-list candidate-detail-doc-contract-grid">
+          {contractTypes.filter(matchesFilter).map((type) => (
+            <DocRow
+              candidateId={candidateId}
+              key={type.id}
+              onRefresh={onRefresh}
+              type={type}
+              upload={uploadsByKey.get(type.key) ?? null}
+            />
+          ))}
+        </ul>
+      )}
+
+      {requiredTypes.length === 0 ? (
+        <div className="instructor-detail-empty">Tanımlı zorunlu evrak yok.</div>
+      ) : filteredRequiredTypes.length === 0 ? (
+        <div className="instructor-detail-empty">Bu filtrede zorunlu evrak yok.</div>
+      ) : (
+        <ul className="candidate-detail-doc-list">
+          {filteredRequiredTypes.map((type) => (
+            <DocRow
+              candidateId={candidateId}
+              key={type.id}
+              onRefresh={onRefresh}
+              type={type}
+              upload={uploadsByKey.get(type.key) ?? null}
+            />
+          ))}
+        </ul>
+      )}
 
       {optionalTypes.length > 0 && (
         <section className="instructor-detail-card">
@@ -6169,22 +6402,80 @@ function DocumentsTab({
   );
 }
 
+function CandidateDocumentChecklistModal({
+  items,
+  open,
+  onClose,
+}: {
+  items: CandidateDocumentChecklistItem[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const completedCount = items.filter((item) => item.status === "done").length;
+  const missingCount = items.filter((item) => item.status === "missing").length;
+  const notApplicableCount = items.filter((item) => item.status === "not_applicable").length;
+
+  return (
+    <Modal
+      footer={
+        <button className="btn btn-secondary" onClick={onClose} type="button">
+          Kapat
+        </button>
+      }
+      onClose={onClose}
+      open={open}
+      title="Evraklar Checklist"
+    >
+      <div className="candidate-detail-doc-checklist-modal">
+        <div className="candidate-detail-doc-checklist-stats" aria-label="Checklist özeti">
+          <span className="candidate-detail-doc-checklist-stat done">{completedCount} tamam</span>
+          <span className="candidate-detail-doc-checklist-stat missing">{missingCount} eksik</span>
+          {notApplicableCount > 0 ? (
+            <span className="candidate-detail-doc-checklist-stat not-applicable">
+              {notApplicableCount} gerekli değil
+            </span>
+          ) : null}
+        </div>
+        <ul className="candidate-detail-doc-checklist candidate-detail-doc-checklist--modal">
+          {items.map((item) => (
+            <li
+              className={`candidate-detail-doc-checklist-item status-${item.status}`}
+              key={item.label}
+            >
+              <span className="candidate-detail-doc-checklist-mark" aria-hidden="true">
+                {item.status === "done" ? "✓" : item.status === "not_applicable" ? "–" : "!"}
+              </span>
+              <span className="candidate-detail-doc-checklist-text">
+                <strong>{item.label}</strong>
+                {item.value ? <em>{item.value}</em> : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Modal>
+  );
+}
+
 function HeroDocumentCard({
   candidateId,
+  notApplicable = false,
   type,
   upload,
   onRefresh,
 }: {
   candidateId: string;
+  notApplicable?: boolean;
   type: DocumentTypeResponse;
   upload: DocumentResponse | null;
   onRefresh: () => Promise<void>;
 }) {
   const { showToast } = useToast();
-  const isAvailable = upload !== null && (upload.hasFile || upload.isPhysicallyAvailable);
+  const isAvailable = !notApplicable && upload !== null && (upload.hasFile || upload.isPhysicallyAvailable);
   const [saving, setSaving] = useState(false);
 
   const setAvailable = async () => {
+    if (notApplicable) return;
     if (saving || isAvailable) return;
     setSaving(true);
     try {
@@ -6210,6 +6501,7 @@ function HeroDocumentCard({
   };
 
   const setUnavailable = async () => {
+    if (notApplicable) return;
     if (saving || !isAvailable) return;
     if (!upload) return;
     setSaving(true);
@@ -6230,9 +6522,19 @@ function HeroDocumentCard({
   };
 
   const deliveredAt = isAvailable && upload?.uploadedAtUtc ? formatDateTR(upload.uploadedAtUtc) : "—";
+  const itemClass = `candidate-detail-doc-hero-item${notApplicable ? " is-not-applicable" : ""}`;
 
   return (
-    <div className="candidate-detail-doc-hero-item">
+    <div
+      className={itemClass}
+      tabIndex={notApplicable ? 0 : undefined}
+      title={notApplicable ? "Mevcut ehliyet bilgisi ekleyin" : undefined}
+    >
+      {notApplicable ? (
+        <span className="candidate-detail-doc-hero-tooltip" role="tooltip">
+          Mevcut ehliyet bilgisi ekleyin
+        </span>
+      ) : null}
       <div className="candidate-detail-doc-hero-head">
         <div className="candidate-detail-doc-hero-title">{type.name}</div>
         <div className="candidate-detail-doc-hero-date">
@@ -6245,9 +6547,10 @@ function HeroDocumentCard({
         className={`candidate-detail-doc-hero-switch${isAvailable ? " on" : " off"}`}
         role="switch"
         aria-checked={isAvailable}
-        aria-label={`${type.name} durumu`}
-        disabled={saving}
+        aria-label={notApplicable ? `${type.name} gerekli değil` : `${type.name} durumu`}
+        disabled={saving || notApplicable}
         onClick={isAvailable ? setUnavailable : setAvailable}
+        title={notApplicable ? "Mevcut ehliyet bilgisi ekleyin" : undefined}
       >
         <span className="candidate-detail-doc-hero-switch-track-label">
           {isAvailable ? "Var" : "Yok"}
@@ -6260,10 +6563,12 @@ function HeroDocumentCard({
 
 function HealthReportExtraFields({
   candidateId,
+  documentTypeId,
   upload,
   onRefresh,
 }: {
   candidateId: string;
+  documentTypeId: string;
   upload: DocumentResponse | null;
   onRefresh: () => Promise<void>;
 }) {
@@ -6277,11 +6582,10 @@ function HealthReportExtraFields({
   const needsSignLanguageTranslator =
     meta[HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator] === "yes";
 
-  const disabled = !upload;
   const storedDisability = meta[HEALTH_REPORT_META_KEYS.disability];
 
   const persist = async (nextMetadata: Record<string, string>) => {
-    if (saving || !upload) return;
+    if (saving) return;
     setSaving(true);
     try {
       const merged: Record<string, string> = {};
@@ -6292,7 +6596,17 @@ function HealthReportExtraFields({
         if (value === "") delete merged[key];
         else merged[key] = value;
       }
-      await updateCandidateDocument(candidateId, upload.id, { metadata: merged });
+      if (upload) {
+        await updateCandidateDocument(candidateId, upload.id, { metadata: merged });
+      } else {
+        await uploadDocument({
+          candidateId,
+          documentTypeId,
+          file: null,
+          isPhysicallyAvailable: true,
+          metadata: merged,
+        });
+      }
       await onRefresh();
     } catch {
       showToast("Sağlık raporu bilgileri kaydedilemedi", "error");
@@ -6310,18 +6624,13 @@ function HealthReportExtraFields({
 
   return (
     <div className="candidate-detail-doc-health-extras">
-      {disabled ? (
-        <div className="candidate-detail-doc-health-extras-hint">
-          Bilgileri girebilmek için önce "Var" işaretleyip Kurum, Belge Tarihi ve Belge Sayısı'nı kaydedin.
-        </div>
-      ) : null}
       <div className="candidate-detail-doc-health-extras-grid">
         <label className="candidate-detail-doc-metadata-field">
           <span>E-Sınav Yabancı Dil Seçimi</span>
           <CustomSelect
             aria-label="E-Sınav Yabancı Dil Seçimi"
             className="form-select"
-            disabled={saving || disabled}
+            disabled={saving}
             onChange={(event) =>
               persist({ [HEALTH_REPORT_META_KEYS.foreignLanguage]: event.target.value })
             }
@@ -6340,7 +6649,7 @@ function HealthReportExtraFields({
           <CustomSelect
             aria-label="Özür Durumu"
             className="form-select"
-            disabled={saving || disabled}
+            disabled={saving}
             onChange={(event) =>
               persist({ [HEALTH_REPORT_META_KEYS.disability]: event.target.value })
             }
@@ -6360,7 +6669,7 @@ function HealthReportExtraFields({
         <span className="switch-toggle">
           <input
             checked={needsTranslator}
-            disabled={saving || disabled}
+            disabled={saving}
             onChange={(event) =>
               persist({
                 [HEALTH_REPORT_META_KEYS.needsTranslator]: event.target.checked ? "yes" : "no",
@@ -6376,7 +6685,7 @@ function HealthReportExtraFields({
         <span className="switch-toggle">
           <input
             checked={needsSignLanguageTranslator}
-            disabled={saving || disabled}
+            disabled={saving}
             onChange={(event) =>
               persist({
                 [HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator]: event.target.checked
@@ -6648,15 +6957,6 @@ function DocRow({
     }
   };
 
-  const handleOpenFile = async () => {
-    if (!inlineFileUrl) return;
-    try {
-      await openAuthorizedFile(inlineFileUrl);
-    } catch {
-      showToast(`"${type.name}" görüntülenemedi`, "error");
-    }
-  };
-
   const handleDownloadFile = async () => {
     if (!fileUrl) return;
     try {
@@ -6676,9 +6976,8 @@ function DocRow({
   };
 
   const handleSaveMetadata = async (override?: Record<string, string>) => {
-    if (!upload || metadataSaving) return;
+    if (metadataSaving) return;
     const source = override ?? metadataValues;
-    if (!validateMetadata(source)) return;
     const payload: Record<string, string> = {};
     for (const field of metadataFields) {
       const value = (source[field.key] ?? "").trim();
@@ -6686,7 +6985,17 @@ function DocRow({
     }
     setMetadataSaving(true);
     try {
-      await updateCandidateDocument(candidateId, upload.id, { metadata: payload });
+      if (upload) {
+        await updateCandidateDocument(candidateId, upload.id, { metadata: payload });
+      } else {
+        await uploadDocument({
+          candidateId,
+          documentTypeId: type.id,
+          file: null,
+          isPhysicallyAvailable: true,
+          metadata: payload,
+        });
+      }
       await onRefresh();
     } catch {
       showToast(`"${type.name}" bilgileri kaydedilemedi`, "error");
@@ -6753,7 +7062,7 @@ function DocRow({
               offLabel="Mebbis Aktarılmadı"
             />
           </div>
-          {uploadedDate && !isContractType ? (
+          {uploadedDate ? (
             <div className="candidate-detail-doc-delivered-date">
               <span>Teslim Tarihi</span>
               <strong>{uploadedDate}</strong>
@@ -6775,7 +7084,7 @@ function DocRow({
             {fileSize ? <span>{fileSize}</span> : null}
           </div>
         ) : null}
-        {metadataFields.length > 0 || (isContractType && uploadedDate) ? (
+        {metadataFields.length > 0 ? (
           <div className="candidate-detail-doc-metadata-fields">
             {metadataFields.map((field) => {
               const value = metadataValues[field.key] ?? "";
@@ -6839,17 +7148,12 @@ function DocRow({
                 </label>
               );
             })}
-            {isContractType && uploadedDate ? (
-              <div className="candidate-detail-doc-metadata-field is-readonly">
-                <span>Teslim Tarihi</span>
-                <strong>{uploadedDate}</strong>
-              </div>
-            ) : null}
           </div>
         ) : null}
         {type.key === "health_report" ? (
           <HealthReportExtraFields
             candidateId={candidateId}
+            documentTypeId={type.id}
             upload={upload}
             onRefresh={onRefresh}
           />
@@ -6857,27 +7161,14 @@ function DocRow({
         </div>
       </div>
       <div className="candidate-detail-doc-actions">
-        <button
-          className={`btn btn-sm ${isMebbisTransferred ? "btn-secondary" : "btn-primary"}`}
-          disabled={busy || status === "missing"}
-          onClick={() => handleMebbisToggle(!isMebbisTransferred)}
-          type="button"
-        >
-          {markingMebbis
-            ? "Kaydediliyor..."
-            : isMebbisTransferred
-            ? "Mebbis Kaldır"
-            : "Mebbis Aktar"}
-        </button>
-
-        {inlineFileUrl ? (
+        {!isMebbisTransferred ? (
           <button
-            className="btn btn-secondary btn-sm"
-            disabled={busy}
-            onClick={handleOpenFile}
+            className="btn btn-sm btn-primary"
+            disabled={busy || status === "missing"}
+            onClick={() => handleMebbisToggle(true)}
             type="button"
           >
-            Görüntüle
+            {markingMebbis ? "Kaydediliyor..." : "Mebbis Aktar"}
           </button>
         ) : null}
 

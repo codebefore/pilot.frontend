@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
@@ -27,7 +27,6 @@ import {
   assignCandidateGroup,
   createCandidateTag,
   searchCandidateTags,
-  setCandidateInitialPaymentReceived,
 } from "../lib/candidates-api";
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
 import { getGroups } from "../lib/groups-api";
@@ -75,12 +74,6 @@ type ManageTarget = {
   candidateName: string;
   documentTypeId: string;
 } | null;
-
-function shortDocumentTypeLabel(name: string): string {
-  const trimmed = name.trim();
-  const visible = trimmed.slice(0, 8);
-  return trimmed.length > 8 ? `${visible}..` : trimmed;
-}
 
 function documentSummaryToneClass(
   summary: DocumentChecklistEntry["summary"]
@@ -137,7 +130,16 @@ function renderDocumentTerm(entry: DocumentChecklistEntry, lang: "tr" | "en") {
     : "-";
 }
 
+function compactDocumentColumnLabel(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return words[0] ?? name;
+  const secondWordInitial = words[1].match(/[\p{L}\p{N}]/u)?.[0] ?? words[1].charAt(0);
+
+  return `${words[0]} ${secondWordInitial}.`;
+}
+
 export function DocumentsPage() {
+  const navigate = useNavigate();
   const t = useT();
   const { lang } = useLanguage();
   const { showToast } = useToast();
@@ -164,7 +166,6 @@ export function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const lastCompletedFetchKeyRef = useRef<string | null>(null);
-  const [paymentUpdatingIds, setPaymentUpdatingIds] = useState<Set<string>>(new Set());
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>([]);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
@@ -587,35 +588,8 @@ export function DocumentsPage() {
     });
   };
 
-  const toggleInitialPayment = async (entry: DocumentChecklistEntry) => {
-    const nextValue = !entry.hasAdvancePayment;
-    setPaymentUpdatingIds((current) => new Set(current).add(entry.candidateId));
-    setEntries((current) =>
-      current.map((item) =>
-        item.candidateId === entry.candidateId
-          ? { ...item, hasAdvancePayment: nextValue }
-          : item
-      )
-    );
-
-    try {
-      await setCandidateInitialPaymentReceived(entry.candidateId, nextValue);
-    } catch {
-      setEntries((current) =>
-        current.map((item) =>
-          item.candidateId === entry.candidateId
-            ? { ...item, hasAdvancePayment: entry.hasAdvancePayment }
-            : item
-        )
-      );
-      showToast("Peşinat durumu güncellenemedi", "error");
-    } finally {
-      setPaymentUpdatingIds((current) => {
-        const next = new Set(current);
-        next.delete(entry.candidateId);
-        return next;
-      });
-    }
+  const openCandidateAccounting = (candidateId: string) => {
+    navigate(`/candidates/${candidateId}?tab=payments`);
   };
 
   const handleUploaded = () => {
@@ -978,7 +952,7 @@ export function DocumentsPage() {
                     title={documentType.name}
                   >
                     <span aria-label={documentType.name} className="documents-doc-label">
-                      {shortDocumentTypeLabel(documentType.name)}
+                      {compactDocumentColumnLabel(documentType.name)}
                     </span>
                   </th>
                 ))}
@@ -1090,15 +1064,16 @@ export function DocumentsPage() {
                         <button
                           aria-label={entry.hasAdvancePayment ? "Peşinat var" : "Peşinat yok"}
                           className="documents-doc-icon-btn"
-                          disabled={paymentUpdatingIds.has(entry.candidateId)}
                           onClick={(event) => {
                             event.stopPropagation();
-                            void toggleInitialPayment(entry);
+                            if (!entry.hasAdvancePayment) {
+                              openCandidateAccounting(entry.candidateId);
+                            }
                           }}
                           title={
                             entry.hasAdvancePayment
-                              ? "Peşinat alındı - alınmadı yap"
-                              : "Peşinat alınmadı - alındı yap"
+                              ? "Ödeme var"
+                              : "Ödeme yok - Muhasebe sekmesini aç"
                           }
                           type="button"
                         >
@@ -1110,9 +1085,20 @@ export function DocumentsPage() {
                       {visibleRequiredDocumentTypes.map((documentType) => {
                         const hasDocument = !entry.missingDocumentKeys.includes(documentType.key);
                         const documentTypeId = documentType.id;
+                        const notApplicable =
+                          documentType.key === "existing_license_copy" &&
+                          entry.hasExistingLicense === false;
                         return (
                           <td className="documents-doc-td" key={documentType.id}>
-                            {hasDocument ? (
+                            {notApplicable ? (
+                              <span
+                                aria-label={`${documentType.name}: gerekli değil`}
+                                className="documents-doc-not-applicable"
+                                title={`${documentType.name}: Mevcut ehliyet yok`}
+                              >
+                                -
+                              </span>
+                            ) : hasDocument ? (
                               <button
                                 aria-label={`${documentType.name}: var`}
                                 className="documents-doc-icon-btn"

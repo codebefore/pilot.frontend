@@ -80,6 +80,17 @@ describe("DocumentsPage", () => {
         createdAtUtc: "2026-01-01T00:00:00Z",
         updatedAtUtc: "2026-01-01T00:00:00Z",
       },
+      {
+        id: "t3",
+        module: "candidate",
+        key: "existing_license_copy",
+        name: "Mevcut Ehliyet Fotokopisi",
+        sortOrder: 3,
+        isRequired: true,
+        isActive: true,
+        createdAtUtc: "2026-01-01T00:00:00Z",
+        updatedAtUtc: "2026-01-01T00:00:00Z",
+      },
     ]);
   });
 
@@ -204,6 +215,7 @@ describe("DocumentsPage", () => {
           fullName: "Ayse Demir",
           phoneNumber: "05321234567",
           licenseClass: "B",
+          hasExistingLicense: true,
           hasAdvancePayment: true,
           currentGroup: {
             groupId: "g1",
@@ -219,11 +231,11 @@ describe("DocumentsPage", () => {
           },
           summary: {
             completedCount: 1,
-            missingCount: 1,
-            totalRequiredCount: 2,
+            missingCount: 2,
+            totalRequiredCount: 3,
           },
-          missingDocumentKeys: ["health_report"],
-          missingDocumentNames: ["Sağlık Raporu"],
+          missingDocumentKeys: ["health_report", "existing_license_copy"],
+          missingDocumentNames: ["Sağlık Raporu", "Mevcut Ehliyet Fotokopisi"],
         },
       ],
       page: 1,
@@ -241,9 +253,54 @@ describe("DocumentsPage", () => {
     expect(screen.getByLabelText("Sağlık Raporu")).toBeInTheDocument();
     expect(screen.getByLabelText("Nüfus Cüzdanı: var")).toBeInTheDocument();
     expect(screen.getByLabelText("Sağlık Raporu: yok, yukle")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mevcut Ehliyet Fotokopisi: yok, yukle")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "05321234567" })).toHaveAttribute(
       "href",
       "https://wa.me/905321234567"
     );
+  });
+
+  it("shows dash for existing license document when candidate has no existing license", async () => {
+    getDocumentChecklistMock.mockResolvedValueOnce({
+      items: [
+        {
+          candidateId: "cand-1",
+          fullName: "Ayse Demir",
+          phoneNumber: null,
+          licenseClass: "B",
+          hasExistingLicense: false,
+          hasAdvancePayment: false,
+          currentGroup: null,
+          summary: {
+            completedCount: 0,
+            missingCount: 3,
+            totalRequiredCount: 3,
+          },
+          missingDocumentKeys: [
+            "national_id",
+            "health_report",
+            "existing_license_copy",
+          ],
+          missingDocumentNames: [
+            "Nüfus Cüzdanı",
+            "Sağlık Raporu",
+            "Mevcut Ehliyet Fotokopisi",
+          ],
+        },
+      ],
+      page: 1,
+      pageSize: 20,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByLabelText("Mevcut Ehliyet Fotokopisi: gerekli değil")
+    ).toHaveTextContent("-");
+    expect(
+      screen.queryByLabelText("Mevcut Ehliyet Fotokopisi: yok, yukle")
+    ).not.toBeInTheDocument();
   });
 });

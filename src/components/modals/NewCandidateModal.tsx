@@ -340,6 +340,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
         gender: null,
         licenseClass: data.className,
         certificateProgramId: defaultProgram?.id ?? null,
+        hasExistingLicense: data.hasExistingLicense,
         existingLicenseType:
           data.hasExistingLicense && data.existingLicenseType
             ? data.existingLicenseType

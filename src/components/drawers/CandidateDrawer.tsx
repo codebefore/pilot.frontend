@@ -128,8 +128,9 @@ function pickFirstCodedMessage(
 }
 
 function buildExistingLicenseDraft(candidate: CandidateResponse | null): ExistingLicenseDraft {
+  const enabled = candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType;
   return {
-    enabled: !!candidate?.existingLicenseType,
+    enabled,
     type: candidate?.existingLicenseType ?? "",
     issuedAt: candidate?.existingLicenseIssuedAt ?? "",
     number: candidate?.existingLicenseNumber ?? "",
@@ -180,6 +181,8 @@ export function CandidateDrawer({
   const [existingLicenseSaving, setExistingLicenseSaving] = useState(false);
   const [existingLicenseError, setExistingLicenseError] = useState<string | null>(null);
   const educationPlan = candidate?.educationPlan ?? null;
+  const candidateHasExistingLicense =
+    candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType;
 
   useEffect(() => {
     if (!candidateId) {
@@ -272,6 +275,7 @@ export function CandidateDrawer({
         birthDate: candidate.birthDate,
         gender: normalizeCandidateGender(candidate.gender),
         licenseClass: candidate.licenseClass,
+        hasExistingLicense: candidate.hasExistingLicense ?? !!candidate.existingLicenseType,
         existingLicenseType: candidate.existingLicenseType,
         existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
         existingLicenseNumber: candidate.existingLicenseNumber,
@@ -344,9 +348,12 @@ export function CandidateDrawer({
         ? patch.existingLicenseType
         : candidate.existingLicenseType;
     const nextType = nextTypeRaw && nextTypeRaw.trim().length > 0 ? nextTypeRaw : null;
+    const nextHasExistingLicense =
+      patch.hasExistingLicense ?? candidate.hasExistingLicense ?? !!candidate.existingLicenseType;
 
-    if (!nextType) {
+    if (!nextHasExistingLicense) {
       return {
+        hasExistingLicense: false,
         existingLicenseType: null,
         existingLicenseIssuedAt: null,
         existingLicenseNumber: null,
@@ -374,6 +381,17 @@ export function CandidateDrawer({
         ? patch.existingLicensePre2016
         : candidate.existingLicensePre2016;
 
+    if (!nextType) {
+      return {
+        hasExistingLicense: true,
+        existingLicenseType: null,
+        existingLicenseIssuedAt: nextIssuedAt ?? null,
+        existingLicenseNumber: nextNumber,
+        existingLicenseIssuedProvince: nextProvince,
+        existingLicensePre2016: false,
+      };
+    }
+
     if (!nextIssuedAt) {
       showToast("Belge tarihi zorunlu.", "error");
       throw new Error("existing license issuedAt required");
@@ -390,6 +408,7 @@ export function CandidateDrawer({
     }
 
     return {
+      hasExistingLicense: true,
       existingLicenseType: nextType,
       existingLicenseIssuedAt: nextIssuedAt,
       existingLicenseNumber: nextNumber,
@@ -414,7 +433,7 @@ export function CandidateDrawer({
   };
 
   const existingLicenseDirty =
-    existingLicenseDraft.enabled !== !!candidate?.existingLicenseType ||
+    existingLicenseDraft.enabled !== candidateHasExistingLicense ||
     existingLicenseDraft.type !== (candidate?.existingLicenseType ?? "") ||
     existingLicenseDraft.issuedAt !== (candidate?.existingLicenseIssuedAt ?? "") ||
     existingLicenseDraft.number !== (candidate?.existingLicenseNumber ?? "") ||
@@ -448,6 +467,7 @@ export function CandidateDrawer({
 
     try {
       await saveField({
+        hasExistingLicense: existingLicenseDraft.enabled,
         existingLicenseType: existingLicenseDraft.enabled ? existingLicenseDraft.type : null,
         existingLicenseIssuedAt: existingLicenseDraft.enabled ? existingLicenseDraft.issuedAt : null,
         existingLicenseNumber: existingLicenseDraft.enabled
@@ -672,19 +692,23 @@ export function CandidateDrawer({
           </DrawerSection>
 
           <DrawerSection title="Mevcut Sürücü Belgesi">
-            {candidate.existingLicenseType ? (
+            {candidateHasExistingLicense ? (
               <>
                 <EditableRow
-                  displayValue={existingLicenseTypeLabel(
-                    candidate.existingLicenseType,
-                    existingLicenseTypeOptions
-                  )}
-                  inputValue={candidate.existingLicenseType}
+                  displayValue={
+                    candidate.existingLicenseType
+                      ? existingLicenseTypeLabel(
+                          candidate.existingLicenseType,
+                          existingLicenseTypeOptions
+                        )
+                      : "Belge seçilmedi"
+                  }
+                  inputValue={candidate.existingLicenseType ?? ""}
                   label="Mevcut Belge"
                   options={existingLicenseEditOptions}
                   onSave={(value) =>
                     saveExistingLicenseField(
-                      { existingLicenseType: value || null },
+                      { hasExistingLicense: !!value, existingLicenseType: value || null },
                       value ? "Mevcut surucu belgesi guncellendi" : "Mevcut surucu belgesi kaldirildi"
                     )
                   }

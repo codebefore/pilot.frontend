@@ -6,11 +6,17 @@ import { renderWithProviders } from "../../test/render-with-providers";
 
 const getCandidateDocumentsMock = vi.fn();
 const updateCandidateDocumentMock = vi.fn();
+const updateCandidateDocumentMebbisTransferMock = vi.fn();
+const deleteCandidateDocumentMock = vi.fn();
 const uploadDocumentMock = vi.fn();
 const openAuthorizedFileMock = vi.fn();
+const downloadAuthorizedFileMock = vi.fn();
+const printAuthorizedFileMock = vi.fn();
 
 vi.mock("../../lib/authorized-files", () => ({
   openAuthorizedFile: (...args: unknown[]) => openAuthorizedFileMock(...args),
+  downloadAuthorizedFile: (...args: unknown[]) => downloadAuthorizedFileMock(...args),
+  printAuthorizedFile: (...args: unknown[]) => printAuthorizedFileMock(...args),
 }));
 
 vi.mock("../../lib/documents-api", async () => {
@@ -24,6 +30,12 @@ vi.mock("../../lib/documents-api", async () => {
     updateCandidateDocument: (
       ...args: Parameters<typeof actual.updateCandidateDocument>
     ) => updateCandidateDocumentMock(...args),
+    updateCandidateDocumentMebbisTransfer: (
+      ...args: Parameters<typeof actual.updateCandidateDocumentMebbisTransfer>
+    ) => updateCandidateDocumentMebbisTransferMock(...args),
+    deleteCandidateDocument: (
+      ...args: Parameters<typeof actual.deleteCandidateDocument>
+    ) => deleteCandidateDocumentMock(...args),
     uploadDocument: (...args: Parameters<typeof actual.uploadDocument>) =>
       uploadDocumentMock(...args),
   };
@@ -33,9 +45,17 @@ describe("ManageDocumentModal", () => {
   beforeEach(() => {
     getCandidateDocumentsMock.mockReset();
     updateCandidateDocumentMock.mockReset();
+    updateCandidateDocumentMebbisTransferMock.mockReset();
+    deleteCandidateDocumentMock.mockReset();
     uploadDocumentMock.mockReset();
     openAuthorizedFileMock.mockReset();
+    downloadAuthorizedFileMock.mockReset();
+    printAuthorizedFileMock.mockReset();
     openAuthorizedFileMock.mockResolvedValue(undefined);
+    downloadAuthorizedFileMock.mockResolvedValue(undefined);
+    printAuthorizedFileMock.mockResolvedValue(undefined);
+    updateCandidateDocumentMebbisTransferMock.mockResolvedValue({ id: "doc-1" });
+    deleteCandidateDocumentMock.mockResolvedValue(undefined);
     getCandidateDocumentsMock.mockResolvedValue([
       {
         id: "doc-1",
@@ -47,6 +67,7 @@ describe("ManageDocumentModal", () => {
         contentType: "application/pdf",
         fileSizeBytes: 2048,
         isPhysicallyAvailable: false,
+        isMebbisTransferred: false,
         hasFile: true,
         note: "Mevcut not",
         metadata: {
@@ -107,7 +128,149 @@ describe("ManageDocumentModal", () => {
       "http://127.0.0.1:5080/api/candidates/cand-1/documents/doc-1/download"
     );
     expect(screen.getByRole("button", { name: "Belgeyi Değiştir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "İndir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mebbis Aktar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sil" })).toBeInTheDocument();
     expect(getFileInput()).not.toBeInTheDocument();
+  });
+
+  it("marks the document as transferred to Mebbis", async () => {
+    const onSaved = vi.fn();
+
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-1"
+        documentTypes={documentTypes}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Mevcut Kurum");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mebbis Aktar" }));
+
+    await waitFor(() => {
+      expect(updateCandidateDocumentMock).toHaveBeenCalledWith("cand-1", "doc-1", {
+        note: "Mevcut not",
+        metadata: {
+          disability: "none",
+          issuing_institution: "Mevcut Kurum",
+        },
+      });
+      expect(updateCandidateDocumentMebbisTransferMock).toHaveBeenCalledWith(
+        "cand-1",
+        "type-1",
+        true
+      );
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("unmarks a document transferred to Mebbis", async () => {
+    getCandidateDocumentsMock.mockResolvedValueOnce([
+      {
+        id: "doc-1",
+        candidateId: "cand-1",
+        documentTypeId: "type-1",
+        documentTypeKey: "health_report",
+        documentTypeName: "Sağlık Raporu",
+        originalFileName: "rapor.pdf",
+        contentType: "application/pdf",
+        fileSizeBytes: 2048,
+        isPhysicallyAvailable: false,
+        isMebbisTransferred: true,
+        hasFile: true,
+        note: "Mevcut not",
+        metadata: {
+          disability: "none",
+          issuing_institution: "Mevcut Kurum",
+        },
+        uploadedAtUtc: "2026-04-18T08:30:00Z",
+        createdAtUtc: "2026-04-18T08:30:00Z",
+        updatedAtUtc: "2026-04-18T08:30:00Z",
+      },
+    ]);
+    const onSaved = vi.fn();
+
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-1"
+        documentTypes={documentTypes}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Mevcut Kurum");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mebbis Kaldır" }));
+
+    await waitFor(() => {
+      expect(updateCandidateDocumentMebbisTransferMock).toHaveBeenCalledWith(
+        "cand-1",
+        "type-1",
+        false
+      );
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("downloads the document through authorized fetch", async () => {
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-1"
+        documentTypes={documentTypes}
+        onClose={() => {}}
+        onSaved={() => {}}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Mevcut Kurum");
+
+    fireEvent.click(screen.getByRole("button", { name: "İndir" }));
+
+    await waitFor(() => {
+      expect(downloadAuthorizedFileMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:5080/api/candidates/cand-1/documents/doc-1/download",
+        "rapor.pdf"
+      );
+    });
+  });
+
+  it("deletes the document after confirmation", async () => {
+    const onSaved = vi.fn();
+
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-1"
+        documentTypes={documentTypes}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Mevcut Kurum");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sil" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evet" }));
+
+    await waitFor(() => {
+      expect(deleteCandidateDocumentMock).toHaveBeenCalledWith("cand-1", "doc-1");
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("updates note and metadata", async () => {
@@ -142,6 +305,7 @@ describe("ManageDocumentModal", () => {
       expect(updateCandidateDocumentMock).toHaveBeenCalledWith("cand-1", "doc-1", {
         note: "Yeni not",
         metadata: {
+          disability: "none",
           issuing_institution: "Yeni Kurum",
         },
       });
@@ -194,6 +358,7 @@ describe("ManageDocumentModal", () => {
         file,
         note: "Yeni dosya notu",
         metadata: {
+          disability: "none",
           issuing_institution: "Mevcut Kurum",
         },
       });

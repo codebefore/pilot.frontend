@@ -79,6 +79,7 @@ export interface CandidateResponse {
   gender: CandidateGenderValue | null;
   licenseClass: LicenseClass;
   certificateProgramId?: string | null;
+  hasExistingLicense?: boolean;
   existingLicenseType: string | null;
   existingLicenseIssuedAt: string | null;
   existingLicenseNumber: string | null;
@@ -147,6 +148,7 @@ export interface CandidateUpsertRequest {
   gender?: CandidateGenderValue | null;
   licenseClass: LicenseClass;
   certificateProgramId?: string | null;
+  hasExistingLicense?: boolean | null;
   existingLicenseType?: string | null;
   existingLicenseIssuedAt?: string | null;
   existingLicenseNumber?: string | null;
@@ -174,6 +176,7 @@ export interface CandidateUpsertRequest {
 }
 
 export interface CandidateExistingLicenseRequest {
+  hasExistingLicense?: boolean | null;
   existingLicenseType: string | null;
   existingLicenseIssuedAt: string | null;
   existingLicenseNumber: string | null;
@@ -1263,6 +1266,7 @@ export interface DocumentChecklistEntry {
   fullName: string;
   phoneNumber: string | null;
   licenseClass: LicenseClass;
+  hasExistingLicense?: boolean;
   currentGroup?: CandidateGroupSummary | null;
   hasAdvancePayment: boolean;
   summary: CandidateDocumentSummaryResponse;
