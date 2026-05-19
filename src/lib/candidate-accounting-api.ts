@@ -2,6 +2,7 @@ import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type {
   CandidateAccountingInvoiceResponse,
   CandidateAccountingInvoiceUpsertRequest,
+  CandidateAccountingMovementBulkCreateRequest,
   CandidateAccountingMovementCreateRequest,
   CandidateAccountingMovementResponse,
   CandidateAccountingPaymentCreateRequest,
@@ -28,6 +29,16 @@ export function createCandidateAccountingMovement(
 ): Promise<CandidateAccountingMovementResponse> {
   return httpPost<CandidateAccountingMovementResponse>(
     `/api/candidates/${candidateId}/accounting/debts`,
+    body
+  );
+}
+
+export function createCandidateAccountingMovements(
+  candidateId: string,
+  body: CandidateAccountingMovementBulkCreateRequest
+): Promise<CandidateAccountingMovementResponse[]> {
+  return httpPost<CandidateAccountingMovementResponse[]>(
+    `/api/candidates/${candidateId}/accounting/debts/bulk`,
     body
   );
 }

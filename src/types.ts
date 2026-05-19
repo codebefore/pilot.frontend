@@ -11,8 +11,7 @@ export type NavKey =
   | "examESinav"
   | "examUygulama"
   | "mebjobs"
-  | "settings"
-  | "login";
+  | "settings";
 
 export type JobStatus =
   | "success"

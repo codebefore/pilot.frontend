@@ -345,6 +345,10 @@ export interface CandidateAccountingMovementCreateRequest {
   description: string;
 }
 
+export interface CandidateAccountingMovementBulkCreateRequest {
+  movements: CandidateAccountingMovementCreateRequest[];
+}
+
 export interface CandidateAccountingPaymentCreateRequest {
   type: CandidateAccountingType;
   movementId?: string | null;

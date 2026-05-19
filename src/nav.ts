@@ -6,7 +6,6 @@ import {
   DocumentsIcon,
   ExamsIcon,
   GroupsIcon,
-  LoginIcon,
   MebIcon,
   PaymentsIcon,
   SettingsIcon,
@@ -75,7 +74,6 @@ export const navSections: NavSection[] = [
     items: [
       { key: "settings", path: "/settings", labelKey: "nav.settings", Icon: SettingsIcon },
       { key: "mebjobs",  path: "/meb-jobs", labelKey: "nav.mebJobs",  Icon: MebIcon },
-      { key: "login",    path: "/login",    labelKey: "nav.login",    Icon: LoginIcon },
     ],
   },
 ];

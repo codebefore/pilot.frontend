@@ -31,6 +31,7 @@ import {
   cancelCandidateAccountingPayment,
   createCandidateAccountingInvoice,
   createCandidateAccountingMovement,
+  createCandidateAccountingMovements,
   createCandidateAccountingPayment,
   createCandidateAccountingRefund,
   deleteCandidateAccountingInvoice,
@@ -420,6 +421,27 @@ export function CandidateDetailPage() {
     }
   };
 
+  const handleCreateMovements = async (
+    movements: Array<{
+      type: CandidateAccountingType;
+      dueDate: string;
+      amount: number;
+      description: string;
+    }>
+  ) => {
+    if (!candidate || movementSaving || movements.length === 0) return;
+    setMovementSaving(true);
+    try {
+      await createCandidateAccountingMovements(candidate.id, { movements });
+      await refreshAccounting();
+      showToast("Ödeme planı oluşturuldu");
+    } catch (error) {
+      showToast(accountingErrorMessage(error, "Ödeme planı oluşturulamadı"), "error");
+    } finally {
+      setMovementSaving(false);
+    }
+  };
+
   const handleCreatePayment = async (
     type: CandidateAccountingType,
     amount: number,
@@ -651,6 +673,7 @@ export function CandidateDetailPage() {
                 onCreateMovement={(type, dueDate, amount, description) =>
                   void handleCreateMovement(type, dueDate, amount, description)
                 }
+                onCreateMovements={handleCreateMovements}
                 onCreatePayment={(type, amount, method, cashRegisterId, paidAtUtc, note, movementId) =>
                   void handleCreatePayment(type, amount, method, cashRegisterId, paidAtUtc, note, movementId)
                 }
@@ -1219,10 +1242,6 @@ function CandidateContactsEditor({
   const [drafts, setDrafts] = useState<Array<{ id: string; type: CandidateContactType }>>([]);
   const contacts = buildCandidateContacts(candidate);
 
-  const validateContactValue = (_type: CandidateContactType, _value: string): boolean => {
-    return true;
-  };
-
   const saveContacts = async (
     nextContacts: CandidateContactUpsertRequest[],
     message: string
@@ -1240,12 +1259,14 @@ function CandidateContactsEditor({
     );
   };
 
-  const updateContactValue = async (contact: CandidateContactResponse, value: string) => {
+  const updateContact = async (
+    contact: CandidateContactResponse,
+    value: string,
+    ownerName: string | null
+  ) => {
     const normalizedValue = value.trim();
     if (!normalizedValue) return;
-    if (!validateContactValue(contact.type, normalizedValue)) {
-      throw new Error("invalid email");
-    }
+    const normalizedOwnerName = ownerName?.trim() || null;
 
     const nextContacts = contacts.map((item) =>
       item === contact
@@ -1255,7 +1276,7 @@ function CandidateContactsEditor({
             label: contactTypeLabel(item.type),
             value: normalizedValue,
             isPrimary: item.isPrimary,
-            ownerName: item.ownerName,
+            ownerName: item.type === "phone" ? normalizedOwnerName : null,
           }
         : {
             id: item.id || null,
@@ -1264,33 +1285,9 @@ function CandidateContactsEditor({
             value: item.value,
             isPrimary: item.isPrimary,
             ownerName: item.ownerName,
-          }
+        }
     );
     await saveContacts(nextContacts, "İletişim bilgisi güncellendi");
-  };
-
-  const updateContactOwner = async (contact: CandidateContactResponse, ownerName: string) => {
-    const normalized = ownerName.trim();
-    const nextContacts = contacts.map((item) =>
-      item === contact
-        ? {
-            id: item.id || null,
-            type: item.type,
-            label: item.label,
-            value: item.value,
-            isPrimary: item.isPrimary,
-            ownerName: normalized || null,
-          }
-        : {
-            id: item.id || null,
-            type: item.type,
-            label: item.label,
-            value: item.value,
-            isPrimary: item.isPrimary,
-            ownerName: item.ownerName,
-          }
-    );
-    await saveContacts(nextContacts, "Telefon sahibi güncellendi");
   };
 
   const deleteContact = async (contact: CandidateContactResponse) => {
@@ -1315,9 +1312,6 @@ function CandidateContactsEditor({
   ) => {
     const normalizedValue = value.trim();
     if (!normalizedValue) return;
-    if (!validateContactValue(type, normalizedValue)) {
-      throw new Error("invalid value");
-    }
 
     const nextContacts = [
       ...contacts.map((contact) => ({
@@ -1373,30 +1367,13 @@ function CandidateContactsEditor({
           const label = `${contactTypeLabel(contact.type)} ${contactLabelCounts[contact.type]}`;
 
           return (
-            <div className="candidate-contact-value-row" key={`${contact.id || contact.type}-${index}`}>
-              <EditableRow
-                displayValue={contact.value}
-                inputType={contactInputType(contact.type)}
-                inputValue={contact.value}
-                label={label}
-                onSave={(value) => updateContactValue(contact, value)}
-              />
-              {contact.type === "phone" ? (
-                <EditableRow
-                  displayValue={contact.ownerName ?? ""}
-                  inputValue={contact.ownerName ?? ""}
-                  label="Sahibi"
-                  onSave={(value) => updateContactOwner(contact, value)}
-                />
-              ) : null}
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => void deleteContact(contact)}
-                type="button"
-              >
-                Sil
-              </button>
-            </div>
+            <CandidateContactRow
+              contact={contact}
+              key={`${contact.id || contact.type}-${index}`}
+              label={label}
+              onDelete={() => deleteContact(contact)}
+              onSave={(value, ownerName) => updateContact(contact, value, ownerName)}
+            />
           );
         })}
         {drafts.map((draft) => (
@@ -1428,6 +1405,132 @@ const CONTACT_KINDS: Array<{
 
 function contactInputType(type: CandidateContactType): "text" | "tel" | "textarea" {
   return CONTACT_KINDS.find((kind) => kind.type === type)?.inputType ?? "text";
+}
+
+function CandidateContactRow({
+  contact,
+  label,
+  onSave,
+  onDelete,
+}: {
+  contact: CandidateContactResponse;
+  label: string;
+  onSave: (value: string, ownerName: string | null) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [value, setValue] = useState(contact.value);
+  const [ownerName, setOwnerName] = useState(contact.ownerName ?? "");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const trimmedValue = value.trim();
+  const isPhone = contact.type === "phone";
+  const unchanged =
+    trimmedValue === contact.value &&
+    (!isPhone || ownerName.trim() === (contact.ownerName ?? ""));
+
+  useEffect(() => {
+    setValue(contact.value);
+    setOwnerName(contact.ownerName ?? "");
+  }, [contact.ownerName, contact.value]);
+
+  const save = async () => {
+    if (!trimmedValue || saving || unchanged) return;
+    setSaving(true);
+    try {
+      await onSave(trimmedValue, isPhone ? ownerName.trim() || null : null);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={`candidate-contact-row ${isPhone ? "is-phone" : "is-address"}`}>
+      {isPhone ? (
+        <div className="candidate-contact-field candidate-contact-owner-field">
+          <span className="candidate-contact-field-label">Sahibi</span>
+          {editing ? (
+            <input
+              className="form-input-sm"
+              disabled={saving}
+              onChange={(event) => setOwnerName(event.target.value)}
+              placeholder="Sahibi"
+              type="text"
+              value={ownerName}
+            />
+          ) : (
+            <strong className="candidate-contact-read-value">{ownerName.trim() || "—"}</strong>
+          )}
+        </div>
+      ) : null}
+      <div className="candidate-contact-field candidate-contact-value-field">
+        <span className="candidate-contact-field-label">{label}</span>
+        {editing ? (
+          contactInputType(contact.type) === "textarea" ? (
+            <textarea
+              className="form-textarea-sm"
+              disabled={saving}
+              onChange={(event) => setValue(event.target.value)}
+              value={value}
+            />
+          ) : (
+            <input
+              className="form-input-sm"
+              disabled={saving}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder={isPhone ? "5XX XXX XX XX" : undefined}
+              type={contactInputType(contact.type)}
+              value={value}
+            />
+          )
+        ) : (
+          <strong className="candidate-contact-read-value">{value.trim() || "—"}</strong>
+        )}
+      </div>
+      <div className="candidate-contact-row-actions">
+        {editing ? (
+          <>
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={!trimmedValue || saving || unchanged}
+              onClick={() => void save()}
+              type="button"
+            >
+              {saving ? "Kaydediliyor..." : "Kaydet"}
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={saving}
+              onClick={() => {
+                setValue(contact.value);
+                setOwnerName(contact.ownerName ?? "");
+                setEditing(false);
+              }}
+              type="button"
+            >
+              Vazgeç
+            </button>
+          </>
+        ) : (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setEditing(true)}
+            type="button"
+          >
+            Düzenle
+          </button>
+        )}
+        <button
+          className="btn btn-danger btn-sm"
+          disabled={saving}
+          onClick={() => void onDelete()}
+          type="button"
+        >
+          Sil
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function CandidateContactDraftRow({
@@ -1464,9 +1567,23 @@ function CandidateContactDraftRow({
   };
 
   return (
-    <div className="drawer-row editable-row candidate-contact-draft-row">
-      <span className="label">{label}</span>
-      <span className="editable-row-edit">
+    <div className={`candidate-contact-draft-row ${isPhone ? "is-phone" : "is-address"}`}>
+      {isPhone ? (
+        <label className="candidate-contact-field candidate-contact-owner-field">
+          <span className="candidate-contact-field-label">Sahibi</span>
+          <input
+            aria-label="Telefon sahibi"
+            className="form-input-sm"
+            disabled={saving}
+            onChange={(event) => setOwnerName(event.target.value)}
+            placeholder="Sahibi (Anne, Baba...)"
+            type="text"
+            value={ownerName}
+          />
+        </label>
+      ) : null}
+      <label className="candidate-contact-field candidate-contact-value-field">
+        <span className="candidate-contact-field-label">{label}</span>
         {inputType === "textarea" ? (
           <textarea
             className="form-textarea-sm"
@@ -1485,21 +1602,13 @@ function CandidateContactDraftRow({
               setValue(event.target.value);
               if (error) setError(null);
             }}
+            placeholder={isPhone ? "5XX XXX XX XX" : undefined}
             type={inputType}
             value={value}
           />
         )}
-        {isPhone ? (
-          <input
-            aria-label="Telefon sahibi"
-            className="form-input-sm"
-            disabled={saving}
-            onChange={(event) => setOwnerName(event.target.value)}
-            placeholder="Sahibi (Anne, Baba…)"
-            type="text"
-            value={ownerName}
-          />
-        ) : null}
+      </label>
+      <div className="candidate-contact-row-actions">
         <button
           className="btn btn-primary btn-sm"
           disabled={!trimmedValue || saving}
@@ -1516,7 +1625,7 @@ function CandidateContactDraftRow({
         >
           Vazgeç
         </button>
-      </span>
+      </div>
       {error ? <span className="candidate-contact-validation">{error}</span> : null}
     </div>
   );
@@ -2058,7 +2167,7 @@ function LicenseInfoTab({
             Teori Muafiyeti
           </span>
           <label
-            className="switch-toggle"
+            className="switch-toggle switch-toggle-knob-right"
             title={hasExistingLicense
               ? "Mevcut ehliyet sahibi olduğu için otomatik muaf."
               : "Aday teori sınavından muaf"}
@@ -2069,8 +2178,8 @@ function LicenseInfoTab({
               onChange={toggleTheoryExempt}
               type="checkbox"
             />
-            <span aria-hidden="true" className="switch-toggle-control" />
             <span>{isTheoryExempt ? "Muaf" : "Değil"}</span>
+            <span aria-hidden="true" className="switch-toggle-control" />
           </label>
         </div>
 
@@ -2078,14 +2187,14 @@ function LicenseInfoTab({
           <span className="form-label" style={{ margin: 0 }}>
             Mevcut Sürücü Belgesi
           </span>
-          <label className="switch-toggle">
+          <label className="switch-toggle switch-toggle-knob-right">
             <input
               checked={licenseFieldsOpen}
               onChange={(event) => handleToggleExistingLicense(event.target.checked)}
               type="checkbox"
             />
-            <span aria-hidden="true" className="switch-toggle-control" />
             <span>{licenseFieldsOpen ? "Var" : "Yok"}</span>
+            <span aria-hidden="true" className="switch-toggle-control" />
           </label>
         </div>
 
@@ -2377,11 +2486,47 @@ function addDaysToISODate(value: string, days: number): string {
   return toDateOnlyValue(date);
 }
 
+function addMonthsToISODate(value: string, months: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const targetMonth = month - 1 + months;
+  const lastDayOfTargetMonth = new Date(year, targetMonth + 1, 0).getDate();
+  return toDateOnlyValue(new Date(year, targetMonth, Math.min(day, lastDayOfTargetMonth)));
+}
+
 function toDateOnlyValue(date: Date): string {
   const year = String(date.getFullYear());
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function buildCoursePaymentPlanMovements(
+  totalAmount: number,
+  installmentCount: number,
+  firstDueDate: string
+): Array<{
+  type: CandidateAccountingType;
+  dueDate: string;
+  amount: number;
+  description: string;
+}> {
+  const totalCents = Math.round(totalAmount * 100);
+  const baseCents = Math.floor(totalCents / installmentCount);
+
+  return Array.from({ length: installmentCount }, (_, index) => {
+    const cents =
+      index === installmentCount - 1
+        ? totalCents - baseCents * (installmentCount - 1)
+        : baseCents;
+
+    return {
+      type: "kurs",
+      dueDate: addMonthsToISODate(firstDueDate, index),
+      amount: cents / 100,
+      description: `Ödeme planı ${index + 1}/${installmentCount}`,
+    };
+  });
 }
 
 function parseMoneyInput(value: string): number | null {
@@ -2624,6 +2769,7 @@ function AccountingTab({
   paymentSaving,
   invoiceSaving,
   onCreateMovement,
+  onCreateMovements,
   onCreatePayment,
   onCancelMovement,
   onCancelPayment,
@@ -2644,6 +2790,14 @@ function AccountingTab({
     amount: number,
     description: string
   ) => void;
+  onCreateMovements: (
+    movements: Array<{
+      type: CandidateAccountingType;
+      dueDate: string;
+      amount: number;
+      description: string;
+    }>
+  ) => void | Promise<void>;
   onCreatePayment: (
     type: CandidateAccountingType,
     amount: number,
@@ -2684,6 +2838,19 @@ function AccountingTab({
     amount: "",
     dueDate: todayIsoDate(),
     description: "",
+  });
+  const [paymentPlanModal, setPaymentPlanModal] = useState<{
+    open: boolean;
+    amount: string;
+    installmentCount: string;
+    dueDate: string;
+    previewOpen: boolean;
+  }>({
+    open: false,
+    amount: "",
+    installmentCount: "4",
+    dueDate: todayIsoDate(),
+    previewOpen: false,
   });
   const [paymentModal, setPaymentModal] = useState<{
     open: boolean;
@@ -2749,6 +2916,22 @@ function AccountingTab({
   const activeMovements = allMovements.filter((item) => item.status === "active");
   const activePayments = accounting?.payments.filter((item) => item.status === "active") ?? [];
   const feeSuggestions = accounting?.feeSuggestions ?? [];
+  const totalDebtAmount = activeMovements.reduce((sum, item) => sum + item.remainingAmount, 0);
+  const courseFeeMovements = activeMovements.filter((item) => item.type === "kurs");
+  const courseFeeSummary = {
+    totalAmount: courseFeeMovements.reduce((sum, item) => sum + item.amount, 0),
+    paidAmount: courseFeeMovements.reduce((sum, item) => sum + item.paidAmount, 0),
+    remainingAmount: courseFeeMovements.reduce((sum, item) => sum + item.remainingAmount, 0),
+  };
+  const theoryExamDebtAmount = activeMovements
+    .filter((item) => item.type === "teorik_sinav")
+    .reduce((sum, item) => sum + item.remainingAmount, 0);
+  const practiceExamDebtAmount = activeMovements
+    .filter((item) => item.type === "direksiyon_sinav")
+    .reduce((sum, item) => sum + item.remainingAmount, 0);
+  const otherFeeDebtAmount = activeMovements
+    .filter((item) => item.type === "diger")
+    .reduce((sum, item) => sum + item.remainingAmount, 0);
   const sectionMovements = (types: CandidateAccountingType[]) =>
     allMovements.filter((item) => types.includes(item.type));
   const sectionSummaries = ACCOUNTING_SECTION_DEFINITIONS.map((section) => {
@@ -2779,6 +2962,8 @@ function AccountingTab({
     return expected !== null && register.type === expected;
   });
   const parsedDebtAmount = parseMoneyInput(debtModal.amount);
+  const parsedPaymentPlanAmount = parseMoneyInput(paymentPlanModal.amount);
+  const paymentPlanInstallmentCount = Number(paymentPlanModal.installmentCount);
   const parsedPaymentAmount = parseMoneyInput(paymentModal.amount);
   const paymentNeedsRegister = cashRegisterTypeForMethod(paymentModal.method) !== null;
   const paymentTargetMovement = paymentModal.movementId
@@ -2790,6 +2975,26 @@ function AccountingTab({
     Boolean(debtModal.dueDate) &&
     parsedDebtAmount != null &&
     parsedDebtAmount > 0 &&
+    !movementSaving;
+  const hasValidPaymentPlan =
+    Boolean(paymentPlanModal.dueDate) &&
+    parsedPaymentPlanAmount != null &&
+    parsedPaymentPlanAmount > 0 &&
+    Number.isInteger(paymentPlanInstallmentCount) &&
+    paymentPlanInstallmentCount > 0 &&
+    paymentPlanInstallmentCount <= 36 &&
+    Math.round(parsedPaymentPlanAmount * 100) >= paymentPlanInstallmentCount;
+  const paymentPlanPreviewMovements =
+    hasValidPaymentPlan && parsedPaymentPlanAmount != null
+      ? buildCoursePaymentPlanMovements(
+          parsedPaymentPlanAmount,
+          paymentPlanInstallmentCount,
+          paymentPlanModal.dueDate
+        )
+      : [];
+  const canSavePaymentPlan =
+    hasValidPaymentPlan &&
+    paymentPlanModal.previewOpen &&
     !movementSaving;
   const canSavePayment =
     parsedPaymentAmount != null &&
@@ -2821,6 +3026,16 @@ function AccountingTab({
       amount,
       dueDate: todayIsoDate(),
       description,
+    });
+  };
+  const openPaymentPlanModal = () => {
+    const defaultAmount = candidate.totalFee > 0 ? candidate.totalFee : courseFeeSummary.totalAmount;
+    setPaymentPlanModal({
+      open: true,
+      amount: defaultAmount > 0 ? String(defaultAmount) : "",
+      installmentCount: "4",
+      dueDate: todayIsoDate(),
+      previewOpen: false,
     });
   };
   const selectPaymentMethod = (method: CandidatePaymentMethod) => {
@@ -2901,31 +3116,57 @@ function AccountingTab({
   return (
     <div className="candidate-detail-tab-content">
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Muhasebe Özeti</h3>
+        <h3 className="candidate-detail-section-title">Cari Özet</h3>
         {accountingLoading ? (
           <div className="instructor-detail-empty">Muhasebe bilgileri yükleniyor...</div>
         ) : accountingError ? (
           <div className="instructor-detail-error">{accountingError}</div>
         ) : accounting ? (
           <>
-            <div className="candidate-billing-summary-grid">
-              <div className="candidate-billing-summary-card">
-                <span className="candidate-detail-stat-label">Toplam Borç</span>
-                <strong>{formatCurrencyTRY(accounting.totalDebtAmount ?? accounting.totalMovementAmount)}</strong>
+            <div className="candidate-fee-summary-shell">
+              <div className="candidate-fee-summary-group">
+                <h4 className="candidate-fee-summary-title">Kurs Ücreti</h4>
+                <div className="candidate-billing-summary-grid candidate-course-fee-summary-cards">
+                  <div className="candidate-billing-summary-card">
+                    <span className="candidate-detail-stat-label">Ücret</span>
+                    <strong>{formatCurrencyTRY(courseFeeSummary.totalAmount)}</strong>
+                  </div>
+                  <div className="candidate-billing-summary-card">
+                    <span className="candidate-detail-stat-label">Ödenen</span>
+                    <strong>{formatCurrencyTRY(courseFeeSummary.paidAmount)}</strong>
+                  </div>
+                  <div className="candidate-billing-summary-card is-balance">
+                    <span className="candidate-detail-stat-label">Kalan</span>
+                    <strong>{formatCurrencyTRY(courseFeeSummary.remainingAmount)}</strong>
+                  </div>
+                </div>
               </div>
-              <div className="candidate-billing-summary-card">
-                <span className="candidate-detail-stat-label">Tahsil Edilen</span>
-                <strong>{formatCurrencyTRY(accounting.totalPaid)}</strong>
-              </div>
-              <div className="candidate-billing-summary-card is-balance">
-                <span className="candidate-detail-stat-label">Kalan Bakiye</span>
-                <strong>{formatCurrencyTRY(accounting.balance)}</strong>
-              </div>
-              <div className="candidate-billing-summary-card">
-                <span className="candidate-detail-stat-label">İade / Fatura</span>
-                <strong>
-                  {formatCurrencyTRY(accounting.totalRefunded)} / {formatCurrencyTRY(accounting.invoiceTotal)}
-                </strong>
+              <div className="candidate-fee-summary-column candidate-fee-summary-debt-column">
+                <div className="candidate-billing-summary-grid candidate-fee-summary-single-card">
+                  <div className="candidate-billing-summary-card is-balance">
+                    <span className="candidate-detail-stat-label">Toplam Borç</span>
+                    <strong>{formatCurrencyTRY(totalDebtAmount)}</strong>
+                  </div>
+                </div>
+                <div className="candidate-fee-summary-group">
+                  <h4 className="candidate-fee-summary-title">Sınav Borçları</h4>
+                  <div className="candidate-billing-summary-grid candidate-exam-debt-summary-cards">
+                    <div className="candidate-billing-summary-card">
+                      <span className="candidate-detail-stat-label">Teorik Sınav Borcu</span>
+                      <strong>{formatCurrencyTRY(theoryExamDebtAmount)}</strong>
+                    </div>
+                    <div className="candidate-billing-summary-card">
+                      <span className="candidate-detail-stat-label">Direksiyon Sınav Borcu</span>
+                      <strong>{formatCurrencyTRY(practiceExamDebtAmount)}</strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="candidate-billing-summary-grid candidate-fee-summary-single-card">
+                  <div className="candidate-billing-summary-card">
+                    <span className="candidate-detail-stat-label">Diğer Ücret Borcu</span>
+                    <strong>{formatCurrencyTRY(otherFeeDebtAmount)}</strong>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="candidate-accounting-section-summary-shell">
@@ -3006,6 +3247,9 @@ function AccountingTab({
           <strong>Borçlandırma ekle, ödeme al veya fatura kaydet</strong>
         </div>
         <div className="candidate-billing-action-buttons">
+          <button className="btn btn-primary" onClick={openPaymentPlanModal} type="button">
+            Ödeme Planı Oluştur
+          </button>
           <button className="btn btn-primary" onClick={() => openDebtModal()} type="button">
             Borç Ekle
           </button>
@@ -3138,6 +3382,110 @@ function AccountingTab({
           <div className="instructor-detail-empty">Fatura kaydı yok.</div>
         )}
       </section>
+
+      <Modal
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setPaymentPlanModal((current) => ({ ...current, open: false }))} type="button">
+              Vazgeç
+            </button>
+            <button
+              className="btn btn-secondary"
+              disabled={!hasValidPaymentPlan}
+              onClick={() => setPaymentPlanModal((current) => ({ ...current, previewOpen: true }))}
+              type="button"
+            >
+              Önizleme
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!canSavePaymentPlan}
+              onClick={() => {
+                if (!canSavePaymentPlan || parsedPaymentPlanAmount == null) return;
+                void onCreateMovements(paymentPlanPreviewMovements);
+                setPaymentPlanModal((current) => ({ ...current, open: false }));
+              }}
+              type="button"
+            >
+              {movementSaving ? "Kaydediliyor..." : "Oluştur"}
+            </button>
+          </>
+        }
+        onClose={() => setPaymentPlanModal((current) => ({ ...current, open: false }))}
+        open={paymentPlanModal.open}
+        title="Ödeme Planı Oluştur"
+      >
+        <div className="candidate-accounting-modal-form candidate-payment-plan-modal-form">
+          <label className="form-group">
+            <span className="form-label">Kurs Ücreti</span>
+            <input
+              className="form-input"
+              inputMode="decimal"
+              onChange={(event) =>
+                setPaymentPlanModal((current) => ({ ...current, amount: event.target.value, previewOpen: false }))
+              }
+              placeholder="0,00"
+              value={paymentPlanModal.amount}
+            />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Taksit Sayısı</span>
+            <input
+              className="form-input"
+              inputMode="numeric"
+              min={1}
+              max={36}
+              onChange={(event) =>
+                setPaymentPlanModal((current) => ({
+                  ...current,
+                  installmentCount: event.target.value,
+                  previewOpen: false,
+                }))
+              }
+              type="number"
+              value={paymentPlanModal.installmentCount}
+            />
+          </label>
+          <label className="form-group">
+            <span className="form-label">İlk Vade Tarihi</span>
+            <LocalizedDateInput
+              className="form-input"
+              onChange={(dueDate) => setPaymentPlanModal((current) => ({ ...current, dueDate, previewOpen: false }))}
+              value={paymentPlanModal.dueDate}
+            />
+          </label>
+        </div>
+        {paymentPlanModal.previewOpen ? (
+          paymentPlanPreviewMovements.length ? (
+            <div className="candidate-payment-plan-preview">
+              <div className="candidate-payment-plan-preview-header">
+                <strong>Vade Listesi</strong>
+                <span>{paymentPlanPreviewMovements.length} taksit</span>
+              </div>
+              <table className="data-table candidate-payment-plan-preview-table">
+                <thead>
+                  <tr>
+                    <th>Taksit</th>
+                    <th>Vade Tarihi</th>
+                    <th>Tutar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentPlanPreviewMovements.map((movement, index) => (
+                    <tr key={`${movement.dueDate}:${index}`}>
+                      <td>{index + 1}. Taksit</td>
+                      <td>{formatDateTR(movement.dueDate)}</td>
+                      <td>{formatCurrencyTRY(movement.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="instructor-detail-error">Önizleme için geçerli tutar, taksit sayısı ve tarih girin.</div>
+          )
+        ) : null}
+      </Modal>
 
       <Modal
         footer={

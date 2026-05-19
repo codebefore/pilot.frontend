@@ -2368,6 +2368,53 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
+.candidate-fee-summary-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 4fr);
+  align-items: start;
+  gap: 12px;
+}
+.candidate-fee-summary-shell .candidate-billing-summary-card {
+  min-height: 70px;
+  padding: 10px;
+}
+.candidate-fee-summary-shell .candidate-billing-summary-card strong {
+  font-size: 18px;
+}
+.candidate-fee-summary-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--gray-200) 85%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--gray-50) 65%, white);
+}
+.candidate-fee-summary-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.candidate-fee-summary-debt-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+.candidate-course-fee-summary-cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.candidate-exam-debt-summary-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.candidate-fee-summary-single-card {
+  grid-template-columns: minmax(0, 1fr);
+}
+.candidate-fee-summary-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
 .candidate-billing-summary-card {
   min-height: 78px;
   display: flex;
@@ -2626,6 +2673,32 @@
   gap: 6px;
   margin: 0;
 }
+.candidate-payment-plan-modal-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.candidate-payment-plan-preview {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.candidate-payment-plan-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--gray-800);
+  font-size: 13px;
+}
+.candidate-payment-plan-preview-header span {
+  color: var(--gray-600);
+  font-size: 12px;
+}
+.candidate-payment-plan-preview-table th,
+.candidate-payment-plan-preview-table td {
+  white-space: nowrap;
+}
 .candidate-accounting-type-picker {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2845,6 +2918,14 @@
 }
 
 @media (max-width: 820px) {
+  .candidate-fee-summary-shell {
+    grid-template-columns: 1fr;
+  }
+  .candidate-fee-summary-debt-column,
+  .candidate-course-fee-summary-cards,
+  .candidate-exam-debt-summary-cards {
+    grid-template-columns: 1fr;
+  }
   .candidate-detail-hero {
     flex-direction: column;
   }
@@ -2864,6 +2945,9 @@
   }
   .candidate-billing-payment-form,
   .candidate-billing-plan-form {
+    grid-template-columns: 1fr;
+  }
+  .candidate-payment-plan-modal-form {
     grid-template-columns: 1fr;
   }
   .candidate-accounting-section-summary-row {
@@ -4190,6 +4274,25 @@ textarea.form-input {
   opacity: 0.65;
   cursor: wait;
 }
+
+/* Knob-right variant: text solda, knob sağda. Adjacent sibling selector'lı
+   kurallar input ile control arasına bir span girdiği için adjacent sibling
+   (+) selector'ü kaybediyor; bu yer için genel kardış (~) ile override. */
+.switch-toggle-knob-right input[type="checkbox"]:checked ~ .switch-toggle-control {
+  background: var(--brand);
+}
+.switch-toggle-knob-right input[type="checkbox"]:checked ~ .switch-toggle-control::after {
+  transform: translateX(14px);
+}
+.switch-toggle-knob-right input[type="checkbox"]:focus-visible ~ .switch-toggle-control {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
+}
+.switch-toggle-knob-right input[type="checkbox"]:disabled ~ .switch-toggle-control {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .settings-inline-status-toggle {
   min-width: 74px;
 }
@@ -4894,67 +4997,140 @@ textarea.form-input {
 .candidate-contact-toolbar {
   display: flex;
   justify-content: flex-end;
-}
-
-.candidate-contact-group {
-  border: 1px solid var(--gray-200);
-  border-radius: 6px;
-  background: var(--white);
-  overflow: hidden;
-}
-
-.candidate-contact-group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--gray-100);
-  background: var(--gray-50);
+  flex-wrap: wrap;
 }
 
-.candidate-contact-group .candidate-detail-edit-list {
-  padding: 0 12px;
-}
-
-.candidate-contact-value-row {
+.candidate-contact-row,
+.candidate-contact-draft-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.candidate-contact-value-row .drawer-row {
-  padding-right: 0;
-}
-
-.candidate-contact-value-row .edit-trigger {
-  height: 24px;
-  margin-left: 6px;
-  opacity: 1;
-  position: static;
-  transform: none;
-  width: 24px;
+  grid-template-columns: minmax(150px, 220px) minmax(180px, 240px) auto;
+  column-gap: 8px;
+  row-gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--gray-200) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--gray-50) 55%, white);
 }
 
 .candidate-contact-draft-row {
-  gap: 12px;
+  border-style: dashed;
+  background: var(--white);
 }
 
-.candidate-contact-draft-row .editable-row-edit {
+.candidate-contact-row.is-address,
+.candidate-contact-draft-row.is-address {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+}
+
+.candidate-contact-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.candidate-contact-field-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-500);
+}
+
+.candidate-contact-read-value {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.candidate-contact-owner-field {
   align-items: flex-start;
+  text-align: left;
+}
+
+.candidate-contact-value-field {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.candidate-contact-value-field .candidate-contact-read-value {
+  justify-content: flex-end;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.candidate-contact-row.is-address .candidate-contact-value-field,
+.candidate-contact-draft-row.is-address .candidate-contact-value-field {
+  align-items: stretch;
+  text-align: left;
+}
+
+.candidate-contact-row.is-address .candidate-contact-read-value {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.candidate-contact-value-field .candidate-contact-field-label {
+  text-align: right;
+  width: 100%;
+}
+
+.candidate-contact-row.is-address .candidate-contact-field-label,
+.candidate-contact-draft-row.is-address .candidate-contact-field-label {
+  text-align: left;
+}
+
+.candidate-contact-owner-field .form-input-sm {
+  width: 100%;
+  flex: 0 0 auto;
+  text-align: left;
+}
+
+.candidate-contact-value-field .form-input-sm {
+  width: 100%;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.candidate-contact-draft-row .form-input-sm,
+.candidate-contact-draft-row .form-textarea-sm {
+  min-width: 0;
+}
+
+.candidate-contact-row.is-address .form-textarea-sm,
+.candidate-contact-draft-row.is-address .form-textarea-sm {
+  width: 100%;
 }
 
 .candidate-contact-validation {
   color: #dc2626;
   font-size: 12px;
-  margin-left: auto;
+  grid-column: 1 / -1;
 }
 
-.candidate-contact-draft-actions {
+.candidate-contact-row-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 8px 0 10px;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .candidate-contact-row,
+  .candidate-contact-draft-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .candidate-contact-row.is-address,
+  .candidate-contact-draft-row.is-address {
+    grid-template-columns: 1fr;
+  }
+  .candidate-contact-row-actions {
+    grid-column: 1 / -1;
+  }
 }
 
 .localized-date-field {

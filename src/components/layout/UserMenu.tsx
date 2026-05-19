@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
-import { LogoutIcon, SettingsIcon, UserIcon } from "../icons";
+import { LogoutIcon, UserIcon } from "../icons";
 
 type UserMenuProps = {
   userInitials: string;
@@ -65,12 +65,6 @@ export function UserMenu({ userInitials }: UserMenuProps) {
                 <UserIcon size={14} />
               </span>
               {t("userMenu.profile")}
-            </button>
-            <button className="user-menu-item" onClick={() => go("/settings")} type="button">
-              <span className="user-menu-icon">
-                <SettingsIcon size={14} />
-              </span>
-              {t("userMenu.settings")}
             </button>
           </div>
 
