@@ -46,7 +46,7 @@ export const pendingTasks: PendingTask[] = [
     id: "t5",
     priority: "low",
     title: "5 adaydan tahsilat bakiyesi kaldı",
-    source: "Muhasebe",
+    source: "Finans",
     time: "Bu hafta",
     status: "bekliyor",
   },

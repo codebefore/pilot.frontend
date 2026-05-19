@@ -1073,7 +1073,7 @@ export function DocumentsPage() {
                           title={
                             entry.hasAdvancePayment
                               ? "Ödeme var"
-                              : "Ödeme yok - Muhasebe sekmesini aç"
+                              : "Ödeme yok - Finans sekmesini aç"
                           }
                           type="button"
                         >

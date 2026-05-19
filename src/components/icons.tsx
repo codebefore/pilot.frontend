@@ -101,8 +101,10 @@ export const ExamsIcon = (p?: IconProps) =>
 export const PaymentsIcon = (p?: IconProps) =>
   svg(
     [
-      <line key="1" x1="12" y1="1" x2="12" y2="23" />,
-      <path key="2" d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />,
+      <path key="1" d="M7 5h9.5" />,
+      <path key="2" d="M10.5 5v14c3.2-.3 5.7-1.9 6.5-5.1" />,
+      <path key="3" d="M7.5 10.5 14.5 8" />,
+      <path key="4" d="M7.5 13.5 14.5 11" />,
     ],
     p
   );

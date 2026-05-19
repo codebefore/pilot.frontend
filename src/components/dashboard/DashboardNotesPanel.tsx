@@ -130,8 +130,10 @@ export function DashboardNotesPanel() {
                   <div className="user-notes-item-body">
                     <div className="user-notes-item-text">{note.body}</div>
                     {reminderText ? (
-                      <div className="user-notes-item-reminder">
-                        <BellIcon size={12} /> {reminderText}
+                      <div className="user-notes-item-footer">
+                        <span className="user-notes-item-reminder">
+                          <BellIcon size={12} /> {reminderText}
+                        </span>
                       </div>
                     ) : null}
                   </div>
@@ -146,7 +148,7 @@ export function DashboardNotesPanel() {
                     </button>
                     <button
                       aria-label="Sil"
-                      className="user-notes-item-action"
+                      className="user-notes-item-action is-danger"
                       onClick={() => void handleDelete(note)}
                       type="button"
                     >

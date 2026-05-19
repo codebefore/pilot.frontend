@@ -132,7 +132,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "license", label: "Kayıt Bilgileri" },
   { key: "training", label: "Eğitim ve Sınavlar" },
   { key: "documents", label: "Evraklar" },
-  { key: "payments", label: "Muhasebe" },
+  { key: "payments", label: "Finans" },
 ];
 
 const HERO_DOCUMENT_KEYS = ["application_form", "identity_card", "existing_license_copy"] as const;
@@ -378,7 +378,7 @@ export function CandidateDetailPage() {
 
   // Hero accounting status badge requires the full accounting snapshot
   // (installment due dates), so fetch it as soon as the candidate is known
-  // rather than waiting for the Muhasebe tab.
+  // rather than waiting for the Finans tab.
   useEffect(() => {
     if (!candidateId) return;
     if (accounting !== null) return;
@@ -391,7 +391,7 @@ export function CandidateDetailPage() {
       .then((response) => setAccounting(response))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setAccountingError("Muhasebe bilgileri yüklenemedi");
+        setAccountingError("Finans bilgileri yüklenemedi");
       })
       .finally(() => {
         if (!controller.signal.aborted) setAccountingLoading(false);
@@ -414,7 +414,7 @@ export function CandidateDetailPage() {
       movementId,
     });
     void refreshAccounting().catch(() => {
-      showToast("Muhasebe bilgileri yüklenemedi", "error");
+      showToast("Finans bilgileri yüklenemedi", "error");
     });
   };
 
@@ -834,7 +834,7 @@ function computeAccountingStatus(
   accounting: CandidateAccountingSummaryResponse | null,
 ): AccountingStatus {
   if (candidate.totalFee <= 0 && (!accounting || accounting.movements.length === 0)) {
-    return { label: "Muhasebe kaydı yok", tone: "neutral" };
+    return { label: "Finans kaydı yok", tone: "neutral" };
   }
   if (accounting) {
     const today = new Date();
@@ -3218,7 +3218,7 @@ function AccountingTab({
       <section className="instructor-detail-card">
         <h3 className="candidate-detail-section-title">Cari Özet</h3>
         {accountingLoading ? (
-          <div className="instructor-detail-empty">Muhasebe bilgileri yükleniyor...</div>
+          <div className="instructor-detail-empty">Finans bilgileri yükleniyor...</div>
         ) : accountingError ? (
           <div className="instructor-detail-error">{accountingError}</div>
         ) : accounting ? (
@@ -3242,12 +3242,6 @@ function AccountingTab({
                 </div>
               </div>
               <div className="candidate-fee-summary-column candidate-fee-summary-debt-column">
-                <div className="candidate-billing-summary-grid candidate-fee-summary-single-card">
-                  <div className="candidate-billing-summary-card is-balance">
-                    <span className="candidate-detail-stat-label">Toplam Borç</span>
-                    <strong>{formatCurrencyTRY(totalDebtAmount)}</strong>
-                  </div>
-                </div>
                 <div className="candidate-fee-summary-group">
                   <h4 className="candidate-fee-summary-title">Sınav Borçları</h4>
                   <div className="candidate-billing-summary-grid candidate-exam-debt-summary-cards">
@@ -3267,6 +3261,12 @@ function AccountingTab({
                     <strong>{formatCurrencyTRY(otherFeeDebtAmount)}</strong>
                   </div>
                 </div>
+                <div className="candidate-billing-summary-grid candidate-fee-summary-single-card">
+                  <div className="candidate-billing-summary-card is-balance">
+                    <span className="candidate-detail-stat-label">Toplam Borç</span>
+                    <strong>{formatCurrencyTRY(totalDebtAmount)}</strong>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="candidate-accounting-section-summary-shell">
@@ -3283,7 +3283,7 @@ function AccountingTab({
                 <span aria-hidden="true">{sectionSummaryOpen ? "Kapat" : "Aç"}</span>
               </button>
               {sectionSummaryOpen ? (
-                <div className="candidate-accounting-section-summary" aria-label="Bölüm bazlı muhasebe özeti">
+                <div className="candidate-accounting-section-summary" aria-label="Bölüm bazlı finans özeti">
                   {sectionSummaries.map((section) => (
                     <div className="candidate-accounting-section-summary-row" key={section.id}>
                       <div className="candidate-accounting-section-summary-title">
@@ -4998,7 +4998,7 @@ function CandidateExamAttemptsSection({
       try {
         await onAccountingChanged?.();
       } catch {
-        showToast("Muhasebe bilgileri güncellenemedi.", "error");
+        showToast("Finans bilgileri güncellenemedi.", "error");
       }
       showToast("E-sınav ücreti borçlandırıldı");
     } catch {
@@ -5070,13 +5070,13 @@ function CandidateExamAttemptsSection({
       const updated = await chargeCandidateExamAttempt(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
       if (!updated.accountingMovementId) {
-        showToast("Ödenecek muhasebe borcu bulunamadı.", "error");
+        showToast("Ödenecek finans borcu bulunamadı.", "error");
         return;
       }
 
       onOpenAccountingPayment?.(updated.accountingMovementId);
     } catch {
-      showToast("Muhasebe borcu oluşturulamadı.", "error");
+      showToast("Finans borcu oluşturulamadı.", "error");
     } finally {
       setRowSavingId(null);
     }
@@ -6023,13 +6023,64 @@ function buildCandidateDocumentChecklistItems({
 
 function buildDocumentMetadataValues(
   fields: ReadonlyArray<DocumentMetadataField>,
-  upload: DocumentResponse | null
+  upload: DocumentResponse | null,
+  defaults?: Record<string, string>
 ): Record<string, string> {
   const values: Record<string, string> = {};
   for (const field of fields) {
-    values[field.key] = upload?.metadata?.[field.key] ?? "";
+    values[field.key] = upload?.metadata?.[field.key] ?? defaults?.[field.key] ?? "";
   }
   return values;
+}
+
+function candidateFeeMatrixYear(candidate: CandidateResponse): number {
+  const createdAt = new Date(candidate.createdAtUtc);
+  return Number.isFinite(createdAt.getTime()) ? createdAt.getFullYear() : new Date().getFullYear();
+}
+
+function normalizeFeeProgramLicenseKey(value: string | null | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toLocaleUpperCase("tr-TR")
+    .replace(/Ç/g, "C")
+    .replace(/Ğ/g, "G")
+    .replace(/İ/g, "I")
+    .replace(/Ö/g, "O")
+    .replace(/Ş/g, "S")
+    .replace(/[\s_-]/g, "");
+}
+
+function findCandidateFeeMatrixRow(
+  rows: CertificateProgramFeeRowResponse[],
+  candidate: CandidateResponse
+): CertificateProgramFeeRowResponse | undefined {
+  if (candidate.certificateProgramId) {
+    const byProgramId = rows.find((item) => item.program.id === candidate.certificateProgramId);
+    if (byProgramId) return byProgramId;
+  }
+
+  const hasExistingLicense =
+    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const targetKey = normalizeFeeProgramLicenseKey(candidate.licenseClass);
+  const sourceKey =
+    hasExistingLicense && candidate.existingLicenseType
+      ? normalizeFeeProgramLicenseKey(candidate.existingLicenseType)
+      : "YOK";
+  const sourcePre2016 = sourceKey !== "YOK" && candidate.existingLicensePre2016;
+
+  return (
+    rows.find(
+      (item) =>
+        normalizeFeeProgramLicenseKey(item.program.targetLicenseClass) === targetKey &&
+        normalizeFeeProgramLicenseKey(item.program.sourceLicenseClass) === sourceKey &&
+        item.program.sourceLicensePre2016 === sourcePre2016
+    ) ??
+    rows.find(
+      (item) =>
+        normalizeFeeProgramLicenseKey(item.program.targetLicenseClass) === targetKey &&
+        normalizeFeeProgramLicenseKey(item.program.sourceLicenseClass) === sourceKey
+    )
+  );
 }
 
 function DocumentsTab({
@@ -6058,6 +6109,45 @@ function DocumentsTab({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
+  const [contractBackMebbisFeeDefault, setContractBackMebbisFeeDefault] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!candidate.licenseClass) {
+      setContractBackMebbisFeeDefault(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const year = candidateFeeMatrixYear(candidate);
+    getCertificateProgramFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
+      .then((matrix) => {
+        const row = findCandidateFeeMatrixRow(matrix.rows, candidate);
+        const fee = row?.program.mebbisFee;
+        setContractBackMebbisFeeDefault(fee != null ? String(fee) : null);
+      })
+      .catch((err) => {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          setContractBackMebbisFeeDefault(null);
+        }
+      });
+
+    return () => controller.abort();
+  }, [
+    candidate.certificateProgramId,
+    candidate.createdAtUtc,
+    candidate.existingLicensePre2016,
+    candidate.existingLicenseType,
+    candidate.hasExistingLicense,
+    candidate.licenseClass,
+  ]);
+
+  const contractBackMetadataDefaults = useMemo(
+    () =>
+      contractBackMebbisFeeDefault
+        ? { institution_mebbis_fee: contractBackMebbisFeeDefault }
+        : undefined,
+    [contractBackMebbisFeeDefault]
+  );
 
   const handleDeleteCandidate = async () => {
     if (deleting) return;
@@ -6170,7 +6260,6 @@ function DocumentsTab({
   });
   const completedChecklistCount = documentChecklistItems.filter((item) => item.status === "done").length;
   const actionableChecklistCount = documentChecklistItems.filter((item) => item.status !== "not_applicable").length;
-
   const handleBulkMebbisTransfer = async () => {
     if (bulkMebbisLoading || pendingMebbisTypes.length === 0) return;
     setBulkMebbisLoading(true);
@@ -6351,6 +6440,7 @@ function DocumentsTab({
           {contractTypes.filter(matchesFilter).map((type) => (
             <DocRow
               candidateId={candidateId}
+              defaultMetadataValues={type.key === "contract_back" ? contractBackMetadataDefaults : undefined}
               key={type.id}
               onRefresh={onRefresh}
               type={type}
@@ -6769,11 +6859,13 @@ function StateChip({
 
 function DocRow({
   candidateId,
+  defaultMetadataValues,
   type,
   upload,
   onRefresh,
 }: {
   candidateId: string;
+  defaultMetadataValues?: Record<string, string>;
   type: DocumentTypeResponse;
   upload: DocumentResponse | null;
   onRefresh: () => Promise<void>;
@@ -6813,9 +6905,9 @@ function DocRow({
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
-    setMetadataValues(buildDocumentMetadataValues(metadataFields, upload));
+    setMetadataValues(buildDocumentMetadataValues(metadataFields, upload, defaultMetadataValues));
     setMetadataErrors({});
-  }, [metadataFields, upload]);
+  }, [defaultMetadataValues, metadataFields, upload]);
 
   useEffect(() => {
     if (!showsImagePreview || !isPreviewableImage(upload) || !fileUrl) {
@@ -7129,6 +7221,25 @@ function DocRow({
                         </option>
                       ))}
                     </CustomSelect>
+                  ) : field.key === "institution_mebbis_fee" ? (
+                    <span className="candidate-detail-doc-metadata-input-row">
+                      <input
+                        aria-label={field.label}
+                        className={error ? "form-input error" : "form-input"}
+                        onBlur={(event) => {
+                          const next = event.target.value;
+                          if (next === (upload?.metadata?.[field.key] ?? "")) return;
+                          void handleSaveMetadata({ ...metadataValues, [field.key]: next });
+                        }}
+                        onChange={(event) => setMetadataValue(field.key, event.target.value)}
+                        placeholder={field.placeholder ?? ""}
+                        type="text"
+                        value={value}
+                      />
+                      <span className="candidate-detail-doc-metadata-input-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
                   ) : (
                     <input
                       aria-label={field.label}

@@ -1,1 +1,1 @@
-export type UserRole = "Patron" | "Muhasebe" | "Operasyon" | "Eğitmen";
+export type UserRole = "Patron" | "Finans" | "Operasyon" | "Eğitmen";

@@ -1067,7 +1067,7 @@ export function CandidateDrawer({
             </DrawerSection>
           )}
 
-          <DrawerSection title="Muhasebe">
+          <DrawerSection title="Finans">
             <EditableRow
               displayValue={candidate.initialPaymentReceived ? "Alındı" : "Alınmadı"}
               inputValue={candidate.initialPaymentReceived ? "true" : "false"}

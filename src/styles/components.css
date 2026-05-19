@@ -2224,6 +2224,29 @@
   padding: 4px 8px;
   font-size: 12px;
 }
+.candidate-detail-doc-metadata-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  gap: 6px;
+  align-items: center;
+}
+.candidate-detail-doc-metadata-input-row .form-input {
+  min-width: 0;
+}
+.candidate-detail-doc-metadata-input-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 30px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: var(--gray-50);
+  color: var(--gray-600);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
 .candidate-detail-doc-metadata-field em {
   font-size: 11px;
   font-style: normal;
@@ -2617,7 +2640,7 @@
 }
 .candidate-fee-summary-debt-column {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
   align-items: stretch;
 }
 .candidate-course-fee-summary-cards {
@@ -8841,41 +8864,52 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
 .user-notes-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 12px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 .user-notes-item {
+  position: relative;
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: 22px 1fr auto;
   align-items: start;
   gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
 }
-.user-notes-item:last-child {
-  border-bottom: 0;
+.user-notes-item:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
+  border-color: var(--border-strong, var(--border));
+}
+.user-notes-item.is-completed {
+  background: var(--surface-alt, rgba(15, 23, 42, 0.02));
+  box-shadow: none;
 }
 .user-notes-item.is-completed .user-notes-item-text {
   text-decoration: line-through;
   color: var(--text-muted);
 }
-.user-notes-item.is-overdue .user-notes-item-reminder {
-  color: var(--danger);
-  font-weight: 600;
-}
 .user-notes-item-toggle {
   width: 20px;
   height: 20px;
   margin-top: 2px;
-  border-radius: 6px;
-  border: 1.5px solid var(--border-strong, var(--border));
+  border-radius: 999px;
+  border: 1.5px solid var(--border-strong, #cbd5e1);
   background: transparent;
   cursor: pointer;
   color: var(--brand);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.user-notes-item-toggle:hover {
+  border-color: var(--brand);
 }
 .user-notes-item.is-completed .user-notes-item-toggle {
   background: var(--brand);
@@ -8885,20 +8919,39 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
 .user-notes-item-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 .user-notes-item-text {
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.45;
+  color: var(--text);
   word-break: break-word;
   white-space: pre-wrap;
+}
+.user-notes-item-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .user-notes-item-reminder {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
   font-size: 11px;
+  font-weight: 500;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+.user-notes-item.is-overdue .user-notes-item-reminder {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--danger, #b91c1c);
+}
+.user-notes-item.is-completed .user-notes-item-reminder {
+  background: var(--surface-alt, rgba(15, 23, 42, 0.05));
   color: var(--text-muted);
 }
 .user-notes-item-meta {
@@ -8907,7 +8960,13 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
 }
 .user-notes-item-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.user-notes-item:hover .user-notes-item-actions,
+.user-notes-item:focus-within .user-notes-item-actions {
+  opacity: 1;
 }
 .user-notes-item-action {
   width: 26px;
@@ -8920,8 +8979,13 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.15s, color 0.15s;
 }
 .user-notes-item-action:hover {
-  background: var(--surface-alt, rgba(0, 0, 0, 0.04));
+  background: var(--surface-alt, rgba(15, 23, 42, 0.06));
   color: var(--text);
+}
+.user-notes-item-action.is-danger:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--danger, #b91c1c);
 }

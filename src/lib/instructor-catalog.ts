@@ -17,7 +17,7 @@ export const INSTRUCTOR_ROLE_OPTIONS: Option<InstructorRole>[] = [
   { value: "psychologist", label: "Psikolog" },
   { value: "office_staff", label: "Büro Personeli" },
   { value: "track_responsible", label: "Pist Sorumlusu" },
-  { value: "accounting", label: "Muhasebe" },
+  { value: "accounting", label: "Finans" },
   { value: "other", label: "Diğer" },
 ];
 

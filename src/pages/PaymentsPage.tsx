@@ -412,11 +412,11 @@ export function PaymentsPage() {
             ) : null}
           </button>
         }
-        title="Muhasebe"
+        title="Finans"
       />
 
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Muhasebe Özeti</h3>
+        <h3 className="candidate-detail-section-title">Finans Özeti</h3>
         <div className="candidate-billing-summary-grid">
           <div className="candidate-billing-summary-card">
             <span className="candidate-detail-stat-label">Bugünkü Tahsilat</span>

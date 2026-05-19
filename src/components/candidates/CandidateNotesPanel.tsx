@@ -137,12 +137,14 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                   </button>
                   <div className="user-notes-item-body">
                     <div className="user-notes-item-text">{note.body}</div>
-                    <div className="user-notes-item-meta">{authoredText}</div>
-                    {reminderText ? (
-                      <div className="user-notes-item-reminder">
-                        <BellIcon size={12} /> {reminderText}
-                      </div>
-                    ) : null}
+                    <div className="user-notes-item-footer">
+                      {reminderText ? (
+                        <span className="user-notes-item-reminder">
+                          <BellIcon size={12} /> {reminderText}
+                        </span>
+                      ) : null}
+                      <span className="user-notes-item-meta">{authoredText}</span>
+                    </div>
                   </div>
                   <div className="user-notes-item-actions">
                     <button
@@ -155,7 +157,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                     </button>
                     <button
                       aria-label="Sil"
-                      className="user-notes-item-action"
+                      className="user-notes-item-action is-danger"
                       onClick={() => void handleDelete(note)}
                       type="button"
                     >

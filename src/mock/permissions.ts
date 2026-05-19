@@ -16,7 +16,7 @@ export const PERMISSION_AREAS: { key: PermissionArea; label: string }[] = [
   { key: "candidates", label: "Adaylar" },
   { key: "groups",     label: "Gruplar" },
   { key: "documents",  label: "Evrak" },
-  { key: "payments",   label: "Muhasebe" },
+  { key: "payments",   label: "Finans" },
   { key: "training",   label: "Eğitim Planı" },
   { key: "mebjobs",    label: "Meb Sync" },
   { key: "users",      label: "Kullanıcılar" },
@@ -25,7 +25,7 @@ export const PERMISSION_AREAS: { key: PermissionArea; label: string }[] = [
 
 export const PERMISSION_ROLES: UserRole[] = [
   "Patron",
-  "Muhasebe",
+  "Finans",
   "Operasyon",
   "Eğitmen",
 ];
@@ -49,7 +49,7 @@ export const initialPermissionMatrix: PermissionMatrix = {
     users:      "full",
     settings:   "full",
   },
-  Muhasebe: {
+  Finans: {
     candidates: "view",
     groups:     "view",
     documents:  "view",
