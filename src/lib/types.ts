@@ -237,6 +237,8 @@ export interface AccountingCashRegisterSummaryResponse {
   id: string;
   name: string;
   type: CashRegisterType;
+  balance?: number;
+  lastMovementDate?: string | null;
 }
 
 export interface CandidateAccountingMovementResponse {
@@ -490,7 +492,10 @@ export interface CandidatePaymentPlanCreateRequest {
 
 export interface PaymentsOverviewResponse {
   summary: PaymentsOverviewSummaryResponse;
+  cashRegisters?: AccountingCashRegisterSummaryResponse[];
   payments: PaymentMovementResponse[];
+  refunds?: PaymentRefundMovementResponse[];
+  invoices?: PaymentInvoiceOverviewResponse[];
   installments: PaymentInstallmentOverviewResponse[];
   charges: PaymentChargeOverviewResponse[];
 }
@@ -509,11 +514,14 @@ export interface PaymentCandidateSummaryResponse {
   lastName: string;
   nationalId: string;
   licenseClass: string;
+  currentGroup: CandidateGroupSummary | null;
+  photo: CandidatePhotoSummary | null;
 }
 
 export interface PaymentMovementResponse {
   id: string;
   candidate: PaymentCandidateSummaryResponse;
+  type: CandidateAccountingType;
   candidatePaymentInstallmentId: string | null;
   installmentDescription: string | null;
   cashRegisterId: string | null;
@@ -527,9 +535,35 @@ export interface PaymentMovementResponse {
   cancellationReason: string | null;
 }
 
+export interface PaymentRefundMovementResponse {
+  id: string;
+  paymentId: string;
+  candidate: PaymentCandidateSummaryResponse;
+  type: CandidateAccountingType;
+  cashRegisterId: string | null;
+  cashRegister: AccountingCashRegisterSummaryResponse | null;
+  amount: number;
+  refundedAtUtc: string;
+  note: string | null;
+}
+
+export interface PaymentInvoiceOverviewResponse {
+  id: string;
+  candidate: PaymentCandidateSummaryResponse;
+  invoiceNo: string;
+  invoiceType: string;
+  invoiceDate: string;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  totalAmount: number;
+  notes: string | null;
+}
+
 export interface PaymentInstallmentOverviewResponse {
   id: string;
   candidate: PaymentCandidateSummaryResponse;
+  type: CandidateAccountingType;
   sequence: number;
   dueDate: string;
   amount: number;
@@ -1564,4 +1598,44 @@ export interface SidebarStatsResponse {
   documents: { missingCount: number };
   mebJobs: { failed: number; manualReview: number };
   payments: { dueToday: number };
+}
+
+export type InstitutionType = "MTSK" | "İş Mak." | "SRC" | "Psikoteknik" | "Kurum";
+
+export interface Institution {
+  id: string;
+  name: string;
+  type: InstitutionType;
+}
+
+export interface DashboardOverviewResponse {
+  pendingTasks: DashboardPendingTaskResponse[];
+  recentMebJobs: DashboardMebJobResponse[];
+  recentActivity: DashboardActivityResponse[];
+}
+
+export interface DashboardPendingTaskResponse {
+  id: string;
+  priority: "high" | "medium" | "low";
+  title: string;
+  source: string;
+  time: string;
+  status: "bekliyor" | "devam" | "tamamlandi" | "hata" | "manuel";
+}
+
+export interface DashboardMebJobResponse {
+  id: string;
+  jobType: string;
+  target: string;
+  status: "success" | "running" | "queued" | "failed" | "warning" | "manual";
+  time: string;
+}
+
+export interface DashboardActivityResponse {
+  id: string;
+  avatar: string;
+  avatarTone: "brand" | "blue" | "purple" | "amber";
+  actor: string;
+  description: string;
+  time: string;
 }

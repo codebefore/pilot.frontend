@@ -6,6 +6,7 @@ import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
 import { GridIcon, ListIcon } from "../components/icons";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
+import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
 import { EditableRow } from "../components/ui/EditableRow";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
@@ -85,6 +86,7 @@ import {
 import { createCandidateSyncJob } from "../lib/mebbis-jobs-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
+  CANDIDATE_STATUS_OPTIONS,
   candidateGenderLabel,
   candidateStatusLabel,
   candidateStatusToPill,
@@ -762,7 +764,11 @@ function CandidateHero({
     .filter(Boolean)
     .join(" · ");
   const accountingStatus = computeAccountingStatus(candidate, accounting);
-  const stageTone = stagePillTone(candidate.examStageLabel ?? null);
+  const heroStageLabel =
+    candidate.status === "dropped" && candidate.examStageLabel === "Dosya Yakıldı"
+      ? null
+      : candidate.examStageLabel;
+  const stageTone = stagePillTone(heroStageLabel ?? null);
   const appointmentTone = appointmentPillTone(candidate.appointmentStatusLabel ?? null);
 
   return (
@@ -802,9 +808,9 @@ function CandidateHero({
         </div>
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--status">
           <StatusPill label={statusLabel} status={statusPill} />
-          {candidate.examStageLabel ? (
+          {heroStageLabel ? (
             <span className={`candidate-detail-hero-stage-pill tone-${stageTone}`}>
-              {candidate.examStageLabel}
+              {heroStageLabel}
             </span>
           ) : null}
           {candidate.appointmentStatusLabel ? (
@@ -1038,11 +1044,59 @@ function SecondPracticeRoundBanner({
   );
 }
 
-function GeneralTab({ candidate }: {
+function GeneralTab({ candidate, onSaved }: {
   candidate: CandidateResponse;
   age: number | null;
   onSaved: (updated: CandidateResponse) => void;
 }) {
+  const { showToast } = useToast();
+  const [tagsSaving, setTagsSaving] = useState(false);
+
+  const saveGeneralField = async (
+    patch: Partial<CandidateUpsertRequest>,
+    message = "Aday bilgileri güncellendi"
+  ) => {
+    try {
+      const updated = await updateCandidateField(candidate, patch);
+      onSaved(updated);
+      showToast(message);
+    } catch {
+      showToast("Aday bilgileri kaydedilemedi", "error");
+      throw new Error("save failed");
+    }
+  };
+
+  const saveCandidateStatus = async (value: string) => {
+    const nextStatus = value.trim();
+    const today = new Date().toISOString().slice(0, 10);
+    await saveGeneralField(
+      nextStatus === "dropped"
+        ? {
+            status: nextStatus,
+            terminationDate: candidate.terminationDate ?? today,
+          }
+        : {
+            status: nextStatus,
+            terminationDate: null,
+            terminationReason: null,
+          },
+      "Aday durumu güncellendi"
+    );
+  };
+
+  const saveTags = async (names: string[]) => {
+    setTagsSaving(true);
+    try {
+      const updated = await updateCandidateField(candidate, { tags: names });
+      onSaved(updated);
+      showToast("Etiketler güncellendi");
+    } catch {
+      showToast("Etiketler kaydedilemedi", "error");
+    } finally {
+      setTagsSaving(false);
+    }
+  };
+
   return (
     <div className="candidate-detail-tab-content">
       <div className="candidate-general-grid">
@@ -1053,6 +1107,44 @@ function GeneralTab({ candidate }: {
           <CandidateNotesPanel candidateId={candidate.id} />
         </div>
         <div className="candidate-general-grid-col">
+          <section className="instructor-detail-card">
+            <h3 className="candidate-detail-section-title">Aday Durumu</h3>
+            <div className="candidate-detail-edit-list">
+              <EditableRow
+                displayValue={candidateStatusLabel(candidate.status)}
+                inputValue={candidate.status}
+                label="Durum"
+                options={CANDIDATE_STATUS_OPTIONS}
+                onSave={saveCandidateStatus}
+              />
+              {candidate.status === "dropped" ? (
+                <EditableRow
+                  displayValue={candidate.terminationReason ?? ""}
+                  inputValue={candidate.terminationReason ?? ""}
+                  label="Yakma Nedeni"
+                  onSave={(value) =>
+                    saveGeneralField(
+                      { terminationReason: value.trim() || null },
+                      "Yakma nedeni güncellendi"
+                    )
+                  }
+                />
+              ) : null}
+            </div>
+          </section>
+
+          <section className="instructor-detail-card">
+            <h3 className="candidate-detail-section-title">Etiketler</h3>
+            <CandidateTagsInput
+              ariaLabel="Aday etiketleri"
+              disabled={tagsSaving}
+              onChange={(names) => {
+                void saveTags(names);
+              }}
+              value={candidate.tags?.map((tag) => tag.name) ?? []}
+            />
+          </section>
+
           <section className="instructor-detail-card candidate-whatsapp-card">
             <div className="candidate-whatsapp-card-head">
               <div>
@@ -1895,6 +1987,12 @@ function LicenseInfoTab({
 }) {
   const { showToast } = useToast();
   const { options: licenseClassOptions } = useInitialLicenseClassOptions();
+  const licenseClassLabel = useMemo(
+    () =>
+      licenseClassOptions.find((option) => option.value === candidate.licenseClass)
+        ?.label ?? candidate.licenseClass,
+    [licenseClassOptions, candidate.licenseClass]
+  );
   const [groupCapacity, setGroupCapacity] = useState<{
     filled: number;
     capacity: number;
@@ -2240,7 +2338,7 @@ function LicenseInfoTab({
         <h3 className="candidate-detail-section-title">Başvuru Bilgileri</h3>
         <div className="candidate-detail-edit-list">
           <EditableRow
-            displayValue={candidate.licenseClass}
+            displayValue={licenseClassLabel}
             inputValue={candidate.licenseClass}
             label="Ehliyet Tipi"
             options={licenseClassOptions}

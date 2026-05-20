@@ -14,6 +14,7 @@ import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
+import { CheckboxListPopover } from "../components/ui/CheckboxListPopover";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { applyTagsToCandidates } from "../lib/candidate-bulk";
@@ -896,23 +897,19 @@ export function DocumentsPage() {
                 <SortableTh
                   field="licenseClass"
                   filterControl={
-                    <TableHeaderFilter
-                      active={candidateFilters.licenseClass !== ""}
-                      onChange={(value) =>
+                    <CheckboxListPopover
+                      onChange={(next) =>
                         handleCandidateFilterChange(
-                          "licenseClass",
-                          value as CandidateFilterState["licenseClass"]
+                          "licenseClasses",
+                          next as CandidateFilterState["licenseClasses"]
                         )
                       }
-                      options={[
-                        { value: "", label: t("common.all") },
-                        ...licenseClassOptions.map((option) => ({
-                          value: option.value,
-                          label: option.label,
-                        })),
-                      ]}
+                      options={licenseClassOptions}
+                      placeholder="Ehliyet Tipi"
+                      searchable={licenseClassOptions.length > 8}
                       title="Ehliyet Tipi"
-                      value={candidateFilters.licenseClass}
+                      triggerVariant="icon"
+                      values={candidateFilters.licenseClasses}
                     />
                   }
                   label="Ehliyet Tipi"
@@ -923,8 +920,13 @@ export function DocumentsPage() {
                   field="term"
                   filterControl={
                     <TableHeaderFilter
-                      active={candidateFilters.groupId !== ""}
-                      onChange={(value) => handleCandidateFilterChange("groupId", value)}
+                      active={candidateFilters.groupIds.length > 0}
+                      onChange={(value) =>
+                        handleCandidateFilterChange(
+                          "groupIds",
+                          value === "" ? [] : [value]
+                        )
+                      }
                       options={[
                         { value: "", label: t("common.all") },
                         ...bulkGroupOptions.map((group) => ({
@@ -933,7 +935,7 @@ export function DocumentsPage() {
                         })),
                       ]}
                       title="Dönem"
-                      value={candidateFilters.groupId}
+                      value={candidateFilters.groupIds[0] ?? ""}
                     />
                   }
                   label="Dönem"

@@ -25,15 +25,15 @@ export type JobsSummary = {
   tone: JobsSummaryTone;
 };
 
-const SUMMARY_DEFS: JobsSummary[] = [
-  { status: "success", label: "Başarılı",     tone: "brand" },
-  { status: "running", label: "Çalışıyor",    tone: "blue" },
-  { status: "queued",  label: "Kuyrukta",     tone: "gray" },
-  { status: "manual",  label: "Manuel",       tone: "purple" },
-  { status: "failed",  label: "Hata",         tone: "red" },
-];
-
 export type JobsSummaryRow = JobsSummary & { count: number };
+
+const SUMMARY_DEFS: JobsSummary[] = [
+  { status: "success", label: "Başarılı", tone: "brand" },
+  { status: "running", label: "Çalışıyor", tone: "blue" },
+  { status: "queued", label: "Kuyrukta", tone: "gray" },
+  { status: "manual", label: "Manuel", tone: "purple" },
+  { status: "failed", label: "Hata", tone: "red" },
+];
 
 export function buildJobsSummary(jobs: MebJob[]): JobsSummaryRow[] {
   return SUMMARY_DEFS.map((def) => ({

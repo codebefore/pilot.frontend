@@ -3,8 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
 import { useSidebarStats } from "../../lib/sidebar-stats";
-import type { SidebarStatsResponse } from "../../lib/types";
-import { mockInstitutions } from "../../mock/institutions";
+import type { Institution, SidebarStatsResponse } from "../../lib/types";
 import { navSections, type NavItem } from "../../nav";
 import type { NavKey } from "../../types";
 import { ChevronDownIcon } from "../icons";
@@ -14,6 +13,7 @@ type SidebarProps = {
   open: boolean;
   onClose: () => void;
   activeInstitutionId: string;
+  institutions: Institution[];
   onInstitutionChange: (id: string) => void;
   desktopVisible?: boolean;
   onMouseLeave?: () => void;
@@ -54,6 +54,7 @@ export function Sidebar({
   open,
   onClose,
   activeInstitutionId,
+  institutions,
   onInstitutionChange,
   desktopVisible = true,
   onMouseLeave,
@@ -125,7 +126,7 @@ export function Sidebar({
         <div className="sidebar-inst">
           <InstitutionSelector
             activeId={activeInstitutionId}
-            institutions={mockInstitutions}
+            institutions={institutions}
             onSelect={onInstitutionChange}
           />
         </div>

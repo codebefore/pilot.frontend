@@ -18,6 +18,7 @@ function renderSidebar(path = "/") {
       <SidebarStatsProvider>
         <Sidebar
           activeInstitutionId="i1"
+          institutions={[{ id: "i1", name: "Pilot Sürücü Kursu", type: "MTSK" }]}
           onClose={() => {}}
           onInstitutionChange={() => {}}
           open

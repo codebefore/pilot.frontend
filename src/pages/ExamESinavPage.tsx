@@ -9,11 +9,10 @@ export function ExamESinavPage() {
     "name",
     "nationalId",
     "group",
-    "eSinavDate",
+    "status",
     "eSinavAttemptCount",
     "mebSyncStatus",
-    "examFeePaid",
-    "status",
+    "referenceName",
   ];
   const tabs: { key: ESinavTabValue; label: string }[] = [
     { key: "havuz", label: t("examESinav.tab.havuz") },
@@ -27,7 +26,7 @@ export function ExamESinavPage() {
 
   return (
     <CandidatesPage
-      columnStorageKey="exams.e-sinav.columns.v3"
+      columnStorageKey="exams.e-sinav.columns.v7"
       columnLabelOverrides={{
         eSinavDate: "Tarih",
         eSinavAttemptCount: "Hak",

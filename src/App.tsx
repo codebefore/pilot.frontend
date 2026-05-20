@@ -6,8 +6,9 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { ToastProvider } from "./components/ui/Toast";
 import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider } from "./lib/i18n";
+import { getInstitutions } from "./lib/institutions-api";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
-import { mockInstitutions } from "./mock/institutions";
+import type { Institution } from "./lib/types";
 
 const CandidateDetailPage = lazy(() => import("./pages/CandidateDetailPage").then((m) => ({ default: m.CandidateDetailPage })));
 const CandidatesPage = lazy(() => import("./pages/CandidatesPage").then((m) => ({ default: m.CandidatesPage })));
@@ -35,13 +36,31 @@ function isFeesRoute(pathname: string) {
 
 function AppShell() {
   const { user } = useAuth();
-  const [institutionId, setInstitutionId] = useState<string>(mockInstitutions[0].id);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [institutionId, setInstitutionId] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHoverOpen, setSidebarHoverOpen] = useState(false);
   const location = useLocation();
   const fullScreenRoute = isFeesRoute(location.pathname);
   const sidebarVisible = !sidebarCollapsed || sidebarHoverOpen;
+  const activeInstitution = institutions.find((item) => item.id === institutionId) ?? institutions[0] ?? null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getInstitutions(controller.signal)
+      .then((items) => {
+        setInstitutions(items);
+        setInstitutionId((current) => current || items[0]?.id || "");
+      })
+      .catch((error: unknown) => {
+        if ((error as { name?: string }).name !== "AbortError") {
+          setInstitutions([]);
+          setInstitutionId("");
+        }
+      });
+    return () => controller.abort();
+  }, []);
 
   // Route değişince mobilde sidebar'ı otomatik kapat.
   useEffect(() => {
@@ -59,6 +78,7 @@ function AppShell() {
       {!fullScreenRoute ? (
         <Header
           activeInstitutionId={institutionId}
+          institutions={institutions}
           onInstitutionChange={setInstitutionId}
           onMenuToggle={() => setSidebarOpen((v) => !v)}
           onSidebarToggle={toggleDesktopSidebar}
@@ -77,6 +97,7 @@ function AppShell() {
         <Sidebar
           activeInstitutionId={institutionId}
           desktopVisible={sidebarVisible}
+          institutions={institutions}
           onClose={() => setSidebarOpen(false)}
           onInstitutionChange={setInstitutionId}
           onMouseLeave={() => {
@@ -96,7 +117,10 @@ function AppShell() {
       >
         <Suspense fallback={<RouteFallback />}>
           <Routes>
-            <Route element={<DashboardPage />}  path="/" />
+            <Route
+              element={<DashboardPage activeInstitution={activeInstitution} userName={user?.name ?? null} />}
+              path="/"
+            />
             <Route element={<CandidatesPage />} path="/candidates" />
             <Route element={<CandidateDetailPage />} path="/candidates/:candidateId" />
             <Route element={<GroupsPage />}     path="/groups" />

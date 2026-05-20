@@ -15,6 +15,7 @@ import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTag
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { Pagination } from "../components/ui/Pagination";
+import { CheckboxListPopover } from "../components/ui/CheckboxListPopover";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
@@ -127,6 +128,14 @@ export type CandidateColumnId =
   | "status"
   | "createdAtUtc"
   | "updatedAtUtc";
+
+const REMOVED_CANDIDATE_COLUMN_IDS = new Set<CandidateColumnId>([
+  "eSinavDate",
+  "drivingExamDate",
+  "drivingExamAttemptCount",
+  "missingDocuments",
+  "examFeePaid",
+]);
 
 type CandidateColumnDef = {
   id: CandidateColumnId;
@@ -604,10 +613,9 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
   "name",
   "licenseClass",
   "group",
+  "status",
   "documents",
   "mebSyncStatus",
-  "examFeePaid",
-  "status",
 ];
 
 const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, CandidateColumnId[]> = {
@@ -631,6 +639,7 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "licenseClass",
     "documents",
     "group",
+    "status",
     "groupStartDate",
     "totalFee",
     "totalPaid",
@@ -642,6 +651,7 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
+    "status",
     "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
@@ -654,6 +664,7 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
+    "status",
     "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
@@ -666,8 +677,8 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
+    "status",
     "graduationDate",
-    "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
     "totalPaid",
@@ -679,9 +690,9 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
+    "status",
     "terminationReason",
     "terminationDate",
-    "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
     "totalPaid",
@@ -717,7 +728,7 @@ type CandidatesPageProps = {
 
 export function CandidatesPage({
   title,
-  columnStorageKey = "candidates.columns.v12",
+  columnStorageKey = "candidates.columns.v18",
   defaultVisibleColumnIds: defaultVisibleColumnIdsProp,
   columnLabelOverrides,
   showTabs = true,
@@ -738,20 +749,14 @@ export function CandidatesPage({
   const forcedVisibleColumnIds = useMemo<Set<CandidateColumnId>>(
     () =>
       new Set(
-        examDateSidebar?.field === "eSinavDate"
+        (examDateSidebar?.field === "eSinavDate"
           ? (["eSinavDate", "eSinavAttemptCount"] satisfies CandidateColumnId[])
           : examDateSidebar?.field === "drivingExamDate"
             ? (["drivingExamDate", "drivingExamAttemptCount"] satisfies CandidateColumnId[])
             : []
+        ).filter((id) => !REMOVED_CANDIDATE_COLUMN_IDS.has(id))
       ),
     [examDateSidebar?.field]
-  );
-  const availableColumnIds = useMemo(
-    () =>
-      CANDIDATE_COLUMNS.filter((column) => columnAvailableOnPage(column, columnPageScope)).map(
-        (column) => column.id
-      ),
-    [columnPageScope]
   );
   const defaultTabs = useMemo(
     () =>
@@ -776,6 +781,18 @@ export function CandidatesPage({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tab, setTab] = useState<CandidateListTabKey>(resolvedTabConfig.defaultTab);
+  const availableColumnIds = useMemo(
+    () =>
+      CANDIDATE_COLUMNS.filter((column) => {
+        if (!columnAvailableOnPage(column, columnPageScope)) return false;
+        if (REMOVED_CANDIDATE_COLUMN_IDS.has(column.id)) return false;
+        if ((tab === "graduated" || tab === "dropped") && column.id === "eSinavAttemptCount") {
+          return false;
+        }
+        return true;
+      }).map((column) => column.id),
+    [columnPageScope, tab]
+  );
   const [sort, setSort] = useState<SortState>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [examScheduleModalOpen, setExamScheduleModalOpen] = useState(false);
@@ -791,6 +808,7 @@ export function CandidatesPage({
   const [bulkGroupId, setBulkGroupId] = useState("");
   const [bulkGroupOptions, setBulkGroupOptions] = useState<GroupResponse[]>([]);
   const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
+  const [headerGroupCatalog, setHeaderGroupCatalog] = useState<GroupResponse[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
@@ -836,13 +854,25 @@ export function CandidatesPage({
     () => defaultVisibleColumnIds.filter((id) => availableColumnIds.includes(id)),
     [availableColumnIds, defaultVisibleColumnIds]
   );
+  const orderedAvailableColumnIds = useMemo(
+    () => [
+      ...scopedDefaultVisibleColumnIds,
+      ...availableColumnIds.filter((id) => !scopedDefaultVisibleColumnIds.includes(id)),
+    ],
+    [availableColumnIds, scopedDefaultVisibleColumnIds]
+  );
   const effectiveColumnStorageKey =
     showTabs && !defaultVisibleColumnIdsProp && TAB_KEYS.includes(tab as CandidateTab)
       ? `${columnStorageKey}.${tab}`
       : columnStorageKey;
-  const { isVisible, toggle: toggleColumn, reset: resetColumns } = useColumnVisibility(
+  const {
+    visibleIds,
+    isVisible,
+    toggle: toggleColumn,
+    reset: resetColumns,
+  } = useColumnVisibility(
     effectiveColumnStorageKey,
-    availableColumnIds,
+    orderedAvailableColumnIds,
     scopedDefaultVisibleColumnIds.length > 0 ? scopedDefaultVisibleColumnIds : undefined
   );
   const currentTabLabel = useMemo(
@@ -850,24 +880,52 @@ export function CandidatesPage({
     [resolvedTabConfig.tabs, tab, t]
   );
 
+  const licenseClassLabelByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const option of licenseClassOptions) {
+      map.set(option.value, option.label);
+    }
+    return map;
+  }, [licenseClassOptions]);
+
   const resolvedColumns = useMemo(
     () =>
       CANDIDATE_COLUMNS.filter((column) =>
-        columnAvailableOnPage(column, columnPageScope)
+        columnAvailableOnPage(column, columnPageScope) && availableColumnIds.includes(column.id)
       ).map((col) => {
-        if (col.id !== "group") return col;
-        return {
-          ...col,
-          renderCell: (candidate: CandidateResponse) =>
-            groupColumnMode === "term"
-              ? formatCandidateTerm(candidate, lang)
-              : formatGroupWithTerm(candidate, lang),
-        };
+        if (col.id === "group") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) =>
+              groupColumnMode === "term"
+                ? formatCandidateTerm(candidate, lang)
+                : formatGroupWithTerm(candidate, lang),
+          };
+        }
+        if (col.id === "licenseClass") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) =>
+              licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass,
+          };
+        }
+        return col;
       }),
-    [columnPageScope, groupColumnMode, lang]
+    [availableColumnIds, columnPageScope, groupColumnMode, lang, licenseClassLabelByCode]
   );
+  const visibleColumnOrder = useMemo(() => {
+    const order = new Map<CandidateColumnId, number>();
+    visibleIds.forEach((id, index) => {
+      order.set(id as CandidateColumnId, index);
+    });
+    return order;
+  }, [visibleIds]);
   const visibleColumns = resolvedColumns.filter(
     (col) => forcedVisibleColumnIds.has(col.id) || isVisible(col.id)
+  ).sort(
+    (left, right) =>
+      (visibleColumnOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+      (visibleColumnOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
   );
   const getColumnLabel = (col: CandidateColumnDef) =>
     columnLabelOverrides?.[col.id] ??
@@ -887,12 +945,22 @@ export function CandidatesPage({
         : BULK_STATUS_OPTIONS.filter((option) => option.value !== currentStatusTab),
     [currentStatusTab]
   );
+  const headerGroupOptions = useMemo(
+    () =>
+      headerGroupCatalog.map((group) => ({
+        value: group.id,
+        label: buildGroupHeading(group.title, group.term, [group.term], lang),
+      })),
+    [headerGroupCatalog, lang]
+  );
+
   const getColumnFilterControl = (col: CandidateColumnDef) =>
     buildCandidateColumnFilterControl(
       col.id,
       filters,
       handleFilterChange,
       licenseClassOptions,
+      headerGroupOptions,
       t,
       lang
     );
@@ -1063,6 +1131,19 @@ export function CandidatesPage({
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setAllTags([]);
+      });
+    return () => controller.abort();
+  }, [refreshKey]);
+
+  // Fetch the group catalog so the "Grup" column header filter has options
+  // ready without waiting for a bulk action. Kept separate from
+  // `bulkGroupOptions`, which is loaded on demand by the bulk-action flow.
+  useEffect(() => {
+    const controller = new AbortController();
+    getGroups({ pageSize: 200 }, controller.signal)
+      .then((result) => setHeaderGroupCatalog(result.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
       });
     return () => controller.abort();
   }, [refreshKey]);
@@ -2214,23 +2295,20 @@ function buildCandidateColumnFilterControl(
     value: CandidateFilterState[K]
   ) => void,
   licenseClassOptions: { value: string; label: string }[],
+  groupOptions: { value: string; label: string }[],
   t: ReturnType<typeof useT>,
   lang: "tr" | "en"
 ) {
   if (columnId === "licenseClass") {
     return (
-      <TableHeaderFilter
-        active={filters.licenseClass !== ""}
-        onChange={(value) => setFilter("licenseClass", value as LicenseClass | "")}
-        options={[
-          { value: "", label: t("common.all") },
-          ...licenseClassOptions.map((option) => ({
-            value: option.value,
-            label: option.label,
-          })),
-        ]}
+      <CheckboxListPopover
+        onChange={(next) => setFilter("licenseClasses", next as LicenseClass[])}
+        options={licenseClassOptions}
+        placeholder={t("candidates.col.licenseClass")}
+        searchable={licenseClassOptions.length > 8}
         title={t("candidates.col.licenseClass")}
-        value={filters.licenseClass}
+        triggerVariant="icon"
+        values={filters.licenseClasses}
       />
     );
   }
@@ -2255,16 +2333,14 @@ function buildCandidateColumnFilterControl(
 
   if (columnId === "group") {
     return (
-      <TableHeaderFilter
-        active={filters.hasActiveGroup !== ""}
-        onChange={(value) => setFilter("hasActiveGroup", value as CandidateFilterState["hasActiveGroup"])}
-        options={[
-          { value: "", label: t("common.all") },
-          { value: "true", label: lang === "tr" ? "Grubu var" : "Has group" },
-          { value: "false", label: lang === "tr" ? "Grubu yok" : "No group" },
-        ]}
-        title={t("candidates.filters.hasActiveGroup")}
-        value={filters.hasActiveGroup}
+      <CheckboxListPopover
+        onChange={(next) => setFilter("groupIds", next)}
+        options={groupOptions}
+        placeholder={t("candidates.col.group")}
+        searchable={groupOptions.length > 8}
+        title={t("candidates.filters.groupIds")}
+        triggerVariant="icon"
+        values={filters.groupIds}
       />
     );
   }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import type { Institution } from "../../lib/types";
 import { useToast } from "../ui/Toast";
-import type { Institution } from "../../mock/institutions";
 
 type InstitutionSelectorProps = {
   institutions: Institution[];
@@ -18,6 +18,7 @@ export function InstitutionSelector({
   const ref = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
   const active = institutions.find((i) => i.id === activeId) ?? institutions[0];
+  const hasInstitutions = institutions.length > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -32,14 +33,15 @@ export function InstitutionSelector({
     <div className={open ? "inst-selector open" : "inst-selector"} ref={ref}>
       <button
         className="inst-selector-btn"
+        disabled={!hasInstitutions}
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
         <span className="inst-dot" />
-        <span>{active.name}</span>
+        <span>{active?.name ?? "Kurum yükleniyor"}</span>
       </button>
 
-      {open && (
+      {open && hasInstitutions && (
         <div className="inst-menu">
           <div className="inst-menu-label">Kurumlar</div>
           {institutions.map((inst) => (

@@ -23,7 +23,7 @@ import {
   parseJobPayload,
   type MebbisJobResponse,
 } from "../lib/mebbis-jobs-api";
-import { buildJobsSummary, type MebJob } from "../mock/mebJobs";
+import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
 import type { JobStatus } from "../types";
 
 type StatusFilter = "all" | "running" | "queued" | "manual" | "failed" | "success";
@@ -98,14 +98,68 @@ const FILTERS: { key: StatusFilter; label: string }[] = [
 const ACTIVE_STATUSES: JobStatus[] = ["running", "queued"];
 const POLL_INTERVAL_MS = 5000;
 
+function buildFilterOptions(
+  values: string[],
+  formatLabel: (value: string) => string = (value) => value
+): TableHeaderFilterOption[] {
+  const distinct = Array.from(new Set(values))
+    .filter((value) => value && value.trim().length > 0)
+    .sort((a, b) => formatLabel(a).localeCompare(formatLabel(b), "tr", { sensitivity: "base" }));
+  return [
+    { value: "all", label: "Tümü" },
+    ...distinct.map((value) => ({ value, label: formatLabel(value) })),
+  ];
+}
+
+function getCandidateFilterValue(job: MebJob): string {
+  return job.candidateName ?? job.targetSecondary;
+}
+
+function getStartedAtFilterValue(job: MebJob): string {
+  const date = new Date(job.startedAtIso);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDateFilterLabel(value: string): string {
+  if (value === "-") return value;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function getDurationFilterValue(job: MebJob): string {
+  const start = new Date(job.startedAtIso).getTime();
+  if (Number.isNaN(start)) return "-";
+  const end = job.completedAtIso ? new Date(job.completedAtIso).getTime() : Date.now();
+  if (Number.isNaN(end)) return "-";
+  const minutes = Math.max(0, Math.floor((end - start) / 60000));
+  if (minutes < 1) return "1 dakikadan az";
+  if (minutes < 10) return "1-10 dakika";
+  if (minutes < 60) return "10-60 dakika";
+  return "1 saatten fazla";
+}
+
 function applyFilter(
   jobs: MebJob[],
   statusFilter: StatusFilter,
-  jobTypeFilter: string
+  jobTypeFilter: string,
+  candidateFilter: string,
+  stepFilter: string,
+  startedAtFilter: string,
+  durationFilter: string
 ): MebJob[] {
   return jobs.filter((j) => {
     if (statusFilter !== "all" && j.status !== statusFilter) return false;
     if (jobTypeFilter !== "all" && j.jobType !== jobTypeFilter) return false;
+    if (candidateFilter !== "all" && getCandidateFilterValue(j) !== candidateFilter) return false;
+    if (stepFilter !== "all" && j.step !== stepFilter) return false;
+    if (startedAtFilter !== "all" && getStartedAtFilterValue(j) !== startedAtFilter) return false;
+    if (durationFilter !== "all" && getDurationFilterValue(j) !== durationFilter) return false;
     return true;
   });
 }
@@ -115,6 +169,10 @@ type CandidateLite = { id: string; firstName: string; lastName: string; national
 export function MebJobsPage() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [jobTypeFilter, setJobTypeFilter] = useState<string>("all");
+  const [candidateFilter, setCandidateFilter] = useState<string>("all");
+  const [stepFilter, setStepFilter] = useState<string>("all");
+  const [startedAtFilter, setStartedAtFilter] = useState<string>("all");
+  const [durationFilter, setDurationFilter] = useState<string>("all");
   const [sort, setSort] = useState<SortState>({ field: "startedAt", direction: "desc" });
   const [jobs, setJobs] = useState<MebJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,8 +269,20 @@ export function MebJobsPage() {
 
   const summary = useMemo(() => buildJobsSummary(jobs), [jobs]);
   const filtered = useMemo(
-    () => sortJobs(applyFilter(jobs, filter, jobTypeFilter), sort),
-    [jobs, filter, jobTypeFilter, sort]
+    () =>
+      sortJobs(
+        applyFilter(
+          jobs,
+          filter,
+          jobTypeFilter,
+          candidateFilter,
+          stepFilter,
+          startedAtFilter,
+          durationFilter
+        ),
+        sort
+      ),
+    [candidateFilter, durationFilter, filter, jobTypeFilter, jobs, sort, startedAtFilter, stepFilter]
   );
 
   const jobTypeOptions = useMemo<TableHeaderFilterOption[]>(() => {
@@ -228,6 +298,22 @@ export function MebJobsPage() {
   const statusFilterOptions = useMemo<TableHeaderFilterOption[]>(
     () => FILTERS.map((f) => ({ value: f.key, label: f.label })),
     []
+  );
+  const candidateFilterOptions = useMemo(
+    () => buildFilterOptions(jobs.map(getCandidateFilterValue)),
+    [jobs]
+  );
+  const stepFilterOptions = useMemo(
+    () => buildFilterOptions(jobs.map((job) => job.step)),
+    [jobs]
+  );
+  const startedAtFilterOptions = useMemo(
+    () => buildFilterOptions(jobs.map(getStartedAtFilterValue), formatDateFilterLabel),
+    [jobs]
+  );
+  const durationFilterOptions = useMemo(
+    () => buildFilterOptions(jobs.map(getDurationFilterValue)),
+    [jobs]
   );
 
   const toggleSort = (key: SortKey) => {
@@ -350,8 +436,36 @@ export function MebJobsPage() {
                   onToggle={toggleSort}
                   sort={sort}
                 />
-                <SortableTh field="candidate" label="Aday" onToggle={toggleSort} sort={sort} />
-                <SortableTh field="step" label="Adım" onToggle={toggleSort} sort={sort} />
+                <SortableTh
+                  field="candidate"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={candidateFilter !== "all"}
+                      onChange={setCandidateFilter}
+                      options={candidateFilterOptions}
+                      title="Aday"
+                      value={candidateFilter}
+                    />
+                  }
+                  label="Aday"
+                  onToggle={toggleSort}
+                  sort={sort}
+                />
+                <SortableTh
+                  field="step"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={stepFilter !== "all"}
+                      onChange={setStepFilter}
+                      options={stepFilterOptions}
+                      title="Adım"
+                      value={stepFilter}
+                    />
+                  }
+                  label="Adım"
+                  onToggle={toggleSort}
+                  sort={sort}
+                />
                 <SortableTh
                   field="status"
                   filterControl={
@@ -367,8 +481,36 @@ export function MebJobsPage() {
                   onToggle={toggleSort}
                   sort={sort}
                 />
-                <SortableTh field="startedAt" label="Başlangıç" onToggle={toggleSort} sort={sort} />
-                <SortableTh field="duration" label="Süre" onToggle={toggleSort} sort={sort} />
+                <SortableTh
+                  field="startedAt"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={startedAtFilter !== "all"}
+                      onChange={setStartedAtFilter}
+                      options={startedAtFilterOptions}
+                      title="Başlangıç"
+                      value={startedAtFilter}
+                    />
+                  }
+                  label="Başlangıç"
+                  onToggle={toggleSort}
+                  sort={sort}
+                />
+                <SortableTh
+                  field="duration"
+                  filterControl={
+                    <TableHeaderFilter
+                      active={durationFilter !== "all"}
+                      onChange={setDurationFilter}
+                      options={durationFilterOptions}
+                      title="Süre"
+                      value={durationFilter}
+                    />
+                  }
+                  label="Süre"
+                  onToggle={toggleSort}
+                  sort={sort}
+                />
                 <th />
               </tr>
             </thead>

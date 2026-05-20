@@ -1,5 +1,5 @@
 import { useLanguage } from "../../lib/i18n";
-import { mockInstitutions } from "../../mock/institutions";
+import type { Institution } from "../../lib/types";
 import { MenuIcon } from "../icons";
 import { InstitutionSelector } from "./InstitutionSelector";
 import { NotificationsMenu } from "./NotificationsMenu";
@@ -7,6 +7,7 @@ import { UserMenu } from "./UserMenu";
 
 type HeaderProps = {
   activeInstitutionId: string;
+  institutions: Institution[];
   onInstitutionChange: (id: string) => void;
   userInitials: string;
   onMenuToggle: () => void;
@@ -16,6 +17,7 @@ type HeaderProps = {
 
 export function Header({
   activeInstitutionId,
+  institutions,
   onInstitutionChange,
   userInitials,
   onMenuToggle,
@@ -52,7 +54,7 @@ export function Header({
         <div className="header-divider" />
         <InstitutionSelector
           activeId={activeInstitutionId}
-          institutions={mockInstitutions}
+          institutions={institutions}
           onSelect={onInstitutionChange}
         />
       </div>

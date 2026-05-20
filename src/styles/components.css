@@ -28,6 +28,11 @@
 .panel-action:hover { color: var(--brand-dark); }
 .panel-body { padding: 0; overflow-x: auto; }
 .panel-body.padded { padding: 20px; overflow-x: visible; }
+.panel-empty {
+  padding: 16px 20px;
+  color: var(--gray-500);
+  font-size: 13px;
+}
 
 /* ─── STAT CARD ─── */
 .stat-card {
@@ -4018,34 +4023,6 @@
   gap: 8px;
 }
 
-/* ─── PAYMENT CARDS ─── */
-.payment-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--page-shell-gap);
-  padding: var(--page-shell-gap) var(--page-shell-gutter);
-}
-.payment-card {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  box-shadow: var(--shadow);
-}
-.payment-card h4 {
-  font-size: 12px; font-weight: 600;
-  color: var(--gray-500);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  margin-bottom: 4px;
-}
-.payment-card .amount {
-  font-size: 28px; font-weight: 800;
-}
-.payment-card .amount.tone-brand { color: var(--brand); }
-.payment-card .amount.tone-red   { color: var(--red); }
-.payment-card .amount.tone-blue  { color: var(--blue); }
-
 .payments-filter-toggle {
   display: inline-flex;
   align-items: center;
@@ -4144,10 +4121,10 @@
 
 .payments-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) repeat(6, minmax(130px, 1fr)) auto;
+  grid-template-columns: repeat(3, minmax(130px, 1fr)) auto;
   gap: 12px;
   align-items: end;
-  padding: 0 var(--page-shell-gutter) var(--page-shell-gap);
+  padding: var(--page-shell-gap) var(--page-shell-gutter);
 }
 
 .payments-filter-field {
@@ -4164,8 +4141,232 @@
   white-space: nowrap;
 }
 
+.finance-matrix-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-shell-gap);
+  margin: 0 var(--page-shell-gutter) var(--page-shell-gap);
+}
+
+.finance-matrix-card-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.finance-matrix-card-head strong {
+  color: var(--brand);
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.finance-period-picker {
+  width: 180px;
+}
+
+.finance-period-percent {
+  font-weight: 800;
+}
+
+.finance-matrix-card-subtitle {
+  color: var(--gray-500);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.finance-matrix-scroll {
+  overflow-x: auto;
+}
+
+.finance-matrix-table {
+  min-width: 760px;
+}
+
+.finance-payments-table {
+  min-width: 1080px;
+}
+
+.finance-payments-table th,
+.finance-payments-table td {
+  padding-left: 18px;
+  padding-right: 18px;
+  white-space: nowrap;
+}
+
+.finance-payments-table thead th {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.finance-payments-table th {
+  text-align: left;
+}
+
+.finance-payments-table .finance-matrix-amount {
+  text-align: right;
+}
+
+.finance-payments-table th.finance-matrix-amount .sortable-th-shell {
+  justify-content: flex-end;
+}
+
+.finance-payments-table th.finance-matrix-amount .sortable-th-btn {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.finance-cash-summary-table th,
+.finance-cash-summary-table td {
+  text-align: left;
+}
+
+.finance-cash-summary-table th.finance-matrix-amount,
+.finance-cash-summary-table td.finance-matrix-amount {
+  text-align: right;
+}
+
+.finance-cash-summary-table th.finance-matrix-amount .sortable-th-shell {
+  justify-content: flex-end;
+}
+
+.finance-cash-summary-table th.finance-matrix-amount .sortable-th-btn {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.finance-detail-description-cell {
+  white-space: normal;
+  min-width: 180px;
+}
+
+.finance-detail-left-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.finance-detail-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--gray-50);
+  width: fit-content;
+}
+
+.finance-detail-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.finance-detail-search {
+  flex: 0 0 160px;
+  width: 160px;
+  max-width: 160px;
+}
+
+.finance-detail-tab {
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-600);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 11px;
+}
+
+.finance-detail-tab:hover {
+  color: var(--gray-900);
+}
+
+.finance-detail-tab.active {
+  background: var(--white);
+  color: var(--brand);
+  box-shadow: var(--shadow-sm);
+}
+
+.finance-detail-row.type-refund .payment-credit,
+.finance-detail-row.type-cancelled .payment-credit {
+  color: var(--red);
+}
+
+.finance-matrix-table thead th {
+  min-width: 150px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.finance-matrix-table thead th:first-child {
+  min-width: 180px;
+  padding-left: 18px;
+}
+
+.finance-matrix-table thead th:last-child {
+  min-width: 130px;
+  text-align: right;
+}
+
+.finance-matrix-table th,
+.finance-matrix-table td {
+  padding-left: 18px;
+  padding-right: 18px;
+  white-space: nowrap;
+}
+
+.finance-matrix-table tfoot th,
+.finance-matrix-table tfoot td {
+  border-top: 1px solid var(--gray-200);
+}
+
+.finance-matrix-type {
+  color: var(--gray-900);
+  font-weight: 800;
+  padding-left: 18px;
+  text-align: left;
+}
+
+.finance-matrix-register {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.finance-matrix-register small {
+  color: var(--gray-500);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.finance-matrix-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-matrix-total {
+  background: color-mix(in srgb, var(--brand-light) 45%, transparent);
+  color: var(--gray-900);
+  font-weight: 800;
+}
+
+.finance-matrix-grand-total {
+  background: var(--gray-900);
+  color: var(--white);
+  font-weight: 800;
+}
+
 @media (max-width: 1024px) {
-  .payment-cards { grid-template-columns: 1fr; }
   .payments-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -4181,6 +4382,16 @@
 }
 
 @media (max-width: 640px) {
+  .finance-detail-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .finance-detail-search {
+    width: 100%;
+    max-width: 100%;
+  }
+
   .payments-filters {
     grid-template-columns: 1fr;
   }
@@ -4193,6 +4404,7 @@
 
 /* Payments table — credit amount */
 .payment-credit { font-weight: 700; color: var(--brand); }
+.payment-debit { font-weight: 700; color: var(--red); }
 
 /* ─── DOCUMENTS DUE DATE ─── */
 .doc-due-date { font-weight: 600; }
@@ -6566,7 +6778,7 @@ button.tag-filter-summary-chip.active {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   padding: 0;
   background: transparent;
@@ -8988,4 +9200,108 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
 .user-notes-item-action.is-danger:hover {
   background: rgba(220, 38, 38, 0.1);
   color: var(--danger, #b91c1c);
+}
+
+/* Multi-select popover (CheckboxListPopover) */
+.checkbox-popover { position: relative; display: block; }
+.checkbox-popover-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.checkbox-popover-trigger[disabled] { opacity: .5; cursor: not-allowed; }
+.checkbox-popover-trigger.has-selection { color: var(--gray-800); font-weight: 500; }
+.checkbox-popover-trigger:not(.has-selection) .checkbox-popover-trigger-label {
+  color: var(--gray-500);
+}
+.checkbox-popover-trigger-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.checkbox-popover-menu {
+  position: fixed;
+  z-index: 80;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(360px, calc(100vh - 16px));
+  display: flex;
+  flex-direction: column;
+  padding: 8px 4px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+}
+.checkbox-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 8px 12px;
+  border-bottom: 1px solid var(--gray-100);
+  margin-bottom: 4px;
+}
+.checkbox-popover-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--gray-500);
+}
+.checkbox-popover-clear {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.checkbox-popover-clear:hover {
+  color: var(--brand-dark);
+  text-decoration: underline;
+}
+.checkbox-popover-search {
+  margin: 0 8px 6px 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.checkbox-popover-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.checkbox-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-800);
+  cursor: pointer;
+  border-radius: 5px;
+}
+.checkbox-popover-item:hover { background: var(--gray-50); }
+.checkbox-popover-item.selected { background: var(--brand-soft, rgba(59, 130, 246, 0.08)); }
+.checkbox-popover-item-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.checkbox-popover-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--gray-500);
 }

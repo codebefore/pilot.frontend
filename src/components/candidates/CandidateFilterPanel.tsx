@@ -9,7 +9,7 @@ import { getGroups } from "../../lib/groups-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
 } from "../../lib/status-maps";
-import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
+import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import type {
   CandidateGenderValue,
   GroupResponse,
@@ -19,6 +19,7 @@ import {
   useExistingLicenseTypeOptions,
   useLicenseClassOptions,
 } from "../../lib/use-license-class-options";
+import { CheckboxListPopover } from "../ui/CheckboxListPopover";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
@@ -84,12 +85,23 @@ export function CandidateFilterPanel({
     };
   }, [open, groups.length]);
 
-  const groupOptions = useMemo(() => {
+  const uniqueTerms = useMemo(() => {
     const termsFromGroups = groups.map((group) => group.term);
-    const uniqueTerms = Array.from(
+    return Array.from(
       new Map(termsFromGroups.map((term) => [term.id, term])).values()
     ).sort(compareTermsDesc);
+  }, [groups]);
 
+  const termOptions = useMemo(
+    () =>
+      uniqueTerms.map((term) => ({
+        value: term.id,
+        label: buildTermLabel(term, uniqueTerms, lang === "tr" ? "tr" : "en"),
+      })),
+    [uniqueTerms, lang]
+  );
+
+  const groupOptions = useMemo(() => {
     return [...groups]
       .sort((a, b) => {
         const termCompare = compareTermsDesc(a.term, b.term);
@@ -97,7 +109,7 @@ export function CandidateFilterPanel({
         return a.title.localeCompare(b.title, lang === "tr" ? "tr" : "en");
       })
       .map((group) => ({
-        id: group.id,
+        value: group.id,
         label: buildGroupHeading(
           group.title,
           group.term,
@@ -105,7 +117,7 @@ export function CandidateFilterPanel({
           lang === "tr" ? "tr" : "en"
         ),
       }));
-  }, [groups, lang]);
+  }, [groups, lang, uniqueTerms]);
 
   // Focus only on the closed -> open transition. The parent rerenders on each
   // filter keystroke, so tying focus to every render would steal focus back to
@@ -246,21 +258,16 @@ export function CandidateFilterPanel({
             />
           </div>
           <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.col.licenseClass")}
-              className="form-select"
-              onChange={(event) =>
-                onChange("licenseClass", event.target.value as LicenseClass | "")
+            <CheckboxListPopover
+              onChange={(next) =>
+                onChange("licenseClasses", next as LicenseClass[])
               }
-              value={filters.licenseClass}
-            >
-              <option value="">{t("candidates.col.licenseClass")}</option>
-              {licenseClassOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </CustomSelect>
+              options={licenseClassOptions}
+              placeholder={t("candidates.col.licenseClass")}
+              searchable={licenseClassOptions.length > 8}
+              title={t("candidates.col.licenseClass")}
+              values={filters.licenseClasses}
+            />
           </div>
           <div className="form-group">
             <CustomSelect
@@ -280,33 +287,24 @@ export function CandidateFilterPanel({
             </CustomSelect>
           </div>
           <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.col.group")}
-              className="form-select"
-              onChange={(event) => onChange("groupId", event.target.value)}
-              value={filters.groupId}
-            >
-              <option value="">{t("candidates.col.group")}</option>
-              {groupOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </CustomSelect>
+            <CheckboxListPopover
+              onChange={(next) => onChange("termIds", next)}
+              options={termOptions}
+              placeholder={t("candidates.filters.termIds")}
+              searchable={termOptions.length > 8}
+              title={t("candidates.filters.termIds")}
+              values={filters.termIds}
+            />
           </div>
           <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.filters.hasActiveGroup")}
-              className="form-select"
-              onChange={(event) =>
-                onChange("hasActiveGroup", event.target.value as TriState)
-              }
-              value={filters.hasActiveGroup}
-            >
-              <option value="">{t("candidates.filters.hasActiveGroup")}</option>
-              <option value="true">{t("candidates.filters.yes")}</option>
-              <option value="false">{t("candidates.filters.no")}</option>
-            </CustomSelect>
+            <CheckboxListPopover
+              onChange={(next) => onChange("groupIds", next)}
+              options={groupOptions}
+              placeholder={t("candidates.filters.groupIds")}
+              searchable={groupOptions.length > 8}
+              title={t("candidates.filters.groupIds")}
+              values={filters.groupIds}
+            />
           </div>
           <div className="form-group">
             <CustomSelect
@@ -379,19 +377,14 @@ export function CandidateFilterPanel({
             </CustomSelect>
           </div>
           <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.filters.existingLicenseType")}
-              className="form-select"
-              onChange={(event) => onChange("existingLicenseType", event.target.value)}
-              value={filters.existingLicenseType}
-            >
-              <option value="">{t("candidates.filters.existingLicenseType")}</option>
-              {existingLicenseTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </CustomSelect>
+            <CheckboxListPopover
+              onChange={(next) => onChange("existingLicenseTypes", next)}
+              options={existingLicenseTypeOptions}
+              placeholder={t("candidates.filters.existingLicenseTypes")}
+              searchable={existingLicenseTypeOptions.length > 8}
+              title={t("candidates.filters.existingLicenseTypes")}
+              values={filters.existingLicenseTypes}
+            />
           </div>
           <div className="form-group">
             <CustomSelect

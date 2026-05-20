@@ -1,4 +1,4 @@
-import type { JobsSummaryTone } from "../../mock/mebJobs";
+import type { JobsSummaryTone } from "../../lib/mebbis-jobs";
 
 type JobsSummaryCardProps = {
   count: number;

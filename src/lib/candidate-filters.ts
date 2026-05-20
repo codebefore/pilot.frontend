@@ -16,11 +16,11 @@ export type CandidateFilterState = {
   motherName: string;
   fatherName: string;
   phoneNumber: string;
-  licenseClass: LicenseClass | "";
+  licenseClasses: LicenseClass[];
   /** Canonical gender value or empty string (= "Tümü"). Never free text. */
   gender: CandidateGenderValue | "";
-  groupId: string;
-  hasActiveGroup: TriState;
+  groupIds: string[];
+  termIds: string[];
   hasPhoto: TriState;
   hasExamResult: TriState;
   examFeePaid: TriState;
@@ -28,8 +28,8 @@ export type CandidateFilterState = {
   hasMissingDocuments: TriState;
   /** "" (Tümü) | "passed" | "failed" — backend tolerates synonyms. */
   mebExamResult: "" | "passed" | "failed";
-  /** Empty string = no filter; otherwise an existing-license catalog code. */
-  existingLicenseType: string;
+  /** Empty array = no filter; otherwise existing-license catalog codes. */
+  existingLicenseTypes: string[];
   birthDateFrom: string;
   birthDateTo: string;
   mebExamDateFrom: string;
@@ -51,17 +51,17 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   motherName: "",
   fatherName: "",
   phoneNumber: "",
-  licenseClass: "",
+  licenseClasses: [],
   gender: "",
-  groupId: "",
-  hasActiveGroup: "",
+  groupIds: [],
+  termIds: [],
   hasPhoto: "",
   hasExamResult: "",
   examFeePaid: "",
   initialPaymentReceived: "",
   hasMissingDocuments: "",
   mebExamResult: "",
-  existingLicenseType: "",
+  existingLicenseTypes: [],
   birthDateFrom: "",
   birthDateTo: "",
   mebExamDateFrom: "",
@@ -99,17 +99,19 @@ export function filtersToQuery(filters: CandidateFilterState) {
     motherName: normalizeTextQuery(filters.motherName),
     fatherName: normalizeTextQuery(filters.fatherName),
     phoneNumber: normalizeTextQuery(filters.phoneNumber),
-    licenseClass: filters.licenseClass || undefined,
+    licenseClasses:
+      filters.licenseClasses.length > 0 ? filters.licenseClasses : undefined,
     gender: filters.gender || undefined,
-    groupId: filters.groupId || undefined,
-    hasActiveGroup: triToBool(filters.hasActiveGroup),
+    groupIds: filters.groupIds.length > 0 ? filters.groupIds : undefined,
+    termIds: filters.termIds.length > 0 ? filters.termIds : undefined,
     hasPhoto: triToBool(filters.hasPhoto),
     hasExamResult: triToBool(filters.hasExamResult),
     examFeePaid: triToBool(filters.examFeePaid),
     initialPaymentReceived: triToBool(filters.initialPaymentReceived),
     hasMissingDocuments: triToBool(filters.hasMissingDocuments),
     mebExamResult: filters.mebExamResult || undefined,
-    existingLicenseType: filters.existingLicenseType || undefined,
+    existingLicenseTypes:
+      filters.existingLicenseTypes.length > 0 ? filters.existingLicenseTypes : undefined,
     birthDateFrom: filters.birthDateFrom || undefined,
     birthDateTo: filters.birthDateTo || undefined,
     mebExamDateFrom: filters.mebExamDateFrom || undefined,

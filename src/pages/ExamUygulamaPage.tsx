@@ -9,11 +9,9 @@ export function ExamUygulamaPage() {
     "name",
     "nationalId",
     "group",
-    "drivingExamDate",
-    "drivingExamAttemptCount",
-    "mebSyncStatus",
-    "examFeePaid",
     "status",
+    "mebSyncStatus",
+    "referenceName",
   ];
   const tabs: { key: CandidateExamTabValue; label: string }[] = [
     { key: "havuz", label: t("examESinav.tab.havuz") },
@@ -27,7 +25,7 @@ export function ExamUygulamaPage() {
 
   return (
     <CandidatesPage
-      columnStorageKey="exams.uygulama.columns.v3"
+      columnStorageKey="exams.uygulama.columns.v7"
       columnLabelOverrides={{
         drivingExamDate: "Tarih",
         drivingExamAttemptCount: "Hak",

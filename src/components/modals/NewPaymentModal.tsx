@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { Modal } from "../ui/Modal";
-import { mockCandidates } from "../../mock/candidates";
+import { getCandidates } from "../../lib/candidates-api";
 import { useLanguage } from "../../lib/i18n";
+import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
@@ -23,12 +24,10 @@ type NewPaymentModalProps = {
   onSubmit: () => void;
 };
 
-const debtors = mockCandidates.filter((c) => c.balance < 0);
-
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const defaultValues = (): NewPaymentForm => ({
-  candidateId: debtors[0]?.id ?? "",
+  candidateId: "",
   amount: 2400,
   method: "Nakit",
   date: todayISO(),
@@ -38,6 +37,7 @@ const defaultValues = (): NewPaymentForm => ({
 export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProps) {
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
+  const [debtors, setDebtors] = useState<CandidateResponse[]>([]);
   const {
     control,
     register,
@@ -58,8 +58,27 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
   });
 
   useEffect(() => {
-    if (!open) reset(defaultValues());
-  }, [open, reset]);
+    if (!open) {
+      reset(defaultValues());
+      return;
+    }
+
+    const controller = new AbortController();
+    getCandidates({ pageSize: 500 }, controller.signal)
+      .then((result) => {
+        const withDebt = result.items.filter((candidate) => candidate.totalDebt > 0);
+        setDebtors(withDebt);
+        if (withDebt.length > 0) {
+          setValue("candidateId", withDebt[0].id, { shouldDirty: false });
+        }
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setDebtors([]);
+      });
+
+    return () => controller.abort();
+  }, [open, reset, setValue]);
 
   const submit = handleSubmit(() => onSubmit());
 
@@ -90,9 +109,10 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
               className={fieldClass(!!errors.candidateId, "form-select")}
               {...register("candidateId", { required: "Aday seçin" })}
             >
-              {debtors.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.fullName} — Bakiye: {c.balance.toLocaleString("tr-TR")} TL
+              {debtors.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {`${candidate.firstName} ${candidate.lastName}`.trim()} — Bakiye:{" "}
+                  {candidate.totalDebt.toLocaleString("tr-TR")} TL
                 </option>
               ))}
             </CustomSelect>

@@ -534,9 +534,8 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(
-      await screen.findByRole("columnheader", { name: "Tarih" })
-    ).toBeInTheDocument();
+    await screen.findByRole("columnheader", { name: "Hak" });
+    expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("columnheader", { name: "Hak" })
     ).toBeInTheDocument();
@@ -549,12 +548,9 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(
-      await screen.findByRole("columnheader", { name: "Tarih" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("columnheader", { name: "Hak" })
-    ).toBeInTheDocument();
+    await screen.findByRole("columnheader", { name: "Mebbis" });
+    expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Hak" })).not.toBeInTheDocument();
   });
 
   it("filters the uygulama page by the selected driving exam date", async () => {
@@ -866,8 +862,9 @@ describe("CandidatesPage tabs", () => {
       throw new Error("column picker menu not found");
     }
 
-    expect(within(picker).getByText("E-Sınav Tarihi")).toBeInTheDocument();
-    expect(within(picker).getByText("Uygulama Tarihi")).toBeInTheDocument();
+    expect(within(picker).queryByText("E-Sınav Tarihi")).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Uygulama Tarihi")).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Uygulama Hakkı")).not.toBeInTheDocument();
   });
 
   it("renders unified exam attempt and status values on the Tümü tab", async () => {
@@ -993,11 +990,12 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByText("Uygulama başarılı")).toBeInTheDocument();
   });
 
-  it("keeps e-sinav date columns visible but out of the picker", async () => {
+  it("keeps e-sinav date hidden and attempt visible but out of the picker", async () => {
     renderESinavPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(await screen.findByRole("columnheader", { name: "Tarih" })).toBeInTheDocument();
+    await screen.findByRole("columnheader", { name: "Hak" });
+    expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Hak" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
@@ -1011,12 +1009,13 @@ describe("CandidatesPage tabs", () => {
     expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
   });
 
-  it("keeps uygulama date columns visible but out of the picker", async () => {
+  it("keeps uygulama date and attempt columns hidden and out of the picker", async () => {
     renderUygulamaPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(await screen.findByRole("columnheader", { name: "Tarih" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Hak" })).toBeInTheDocument();
+    await screen.findByRole("columnheader", { name: "Mebbis" });
+    expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Hak" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
     const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
@@ -2015,7 +2014,7 @@ describe("CandidatesPage sorting", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Grup/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Grup" }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({

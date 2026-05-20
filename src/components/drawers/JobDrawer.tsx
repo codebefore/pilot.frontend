@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { listMebbisJobSteps, type MebbisJobStepResponse } from "../../lib/mebbis-jobs-api";
-import type { MebJob } from "../../mock/mebJobs";
+import type { MebJob } from "../../lib/mebbis-jobs";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { StatusPill } from "../ui/StatusPill";
 import { StepTracker, type Step, type StepState } from "../ui/StepTracker";
