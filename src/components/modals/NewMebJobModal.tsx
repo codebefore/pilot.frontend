@@ -5,7 +5,7 @@ import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 
-export type NewMebJobSubmitValues = {
+type NewMebJobSubmitValues = {
   jobType: string;
   candidateId: string;
 };

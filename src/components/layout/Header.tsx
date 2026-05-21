@@ -46,8 +46,7 @@ export function Header({
         onClick={onSidebarToggle}
         type="button"
       >
-        <span className="logo-icon">P</span>
-        Pilot
+        <img alt="Pilot" className="logo-image" src="/pilot.png" />
       </button>
 
       <div className="header-inst-wrap">

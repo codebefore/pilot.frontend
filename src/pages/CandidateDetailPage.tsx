@@ -214,8 +214,6 @@ function buildCandidateUpdatePayload(
     mebExamResult: candidate.mebExamResult,
     eSinavAttemptCount: candidate.eSinavAttemptCount,
     drivingExamAttemptCount: candidate.drivingExamAttemptCount,
-    examFeePaid: candidate.examFeePaid,
-    initialPaymentReceived: candidate.initialPaymentReceived,
     contacts: buildCandidateContactPayload(candidate),
     tags: candidate.tags?.map((tag) => tag.name) ?? [],
     rowVersion: candidate.rowVersion,
@@ -3324,16 +3322,16 @@ function AccountingTab({
             <div className="candidate-fee-summary-shell">
               <div className="candidate-fee-summary-group">
                 <h4 className="candidate-fee-summary-title">Kurs Ücreti</h4>
-                <div className="candidate-billing-summary-grid candidate-course-fee-summary-cards">
-                  <div className="candidate-billing-summary-card">
+                <div className="candidate-finance-summary-grid candidate-course-fee-summary-cards">
+                  <div className="candidate-finance-summary-card">
                     <span className="candidate-detail-stat-label">Ücret</span>
                     <strong>{formatCurrencyTRY(courseFeeSummary.totalAmount)}</strong>
                   </div>
-                  <div className="candidate-billing-summary-card">
+                  <div className="candidate-finance-summary-card">
                     <span className="candidate-detail-stat-label">Ödenen</span>
                     <strong>{formatCurrencyTRY(courseFeeSummary.paidAmount)}</strong>
                   </div>
-                  <div className="candidate-billing-summary-card is-balance">
+                  <div className="candidate-finance-summary-card is-balance">
                     <span className="candidate-detail-stat-label">Kalan</span>
                     <strong>{formatCurrencyTRY(courseFeeSummary.remainingAmount)}</strong>
                   </div>
@@ -3342,25 +3340,25 @@ function AccountingTab({
               <div className="candidate-fee-summary-column candidate-fee-summary-debt-column">
                 <div className="candidate-fee-summary-group">
                   <h4 className="candidate-fee-summary-title">Sınav Borçları</h4>
-                  <div className="candidate-billing-summary-grid candidate-exam-debt-summary-cards">
-                    <div className="candidate-billing-summary-card">
+                  <div className="candidate-finance-summary-grid candidate-exam-debt-summary-cards">
+                    <div className="candidate-finance-summary-card">
                       <span className="candidate-detail-stat-label">Teorik Sınav Borcu</span>
                       <strong>{formatCurrencyTRY(theoryExamDebtAmount)}</strong>
                     </div>
-                    <div className="candidate-billing-summary-card">
+                    <div className="candidate-finance-summary-card">
                       <span className="candidate-detail-stat-label">Direksiyon Sınav Borcu</span>
                       <strong>{formatCurrencyTRY(practiceExamDebtAmount)}</strong>
                     </div>
                   </div>
                 </div>
-                <div className="candidate-billing-summary-grid candidate-fee-summary-single-card">
-                  <div className="candidate-billing-summary-card">
+                <div className="candidate-finance-summary-grid candidate-fee-summary-single-card">
+                  <div className="candidate-finance-summary-card">
                     <span className="candidate-detail-stat-label">Diğer Ücret Borcu</span>
                     <strong>{formatCurrencyTRY(otherFeeDebtAmount)}</strong>
                   </div>
                 </div>
-                <div className="candidate-billing-summary-grid candidate-fee-summary-single-card">
-                  <div className="candidate-billing-summary-card is-balance">
+                <div className="candidate-finance-summary-grid candidate-fee-summary-single-card">
+                  <div className="candidate-finance-summary-card is-balance">
                     <span className="candidate-detail-stat-label">Toplam Borç</span>
                     <strong>{formatCurrencyTRY(totalDebtAmount)}</strong>
                   </div>
@@ -3439,12 +3437,12 @@ function AccountingTab({
         ) : null}
       </section>
 
-      <section className="candidate-billing-action-bar">
-        <div className="candidate-billing-action-meta">
+      <section className="candidate-finance-action-bar">
+        <div className="candidate-finance-action-meta">
           <span>Hızlı işlemler</span>
           <strong>Borçlandırma ekle, ödeme al veya fatura kaydet</strong>
         </div>
-        <div className="candidate-billing-action-buttons">
+        <div className="candidate-finance-action-buttons">
           <button className="btn btn-primary" onClick={openPaymentPlanModal} type="button">
             Ödeme Planı Oluştur
           </button>
@@ -3470,8 +3468,8 @@ function AccountingTab({
       </section>
 
       {feeSuggestionsOpen && feeSuggestions.length ? (
-        <section className="instructor-detail-card candidate-billing-suggestion">
-          <div className="candidate-billing-suggestion-meta">
+        <section className="instructor-detail-card candidate-finance-suggestion">
+          <div className="candidate-finance-suggestion-meta">
             {feeSuggestions.map((suggestion) => (
               <button
                 className="btn btn-secondary btn-sm"
@@ -3540,7 +3538,7 @@ function AccountingTab({
         title="Diğer Ödemeler"
       />
 
-      <section className="instructor-detail-card candidate-billing-workspace-card">
+      <section className="instructor-detail-card candidate-finance-workspace-card">
         <h3 className="candidate-detail-section-title">Faturalar</h3>
         {accounting?.invoices.length ? (
           <table className="data-table candidate-detail-fee-table candidate-accounting-invoice-table">
@@ -4165,7 +4163,7 @@ function AccountingMovementSection({
   );
 
   return (
-    <section className="instructor-detail-card candidate-billing-workspace-card">
+    <section className="instructor-detail-card candidate-finance-workspace-card">
       <h3 className="candidate-detail-section-title">{title}</h3>
       {movements.length === 0 ? (
         <div className="instructor-detail-empty">Borçlandırma kaydı yok.</div>
@@ -4603,7 +4601,7 @@ function renderAccountingMovementCell({
     return (
       <div className="candidate-accounting-type-cell">
         <span>{accountingTypeLabel(movement.type)}</span>
-        <span className={`candidate-billing-installment-status ${status.className}`}>
+        <span className={`candidate-finance-installment-status ${status.className}`}>
           {status.label}
         </span>
       </div>
@@ -4683,7 +4681,7 @@ function renderAccountingPaymentCell({
     return (
       <div className="candidate-accounting-type-cell">
         <span>Ödendi</span>
-        <span className="candidate-billing-installment-status status-paid">Tahsilat</span>
+        <span className="candidate-finance-installment-status status-paid">Tahsilat</span>
       </div>
     );
   }
@@ -4749,7 +4747,7 @@ function renderAccountingRefundCell({
     return (
       <div className="candidate-accounting-type-cell">
         <span>İade</span>
-        <span className="candidate-billing-installment-status status-refunded">Kasa çıkışı</span>
+        <span className="candidate-finance-installment-status status-refunded">Kasa çıkışı</span>
       </div>
     );
   }

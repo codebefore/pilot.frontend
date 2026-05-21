@@ -4,7 +4,7 @@
 
 import type { TrainingBranchDefinitionResponse } from "./types";
 
-export type BranchColor = {
+type BranchColor = {
   bg: string;
   border: string;
   fg: string;

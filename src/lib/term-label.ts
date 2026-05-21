@@ -33,9 +33,9 @@ const MONTHS_EN = [
 
 type TermLike = Pick<GroupTermRef, "id" | "monthDate" | "sequence" | "name"> | TermResponse;
 
-export type TermLabelLanguage = "tr" | "en";
+type TermLabelLanguage = "tr" | "en";
 
-export function buildMonthYearLabel(
+function buildMonthYearLabel(
   monthDate: string,
   lang: TermLabelLanguage = "tr"
 ): string {

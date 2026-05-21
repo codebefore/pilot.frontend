@@ -1,7 +1,7 @@
 import { httpDelete, httpPost } from "./http";
 import type { ExamScheduleOption, ExamScheduleSyncResponse } from "./types";
 
-export interface CreateExamScheduleRequest {
+interface CreateExamScheduleRequest {
   examType: "e_sinav" | "uygulama";
   date: string;
   time?: string;

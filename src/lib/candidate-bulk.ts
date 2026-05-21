@@ -14,7 +14,7 @@ type CandidatePayloadOverrides = {
   graduationDate?: string | null;
 };
 
-export type BulkCandidateUpdateResult = {
+type BulkCandidateUpdateResult = {
   successCount: number;
   failureCount: number;
 };
@@ -24,7 +24,7 @@ export type BulkCandidateUpdateResult = {
  * overrides let callers swap a subset of fields (e.g. bulk status change)
  * while leaving the rest untouched.
  */
-export function buildCandidateUpdatePayload(
+function buildCandidateUpdatePayload(
   candidate: CandidateResponse,
   overrides?: CandidatePayloadOverrides
 ): CandidateUpsertRequest {
@@ -63,8 +63,6 @@ export function buildCandidateUpdatePayload(
     mebExamResult: candidate.mebExamResult,
     eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
     drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
-    examFeePaid: candidate.examFeePaid ?? false,
-    initialPaymentReceived: candidate.initialPaymentReceived ?? false,
     status: overrides?.status ?? (candidate.status as CandidateStatusValue),
     terminationReason: candidate.terminationReason,
     terminationDate: candidate.terminationDate,
@@ -78,7 +76,7 @@ export function buildCandidateUpdatePayload(
  * a Turkish-lowercased key so "Acil" and "acil" collapse to one entry while
  * preserving the first-seen casing.
  */
-export function mergeCandidateTags(candidate: CandidateResponse, additions: string[]): string[] {
+function mergeCandidateTags(candidate: CandidateResponse, additions: string[]): string[] {
   const merged: string[] = [];
   const seen = new Set<string>();
 

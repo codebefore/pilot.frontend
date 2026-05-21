@@ -4,17 +4,13 @@ export const GROUP_BRANCH_VALUES = Array.from({ length: 26 }, (_, index) =>
   String.fromCharCode(65 + index)
 );
 
-export type GroupCodeParts = {
+type GroupCodeParts = {
   groupNumber: string;
   groupBranch: string;
 };
 
 export function buildGroupCode(groupNumber: string, groupBranch: string): string {
   return `${groupNumber.trim()}${groupBranch.trim().toUpperCase()}`;
-}
-
-export function buildGroupTitle(groupNumber: string, groupBranch: string): string {
-  return buildGroupCode(groupNumber, groupBranch);
 }
 
 export function parseGroupTitle(title: string): GroupCodeParts | null {

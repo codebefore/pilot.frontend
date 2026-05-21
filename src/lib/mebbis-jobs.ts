@@ -19,13 +19,13 @@ export type MebJob = {
 
 export type JobsSummaryTone = "brand" | "blue" | "gray" | "orange" | "purple" | "red";
 
-export type JobsSummary = {
+type JobsSummary = {
   status: JobStatus;
   label: string;
   tone: JobsSummaryTone;
 };
 
-export type JobsSummaryRow = JobsSummary & { count: number };
+type JobsSummaryRow = JobsSummary & { count: number };
 
 const SUMMARY_DEFS: JobsSummary[] = [
   { status: "success", label: "Başarılı", tone: "brand" },

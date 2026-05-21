@@ -22,13 +22,13 @@ export type NavItem = {
   children?: NavChildItem[];
 };
 
-export type NavChildItem = {
+type NavChildItem = {
   key: NavKey;
   path: string;
   labelKey: TranslationKey;
 };
 
-export type NavSection = {
+type NavSection = {
   headingKey: TranslationKey;
   items: NavItem[];
 };

@@ -37,13 +37,13 @@ function normalizeDocumentType(documentType: DocumentTypeResponse): DocumentType
   };
 }
 
-export interface GetDocumentTypesOptions {
+interface GetDocumentTypesOptions {
   module?: string;
   /** When true, also returns soft-deactivated types. Used by the admin screen. */
   includeInactive?: boolean;
 }
 
-export interface GetDocumentChecklistParams extends QueryParams {
+interface GetDocumentChecklistParams extends QueryParams {
   search?: string;
   status?: DocumentStatus;
   candidateStatus?: "pre_registered" | "active";
@@ -59,7 +59,6 @@ export interface GetDocumentChecklistParams extends QueryParams {
   hasActiveGroup?: boolean;
   hasPhoto?: boolean;
   hasExamResult?: boolean;
-  examFeePaid?: boolean;
   hasMissingDocuments?: boolean;
   missingDocumentCountMin?: number;
   missingDocumentCountMax?: number;
@@ -112,7 +111,7 @@ export function getDocumentChecklist(
   );
 }
 
-export interface UploadDocumentInput {
+interface UploadDocumentInput {
   candidateId: string;
   documentTypeId: string;
   /** Dosya yüklenmiyorsa null; bu durumda `isPhysicallyAvailable` true olmalı. */
@@ -151,7 +150,7 @@ export function uploadDocument(
   );
 }
 
-export interface UpdateCandidateDocumentInput {
+interface UpdateCandidateDocumentInput {
   note?: string | null;
   metadata?: Record<string, string>;
   isMebbisTransferred?: boolean;

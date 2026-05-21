@@ -1,13 +1,13 @@
-import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { httpGet, httpPut, type QueryParams } from "./http";
 import type {
   TrainingBranchDefinitionListResponse,
   TrainingBranchDefinitionResponse,
   TrainingBranchDefinitionUpsertRequest,
 } from "./types";
 
-export type TrainingBranchDefinitionActivityFilter = "active" | "inactive" | "all";
+type TrainingBranchDefinitionActivityFilter = "active" | "inactive" | "all";
 
-export interface GetTrainingBranchDefinitionsOptions {
+interface GetTrainingBranchDefinitionsOptions {
   search?: string;
   activity?: TrainingBranchDefinitionActivityFilter;
   includeInactive?: boolean;
@@ -34,15 +34,6 @@ export function getTrainingBranchDefinitions(
   );
 }
 
-export function createTrainingBranchDefinition(
-  body: TrainingBranchDefinitionUpsertRequest
-): Promise<TrainingBranchDefinitionResponse> {
-  return httpPost<TrainingBranchDefinitionResponse>(
-    "/api/training-branch-definitions",
-    body
-  );
-}
-
 export function updateTrainingBranchDefinition(
   id: string,
   body: TrainingBranchDefinitionUpsertRequest
@@ -51,8 +42,4 @@ export function updateTrainingBranchDefinition(
     `/api/training-branch-definitions/${id}`,
     body
   );
-}
-
-export function deleteTrainingBranchDefinition(id: string): Promise<void> {
-  return httpDelete(`/api/training-branch-definitions/${id}`);
 }

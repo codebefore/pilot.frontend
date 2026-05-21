@@ -15,7 +15,7 @@ import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
-export const DOCUMENT_TYPE_MODULE = "candidate";
+const DOCUMENT_TYPE_MODULE = "candidate";
 
 const KEY_PATTERN = /^[a-z0-9_]+$/;
 

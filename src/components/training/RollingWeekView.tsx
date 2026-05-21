@@ -7,7 +7,7 @@ import { type NavigateAction } from "react-big-calendar";
 // "create custom view" rehberinde önerilen yol. .d.ts olmadığı için
 // `@ts-expect-error` ile geçiyoruz.
 // @ts-expect-error — no .d.ts for deep import path; RBC docs recommend this
-import TimeGrid from "react-big-calendar/lib/TimeGrid";
+import TimeGridModule from "react-big-calendar/lib/TimeGrid";
 
 /**
  * RBC'nin yerleşik Week view'ı `startOfWeek`'e snap'lenir; "Sonraki"
@@ -53,6 +53,27 @@ type RollingViewClass = ComponentType<RollingProps> & {
   title: (date: Date) => string;
 };
 
+type TimeGridComponent = ComponentType<Record<string, unknown>>;
+type TimeGridModuleShape =
+  | TimeGridComponent
+  | { default?: TimeGridComponent | { default?: TimeGridComponent } };
+
+function resolveTimeGrid(moduleValue: TimeGridModuleShape): TimeGridComponent {
+  if (typeof moduleValue === "function") return moduleValue;
+  if (moduleValue.default && typeof moduleValue.default === "function") return moduleValue.default;
+  if (
+    moduleValue.default &&
+    typeof moduleValue.default === "object" &&
+    "default" in moduleValue.default &&
+    typeof moduleValue.default.default === "function"
+  ) {
+    return moduleValue.default.default;
+  }
+  throw new TypeError("react-big-calendar TimeGrid could not be loaded.");
+}
+
+const TimeGrid = resolveTimeGrid(TimeGridModule as TimeGridModuleShape);
+
 const createRollingView = (length: number): RollingViewClass => {
   class RollingView extends Component<RollingProps> {
     static range(date: Date): Date[] {
@@ -93,9 +114,8 @@ const createRollingView = (length: number): RollingViewClass => {
       const resolvedMax = max ?? localizer.endOf(new Date(), "day");
       const resolvedScrollToTime = scrollToTime ?? localizer.startOf(new Date(), "day");
       const resolvedAutoScroll = enableAutoScroll ?? true;
-      const TimeGridAny = TimeGrid as unknown as ComponentType<Record<string, unknown>>;
       return (
-        <TimeGridAny
+        <TimeGrid
           {...rest}
           date={date}
           range={range}

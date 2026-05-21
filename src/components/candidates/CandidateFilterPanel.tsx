@@ -23,7 +23,7 @@ import { CheckboxListPopover } from "../ui/CheckboxListPopover";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
-export type CandidateFilterPanelProps = {
+type CandidateFilterPanelProps = {
   open: boolean;
   filters: CandidateFilterState;
   activeFilterCount: number;
@@ -330,34 +330,6 @@ export function CandidateFilterPanel({
               value={filters.hasExamResult}
             >
               <option value="">{t("candidates.filters.hasExamResult")}</option>
-              <option value="true">{t("candidates.filters.yes")}</option>
-              <option value="false">{t("candidates.filters.no")}</option>
-            </CustomSelect>
-          </div>
-          <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.filters.examFeePaid")}
-              className="form-select"
-              onChange={(event) =>
-                onChange("examFeePaid", event.target.value as TriState)
-              }
-              value={filters.examFeePaid}
-            >
-              <option value="">{t("candidates.filters.examFeePaid")}</option>
-              <option value="true">{t("candidates.examFee.paid")}</option>
-              <option value="false">{t("candidates.examFee.unpaid")}</option>
-            </CustomSelect>
-          </div>
-          <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.filters.initialPaymentReceived")}
-              className="form-select"
-              onChange={(event) =>
-                onChange("initialPaymentReceived", event.target.value as TriState)
-              }
-              value={filters.initialPaymentReceived}
-            >
-              <option value="">{t("candidates.filters.initialPaymentReceived")}</option>
               <option value="true">{t("candidates.filters.yes")}</option>
               <option value="false">{t("candidates.filters.no")}</option>
             </CustomSelect>

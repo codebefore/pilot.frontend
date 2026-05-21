@@ -1,11 +1,11 @@
 import { httpPost } from "./http";
 
-export type LoginRequest = {
+type LoginRequest = {
   phone: string;
   password: string;
 };
 
-export type LoginResponse = {
+type LoginResponse = {
   accessToken: string;
   expiresAtUtc: string;
   user: {

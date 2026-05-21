@@ -61,7 +61,7 @@ const sampleInstructor = {
   id: "i1",
   firstName: "HASAN",
   lastName: "KORKMAZ",
-  nationalId: "12345678901",
+  nationalId: "20000000114",
   phoneNumber: "5321112233",
   email: "hasan@example.com",
   isActive: true,
@@ -325,7 +325,7 @@ describe("InstructorsSettingsSection", () => {
       target: { value: "demir" },
     });
     expect(screen.getByPlaceholderText("KORKMAZ")).toHaveValue("DEMİR");
-    fireEvent.change(screen.getByPlaceholderText("12345678901"), {
+    fireEvent.change(screen.getByPlaceholderText("11 haneli TC"), {
       target: { value: "12345678902" },
     });
 
@@ -359,7 +359,7 @@ describe("InstructorsSettingsSection", () => {
       expect(updateInstructorMock).toHaveBeenCalledWith("i1", {
         firstName: "MEHMET",
         lastName: "KORKMAZ",
-        nationalId: "12345678901",
+        nationalId: "20000000114",
         phoneNumber: "5321112233",
         email: "hasan@example.com",
         isActive: true,

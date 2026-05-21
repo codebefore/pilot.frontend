@@ -7,7 +7,7 @@ import type {
   PagedResponse,
 } from "./types";
 
-export interface GetGroupsParams extends QueryParams {
+interface GetGroupsParams extends QueryParams {
   search?: string;
   mebStatus?: string;
   termId?: string;

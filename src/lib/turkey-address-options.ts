@@ -1,4 +1,4 @@
-export type SelectOption = { value: string; label: string };
+type SelectOption = { value: string; label: string };
 
 export const TURKEY_ADDRESS_PROVINCE_OPTIONS: SelectOption[] = [
   { value: "Adana", label: "Adana" },

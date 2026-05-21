@@ -1,4 +1,4 @@
-export const MIN_SEARCH_QUERY_LENGTH = 2;
+const MIN_SEARCH_QUERY_LENGTH = 2;
 
 export function normalizeTextQuery(
   value: string | null | undefined,

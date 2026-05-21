@@ -23,8 +23,6 @@ export type CandidateFilterState = {
   termIds: string[];
   hasPhoto: TriState;
   hasExamResult: TriState;
-  examFeePaid: TriState;
-  initialPaymentReceived: TriState;
   hasMissingDocuments: TriState;
   /** "" (Tümü) | "passed" | "failed" — backend tolerates synonyms. */
   mebExamResult: "" | "passed" | "failed";
@@ -57,8 +55,6 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   termIds: [],
   hasPhoto: "",
   hasExamResult: "",
-  examFeePaid: "",
-  initialPaymentReceived: "",
   hasMissingDocuments: "",
   mebExamResult: "",
   existingLicenseTypes: [],
@@ -106,8 +102,6 @@ export function filtersToQuery(filters: CandidateFilterState) {
     termIds: filters.termIds.length > 0 ? filters.termIds : undefined,
     hasPhoto: triToBool(filters.hasPhoto),
     hasExamResult: triToBool(filters.hasExamResult),
-    examFeePaid: triToBool(filters.examFeePaid),
-    initialPaymentReceived: triToBool(filters.initialPaymentReceived),
     hasMissingDocuments: triToBool(filters.hasMissingDocuments),
     mebExamResult: filters.mebExamResult || undefined,
     existingLicenseTypes:

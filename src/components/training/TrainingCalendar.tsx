@@ -4,10 +4,10 @@ import {
   useState,
   type ComponentType,
 } from "react";
-import { Calendar, type View } from "react-big-calendar";
+import { Calendar, type CalendarProps, type View } from "react-big-calendar";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
-import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
+import dragAndDropAddon from "react-big-calendar/lib/addons/dragAndDrop";
 
 import {
   trainingCalendarMessages,
@@ -61,15 +61,33 @@ function GutterDurationInput({
   );
 }
 
+type DragAndDropAddon =
+  | typeof dragAndDropAddon
+  | { default?: typeof dragAndDropAddon | { default?: typeof dragAndDropAddon } };
+
+function resolveDragAndDrop(addon: DragAndDropAddon): typeof dragAndDropAddon {
+  if (typeof addon === "function") return addon;
+  if (addon.default && typeof addon.default === "function") return addon.default;
+  if (
+    addon.default &&
+    typeof addon.default === "object" &&
+    "default" in addon.default &&
+    typeof addon.default.default === "function"
+  ) {
+    return addon.default.default;
+  }
+  throw new TypeError("react-big-calendar dragAndDrop addon could not be loaded.");
+}
+
+const withDragAndDrop = resolveDragAndDrop(dragAndDropAddon as DragAndDropAddon);
+
 // RBC DnD HOC ile Calendar'ı sar — resize/drop callback'leri aktif olur.
 // @types'ın `Event` base tipi bizim TrainingCalendarEvent için gevşek;
-// HOC girişini (CalendarProps<Event>) loose tipe, çıkışını da tüm
-// prop'ları serbest kabul eden loose ComponentType'a düşürüyoruz (RBC
-// zaten runtime'da hepsini takip ediyor).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const DnDCalendar = withDragAndDrop(Calendar as any) as unknown as ComponentType<
-  Record<string, unknown>
->;
+// HOC girişini loose tipe, çıkışını da tüm prop'ları serbest kabul eden
+// ComponentType'a düşürüyoruz (RBC runtime'da prop'ları takip ediyor).
+const DnDCalendar = withDragAndDrop(
+  Calendar as unknown as ComponentType<CalendarProps>,
+) as unknown as ComponentType<Record<string, unknown>>;
 
 type TrainingCalendarProps = {
   events: TrainingCalendarEvent[];

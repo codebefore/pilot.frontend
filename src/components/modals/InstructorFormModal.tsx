@@ -328,7 +328,7 @@ export function InstructorFormModal({
               className={fieldClass(errors.nationalId?.message)}
               inputMode="numeric"
               maxLength={11}
-              placeholder="12345678901"
+              placeholder="11 haneli TC"
               {...register("nationalId")}
             />
             {errors.nationalId && <div className="form-error">{errors.nationalId.message}</div>}

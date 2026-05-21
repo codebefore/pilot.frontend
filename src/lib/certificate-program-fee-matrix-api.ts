@@ -5,7 +5,7 @@ import type {
   CertificateProgramFeeMatrixUpsertRequest,
 } from "./types";
 
-export interface GetCertificateProgramFeeMatrixOptions {
+interface GetCertificateProgramFeeMatrixOptions {
   targetLicenseClass?: string;
 }
 

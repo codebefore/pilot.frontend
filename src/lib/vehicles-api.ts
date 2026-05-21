@@ -19,7 +19,7 @@ export type VehicleSortField =
 export type VehicleSortDirection = "asc" | "desc";
 export type VehicleActivityFilter = "active" | "inactive" | "all";
 
-export interface GetVehiclesOptions {
+interface GetVehiclesOptions {
   search?: string;
   includeInactive?: boolean;
   activity?: VehicleActivityFilter;

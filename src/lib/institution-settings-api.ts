@@ -4,14 +4,14 @@ import { httpDelete, httpGet, httpPostForm, httpPut } from "./http";
 
 export type FounderType = "real" | "legal";
 
-export interface InstitutionLogoResponse {
+interface InstitutionLogoResponse {
   url: string;
   originalFileName: string | null;
   contentType: string | null;
   fileSizeBytes: number | null;
 }
 
-export interface InstitutionFounderResponse {
+interface InstitutionFounderResponse {
   type: FounderType | null;
   name: string | null;
   taxId: string | null;
@@ -20,7 +20,7 @@ export interface InstitutionFounderResponse {
   phone: string | null;
 }
 
-export interface InstitutionAuthorizedPersonResponse {
+interface InstitutionAuthorizedPersonResponse {
   id: string;
   fullName: string;
   phone: string | null;
@@ -53,7 +53,7 @@ export interface InstitutionSettingsResponse {
   rowVersion: number;
 }
 
-export interface InstitutionFounderUpsertRequest {
+interface InstitutionFounderUpsertRequest {
   type: FounderType | null;
   name: string | null;
   taxId: string | null;
@@ -62,14 +62,14 @@ export interface InstitutionFounderUpsertRequest {
   phone: string | null;
 }
 
-export interface InstitutionAuthorizedPersonUpsertRequest {
+interface InstitutionAuthorizedPersonUpsertRequest {
   id: string | null;
   fullName: string;
   phone: string | null;
   title: string | null;
 }
 
-export interface InstitutionMebbisUpsertRequest {
+interface InstitutionMebbisUpsertRequest {
   institutionCode: string | null;
   username: string | null;
   password: string | null;
@@ -138,7 +138,7 @@ export function deleteInstitutionLogo(
   );
 }
 
-export function getInstitutionLogoUrl(
+function getInstitutionLogoUrl(
   logo: InstitutionLogoResponse,
   cacheKey?: string
 ): string {

@@ -10,11 +10,11 @@ export interface UserNoteResponse {
   rowVersion: number;
 }
 
-export interface UserNoteListResponse {
+interface UserNoteListResponse {
   items: UserNoteResponse[];
 }
 
-export interface UserNoteUpsertInput {
+interface UserNoteUpsertInput {
   body: string;
   reminderAtUtc: string | null;
 }

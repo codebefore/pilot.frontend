@@ -179,13 +179,11 @@ export function normalizeGroupMebStatusValue(mebStatus: string | null): string |
  * the API are always one of `female | male | unspecified` (or null).
  */
 
-export const CANDIDATE_GENDER_VALUES: readonly CandidateGenderValue[] = [
+const CANDIDATE_GENDER_VALUES: readonly CandidateGenderValue[] = [
   "female",
   "male",
   "unspecified",
 ];
-export type { CandidateGenderValue };
-
 /** Turkish display labels — intentionally hardcoded (task requirement). */
 const CANDIDATE_GENDER_LABELS_TR: Record<CandidateGenderValue, string> = {
   female: "Kadın",
@@ -374,24 +372,6 @@ export function groupMebStatusLabel(mebStatus: string | null): string {
     case "not_sent": return "Gönderilmedi";
     case "sent":     return "Gönderildi";
     default:              return mebStatus;
-  }
-}
-
-/* ── Document status ── */
-
-export function documentStatusToPill(status: string): JobStatus {
-  switch (status.toLowerCase()) {
-    case "uploaded": return "success";
-    case "missing": return "failed";
-    default: return "manual";
-  }
-}
-
-export function documentStatusLabel(status: string): string {
-  switch (status.toLowerCase()) {
-    case "uploaded": return "Yüklendi";
-    case "missing": return "Eksik";
-    default: return status;
   }
 }
 

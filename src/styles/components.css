@@ -2611,7 +2611,7 @@
   font-size: 12px;
   color: var(--gray-700);
 }
-.candidate-billing-summary-grid {
+.candidate-finance-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
@@ -2622,11 +2622,11 @@
   align-items: start;
   gap: 12px;
 }
-.candidate-fee-summary-shell .candidate-billing-summary-card {
+.candidate-fee-summary-shell .candidate-finance-summary-card {
   min-height: 70px;
   padding: 10px;
 }
-.candidate-fee-summary-shell .candidate-billing-summary-card strong {
+.candidate-fee-summary-shell .candidate-finance-summary-card strong {
   font-size: 18px;
 }
 .candidate-fee-summary-group {
@@ -2663,7 +2663,7 @@
   font-weight: 700;
   color: var(--gray-800);
 }
-.candidate-billing-summary-card {
+.candidate-finance-summary-card {
   min-height: 78px;
   display: flex;
   flex-direction: column;
@@ -2674,17 +2674,17 @@
   border-radius: 8px;
   background: var(--white);
 }
-.candidate-billing-summary-card strong {
+.candidate-finance-summary-card strong {
   font-size: 22px;
   line-height: 1;
   color: var(--gray-900);
   overflow-wrap: anywhere;
 }
-.candidate-billing-summary-card.is-balance {
+.candidate-finance-summary-card.is-balance {
   background: color-mix(in srgb, var(--brand-50, #eff6ff) 60%, white);
   border-color: color-mix(in srgb, var(--brand-200, #bfdbfe) 70%, transparent);
 }
-.candidate-billing-summary-card.is-suggested {
+.candidate-finance-summary-card.is-suggested {
   background: color-mix(in srgb, var(--success-50, #f0fdf4) 65%, white);
   border-color: color-mix(in srgb, var(--success-300, #86efac) 70%, transparent);
 }
@@ -2794,7 +2794,7 @@
 .candidate-accounting-section-summary-metrics .is-balance {
   background: color-mix(in srgb, var(--brand-50, #eff6ff) 65%, white);
 }
-.candidate-billing-summary-note {
+.candidate-finance-summary-note {
   grid-column: 1 / -1;
   padding: 8px 10px;
   border: 1px dashed color-mix(in srgb, var(--warning-300, #fcd34d) 75%, transparent);
@@ -2803,7 +2803,7 @@
   color: var(--gray-700);
   font-size: 12px;
 }
-.candidate-billing-action-bar {
+.candidate-finance-action-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2813,25 +2813,25 @@
   border-radius: 8px;
   background: var(--white);
 }
-.candidate-billing-action-meta {
+.candidate-finance-action-meta {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
-.candidate-billing-action-meta span {
+.candidate-finance-action-meta span {
   color: var(--gray-600);
   font-size: 11px;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.candidate-billing-action-meta strong {
+.candidate-finance-action-meta strong {
   color: var(--gray-900);
   font-size: 13px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-.candidate-billing-action-buttons {
+.candidate-finance-action-buttons {
   min-width: 0;
   display: flex;
   align-items: center;
@@ -2839,53 +2839,13 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.candidate-billing-active-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--brand-200, #bfdbfe) 80%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 50%, white);
-}
-.candidate-billing-active-panel-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.candidate-billing-active-panel-head div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.candidate-billing-active-panel-head span {
-  color: var(--gray-600);
-  font-size: 11px;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-.candidate-billing-active-panel-head h3 {
-  margin: 0;
-  color: var(--gray-900);
-  font-size: 16px;
-}
-.candidate-billing-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-  gap: 16px;
-  align-items: start;
-}
-.candidate-billing-workspace-card {
+.candidate-finance-workspace-card {
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
-.candidate-billing-charges-card {
-  opacity: .92;
-}
-.candidate-billing-suggestion {
+.candidate-finance-suggestion {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2895,18 +2855,12 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--brand-50, #eff6ff) 55%, white);
 }
-.candidate-billing-suggestion-program {
-  margin-top: 4px;
-  color: var(--gray-900);
-  font-size: 14px;
-  font-weight: 600;
-}
-.candidate-billing-suggestion-meta {
+.candidate-finance-suggestion-meta {
   margin-top: 3px;
   color: var(--gray-700);
   font-size: 13px;
 }
-.candidate-billing-payment-form {
+.candidate-finance-payment-form {
   display: grid;
   grid-template-columns: minmax(120px, .7fr) minmax(140px, .7fr) minmax(180px, 1fr) minmax(180px, 1fr) auto;
   gap: 10px;
@@ -2987,13 +2941,13 @@
   background: color-mix(in srgb, var(--brand) 10%, white);
   color: var(--brand);
 }
-.candidate-billing-plan-form {
+.candidate-finance-plan-form {
   display: grid;
   grid-template-columns: minmax(120px, .7fr) minmax(120px, .6fr) minmax(160px, .8fr) auto;
   gap: 10px;
   align-items: center;
 }
-.candidate-billing-plan-warning {
+.candidate-finance-plan-warning {
   grid-column: 1 / -1;
   padding: 8px 10px;
   border: 1px dashed color-mix(in srgb, var(--warning-300, #fcd34d) 75%, transparent);
@@ -3002,12 +2956,12 @@
   color: var(--gray-700);
   font-size: 12px;
 }
-.candidate-billing-plan-empty {
+.candidate-finance-plan-empty {
   margin-top: 10px;
   color: var(--gray-600);
   font-size: 13px;
 }
-.candidate-billing-history-toggle {
+.candidate-finance-history-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3015,18 +2969,18 @@
   color: var(--gray-700);
   font-size: 13px;
 }
-.candidate-billing-history-toggle input {
+.candidate-finance-history-toggle input {
   margin: 0;
 }
-.candidate-billing-plan-table {
+.candidate-finance-plan-table {
   margin-top: 12px;
 }
-.candidate-billing-installment-row-cancelled td {
+.candidate-finance-installment-row-cancelled td {
   color: var(--gray-500);
   background: color-mix(in srgb, var(--gray-100) 55%, white);
   text-decoration: line-through;
 }
-.candidate-billing-installment-status {
+.candidate-finance-installment-status {
   display: inline-flex;
   align-items: center;
   min-height: 18px;
@@ -3039,22 +2993,22 @@
   white-space: nowrap;
   background: transparent;
 }
-.candidate-billing-installment-status.status-pending {
+.candidate-finance-installment-status.status-pending {
   color: var(--gray-700);
 }
-.candidate-billing-installment-status.status-partial {
+.candidate-finance-installment-status.status-partial {
   color: var(--brand-700, #1d4ed8);
 }
-.candidate-billing-installment-status.status-paid {
+.candidate-finance-installment-status.status-paid {
   color: var(--success-800, #166534);
 }
-.candidate-billing-installment-status.status-refunded {
+.candidate-finance-installment-status.status-refunded {
   color: var(--warning-800, #92400e);
 }
-.candidate-billing-installment-status.status-overdue {
+.candidate-finance-installment-status.status-overdue {
   color: var(--danger-700, #b91c1c);
 }
-.candidate-billing-installment-status.status-cancelled {
+.candidate-finance-installment-status.status-cancelled {
   color: var(--gray-600);
 }
 .candidate-payment-receipt {
@@ -3134,13 +3088,13 @@
   color: var(--gray-600);
   font-size: 12px;
 }
-.candidate-billing-cancel-modal {
+.candidate-finance-cancel-modal {
   min-width: min(420px, 100%);
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-.candidate-billing-cancel-target {
+.candidate-finance-cancel-target {
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--danger-200, #fecaca) 80%, transparent);
   border-radius: 8px;
@@ -3177,22 +3131,19 @@
   .candidate-detail-hero {
     flex-direction: column;
   }
-  .candidate-billing-workspace {
-    grid-template-columns: 1fr;
-  }
-  .candidate-billing-action-bar {
+  .candidate-finance-action-bar {
     align-items: stretch;
     flex-direction: column;
   }
-  .candidate-billing-action-buttons {
+  .candidate-finance-action-buttons {
     justify-content: flex-start;
   }
-  .candidate-billing-suggestion {
+  .candidate-finance-suggestion {
     align-items: flex-start;
     flex-direction: column;
   }
-  .candidate-billing-payment-form,
-  .candidate-billing-plan-form {
+  .candidate-finance-payment-form,
+  .candidate-finance-plan-form {
     grid-template-columns: 1fr;
   }
   .candidate-payment-plan-modal-form {
@@ -8024,17 +7975,10 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   text-align: center;
   margin-bottom: 28px;
 }
-.login-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: var(--brand);
-  color: var(--white);
-  font-size: 26px;
-  font-weight: 800;
+.login-brand-logo {
+  display: inline-block;
+  width: min(180px, 70%);
+  height: auto;
   margin-bottom: 12px;
 }
 .login-brand h1 {
@@ -8096,29 +8040,6 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   margin-top: 4px;
   justify-content: center;
 }
-.login-foot {
-  text-align: center;
-  margin-top: 4px;
-}
-.login-link {
-  font-size: 12px;
-  color: var(--brand);
-  font-weight: 600;
-  transition: color .12s;
-}
-.login-link:hover { color: var(--brand-dark); }
-
-.forgot-success {
-  padding: 14px 16px;
-  border-radius: 8px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  color: #065f46;
-  font-size: 13px;
-  line-height: 1.55;
-}
-.forgot-success strong { color: #064e3b; }
-
 /* ─── CANDIDATE LIST (inside GroupDrawer) ─── */
 .candidate-list-row { gap: 6px; }
 .candidate-tc {
@@ -8319,16 +8240,6 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   display: flex;
   align-items: flex-end;
   flex: 0 0 auto;
-}
-
-/* Certificate program fee matrix */
-/* Backwards-compat: a couple of consumers still reference these — they remain
- * minimal pass-throughs so existing markup keeps working. */
-.settings-table-scroll {
-  overflow-x: auto;
-}
-.settings-filter-input {
-  width: 96px;
 }
 
 .fee-matrix > .settings-surface-header {

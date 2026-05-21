@@ -1,15 +1,13 @@
-import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { httpGet, type QueryParams } from "./http";
 import type {
   CertificateProgramListResponse,
-  CertificateProgramResponse,
-  CertificateProgramUpsertRequest,
 } from "./types";
 
-export type CertificateProgramActivityFilter = "active" | "inactive" | "all";
-export type CertificateProgramSortField = "code" | "source" | "target" | "displayOrder";
-export type CertificateProgramSortDirection = "asc" | "desc";
+type CertificateProgramActivityFilter = "active" | "inactive" | "all";
+type CertificateProgramSortField = "code" | "source" | "target" | "displayOrder";
+type CertificateProgramSortDirection = "asc" | "desc";
 
-export interface GetCertificateProgramsOptions {
+interface GetCertificateProgramsOptions {
   search?: string;
   activity?: CertificateProgramActivityFilter;
   sourceLicenseClass?: string;
@@ -38,30 +36,4 @@ export function getCertificatePrograms(
   return httpGet<CertificateProgramListResponse>("/api/certificate-programs", params, {
     signal,
   });
-}
-
-export function getCertificateProgram(
-  id: string,
-  signal?: AbortSignal
-): Promise<CertificateProgramResponse> {
-  return httpGet<CertificateProgramResponse>(`/api/certificate-programs/${id}`, undefined, {
-    signal,
-  });
-}
-
-export function createCertificateProgram(
-  body: CertificateProgramUpsertRequest
-): Promise<CertificateProgramResponse> {
-  return httpPost<CertificateProgramResponse>("/api/certificate-programs", body);
-}
-
-export function updateCertificateProgram(
-  id: string,
-  body: CertificateProgramUpsertRequest
-): Promise<CertificateProgramResponse> {
-  return httpPut<CertificateProgramResponse>(`/api/certificate-programs/${id}`, body);
-}
-
-export function deleteCertificateProgram(id: string): Promise<void> {
-  return httpDelete(`/api/certificate-programs/${id}`);
 }

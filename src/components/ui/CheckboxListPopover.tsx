@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useT } from "../../lib/i18n";
 import { FilterIcon } from "../icons";
 
-export type CheckboxListOption = {
+type CheckboxListOption = {
   value: string;
   label: string;
 };

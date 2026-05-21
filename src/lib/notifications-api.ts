@@ -1,6 +1,6 @@
 import { httpGet } from "./http";
 
-export type NotificationSeverity = "expired" | "warning" | "info";
+type NotificationSeverity = "expired" | "warning" | "info";
 
 export interface NotificationResponse {
   id: string;
@@ -12,7 +12,7 @@ export interface NotificationResponse {
   createdAtUtc: string;
 }
 
-export interface NotificationListResponse {
+interface NotificationListResponse {
   items: NotificationResponse[];
   unreadCount: number;
 }

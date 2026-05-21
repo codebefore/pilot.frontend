@@ -6,14 +6,11 @@ import {
   updateLicenseClassDefinition,
 } from "../../lib/license-class-definitions-api";
 import { LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS } from "../../lib/license-class-definition-catalog";
-import { FEE_TYPE_LABELS } from "../../lib/fee-catalog";
-import { getFees } from "../../lib/fees-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import { useExistingLicenseTypeOptions } from "../../lib/use-license-class-options";
 import type {
-  FeeResponse,
   LicenseClassDefinitionResponse,
   LicenseClassDefinitionUpsertRequest,
 } from "../../lib/types";
@@ -192,8 +189,6 @@ export function LicenseClassDefinitionFormModal({
   const { showToast } = useToast();
   const t = useT();
   const [submitting, setSubmitting] = useState(false);
-  const [linkedFees, setLinkedFees] = useState<FeeResponse[]>([]);
-  const [linkedFeesLoading, setLinkedFeesLoading] = useState(false);
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
 
   const {
@@ -229,28 +224,6 @@ export function LicenseClassDefinitionFormModal({
     if (!open) return;
     reset(getEmptyValues(editing));
   }, [editing, open, reset]);
-
-  useEffect(() => {
-    if (!open || !editing?.id) {
-      setLinkedFees([]);
-      return;
-    }
-    const controller = new AbortController();
-    setLinkedFeesLoading(true);
-    getFees(
-      { activity: "active", licenseClassId: editing.id, page: 1, pageSize: 100 },
-      controller.signal
-    )
-      .then((response) => setLinkedFees(response.items))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setLinkedFees([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLinkedFeesLoading(false);
-      });
-    return () => controller.abort();
-  }, [editing?.id, open]);
 
   useEffect(() => {
     if (open && hasExistingLicense) {
@@ -481,47 +454,6 @@ export function LicenseClassDefinitionFormModal({
             />
           </div>
         </div>
-
-        {editing ? (
-          <div className="form-subsection">
-            <div className="form-subsection-header">
-              <div>
-                <div className="form-subsection-title">İlgili Ücretler</div>
-                <div className="form-subsection-note">
-                  Bu sınıfa bağlı ücretler. Düzenlemek için Ücretler ekranını kullanın.
-                </div>
-              </div>
-            </div>
-            <div className="settings-table-wrap">
-              <table className="settings-table">
-                <thead>
-                  <tr>
-                    <th>Ders Türü</th>
-                    <th>Ücret (TL)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {linkedFeesLoading ? (
-                    <tr>
-                      <td colSpan={2}>…</td>
-                    </tr>
-                  ) : linkedFees.length === 0 ? (
-                    <tr>
-                      <td colSpan={2}>Bu sınıfa bağlı ücret yok.</td>
-                    </tr>
-                  ) : (
-                    linkedFees.map((fee) => (
-                      <tr key={fee.id}>
-                        <td>{FEE_TYPE_LABELS[fee.feeType] ?? fee.feeType}</td>
-                        <td>{fee.amount.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : null}
 
         <div className="form-row full">
           <div className="form-group">

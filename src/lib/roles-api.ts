@@ -6,7 +6,7 @@ import type {
   RoleUpsertRequest,
 } from "./types";
 
-export interface GetRolesOptions {
+interface GetRolesOptions {
   includeInactive?: boolean;
 }
 

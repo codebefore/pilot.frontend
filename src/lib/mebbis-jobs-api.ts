@@ -1,7 +1,7 @@
 import { httpGet, httpPost } from "./http";
 import type { JobStatus } from "../types";
 
-export type MebbisJobStatus =
+type MebbisJobStatus =
   | "pending"
   | "leased"
   | "running"
@@ -33,7 +33,7 @@ export type MebbisJobResponse = {
   rowVersion: number;
 };
 
-export type MebbisJobListResponse = {
+type MebbisJobListResponse = {
   items: MebbisJobResponse[];
 };
 
@@ -49,7 +49,7 @@ export type MebbisJobStepResponse = {
   createdAtUtc: string;
 };
 
-export type MebbisJobStepListResponse = {
+type MebbisJobStepListResponse = {
   items: MebbisJobStepResponse[];
 };
 

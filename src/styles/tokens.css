@@ -1,5 +1,4 @@
-/* Design tokens — mirrored from pilot.context/04-demo/index.html.
- * Değişiklik yapmadan önce demoyu ve K008/K015 kararlarını kontrol et. */
+/* Design tokens shared by the Pilot frontend. */
 :root {
   --brand: #22B094;
   --brand-dark: #1a9478;

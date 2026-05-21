@@ -356,8 +356,6 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
           !!data.existingLicenseIssuedAt &&
           data.existingLicenseIssuedAt < "2016-01-01",
         status: "pre_registered",
-        examFeePaid: false,
-        initialPaymentReceived: false,
         tags: data.tags,
         reuseFromCandidateId: data.documentIdsToCopy.length > 0
           ? data.reuseFromCandidateId || null

@@ -13,11 +13,11 @@ export interface CandidateNoteResponse {
   rowVersion: number;
 }
 
-export interface CandidateNoteListResponse {
+interface CandidateNoteListResponse {
   items: CandidateNoteResponse[];
 }
 
-export interface CandidateNoteUpsertInput {
+interface CandidateNoteUpsertInput {
   body: string;
   reminderAtUtc: string | null;
 }

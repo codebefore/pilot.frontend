@@ -10,7 +10,7 @@ export type CashRegisterSortField = "name" | "type" | "isActive";
 export type CashRegisterSortDirection = "asc" | "desc";
 export type CashRegisterActivityFilter = "active" | "inactive" | "all";
 
-export interface GetCashRegistersOptions {
+interface GetCashRegistersOptions {
   search?: string;
   activity?: CashRegisterActivityFilter;
   type?: CashRegisterType | "all";

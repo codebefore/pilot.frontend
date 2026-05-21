@@ -14,7 +14,7 @@ interface CandidateReferenceListResponse {
   items: CandidateReferenceResponse[];
 }
 
-export interface CandidateReferenceUpsertRequest {
+interface CandidateReferenceUpsertRequest {
   name: string;
   displayOrder: number;
   isActive: boolean;

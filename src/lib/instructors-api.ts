@@ -21,7 +21,7 @@ export type InstructorSortField =
 export type InstructorSortDirection = "asc" | "desc";
 export type InstructorActivityFilter = "active" | "inactive" | "all";
 
-export interface GetInstructorsOptions {
+interface GetInstructorsOptions {
   search?: string;
   includeInactive?: boolean;
   activity?: InstructorActivityFilter;
@@ -91,7 +91,7 @@ export function deleteInstructorPhoto(id: string): Promise<InstructorResponse> {
   return httpDelete<InstructorResponse>(`/api/instructors/${id}/photo`);
 }
 
-export interface InstructorLeaveRequest {
+interface InstructorLeaveRequest {
   leftAtDate: string;
   reason?: string | null;
   rowVersion: number;

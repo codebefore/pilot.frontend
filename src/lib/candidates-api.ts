@@ -43,7 +43,6 @@ export interface GetCandidatesParams extends QueryParams {
   hasMissingDocuments?: boolean;
   hasPhoto?: boolean;
   hasExamResult?: boolean;
-  examFeePaid?: boolean;
   licenseClasses?: readonly LicenseClass[];
   firstName?: string;
   lastName?: string;
@@ -72,7 +71,7 @@ export interface GetCandidatesParams extends QueryParams {
   pageSize?: number;
 }
 
-export interface GetExamScheduleOptionsParams
+interface GetExamScheduleOptionsParams
   extends Omit<GetCandidatesParams, "page" | "pageSize" | "sortBy" | "sortDir"> {
   examType: CandidateExamDateType;
 }
@@ -122,15 +121,6 @@ export function updateCandidate(
   body: CandidateUpsertRequest
 ): Promise<CandidateResponse> {
   return httpPut<CandidateResponse>(`/api/candidates/${id}`, body);
-}
-
-export function setCandidateInitialPaymentReceived(
-  id: string,
-  initialPaymentReceived: boolean
-): Promise<void> {
-  return httpPut<void>(`/api/candidates/${id}/initial-payment`, {
-    initialPaymentReceived,
-  });
 }
 
 export function setCandidateTheoryExemption(
@@ -221,16 +211,5 @@ export function assignCandidateGroup(
   return httpPost<CandidateGroupAssignmentResponse>(
     `/api/candidates/${candidateId}/group-assignments`,
     { groupId }
-  );
-}
-
-export function getCandidateGroupAssignments(
-  candidateId: string,
-  signal?: AbortSignal
-): Promise<CandidateGroupAssignmentResponse[]> {
-  return httpGet<CandidateGroupAssignmentResponse[]>(
-    `/api/candidates/${candidateId}/group-assignments`,
-    undefined,
-    { signal }
   );
 }

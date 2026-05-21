@@ -16,7 +16,6 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ 
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })));
 const ExamUygulamaPage = lazy(() => import("./pages/ExamUygulamaPage").then((m) => ({ default: m.ExamUygulamaPage })));
 const ExamESinavPage = lazy(() => import("./pages/ExamESinavPage").then((m) => ({ default: m.ExamESinavPage })));
-const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
 const GroupsPage = lazy(() => import("./pages/GroupsPage").then((m) => ({ default: m.GroupsPage })));
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const MebJobsPage = lazy(() => import("./pages/MebJobsPage").then((m) => ({ default: m.MebJobsPage })));
@@ -154,7 +153,6 @@ export default function App() {
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route element={<LoginPage />} path="/login" />
-                <Route element={<ForgotPasswordPage />} path="/forgot-password" />
                 <Route
                   element={
                     <RequireAuth>

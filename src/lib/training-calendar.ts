@@ -99,7 +99,6 @@ export type TrainingCalendarEvent = {
   vehiclePlate?: string;
   vehicleId?: string | null;
   classroomId?: string | null;
-  routeId?: string | null;
   licenseClassCounts?: TrainingLessonResponse["licenseClassCounts"];
   branchCode?: string | null;
 };
@@ -140,14 +139,13 @@ export function trainingLessonToCalendarEvent(
     groupName,
     licenseClass: joinLicenseClasses(lesson),
     candidateCount: lesson.candidateCount,
-    location: lesson.classroomName ?? lesson.routeName ?? undefined,
+    location: lesson.classroomName ?? undefined,
     notes: lesson.notes ?? undefined,
     candidateName: lesson.candidateName ?? undefined,
     candidateId: lesson.candidateId,
     vehiclePlate: lesson.vehiclePlate ?? undefined,
     vehicleId: lesson.vehicleId,
     classroomId: lesson.classroomId,
-    routeId: lesson.routeId,
     licenseClassCounts: lesson.licenseClassCounts,
     branchCode: lesson.branchCode,
   };
@@ -167,7 +165,6 @@ export function calendarEventToTrainingLessonRequest(
     candidateId: event.kind === "uygulama" ? event.candidateId ?? null : null,
     vehicleId: event.kind === "uygulama" ? event.vehicleId ?? null : null,
     classroomId: event.classroomId ?? null,
-    routeId: event.routeId ?? null,
     branchCode: event.kind === "teorik" ? event.branchCode ?? null : null,
     licenseClass: event.licenseClass === "-" ? null : event.licenseClass,
     notes: event.notes ?? null,

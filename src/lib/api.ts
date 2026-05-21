@@ -20,11 +20,3 @@ export function getApiBaseUrl(): string {
     DEFAULT_API_BASE_URL
   );
 }
-
-export function getPublicUrl(): string {
-  return (
-    window.__APP_CONFIG__?.publicUrl ??
-    import.meta.env.VITE_PUBLIC_URL ??
-    window.location.origin
-  );
-}

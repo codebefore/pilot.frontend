@@ -37,8 +37,8 @@ export class ApiError extends Error {
   }
 }
 
-export type QueryParamPrimitive = string | number | boolean | undefined | null;
-export type QueryParamValue = QueryParamPrimitive | readonly QueryParamPrimitive[];
+type QueryParamPrimitive = string | number | boolean | undefined | null;
+type QueryParamValue = QueryParamPrimitive | readonly QueryParamPrimitive[];
 export type QueryParams = Record<string, QueryParamValue>;
 
 type RequestOptions = {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { BellIcon, CheckIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { NoteComposerModal, type NoteDraft } from "../notes/NoteComposerModal";
@@ -20,19 +20,18 @@ export function DashboardNotesPanel() {
   const [editing, setEditing] = useState<UserNoteResponse | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const response = await getUserNotes();
       setNotes(response.items);
     } catch {
       showToast("Notlar yüklenemedi", "error");
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   const beginCreate = () => {
     setEditing(null);

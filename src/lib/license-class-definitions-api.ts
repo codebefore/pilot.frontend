@@ -17,7 +17,7 @@ export type LicenseClassDefinitionSortField =
 export type LicenseClassDefinitionSortDirection = "asc" | "desc";
 export type LicenseClassDefinitionActivityFilter = "active" | "inactive" | "all";
 
-export interface GetLicenseClassDefinitionsOptions {
+interface GetLicenseClassDefinitionsOptions {
   search?: string;
   code?: string;
   includeInactive?: boolean;

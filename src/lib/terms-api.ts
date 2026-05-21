@@ -6,7 +6,7 @@ import type {
   UpdateTermRequest,
 } from "./types";
 
-export interface GetTermsParams extends QueryParams {
+interface GetTermsParams extends QueryParams {
   page?: number;
   pageSize?: number;
 }
@@ -16,10 +16,6 @@ export function getTerms(
   signal?: AbortSignal
 ): Promise<PagedResponse<TermResponse>> {
   return httpGet<PagedResponse<TermResponse>>("/api/terms", params, { signal });
-}
-
-export function getTermById(id: string, signal?: AbortSignal): Promise<TermResponse> {
-  return httpGet<TermResponse>(`/api/terms/${id}`, undefined, { signal });
 }
 
 export function createTerm(body: CreateTermRequest): Promise<TermResponse> {

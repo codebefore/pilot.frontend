@@ -9,7 +9,7 @@ export type LicenseClassOption = {
   label: string;
 };
 
-export type ExistingLicenseTypeOption = LicenseClassOption;
+type ExistingLicenseTypeOption = LicenseClassOption;
 
 function toExistingLicenseValue(code: string): string {
   return code.trim().toLowerCase();
@@ -100,7 +100,7 @@ function isPreferredTargetOption(
   );
 }
 
-export async function getActiveLicenseClassOptions(signal?: AbortSignal) {
+async function getActiveLicenseClassOptions(signal?: AbortSignal) {
   const activeResponse = await getLicenseClassDefinitions(
     {
       activity: "active",
@@ -132,7 +132,7 @@ export async function getActiveInitialLicenseClassOptions(signal?: AbortSignal) 
   return activeOptions;
 }
 
-export async function getActiveExistingLicenseTypeOptions(signal?: AbortSignal) {
+async function getActiveExistingLicenseTypeOptions(signal?: AbortSignal) {
   const options = await getActiveLicenseClassOptions(signal);
   return options.map(toExistingLicenseTypeOption);
 }

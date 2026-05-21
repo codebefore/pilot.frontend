@@ -7,7 +7,7 @@ import type {
   TrainingLessonUpsertRequest,
 } from "./types";
 
-export interface GetTrainingLessonsOptions {
+interface GetTrainingLessonsOptions {
   kind?: TrainingLessonKind;
   fromUtc?: string;
   toUtc?: string;

@@ -81,14 +81,6 @@ const BOOLEAN_OPTIONS: SelectOption[] = [
   { value: "false", label: "Hayir" },
 ];
 const MEB_SYNC_STATUS_OPTIONS: SelectOption[] = CANDIDATE_MEB_SYNC_STATUS_OPTIONS;
-const EXAM_FEE_OPTIONS: SelectOption[] = [
-  { value: "true", label: "Ödendi" },
-  { value: "false", label: "Ödenmedi" },
-];
-const INITIAL_PAYMENT_OPTIONS: SelectOption[] = [
-  { value: "true", label: "Alındı" },
-  { value: "false", label: "Alınmadı" },
-];
 const EXAM_ATTEMPT_OPTIONS: SelectOption[] = [
   { value: "1", label: "1/4" },
   { value: "2", label: "2/4" },
@@ -291,8 +283,6 @@ export function CandidateDrawer({
         status: normalizeCandidateStatusValue(candidate.status),
         terminationReason: candidate.terminationReason,
         terminationDate: candidate.terminationDate,
-        examFeePaid: candidate.examFeePaid ?? false,
-        initialPaymentReceived: candidate.initialPaymentReceived ?? false,
         tags: candidate.tags?.map((tag) => tag.name) ?? [],
         rowVersion: candidate.rowVersion,
         ...patch,
@@ -1067,22 +1057,6 @@ export function CandidateDrawer({
             </DrawerSection>
           )}
 
-          <DrawerSection title="Finans">
-            <EditableRow
-              displayValue={candidate.initialPaymentReceived ? "Alındı" : "Alınmadı"}
-              inputValue={candidate.initialPaymentReceived ? "true" : "false"}
-              label="Peşinat"
-              options={INITIAL_PAYMENT_OPTIONS}
-              onSave={(value) => saveField({ initialPaymentReceived: value === "true" })}
-            />
-            <EditableRow
-              displayValue={candidate.examFeePaid ? "Ödendi" : "Ödenmedi"}
-              inputValue={candidate.examFeePaid ? "true" : "false"}
-              label="Sınav Ücreti"
-              options={EXAM_FEE_OPTIONS}
-              onSave={(value) => saveField({ examFeePaid: value === "true" })}
-            />
-          </DrawerSection>
         </>
       ) : loadError ? (
         <PageLoadError

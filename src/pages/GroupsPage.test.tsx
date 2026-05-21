@@ -31,7 +31,6 @@ vi.mock("../lib/terms-api", async () => {
   return {
     ...actual,
     getTerms: (...args: Parameters<typeof actual.getTerms>) => getTermsMock(...args),
-    getTermById: vi.fn(),
     createTerm: vi.fn(),
     updateTerm: vi.fn(),
     deleteTerm: (...args: Parameters<typeof actual.deleteTerm>) => deleteTermMock(...args),

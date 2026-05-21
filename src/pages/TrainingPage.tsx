@@ -74,7 +74,6 @@ const SERVER_FIELD_MAP: Record<string, string> = {
   GroupId: "groupId",
   CandidateId: "candidateId",
   VehicleId: "vehicleId",
-  RouteId: "routeId",
   BranchCode: "branchCode",
 };
 
@@ -678,7 +677,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
       candidateId: values.type === "uygulama" ? values.candidateId || null : null,
       vehicleId: values.type === "uygulama" ? values.vehicleId || null : null,
       classroomId: null,
-      routeId: null,
       branchCode: values.type === "teorik" ? values.branchCode || null : null,
       licenseClass: values.type === "uygulama" ? candidate?.licenseClass ?? null : null,
       notes: values.notes?.trim() || null,
@@ -746,7 +744,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
           candidateId: null,
           vehicleId: null,
           classroomId: null,
-          routeId: null,
           branchCode: branch,
           licenseClass: null,
           notes,
@@ -841,7 +838,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
           candidateId,
           vehicleId,
           classroomId: null,
-          routeId: null,
           branchCode: null,
           licenseClass: candidate?.licenseClass ?? null,
           practiceEducationType,

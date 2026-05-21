@@ -1,7 +1,7 @@
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type { AppUserResponse, AppUserUpsertRequest } from "./types";
 
-export interface GetUsersOptions {
+interface GetUsersOptions {
   includeInactive?: boolean;
   includeSuperAdmins?: boolean;
 }

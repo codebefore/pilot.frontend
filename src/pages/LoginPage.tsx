@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError } from "../lib/http";
 import { useAuth } from "../lib/auth";
@@ -55,9 +55,7 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-brand-mark">P</div>
-          <h1>{t("login.title")}</h1>
-          <p>{t("login.subtitle")}</p>
+          <img alt="Pilot" className="login-brand-logo" src="/pilot.png" />
         </div>
 
         <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
@@ -91,12 +89,6 @@ export function LoginPage() {
           <button className="btn btn-primary login-submit" disabled={submitting} type="submit">
             {submitting ? t("login.submitting") : t("login.submit")}
           </button>
-
-          <div className="login-foot">
-            <Link className="login-link" to="/forgot-password">
-              {t("login.forgotPassword")}
-            </Link>
-          </div>
         </form>
       </div>
     </div>

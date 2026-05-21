@@ -197,12 +197,6 @@ export const RefreshIcon = (p?: IconProps) =>
     p
   );
 
-export const KeyIcon = (p?: IconProps) =>
-  svg(
-    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />,
-    p
-  );
-
 export const UploadCloudIcon = (p?: IconProps) =>
   svg(
     [
@@ -279,30 +273,6 @@ export const SettingsIcon = (p?: IconProps) =>
         key="2"
         d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
       />,
-    ],
-    p
-  );
-
-export const VehicleIcon = (p?: IconProps) =>
-  svg(
-    [
-      <path key="1" d="M3 13l2-5a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 5" />,
-      <path key="2" d="M3 13h18v4a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />,
-      <circle key="3" cx="7.5" cy="15.5" r="1" />,
-      <circle key="4" cx="16.5" cy="15.5" r="1" />,
-    ],
-    p
-  );
-
-export const UsersIcon = (p?: IconProps) =>
-  svg(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />, p);
-
-export const LoginIcon = (p?: IconProps) =>
-  svg(
-    [
-      <path key="1" d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />,
-      <polyline key="2" points="10 17 15 12 10 7" />,
-      <line key="3" x1="15" y1="12" x2="3" y2="12" />,
     ],
     p
   );

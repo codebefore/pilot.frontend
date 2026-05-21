@@ -124,7 +124,6 @@ export type CandidateColumnId =
   | "documents"
   | "missingDocuments"
   | "mebSyncStatus"
-  | "examFeePaid"
   | "status"
   | "createdAtUtc"
   | "updatedAtUtc";
@@ -134,7 +133,6 @@ const REMOVED_CANDIDATE_COLUMN_IDS = new Set<CandidateColumnId>([
   "drivingExamDate",
   "drivingExamAttemptCount",
   "missingDocuments",
-  "examFeePaid",
 ]);
 
 type CandidateColumnDef = {
@@ -168,7 +166,6 @@ type CandidateColumnDef = {
     | "candidates.col.documents"
     | "candidates.col.missingDocuments"
     | "candidates.col.mebSyncStatus"
-    | "candidates.col.examFeePaid"
     | "candidates.col.status"
     | "candidates.col.createdAtUtc"
     | "candidates.col.updatedAtUtc";
@@ -348,16 +345,6 @@ function columnAvailableOnPage(
   pageScope: CandidateColumnPageScope
 ): boolean {
   return pageScope === "all" || !column.pageScope || column.pageScope === pageScope;
-}
-
-function ExamFeePill({ paid }: { paid: boolean }) {
-  const t = useT();
-  return (
-    <StatusPill
-      label={paid ? t("candidates.examFee.paidShort") : t("candidates.examFee.unpaidShort")}
-      status={paid ? "success" : "failed"}
-    />
-  );
 }
 
 const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
@@ -574,12 +561,6 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
       />
     ),
     skeletonWidth: 72,
-  },
-  {
-    id: "examFeePaid",
-    labelKey: "candidates.col.examFeePaid",
-    renderCell: (c) => <ExamFeePill paid={c.examFeePaid ?? false} />,
-    skeletonWidth: 88,
   },
   {
     id: "status",
@@ -1409,7 +1390,6 @@ export function CandidatesPage({
       t("candidates.col.missingDocuments"),
       t("candidates.col.mebSyncStatus"),
       t("candidates.csv.examResult"),
-      t("candidates.col.examFeePaid"),
       t("candidates.col.status"),
       t("candidates.col.createdAtUtc"),
     ] as const;
@@ -1432,9 +1412,6 @@ export function CandidatesPage({
       candidate.documentSummary?.missingCount ?? 0,
       candidateMebSyncStatusLabel(candidate.mebSyncStatus),
       candidateExamResultLabel(candidate.mebExamResult),
-      candidate.examFeePaid
-        ? t("candidates.examFee.paidShort")
-        : t("candidates.examFee.unpaidShort"),
       candidateStatusLabel(candidate.status),
       formatDateTR(candidate.createdAtUtc),
     ]);
@@ -2359,22 +2336,6 @@ function buildCandidateColumnFilterControl(
         ]}
         title={t("candidates.filters.hasMissingDocuments")}
         value={filters.hasMissingDocuments}
-      />
-    );
-  }
-
-  if (columnId === "examFeePaid") {
-    return (
-      <TableHeaderFilter
-        active={filters.examFeePaid !== ""}
-        onChange={(value) => setFilter("examFeePaid", value as CandidateFilterState["examFeePaid"])}
-        options={[
-          { value: "", label: t("common.all") },
-          { value: "true", label: t("candidates.examFee.paidShort") },
-          { value: "false", label: t("candidates.examFee.unpaidShort") },
-        ]}
-        title={t("candidates.filters.examFeePaid")}
-        value={filters.examFeePaid}
       />
     );
   }

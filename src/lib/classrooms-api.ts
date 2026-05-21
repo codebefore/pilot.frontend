@@ -1,4 +1,4 @@
-import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   ClassroomListResponse,
   ClassroomResponse,
@@ -9,7 +9,7 @@ export type ClassroomSortField = "name" | "capacity" | "isActive";
 export type ClassroomSortDirection = "asc" | "desc";
 export type ClassroomActivityFilter = "active" | "inactive" | "all";
 
-export interface GetClassroomsOptions {
+interface GetClassroomsOptions {
   search?: string;
   activity?: ClassroomActivityFilter;
   branchId?: string;
@@ -45,8 +45,4 @@ export function updateClassroom(
   body: ClassroomUpsertRequest
 ): Promise<ClassroomResponse> {
   return httpPut<ClassroomResponse>(`/api/classrooms/${id}`, body);
-}
-
-export function deleteClassroom(id: string): Promise<void> {
-  return httpDelete(`/api/classrooms/${id}`);
 }
