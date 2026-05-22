@@ -80,13 +80,16 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("link", { name: /Evrak Türleri/i }));
     expect(screen.getByText("Document Types Section Mock")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("link", { name: /Eğitmenler/i }));
+    fireEvent.click(screen.getByRole("link", { name: /Ekip/i }));
     expect(screen.getByText("Instructors Section Mock")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: /Kullanıcılar/i }));
     expect(screen.getByText("Users Section Mock")).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("link", { name: /Yetki Yönetimi/i }));
-    expect(screen.getByText("Permissions Section Mock")).toBeInTheDocument();
+  it("redirects the legacy permissions route to the users permissions tab", async () => {
+    renderSettingsPage("/settings/definitions/permissions");
+
+    expect(await screen.findByText("Users Section Mock")).toBeInTheDocument();
   });
 });

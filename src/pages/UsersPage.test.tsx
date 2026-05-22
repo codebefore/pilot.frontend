@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../test/render-with-providers";
@@ -53,7 +54,11 @@ describe("UsersPage", () => {
   });
 
   it("deletes a user with inline confirmation", async () => {
-    renderWithProviders(<UsersPage />);
+    renderWithProviders(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>
+    );
 
     const row = await screen.findByText("Ada Yilmaz");
     const tableRow = row.closest("tr");

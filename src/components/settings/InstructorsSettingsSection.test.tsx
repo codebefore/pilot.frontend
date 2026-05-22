@@ -210,7 +210,8 @@ describe("InstructorsSettingsSection", () => {
     });
 
     expect(await screen.findByText("HASAN KORKMAZ")).toBeInTheDocument();
-    expect(screen.getByText("MEBBİS: MEB-123")).toBeInTheDocument();
+    expect(screen.getAllByText("Usta Öğretici").length).toBeGreaterThan(0);
+    expect(screen.getByText("Uygulama, Trafik ve Çevre")).toBeInTheDocument();
     expect(getTrainingBranchDefinitionsMock).toHaveBeenCalledWith(
       { activity: "active", page: 1, pageSize: 100 },
       expect.any(AbortSignal)
@@ -232,6 +233,9 @@ describe("InstructorsSettingsSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Branş filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: "İlk Yardım" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
+    fireEvent.click(screen.getByLabelText("Belge"));
 
     fireEvent.click(screen.getByRole("button", { name: "Belge filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: /^A2 -/ }));
