@@ -66,7 +66,39 @@ export const navSections: NavSection[] = [
           { key: "trainingUygulama", path: "/training/uygulama", labelKey: "nav.trainingUygulama" },
         ],
       },
-      { key: "payments",   path: "/payments",   labelKey: "nav.payments",   Icon: PaymentsIcon },
+      {
+        key: "payments",
+        path: "/payments",
+        labelKey: "nav.payments",
+        Icon: PaymentsIcon,
+        children: [
+          {
+            key: "paymentsCollections",
+            path: "/payments/collections",
+            labelKey: "nav.paymentsCollections",
+          },
+          {
+            key: "paymentsBalances",
+            path: "/payments/balances",
+            labelKey: "nav.paymentsBalances",
+          },
+          {
+            key: "paymentsCash",
+            path: "/payments/cash",
+            labelKey: "nav.paymentsCash",
+          },
+          {
+            key: "paymentsInvoices",
+            path: "/payments/invoices",
+            labelKey: "nav.paymentsInvoices",
+          },
+          {
+            key: "paymentsStatistics",
+            path: "/payments/statistics",
+            labelKey: "nav.paymentsStatistics",
+          },
+        ],
+      },
     ],
   },
   {

@@ -78,12 +78,23 @@ export function RoleEditorPage() {
     return () => controller.abort();
   }, [reset, roleId, reloadKey]);
 
-  const permissionsBasePath = location.pathname.startsWith("/settings/")
-    ? "/settings/definitions/permissions"
-    : "/permissions";
-  const backToPermissions = editingRole
-    ? `${permissionsBasePath}?role=${editingRole.id}`
-    : permissionsBasePath;
+  const usersPermissionsRoute = location.pathname.startsWith(
+    "/settings/definitions/users/permissions"
+  );
+  const permissionsBasePath = usersPermissionsRoute
+    ? "/settings/definitions/users"
+    : location.pathname.startsWith("/settings/")
+      ? "/settings/definitions/permissions"
+      : "/permissions";
+  const buildPermissionsPath = (roleId?: string) => {
+    if (usersPermissionsRoute) {
+      return roleId
+        ? `${permissionsBasePath}?tab=permissions&role=${roleId}`
+        : `${permissionsBasePath}?tab=permissions`;
+    }
+    return roleId ? `${permissionsBasePath}?role=${roleId}` : permissionsBasePath;
+  };
+  const backToPermissions = buildPermissionsPath(editingRole?.id);
 
   const submit = handleSubmit(async (values) => {
     setSubmitting(true);
@@ -98,7 +109,7 @@ export function RoleEditorPage() {
         : await createRole(payload);
 
       showToast(editingRole ? "Rol güncellendi" : "Rol eklendi");
-      navigate(`${permissionsBasePath}?role=${saved.id}`);
+      navigate(buildPermissionsPath(saved.id));
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         for (const [serverField, messages] of Object.entries(error.validationErrors)) {
@@ -122,7 +133,7 @@ export function RoleEditorPage() {
           actions={
             <button
               className="btn btn-secondary btn-sm"
-              onClick={() => navigate(permissionsBasePath)}
+              onClick={() => navigate(buildPermissionsPath())}
               type="button"
             >
               Listeye Dön
@@ -149,7 +160,7 @@ export function RoleEditorPage() {
           actions={
             <button
               className="btn btn-secondary btn-sm"
-              onClick={() => navigate(permissionsBasePath)}
+              onClick={() => navigate(buildPermissionsPath())}
               type="button"
             >
               Listeye Dön

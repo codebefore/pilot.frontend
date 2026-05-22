@@ -204,6 +204,7 @@ export function Sidebar({
                                 : "sidebar-link sidebar-link-child"
                             }
                             key={child.key}
+                            end={child.path === item.path}
                             onClick={() => setOpenSubmenus(new Set([item.key]))}
                             to={child.path}
                           >

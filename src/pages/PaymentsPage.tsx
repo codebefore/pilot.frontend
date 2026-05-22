@@ -6,14 +6,21 @@ import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
+import { Modal } from "../components/ui/Modal";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import {
   TableHeaderFilter,
   type TableHeaderFilterOption,
 } from "../components/ui/TableHeaderFilter";
-import { getPaymentsOverview } from "../lib/payments-api";
+import {
+  createCashInflow,
+  createCashOutflow,
+  createCashTransfer,
+  getPaymentsOverview,
+} from "../lib/payments-api";
 import { formatDateTR } from "../lib/status-maps";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
+import { useToast } from "../components/ui/Toast";
 import type {
   CandidateAccountingType,
   PaymentCandidateSummaryResponse,
@@ -25,6 +32,15 @@ import type {
 } from "../lib/types";
 
 type DetailGroup = "movements" | "invoices" | "cashSummary" | "cashMovements";
+type CashActionMode = "inflow" | "outflow" | "transfer";
+type InvoiceView = "movements" | "analysis";
+type PaymentsPageMode =
+  | "finance"
+  | "balances"
+  | "collections"
+  | "invoices"
+  | "cash"
+  | "statistics";
 type DetailTab =
   | "all"
   | "payment"
@@ -43,19 +59,35 @@ type DetailColumnId =
   | "cashRegister"
   | "description";
 type DetailSortField = Exclude<DetailColumnId, "photo">;
+type PaymentsPageProps = {
+  mode?: PaymentsPageMode;
+};
 type InvoiceColumnId =
   | "photo"
   | "candidate"
   | "group"
+  | "licenseClass"
   | "invoiceNo"
   | "invoiceType"
   | "date"
+  | "service"
+  | "quantity"
+  | "unitPrice"
   | "subtotal"
   | "vatRate"
   | "vatAmount"
   | "total"
   | "notes";
 type InvoiceSortField = Exclude<InvoiceColumnId, "photo">;
+type InvoiceAnalysisColumnId =
+  | "photo"
+  | "candidate"
+  | "group"
+  | "licenseClass"
+  | "courseBase"
+  | "invoicedTotal"
+  | "remainingTotal";
+type InvoiceAnalysisSortField = Exclude<InvoiceAnalysisColumnId, "photo">;
 type CashSummaryColumnId =
   | "name"
   | "balance"
@@ -97,6 +129,10 @@ type PeriodStatsSortField = PeriodStatsColumnId;
 type SortDirection = "asc" | "desc";
 type DetailSortState = { field: DetailSortField; direction: SortDirection };
 type InvoiceSortState = { field: InvoiceSortField; direction: SortDirection };
+type InvoiceAnalysisSortState = {
+  field: InvoiceAnalysisSortField;
+  direction: SortDirection;
+};
 type CashSummarySortState = {
   field: CashSummarySortField;
   direction: SortDirection;
@@ -119,6 +155,12 @@ type PeriodStatsSortState = {
 };
 type DetailColumnFilters = Partial<Record<DetailSortField, string>>;
 type InvoiceColumnFilters = Partial<Record<InvoiceSortField, string>>;
+type InvoiceAnalysisRow = {
+  candidate: PaymentCandidateSummaryResponse;
+  courseBase: number;
+  invoicedTotal: number;
+  remainingTotal: number;
+};
 type CashSummaryColumnFilters = Partial<Record<CashSummarySortField, string>>;
 type CashMovementColumnFilters = Partial<Record<CashMovementSortField, string>>;
 type InstallmentColumnFilters = Partial<Record<InstallmentSortField, string>>;
@@ -165,13 +207,16 @@ const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
   { value: "custom", label: "Özel Aralık" },
 ];
 
-const DETAIL_TABS: { key: DetailTab; label: string }[] = [
+const COLLECTION_DETAIL_TABS: { key: DetailTab; label: string }[] = [
   { key: "all", label: "Tümü" },
   { key: "payment", label: "Tahsilat" },
   { key: "refund", label: "İade" },
   { key: "cancelled", label: "İptal" },
-  { key: "installment", label: "Vade" },
-  { key: "debt", label: "Borçlar" },
+];
+
+const FINANCE_DETAIL_TABS: { key: DetailTab; label: string }[] = [
+  { key: "installment", label: "Vadeler" },
+  { key: "debt", label: "Bakiyeler" },
 ];
 
 const DETAIL_COLUMNS: {
@@ -203,16 +248,60 @@ const INVOICE_COLUMNS: {
 }[] = [
   { id: "photo", label: "Resim" },
   { id: "candidate", label: "Ad Soyad", sortable: true },
-  { id: "group", label: "Dönem / Sınıf", sortable: true, filterable: true },
-  { id: "invoiceNo", label: "Fatura No", sortable: true },
-  { id: "invoiceType", label: "Fatura Tipi", sortable: true, filterable: true },
+  { id: "group", label: "Dönem", sortable: true, filterable: true },
+  { id: "licenseClass", label: "Ehliyet Tipi", sortable: true, filterable: true },
   { id: "date", label: "Tarih", sortable: true },
+  { id: "service", label: "Hizmet", sortable: true, filterable: true },
+  { id: "quantity", label: "Miktar", sortable: true, numeric: true },
+  { id: "unitPrice", label: "Birim Fiyat", sortable: true, numeric: true },
   { id: "subtotal", label: "Ara Toplam", sortable: true, numeric: true },
   { id: "vatRate", label: "KDV Oranı", sortable: true, numeric: true },
   { id: "vatAmount", label: "KDV Tutarı", sortable: true, numeric: true },
   { id: "total", label: "Toplam", sortable: true, numeric: true },
   { id: "notes", label: "Açıklama", sortable: true },
+  { id: "invoiceType", label: "Fatura Tipi", sortable: true, filterable: true },
+  { id: "invoiceNo", label: "Fatura No", sortable: true },
 ];
+
+const DEFAULT_INVOICE_COLUMNS = INVOICE_COLUMNS
+  .filter((column) => column.id !== "invoiceType" && column.id !== "invoiceNo")
+  .map((column) => column.id);
+
+const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
+
+const INVOICE_ANALYSIS_COLUMNS: {
+  id: InvoiceAnalysisColumnId;
+  label: string;
+  numeric?: boolean;
+  sortable?: boolean;
+}[] = [
+  { id: "photo", label: "Resim" },
+  { id: "candidate", label: "Ad Soyad", sortable: true },
+  { id: "group", label: "Dönem", sortable: true },
+  { id: "licenseClass", label: "Ehliyet Tipi", sortable: true },
+  {
+    id: "courseBase",
+    label: "Matrah (Kurs Ücreti)",
+    sortable: true,
+    numeric: true,
+  },
+  {
+    id: "invoicedTotal",
+    label: "Kesilen Fatura Toplamı",
+    sortable: true,
+    numeric: true,
+  },
+  {
+    id: "remainingTotal",
+    label: "Kalan Fatura Toplamı",
+    sortable: true,
+    numeric: true,
+  },
+];
+
+const DEFAULT_INVOICE_ANALYSIS_COLUMNS = INVOICE_ANALYSIS_COLUMNS.map(
+  (column) => column.id,
+);
 
 const CASH_SUMMARY_COLUMNS: {
   id: CashSummaryColumnId;
@@ -264,9 +353,9 @@ const CASH_MOVEMENT_COLUMNS: {
   sortable?: boolean;
 }[] = [
   { id: "cashRegister", label: "Kasa", sortable: true, filterable: true },
+  { id: "amount", label: "Tutar", sortable: true, numeric: true },
   { id: "date", label: "İşlem Tarihi", sortable: true },
   { id: "description", label: "Açıklama", sortable: true },
-  { id: "amount", label: "Tutar", sortable: true, numeric: true },
 ];
 
 const INSTALLMENT_COLUMNS: {
@@ -306,10 +395,10 @@ const DEBT_COLUMNS: {
   { id: "candidate", label: "Aday", sortable: true },
   { id: "group", label: "Dönem", sortable: true, filterable: true },
   { id: "licenseClass", label: "Ehliyet Tipi", sortable: true, filterable: true },
-  { id: "kurs", label: "Kurs Borcu", sortable: true, numeric: true },
-  { id: "teorikSinav", label: "E-Sınav Borcu", sortable: true, numeric: true },
-  { id: "direksiyonSinav", label: "Direksiyon Borcu", sortable: true, numeric: true },
-  { id: "diger", label: "Diğer Borç", sortable: true, numeric: true },
+  { id: "kurs", label: "Kurs Bakiyesi", sortable: true, numeric: true },
+  { id: "teorikSinav", label: "E-Sınav Bakiyesi", sortable: true, numeric: true },
+  { id: "direksiyonSinav", label: "Direksiyon Bakiyesi", sortable: true, numeric: true },
+  { id: "diger", label: "Diğer Bakiye", sortable: true, numeric: true },
   { id: "total", label: "Toplam", sortable: true, numeric: true },
 ];
 
@@ -321,7 +410,7 @@ const PERIOD_STATS_COLUMNS: {
   sortable?: boolean;
 }[] = [
   { id: "licenseClass", label: "Ehliyet Tipi", sortable: true, filterable: true },
-  { id: "count", label: "Adet", sortable: true, numeric: true },
+  { id: "count", label: "Aday", sortable: true, numeric: true },
   { id: "revenue", label: "Ciro", sortable: true, numeric: true },
   { id: "average", label: "Ortalama", sortable: true, numeric: true },
   { id: "collected", label: "Tahsilat", sortable: true, numeric: true },
@@ -452,16 +541,42 @@ function invoiceCandidateName(invoice: PaymentInvoiceOverviewResponse): string {
 function invoiceGroupLabel(invoice: PaymentInvoiceOverviewResponse): string {
   const group = invoice.candidate.currentGroup;
   if (!group) return "-";
-  const term = termLabel(group.term.monthDate, group.term.name);
-  const title = group.title.trim();
-  const normalizedTitle = title.toLocaleUpperCase("tr-TR");
-  const prefix = `${term} - `;
-  if (normalizedTitle.startsWith(prefix)) return normalizedTitle;
-  return `${term} - ${title}`;
+  return termLabel(group.term.monthDate, group.term.name);
+}
+
+function invoiceAnalysisGroupLabel(
+  candidate: PaymentCandidateSummaryResponse,
+): string {
+  const group = candidate.currentGroup;
+  if (!group) return "-";
+  return termLabel(group.term.monthDate, group.term.name);
 }
 
 function invoiceNotes(invoice: PaymentInvoiceOverviewResponse): string {
   return invoice.notes?.trim() || "-";
+}
+
+function invoiceService(_invoice: PaymentInvoiceOverviewResponse): string {
+  return "Sürücü kurs hizmeti";
+}
+
+function invoiceQuantity(_invoice: PaymentInvoiceOverviewResponse): number {
+  return 1;
+}
+
+function invoiceUnitPrice(invoice: PaymentInvoiceOverviewResponse): number {
+  return invoice.subtotal;
+}
+
+function invoiceTypeLabel(invoiceType: string): string {
+  const normalized = invoiceType
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i");
+  if (normalized.includes("iade") || normalized.includes("refund")) return "İade";
+  if (normalized.includes("iptal") || normalized.includes("cancel")) return "İptal";
+  if (normalized.includes("satis") || normalized.includes("sale")) return "Satış";
+  return invoiceType.trim() || "-";
 }
 
 function installmentCandidateName(
@@ -546,6 +661,16 @@ function paymentCandidateGroupLabel(
   const prefix = `${term} - `;
   if (normalizedTitle.startsWith(prefix)) return normalizedTitle;
   return `${term} - ${title}`;
+}
+
+function candidateMatchesPeriod(
+  candidate: PaymentCandidateSummaryResponse,
+  periodMonth: string,
+): boolean {
+  if (!periodMonth) return true;
+  const candidateMonth = candidate.currentGroup?.term.monthDate;
+  if (!candidateMonth) return false;
+  return dateKey(candidateMonth).slice(0, 7) === periodMonth.slice(0, 7);
 }
 
 function debtSortValue(
@@ -644,12 +769,19 @@ function periodStatsFilterLabel(
 function invoiceSortValue(
   invoice: PaymentInvoiceOverviewResponse,
   field: InvoiceSortField,
+  licenseClassLabelByCode?: Map<string, string>,
 ): string | number {
   if (field === "candidate") return invoiceCandidateName(invoice);
   if (field === "group") return invoiceGroupLabel(invoice);
+  if (field === "licenseClass") {
+    return licenseClassLabel(invoice.candidate.licenseClass, licenseClassLabelByCode);
+  }
   if (field === "invoiceNo") return invoice.invoiceNo;
-  if (field === "invoiceType") return invoice.invoiceType;
+  if (field === "invoiceType") return invoiceTypeLabel(invoice.invoiceType);
   if (field === "date") return invoice.invoiceDate;
+  if (field === "service") return invoiceService(invoice);
+  if (field === "quantity") return invoiceQuantity(invoice);
+  if (field === "unitPrice") return invoiceUnitPrice(invoice);
   if (field === "subtotal") return invoice.subtotal;
   if (field === "vatRate") return invoice.vatRate;
   if (field === "vatAmount") return invoice.vatAmount;
@@ -660,12 +792,19 @@ function invoiceSortValue(
 function invoiceFilterValue(
   invoice: PaymentInvoiceOverviewResponse,
   field: InvoiceSortField,
+  licenseClassLabelByCode?: Map<string, string>,
 ): string {
   if (field === "candidate") return invoiceCandidateName(invoice);
   if (field === "group") return invoiceGroupLabel(invoice);
+  if (field === "licenseClass") {
+    return licenseClassLabel(invoice.candidate.licenseClass, licenseClassLabelByCode);
+  }
   if (field === "invoiceNo") return invoice.invoiceNo;
-  if (field === "invoiceType") return invoice.invoiceType;
+  if (field === "invoiceType") return invoiceTypeLabel(invoice.invoiceType);
   if (field === "date") return dateKey(invoice.invoiceDate);
+  if (field === "service") return invoiceService(invoice);
+  if (field === "quantity") return String(invoiceQuantity(invoice));
+  if (field === "unitPrice") return String(invoiceUnitPrice(invoice));
   if (field === "subtotal") return String(invoice.subtotal);
   if (field === "vatRate") return String(invoice.vatRate);
   if (field === "vatAmount") return String(invoice.vatAmount);
@@ -676,13 +815,29 @@ function invoiceFilterValue(
 function invoiceFilterLabel(
   invoice: PaymentInvoiceOverviewResponse,
   field: InvoiceSortField,
+  licenseClassLabelByCode?: Map<string, string>,
 ): string {
   if (field === "date") return formatDateTR(invoice.invoiceDate);
+  if (field === "quantity") return String(invoiceQuantity(invoice));
+  if (field === "unitPrice") return money(invoiceUnitPrice(invoice));
   if (field === "subtotal") return money(invoice.subtotal);
   if (field === "vatRate") return `%${invoice.vatRate}`;
   if (field === "vatAmount") return money(invoice.vatAmount);
   if (field === "total") return money(invoice.totalAmount);
-  return invoiceFilterValue(invoice, field);
+  return invoiceFilterValue(invoice, field, licenseClassLabelByCode);
+}
+
+function invoiceAnalysisSortValue(
+  row: InvoiceAnalysisRow,
+  field: InvoiceAnalysisSortField,
+  licenseClassLabelByCode?: Map<string, string>,
+): string | number {
+  if (field === "candidate") return paymentCandidateName(row.candidate);
+  if (field === "group") return invoiceAnalysisGroupLabel(row.candidate);
+  if (field === "licenseClass") {
+    return licenseClassLabel(row.candidate.licenseClass, licenseClassLabelByCode);
+  }
+  return row[field];
 }
 
 function cashSummarySortValue(
@@ -793,11 +948,22 @@ function formatDateInput(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function currentMonthStart(): string {
+function todayDateInput(): string {
   const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}-01`;
+  today.setHours(0, 0, 0, 0);
+  return formatDateInput(today);
+}
+
+function monthDateRange(monthValue: string): { fromDate: string; toDate: string } {
+  if (!monthValue) return { fromDate: "", toDate: "" };
+  const [yearValue, monthPart] = monthValue.split("-");
+  const year = Number(yearValue);
+  const month = Number(monthPart);
+  if (!year || !month) return { fromDate: "", toDate: "" };
+  return {
+    fromDate: formatDateInput(new Date(year, month - 1, 1)),
+    toDate: formatDateInput(new Date(year, month, 0)),
+  };
 }
 
 function addDays(date: Date, days: number): Date {
@@ -911,7 +1077,21 @@ function cashRegisterTypeLabel(type: string | null | undefined): string {
   return "Tanımsız";
 }
 
-export function PaymentsPage() {
+function cashMovementTypeLabel(type: string): string {
+  if (type === "inflow") return "Kasa giriş";
+  if (type === "outflow") return "Kasa çıkış";
+  if (type === "transfer_in") return "Transfer giriş";
+  if (type === "transfer_out") return "Transfer çıkış";
+  return "Kasa hareketi";
+}
+
+export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
+  const { showToast } = useToast();
+  const isBalancesPage = mode === "balances";
+  const isCollectionsPage = mode === "collections";
+  const isInvoicesPage = mode === "invoices";
+  const isCashPage = mode === "cash";
+  const isStatisticsPage = mode === "statistics";
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const [overview, setOverview] = useState<PaymentsOverviewResponse | null>(
     null,
@@ -919,12 +1099,22 @@ export function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [datePreset, setDatePreset] = useState<DatePreset>("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [statsMonth, setStatsMonth] = useState(currentMonthStart);
-  const [detailGroup, setDetailGroup] = useState<DetailGroup>("movements");
-  const [detailTab, setDetailTab] = useState<DetailTab>("all");
+  const [cashActionMode, setCashActionMode] = useState<CashActionMode | null>(null);
+  const [cashActionSaving, setCashActionSaving] = useState(false);
+  const [invoiceView, setInvoiceView] = useState<InvoiceView>("movements");
+  const [datePreset, setDatePreset] = useState<DatePreset>("today");
+  const [periodMonth, setPeriodMonth] = useState("");
+  const [fromDate, setFromDate] = useState(todayDateInput);
+  const [toDate, setToDate] = useState(todayDateInput);
+  const [statsMonth, setStatsMonth] = useState("");
+  const [statsFromDate, setStatsFromDate] = useState("");
+  const [statsToDate, setStatsToDate] = useState("");
+  const [detailGroup, setDetailGroup] = useState<DetailGroup>(
+    isCashPage ? "cashSummary" : "movements",
+  );
+  const [detailTab, setDetailTab] = useState<DetailTab>(
+    isCollectionsPage ? "all" : "installment",
+  );
   const [detailSort, setDetailSort] = useState<DetailSortState>({
     field: "date",
     direction: "desc",
@@ -933,6 +1123,11 @@ export function PaymentsPage() {
     field: "date",
     direction: "desc",
   });
+  const [invoiceAnalysisSort, setInvoiceAnalysisSort] =
+    useState<InvoiceAnalysisSortState>({
+      field: "candidate",
+      direction: "asc",
+    });
   const [cashSummarySort, setCashSummarySort] =
     useState<CashSummarySortState>({
       field: "name",
@@ -974,6 +1169,11 @@ export function PaymentsPage() {
   const [visibleDetailColumns, setVisibleDetailColumns] = useState<
     DetailColumnId[]
   >(DEFAULT_DETAIL_COLUMNS);
+  const [visibleInvoiceColumns, setVisibleInvoiceColumns] = useState<
+    InvoiceColumnId[]
+  >(DEFAULT_INVOICE_COLUMNS);
+  const [visibleInvoiceAnalysisColumns, setVisibleInvoiceAnalysisColumns] =
+    useState<InvoiceAnalysisColumnId[]>(DEFAULT_INVOICE_ANALYSIS_COLUMNS);
 
   const licenseClassLabelByCode = useMemo(() => {
     const values = new Map<string, string>();
@@ -986,10 +1186,51 @@ export function PaymentsPage() {
   const overviewStatsMonth = fromDate || toDate ? statsMonth : "";
 
   useEffect(() => {
+    if (isInvoicesPage) {
+      setDetailGroup("invoices");
+      return;
+    }
+
+    if (isBalancesPage) {
+      setDetailGroup("movements");
+      setDetailTab((current) =>
+        FINANCE_DETAIL_TABS.some((tab) => tab.key === current)
+          ? current
+          : "installment",
+      );
+      return;
+    }
+
+    if (isCashPage) {
+      setDetailGroup("cashSummary");
+      return;
+    }
+
+    if (isCollectionsPage) {
+      setDetailGroup("movements");
+      setDetailTab((current) =>
+        COLLECTION_DETAIL_TABS.some((tab) => tab.key === current)
+          ? current
+          : "all",
+      );
+      return;
+    }
+
+    setDetailGroup((current) =>
+      current === "invoices" || current === "movements" ? current : "movements",
+    );
+    setDetailTab((current) =>
+      FINANCE_DETAIL_TABS.some((tab) => tab.key === current)
+        ? current
+        : "installment",
+    );
+  }, [isBalancesPage, isCashPage, isCollectionsPage, isInvoicesPage]);
+
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setLoadError(false);
-    const hasDateFilter = Boolean(fromDate || toDate);
+    const hasDateFilter = !isStatisticsPage && Boolean(fromDate || toDate);
     getPaymentsOverview(
       hasDateFilter ? { fromDate, statsMonth: overviewStatsMonth, toDate } : undefined,
       controller.signal,
@@ -1004,7 +1245,7 @@ export function PaymentsPage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [fromDate, overviewStatsMonth, reloadKey, toDate]);
+  }, [fromDate, isStatisticsPage, overviewStatsMonth, reloadKey, toDate]);
 
   const filteredPayments = useMemo(() => {
     if (!overview) return [];
@@ -1133,7 +1374,13 @@ export function PaymentsPage() {
       .filter((invoice) =>
         Object.entries(invoiceColumnFilters).every(([field, value]) => {
           if (!value || value === "all") return true;
-          return invoiceFilterValue(invoice, field as InvoiceSortField) === value;
+          return (
+            invoiceFilterValue(
+              invoice,
+              field as InvoiceSortField,
+              licenseClassLabelByCode,
+            ) === value
+          );
         }),
       );
 
@@ -1141,8 +1388,8 @@ export function PaymentsPage() {
     return [...filteredRows].sort(
       (a, b) =>
         compareValues(
-          invoiceSortValue(a, invoiceSort.field),
-          invoiceSortValue(b, invoiceSort.field),
+          invoiceSortValue(a, invoiceSort.field, licenseClassLabelByCode),
+          invoiceSortValue(b, invoiceSort.field, licenseClassLabelByCode),
         ) * factor,
     );
   }, [
@@ -1151,15 +1398,76 @@ export function PaymentsPage() {
     invoiceColumnFilters,
     invoiceSort.direction,
     invoiceSort.field,
+    licenseClassLabelByCode,
+  ]);
+
+  const invoiceAnalysisRows = useMemo(() => {
+    const rows = new Map<string, InvoiceAnalysisRow>();
+
+    const ensureRow = (candidate: PaymentCandidateSummaryResponse) => {
+      const existing = rows.get(candidate.id);
+      if (existing) return existing;
+      const row: InvoiceAnalysisRow = {
+        candidate,
+        courseBase: 0,
+        invoicedTotal: 0,
+        remainingTotal: 0,
+      };
+      rows.set(candidate.id, row);
+      return row;
+    };
+
+    (overview?.installments ?? [])
+      .filter((installment) => installment.status === "active")
+      .filter((installment) => installment.type === "kurs")
+      .forEach((installment) => {
+        const row = ensureRow(installment.candidate);
+        row.courseBase += installment.amount;
+      });
+
+    baseInvoiceRows.forEach((invoice) => {
+      const row = ensureRow(invoice.candidate);
+      row.invoicedTotal += invoice.totalAmount;
+    });
+
+    const factor = invoiceAnalysisSort.direction === "asc" ? 1 : -1;
+    return Array.from(rows.values())
+      .map((row) => ({
+        ...row,
+        remainingTotal: row.courseBase - row.invoicedTotal,
+      }))
+      .sort(
+        (a, b) =>
+          compareValues(
+            invoiceAnalysisSortValue(
+              a,
+              invoiceAnalysisSort.field,
+              licenseClassLabelByCode,
+            ),
+            invoiceAnalysisSortValue(
+              b,
+              invoiceAnalysisSort.field,
+              licenseClassLabelByCode,
+            ),
+          ) * factor,
+      );
+  }, [
+    baseInvoiceRows,
+    invoiceAnalysisSort.direction,
+    invoiceAnalysisSort.field,
+    licenseClassLabelByCode,
+    overview?.installments,
   ]);
 
   const baseInstallmentRows = useMemo(() => {
     return (overview?.installments ?? []).filter(
       (installment) =>
         installment.status === "active" &&
-        isInDateRange(installment.dueDate, fromDate, toDate),
+        (isBalancesPage && periodMonth
+          ? candidateMatchesPeriod(installment.candidate, periodMonth)
+          : isInDateRange(installment.dueDate, fromDate, toDate)),
     );
-  }, [fromDate, overview, toDate]);
+  }, [fromDate, isBalancesPage, overview, periodMonth, toDate]);
 
   const installmentRows = useMemo(() => {
     const candidateQuery = detailColumnFilters.candidate
@@ -1300,6 +1608,20 @@ export function PaymentsPage() {
         });
       });
 
+    (overview.cashMovements ?? [])
+      .filter((movement) => isInDateRange(movement.occurredDate, fromDate, toDate))
+      .forEach((movement) => {
+        const isInflow = movement.type === "inflow" || movement.type === "transfer_in";
+        rows.push({
+          id: `cash:${movement.id}`,
+          type: isInflow ? "Giriş" : "Çıkış",
+          cashRegister: movement.cashRegister.name,
+          date: movement.occurredDate,
+          description: movement.note?.trim() || cashMovementTypeLabel(movement.type),
+          amount: movement.amount,
+        });
+      });
+
     return rows;
   }, [fromDate, overview, toDate]);
 
@@ -1354,8 +1676,19 @@ export function PaymentsPage() {
       if (!column.sortable) continue;
       const values = new Map<string, string>();
       for (const invoice of baseInvoiceRows) {
-        const value = invoiceFilterValue(invoice, column.id as InvoiceSortField);
-        values.set(value, invoiceFilterLabel(invoice, column.id as InvoiceSortField));
+        const value = invoiceFilterValue(
+          invoice,
+          column.id as InvoiceSortField,
+          licenseClassLabelByCode,
+        );
+        values.set(
+          value,
+          invoiceFilterLabel(
+            invoice,
+            column.id as InvoiceSortField,
+            licenseClassLabelByCode,
+          ),
+        );
       }
       const sortedValues = Array.from(values.entries()).sort((a, b) => {
         if (
@@ -1369,13 +1702,20 @@ export function PaymentsPage() {
         if (column.id === "date") return b[0].localeCompare(a[0]);
         return a[1].localeCompare(b[1], "tr-TR", { numeric: true });
       });
+      if (column.id === "invoiceType") {
+        for (const option of INVOICE_TYPE_OPTIONS) {
+          if (!values.has(option)) {
+            sortedValues.push([option, option]);
+          }
+        }
+      }
       options.set(column.id as InvoiceSortField, [
         { value: "all", label: "Tümü" },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
     return options;
-  }, [baseInvoiceRows]);
+  }, [baseInvoiceRows, licenseClassLabelByCode]);
 
   const installmentFilterOptions = useMemo(() => {
     const options = new Map<InstallmentSortField, TableHeaderFilterOption[]>();
@@ -1483,6 +1823,36 @@ export function PaymentsPage() {
       })),
     [],
   );
+  const invoiceColumns = useMemo(
+    () =>
+      INVOICE_COLUMNS.filter((column) =>
+        visibleInvoiceColumns.includes(column.id),
+      ),
+    [visibleInvoiceColumns],
+  );
+  const invoiceColumnOptions = useMemo<ColumnOption[]>(
+    () =>
+      INVOICE_COLUMNS.map((column) => ({
+        id: column.id,
+        label: column.label,
+      })),
+    [],
+  );
+  const invoiceAnalysisColumns = useMemo(
+    () =>
+      INVOICE_ANALYSIS_COLUMNS.filter((column) =>
+        visibleInvoiceAnalysisColumns.includes(column.id),
+      ),
+    [visibleInvoiceAnalysisColumns],
+  );
+  const invoiceAnalysisColumnOptions = useMemo<ColumnOption[]>(
+    () =>
+      INVOICE_ANALYSIS_COLUMNS.map((column) => ({
+        id: column.id,
+        label: column.label,
+      })),
+    [],
+  );
 
   const cashRegisters = useMemo(() => {
     const values = new Map<
@@ -1524,6 +1894,18 @@ export function PaymentsPage() {
       return a.label.localeCompare(b.label, "tr-TR");
     });
   }, [filteredPayments, filteredRefunds, overview?.cashRegisters]);
+
+  const cashActionRegisters = useMemo(
+    () =>
+      (overview?.cashRegisters ?? [])
+        .map((register) => ({
+          id: register.id,
+          label: register.name,
+          typeLabel: cashRegisterTypeLabel(register.type),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, "tr-TR")),
+    [overview?.cashRegisters],
+  );
 
   const baseCashSummaryRows = useMemo<CashSummaryRow[]>(() => {
     if (!overview) return [];
@@ -1592,6 +1974,19 @@ export function PaymentsPage() {
       }
       if (isInDateRange(refund.refundedAtUtc, fromDate, toDate)) {
         row.selectedOutflow += refund.amount;
+      }
+    });
+
+    (overview.cashMovements ?? []).forEach((movement) => {
+      const key = movement.cashRegisterId;
+      const row = ensureRow(key, movement.cashRegister.name);
+      const isInflow = movement.type === "inflow" || movement.type === "transfer_in";
+      if (isInDateRange(movement.occurredDate, fromDate, toDate)) {
+        if (isInflow) {
+          row.selectedInflow += movement.amount;
+        } else {
+          row.selectedOutflow += movement.amount;
+        }
       }
     });
 
@@ -1698,9 +2093,6 @@ export function PaymentsPage() {
     const rows = new Map<string, PeriodStatsRow>();
     const candidatesById = new Map<string, PaymentCandidateSummaryResponse>();
     const countedCandidatesByLicense = new Map<string, Set<string>>();
-    const monthKey = statsMonth.slice(0, 7);
-
-    const isStatsMonth = (value: string) => dateKey(value).slice(0, 7) === monthKey;
 
     const ensureRow = (candidate: PaymentCandidateSummaryResponse) => {
       const licenseClass = licenseClassLabel(
@@ -1724,7 +2116,8 @@ export function PaymentsPage() {
 
     (overview?.installments ?? [])
       .filter((installment) => installment.status === "active")
-      .filter((installment) => isStatsMonth(installment.dueDate))
+      .filter((installment) => candidateMatchesPeriod(installment.candidate, statsMonth))
+      .filter((installment) => isInDateRange(installment.dueDate, statsFromDate, statsToDate))
       .forEach((installment) => {
         candidatesById.set(installment.candidate.id, installment.candidate);
         const row = ensureRow(installment.candidate);
@@ -1734,7 +2127,8 @@ export function PaymentsPage() {
 
     (overview?.payments ?? [])
       .filter((payment) => payment.status === "active")
-      .filter((payment) => isStatsMonth(payment.paidAtUtc))
+      .filter((payment) => candidateMatchesPeriod(payment.candidate, statsMonth))
+      .filter((payment) => isInDateRange(payment.paidAtUtc, statsFromDate, statsToDate))
       .forEach((payment) => {
         candidatesById.set(payment.candidate.id, payment.candidate);
         const row = ensureRow(payment.candidate);
@@ -1742,7 +2136,8 @@ export function PaymentsPage() {
       });
 
     (overview?.refunds ?? [])
-      .filter((refund) => isStatsMonth(refund.refundedAtUtc))
+      .filter((refund) => candidateMatchesPeriod(refund.candidate, statsMonth))
+      .filter((refund) => isInDateRange(refund.refundedAtUtc, statsFromDate, statsToDate))
       .forEach((refund) => {
         candidatesById.set(refund.candidate.id, refund.candidate);
         const row = ensureRow(refund.candidate);
@@ -1769,7 +2164,9 @@ export function PaymentsPage() {
     overview?.installments,
     overview?.payments,
     overview?.refunds,
+    statsFromDate,
     statsMonth,
+    statsToDate,
   ]);
 
   const periodStatsFilterOptions = useMemo(() => {
@@ -1827,9 +2224,11 @@ export function PaymentsPage() {
   ]);
 
   const resetFilters = () => {
-    setDatePreset("all");
-    setFromDate("");
-    setToDate("");
+    const today = todayDateInput();
+    setDatePreset("today");
+    setPeriodMonth("");
+    setFromDate(today);
+    setToDate(today);
     setDetailColumnFilters({});
     setInvoiceColumnFilters({});
     setCashSummaryColumnFilters({});
@@ -1841,9 +2240,89 @@ export function PaymentsPage() {
 
   const applyDatePreset = (preset: DatePreset) => {
     setDatePreset(preset);
+    setPeriodMonth("");
     const range = dateRangeForPreset(preset);
     setFromDate(range.fromDate);
     setToDate(range.toDate);
+  };
+
+  const applyPeriodMonth = (value: string) => {
+    setPeriodMonth(value);
+    if (isBalancesPage) {
+      setDatePreset("all");
+      setFromDate("");
+      setToDate("");
+      return;
+    }
+
+    setDatePreset("custom");
+    const range = monthDateRange(value);
+    setFromDate(range.fromDate);
+    setToDate(range.toDate);
+  };
+
+  const applyStatsMonth = (value: string) => {
+    setStatsMonth(value);
+    if (value) {
+      setStatsFromDate("");
+      setStatsToDate("");
+    }
+  };
+
+  const applyStatsFromDate = (value: string) => {
+    setStatsFromDate(value);
+    if (value) {
+      setStatsMonth("");
+    }
+  };
+
+  const applyStatsToDate = (value: string) => {
+    setStatsToDate(value);
+    if (value) {
+      setStatsMonth("");
+    }
+  };
+
+  const clearStatsFilters = () => {
+    setStatsMonth("");
+    setStatsFromDate("");
+    setStatsToDate("");
+  };
+
+  const saveCashAction = async (payload: CashActionSubmitPayload) => {
+    try {
+      setCashActionSaving(true);
+      if (payload.mode === "transfer") {
+        await createCashTransfer({
+          sourceCashRegisterId: payload.sourceCashRegisterId,
+          targetCashRegisterId: payload.targetCashRegisterId,
+          amount: payload.amount,
+          occurredDate: payload.occurredDate,
+          note: payload.note,
+        });
+      } else if (payload.mode === "inflow") {
+        await createCashInflow({
+          cashRegisterId: payload.cashRegisterId,
+          amount: payload.amount,
+          occurredDate: payload.occurredDate,
+          note: payload.note,
+        });
+      } else if (payload.mode === "outflow") {
+        await createCashOutflow({
+          cashRegisterId: payload.cashRegisterId,
+          amount: payload.amount,
+          occurredDate: payload.occurredDate,
+          note: payload.note,
+        });
+      }
+      setCashActionMode(null);
+      setReloadKey((value) => value + 1);
+      showToast("Kasa hareketi kaydedildi");
+    } catch {
+      showToast("Kasa hareketi kaydedilemedi", "error");
+    } finally {
+      setCashActionSaving(false);
+    }
   };
 
   const toggleDetailSort = (field: DetailSortField) => {
@@ -1871,6 +2350,22 @@ export function PaymentsPage() {
               field === "total"
                 ? "desc"
                 : "asc",
+          },
+    );
+  };
+
+  const toggleInvoiceAnalysisSort = (field: InvoiceAnalysisSortField) => {
+    setInvoiceAnalysisSort((current) =>
+      current.field === field
+        ? { field, direction: current.direction === "asc" ? "desc" : "asc" }
+        : {
+            field,
+            direction:
+              field === "candidate" ||
+              field === "group" ||
+              field === "licenseClass"
+                ? "asc"
+                : "desc",
           },
     );
   };
@@ -1958,6 +2453,46 @@ export function PaymentsPage() {
 
   const resetDetailColumns = () => {
     setVisibleDetailColumns(DEFAULT_DETAIL_COLUMNS);
+  };
+
+  const toggleInvoiceColumn = (columnId: InvoiceColumnId) => {
+    setVisibleInvoiceColumns((current) => {
+      if (current.includes(columnId)) {
+        return current.length === 1
+          ? current
+          : current.filter((id) => id !== columnId);
+      }
+      return INVOICE_COLUMNS.map((column) => column.id).filter(
+        (id) => current.includes(id) || id === columnId,
+      );
+    });
+  };
+
+  const isInvoiceColumnVisible = (columnId: string) =>
+    visibleInvoiceColumns.includes(columnId as InvoiceColumnId);
+
+  const resetInvoiceColumns = () => {
+    setVisibleInvoiceColumns(DEFAULT_INVOICE_COLUMNS);
+  };
+
+  const toggleInvoiceAnalysisColumn = (columnId: InvoiceAnalysisColumnId) => {
+    setVisibleInvoiceAnalysisColumns((current) => {
+      if (current.includes(columnId)) {
+        return current.length === 1
+          ? current
+          : current.filter((id) => id !== columnId);
+      }
+      return INVOICE_ANALYSIS_COLUMNS.map((column) => column.id).filter(
+        (id) => current.includes(id) || id === columnId,
+      );
+    });
+  };
+
+  const isInvoiceAnalysisColumnVisible = (columnId: string) =>
+    visibleInvoiceAnalysisColumns.includes(columnId as InvoiceAnalysisColumnId);
+
+  const resetInvoiceAnalysisColumns = () => {
+    setVisibleInvoiceAnalysisColumns(DEFAULT_INVOICE_ANALYSIS_COLUMNS);
   };
 
   const setDetailColumnFilter = (field: DetailSortField, value: string) => {
@@ -2105,14 +2640,52 @@ export function PaymentsPage() {
       );
     }
     if (columnId === "group") return invoiceGroupLabel(invoice);
+    if (columnId === "licenseClass") {
+      return licenseClassLabel(
+        invoice.candidate.licenseClass,
+        licenseClassLabelByCode,
+      );
+    }
     if (columnId === "invoiceNo") return invoice.invoiceNo;
-    if (columnId === "invoiceType") return invoice.invoiceType;
+    if (columnId === "invoiceType") return invoiceTypeLabel(invoice.invoiceType);
     if (columnId === "date") return formatDateTR(invoice.invoiceDate);
+    if (columnId === "service") return invoiceService(invoice);
+    if (columnId === "quantity") return invoiceQuantity(invoice);
+    if (columnId === "unitPrice") return money(invoiceUnitPrice(invoice));
     if (columnId === "subtotal") return money(invoice.subtotal);
     if (columnId === "vatRate") return `%${invoice.vatRate}`;
     if (columnId === "vatAmount") return money(invoice.vatAmount);
     if (columnId === "total") return money(invoice.totalAmount);
     return invoiceNotes(invoice);
+  };
+
+  const renderInvoiceAnalysisCell = (
+    row: InvoiceAnalysisRow,
+    columnId: InvoiceAnalysisColumnId,
+  ) => {
+    if (columnId === "photo") {
+      return <CandidateAvatar candidate={row.candidate} size={32} />;
+    }
+    if (columnId === "candidate") {
+      return (
+        <Link
+          className="job-type"
+          to={`/candidates/${row.candidate.id}?tab=payments`}
+        >
+          {paymentCandidateName(row.candidate)}
+        </Link>
+      );
+    }
+    if (columnId === "group") return invoiceAnalysisGroupLabel(row.candidate);
+    if (columnId === "licenseClass") {
+      return licenseClassLabel(
+        row.candidate.licenseClass,
+        licenseClassLabelByCode,
+      );
+    }
+    if (columnId === "courseBase") return money(row.courseBase);
+    if (columnId === "invoicedTotal") return money(row.invoicedTotal);
+    return money(row.remainingTotal);
   };
 
   const renderCashSummaryCell = (
@@ -2194,13 +2767,46 @@ export function PaymentsPage() {
 
   return (
     <div className="page page-with-toolbar">
-      <PageToolbar title="Finans" />
+      <PageToolbar
+        title={
+          isBalancesPage
+            ? "Bakiyeler"
+            : isCollectionsPage
+            ? "Tahsilatlar"
+            : isInvoicesPage
+              ? "Faturalar"
+            : isCashPage
+              ? "Kasalar"
+              : isStatisticsPage
+              ? "İstatistik"
+              : "Finans"
+        }
+      />
 
       {loading && !overview ? (
         <div className="page-loading">Yükleniyor...</div>
       ) : (
         <>
-          <div className="payments-filters">
+          {!isStatisticsPage ? (
+          <div
+            className={`payments-filters${!isCollectionsPage && !isCashPage ? " payments-filters--with-period" : ""}`}
+          >
+            {!isCollectionsPage && !isCashPage ? (
+            <div className="payments-filter-field">
+              <label className="form-label" htmlFor="payments-period-month">
+                Dönem
+              </label>
+              <LocalizedDateInput
+                ariaLabel="Dönem"
+                className="form-input"
+                mode="month"
+                name="payments-period-month"
+                onChange={applyPeriodMonth}
+                placeholder="Dönem"
+                value={periodMonth}
+              />
+            </div>
+            ) : null}
             <div className="payments-filter-field">
               <label className="form-label" htmlFor="payments-date-preset">
                 Tarih
@@ -2230,6 +2836,7 @@ export function PaymentsPage() {
                 name="payments-from-date"
                 onChange={(value) => {
                   setDatePreset("custom");
+                  setPeriodMonth("");
                   setFromDate(value);
                 }}
                 placeholder="Başlangıç"
@@ -2246,6 +2853,7 @@ export function PaymentsPage() {
                 name="payments-to-date"
                 onChange={(value) => {
                   setDatePreset("custom");
+                  setPeriodMonth("");
                   setToDate(value);
                 }}
                 placeholder="Bitiş"
@@ -2260,7 +2868,52 @@ export function PaymentsPage() {
               Temizle
             </button>
           </div>
+          ) : null}
 
+          {isStatisticsPage ? (
+          <div className="payments-filters payments-filters--statistics">
+            <div className="payments-filter-field">
+              <LocalizedDateInput
+                ariaLabel="Dönem"
+                className="form-input"
+                mode="month"
+                name="payments-stats-month"
+                onChange={applyStatsMonth}
+                placeholder="Dönem"
+                value={statsMonth}
+              />
+            </div>
+            <div className="payments-filter-field">
+              <LocalizedDateInput
+                ariaLabel="Başlangıç"
+                className="form-input"
+                name="payments-stats-from-date"
+                onChange={applyStatsFromDate}
+                placeholder="Başlangıç"
+                value={statsFromDate}
+              />
+            </div>
+            <div className="payments-filter-field">
+              <LocalizedDateInput
+                ariaLabel="Bitiş"
+                className="form-input"
+                name="payments-stats-to-date"
+                onChange={applyStatsToDate}
+                placeholder="Bitiş"
+                value={statsToDate}
+              />
+            </div>
+            <button
+              className="btn btn-secondary payments-filter-reset"
+              onClick={clearStatsFilters}
+              type="button"
+            >
+              Temizle
+            </button>
+          </div>
+          ) : null}
+
+          {isCollectionsPage ? (
           <section className="instructor-detail-card finance-matrix-card">
             <div className="finance-matrix-card-head">
               <div>
@@ -2338,27 +2991,68 @@ export function PaymentsPage() {
               </div>
             ) : null}
           </section>
+          ) : null}
 
+          {isBalancesPage || isCollectionsPage || isInvoicesPage || isCashPage ? (
           <section className="instructor-detail-card finance-matrix-card">
+            {isCashPage ? (
+            <div className="finance-matrix-card-head">
+              <div>
+                <h3 className="candidate-detail-section-title">Kasa Özeti</h3>
+              </div>
+            </div>
+            ) : isInvoicesPage ? null : (
             <div className="finance-matrix-card-head">
               <div>
                 <h3 className="candidate-detail-section-title">
-                  Finans Detayı
+                  {isCollectionsPage
+                    ? "Tahsilatlar"
+                    : isBalancesPage
+                      ? "Bakiyeler"
+                    : isInvoicesPage
+                      ? "Faturalar"
+                    : isCashPage
+                      ? "Kasa"
+                      : "Finans Detayı"}
                 </h3>
                 <div className="finance-matrix-card-subtitle">
-                  Seçili tarih aralığındaki hareketler ve faturalar.
+                  {isCollectionsPage
+                    ? "Seçili tarih aralığındaki tahsilat, iade ve iptal hareketleri."
+                    : isBalancesPage
+                      ? "Seçili tarih aralığındaki bakiye vadeleri ve bakiyeler."
+                    : isInvoicesPage
+                      ? "Seçili tarih aralığındaki faturalar."
+                    : isCashPage
+                      ? "Seçili tarih aralığındaki kasa özeti ve kasa hareketleri."
+                      : "Seçili tarih aralığındaki bakiye vadeleri ve bakiyeler."}
                 </div>
               </div>
             </div>
+            )}
 
+            {!isInvoicesPage ? (
             <div className="finance-detail-controls">
               <div className="finance-detail-left-controls">
-                <div
-                  className="finance-detail-tabs"
-                  role="tablist"
-                  aria-label="Finans hareket türü"
-                >
-                  {DETAIL_TABS.map((tab) => (
+                {!isCashPage ? (
+                  <div
+                    className="finance-detail-tabs"
+                    role="tablist"
+                    aria-label="Finans hareket türü"
+                  >
+                    {isInvoicesPage ? (
+                    <button
+                      aria-selected={detailGroup === "invoices"}
+                      className={`finance-detail-tab${detailGroup === "invoices" ? " active" : ""}`}
+                      onClick={() => setDetailGroup("invoices")}
+                      role="tab"
+                      type="button"
+                    >
+                      Faturalar
+                    </button>
+                    ) : (isCollectionsPage
+                      ? COLLECTION_DETAIL_TABS
+                      : FINANCE_DETAIL_TABS
+                    ).map((tab) => (
                     <button
                       aria-selected={
                         detailGroup === "movements" && detailTab === tab.key
@@ -2374,41 +3068,42 @@ export function PaymentsPage() {
                     >
                       {tab.label}
                     </button>
-                  ))}
-                </div>
-                <div
-                  className="finance-detail-tabs"
-                  role="tablist"
-                  aria-label="Finans diğer detayları"
-                >
-                  <button
-                    aria-selected={detailGroup === "invoices"}
-                    className={`finance-detail-tab${detailGroup === "invoices" ? " active" : ""}`}
-                    onClick={() => setDetailGroup("invoices")}
-                    role="tab"
-                    type="button"
+                    ))}
+                  </div>
+                ) : null}
+                {isCashPage ? (
+                  <div className="finance-cash-actions" aria-label="Kasa aksiyonları">
+                    <button
+                      className="finance-cash-action finance-cash-action--inflow"
+                      onClick={() => setCashActionMode("inflow")}
+                      type="button"
+                    >
+                      Giriş
+                    </button>
+                    <button
+                      className="finance-cash-action"
+                      onClick={() => setCashActionMode("outflow")}
+                      type="button"
+                    >
+                      Çıkış
+                    </button>
+                    <button
+                      className="finance-cash-action"
+                      onClick={() => setCashActionMode("transfer")}
+                      type="button"
+                    >
+                      Transfer
+                    </button>
+                  </div>
+                ) : null}
+                {!isCollectionsPage && !isCashPage && !isInvoicesPage ? (
+                  <div
+                    className="finance-detail-tabs"
+                    role="tablist"
+                    aria-label="Finans diğer detayları"
                   >
-                    Faturalar
-                  </button>
-                  <button
-                    aria-selected={detailGroup === "cashSummary"}
-                    className={`finance-detail-tab${detailGroup === "cashSummary" ? " active" : ""}`}
-                    onClick={() => setDetailGroup("cashSummary")}
-                    role="tab"
-                    type="button"
-                  >
-                    Kasa Özeti
-                  </button>
-                  <button
-                    aria-selected={detailGroup === "cashMovements"}
-                    className={`finance-detail-tab${detailGroup === "cashMovements" ? " active" : ""}`}
-                    onClick={() => setDetailGroup("cashMovements")}
-                    role="tab"
-                    type="button"
-                  >
-                    Kasa Hareketleri
-                  </button>
-                </div>
+                  </div>
+                ) : null}
               </div>
               {detailGroup === "cashSummary" || detailGroup === "cashMovements" ? null : (
                 <input
@@ -2422,6 +3117,38 @@ export function PaymentsPage() {
                 />
               )}
             </div>
+            ) : null}
+
+            {isInvoicesPage ? (
+              <div className="finance-detail-controls">
+                <div className="finance-detail-left-controls">
+                  <div
+                    className="finance-detail-tabs"
+                    role="tablist"
+                    aria-label="Fatura görünümü"
+                  >
+                    <button
+                      aria-selected={invoiceView === "movements"}
+                      className={`finance-detail-tab${invoiceView === "movements" ? " active" : ""}`}
+                      onClick={() => setInvoiceView("movements")}
+                      role="tab"
+                      type="button"
+                    >
+                      Fatura Hareketleri
+                    </button>
+                    <button
+                      aria-selected={invoiceView === "analysis"}
+                      className={`finance-detail-tab${invoiceView === "analysis" ? " active" : ""}`}
+                      onClick={() => setInvoiceView("analysis")}
+                      role="tab"
+                      type="button"
+                    >
+                      Fatura Analiz
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {detailGroup === "movements" ? (
               detailTab === "installment" ? (
@@ -2517,7 +3244,7 @@ export function PaymentsPage() {
                             className="data-table-empty"
                             colSpan={INSTALLMENT_COLUMNS.length}
                           >
-                            Seçili filtrelerle vade bulunamadı.
+                            Seçili filtrelerle bakiye vadesi bulunamadı.
                           </td>
                         </tr>
                       ) : (
@@ -2637,7 +3364,7 @@ export function PaymentsPage() {
                             className="data-table-empty"
                             colSpan={DEBT_COLUMNS.length}
                           >
-                            Seçili filtrelerle borç bulunamadı.
+                            Seçili filtrelerle bakiye bulunamadı.
                           </td>
                         </tr>
                       ) : (
@@ -2805,123 +3532,252 @@ export function PaymentsPage() {
               </div>
               )
             ) : detailGroup === "invoices" ? (
-              <div className="finance-matrix-scroll">
-                <table className="data-table finance-payments-table finance-invoices-table">
-                  <thead>
-                    <tr>
-                      {INVOICE_COLUMNS.map((column) => {
-                        const isActive = invoiceSort.field === column.id;
-                        const indicator = isActive
-                          ? invoiceSort.direction === "asc"
-                            ? "▲"
-                            : "▼"
-                          : "↕";
-                        return (
-                          <th
-                            aria-sort={
-                              isActive
-                                ? invoiceSort.direction === "asc"
-                                  ? "ascending"
-                                  : "descending"
-                                : "none"
-                            }
-                            className={[
-                              column.sortable ? "sortable-th" : "",
-                              isActive ? "active" : "",
-                              column.numeric ? "finance-matrix-amount" : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                            key={column.id}
-                          >
-                            {column.sortable ? (
-                              <div className="sortable-th-shell">
-                                <button
-                                  className="sortable-th-btn"
-                                  onClick={() =>
-                                    toggleInvoiceSort(column.id as InvoiceSortField)
-                                  }
-                                  type="button"
-                                >
-                                  <span>{column.label}</span>
-                                  <span
-                                    className="sortable-th-indicator"
-                                    aria-hidden="true"
-                                  >
-                                    {indicator}
-                                  </span>
-                                </button>
-                                {column.filterable ? (
-                                  <div className="sortable-th-filter">
-                                    <TableHeaderFilter
-                                      active={Boolean(
-                                        invoiceColumnFilters[
-                                          column.id as InvoiceSortField
-                                        ],
-                                      )}
-                                      onChange={(value) =>
-                                        setInvoiceColumnFilter(
-                                          column.id as InvoiceSortField,
-                                          value,
-                                        )
-                                      }
-                                      options={
-                                        invoiceFilterOptions.get(
-                                          column.id as InvoiceSortField,
-                                        ) ?? [{ value: "all", label: "Tümü" }]
-                                      }
-                                      title={`${column.label} filtresi`}
-                                      value={
-                                        invoiceColumnFilters[
-                                          column.id as InvoiceSortField
-                                        ] ?? "all"
-                                      }
-                                    />
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : (
-                              column.label
-                            )}
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoiceRows.length === 0 ? (
+              invoiceView === "movements" ? (
+                <div className="finance-matrix-scroll">
+                  <table className="data-table finance-payments-table finance-invoices-table">
+                    <thead>
                       <tr>
-                        <td className="data-table-empty" colSpan={INVOICE_COLUMNS.length}>
-                          Seçili filtrelerle fatura bulunamadı.
-                        </td>
-                      </tr>
-                    ) : (
-                      invoiceRows.map((invoice) => (
-                        <tr key={invoice.id}>
-                          {INVOICE_COLUMNS.map((column) => (
-                            <td
+                        {invoiceColumns.map((column) => {
+                          const isActive = invoiceSort.field === column.id;
+                          const indicator = isActive
+                            ? invoiceSort.direction === "asc"
+                              ? "▲"
+                              : "▼"
+                            : "↕";
+                          return (
+                            <th
+                              aria-sort={
+                                isActive
+                                  ? invoiceSort.direction === "asc"
+                                    ? "ascending"
+                                    : "descending"
+                                  : "none"
+                              }
                               className={[
-                                column.numeric
-                                  ? "finance-matrix-amount payment-credit"
-                                  : "",
-                                column.id === "notes"
-                                  ? "finance-detail-description-cell"
-                                  : "",
+                                column.sortable ? "sortable-th" : "",
+                                isActive ? "active" : "",
+                                column.numeric ? "finance-matrix-amount" : "",
                               ]
                                 .filter(Boolean)
                                 .join(" ")}
                               key={column.id}
                             >
-                              {renderInvoiceCell(invoice, column.id)}
-                            </td>
-                          ))}
+                              {column.sortable ? (
+                                <div className="sortable-th-shell">
+                                  <button
+                                    className="sortable-th-btn"
+                                    onClick={() =>
+                                      toggleInvoiceSort(
+                                        column.id as InvoiceSortField,
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    <span>{column.label}</span>
+                                    <span
+                                      className="sortable-th-indicator"
+                                      aria-hidden="true"
+                                    >
+                                      {indicator}
+                                    </span>
+                                  </button>
+                                  {column.filterable ? (
+                                    <div className="sortable-th-filter">
+                                      <TableHeaderFilter
+                                        active={Boolean(
+                                          invoiceColumnFilters[
+                                            column.id as InvoiceSortField
+                                          ],
+                                        )}
+                                        onChange={(value) =>
+                                          setInvoiceColumnFilter(
+                                            column.id as InvoiceSortField,
+                                            value,
+                                          )
+                                        }
+                                        options={
+                                          invoiceFilterOptions.get(
+                                            column.id as InvoiceSortField,
+                                          ) ?? [{ value: "all", label: "Tümü" }]
+                                        }
+                                        title={`${column.label} filtresi`}
+                                        value={
+                                          invoiceColumnFilters[
+                                            column.id as InvoiceSortField
+                                          ] ?? "all"
+                                        }
+                                      />
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                column.label
+                              )}
+                            </th>
+                          );
+                        })}
+                        <th className="col-picker-th">
+                          <ColumnPicker
+                            columns={invoiceColumnOptions}
+                            isVisible={isInvoiceColumnVisible}
+                            menuTitle="Fatura kolonları"
+                            onReset={resetInvoiceColumns}
+                            onToggle={(columnId) =>
+                              toggleInvoiceColumn(columnId as InvoiceColumnId)
+                            }
+                            resetLabel="Varsayılana dön"
+                            triggerTitle="Kolonlar"
+                          />
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoiceRows.length === 0 ? (
+                        <tr>
+                          <td
+                            className="data-table-empty"
+                            colSpan={invoiceColumns.length + 1}
+                          >
+                            Seçili filtrelerle fatura bulunamadı.
+                          </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ) : detailGroup === "cashSummary" ? (
+                      ) : (
+                        invoiceRows.map((invoice) => (
+                          <tr key={invoice.id}>
+                            {invoiceColumns.map((column) => (
+                              <td
+                                className={[
+                                  column.numeric
+                                    ? "finance-matrix-amount payment-credit"
+                                    : "",
+                                  column.id === "notes"
+                                    ? "finance-detail-description-cell"
+                                    : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                key={column.id}
+                              >
+                                {renderInvoiceCell(invoice, column.id)}
+                              </td>
+                            ))}
+                            <td className="col-picker-td" />
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="finance-matrix-scroll">
+                  <table className="data-table finance-payments-table finance-invoices-table">
+                    <thead>
+                      <tr>
+                        {invoiceAnalysisColumns.map((column) => {
+                          const isActive =
+                            invoiceAnalysisSort.field === column.id;
+                          const indicator = isActive
+                            ? invoiceAnalysisSort.direction === "asc"
+                              ? "▲"
+                              : "▼"
+                            : "↕";
+                          return (
+                            <th
+                              aria-sort={
+                                isActive
+                                  ? invoiceAnalysisSort.direction === "asc"
+                                    ? "ascending"
+                                    : "descending"
+                                  : "none"
+                              }
+                              className={[
+                                column.sortable ? "sortable-th" : "",
+                                isActive ? "active" : "",
+                                column.numeric ? "finance-matrix-amount" : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                              key={column.id}
+                            >
+                              {column.sortable ? (
+                                <div className="sortable-th-shell">
+                                  <button
+                                    className="sortable-th-btn"
+                                    onClick={() =>
+                                      toggleInvoiceAnalysisSort(
+                                        column.id as InvoiceAnalysisSortField,
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    <span>{column.label}</span>
+                                    <span
+                                      className="sortable-th-indicator"
+                                      aria-hidden="true"
+                                    >
+                                      {indicator}
+                                    </span>
+                                  </button>
+                                </div>
+                              ) : (
+                                column.label
+                              )}
+                            </th>
+                          );
+                        })}
+                        <th className="col-picker-th">
+                          <ColumnPicker
+                            columns={invoiceAnalysisColumnOptions}
+                            isVisible={isInvoiceAnalysisColumnVisible}
+                            menuTitle="Fatura analiz kolonları"
+                            onReset={resetInvoiceAnalysisColumns}
+                            onToggle={(columnId) =>
+                              toggleInvoiceAnalysisColumn(
+                                columnId as InvoiceAnalysisColumnId,
+                              )
+                            }
+                            resetLabel="Varsayılana dön"
+                            triggerTitle="Kolonlar"
+                          />
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoiceAnalysisRows.length === 0 ? (
+                        <tr>
+                          <td
+                            className="data-table-empty"
+                            colSpan={invoiceAnalysisColumns.length + 1}
+                          >
+                            Fatura analizi bulunamadı.
+                          </td>
+                        </tr>
+                      ) : (
+                        invoiceAnalysisRows.map((row) => (
+                          <tr key={row.candidate.id}>
+                            {invoiceAnalysisColumns.map((column) => (
+                              <td
+                                className={[
+                                  column.numeric
+                                    ? "finance-matrix-amount payment-credit"
+                                    : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                key={column.id}
+                              >
+                                {renderInvoiceAnalysisCell(row, column.id)}
+                              </td>
+                            ))}
+                            <td className="col-picker-td" />
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : isCashPage || detailGroup === "cashSummary" ? (
               <div className="finance-matrix-scroll">
                 <table className="data-table finance-payments-table finance-cash-summary-table">
                   <thead>
@@ -3142,33 +3998,127 @@ export function PaymentsPage() {
               </div>
             )}
           </section>
+          ) : null}
 
+          {isCashPage ? (
           <section className="instructor-detail-card finance-matrix-card">
             <div className="finance-matrix-card-head">
               <div>
-                <h3 className="candidate-detail-section-title">
-                  Dönem İstatistik
-                </h3>
-                <div className="finance-matrix-card-subtitle">
-                  {termLabel(statsMonth, null)} dönemindeki ciro ve tahsilat özeti.
-                </div>
-              </div>
-              <div className="payments-filter-field finance-period-picker">
-                <label className="form-label" htmlFor="payments-stats-month">
-                  Dönem
-                </label>
-                <LocalizedDateInput
-                  ariaLabel="Dönem"
-                  className="form-input"
-                  mode="month"
-                  name="payments-stats-month"
-                  onChange={(value) => setStatsMonth(value)}
-                  placeholder="Dönem"
-                  value={statsMonth}
-                />
+                <h3 className="candidate-detail-section-title">Kasa Hareketleri</h3>
               </div>
             </div>
+            <div className="finance-matrix-scroll">
+              <table className="data-table finance-payments-table finance-cash-movements-table">
+                <thead>
+                  <tr>
+                    {CASH_MOVEMENT_COLUMNS.map((column) => {
+                      const isActive = cashMovementSort.field === column.id;
+                      const indicator = isActive
+                        ? cashMovementSort.direction === "asc"
+                          ? "▲"
+                          : "▼"
+                        : "↕";
+                      return (
+                        <th
+                          aria-sort={
+                            isActive
+                              ? cashMovementSort.direction === "asc"
+                                ? "ascending"
+                                : "descending"
+                              : "none"
+                          }
+                          className={[
+                            column.sortable ? "sortable-th" : "",
+                            isActive ? "active" : "",
+                            column.numeric ? "finance-matrix-amount" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          key={column.id}
+                        >
+                          <div className="sortable-th-shell">
+                            <button
+                              className="sortable-th-btn"
+                              onClick={() => toggleCashMovementSort(column.id)}
+                              type="button"
+                            >
+                              <span>{column.label}</span>
+                              <span
+                                className="sortable-th-indicator"
+                                aria-hidden="true"
+                              >
+                                {indicator}
+                              </span>
+                            </button>
+                            {column.filterable ? (
+                              <div className="sortable-th-filter">
+                                <TableHeaderFilter
+                                  active={Boolean(
+                                    cashMovementColumnFilters[column.id],
+                                  )}
+                                  onChange={(value) =>
+                                    setCashMovementColumnFilter(
+                                      column.id,
+                                      value,
+                                    )
+                                  }
+                                  options={
+                                    cashMovementFilterOptions.get(
+                                      column.id,
+                                    ) ?? [{ value: "all", label: "Tümü" }]
+                                  }
+                                  title={`${column.label} filtresi`}
+                                  value={
+                                    cashMovementColumnFilters[column.id] ??
+                                    "all"
+                                  }
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cashMovementRows.length === 0 ? (
+                    <tr>
+                      <td className="data-table-empty" colSpan={CASH_MOVEMENT_COLUMNS.length}>
+                        Kasa hareketi bulunamadı.
+                      </td>
+                    </tr>
+                  ) : (
+                    cashMovementRows.map((row) => (
+                      <tr className={`finance-detail-row type-${row.type === "Giriş" ? "payment" : "refund"}`} key={row.id}>
+                        {CASH_MOVEMENT_COLUMNS.map((column) => (
+                          <td
+                            className={[
+                              column.id === "description"
+                                ? "finance-detail-description-cell"
+                                : "",
+                              column.numeric
+                                ? "finance-matrix-amount payment-credit"
+                                : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                            key={column.id}
+                          >
+                            {renderCashMovementCell(row, column.id)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          ) : null}
 
+          {isStatisticsPage ? (
+          <section className="instructor-detail-card finance-matrix-card">
             <div className="finance-matrix-scroll">
               <table className="data-table finance-payments-table finance-period-stats-table">
                 <thead>
@@ -3301,8 +4251,217 @@ export function PaymentsPage() {
               </table>
             </div>
           </section>
+          ) : null}
+          <CashActionModal
+            saving={cashActionSaving}
+            mode={cashActionMode}
+            onClose={() => setCashActionMode(null)}
+            onSubmit={saveCashAction}
+            registers={cashActionRegisters}
+          />
         </>
       )}
     </div>
+  );
+}
+
+type CashActionRegisterOption = {
+  id: string;
+  label: string;
+  typeLabel: string;
+};
+
+type CashActionModalProps = {
+  mode: CashActionMode | null;
+  onClose: () => void;
+  onSubmit: (payload: CashActionSubmitPayload) => void;
+  registers: CashActionRegisterOption[];
+  saving: boolean;
+};
+
+type CashActionSubmitPayload =
+  | {
+      mode: "inflow" | "outflow";
+      cashRegisterId: string;
+      amount: number;
+      occurredDate: string;
+      note: string | null;
+    }
+  | {
+      mode: "transfer";
+      sourceCashRegisterId: string;
+      targetCashRegisterId: string;
+      amount: number;
+      occurredDate: string;
+      note: string | null;
+    };
+
+function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashActionModalProps) {
+  const [date, setDate] = useState(todayDateInput);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [cashRegisterId, setCashRegisterId] = useState("");
+  const [sourceCashRegisterId, setSourceCashRegisterId] = useState("");
+  const [targetCashRegisterId, setTargetCashRegisterId] = useState("");
+  const open = mode !== null;
+  const isTransfer = mode === "transfer";
+  const title =
+    mode === "inflow"
+      ? "Kasa Giriş"
+      : mode === "outflow"
+        ? "Kasa Çıkış"
+      : "Transfer";
+  const parsedAmount = Number(amount);
+  const canSubmit =
+    Boolean(mode) &&
+    parsedAmount > 0 &&
+    Boolean(date) &&
+    (isTransfer
+      ? Boolean(sourceCashRegisterId) &&
+        Boolean(targetCashRegisterId) &&
+        sourceCashRegisterId !== targetCashRegisterId
+      : Boolean(cashRegisterId));
+
+  useEffect(() => {
+    if (!open) return;
+    setDate(todayDateInput());
+    setAmount("");
+    setNote("");
+    setCashRegisterId(registers[0]?.id ?? "");
+    setSourceCashRegisterId(registers[0]?.id ?? "");
+    setTargetCashRegisterId(registers[1]?.id ?? registers[0]?.id ?? "");
+  }, [open, registers]);
+
+  return (
+    <Modal
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={onClose} type="button">
+            İptal
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!canSubmit || saving}
+            onClick={() => {
+              if (!mode || !canSubmit) return;
+              if (isTransfer) {
+                onSubmit({
+                  mode: "transfer",
+                  sourceCashRegisterId,
+                  targetCashRegisterId,
+                  amount: parsedAmount,
+                  occurredDate: date,
+                  note: note.trim() || null,
+                });
+              } else {
+                onSubmit({
+                  mode,
+                  cashRegisterId,
+                  amount: parsedAmount,
+                  occurredDate: date,
+                  note: note.trim() || null,
+                });
+              }
+            }}
+            type="button"
+          >
+            {saving ? "Kaydediliyor..." : "Kaydet"}
+          </button>
+        </>
+      }
+      onClose={onClose}
+      open={open}
+      title={title}
+    >
+      <form>
+        {registers.length === 0 ? (
+          <div className="instructor-detail-empty">Aktif kasa bulunamadı.</div>
+        ) : isTransfer ? (
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Çıkış Kasası</label>
+              <CustomSelect
+                className="form-select"
+                onChange={(event) => setSourceCashRegisterId(event.target.value)}
+                value={sourceCashRegisterId}
+              >
+                {registers.map((register) => (
+                  <option key={register.id} value={register.id}>
+                    {register.label} ({register.typeLabel})
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Giriş Kasası</label>
+              <CustomSelect
+                className="form-select"
+                onChange={(event) => setTargetCashRegisterId(event.target.value)}
+                value={targetCashRegisterId}
+              >
+                {registers.map((register) => (
+                  <option key={register.id} value={register.id}>
+                    {register.label} ({register.typeLabel})
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+          </div>
+        ) : (
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Kasa</label>
+              <CustomSelect
+                className="form-select"
+                onChange={(event) => setCashRegisterId(event.target.value)}
+                value={cashRegisterId}
+              >
+                {registers.map((register) => (
+                  <option key={register.id} value={register.id}>
+                    {register.label} ({register.typeLabel})
+                  </option>
+                ))}
+              </CustomSelect>
+            </div>
+          </div>
+        )}
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Tutar</label>
+            <input
+              className="form-input"
+              min="0"
+              onChange={(event) => setAmount(event.target.value)}
+              placeholder="0"
+              step="0.01"
+              type="number"
+              value={amount}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Tarih</label>
+            <LocalizedDateInput
+              ariaLabel="Tarih"
+              className="form-input"
+              name="cash-action-date"
+              onChange={setDate}
+              value={date}
+            />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Açıklama</label>
+          <textarea
+            className="form-input"
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Açıklama"
+            rows={3}
+            value={note}
+          />
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -20,14 +20,6 @@ interface InstitutionFounderResponse {
   phone: string | null;
 }
 
-interface InstitutionAuthorizedPersonResponse {
-  id: string;
-  fullName: string;
-  phone: string | null;
-  title: string | null;
-  sortOrder: number;
-}
-
 export interface InstitutionSettingsResponse {
   id: string;
   institutionName: string | null;
@@ -40,7 +32,6 @@ export interface InstitutionSettingsResponse {
   district: string | null;
   logo: InstitutionLogoResponse | null;
   founder: InstitutionFounderResponse;
-  authorizedPersons: InstitutionAuthorizedPersonResponse[];
   mebbisInstitutionCode: string | null;
   mebbisUsername: string | null;
   hasMebbisPassword: boolean;
@@ -62,13 +53,6 @@ interface InstitutionFounderUpsertRequest {
   phone: string | null;
 }
 
-interface InstitutionAuthorizedPersonUpsertRequest {
-  id: string | null;
-  fullName: string;
-  phone: string | null;
-  title: string | null;
-}
-
 interface InstitutionMebbisUpsertRequest {
   institutionCode: string | null;
   username: string | null;
@@ -86,7 +70,7 @@ export interface InstitutionSettingsUpsertRequest {
   city: string | null;
   district: string | null;
   founder: InstitutionFounderUpsertRequest;
-  authorizedPersons: InstitutionAuthorizedPersonUpsertRequest[];
+  authorizedPersons: [];
   mebbis: InstitutionMebbisUpsertRequest | null;
   rowVersion: number | null;
 }

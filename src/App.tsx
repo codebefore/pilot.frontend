@@ -124,7 +124,12 @@ function AppShell() {
             <Route element={<CandidateDetailPage />} path="/candidates/:candidateId" />
             <Route element={<GroupsPage />}     path="/groups" />
             <Route element={<DocumentsPage />}  path="/documents" />
-            <Route element={<PaymentsPage />}   path="/payments" />
+            <Route element={<Navigate replace to="/payments/balances" />} path="/payments" />
+            <Route element={<PaymentsPage mode="balances" />} path="/payments/balances" />
+            <Route element={<PaymentsPage mode="collections" />} path="/payments/collections" />
+            <Route element={<PaymentsPage mode="invoices" />} path="/payments/invoices" />
+            <Route element={<PaymentsPage mode="cash" />} path="/payments/cash" />
+            <Route element={<PaymentsPage mode="statistics" />} path="/payments/statistics" />
             <Route element={<Navigate replace to="/training/teorik" />} path="/training" />
             <Route element={<TrainingPage type="teorik" />} path="/training/teorik" />
             <Route element={<TrainingPage type="uygulama" />} path="/training/uygulama" />

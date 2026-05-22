@@ -23,14 +23,6 @@ import { PageTabs } from "../layout/PageToolbar";
 import { CustomSelect } from "../ui/CustomSelect";
 import { useToast } from "../ui/Toast";
 
-type AuthorizedPersonForm = {
-  clientId: string;
-  serverId: string | null;
-  fullName: string;
-  phone: string;
-  title: string;
-};
-
 type GeneralFormValues = {
   institutionName: string;
   institutionOfficialName: string;
@@ -46,12 +38,10 @@ type GeneralFormValues = {
   founderTaxOffice: string;
   founderAddress: string;
   founderPhone: string;
-  authorizedPersons: AuthorizedPersonForm[];
 };
 
 type GeneralFormErrors = Partial<Record<keyof GeneralFormValues, string>>;
-type AuthorizedPersonErrors = Record<string, Partial<Record<"fullName" | "phone" | "title", string>>>;
-type GeneralInstitutionTab = "institution" | "founder" | "authorized";
+type GeneralInstitutionTab = "institution" | "founder";
 
 const EMPTY_VALUES: GeneralFormValues = {
   institutionName: "",
@@ -68,7 +58,6 @@ const EMPTY_VALUES: GeneralFormValues = {
   founderTaxOffice: "",
   founderAddress: "",
   founderPhone: "",
-  authorizedPersons: [],
 };
 
 function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues {
@@ -88,13 +77,6 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     founderTaxOffice: response.founder.taxOffice ?? "",
     founderAddress: response.founder.address ?? "",
     founderPhone: response.founder.phone ?? "",
-    authorizedPersons: response.authorizedPersons.map((person) => ({
-      clientId: person.id,
-      serverId: person.id,
-      fullName: person.fullName,
-      phone: person.phone ?? "",
-      title: person.title ?? "",
-    })),
   };
 }
 
@@ -119,22 +101,10 @@ function toUpsertRequest(
       address: values.founderAddress.trim() || null,
       phone: values.founderPhone.trim() || null,
     },
-    authorizedPersons: values.authorizedPersons.map((person) => ({
-      id: person.serverId,
-      fullName: person.fullName.trim(),
-      phone: person.phone.trim() || null,
-      title: person.title.trim() || null,
-    })),
+    authorizedPersons: [],
     mebbis: null,
     rowVersion,
   };
-}
-
-function newClientId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `tmp-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
 
 function getValidationCode(error: unknown, field: string): string | null {
@@ -172,7 +142,6 @@ export function GeneralInstitutionSection() {
   const [serverState, setServerState] = useState<InstitutionSettingsResponse | null>(null);
   const [values, setValues] = useState<GeneralFormValues>(EMPTY_VALUES);
   const [errors, setErrors] = useState<GeneralFormErrors>({});
-  const [authorizedErrors, setAuthorizedErrors] = useState<AuthorizedPersonErrors>({});
   const [activeTab, setActiveTab] = useState<GeneralInstitutionTab>("institution");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -277,58 +246,11 @@ export function GeneralInstitutionSection() {
     setField("founderType", event.target.value as FounderType);
   };
 
-  const updateAuthorizedPerson = (
-    clientId: string,
-    field: "fullName" | "phone" | "title",
-    value: string
-  ) => {
-    setValues((current) => ({
-      ...current,
-      authorizedPersons: current.authorizedPersons.map((person) =>
-        person.clientId === clientId ? { ...person, [field]: value } : person
-      ),
-    }));
-    setAuthorizedErrors((current) => {
-      if (!current[clientId]?.[field]) return current;
-      const nextPerson = { ...current[clientId] };
-      delete nextPerson[field];
-      return { ...current, [clientId]: nextPerson };
-    });
-  };
-
-  const updateAuthorizedPersonPhone = (clientId: string, value: string) => {
-    updateAuthorizedPerson(clientId, "phone", value);
-  };
-
-  const addAuthorizedPerson = () => {
-    setValues((current) => ({
-      ...current,
-      authorizedPersons: [
-        ...current.authorizedPersons,
-        {
-          clientId: newClientId(),
-          serverId: null,
-          fullName: "",
-          phone: "",
-          title: "",
-        },
-      ],
-    }));
-  };
-
-  const removeAuthorizedPerson = (clientId: string) => {
-    setValues((current) => ({
-      ...current,
-      authorizedPersons: current.authorizedPersons.filter((person) => person.clientId !== clientId),
-    }));
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (saving) return;
 
     const nextErrors: GeneralFormErrors = {};
-    const nextAuthorizedErrors: AuthorizedPersonErrors = {};
 
     if (!values.institutionName.trim()) {
       nextErrors.institutionName = t("settings.general.validation.required");
@@ -357,22 +279,8 @@ export function GeneralInstitutionSection() {
     if (values.founderTaxId.trim() && !isValidTaxId(values.founderTaxId.trim())) {
       nextErrors.founderTaxId = t("settings.general.validation.taxId");
     }
-    for (const person of values.authorizedPersons) {
-      const personErrors: Partial<Record<"fullName" | "phone" | "title", string>> = {};
-      if (!person.fullName.trim()) {
-        personErrors.fullName = t("settings.general.validation.required");
-      }
-      if (person.phone.trim() && !isPhoneStartingWith5(person.phone)) {
-        personErrors.phone = "5 ile başlamalı";
-      }
-      if (Object.keys(personErrors).length > 0) {
-        nextAuthorizedErrors[person.clientId] = personErrors;
-      }
-    }
-
     setErrors(nextErrors);
-    setAuthorizedErrors(nextAuthorizedErrors);
-    if (Object.keys(nextErrors).length > 0 || Object.keys(nextAuthorizedErrors).length > 0) {
+    if (Object.keys(nextErrors).length > 0) {
       if (
         nextErrors.institutionName ||
         nextErrors.institutionOfficialName ||
@@ -392,8 +300,6 @@ export function GeneralInstitutionSection() {
         nextErrors.founderAddress
       ) {
         setActiveTab("founder");
-      } else {
-        setActiveTab("authorized");
       }
       showToast(t("settings.general.validation.fixErrors"), "error");
       return;
@@ -406,7 +312,6 @@ export function GeneralInstitutionSection() {
       setServerState(response);
       setValues(fromResponse(response));
       setErrors({});
-      setAuthorizedErrors({});
       showToast(t("settings.general.toast.saved"));
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -510,7 +415,6 @@ export function GeneralInstitutionSection() {
   const tabs: { key: GeneralInstitutionTab; label: string }[] = [
     { key: "institution", label: t("settings.general.section.institution") },
     { key: "founder", label: t("settings.general.section.founder") },
-    { key: "authorized", label: t("settings.general.section.authorized") },
   ];
 
   if (loading) {
@@ -817,95 +721,6 @@ export function GeneralInstitutionSection() {
               </div>
             </div>
           </div>
-        </div>
-      </section>
-      ) : null}
-
-      {activeTab === "authorized" ? (
-      <section className="settings-surface">
-        <div className="settings-surface-header">
-          <div className="settings-surface-title">
-            {t("settings.general.section.authorized")}
-          </div>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={addAuthorizedPerson}
-            type="button"
-          >
-            {t("settings.general.authorized.add")}
-          </button>
-        </div>
-        <div className="settings-surface-body">
-          {values.authorizedPersons.length === 0 ? (
-            <div className="settings-panel-note">
-              {t("settings.general.authorized.empty")}
-            </div>
-          ) : (
-            <div className="settings-form">
-              {values.authorizedPersons.map((person, index) => (
-                <div className="form-row" key={person.clientId}>
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t("settings.general.authorized.fullName")} #{index + 1}
-                    </label>
-                    <input
-                      className={authorizedErrors[person.clientId]?.fullName ? "form-input error" : "form-input"}
-                      onChange={(event) =>
-                        updateAuthorizedPerson(person.clientId, "fullName", event.target.value)
-                      }
-                      placeholder={t("settings.general.placeholder.authorizedName")}
-                      value={person.fullName}
-                    />
-                    {authorizedErrors[person.clientId]?.fullName ? (
-                      <div className="form-error">{authorizedErrors[person.clientId]?.fullName}</div>
-                    ) : null}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t("settings.general.authorized.title")}
-                    </label>
-                    <input
-                      className={authorizedErrors[person.clientId]?.title ? "form-input error" : "form-input"}
-                      onChange={(event) =>
-                        updateAuthorizedPerson(person.clientId, "title", event.target.value)
-                      }
-                      placeholder={t("settings.general.placeholder.authorizedTitle")}
-                      value={person.title}
-                    />
-                    {authorizedErrors[person.clientId]?.title ? (
-                      <div className="form-error">{authorizedErrors[person.clientId]?.title}</div>
-                    ) : null}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t("settings.general.authorized.phone")}
-                    </label>
-                    <input
-                      className={authorizedErrors[person.clientId]?.phone ? "form-input error" : "form-input"}
-                      onChange={(event) =>
-                        updateAuthorizedPersonPhone(person.clientId, event.target.value)
-                      }
-                      inputMode="numeric"
-                      placeholder={t("settings.general.placeholder.phone")}
-                      value={person.phone}
-                    />
-                    {authorizedErrors[person.clientId]?.phone ? (
-                      <div className="form-error">{authorizedErrors[person.clientId]?.phone}</div>
-                    ) : null}
-                  </div>
-                  <div className="form-group settings-authorized-remove">
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => removeAuthorizedPerson(person.clientId)}
-                      type="button"
-                    >
-                      {t("settings.general.authorized.remove")}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </section>
       ) : null}

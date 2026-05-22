@@ -72,6 +72,43 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   missingDocumentCountMax: "",
 };
 
+const TERM_GROUP_FILTER_TERM_PREFIX = "term:";
+const TERM_GROUP_FILTER_GROUP_PREFIX = "group:";
+
+export function combineTermGroupFilterValues(
+  filters: Pick<CandidateFilterState, "termIds" | "groupIds">,
+): string[] {
+  return [
+    ...filters.termIds.map((id) => `${TERM_GROUP_FILTER_TERM_PREFIX}${id}`),
+    ...filters.groupIds.map((id) => `${TERM_GROUP_FILTER_GROUP_PREFIX}${id}`),
+  ];
+}
+
+export function splitTermGroupFilterValues(values: string[]): {
+  termIds: string[];
+  groupIds: string[];
+} {
+  return values.reduce(
+    (result, value) => {
+      if (value.startsWith(TERM_GROUP_FILTER_TERM_PREFIX)) {
+        result.termIds.push(value.slice(TERM_GROUP_FILTER_TERM_PREFIX.length));
+      } else if (value.startsWith(TERM_GROUP_FILTER_GROUP_PREFIX)) {
+        result.groupIds.push(value.slice(TERM_GROUP_FILTER_GROUP_PREFIX.length));
+      }
+      return result;
+    },
+    { termIds: [] as string[], groupIds: [] as string[] },
+  );
+}
+
+export function termGroupTermFilterValue(termId: string): string {
+  return `${TERM_GROUP_FILTER_TERM_PREFIX}${termId}`;
+}
+
+export function termGroupGroupFilterValue(groupId: string): string {
+  return `${TERM_GROUP_FILTER_GROUP_PREFIX}${groupId}`;
+}
+
 function triToBool(value: TriState): boolean | undefined {
   if (value === "") return undefined;
   return value === "true";

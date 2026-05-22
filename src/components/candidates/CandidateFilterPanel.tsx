@@ -5,6 +5,12 @@ import type {
   CandidateFilterState,
   TriState,
 } from "../../lib/candidate-filters";
+import {
+  combineTermGroupFilterValues,
+  splitTermGroupFilterValues,
+  termGroupGroupFilterValue,
+  termGroupTermFilterValue,
+} from "../../lib/candidate-filters";
 import { getGroups } from "../../lib/groups-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
@@ -66,6 +72,14 @@ export function CandidateFilterPanel({
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
+  const compactLicenseClassOptions = useMemo(
+    () =>
+      licenseClassOptions.map((option) => ({
+        value: option.value,
+        label: option.value,
+      })),
+    [licenseClassOptions]
+  );
 
   // Lazily fetch the group catalog the first time the panel opens so the
   // group filter can resolve ids into readable "{title} · {term}" labels.
@@ -118,6 +132,28 @@ export function CandidateFilterPanel({
         ),
       }));
   }, [groups, lang, uniqueTerms]);
+  const termGroupOptions = useMemo(
+    () => [
+      ...termOptions.map((option) => ({
+        value: termGroupTermFilterValue(option.value),
+        label: option.label,
+      })),
+      ...groupOptions.map((option) => ({
+        value: termGroupGroupFilterValue(option.value),
+        label: option.label,
+      })),
+    ],
+    [groupOptions, termOptions]
+  );
+  const termGroupValues = useMemo(
+    () => combineTermGroupFilterValues(filters),
+    [filters]
+  );
+  const handleTermGroupChange = (next: string[]) => {
+    const parsed = splitTermGroupFilterValues(next);
+    onChange("termIds", parsed.termIds);
+    onChange("groupIds", parsed.groupIds);
+  };
 
   // Focus only on the closed -> open transition. The parent rerenders on each
   // filter keystroke, so tying focus to every render would steal focus back to
@@ -262,9 +298,9 @@ export function CandidateFilterPanel({
               onChange={(next) =>
                 onChange("licenseClasses", next as LicenseClass[])
               }
-              options={licenseClassOptions}
+              options={compactLicenseClassOptions}
               placeholder={t("candidates.col.licenseClass")}
-              searchable={licenseClassOptions.length > 8}
+              searchable={compactLicenseClassOptions.length > 8}
               title={t("candidates.col.licenseClass")}
               values={filters.licenseClasses}
             />
@@ -288,22 +324,12 @@ export function CandidateFilterPanel({
           </div>
           <div className="form-group">
             <CheckboxListPopover
-              onChange={(next) => onChange("termIds", next)}
-              options={termOptions}
-              placeholder={t("candidates.filters.termIds")}
-              searchable={termOptions.length > 8}
-              title={t("candidates.filters.termIds")}
-              values={filters.termIds}
-            />
-          </div>
-          <div className="form-group">
-            <CheckboxListPopover
-              onChange={(next) => onChange("groupIds", next)}
-              options={groupOptions}
-              placeholder={t("candidates.filters.groupIds")}
-              searchable={groupOptions.length > 8}
-              title={t("candidates.filters.groupIds")}
-              values={filters.groupIds}
+              onChange={handleTermGroupChange}
+              options={termGroupOptions}
+              placeholder={t("candidates.filters.periodGroupIds")}
+              searchable={termGroupOptions.length > 8}
+              title={t("candidates.filters.periodGroupIds")}
+              values={termGroupValues}
             />
           </div>
           <div className="form-group">

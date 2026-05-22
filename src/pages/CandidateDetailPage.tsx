@@ -122,6 +122,8 @@ import type {
   VehicleResponse,
 } from "../lib/types";
 
+const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
+
 type TabKey =
   | "general"
   | "license"
@@ -3833,7 +3835,17 @@ function AccountingTab({
           </label>
           <label className="form-group">
             <span className="form-label">Fatura Tipi</span>
-            <input className="form-input" onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceType: event.target.value }))} placeholder="Satış" value={invoiceModal.invoiceType} />
+            <CustomSelect
+              className="form-select"
+              onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceType: event.target.value }))}
+              value={invoiceModal.invoiceType}
+            >
+              {INVOICE_TYPE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </CustomSelect>
           </label>
           <label className="form-group">
             <span className="form-label">Fatura Tarihi</span>
@@ -4563,6 +4575,10 @@ function invoiceRowClassName(invoiceType: string) {
 
   if (normalized.includes("iade") || normalized.includes("refund")) {
     return "candidate-accounting-invoice-row status-refunded";
+  }
+
+  if (normalized.includes("iptal") || normalized.includes("cancel")) {
+    return "candidate-accounting-invoice-row status-cancelled";
   }
 
   return "candidate-accounting-invoice-row status-sale";

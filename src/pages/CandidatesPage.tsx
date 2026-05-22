@@ -22,8 +22,12 @@ import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import {
   EMPTY_CANDIDATE_FILTERS,
+  combineTermGroupFilterValues,
   countActiveCandidateFilters,
   filtersToQuery,
+  splitTermGroupFilterValues,
+  termGroupGroupFilterValue,
+  termGroupTermFilterValue,
   type CandidateFilterState,
 } from "../lib/candidate-filters";
 import {
@@ -62,7 +66,7 @@ import {
   formatDateTR,
   type CandidateStatusValue,
 } from "../lib/status-maps";
-import { buildGroupHeading, buildTermLabel } from "../lib/term-label";
+import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../lib/term-label";
 import { normalizeTextQuery } from "../lib/search";
 import type {
   CandidateResponse,
@@ -721,6 +725,14 @@ export function CandidatesPage({
   const t = useT();
   const { lang } = useLanguage();
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const compactLicenseClassOptions = useMemo(
+    () =>
+      licenseClassOptions.map((option) => ({
+        value: option.value,
+        label: option.value,
+      })),
+    [licenseClassOptions]
+  );
   const columnPageScope: CandidateColumnPageScope =
     examDateSidebar?.field === "eSinavDate"
       ? "eSinav"
@@ -926,22 +938,29 @@ export function CandidatesPage({
         : BULK_STATUS_OPTIONS.filter((option) => option.value !== currentStatusTab),
     [currentStatusTab]
   );
-  const headerGroupOptions = useMemo(
-    () =>
-      headerGroupCatalog.map((group) => ({
-        value: group.id,
-        label: buildGroupHeading(group.title, group.term, [group.term], lang),
+  const headerPeriodGroupOptions = useMemo(() => {
+    const terms = Array.from(
+      new Map(headerGroupCatalog.map((group) => [group.term.id, group.term])).values()
+    ).sort(compareTermsDesc);
+    return [
+      ...terms.map((term) => ({
+        value: termGroupTermFilterValue(term.id),
+        label: buildTermLabel(term, terms, lang),
       })),
-    [headerGroupCatalog, lang]
-  );
+      ...headerGroupCatalog.map((group) => ({
+        value: termGroupGroupFilterValue(group.id),
+        label: buildGroupHeading(group.title, group.term, terms, lang),
+      })),
+    ];
+  }, [headerGroupCatalog, lang]);
 
   const getColumnFilterControl = (col: CandidateColumnDef) =>
     buildCandidateColumnFilterControl(
       col.id,
       filters,
       handleFilterChange,
-      licenseClassOptions,
-      headerGroupOptions,
+      compactLicenseClassOptions,
+      headerPeriodGroupOptions,
       t,
       lang
     );
@@ -2272,7 +2291,7 @@ function buildCandidateColumnFilterControl(
     value: CandidateFilterState[K]
   ) => void,
   licenseClassOptions: { value: string; label: string }[],
-  groupOptions: { value: string; label: string }[],
+  periodGroupOptions: { value: string; label: string }[],
   t: ReturnType<typeof useT>,
   lang: "tr" | "en"
 ) {
@@ -2309,15 +2328,20 @@ function buildCandidateColumnFilterControl(
   }
 
   if (columnId === "group") {
+    const values = combineTermGroupFilterValues(filters);
     return (
       <CheckboxListPopover
-        onChange={(next) => setFilter("groupIds", next)}
-        options={groupOptions}
-        placeholder={t("candidates.col.group")}
-        searchable={groupOptions.length > 8}
-        title={t("candidates.filters.groupIds")}
+        onChange={(next) => {
+          const parsed = splitTermGroupFilterValues(next);
+          setFilter("termIds", parsed.termIds);
+          setFilter("groupIds", parsed.groupIds);
+        }}
+        options={periodGroupOptions}
+        placeholder={t("candidates.filters.periodGroupIds")}
+        searchable={periodGroupOptions.length > 8}
+        title={t("candidates.filters.periodGroupIds")}
         triggerVariant="icon"
-        values={filters.groupIds}
+        values={values}
       />
     );
   }

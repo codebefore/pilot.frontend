@@ -14,7 +14,6 @@ import { useT, type TranslationKey } from "../lib/i18n";
 import { DocumentTypesPage } from "./DocumentTypesPage";
 import { InstructorDetailPage } from "./InstructorDetailPage";
 import { LicenseClassDefinitionDetailPage } from "./LicenseClassDefinitionDetailPage";
-import { PermissionsPage } from "./PermissionsPage";
 import { RoleEditorPage } from "./RoleEditorPage";
 import { UsersPage } from "./UsersPage";
 import { VehicleDetailPage } from "./VehicleDetailPage";
@@ -41,6 +40,11 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         to: "/settings/general",
       },
       {
+        labelKey: "settings.nav.users.label",
+        descriptionKey: "settings.nav.users.description",
+        to: "/settings/definitions/users",
+      },
+      {
         labelKey: "settings.nav.instructors.label",
         descriptionKey: "settings.nav.instructors.description",
         to: "/settings/definitions/instructors",
@@ -50,35 +54,30 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         descriptionKey: "settings.nav.vehicles.description",
         to: "/settings/definitions/vehicles",
       },
-      {
-        labelKey: "settings.nav.cashRegisters.label",
-        descriptionKey: "settings.nav.cashRegisters.description",
-        to: "/settings/definitions/cash-registers",
-      },
-      {
-        labelKey: "settings.nav.fees.label",
-        descriptionKey: "settings.nav.fees.description",
-        to: "/settings/definitions/fees",
-      },
     ],
   },
   {
     titleKey: "settings.nav.group.definitions",
     items: [
       {
+        labelKey: "settings.nav.references.label",
+        descriptionKey: "settings.nav.references.description",
+        to: "/settings/definitions/references",
+      },
+      {
         labelKey: "settings.nav.licenseClasses.label",
         descriptionKey: "settings.nav.licenseClasses.description",
         to: "/settings/definitions/license-classes",
       },
       {
+        labelKey: "settings.nav.fees.label",
+        descriptionKey: "settings.nav.fees.description",
+        to: "/settings/definitions/fees",
+      },
+      {
         labelKey: "settings.nav.trainingBranches.label",
         descriptionKey: "settings.nav.trainingBranches.description",
         to: "/settings/definitions/training-branches",
-      },
-      {
-        labelKey: "settings.nav.references.label",
-        descriptionKey: "settings.nav.references.description",
-        to: "/settings/definitions/references",
       },
       {
         labelKey: "settings.nav.classrooms.label",
@@ -91,14 +90,9 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         to: "/settings/definitions/document-types",
       },
       {
-        labelKey: "settings.nav.users.label",
-        descriptionKey: "settings.nav.users.description",
-        to: "/settings/definitions/users",
-      },
-      {
-        labelKey: "settings.nav.permissions.label",
-        descriptionKey: "settings.nav.permissions.description",
-        to: "/settings/definitions/permissions",
+        labelKey: "settings.nav.cashRegisters.label",
+        descriptionKey: "settings.nav.cashRegisters.description",
+        to: "/settings/definitions/cash-registers",
       },
     ],
   },
@@ -200,9 +194,26 @@ export function SettingsPage() {
               <Route element={<InstructorsSettingsSection />} path="definitions/instructors" />
               <Route element={<InstructorDetailPage />} path="definitions/instructors/:instructorId" />
               <Route element={<UsersPage embedded />} path="definitions/users" />
-              <Route element={<PermissionsPage embedded />} path="definitions/permissions" />
-              <Route element={<RoleEditorPage />} path="definitions/permissions/roles/new" />
-              <Route element={<RoleEditorPage />} path="definitions/permissions/roles/:roleId" />
+              <Route
+                element={<RoleEditorPage />}
+                path="definitions/users/permissions/roles/new"
+              />
+              <Route
+                element={<RoleEditorPage />}
+                path="definitions/users/permissions/roles/:roleId"
+              />
+              <Route
+                element={<Navigate replace to="/settings/definitions/users?tab=permissions" />}
+                path="definitions/permissions"
+              />
+              <Route
+                element={<Navigate replace to="/settings/definitions/users?tab=permissions" />}
+                path="definitions/permissions/roles/new"
+              />
+              <Route
+                element={<Navigate replace to="/settings/definitions/users?tab=permissions" />}
+                path="definitions/permissions/roles/:roleId"
+              />
               <Route element={<Navigate replace to="general" />} path="*" />
             </Routes>
           </div>

@@ -4078,6 +4078,14 @@
   padding: var(--page-shell-gap) var(--page-shell-gutter);
 }
 
+.payments-filters--with-period {
+  grid-template-columns: repeat(4, minmax(112px, 1fr)) auto;
+}
+
+.payments-filters--statistics {
+  grid-template-columns: repeat(3, minmax(130px, 1fr)) auto;
+}
+
 .payments-filter-field {
   min-width: 0;
 }
@@ -4096,7 +4104,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--page-shell-gap);
-  margin: 0 var(--page-shell-gutter) var(--page-shell-gap);
+  margin: var(--page-shell-gap) var(--page-shell-gutter) var(--page-shell-gap);
 }
 
 .finance-matrix-card-head {
@@ -4111,10 +4119,6 @@
   font-size: 18px;
   font-weight: 800;
   white-space: nowrap;
-}
-
-.finance-period-picker {
-  width: 180px;
 }
 
 .finance-period-percent {
@@ -4209,6 +4213,51 @@
   border-radius: 8px;
   background: var(--gray-50);
   width: fit-content;
+}
+
+.finance-cash-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: fit-content;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.finance-cash-action {
+  appearance: none;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--gray-600);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 34px;
+  padding: 9px 14px;
+  white-space: nowrap;
+}
+
+.finance-cash-action:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+  color: var(--gray-900);
+}
+
+.finance-cash-action--inflow {
+  background: var(--success-50);
+  border-color: var(--success-200, #bbf7d0);
+  color: var(--success-700);
+}
+
+.finance-cash-action--inflow:hover {
+  background: var(--success-100);
+  border-color: var(--success-300, #86efac);
+  color: var(--success-800);
 }
 
 .finance-detail-controls {
@@ -5548,6 +5597,7 @@ textarea.form-input {
   min-width: 0;
   flex: 1 1 auto;
   display: block;
+  text-align: left;
 }
 .localized-date-field:has(.localized-date-popover),
 .localized-date-field:has(.localized-time-popover) {
@@ -5595,6 +5645,7 @@ textarea.form-input {
   color: inherit;
   font: inherit;
   line-height: inherit;
+  text-align: left;
   cursor: inherit;
 }
 .localized-date-trigger-input::placeholder {
@@ -6345,8 +6396,32 @@ button.tag-filter-summary-chip.active {
 }
 /* ─── CANDIDATE FILTER PANEL ─── */
 .cand-filters-switch {
-  /* Mevcut .switch-toggle pattern'i + badge için küçük layout tweak. */
   gap: 8px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--gray-700);
+  box-shadow: var(--shadow-xs);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.cand-filters-switch:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  color: var(--gray-900);
+}
+.cand-filters-switch:has(input[type="checkbox"]:checked) {
+  background: var(--brand-light);
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+.cand-filters-switch:has(input[type="checkbox"]:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
 }
 .cand-filters-badge {
   display: inline-flex;
@@ -8200,7 +8275,7 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   font-weight: 500;
 }
 
-/* Institution settings: logo + authorized persons */
+/* Institution settings: logo */
 .settings-logo-row {
   display: flex;
   gap: 16px;
@@ -8236,12 +8311,6 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   gap: 8px;
   align-items: flex-start;
 }
-.settings-authorized-remove {
-  display: flex;
-  align-items: flex-end;
-  flex: 0 0 auto;
-}
-
 .fee-matrix > .settings-surface-header {
   position: sticky;
   top: 0;

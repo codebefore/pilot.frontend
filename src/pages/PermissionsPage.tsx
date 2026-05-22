@@ -237,7 +237,11 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
 
   const handleCreateRole = () => {
     requestDiscardChanges(() => {
-      navigate(embedded ? "/settings/definitions/permissions/roles/new" : "/permissions/roles/new");
+      navigate(
+        embedded
+          ? "/settings/definitions/users/permissions/roles/new"
+          : "/permissions/roles/new"
+      );
     });
   };
 
@@ -246,7 +250,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
     requestDiscardChanges(() => {
       navigate(
         embedded
-          ? `/settings/definitions/permissions/roles/${selectedRole.id}`
+          ? `/settings/definitions/users/permissions/roles/${selectedRole.id}`
           : `/permissions/roles/${selectedRole.id}`
       );
     });

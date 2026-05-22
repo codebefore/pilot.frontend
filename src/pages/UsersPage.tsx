@@ -9,8 +9,9 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 
-import { PageToolbar } from "../components/layout/PageToolbar";
+import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { FilterIcon, PencilIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { UserFormModal } from "../components/modals/UserFormModal";
 import { ColumnPicker } from "../components/ui/ColumnPicker";
@@ -25,6 +26,7 @@ import { getRoles } from "../lib/roles-api";
 import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
+import { PermissionsPage } from "./PermissionsPage";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -140,9 +142,16 @@ function buildColumns(): UserColumnDef[] {
 type UsersPageProps = {
   embedded?: boolean;
 };
+type UsersPageTab = "users" | "permissions";
+
+const USER_PAGE_TABS: { key: UsersPageTab; label: string }[] = [
+  { key: "users", label: "Kullanıcılar" },
+  { key: "permissions", label: "Yetki Yönetimi" },
+];
 
 export function UsersPage({ embedded = false }: UsersPageProps) {
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.users.columns.v1",
     USER_COLUMN_IDS
@@ -164,6 +173,19 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   const [editing, setEditing] = useState<AppUserResponse | null>(null);
   const [confirmDeleteUserId, setConfirmDeleteUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const activeTab: UsersPageTab =
+    searchParams.get("tab") === "permissions" ? "permissions" : "users";
+
+  const handleTabChange = (tab: UsersPageTab) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === "permissions") {
+      nextParams.set("tab", "permissions");
+    } else {
+      nextParams.delete("tab");
+      nextParams.delete("role");
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -554,34 +576,48 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     <>
       {embedded ? (
         <div className="settings-section-stack">
-          <div className="settings-summary-grid">
-            <div className="settings-summary-card">
-              <span className="settings-summary-label">Toplam Kullanıcı</span>
-              <strong className="settings-summary-value">{counts.total}</strong>
-            </div>
-            <div className="settings-summary-card">
-              <span className="settings-summary-label">Aktif</span>
-              <strong className="settings-summary-value">{counts.active}</strong>
-            </div>
-            <div className="settings-summary-card">
-              <span className="settings-summary-label">Pasif</span>
-              <strong className="settings-summary-value">{counts.inactive}</strong>
-            </div>
-            <div className="settings-summary-card">
-              <span className="settings-summary-label">MEBBİS Tanımlı</span>
-              <strong className="settings-summary-value">{counts.mebbis}</strong>
-            </div>
+          <div className="settings-tab-toolbar">
+            <PageTabs
+              active={activeTab}
+              onChange={handleTabChange}
+              tabs={USER_PAGE_TABS}
+            />
           </div>
 
-          <section className="settings-surface">
-            <div className="settings-surface-header">
-              <div className="settings-surface-title">Kullanıcılar</div>
-              <div className="settings-module-actions">{actions}</div>
-            </div>
-            <div className="settings-surface-body">
-              {table}
-            </div>
-          </section>
+          {activeTab === "users" ? (
+            <>
+              <div className="settings-summary-grid">
+                <div className="settings-summary-card">
+                  <span className="settings-summary-label">Toplam Kullanıcı</span>
+                  <strong className="settings-summary-value">{counts.total}</strong>
+                </div>
+                <div className="settings-summary-card">
+                  <span className="settings-summary-label">Aktif</span>
+                  <strong className="settings-summary-value">{counts.active}</strong>
+                </div>
+                <div className="settings-summary-card">
+                  <span className="settings-summary-label">Pasif</span>
+                  <strong className="settings-summary-value">{counts.inactive}</strong>
+                </div>
+                <div className="settings-summary-card">
+                  <span className="settings-summary-label">MEBBİS Tanımlı</span>
+                  <strong className="settings-summary-value">{counts.mebbis}</strong>
+                </div>
+              </div>
+
+              <section className="settings-surface">
+                <div className="settings-surface-header">
+                  <div className="settings-surface-title">Kullanıcılar</div>
+                  <div className="settings-module-actions">{actions}</div>
+                </div>
+                <div className="settings-surface-body">
+                  {table}
+                </div>
+              </section>
+            </>
+          ) : (
+            <PermissionsPage embedded />
+          )}
         </div>
       ) : (
         <>

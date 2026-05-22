@@ -388,6 +388,7 @@ export interface PaymentsOverviewResponse {
   cashRegisters?: AccountingCashRegisterSummaryResponse[];
   payments: PaymentMovementResponse[];
   refunds?: PaymentRefundMovementResponse[];
+  cashMovements?: CashRegisterMovementResponse[];
   invoices?: PaymentInvoiceOverviewResponse[];
   installments: PaymentInstallmentOverviewResponse[];
 }
@@ -436,6 +437,34 @@ export interface PaymentRefundMovementResponse {
   amount: number;
   refundedAtUtc: string;
   note: string | null;
+}
+
+export type CashRegisterMovementType = "inflow" | "outflow" | "transfer_in" | "transfer_out";
+
+export interface CashRegisterMovementResponse {
+  id: string;
+  type: CashRegisterMovementType;
+  cashRegisterId: string;
+  cashRegister: AccountingCashRegisterSummaryResponse;
+  amount: number;
+  occurredDate: string;
+  note: string | null;
+  transferGroupId: string | null;
+}
+
+export interface CashRegisterMovementCreateRequest {
+  cashRegisterId: string;
+  amount: number;
+  occurredDate?: string | null;
+  note?: string | null;
+}
+
+export interface CashRegisterTransferCreateRequest {
+  sourceCashRegisterId: string;
+  targetCashRegisterId: string;
+  amount: number;
+  occurredDate?: string | null;
+  note?: string | null;
 }
 
 export interface PaymentInvoiceOverviewResponse {

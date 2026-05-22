@@ -123,13 +123,45 @@ function getInstructorColumns(
           <InstructorAvatar instructor={instructor} size={32} />
           <div>
             {instructor.firstName} {instructor.lastName}
-            {instructor.mebbisPermitNo ? (
-              <div className="settings-table-secondary">MEBBİS: {instructor.mebbisPermitNo}</div>
-            ) : null}
           </div>
         </div>
       ),
       skeletonWidth: 220,
+    },
+    {
+      id: "isActive",
+      label: t("settings.instructors.table.status"),
+      sortField: "isActive",
+      renderCell: (instructor) => (
+        <StatusPill
+          label={instructor.isActive ? t("settings.instructors.status.active") : t("settings.instructors.status.inactive")}
+          status={instructor.isActive ? "success" : "manual"}
+        />
+      ),
+      skeletonWidth: 74,
+      skeletonKind: "pill",
+    },
+    {
+      id: "contractEndDate",
+      label: t("settings.instructors.table.contractEndDate"),
+      renderCell: (instructor) => {
+        if (!instructor.contractEndDate) return "—";
+        const days = daysUntil(instructor.contractEndDate);
+        const tone =
+          days == null ? "default" : days < 0 ? "expired" : days <= 10 ? "warning" : "default";
+        return (
+          <div className={`instructor-contract-end instructor-contract-end--${tone}`}>
+            <span>{formatDateTR(instructor.contractEndDate)}</span>
+            {days != null && days >= 0 && days <= 30 ? (
+              <span className="instructor-contract-end-days">{days} gün</span>
+            ) : null}
+            {days != null && days < 0 ? (
+              <span className="instructor-contract-end-days">geçti</span>
+            ) : null}
+          </div>
+        );
+      },
+      skeletonWidth: 110,
     },
     {
       id: "role",
@@ -170,28 +202,6 @@ function getInstructorColumns(
       skeletonWidth: 70,
     },
     {
-      id: "contractEndDate",
-      label: t("settings.instructors.table.contractEndDate"),
-      renderCell: (instructor) => {
-        if (!instructor.contractEndDate) return "—";
-        const days = daysUntil(instructor.contractEndDate);
-        const tone =
-          days == null ? "default" : days < 0 ? "expired" : days <= 10 ? "warning" : "default";
-        return (
-          <div className={`instructor-contract-end instructor-contract-end--${tone}`}>
-            <span>{formatDateTR(instructor.contractEndDate)}</span>
-            {days != null && days >= 0 && days <= 30 ? (
-              <span className="instructor-contract-end-days">{days} gün</span>
-            ) : null}
-            {days != null && days < 0 ? (
-              <span className="instructor-contract-end-days">geçti</span>
-            ) : null}
-          </div>
-        );
-      },
-      skeletonWidth: 110,
-    },
-    {
       id: "leaveReason",
       label: t("settings.instructors.table.leaveReason"),
       renderCell: (instructor) => {
@@ -210,31 +220,26 @@ function getInstructorColumns(
       },
       skeletonWidth: 140,
     },
-    {
-      id: "isActive",
-      label: t("settings.instructors.table.status"),
-      sortField: "isActive",
-      renderCell: (instructor) => (
-        <StatusPill
-          label={instructor.isActive ? t("settings.instructors.status.active") : t("settings.instructors.status.inactive")}
-          status={instructor.isActive ? "success" : "manual"}
-        />
-      ),
-      skeletonWidth: 74,
-      skeletonKind: "pill",
-    },
   ];
 }
 const INSTRUCTOR_COLUMN_IDS: InstructorColumnId[] = [
   "fullName",
+  "isActive",
+  "contractEndDate",
   "role",
   "employmentType",
   "branches",
   "licenseClassCodes",
   "weeklyLessonHours",
-  "contractEndDate",
   "leaveReason",
+];
+const DEFAULT_INSTRUCTOR_VISIBLE_COLUMNS: InstructorColumnId[] = [
+  "fullName",
   "isActive",
+  "contractEndDate",
+  "role",
+  "employmentType",
+  "branches",
 ];
 const DEFAULT_FILTERS: InstructorFilters = {
   activity: "active",
@@ -249,8 +254,9 @@ export function InstructorsSettingsSection() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.instructors.columns.v1",
-    INSTRUCTOR_COLUMN_IDS
+    "settings.instructors.columns.v2",
+    INSTRUCTOR_COLUMN_IDS,
+    DEFAULT_INSTRUCTOR_VISIBLE_COLUMNS
   );
 
   const [items, setItems] = useState<InstructorResponse[]>([]);
