@@ -53,6 +53,7 @@ type DetailColumnId =
   | "candidate"
   | "group"
   | "type"
+  | "cancelKind"
   | "date"
   | "amount"
   | "method"
@@ -230,6 +231,7 @@ const DETAIL_COLUMNS: {
   { id: "candidate", label: "Ad Soyad", sortable: true },
   { id: "group", label: "Dönem / Sınıf", sortable: true, filterable: true },
   { id: "type", label: "Ödeme Türü", sortable: true, filterable: true },
+  { id: "cancelKind", label: "İptal Türü", sortable: true, filterable: true },
   { id: "date", label: "Tarih", sortable: true },
   { id: "amount", label: "Tutar", sortable: true, numeric: true },
   { id: "method", label: "Yöntem", sortable: true, filterable: true },
@@ -438,6 +440,13 @@ type PaymentDetailRow =
       payment: PaymentMovementResponse;
       date: string;
       amount: number;
+    }
+  | {
+      kind: "cancelledDebt";
+      id: string;
+      installment: PaymentInstallmentOverviewResponse;
+      date: string;
+      amount: number;
     };
 
 function money(amount: number): string {
@@ -491,27 +500,42 @@ function termLabel(monthDate: string, name: string | null): string {
 }
 
 function rowCandidate(row: PaymentDetailRow) {
-  return row.kind === "refund" ? row.refund.candidate : row.payment.candidate;
+  if (row.kind === "refund") return row.refund.candidate;
+  if (row.kind === "cancelledDebt") return row.installment.candidate;
+  return row.payment.candidate;
 }
 
 function rowType(row: PaymentDetailRow): CandidateAccountingType {
-  return row.kind === "refund" ? row.refund.type : row.payment.type;
+  if (row.kind === "refund") return row.refund.type;
+  if (row.kind === "cancelledDebt") return row.installment.type;
+  return row.payment.type;
 }
 
 function rowCashRegisterLabel(row: PaymentDetailRow): string {
   if (row.kind === "refund") return row.refund.cashRegister?.name ?? "Kasa Yok";
+  if (row.kind === "cancelledDebt") return "-";
   return cashRegisterLabel(row.payment);
 }
 
 function rowDescription(row: PaymentDetailRow): string {
   if (row.kind === "refund") return row.refund.note?.trim() || "İade";
+  if (row.kind === "cancelledDebt") {
+    return row.installment.cancellationReason?.trim() || "Borçlandırma silindi";
+  }
   if (row.kind === "cancelled")
     return row.payment.cancellationReason?.trim() || "İptal";
   return row.payment.note?.trim() || row.payment.installmentDescription || "-";
 }
 
+function rowCancelKindLabel(row: PaymentDetailRow): string {
+  if (row.kind === "cancelled") return "Tahsilat iptal";
+  if (row.kind === "cancelledDebt") return "Silinen borçlandırma";
+  return "-";
+}
+
 function rowMethodLabel(row: PaymentDetailRow): string {
   if (row.kind === "refund") return "İade";
+  if (row.kind === "cancelledDebt") return "-";
   if (row.kind === "cancelled")
     return paymentMethodLabel(row.payment.paymentMethod);
   return paymentMethodLabel(row.payment.paymentMethod);
@@ -865,7 +889,7 @@ function cashSummaryFilterLabel(
   field: CashSummarySortField,
 ): string {
   if (field === "lastMovementDate") {
-    return row.lastMovementDate ? formatDateTR(row.lastMovementDate) : "-";
+    return row.lastMovementDate ? formatFinanceDateTimeTR(row.lastMovementDate) : "-";
   }
   if (field === "balance" || field === "selectedInflow" || field === "selectedOutflow") {
     return money(Number(cashSummarySortValue(row, field)));
@@ -896,7 +920,7 @@ function cashMovementFilterLabel(
   row: CashMovementRow,
   field: CashMovementSortField,
 ): string {
-  if (field === "date") return formatDateTR(row.date);
+  if (field === "date") return formatFinanceDateTimeTR(row.date);
   if (field === "amount") return money(row.amount);
   return cashMovementFilterValue(row, field);
 }
@@ -913,6 +937,7 @@ function rowSortValue(
   if (field === "candidate") return rowCandidateName(row);
   if (field === "group") return rowGroupLabel(row);
   if (field === "type") return paymentTypeLabel(rowType(row));
+  if (field === "cancelKind") return rowCancelKindLabel(row);
   if (field === "date") return row.date;
   if (field === "amount") return row.amount;
   if (field === "method") return rowMethodLabel(row);
@@ -924,6 +949,7 @@ function rowFilterValue(row: PaymentDetailRow, field: DetailSortField): string {
   if (field === "candidate") return rowCandidateName(row);
   if (field === "group") return rowGroupLabel(row);
   if (field === "type") return paymentTypeLabel(rowType(row));
+  if (field === "cancelKind") return rowCancelKindLabel(row);
   if (field === "date") return dateKey(row.date);
   if (field === "amount") return String(row.amount);
   if (field === "method") return rowMethodLabel(row);
@@ -932,13 +958,53 @@ function rowFilterValue(row: PaymentDetailRow, field: DetailSortField): string {
 }
 
 function rowFilterLabel(row: PaymentDetailRow, field: DetailSortField): string {
-  if (field === "date") return formatDateTR(row.date);
+  if (field === "date") return formatFinanceDateTimeTR(row.date);
   if (field === "amount") return money(row.amount);
   return rowFilterValue(row, field);
 }
 
 function dateKey(value: string | null | undefined): string {
   return value?.slice(0, 10) ?? "";
+}
+
+function formatFinanceDateTimeTR(value: string | null | undefined): string {
+  const parts = financeDateTimeParts(value);
+  if (!parts) return "—";
+  return parts.time ? `${parts.date} ${parts.time}` : parts.date;
+}
+
+function renderFinanceDateTime(value: string | null | undefined) {
+  const parts = financeDateTimeParts(value);
+  if (!parts) return "—";
+  if (!parts.time) return parts.date;
+  return (
+    <span className="finance-date-time">
+      <span className="finance-date-time-date">{parts.date}</span>
+      <span className="finance-date-time-time">{parts.time}</span>
+    </span>
+  );
+}
+
+function financeDateTimeParts(value: string | null | undefined): { date: string; time?: string } | null {
+  if (!value) return null;
+  if (!value.includes("T")) return { date: formatDateTR(value) };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: formatDateTR(value) };
+  const parts = new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Istanbul",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return {
+    date: `${part("day")}.${part("month")}.${part("year")}`,
+    time: `${part("hour")}:${part("minute")}`,
+  };
 }
 
 function formatDateInput(date: Date): string {
@@ -1319,6 +1385,26 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             payment,
             date: payment.cancelledAtUtc ?? payment.paidAtUtc,
             amount: payment.amount,
+          })),
+      );
+      rows.push(
+        ...overview.installments
+          .filter(
+            (installment) =>
+              installment.status === "cancelled" &&
+              Boolean(installment.cancelledAtUtc) &&
+              isInDateRange(
+                installment.cancelledAtUtc ?? installment.dueDate,
+                fromDate,
+                toDate,
+              ),
+          )
+          .map((installment) => ({
+            kind: "cancelledDebt" as const,
+            id: installment.id,
+            installment,
+            date: installment.cancelledAtUtc ?? installment.dueDate,
+            amount: installment.amount,
           })),
       );
     }
@@ -1810,18 +1896,23 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
   const detailColumns = useMemo(
     () =>
-      DETAIL_COLUMNS.filter((column) =>
-        visibleDetailColumns.includes(column.id),
-      ),
-    [visibleDetailColumns],
+      DETAIL_COLUMNS.filter((column) => {
+        if (column.id === "cancelKind" && detailTab !== "cancelled") {
+          return false;
+        }
+        return visibleDetailColumns.includes(column.id);
+      }),
+    [detailTab, visibleDetailColumns],
   );
   const detailColumnOptions = useMemo<ColumnOption[]>(
     () =>
-      DETAIL_COLUMNS.map((column) => ({
-        id: column.id,
-        label: column.label,
-      })),
-    [],
+      DETAIL_COLUMNS
+        .filter((column) => column.id !== "cancelKind" || detailTab === "cancelled")
+        .map((column) => ({
+          id: column.id,
+          label: column.label,
+        })),
+    [detailTab],
   );
   const invoiceColumns = useMemo(
     () =>
@@ -2611,7 +2702,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     }
     if (columnId === "group") return rowGroupLabel(row);
     if (columnId === "type") return paymentTypeLabel(rowType(row));
-    if (columnId === "date") return formatDateTR(row.date);
+    if (columnId === "cancelKind") return rowCancelKindLabel(row);
+    if (columnId === "date") return renderFinanceDateTime(row.date);
     if (columnId === "amount") {
       return row.kind === "payment"
         ? money(row.amount)
@@ -2695,7 +2787,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (columnId === "name") return row.name;
     if (columnId === "balance") return money(row.balance);
     if (columnId === "lastMovementDate") {
-      return row.lastMovementDate ? formatDateTR(row.lastMovementDate) : "-";
+      return row.lastMovementDate ? renderFinanceDateTime(row.lastMovementDate) : "-";
     }
     if (columnId === "selectedInflow") return money(row.selectedInflow);
     return money(row.selectedOutflow);
@@ -2705,7 +2797,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     row: CashMovementRow,
     columnId: CashMovementColumnId,
   ) => {
-    if (columnId === "date") return formatDateTR(row.date);
+    if (columnId === "date") return renderFinanceDateTime(row.date);
     if (columnId === "amount") return money(row.amount);
     return row[columnId];
   };

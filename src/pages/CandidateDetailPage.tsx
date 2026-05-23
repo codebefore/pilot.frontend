@@ -4,13 +4,14 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
-import { GridIcon, ListIcon } from "../components/icons";
+import { GridIcon, ListIcon, PencilIcon } from "../components/icons";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
 import { EditableRow } from "../components/ui/EditableRow";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
+import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import type { SelectOption } from "../components/ui/EditableRow";
@@ -20,6 +21,7 @@ import {
   assignCandidateGroup,
   deleteCandidate,
   getCandidateById,
+  getExamScheduleOptions,
   removeActiveGroupAssignment,
   setCandidateRegistrationDate,
   setCandidateRegistrationNumber,
@@ -49,6 +51,11 @@ import {
   markCandidateExamAttemptSelfPaid,
   updateCandidateExamAttempt,
 } from "../lib/candidate-exam-attempts-api";
+import {
+  createCandidateKCertificate,
+  deleteCandidateKCertificate,
+  listCandidateKCertificates,
+} from "../lib/candidate-k-certificates-api";
 import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
@@ -63,6 +70,10 @@ import {
 } from "../lib/training-calendar";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 import { buildBranchHelpers } from "../lib/training-branches";
+import {
+  DEFAULT_DRIVING_EXAM_TIME,
+  DRIVING_EXAM_TIME_SLOTS,
+} from "../lib/driving-exam-time-slots";
 import { buildTermLabel } from "../lib/term-label";
 import { ApiError } from "../lib/http";
 import {
@@ -93,6 +104,7 @@ import {
   existingLicenseTypeLabel,
   TURKEY_PROVINCE_OPTIONS,
   formatDateTR,
+  normalizeCandidateExamResultValue,
   normalizeCandidateGender,
 } from "../lib/status-maps";
 import { toTurkishUpperCase } from "../lib/text-format";
@@ -110,6 +122,7 @@ import type {
   CandidateExamAttemptResponse,
   CandidateExamFeeStatus,
   CandidateExamType,
+  CandidateKCertificateResponse,
   CandidatePaymentMethod,
   CashRegisterResponse,
   CertificateProgramFeeRowResponse,
@@ -117,8 +130,10 @@ import type {
   DocumentMetadataField,
   DocumentResponse,
   DocumentTypeResponse,
+  ExamScheduleOption,
   InstructorResponse,
   TrainingBranchDefinitionResponse,
+  TrainingLessonResponse,
   VehicleResponse,
 } from "../lib/types";
 
@@ -420,6 +435,11 @@ export function CandidateDetailPage() {
     });
   };
 
+  const handleTabChange = (tab: TabKey) => {
+    setActiveTab(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
+
   const handleCreateMovement = async (
     type: CandidateAccountingType,
     dueDate: string,
@@ -611,7 +631,7 @@ export function CandidateDetailPage() {
                   aria-selected={activeTab === tab.key}
                   className={`candidate-detail-tab${activeTab === tab.key ? " active" : ""}`}
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => handleTabChange(tab.key)}
                   role="tab"
                   type="button"
                 >
@@ -654,6 +674,7 @@ export function CandidateDetailPage() {
                     )
                   }
                 />
+                <CandidateKCertificateSection candidate={candidate} />
                 <TrainingTab candidate={candidate} />
               </>
             )}
@@ -881,8 +902,8 @@ function appointmentPillTone(label: string | null): PillTone {
   if (!label) return "neutral";
   // "Havuz/Başarısız ..." — son deneme başarısız, kritik
   if (label.startsWith("Havuz/Başarısız")) return "danger";
-  // "(4/4)" — son hak; warning
-  if (/\(4\/4\)/.test(label)) return "warning";
+  // "(4/4)" veya raporlu hakla "(5/5)" — son hak; warning
+  if (/\((4\/4|5\/5)\)/.test(label)) return "warning";
   // "Randevulu (...)" — tarih atanmış, pozitif akış
   if (label.startsWith("Randevulu")) return "info";
   // "Havuz (n/4)" — bekleme
@@ -2627,8 +2648,61 @@ function formatDateTimeTR(value: string | null | undefined): string {
   }).format(new Date(value));
 }
 
+function renderFinanceDateTime(value: string | null | undefined): ReactNode {
+  const parts = financeDateTimeParts(value);
+  if (!parts) return "—";
+  if (!parts.time) return parts.date;
+  return (
+    <span className="finance-date-time">
+      <span className="finance-date-time-date">{parts.date}</span>
+      <span className="finance-date-time-time">{parts.time}</span>
+    </span>
+  );
+}
+
+function financeDateTimeParts(value: string | null | undefined): { date: string; time?: string } | null {
+  if (!value) return null;
+  if (!value.includes("T")) return { date: formatDateTR(value) };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: formatDateTR(value) };
+  const parts = new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Istanbul",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return {
+    date: `${part("day")}.${part("month")}.${part("year")}`,
+    time: `${part("hour")}:${part("minute")}`,
+  };
+}
+
 function fromDateTimeLocalValue(value: string): string {
   return new Date(value).toISOString();
+}
+
+function toDateTimeLocalValue(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return combineDateAndTimeLocal(todayIsoDate(), "00:00");
+  }
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Istanbul",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 }
 
 function datePartFromDateTimeLocal(value: string): string {
@@ -2645,15 +2719,29 @@ function combineDateAndTimeLocal(date: string, time: string): string {
 
 function nextCandidateExamAttemptNumber(
   attempts: CandidateExamAttemptResponse[],
-  examType: CandidateExamType
+  examType: CandidateExamType,
+  attendanceStatus?: CandidateExamAttemptResponse["examAttendanceStatus"] | ""
 ): number {
+  const maxAttemptNumber = candidateExamAttemptLimit(attempts, examType, attendanceStatus);
   const used = attempts
     .filter((attempt) => attempt.examType === examType)
     .map((attempt) => attempt.attemptNumber);
-  for (let number = 1; number <= 4; number += 1) {
+  for (let number = 1; number <= maxAttemptNumber; number += 1) {
     if (!used.includes(number)) return number;
   }
-  return 5;
+  return maxAttemptNumber + 1;
+}
+
+function candidateExamAttemptLimit(
+  attempts: CandidateExamAttemptResponse[],
+  examType: CandidateExamType,
+  attendanceStatus?: CandidateExamAttemptResponse["examAttendanceStatus"] | ""
+): number {
+  if (examType !== "practice") return 4;
+  const hasReportedAttempt =
+    attendanceStatus === "reported" ||
+    attempts.some((attempt) => attempt.examType === "practice" && attempt.examAttendanceStatus === "reported");
+  return hasReportedAttempt ? 5 : 4;
 }
 
 function suggestedCandidateExamFee(
@@ -2674,14 +2762,57 @@ function suggestedFeeLookupKeyForAttempt(attempt: CandidateExamAttemptResponse):
   return `${year}:${attempt.examType}`;
 }
 
-const THEORY_EXAM_EXPIRY_DAYS = 45;
+const THEORY_RIGHTS_EXPIRY_DAYS = 120;
 
-function addDaysToISODate(value: string, days: number): string {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return "";
-  const date = new Date(year, month - 1, day);
+function parseISODateOnly(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function addDaysToISODate(value: string | null | undefined, days: number): string {
+  const date = parseISODateOnly(value);
+  if (!date) return "";
   date.setDate(date.getDate() + days);
   return toDateOnlyValue(date);
+}
+
+function dateOnlyInTurkey(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Europe/Istanbul",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function compareDateOnly(left: string, right: string): number {
+  return left.localeCompare(right);
+}
+
+function daysUntilISODate(value: string): number {
+  const target = parseISODateOnly(value);
+  if (!target) return 0;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function formatRemainingDayCount(days: number): string {
+  return days >= 0 ? `${days} gün` : `${Math.abs(days)} gün geçti`;
+}
+
+function theoryRightsExpiryKind(days: number): "normal" | "warning" | "danger" {
+  if (days < 0) return "danger";
+  if (days <= 10) return "warning";
+  return "normal";
 }
 
 function addMonthsToISODate(value: string, months: number): string {
@@ -2768,7 +2899,7 @@ function examAttemptCreateErrorMessage(error: unknown): string {
     const codes = Object.values(error.validationErrorCodes ?? {}).flat();
     for (const entry of codes) {
       if (entry.code === "candidateExamAttemptFailedCandidateNeedsTraining") {
-        return "Aday geçen sınavda başarısız oldu. Yeni randevudan önce en az 2 saat uygulama eğitimi planlanmalı.";
+        return "Aday geçen sınavda başarısız oldu. Yeni randevudan önce en az 2 saat direksiyon eğitimi planlanmalı.";
       }
       if (entry.code === "candidateExamAttemptAttemptLimitReached") {
         return "Aday bu round için 4 sınav hakkını tamamladı.";
@@ -2814,7 +2945,7 @@ function accountingMovementStatus(
   movement: CandidateAccountingSummaryResponse["movements"][number]
 ): { className: string; label: string } {
   if (movement.status === "cancelled") {
-    return { className: "status-cancelled", label: "İptal" };
+    return { className: "status-cancelled", label: "Silinen borçlandırma" };
   }
 
   return { className: "status-open", label: "Borç" };
@@ -3112,7 +3243,7 @@ function AccountingTab({
 
   const allMovements = accounting?.debts ?? accounting?.movements ?? [];
   const activeMovements = allMovements.filter((item) => item.status === "active");
-  const activePayments = accounting?.payments.filter((item) => item.status === "active") ?? [];
+  const payments = accounting?.payments ?? [];
   const feeSuggestions = accounting?.feeSuggestions ?? [];
   const totalDebtAmount = activeMovements.reduce((sum, item) => sum + item.remainingAmount, 0);
   const courseFeeMovements = activeMovements.filter((item) => item.type === "kurs");
@@ -3169,7 +3300,6 @@ function AccountingTab({
     : null;
   const paymentOpenBalance = paymentTargetMovement?.remainingAmount ?? typeOpenBalance(paymentModal.type);
   const canSaveDebt =
-    Boolean(debtModal.description.trim()) &&
     Boolean(debtModal.dueDate) &&
     parsedDebtAmount != null &&
     parsedDebtAmount > 0 &&
@@ -3505,7 +3635,7 @@ function AccountingTab({
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
         onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
-        payments={activePayments}
+        payments={payments}
         refunds={accounting?.refunds ?? []}
         title="Kurs Ödemesi"
       />
@@ -3520,7 +3650,7 @@ function AccountingTab({
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
         onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
-        payments={activePayments}
+        payments={payments}
         refunds={accounting?.refunds ?? []}
         title="Sınav Ücretleri"
       />
@@ -3535,7 +3665,7 @@ function AccountingTab({
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
         onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
-        payments={activePayments}
+        payments={payments}
         refunds={accounting?.refunds ?? []}
         title="Diğer Ödemeler"
       />
@@ -4229,7 +4359,8 @@ function AccountingMovementSection({
               const hasPaymentHistory = relatedPayments.length > 0 || movement.paidAmount > 0 || movement.refundedAmount > 0;
               const status = accountingMovementStatus(movement);
               const canPay = movement.status === "active" && movement.remainingAmount > 0;
-              const canCancelMovement = movement.status === "active" && !hasPaymentHistory;
+              const netPaidAmount = Math.max(0, movement.paidAmount - movement.refundedAmount);
+              const canCancelMovement = movement.status === "active" && (!hasPaymentHistory || netPaidAmount <= 0);
               const displayDebtAmount = movement.status === "active" ? movement.remainingAmount : movement.amount;
               const canCreateInvoice = movement.status === "active" && displayDebtAmount > 0;
               const debtMatches =
@@ -4267,7 +4398,12 @@ function AccountingMovementSection({
                   {childRows.map((row) => {
                     if (row.kind === "payment") {
                       return (
-                        <tr className="candidate-accounting-transaction-row status-paid" key={`payment:${row.item.id}:${movement.id}`}>
+                        <tr
+                          className={`candidate-accounting-transaction-row ${
+                            row.item.status === "cancelled" ? "status-cancelled" : "status-paid"
+                          }`}
+                          key={`payment:${row.item.id}:${movement.id}`}
+                        >
                           {visibleColumns.map((column) => (
                             <td className={accountingLedgerCellClassName(column.id)} key={column.id}>
                               {renderAccountingPaymentCell({
@@ -4493,7 +4629,8 @@ function accountingPaymentPassesFilters(
   filters: AccountingLedgerFilters
 ) {
   if (filters.kind !== "all" && filters.kind !== "payment") return false;
-  if (filters.status === "cancelled") return false;
+  if (filters.status === "active" && payment.status !== "active") return false;
+  if (filters.status === "cancelled" && payment.status !== "cancelled") return false;
   if (filters.method !== "all" && payment.paymentMethod !== filters.method) return false;
   if (filters.cashRegister !== "all" && payment.cashRegister?.name !== filters.cashRegister) {
     return false;
@@ -4525,6 +4662,7 @@ function accountingMovementSortValue(
   field: AccountingLedgerSortField
 ) {
   const relatedPayment = payments.find((payment) =>
+    payment.status === "active" &&
     payment.allocations.some((allocation) => allocation.movementId === movement.id)
   );
 
@@ -4694,6 +4832,15 @@ function renderAccountingPaymentCell({
   onCancelPayment: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
 }) {
   if (columnId === "type") {
+    if (payment.status === "cancelled") {
+      return (
+        <div className="candidate-accounting-type-cell">
+          <span>İptal</span>
+          <span className="candidate-finance-installment-status status-cancelled">Tahsilat iptali</span>
+        </div>
+      );
+    }
+
     return (
       <div className="candidate-accounting-type-cell">
         <span>Ödendi</span>
@@ -4701,20 +4848,26 @@ function renderAccountingPaymentCell({
       </div>
     );
   }
-  if (columnId === "description") return payment.note || "Ödeme";
-  if (columnId === "dueDate") return formatDateTR(payment.paidAtUtc);
+  if (columnId === "description") return payment.status === "cancelled"
+    ? payment.cancellationReason || "Ödeme iptali"
+    : payment.note || "Ödeme";
+  if (columnId === "dueDate") return renderFinanceDateTime(payment.cancelledAtUtc ?? payment.paidAtUtc);
   if (columnId === "amount") return formatCurrencyTRY(allocation.amount);
-  if (columnId === "paidAmount") return formatCurrencyTRY(allocation.amount);
-  if (columnId === "remainingAmount") return "—";
+  if (columnId === "paidAmount") return payment.status === "cancelled" ? "—" : formatCurrencyTRY(allocation.amount);
+  if (columnId === "remainingAmount") {
+    return payment.status === "cancelled" ? formatCurrencyTRY(allocation.amount) : "—";
+  }
   if (columnId === "number") return movement.number;
-  if (columnId === "method") return paymentMethodLabel(payment.paymentMethod);
+  if (columnId === "method") return payment.status === "cancelled" ? "İptal" : paymentMethodLabel(payment.paymentMethod);
   if (columnId === "cashRegister") return payment.cashRegister?.name ?? "—";
   if (columnId === "refundedAmount") {
-    return payment.refundedAmount > 0
+    return payment.status === "active" && payment.refundedAmount > 0
       ? formatCurrencyTRY(refundShareForMovement(payment, movement.id, payment.refundedAmount))
       : "—";
   }
-  if (columnId === "paidAt") return formatDateTR(payment.paidAtUtc);
+  if (columnId === "paidAt") return renderFinanceDateTime(payment.cancelledAtUtc ?? payment.paidAtUtc);
+
+  if (payment.status === "cancelled") return "—";
 
   const rowKey = `payment:${payment.id}:${movement.id}`;
   const refundableAmount = payment.amount - payment.refundedAmount;
@@ -4768,7 +4921,7 @@ function renderAccountingRefundCell({
     );
   }
   if (columnId === "description") return refund.note || "İade";
-  if (columnId === "dueDate") return formatDateTR(refund.refundedAtUtc);
+  if (columnId === "dueDate") return renderFinanceDateTime(refund.refundedAtUtc);
   if (columnId === "amount") return formatCurrencyTRY(amount);
   if (columnId === "paidAmount") return "—";
   if (columnId === "remainingAmount") return formatCurrencyTRY(amount);
@@ -4776,7 +4929,7 @@ function renderAccountingRefundCell({
   if (columnId === "method") return "İade";
   if (columnId === "cashRegister") return refund.cashRegister?.name ?? payment.cashRegister?.name ?? "—";
   if (columnId === "refundedAmount") return formatCurrencyTRY(amount);
-  if (columnId === "paidAt") return formatDateTR(refund.refundedAtUtc);
+  if (columnId === "paidAt") return renderFinanceDateTime(refund.refundedAtUtc);
   return "—";
 }
 
@@ -4818,7 +4971,7 @@ function AccountingReceiptModal({
           <div><dt>Aday</dt><dd>{candidate.firstName} {candidate.lastName}</dd></div>
           <div><dt>TC Kimlik No</dt><dd>{candidate.nationalId}</dd></div>
           <div><dt>Tür</dt><dd>{accountingTypeLabel(payment.type)}</dd></div>
-          <div><dt>Ödeme Tarihi</dt><dd>{formatDateTR(payment.paidAtUtc)}</dd></div>
+          <div><dt>Ödeme Tarihi</dt><dd>{renderFinanceDateTime(payment.paidAtUtc)}</dd></div>
           <div><dt>Ödeme Yöntemi</dt><dd>{paymentMethodLabel(payment.paymentMethod)}</dd></div>
           <div><dt>Kasa</dt><dd>{payment.cashRegister?.name ?? "—"}</dd></div>
           <div><dt>Açıklama</dt><dd>{payment.note ?? "—"}</dd></div>
@@ -4842,6 +4995,20 @@ function examAttemptTimeOptions(selectedTime: string): string[] {
   return [...new Set([selectedTime, ...EXAM_ATTEMPT_TIME_OPTIONS])]
     .filter(Boolean)
     .sort((left, right) => left.localeCompare(right));
+}
+
+function examScheduleDateTimeLocal(schedule: ExamScheduleOption): string {
+  const scheduleTime = schedule.time.slice(0, 5);
+  const time = scheduleTime === "00:00" ? DEFAULT_DRIVING_EXAM_TIME : scheduleTime;
+  return combineDateAndTimeLocal(schedule.date, time);
+}
+
+function formatExamScheduleOptionLabel(schedule: ExamScheduleOption): string {
+  return formatDateTR(schedule.date);
+}
+
+function formatExamScheduleOptionSecondary(schedule: ExamScheduleOption): string | undefined {
+  return schedule.examCode ?? undefined;
 }
 
 function CandidateExamAttemptsSection({
@@ -4876,18 +5043,20 @@ function CandidateExamAttemptsSection({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingAttempt, setEditingAttempt] = useState<CandidateExamAttemptResponse | null>(null);
   const [saving, setSaving] = useState(false);
   const [rowSavingId, setRowSavingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<VehicleResponse[]>([]);
   const [instructors, setInstructors] = useState<InstructorResponse[]>([]);
+  const [practiceSchedules, setPracticeSchedules] = useState<ExamScheduleOption[]>([]);
   const [form, setForm] = useState({
     examType: "theory" as CandidateExamType,
     scheduledAt: combineDateAndTimeLocal(todayIsoDate(), "00:00"),
-    expiresAt: "",
+    examScheduleId: "",
     vehicleId: "",
     instructorId: "",
-    examAttendanceStatus: "" as "" | "attended" | "absent",
+    examAttendanceStatus: "" as "" | "attended" | "absent" | "reported",
     examResultStatus: "" as "" | "passed" | "failed",
     score: "",
     fee: "",
@@ -4897,10 +5066,19 @@ function CandidateExamAttemptsSection({
   const [suggestedFeesByKey, setSuggestedFeesByKey] = useState<Record<string, number | null>>({});
   const theoryAttempts = attempts.filter((attempt) => attempt.examType === "theory");
   const practiceAttempts = attempts.filter((attempt) => attempt.examType === "practice");
-  const theoryExpiryDate = addDaysToISODate(
-    datePartFromDateTimeLocal(form.scheduledAt),
-    THEORY_EXAM_EXPIRY_DAYS
+  const editingFeeLocked = Boolean(editingAttempt);
+  const theoryRightsExpiryDate = addDaysToISODate(
+    candidate.currentGroup?.startDate,
+    THEORY_RIGHTS_EXPIRY_DAYS
   );
+  const theoryRightsRemainingDays = theoryRightsExpiryDate
+    ? daysUntilISODate(theoryRightsExpiryDate)
+    : null;
+  const hasPassedTheoryExam =
+    normalizeCandidateExamResultValue(candidate.mebExamResult) === "passed" ||
+    theoryAttempts.some((attempt) => (attempt.score ?? -1) >= 70);
+  const theoryRightsExpiryBadgeKind =
+    theoryRightsRemainingDays === null ? "normal" : theoryRightsExpiryKind(theoryRightsRemainingDays);
 
   const reload = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -4925,6 +5103,9 @@ function CandidateExamAttemptsSection({
     getInstructors({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
       .then((response) => setInstructors(response.items))
       .catch(() => setInstructors([]));
+    getExamScheduleOptions({ examType: "uygulama" }, controller.signal)
+      .then((response) => setPracticeSchedules(response))
+      .catch(() => setPracticeSchedules([]));
     return () => controller.abort();
   }, [candidate.id]);
 
@@ -5009,16 +5190,23 @@ function CandidateExamAttemptsSection({
     return () => controller.abort();
   }, [attempts, candidate.certificateProgramId, candidate.licenseClass]);
 
-  const nextAttemptNumber = (examType: CandidateExamType) => {
-    return nextCandidateExamAttemptNumber(attempts, examType);
+  const nextAttemptNumber = (
+    examType: CandidateExamType,
+    attendanceStatus?: CandidateExamAttemptResponse["examAttendanceStatus"] | ""
+  ) => {
+    return nextCandidateExamAttemptNumber(attempts, examType, attendanceStatus);
   };
 
   const openAddForm = (examType: CandidateExamType = "theory") => {
+    const defaultPracticeSchedule = examType === "practice" ? practiceSchedules[0] : null;
+    setEditingAttempt(null);
     setFeeTouched(false);
     setForm({
       examType,
-      scheduledAt: combineDateAndTimeLocal(todayIsoDate(), "00:00"),
-      expiresAt: "",
+      scheduledAt: defaultPracticeSchedule
+        ? examScheduleDateTimeLocal(defaultPracticeSchedule)
+        : combineDateAndTimeLocal(todayIsoDate(), "00:00"),
+      examScheduleId: defaultPracticeSchedule?.id ?? "",
       vehicleId: "",
       instructorId: "",
       examAttendanceStatus: "",
@@ -5029,33 +5217,52 @@ function CandidateExamAttemptsSection({
     setAddOpen(true);
   };
 
-  const createAttempt = async () => {
-    const fee = parseMoneyInput(form.fee) ?? 0;
-    const attemptNumber = nextAttemptNumber(form.examType);
-    if (attemptNumber > 4) {
-      showToast("Bu sınav tipi için 4 hak dolmuş.", "error");
+  const openEditForm = (attempt: CandidateExamAttemptResponse) => {
+    setEditingAttempt(attempt);
+    setFeeTouched(true);
+    setDeleteConfirmId(null);
+    setForm({
+      examType: attempt.examType,
+      scheduledAt: toDateTimeLocalValue(attempt.scheduledAt),
+      examScheduleId: attempt.examScheduleId ?? "",
+      vehicleId: attempt.vehicleId ?? "",
+      instructorId: attempt.instructorId ?? "",
+      examAttendanceStatus: (attempt.examAttendanceStatus ?? "") as "" | "attended" | "absent" | "reported",
+      examResultStatus: (attempt.examResultStatus ?? "") as "" | "passed" | "failed",
+      score: attempt.score == null ? "" : String(attempt.score),
+      fee: String(attempt.fee),
+    });
+    setAddOpen(true);
+  };
+
+  const closeAttemptForm = () => {
+    setAddOpen(false);
+    setEditingAttempt(null);
+  };
+
+  const saveAttempt = async () => {
+    const fee = editingAttempt ? editingAttempt.fee : parseMoneyInput(form.fee) ?? 0;
+    const maxAttemptNumber = candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus);
+    const attemptNumber = editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus);
+    if (attemptNumber > maxAttemptNumber) {
+      showToast(`Bu sınav tipi için ${maxAttemptNumber} hak dolmuş.`, "error");
       return;
     }
     if (!form.scheduledAt) {
       showToast("Sınav tarih-saati zorunlu.", "error");
       return;
     }
-    if (form.examType === "practice" && !form.vehicleId) {
-      showToast("Direksiyon sınavı için plaka seçilmeli.", "error");
-      return;
-    }
-    if (form.examType === "practice" && !form.instructorId) {
-      showToast("Direksiyon sınavı için usta öğretici seçilmeli.", "error");
+    if (form.examType === "practice" && !form.examScheduleId) {
+      showToast("Direksiyon sınavı için sınav tarihi seçilmeli.", "error");
       return;
     }
     if (form.examType === "practice" && form.examAttendanceStatus !== "attended" && form.examResultStatus) {
       showToast("Sınav sonucu sadece aday sınava girdiyse seçilebilir.", "error");
       return;
     }
-    // Score 0..100 opsiyonel; boş ise null gönderilir.
     const trimmedScore = form.score.trim();
     let scoreValue: number | null = null;
-    if (trimmedScore !== "") {
+    if (form.examType === "theory" && trimmedScore !== "") {
       if (!/^\d{1,3}$/.test(trimmedScore)) {
         showToast("Puan sadece 0-100 arası tam sayı olmalı.", "error");
         return;
@@ -5073,16 +5280,13 @@ function CandidateExamAttemptsSection({
       const vehicle = vehicles.find((item) => item.id === form.vehicleId);
       const instructor = instructors.find((item) => item.id === form.instructorId);
       const isPractice = form.examType === "practice";
-      const created = await createCandidateExamAttempt(candidate.id, {
+      const payload = {
         examType: form.examType,
         scheduledAt: fromDateTimeLocalValue(form.scheduledAt),
+        examScheduleId: isPractice ? form.examScheduleId : null,
         attemptNumber,
         score: scoreValue,
-        expiresAt: isPractice
-          ? form.expiresAt
-            ? new Date(`${form.expiresAt}T00:00:00`).toISOString()
-            : null
-          : null,
+        expiresAt: null,
         vehicleId: isPractice ? vehicle?.id ?? null : null,
         vehiclePlate: isPractice ? vehicle?.plateNumber ?? null : null,
         instructorId: isPractice ? instructor?.id ?? null : null,
@@ -5090,13 +5294,36 @@ function CandidateExamAttemptsSection({
         examAttendanceStatus: isPractice ? form.examAttendanceStatus || null : null,
         examResultStatus: isPractice && form.examAttendanceStatus === "attended" ? form.examResultStatus || null : null,
         fee,
-        feeStatus: "pending",
-      });
-      setAttempts((items) => [...items, created].sort(compareExamAttempts));
-      setAddOpen(false);
-      showToast("Yeni e-sınav denemesi eklendi");
+        feeStatus: editingAttempt?.feeStatus ?? "pending",
+        rowVersion: editingAttempt?.rowVersion,
+      };
+      const saved = editingAttempt
+        ? await updateCandidateExamAttempt(candidate.id, editingAttempt.id, payload)
+        : await createCandidateExamAttempt(candidate.id, payload);
+      setAttempts((items) =>
+        (editingAttempt
+          ? items.map((item) => (item.id === saved.id ? saved : item))
+          : [...items, saved]
+        ).sort(compareExamAttempts)
+      );
+      if (editingAttempt && !editingFeeLocked && fee !== editingAttempt.fee) {
+        try {
+          await onAccountingChanged?.();
+        } catch {
+          showToast("Finans bilgileri güncellenemedi.", "error");
+        }
+      }
+      closeAttemptForm();
+      showToast(editingAttempt
+        ? "Sınav bilgileri güncellendi"
+        : isPractice ? "Yeni direksiyon sınavı eklendi" : "Yeni e-sınav denemesi eklendi");
     } catch (error) {
-      showToast(examAttemptCreateErrorMessage(error), "error");
+      const message = error instanceof ApiError && error.status === 409
+        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
+        : editingAttempt
+          ? "Sınav bilgileri güncellenemedi."
+          : examAttemptCreateErrorMessage(error);
+      showToast(message, "error");
     } finally {
       setSaving(false);
     }
@@ -5151,6 +5378,44 @@ function CandidateExamAttemptsSection({
       const message = error instanceof ApiError && error.status === 409
         ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
         : "Puan kaydedilemedi.";
+      showToast(message, "error");
+      return false;
+    } finally {
+      setRowSavingId(null);
+    }
+  };
+
+  const updatePracticeAttemptStatus = async (
+    attempt: CandidateExamAttemptResponse,
+    nextAttendanceStatus: CandidateExamAttemptResponse["examAttendanceStatus"],
+    nextResultStatus: CandidateExamAttemptResponse["examResultStatus"]
+  ): Promise<boolean> => {
+    setRowSavingId(attempt.id);
+    try {
+      const updated = await updateCandidateExamAttempt(candidate.id, attempt.id, {
+        examType: attempt.examType,
+        scheduledAt: attempt.scheduledAt,
+        attemptNumber: attempt.attemptNumber,
+        score: attempt.score,
+        expiresAt: attempt.expiresAt ?? null,
+        examScheduleId: attempt.examScheduleId ?? null,
+        vehicleId: attempt.vehicleId ?? null,
+        vehiclePlate: attempt.vehiclePlate ?? null,
+        instructorId: attempt.instructorId ?? null,
+        instructorFullName: attempt.instructorFullName ?? null,
+        examAttendanceStatus: nextAttendanceStatus,
+        examResultStatus: nextAttendanceStatus === "attended" ? nextResultStatus : null,
+        fee: attempt.fee,
+        feeStatus: attempt.feeStatus,
+        rowVersion: attempt.rowVersion,
+      });
+      setAttempts((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      showToast("Direksiyon sınav durumu güncellendi");
+      return true;
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 409
+        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
+        : "Direksiyon sınav durumu güncellenemedi.";
       showToast(message, "error");
       return false;
     } finally {
@@ -5221,7 +5486,19 @@ function CandidateExamAttemptsSection({
         data-muaf={isTheoryExempt ? "true" : undefined}
       >
         <div className="candidate-exam-attempts-head">
-          <h3 className="candidate-detail-section-title">E-Sınav</h3>
+          <div className="candidate-exam-attempts-title-group">
+            <h3 className="candidate-detail-section-title">E-Sınav</h3>
+            {!loading && !hasPassedTheoryExam && theoryRightsExpiryDate && theoryRightsRemainingDays !== null ? (
+              <span
+                className={`candidate-exam-rights-expiry ${theoryRightsExpiryBadgeKind}`}
+                title={`Grup başlangıç tarihinden itibaren ${THEORY_RIGHTS_EXPIRY_DAYS}. gün`}
+              >
+                Hakların yanacağı tarih:
+                <strong>{formatDateTR(theoryRightsExpiryDate)}</strong>
+                <span>{formatRemainingDayCount(theoryRightsRemainingDays)}</span>
+              </span>
+            ) : null}
+          </div>
           {!loading && !error ? (
             <div className="candidate-exam-attempts-head-actions">
               <label
@@ -5257,7 +5534,6 @@ function CandidateExamAttemptsSection({
                   <th>Tarih-saat</th>
                   <th>Hak</th>
                   <th>Puan</th>
-                  <th>Hakkın yanacağı tarih</th>
                   <th>Sınav ücreti</th>
                   <th>Ücret Durumu</th>
                   <th>İşlem</th>
@@ -5266,17 +5542,19 @@ function CandidateExamAttemptsSection({
               <tbody>
                 {theoryAttempts.length === 0 ? (
                   <tr>
-                    <td className="data-table-empty" colSpan={7}>Henüz e-sınav denemesi yok.</td>
+                    <td className="data-table-empty" colSpan={6}>Henüz e-sınav denemesi yok.</td>
                   </tr>
                 ) : theoryAttempts.map((attempt) => (
                   <CandidateExamAttemptRow
                     attempt={attempt}
+                    attemptLimit={candidateExamAttemptLimit(attempts, attempt.examType)}
                     disabled={rowSavingId === attempt.id}
                     deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
                     onCharge={() => chargeAttempt(attempt)}
                     onCancelDelete={() => setDeleteConfirmId(null)}
                     onConfirmDelete={() => void confirmDelete(attempt)}
+                    onEdit={() => openEditForm(attempt)}
                     onRequestDelete={() => setDeleteConfirmId(attempt.id)}
                     onPay={() => void payAttempt(attempt)}
                     onSelfPaid={() => markSelfPaid(attempt)}
@@ -5314,8 +5592,8 @@ function CandidateExamAttemptsSection({
                   <th>Hak</th>
                   <th>Sınav Durumu</th>
                   <th>Sınav Sonucu</th>
-                  <th>Puan</th>
                   <th>Sınav Ücreti</th>
+                  <th>Ücret Durumu</th>
                   <th>İşlem</th>
                 </tr>
               </thead>
@@ -5327,13 +5605,20 @@ function CandidateExamAttemptsSection({
                 ) : practiceAttempts.map((attempt) => (
                   <CandidatePracticeExamAttemptRow
                     attempt={attempt}
+                    attemptLimit={candidateExamAttemptLimit(attempts, attempt.examType)}
                     disabled={rowSavingId === attempt.id}
                     deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
+                    onCharge={() => chargeAttempt(attempt)}
                     onCancelDelete={() => setDeleteConfirmId(null)}
                     onConfirmDelete={() => void confirmDelete(attempt)}
+                    onEdit={() => openEditForm(attempt)}
+                    onPay={() => void payAttempt(attempt)}
                     onRequestDelete={() => setDeleteConfirmId(attempt.id)}
-                    onScoreSave={(nextScore) => updateAttemptScore(attempt, nextScore)}
+                    onSelfPaid={() => markSelfPaid(attempt)}
+                    onStatusSave={(nextAttendanceStatus, nextResultStatus) =>
+                      updatePracticeAttemptStatus(attempt, nextAttendanceStatus, nextResultStatus)
+                    }
                     suggestedFee={suggestedFeesByKey[suggestedFeeLookupKeyForAttempt(attempt)] ?? null}
                   />
                 ))}
@@ -5346,29 +5631,38 @@ function CandidateExamAttemptsSection({
       <Modal
         footer={
           <>
-            <button className="btn btn-secondary" disabled={saving} onClick={() => setAddOpen(false)} type="button">
+            <button className="btn btn-secondary" disabled={saving} onClick={closeAttemptForm} type="button">
               Vazgeç
             </button>
-            <button className="btn btn-primary" disabled={saving} onClick={createAttempt} type="button">
+            <button className="btn btn-primary" disabled={saving} onClick={saveAttempt} type="button">
               Kaydet
             </button>
           </>
         }
-        onClose={() => setAddOpen(false)}
+        onClose={closeAttemptForm}
         open={addOpen}
-        title={form.examType === "practice" ? "Yeni direksiyon sınavı" : "Yeni e-sınav"}
+        title={editingAttempt
+          ? form.examType === "practice" ? "Direksiyon sınavını düzenle" : "E-sınavı düzenle"
+          : form.examType === "practice" ? "Yeni direksiyon sınavı" : "Yeni e-sınav"}
       >
         <div className="candidate-exam-attempt-form">
           <label>
             <span>Sınav tipi</span>
             <CustomSelect
               className="form-select"
+              disabled={!!editingAttempt}
               value={form.examType}
               onChange={(event) => {
+                const nextExamType = event.target.value as CandidateExamType;
+                const defaultPracticeSchedule = nextExamType === "practice" ? practiceSchedules[0] : null;
                 setFeeTouched(false);
                 setForm((current) => ({
                   ...current,
-                  examType: event.target.value as CandidateExamType,
+                  examType: nextExamType,
+                  scheduledAt: defaultPracticeSchedule
+                    ? examScheduleDateTimeLocal(defaultPracticeSchedule)
+                    : current.scheduledAt,
+                  examScheduleId: defaultPracticeSchedule?.id ?? "",
                   vehicleId: "",
                   instructorId: "",
                   examAttendanceStatus: "",
@@ -5382,67 +5676,119 @@ function CandidateExamAttemptsSection({
               <option value="practice">Direksiyon</option>
             </CustomSelect>
           </label>
-          <label>
-            <span>Tarih</span>
-            <LocalizedDateInput
-              className="form-input"
-              lang="tr-TR"
-              onChange={(date) =>
-                setForm((current) => ({
-                  ...current,
-                  scheduledAt: combineDateAndTimeLocal(date, timePartFromDateTimeLocal(current.scheduledAt)),
-                }))
-              }
-              value={datePartFromDateTimeLocal(form.scheduledAt)}
-            />
-          </label>
-          <label>
-            <span>Saat</span>
-            <CustomSelect
-              className="form-select"
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  scheduledAt: combineDateAndTimeLocal(
-                    datePartFromDateTimeLocal(current.scheduledAt),
-                    event.target.value
-                  ),
-                }))
-              }
-              value={timePartFromDateTimeLocal(form.scheduledAt)}
-            >
-              {examAttemptTimeOptions(timePartFromDateTimeLocal(form.scheduledAt)).map((time) => (
-                <option key={time} value={time}>
-                  {time}
-                </option>
-              ))}
-            </CustomSelect>
-          </label>
-          <label>
-            <span>Hak</span>
-            <input readOnly value={`${Math.min(nextAttemptNumber(form.examType), 4)}/4`} />
-          </label>
-          {form.examType === "theory" ? (
-            <label>
-              <span>Yanma tarihi</span>
-              <input
-                className="form-input"
-                readOnly
-                title={`Sınav tarihinden ${THEORY_EXAM_EXPIRY_DAYS} gün sonrası otomatik hesaplanır.`}
-                value={formatDateTR(theoryExpiryDate)}
-              />
-            </label>
+          {form.examType === "practice" ? (
+            <>
+              <label>
+                <span>Hak</span>
+                <input
+                  readOnly
+                  value={`${Math.min(
+                    editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus),
+                    candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)
+                  )}/${candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)}`}
+                />
+              </label>
+              <label>
+                <span>Sınav tarihi</span>
+                <CustomSelect
+                  className="form-select"
+                  onChange={(event) => {
+                    const schedule = practiceSchedules.find((item) => item.id === event.target.value) ?? null;
+                    setForm((current) => ({
+                      ...current,
+                      examScheduleId: schedule?.id ?? "",
+                      scheduledAt: schedule
+                        ? combineDateAndTimeLocal(
+                            schedule.date,
+                            timePartFromDateTimeLocal(current.scheduledAt) === "00:00"
+                              ? DEFAULT_DRIVING_EXAM_TIME
+                              : timePartFromDateTimeLocal(current.scheduledAt)
+                          )
+                        : current.scheduledAt,
+                    }));
+                  }}
+                  value={form.examScheduleId}
+                >
+                  <option value="">—</option>
+                  {practiceSchedules.map((schedule) => (
+                    <option
+                      data-secondary={formatExamScheduleOptionSecondary(schedule)}
+                      key={schedule.id}
+                      value={schedule.id}
+                    >
+                      {formatExamScheduleOptionLabel(schedule)}
+                    </option>
+                  ))}
+                </CustomSelect>
+              </label>
+              <label>
+                <span>Saat</span>
+                <LocalizedTimeInput
+                  ariaLabel="Direksiyon sınav saati"
+                  className="form-input"
+                  onChange={(time) =>
+                    setForm((current) => ({
+                      ...current,
+                      scheduledAt: combineDateAndTimeLocal(datePartFromDateTimeLocal(current.scheduledAt), time),
+                    }))
+                  }
+                  timeOptions={DRIVING_EXAM_TIME_SLOTS}
+                  value={timePartFromDateTimeLocal(form.scheduledAt)}
+                />
+              </label>
+            </>
           ) : (
+            <>
+              <label>
+                <span>Tarih</span>
+                <LocalizedDateInput
+                  className="form-input"
+                  lang="tr-TR"
+                  onChange={(date) =>
+                    setForm((current) => ({
+                      ...current,
+                      scheduledAt: combineDateAndTimeLocal(date, timePartFromDateTimeLocal(current.scheduledAt)),
+                    }))
+                  }
+                  value={datePartFromDateTimeLocal(form.scheduledAt)}
+                />
+              </label>
+              <label>
+                <span>Saat</span>
+                <CustomSelect
+                  className="form-select"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      scheduledAt: combineDateAndTimeLocal(
+                        datePartFromDateTimeLocal(current.scheduledAt),
+                        event.target.value
+                      ),
+                    }))
+                  }
+                  value={timePartFromDateTimeLocal(form.scheduledAt)}
+                >
+                  {examAttemptTimeOptions(timePartFromDateTimeLocal(form.scheduledAt)).map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </CustomSelect>
+              </label>
+            </>
+          )}
+          {form.examType !== "practice" ? (
             <label>
-              <span>Yanma tarihi</span>
-              <LocalizedDateInput
-                className="form-input"
-                lang="tr-TR"
-                onChange={(expiresAt) => setForm((current) => ({ ...current, expiresAt }))}
-                value={form.expiresAt}
+              <span>Hak</span>
+              <input
+                readOnly
+                value={`${Math.min(
+                  editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus),
+                  candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)
+                )}/${candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)}`}
               />
             </label>
-          )}
+          ) : null}
           {form.examType === "practice" ? (
             <>
               <label>
@@ -5482,7 +5828,7 @@ function CandidateExamAttemptsSection({
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      examAttendanceStatus: event.target.value as "" | "attended" | "absent",
+                      examAttendanceStatus: event.target.value as "" | "attended" | "absent" | "reported",
                       examResultStatus: event.target.value === "attended" ? current.examResultStatus : "",
                     }))
                   }
@@ -5491,6 +5837,7 @@ function CandidateExamAttemptsSection({
                   <option value="">—</option>
                   <option value="attended">Girdi</option>
                   <option value="absent">Girmedi</option>
+                  <option value="reported">Raporlu</option>
                 </CustomSelect>
               </label>
               <label>
@@ -5518,30 +5865,36 @@ function CandidateExamAttemptsSection({
               Sınav ücreti{suggestedFee != null ? ` (${formatCurrencyTRY(suggestedFee)})` : ""}
             </span>
             <input
+              disabled={editingFeeLocked}
               min="0"
+              readOnly={editingFeeLocked}
               type="number"
               value={form.fee}
               onChange={(event) => {
+                if (editingFeeLocked) return;
                 setFeeTouched(true);
                 setForm((current) => ({ ...current, fee: event.target.value }));
               }}
             />
+            {editingFeeLocked ? <em>Düzenlenen sınavlarda tutar değiştirilemez.</em> : null}
           </label>
-          <label>
-            <span>Puan (0-100, opsiyonel)</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="—"
-              value={form.score}
-              onChange={(event) => {
-                // Sadece rakam + 3 hane sınırı; "70.5" / "75abc" silent
-                // kabul etmesin diye onChange'te filtrele.
-                const next = event.target.value.replace(/[^\d]/g, "").slice(0, 3);
-                setForm((current) => ({ ...current, score: next }));
-              }}
-            />
-          </label>
+          {form.examType === "theory" ? (
+            <label>
+              <span>Puan (0-100, opsiyonel)</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="—"
+                value={form.score}
+                onChange={(event) => {
+                  // Sadece rakam + 3 hane sınırı; "70.5" / "75abc" silent
+                  // kabul etmesin diye onChange'te filtrele.
+                  const next = event.target.value.replace(/[^\d]/g, "").slice(0, 3);
+                  setForm((current) => ({ ...current, score: next }));
+                }}
+              />
+            </label>
+          ) : null}
         </div>
       </Modal>
 
@@ -5551,11 +5904,13 @@ function CandidateExamAttemptsSection({
 
 function CandidateExamAttemptRow({
   attempt,
+  attemptLimit,
   disabled,
   deleteConfirmOpen,
   onCharge,
   onCancelDelete,
   onConfirmDelete,
+  onEdit,
   onPay,
   onRequestDelete,
   onSelfPaid,
@@ -5563,37 +5918,29 @@ function CandidateExamAttemptRow({
   suggestedFee,
 }: {
   attempt: CandidateExamAttemptResponse;
+  attemptLimit: number;
   disabled: boolean;
   deleteConfirmOpen: boolean;
   onCharge: () => void;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
+  onEdit: () => void;
   onPay: () => void;
   onRequestDelete: () => void;
   onSelfPaid: () => void;
   onScoreSave: (nextScore: number | null) => Promise<boolean>;
   suggestedFee: number | null;
 }) {
-  const expiry = getExpiryDisplay(attempt.expiresAt);
-
   return (
     <tr>
       <td>{formatDateTimeTR(attempt.scheduledAt)}</td>
-      <td>{attempt.attemptNumber}/4</td>
+      <td>{attempt.attemptNumber}/{attemptLimit}</td>
       <td>
         <EditableScoreCell
           score={attempt.score}
           disabled={disabled}
           onSave={onScoreSave}
         />
-      </td>
-      <td>
-        {attempt.expiresAt ? (
-          <div className={`candidate-exam-expiry ${expiry.kind}`}>
-            <span>{formatDateTR(attempt.expiresAt)}</span>
-            <small>{expiry.label}</small>
-          </div>
-        ) : "—"}
       </td>
       <td>
         <div className="candidate-exam-fee-cell">
@@ -5608,79 +5955,165 @@ function CandidateExamAttemptRow({
         </div>
       </td>
       <td>
-        <div className="candidate-exam-fee-status">
-          <span className={`candidate-exam-pill ${feeStatusKind(attempt.feeStatus)}`}>
-            {feeStatusLabel(attempt.feeStatus)}
-          </span>
-          {attempt.feeStatus === "pending" ? (
-            <>
-              <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onCharge} type="button">
-                Borçlandır
-              </button>
-              <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onSelfPaid} type="button">
-                Kendi ödedi
-              </button>
-            </>
-          ) : attempt.feeStatus === "charged" ? (
-            <button
-              className="btn btn-secondary btn-sm"
-              disabled={disabled}
-              onClick={onPay}
-              type="button"
-            >
-              Öde
-            </button>
-          ) : attempt.paidAt ? (
-            <small>{formatDateTR(attempt.paidAt)}</small>
-          ) : null}
-        </div>
+        <ExamFeeStatusCell
+          attempt={attempt}
+          disabled={disabled}
+          onCharge={onCharge}
+          onPay={onPay}
+          onSelfPaid={onSelfPaid}
+          showSelfPaid
+        />
       </td>
       <td>
-        <InlineDeleteConfirm
-          disabled={disabled}
-          open={deleteConfirmOpen}
-          onCancel={onCancelDelete}
-          onConfirm={onConfirmDelete}
-          onRequest={onRequestDelete}
-        />
+        <div className="candidate-exam-row-actions">
+          <button
+            aria-label="Sınavı düzenle"
+            className="candidate-exam-row-action"
+            disabled={disabled}
+            onClick={onEdit}
+            type="button"
+          >
+            <PencilIcon size={14} />
+          </button>
+          <InlineDeleteConfirm
+            disabled={disabled}
+            open={deleteConfirmOpen}
+            onCancel={onCancelDelete}
+            onConfirm={onConfirmDelete}
+            onRequest={onRequestDelete}
+          />
+        </div>
       </td>
     </tr>
   );
 }
 
-function CandidatePracticeExamAttemptRow({
+function ExamFeeStatusCell({
   attempt,
   disabled,
-  deleteConfirmOpen,
-  onCancelDelete,
-  onConfirmDelete,
-  onRequestDelete,
-  onScoreSave,
-  suggestedFee,
+  onCharge,
+  onPay,
+  onSelfPaid,
+  showSelfPaid = false,
 }: {
   attempt: CandidateExamAttemptResponse;
   disabled: boolean;
+  onCharge: () => void;
+  onPay: () => void;
+  onSelfPaid: () => void;
+  showSelfPaid?: boolean;
+}) {
+  const statusLabel = feeStatusLabel(attempt.feeStatus);
+  const hasFee = attempt.fee > 0;
+  return (
+    <div className="candidate-exam-fee-status">
+      {statusLabel ? (
+        <span className={`candidate-exam-pill ${feeStatusKind(attempt.feeStatus)}`}>
+          {statusLabel}
+        </span>
+      ) : null}
+      {attempt.feeStatus === "pending" ? (
+        <>
+          {hasFee ? (
+            <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onCharge} type="button">
+              Borçlandır
+            </button>
+          ) : null}
+          {showSelfPaid ? (
+            <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onSelfPaid} type="button">
+              Kendi ödedi
+            </button>
+          ) : null}
+        </>
+      ) : attempt.feeStatus === "charged" || attempt.feeStatus === "partially_paid" ? (
+        <button
+          className="btn btn-secondary btn-sm"
+          disabled={disabled}
+          onClick={onPay}
+          type="button"
+        >
+          Öde
+        </button>
+      ) : attempt.paidAt ? (
+        <small>{formatDateTR(attempt.paidAt)}</small>
+      ) : null}
+    </div>
+  );
+}
+
+function CandidatePracticeExamAttemptRow({
+  attempt,
+  attemptLimit,
+  disabled,
+  deleteConfirmOpen,
+  onCharge,
+  onCancelDelete,
+  onConfirmDelete,
+  onEdit,
+  onPay,
+  onRequestDelete,
+  onSelfPaid,
+  onStatusSave,
+  suggestedFee,
+}: {
+  attempt: CandidateExamAttemptResponse;
+  attemptLimit: number;
+  disabled: boolean;
   deleteConfirmOpen: boolean;
+  onCharge: () => void;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
+  onEdit: () => void;
+  onPay: () => void;
   onRequestDelete: () => void;
-  onScoreSave: (nextScore: number | null) => Promise<boolean>;
+  onSelfPaid: () => void;
+  onStatusSave: (
+    nextAttendanceStatus: CandidateExamAttemptResponse["examAttendanceStatus"],
+    nextResultStatus: CandidateExamAttemptResponse["examResultStatus"]
+  ) => Promise<boolean>;
   suggestedFee: number | null;
 }) {
+  const attendanceStatus = attempt.examAttendanceStatus ?? "";
+  const resultStatus = attempt.examResultStatus ?? "";
   return (
     <tr>
       <td>{formatDateTimeTR(attempt.scheduledAt)}</td>
       <td>{attempt.vehiclePlate ?? "—"}</td>
       <td>{attempt.instructorFullName ?? "—"}</td>
-      <td>{attempt.attemptNumber}/4</td>
-      <td>{practiceAttendanceLabel(attempt.examAttendanceStatus)}</td>
-      <td>{practiceResultLabel(attempt.examResultStatus)}</td>
+      <td>{attempt.attemptNumber}/{attemptLimit}</td>
       <td>
-        <EditableScoreCell
-          score={attempt.score}
+        <CustomSelect
+          aria-label="Sınav durumu"
+          className="candidate-exam-inline-select"
           disabled={disabled}
-          onSave={onScoreSave}
-        />
+          onChange={(event) => {
+            const nextAttendanceStatus = (event.target.value || null) as CandidateExamAttemptResponse["examAttendanceStatus"];
+            const nextResultStatus = nextAttendanceStatus === "attended" ? attempt.examResultStatus : null;
+            void onStatusSave(nextAttendanceStatus, nextResultStatus);
+          }}
+          value={attendanceStatus}
+        >
+          <option value="">—</option>
+          <option value="attended">Girdi</option>
+          <option value="absent">Girmedi</option>
+          <option value="reported">Raporlu</option>
+        </CustomSelect>
+      </td>
+      <td>
+        <CustomSelect
+          aria-label="Sınav sonucu"
+          className="candidate-exam-inline-select"
+          disabled={disabled || attempt.examAttendanceStatus !== "attended"}
+          onChange={(event) => {
+            const nextResultStatus = (event.target.value || null) as CandidateExamAttemptResponse["examResultStatus"];
+            void onStatusSave(attempt.examAttendanceStatus, nextResultStatus);
+          }}
+          value={resultStatus}
+        >
+          <option value="">—</option>
+          <option value="passed">Başarılı</option>
+          <option value="failed">Başarısız</option>
+        </CustomSelect>
       </td>
       <td>
         <div className="candidate-exam-fee-cell">
@@ -5695,13 +6128,33 @@ function CandidatePracticeExamAttemptRow({
         </div>
       </td>
       <td>
-        <InlineDeleteConfirm
+        <ExamFeeStatusCell
+          attempt={attempt}
           disabled={disabled}
-          open={deleteConfirmOpen}
-          onCancel={onCancelDelete}
-          onConfirm={onConfirmDelete}
-          onRequest={onRequestDelete}
+          onCharge={onCharge}
+          onPay={onPay}
+          onSelfPaid={onSelfPaid}
         />
+      </td>
+      <td>
+        <div className="candidate-exam-row-actions">
+          <button
+            aria-label="Sınavı düzenle"
+            className="candidate-exam-row-action"
+            disabled={disabled}
+            onClick={onEdit}
+            type="button"
+          >
+            <PencilIcon size={14} />
+          </button>
+          <InlineDeleteConfirm
+            disabled={disabled}
+            open={deleteConfirmOpen}
+            onCancel={onCancelDelete}
+            onConfirm={onConfirmDelete}
+            onRequest={onRequestDelete}
+          />
+        </div>
       </td>
     </tr>
   );
@@ -5854,38 +6307,292 @@ function getScoreStatus(score: number | null): { label: string; kind: "success" 
   return score >= 70 ? { label: "Geçti", kind: "success" } : { label: "Kaldı", kind: "danger" };
 }
 
-function getExpiryDisplay(expiresAt: string | null): { label: string; kind: "normal" | "warning" | "danger" } {
-  if (!expiresAt) return { label: "—", kind: "normal" };
-  const today = new Date(todayIsoDate());
-  const expires = new Date(expiresAt);
-  const days = Math.ceil((expires.getTime() - today.getTime()) / 86_400_000);
-  if (days < 0) return { label: "Süresi doldu", kind: "danger" };
-  if (days < 30) return { label: `${days} gün kaldı`, kind: "warning" };
-  return { label: `${days} gün kaldı`, kind: "normal" };
-}
-
 function feeStatusLabel(status: CandidateExamFeeStatus): string {
   if (status === "paid") return "Yatırıldı";
+  if (status === "partially_paid") return "Kısmi ödendi";
+  if (status === "partially_refunded") return "Kısmi iade";
+  if (status === "refunded") return "İade edildi";
+  if (status === "cancelled") return "Borçlandırma silindi";
   if (status === "charged") return "Borçlandırıldı";
-  return "Hayır";
+  return "";
 }
 
 function feeStatusKind(status: CandidateExamFeeStatus): "success" | "warning" | "danger" {
-  if (status === "paid") return "success";
-  if (status === "charged") return "warning";
+  if (status === "paid" || status === "refunded" || status === "cancelled") return "success";
+  if (status === "charged" || status === "partially_paid" || status === "partially_refunded") return "warning";
   return "danger";
 }
 
-function practiceAttendanceLabel(status: CandidateExamAttemptResponse["examAttendanceStatus"]): string {
-  if (status === "attended") return "Girdi";
-  if (status === "absent") return "Girmedi";
-  return "—";
+type KCertificateRow = {
+  id: string;
+  startDate: string;
+  expiryDate: string;
+  lastLessonEndDate: string;
+  documentNumber: string;
+  persisted?: boolean;
+};
+
+function kCertificateStatus(
+  row: KCertificateRow,
+  latestDrivingExamDate: string | null | undefined
+): "valid" | "invalid" {
+  const examDate = latestDrivingExamDate ? latestDrivingExamDate.slice(0, 10) : "";
+  if (compareDateOnly(row.expiryDate, row.lastLessonEndDate) < 0) return "invalid";
+  if (examDate && compareDateOnly(row.expiryDate, examDate) < 0) return "invalid";
+  return "valid";
 }
 
-function practiceResultLabel(status: CandidateExamAttemptResponse["examResultStatus"]): string {
-  if (status === "passed") return "Başarılı";
-  if (status === "failed") return "Başarısız";
-  return "—";
+function buildKCertificateRows(
+  lessons: TrainingLessonResponse[],
+  candidateRegistrationNumber: string,
+  candidateId: string
+): KCertificateRow[] {
+  const sortedLessons = [...lessons]
+    .filter((lesson) => lesson.kind === "uygulama")
+    .sort((left, right) => new Date(left.startAtUtc).getTime() - new Date(right.startAtUtc).getTime());
+  const rows: KCertificateRow[] = [];
+  const candidateNumber = candidateRegistrationNumber.trim() || candidateId.slice(0, 8);
+
+  for (const lesson of sortedLessons) {
+    const lessonStartDate = dateOnlyInTurkey(lesson.startAtUtc);
+    const lessonEndDate = dateOnlyInTurkey(lesson.endAtUtc);
+    if (!lessonStartDate || !lessonEndDate) continue;
+
+    const current = rows.length > 0 ? rows[rows.length - 1] : undefined;
+    if (!current || compareDateOnly(lessonStartDate, current.expiryDate) > 0) {
+      rows.push({
+        id: lesson.id,
+        startDate: lessonStartDate,
+        expiryDate: addDaysToISODate(lessonStartDate, 180),
+        lastLessonEndDate: lessonEndDate,
+        documentNumber: `K-${candidateNumber}-${rows.length + 1}`,
+      });
+      continue;
+    }
+
+    if (compareDateOnly(lessonEndDate, current.lastLessonEndDate) > 0) {
+      current.lastLessonEndDate = lessonEndDate;
+    }
+  }
+
+  return rows;
+}
+
+function nextKCertificateRow(
+  previousRow: KCertificateRow,
+  candidateRegistrationNumber: string,
+  candidateId: string,
+  sequence: number
+): KCertificateRow {
+  const candidateNumber = candidateRegistrationNumber.trim() || candidateId.slice(0, 8);
+  const startDate = previousRow.expiryDate;
+  return {
+    id: "",
+    startDate,
+    expiryDate: addDaysToISODate(startDate, 180),
+    lastLessonEndDate: previousRow.lastLessonEndDate,
+    documentNumber: `K-${candidateNumber}-${sequence}`,
+  };
+}
+
+function kCertificateResponseToRow(certificate: CandidateKCertificateResponse): KCertificateRow {
+  return {
+    id: certificate.id,
+    startDate: certificate.startDate,
+    expiryDate: certificate.expiryDate,
+    lastLessonEndDate: certificate.lastLessonEndDate,
+    documentNumber: certificate.documentNumber,
+    persisted: true,
+  };
+}
+
+function CandidateKCertificateSection({ candidate }: { candidate: CandidateResponse }) {
+  const [lessons, setLessons] = useState<TrainingLessonResponse[]>([]);
+  const renewSavingRef = useRef(false);
+  const [hiddenRowIds, setHiddenRowIds] = useState<string[]>([]);
+  const [persistedRows, setPersistedRows] = useState<KCertificateRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const from = new Date(2000, 0, 1);
+    const to = addDays(new Date(), 365);
+    to.setHours(23, 59, 59, 999);
+
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      getTrainingLessons(
+        {
+          kind: "uygulama",
+          candidateId: candidate.id,
+          fromUtc: from.toISOString(),
+          toUtc: to.toISOString(),
+        },
+        controller.signal
+      ),
+      listCandidateKCertificates(candidate.id, controller.signal),
+    ])
+      .then(([lessonResponse, certificateResponse]) => {
+        setLessons(lessonResponse.items);
+        setPersistedRows(certificateResponse.map(kCertificateResponseToRow));
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setLessons([]);
+        setError("K belgesi bilgileri yüklenemedi.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [candidate.id]);
+
+  const rows = useMemo(
+    () => buildKCertificateRows(lessons, candidate.registrationNumber, candidate.id),
+    [candidate.id, candidate.registrationNumber, lessons]
+  );
+  const visibleBaseRows = useMemo(
+    () => rows.filter((row) => !hiddenRowIds.includes(row.id)),
+    [hiddenRowIds, rows]
+  );
+  const visibleRows = useMemo(
+    () => [...visibleBaseRows, ...persistedRows.filter((row) => !hiddenRowIds.includes(row.id))],
+    [hiddenRowIds, persistedRows, visibleBaseRows]
+  );
+  const displayRows = useMemo(() => [...visibleRows].reverse(), [visibleRows]);
+
+  const renewKCertificate = async () => {
+    if (renewSavingRef.current) return;
+    const previousRow = visibleRows[visibleRows.length - 1];
+    if (!previousRow) return;
+    const nextRow = nextKCertificateRow(
+      previousRow,
+      candidate.registrationNumber,
+      candidate.id,
+      visibleRows.length + 1
+    );
+
+    renewSavingRef.current = true;
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await createCandidateKCertificate(candidate.id, {
+        documentNumber: nextRow.documentNumber,
+        startDate: nextRow.startDate,
+        expiryDate: nextRow.expiryDate,
+        lastLessonEndDate: nextRow.lastLessonEndDate,
+      });
+      setPersistedRows((current) => [...current, kCertificateResponseToRow(created)]);
+    } catch {
+      setError("K belgesi yenilenemedi.");
+    } finally {
+      renewSavingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  const deleteKCertificateRow = async (row: KCertificateRow) => {
+    if (row.persisted) {
+      setSaving(true);
+      try {
+        await deleteCandidateKCertificate(candidate.id, row.id);
+        setPersistedRows((current) => current.filter((item) => item.id !== row.id));
+      } catch {
+        setError("K belgesi silinemedi.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    setHiddenRowIds((current) => [...current, row.id]);
+  };
+
+  const printKCertificates = () => {
+    window.print();
+  };
+
+  return (
+    <section className="instructor-detail-card candidate-k-certificate-section">
+      <div className="candidate-k-certificate-head">
+        <h3 className="candidate-detail-section-title">K Belgesi</h3>
+        <div className="candidate-k-certificate-actions">
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={saving || visibleRows.length === 0}
+            onClick={() => void renewKCertificate()}
+            type="button"
+          >
+            Yenile
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={saving || visibleRows.length === 0}
+            onClick={printKCertificates}
+            type="button"
+          >
+            Yazdır
+          </button>
+        </div>
+      </div>
+
+      {error ? <div className="instructor-detail-error">{error}</div> : null}
+      {loading ? <div className="instructor-detail-empty">K belgesi bilgileri yükleniyor...</div> : null}
+
+      <div className="table-wrap candidate-k-certificate-table-wrap">
+        <table className="data-table candidate-k-certificate-table">
+          <thead>
+            <tr>
+              <th>Belge No</th>
+              <th>K Belgesi Başlangıç Tarihi</th>
+              <th>K Belgesi Bitiş Tarihi</th>
+              <th>Son Ders Bitiş Tarihi</th>
+              <th>Durum</th>
+              <th>İşlem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.length === 0 ? (
+              <tr>
+                <td className="data-table-empty" colSpan={6}>
+                  Adaya yazılmış direksiyon dersi bulunmuyor.
+                </td>
+              </tr>
+            ) : (
+              displayRows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.documentNumber || "—"}</td>
+                  <td>{formatDateTR(row.startDate)}</td>
+                  <td>{formatDateTR(row.expiryDate)}</td>
+                  <td>{formatDateTR(row.lastLessonEndDate)}</td>
+                  <td>
+                    {kCertificateStatus(row, candidate.drivingExamDate) === "valid" ? (
+                      <span className="candidate-exam-pill success">Geçerli</span>
+                    ) : (
+                      <span className="candidate-exam-pill danger">Geçersiz</span>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      disabled={saving}
+                      onClick={() => void deleteKCertificateRow(row)}
+                      type="button"
+                    >
+                      Sil
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 function formatFileSize(bytes: number | null): string | null {
@@ -7623,6 +8330,7 @@ function TrainingTab({
                 branchHelpers={branchHelpers}
                 events={calendarEvents}
                 focusDate={calendarFocusDate}
+                initialView="agenda"
                 kind="uygulama"
                 readOnly
               />

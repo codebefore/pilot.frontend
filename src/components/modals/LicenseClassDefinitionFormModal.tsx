@@ -368,7 +368,7 @@ export function LicenseClassDefinitionFormModal({
             {...register("requiresTheoryExam")}
           />
           <SwitchField
-            label="Uygulama sınavı gerekli"
+            label="Direksiyon sınavı gerekli"
             switchValue={watch("requiresPracticeExam")}
             {...register("requiresPracticeExam")}
           />

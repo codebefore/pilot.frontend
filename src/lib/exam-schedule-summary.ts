@@ -32,6 +32,14 @@ export function formatExamScheduleLicenseClassSummary(option: ExamScheduleOption
 export function formatLicenseClassTotalSummary(
   licenseClassCounts: ExamScheduleLicenseClassCount[]
 ): string {
+  return buildLicenseClassTotalSummaryItems(licenseClassCounts)
+    .map((entry) => `${entry.licenseClass}(${entry.count})`)
+    .join(" ");
+}
+
+export function buildLicenseClassTotalSummaryItems(
+  licenseClassCounts: ExamScheduleLicenseClassCount[]
+): ExamScheduleLicenseClassCount[] {
   const totals = new Map<string, number>();
 
   for (const entry of licenseClassCounts) {
@@ -49,7 +57,5 @@ export function formatLicenseClassTotalSummary(
     .filter(
       (entry) => entry.count > 0 || DRIVING_SUMMARY_LICENSE_CLASSES.includes(entry.licenseClass)
     )
-    .sort((left, right) => compareLicenseClasses(left.licenseClass, right.licenseClass))
-    .map((entry) => `${entry.licenseClass}(${entry.count})`)
-    .join(" ");
+    .sort((left, right) => compareLicenseClasses(left.licenseClass, right.licenseClass));
 }

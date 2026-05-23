@@ -23,6 +23,7 @@ type CustomSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> &
 type SelectOption = {
   disabled?: boolean;
   label: string;
+  secondaryLabel?: string;
   value: string;
 };
 
@@ -34,6 +35,7 @@ function parseOptions(children: CustomSelectProps["children"]): SelectOption[] {
 
     const option = child as ReactElement<{
       children?: ReactNode;
+      "data-secondary"?: string;
       disabled?: boolean;
       value?: string | number | readonly string[];
     }>;
@@ -42,6 +44,7 @@ function parseOptions(children: CustomSelectProps["children"]): SelectOption[] {
       {
         value: String(option.props.value ?? ""),
         label: Children.toArray(option.props.children).join(""),
+        secondaryLabel: option.props["data-secondary"],
         disabled: option.props.disabled,
       },
     ];
@@ -194,7 +197,14 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
             .filter(Boolean)
             .join(" ")}
         >
-          {selectedOption?.label || placeholder || ""}
+          {selectedOption?.secondaryLabel ? (
+            <span className="custom-select-option-content">
+              <span>{selectedOption.label}</span>
+              <span className="custom-select-option-secondary">{selectedOption.secondaryLabel}</span>
+            </span>
+          ) : (
+            selectedOption?.label || placeholder || ""
+          )}
         </span>
       </div>
 
@@ -234,7 +244,14 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
               role="option"
               type="button"
             >
-              {option.label}
+              {option.secondaryLabel ? (
+                <span className="custom-select-option-content">
+                  <span>{option.label}</span>
+                  <span className="custom-select-option-secondary">{option.secondaryLabel}</span>
+                </span>
+              ) : (
+                option.label
+              )}
             </button>
           ))}
         </div>

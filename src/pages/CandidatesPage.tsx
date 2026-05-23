@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
@@ -8,12 +8,14 @@ import { DownloadIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
+import { NewExamCodeModal } from "../components/modals/NewExamCodeModal";
 import { NewExamScheduleModal } from "../components/modals/NewExamScheduleModal";
 import { CandidateDocumentBadge } from "../components/ui/CandidateDocumentBadge";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTagsInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
+import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
 import { Pagination } from "../components/ui/Pagination";
 import { CheckboxListPopover } from "../components/ui/CheckboxListPopover";
 import { SearchInput } from "../components/ui/SearchInput";
@@ -47,10 +49,22 @@ import {
   type CandidateSortField,
   type SortDirection,
 } from "../lib/candidates-api";
+import { updateCandidateExamAttempt } from "../lib/candidate-exam-attempts-api";
 import { getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
-import { deleteExamSchedule, syncExamSchedules } from "../lib/exam-schedules-api";
-import { formatLicenseClassTotalSummary } from "../lib/exam-schedule-summary";
+import { getVehicles } from "../lib/vehicles-api";
+import { getInstructors } from "../lib/instructors-api";
+import { deleteExamSchedule, updateExamSchedule } from "../lib/exam-schedules-api";
+import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-api";
+import { ApiError } from "../lib/http";
+import {
+  buildLicenseClassTotalSummaryItems,
+  formatLicenseClassTotalSummary,
+} from "../lib/exam-schedule-summary";
+import {
+  DRIVING_EXAM_TIME_SLOT_LABELS,
+  DRIVING_EXAM_TIME_SLOTS,
+} from "../lib/driving-exam-time-slots";
 import { setPracticeCandidateScope } from "../lib/practice-candidate-scope";
 import { useLanguage, useT } from "../lib/i18n";
 import {
@@ -63,18 +77,24 @@ import {
   CANDIDATE_STATUS_VALUES,
   candidateStatusLabel,
   candidateStatusToPill,
+  existingLicenseTypeLabel,
   formatDateTR,
   type CandidateStatusValue,
 } from "../lib/status-maps";
 import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../lib/term-label";
 import { normalizeTextQuery } from "../lib/search";
+import type { JobStatus } from "../types";
 import type {
+  CandidateExamFeeStatus,
   CandidateResponse,
   CandidateTag,
+  ExamCodeOption,
   ExamScheduleLicenseClassCount,
   ExamScheduleOption,
   GroupResponse,
+  InstructorResponse,
   LicenseClass,
+  VehicleResponse,
 } from "../lib/types";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useColumnVisibility } from "../lib/use-column-visibility";
@@ -111,14 +131,22 @@ export type CandidateColumnId =
   | "phoneNumber"
   | "birthDate"
   | "gender"
+  | "existingLicenseType"
   | "licenseClass"
   | "group"
   | "groupStartDate"
   | "eSinavDate"
   | "eSinavAttemptCount"
+  | "eSinavTheoryExamFeeStatus"
+  | "eSinavRightsExpiryDate"
   | "eSinavPoolStatus"
   | "drivingExamDate"
+  | "drivingExamCode"
+  | "drivingExamTime"
+  | "drivingExamVehiclePlate"
+  | "drivingExamInstructor"
   | "drivingExamAttemptCount"
+  | "drivingExamFeeStatus"
   | "graduationDate"
   | "terminationReason"
   | "terminationDate"
@@ -153,14 +181,22 @@ type CandidateColumnDef = {
     | "candidates.col.phoneNumber"
     | "candidates.col.birthDate"
     | "candidates.col.gender"
+    | "candidates.col.existingLicenseType"
     | "candidates.col.licenseClass"
     | "candidates.col.group"
     | "candidates.col.groupStartDate"
     | "candidates.col.eSinavDate"
     | "candidates.col.eSinavAttemptCount"
+    | "candidates.col.eSinavTheoryExamFeeStatus"
+    | "candidates.col.eSinavRightsExpiryDate"
     | "candidates.col.eSinavPoolStatus"
     | "candidates.col.drivingExamDate"
+    | "candidates.col.drivingExamCode"
+    | "candidates.col.drivingExamTime"
+    | "candidates.col.drivingExamVehiclePlate"
+    | "candidates.col.drivingExamInstructor"
     | "candidates.col.drivingExamAttemptCount"
+    | "candidates.col.drivingExamFeeStatus"
     | "candidates.col.graduationDate"
     | "candidates.col.terminationReason"
     | "candidates.col.terminationDate"
@@ -218,6 +254,219 @@ function formatCandidateTerm(candidate: CandidateResponse, lang: "tr" | "en"): s
   return buildTermLabel(candidate.currentGroup.term, [candidate.currentGroup.term], lang);
 }
 
+const ESINAV_RIGHTS_EXPIRY_DAYS = 120;
+
+function parseISODateOnly(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function toDateOnlyValue(date: Date): string {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToISODate(value: string | null | undefined, days: number): string | null {
+  const date = parseISODateOnly(value);
+  if (!date) return null;
+  date.setDate(date.getDate() + days);
+  return toDateOnlyValue(date);
+}
+
+function daysUntilISODate(value: string | null | undefined): number | null {
+  const target = parseISODateOnly(value);
+  if (!target) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function formatRemainingDayCount(days: number): string {
+  return days >= 0 ? `${days} gün kaldı` : `${Math.abs(days)} gün geçti`;
+}
+
+function remainingDayTone(days: number): "normal" | "warning" | "danger" {
+  if (days < 0) return "danger";
+  if (days <= 10) return "warning";
+  return "normal";
+}
+
+function CandidateDateWithRemaining({
+  date,
+  showRemaining = true,
+}: {
+  date: string | null | undefined;
+  showRemaining?: boolean;
+}) {
+  const days = showRemaining ? daysUntilISODate(date) : null;
+  if (!date) return "—";
+  return (
+    <span className={`cand-date-with-remaining${days === null ? "" : ` ${remainingDayTone(days)}`}`}>
+      <span>{formatDateTR(date)}</span>
+      {days !== null ? <small>{formatRemainingDayCount(days)}</small> : null}
+    </span>
+  );
+}
+
+function CandidateESinavRightsExpiryCell({ candidate }: { candidate: CandidateResponse }) {
+  const expiryDate = addDaysToISODate(candidate.currentGroup?.startDate, ESINAV_RIGHTS_EXPIRY_DAYS);
+  const days = daysUntilISODate(expiryDate);
+  if (!expiryDate || days === null) return "—";
+  return <CandidateDateWithRemaining date={expiryDate} />;
+}
+
+function drivingExamTimeValue(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Istanbul",
+  }).format(date);
+}
+
+function formatDrivingExamTime(value: string | null | undefined): string {
+  const time = drivingExamTimeValue(value);
+  return DRIVING_EXAM_TIME_SLOT_LABELS.get(time) ?? time;
+}
+
+function drivingExamDateTimeIso(date: string | null | undefined, time: string): string {
+  const day = date?.slice(0, 10);
+  return day && /^\d{2}:\d{2}$/.test(time)
+    ? new Date(`${day}T${time}:00+03:00`).toISOString()
+    : "";
+}
+
+function instructorFullName(instructor: InstructorResponse): string {
+  return `${instructor.firstName} ${instructor.lastName}`.trim();
+}
+
+function DrivingExamTimeCell({
+  candidate,
+  editing,
+  disabled,
+  onEdit,
+  onCancel,
+  onSave,
+}: {
+  candidate: CandidateResponse;
+  editing: boolean;
+  disabled: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (time: string) => void;
+}) {
+  const value = drivingExamTimeValue(candidate.drivingExamScheduledAt);
+  const label = value === "—" ? "—" : DRIVING_EXAM_TIME_SLOT_LABELS.get(value) ?? value;
+  if (!candidate.drivingExamAttemptId) return "—";
+  return (
+    <div className="cand-inline-edit-cell" onClick={(event) => event.stopPropagation()}>
+      {editing ? (
+        <LocalizedTimeInput
+          ariaLabel="Sınav saati"
+          className="cand-inline-edit-input"
+          disabled={disabled}
+          onBlur={onCancel}
+          onChange={onSave}
+          size="sm"
+          timeOptions={DRIVING_EXAM_TIME_SLOTS}
+          value={value === "—" ? "" : value}
+        />
+      ) : (
+        <button
+          className="cand-inline-edit-trigger"
+          disabled={disabled}
+          onClick={onEdit}
+          type="button"
+        >
+          {label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DrivingExamSelectCell({
+  value,
+  label,
+  options,
+  editing,
+  disabled,
+  ariaLabel,
+  onEdit,
+  onCancel,
+  onSave,
+}: {
+  value: string;
+  label: string;
+  options: { value: string; label: string }[];
+  editing: boolean;
+  disabled: boolean;
+  ariaLabel: string;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (value: string) => void;
+}) {
+  return (
+    <div className="cand-inline-edit-cell" onClick={(event) => event.stopPropagation()}>
+      {editing ? (
+        <CustomSelect
+          aria-label={ariaLabel}
+          className="cand-inline-edit-select"
+          disabled={disabled}
+          onBlur={onCancel}
+          onChange={(event) => onSave(event.target.value)}
+          size="sm"
+          value={value}
+        >
+          <option value="">—</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </CustomSelect>
+      ) : (
+        <button
+          className="cand-inline-edit-trigger"
+          disabled={disabled}
+          onClick={onEdit}
+          type="button"
+        >
+          {label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function examFeeStatusLabel(status: CandidateExamFeeStatus | null | undefined): string {
+  if (status === "paid") return "Ödendi";
+  if (status === "charged") return "Borçlandırıldı";
+  return "Bekliyor";
+}
+
+function examFeeStatusPill(status: CandidateExamFeeStatus | null | undefined): JobStatus {
+  if (status === "paid") return "success";
+  if (status === "charged") return "warning";
+  return "queued";
+}
+
+function CandidateExamFeeStatusPill({ status }: { status: CandidateExamFeeStatus | null | undefined }) {
+  return (
+    <StatusPill
+      label={examFeeStatusLabel(status)}
+      status={examFeeStatusPill(status)}
+    />
+  );
+}
+
 function hasFailedExamResult(value: string | null | undefined): boolean {
   if (!value) return false;
   const normalized = value.trim().toLocaleLowerCase("tr-TR");
@@ -264,7 +513,7 @@ function candidateUnifiedExamStatus(candidate: CandidateResponse): {
 }
 
 function examStageLabel(stage: CandidateExamStage): string {
-  return stage === "practice" ? "Uygulama" : "E-sınav";
+  return stage === "practice" ? "Direksiyon" : "E-sınav";
 }
 
 function examStatusLabel(status: CandidateUnifiedExamStatus): string {
@@ -306,7 +555,7 @@ function CandidateUnifiedExamStatusPill({ candidate }: { candidate: CandidateRes
       : status === "basarisiz"
         ? `${stageLabel} başarısız: aday bu aşamada tekrar sınava girmeli`
         : status === "basarili"
-          ? `${stageLabel} başarılı: aday uygulama sınavını tamamladı`
+          ? `${stageLabel} başarılı: aday direksiyon sınavını tamamladı`
           : `${stageLabel} havuz: sınav tarihi yok`;
   return (
     <span title={title}>
@@ -418,6 +667,12 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     skeletonWidth: 72,
   },
   {
+    id: "existingLicenseType",
+    labelKey: "candidates.col.existingLicenseType",
+    renderCell: (c) => formatOptionalText(existingLicenseTypeLabel(c.existingLicenseType)),
+    skeletonWidth: 104,
+  },
+  {
     id: "licenseClass",
     labelKey: "candidates.col.licenseClass",
     sortField: "licenseClass",
@@ -455,6 +710,22 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     skeletonWidth: 104,
   },
   {
+    id: "eSinavTheoryExamFeeStatus",
+    pageScope: "eSinav",
+    labelKey: "candidates.col.eSinavTheoryExamFeeStatus",
+    renderCell: (c) => (
+      <CandidateExamFeeStatusPill status={c.eSinavTheoryExamFeeStatus} />
+    ),
+    skeletonWidth: 118,
+  },
+  {
+    id: "eSinavRightsExpiryDate",
+    pageScope: "eSinav",
+    labelKey: "candidates.col.eSinavRightsExpiryDate",
+    renderCell: (c) => <CandidateESinavRightsExpiryCell candidate={c} />,
+    skeletonWidth: 132,
+  },
+  {
     id: "eSinavPoolStatus",
     labelKey: "candidates.col.eSinavPoolStatus",
     renderCell: (c) => <CandidateUnifiedExamStatusPill candidate={c} />,
@@ -468,11 +739,46 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     skeletonWidth: 88,
   },
   {
+    id: "drivingExamCode",
+    pageScope: "uygulama",
+    labelKey: "candidates.col.drivingExamCode",
+    renderCell: (c) => formatOptionalText(c.drivingExamCode),
+    skeletonWidth: 88,
+  },
+  {
+    id: "drivingExamTime",
+    pageScope: "uygulama",
+    labelKey: "candidates.col.drivingExamTime",
+    renderCell: (c) => formatDrivingExamTime(c.drivingExamScheduledAt),
+    skeletonWidth: 72,
+  },
+  {
+    id: "drivingExamVehiclePlate",
+    pageScope: "uygulama",
+    labelKey: "candidates.col.drivingExamVehiclePlate",
+    renderCell: (c) => formatOptionalText(c.drivingExamVehiclePlate),
+    skeletonWidth: 96,
+  },
+  {
+    id: "drivingExamInstructor",
+    pageScope: "uygulama",
+    labelKey: "candidates.col.drivingExamInstructor",
+    renderCell: (c) => formatOptionalText(c.drivingExamInstructorFullName),
+    skeletonWidth: 120,
+  },
+  {
     id: "drivingExamAttemptCount",
     pageScope: "uygulama",
     labelKey: "candidates.col.drivingExamAttemptCount",
     renderCell: (c) => <ExamAttemptPill value={c.drivingExamAttemptCount} />,
     skeletonWidth: 64,
+  },
+  {
+    id: "drivingExamFeeStatus",
+    pageScope: "uygulama",
+    labelKey: "candidates.col.drivingExamFeeStatus",
+    renderCell: (c) => <CandidateExamFeeStatusPill status={c.drivingExamFeeStatus} />,
+    skeletonWidth: 118,
   },
   {
     id: "graduationDate",
@@ -686,6 +992,97 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
   ],
 };
 
+const ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId[]> = {
+  havuz: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "eSinavAttemptCount",
+    "eSinavTheoryExamFeeStatus",
+    "eSinavRightsExpiryDate",
+  ],
+  basarisiz: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "eSinavAttemptCount",
+    "eSinavTheoryExamFeeStatus",
+    "eSinavDate",
+    "eSinavRightsExpiryDate",
+  ],
+  randevulu: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "eSinavAttemptCount",
+    "eSinavTheoryExamFeeStatus",
+    "eSinavDate",
+    "eSinavRightsExpiryDate",
+  ],
+};
+
+const ESINAV_OPTIONAL_COLUMN_IDS: CandidateColumnId[] = [
+  "existingLicenseType",
+  "nationalId",
+  "phoneNumber",
+  "totalFee",
+  "totalPaid",
+  "totalDebt",
+];
+
+const DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId[]> = {
+  havuz: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "drivingExamAttemptCount",
+    "drivingExamFeeStatus",
+  ],
+  basarisiz: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "drivingExamAttemptCount",
+    "drivingExamFeeStatus",
+    "drivingExamDate",
+    "drivingExamCode",
+  ],
+  randevulu: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "drivingExamAttemptCount",
+    "drivingExamFeeStatus",
+    "drivingExamTime",
+    "drivingExamVehiclePlate",
+    "drivingExamInstructor",
+    "drivingExamCode",
+  ],
+};
+
+const DRIVING_OPTIONAL_COLUMN_IDS: CandidateColumnId[] = [
+  "existingLicenseType",
+  "nationalId",
+  "phoneNumber",
+  "totalFee",
+  "totalPaid",
+  "totalDebt",
+];
+
+function eSinavLockedVisibleColumnIds(tab: CandidateListTabKey): CandidateColumnId[] {
+  return ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB[tab] ?? ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB.havuz;
+}
+
+function drivingLockedVisibleColumnIds(tab: CandidateListTabKey): CandidateColumnId[] {
+  return DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB[tab] ?? DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB.havuz;
+}
+
 type ExamDateSidebarConfig = {
   title: string;
   examType: CandidateExamDateType;
@@ -739,18 +1136,6 @@ export function CandidatesPage({
       : examDateSidebar?.field === "drivingExamDate"
         ? "uygulama"
         : "all";
-  const forcedVisibleColumnIds = useMemo<Set<CandidateColumnId>>(
-    () =>
-      new Set(
-        (examDateSidebar?.field === "eSinavDate"
-          ? (["eSinavDate", "eSinavAttemptCount"] satisfies CandidateColumnId[])
-          : examDateSidebar?.field === "drivingExamDate"
-            ? (["drivingExamDate", "drivingExamAttemptCount"] satisfies CandidateColumnId[])
-            : []
-        ).filter((id) => !REMOVED_CANDIDATE_COLUMN_IDS.has(id))
-      ),
-    [examDateSidebar?.field]
-  );
   const defaultTabs = useMemo(
     () =>
       TAB_KEYS.map((key) => ({
@@ -774,23 +1159,78 @@ export function CandidatesPage({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tab, setTab] = useState<CandidateListTabKey>(resolvedTabConfig.defaultTab);
-  const availableColumnIds = useMemo(
+  const lockedVisibleColumnIds = useMemo<CandidateColumnId[]>(
     () =>
-      CANDIDATE_COLUMNS.filter((column) => {
+      examDateSidebar?.field === "eSinavDate"
+        ? eSinavLockedVisibleColumnIds(tab)
+        : examDateSidebar?.field === "drivingExamDate"
+          ? drivingLockedVisibleColumnIds(tab)
+          : [],
+    [examDateSidebar?.field, tab]
+  );
+  const forcedVisibleColumnIds = useMemo<Set<CandidateColumnId>>(
+    () =>
+      new Set(
+        lockedVisibleColumnIds.filter(
+          (id) =>
+            !REMOVED_CANDIDATE_COLUMN_IDS.has(id) ||
+            (id === "eSinavDate" && columnPageScope === "eSinav") ||
+            (id === "drivingExamDate" && columnPageScope === "uygulama") ||
+            (id === "drivingExamAttemptCount" && columnPageScope === "uygulama")
+        )
+      ),
+    [columnPageScope, lockedVisibleColumnIds]
+  );
+  const lockedVisibleColumnOrder = useMemo(() => {
+    const order = new Map<CandidateColumnId, number>();
+    lockedVisibleColumnIds.forEach((id, index) => order.set(id, index));
+    return order;
+  }, [lockedVisibleColumnIds]);
+  const availableColumnIds = useMemo(
+    () => {
+      const eSinavAllowedColumnIds =
+        columnPageScope === "eSinav"
+          ? new Set([...eSinavLockedVisibleColumnIds(tab), ...ESINAV_OPTIONAL_COLUMN_IDS])
+          : null;
+      const drivingAllowedColumnIds =
+        columnPageScope === "uygulama"
+          ? new Set([...drivingLockedVisibleColumnIds(tab), ...DRIVING_OPTIONAL_COLUMN_IDS])
+          : null;
+      const ids = CANDIDATE_COLUMNS.filter((column) => {
         if (!columnAvailableOnPage(column, columnPageScope)) return false;
-        if (REMOVED_CANDIDATE_COLUMN_IDS.has(column.id)) return false;
+        if (
+          REMOVED_CANDIDATE_COLUMN_IDS.has(column.id) &&
+          !(column.id === "eSinavDate" && columnPageScope === "eSinav") &&
+          !(column.id === "drivingExamDate" && columnPageScope === "uygulama") &&
+          !(column.id === "drivingExamAttemptCount" && columnPageScope === "uygulama")
+        ) {
+          return false;
+        }
+        if (eSinavAllowedColumnIds && !eSinavAllowedColumnIds.has(column.id)) return false;
+        if (drivingAllowedColumnIds && !drivingAllowedColumnIds.has(column.id)) return false;
         if ((tab === "graduated" || tab === "dropped") && column.id === "eSinavAttemptCount") {
           return false;
         }
         return true;
-      }).map((column) => column.id),
+      }).map((column) => column.id);
+      if (eSinavAllowedColumnIds) {
+        return [...eSinavLockedVisibleColumnIds(tab), ...ESINAV_OPTIONAL_COLUMN_IDS].filter((id) => ids.includes(id));
+      }
+      if (drivingAllowedColumnIds) {
+        return [...drivingLockedVisibleColumnIds(tab), ...DRIVING_OPTIONAL_COLUMN_IDS].filter((id) => ids.includes(id));
+      }
+      return ids;
+    },
     [columnPageScope, tab]
   );
   const [sort, setSort] = useState<SortState>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [examScheduleModalOpen, setExamScheduleModalOpen] = useState(false);
-  const [examScheduleSyncing, setExamScheduleSyncing] = useState(false);
+  const [examCodeModalOpen, setExamCodeModalOpen] = useState(false);
   const [deletingExamScheduleId, setDeletingExamScheduleId] = useState<string | null>(null);
+  const [editingExamScheduleId, setEditingExamScheduleId] = useState<string | null>(null);
+  const [deletingExamCodeId, setDeletingExamCodeId] = useState<string | null>(null);
+  const [editingExamCodeId, setEditingExamCodeId] = useState<string | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
@@ -833,8 +1273,18 @@ export function CandidatesPage({
   const navigate = useNavigate();
   const selectedId = searchParams.get("selected");
   const [selectedExamDate, setSelectedExamDate] = useState("");
+  const [selectedDrivingExamCode, setSelectedDrivingExamCode] = useState("");
+  const [examSidebarTab, setExamSidebarTab] = useState<"dates" | "codes">("dates");
   const [examDateOptions, setExamDateOptions] = useState<ExamScheduleOption[]>([]);
+  const [examCodeOptions, setExamCodeOptions] = useState<ExamCodeOption[]>([]);
   const [examDateOptionsLoading, setExamDateOptionsLoading] = useState(false);
+  const [practiceVehicles, setPracticeVehicles] = useState<VehicleResponse[]>([]);
+  const [practiceInstructors, setPracticeInstructors] = useState<InstructorResponse[]>([]);
+  const [editingPracticeCell, setEditingPracticeCell] = useState<{
+    candidateId: string;
+    field: "time" | "vehicle" | "instructor";
+  } | null>(null);
+  const [savingPracticeCandidateId, setSavingPracticeCandidateId] = useState<string | null>(null);
 
   const defaultVisibleColumnIds = useMemo<CandidateColumnId[]>(() => {
     if (defaultVisibleColumnIdsProp) return defaultVisibleColumnIdsProp;
@@ -866,7 +1316,12 @@ export function CandidatesPage({
   } = useColumnVisibility(
     effectiveColumnStorageKey,
     orderedAvailableColumnIds,
-    scopedDefaultVisibleColumnIds.length > 0 ? scopedDefaultVisibleColumnIds : undefined
+    defaultVisibleColumnIdsProp
+      ? scopedDefaultVisibleColumnIds
+      : scopedDefaultVisibleColumnIds.length > 0
+        ? scopedDefaultVisibleColumnIds
+        : undefined,
+    { allowEmpty: lockedVisibleColumnIds.length > 0 }
   );
   const currentTabLabel = useMemo(
     () => resolvedTabConfig.tabs.find((item) => item.key === tab)?.label ?? t("candidates.columns.button"),
@@ -880,6 +1335,81 @@ export function CandidatesPage({
     }
     return map;
   }, [licenseClassOptions]);
+
+  const savePracticeAttemptField = async (
+    candidate: CandidateResponse,
+    patch: { time?: string; vehicleId?: string; instructorId?: string }
+  ) => {
+    if (!candidate.drivingExamAttemptId || !candidate.drivingExamAttemptRowVersion) {
+      showToast("Direksiyon randevusu bulunamadı.", "error");
+      return;
+    }
+
+    const vehicle = patch.vehicleId !== undefined
+      ? practiceVehicles.find((item) => item.id === patch.vehicleId)
+      : undefined;
+    const instructor = patch.instructorId !== undefined
+      ? practiceInstructors.find((item) => item.id === patch.instructorId)
+      : undefined;
+    const scheduledAt = patch.time
+      ? drivingExamDateTimeIso(candidate.drivingExamDate, patch.time)
+      : candidate.drivingExamScheduledAt;
+    if (!scheduledAt) {
+      showToast("Sınav saati güncellenemedi.", "error");
+      return;
+    }
+
+    setSavingPracticeCandidateId(candidate.id);
+    try {
+      const updated = await updateCandidateExamAttempt(candidate.id, candidate.drivingExamAttemptId, {
+        examType: "practice",
+        scheduledAt,
+        attemptNumber: candidate.drivingExamAttemptCount ?? 1,
+        score: null,
+        expiresAt: null,
+        examScheduleId: candidate.drivingExamScheduleId ?? null,
+        vehicleId: patch.vehicleId !== undefined ? patch.vehicleId || null : candidate.drivingExamVehicleId ?? null,
+        vehiclePlate: patch.vehicleId !== undefined ? vehicle?.plateNumber ?? null : candidate.drivingExamVehiclePlate ?? null,
+        instructorId: patch.instructorId !== undefined ? patch.instructorId || null : candidate.drivingExamInstructorId ?? null,
+        instructorFullName: patch.instructorId !== undefined
+          ? instructor ? instructorFullName(instructor) : null
+          : candidate.drivingExamInstructorFullName ?? null,
+        examAttendanceStatus: candidate.drivingExamAttendanceStatus ?? null,
+        examResultStatus: candidate.drivingExamResultStatus ?? null,
+        fee: candidate.drivingExamFee ?? 0,
+        feeStatus: candidate.drivingExamFeeStatus ?? "pending",
+        rowVersion: candidate.drivingExamAttemptRowVersion,
+      });
+
+      setCandidates((items) => items.map((item) =>
+        item.id === candidate.id
+          ? {
+              ...item,
+              drivingExamScheduledAt: updated.scheduledAt,
+              drivingExamDate: item.drivingExamDate,
+              drivingExamVehicleId: updated.vehicleId,
+              drivingExamVehiclePlate: updated.vehiclePlate,
+              drivingExamInstructorId: updated.instructorId,
+              drivingExamInstructorFullName: updated.instructorFullName,
+              drivingExamAttendanceStatus: updated.examAttendanceStatus,
+              drivingExamResultStatus: updated.examResultStatus,
+              drivingExamFee: updated.fee,
+              drivingExamFeeStatus: updated.feeStatus,
+              drivingExamAttemptRowVersion: updated.rowVersion,
+            }
+          : item
+      ));
+      setEditingPracticeCell(null);
+      showToast("Direksiyon randevusu güncellendi");
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 409
+        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
+        : "Direksiyon randevusu güncellenemedi.";
+      showToast(message, "error");
+    } finally {
+      setSavingPracticeCandidateId(null);
+    }
+  };
 
   const resolvedColumns = useMemo(
     () =>
@@ -902,9 +1432,87 @@ export function CandidatesPage({
               licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass,
           };
         }
+        if (columnPageScope === "eSinav" && col.id === "eSinavDate") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) =>
+              tab === "randevulu"
+                ? <CandidateDateWithRemaining date={candidate.mebExamDate} />
+                : formatDateTR(candidate.mebExamDate),
+          };
+        }
+        if (columnPageScope === "uygulama" && col.id === "drivingExamTime") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) => (
+              <DrivingExamTimeCell
+                candidate={candidate}
+                editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "time"}
+                disabled={savingPracticeCandidateId === candidate.id}
+                onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "time" })}
+                onCancel={() => setEditingPracticeCell(null)}
+                onSave={(time) => savePracticeAttemptField(candidate, { time })}
+              />
+            ),
+          };
+        }
+        if (columnPageScope === "uygulama" && col.id === "drivingExamVehiclePlate") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) => (
+              <DrivingExamSelectCell
+                value={candidate.drivingExamVehicleId ?? ""}
+                label={candidate.drivingExamVehiclePlate ?? "—"}
+                options={practiceVehicles.map((vehicle) => ({
+                  value: vehicle.id,
+                  label: vehicle.plateNumber,
+                }))}
+                editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "vehicle"}
+                disabled={savingPracticeCandidateId === candidate.id}
+                ariaLabel="Plaka seç"
+                onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "vehicle" })}
+                onCancel={() => setEditingPracticeCell(null)}
+                onSave={(vehicleId) => savePracticeAttemptField(candidate, { vehicleId })}
+              />
+            ),
+          };
+        }
+        if (columnPageScope === "uygulama" && col.id === "drivingExamInstructor") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) => (
+              <DrivingExamSelectCell
+                value={candidate.drivingExamInstructorId ?? ""}
+                label={candidate.drivingExamInstructorFullName ?? "—"}
+                options={practiceInstructors.map((instructor) => ({
+                  value: instructor.id,
+                  label: instructorFullName(instructor),
+                }))}
+                editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "instructor"}
+                disabled={savingPracticeCandidateId === candidate.id}
+                ariaLabel="Usta öğretici seç"
+                onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "instructor" })}
+                onCancel={() => setEditingPracticeCell(null)}
+                onSave={(instructorId) => savePracticeAttemptField(candidate, { instructorId })}
+              />
+            ),
+          };
+        }
         return col;
       }),
-    [availableColumnIds, columnPageScope, groupColumnMode, lang, licenseClassLabelByCode]
+    [
+      availableColumnIds,
+      columnPageScope,
+      editingPracticeCell,
+      groupColumnMode,
+      lang,
+      licenseClassLabelByCode,
+      practiceInstructors,
+      practiceVehicles,
+      savePracticeAttemptField,
+      savingPracticeCandidateId,
+      tab,
+    ]
   );
   const visibleColumnOrder = useMemo(() => {
     const order = new Map<CandidateColumnId, number>();
@@ -916,11 +1524,32 @@ export function CandidatesPage({
   const visibleColumns = resolvedColumns.filter(
     (col) => forcedVisibleColumnIds.has(col.id) || isVisible(col.id)
   ).sort(
-    (left, right) =>
-      (visibleColumnOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
-      (visibleColumnOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+    (left, right) => {
+      const leftLockedOrder = lockedVisibleColumnOrder.get(left.id);
+      const rightLockedOrder = lockedVisibleColumnOrder.get(right.id);
+      if (leftLockedOrder !== undefined && rightLockedOrder !== undefined) {
+        return leftLockedOrder - rightLockedOrder;
+      }
+      if (leftLockedOrder !== undefined) return -1;
+      if (rightLockedOrder !== undefined) return 1;
+      return (
+        (visibleColumnOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+        (visibleColumnOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+      );
+    }
   );
   const getColumnLabel = (col: CandidateColumnDef) =>
+    (columnPageScope === "eSinav" && col.id === "eSinavDate"
+      ? tab === "basarisiz"
+        ? "Son Sınav Tarihi"
+        : tab === "randevulu"
+          ? "Randevulu Sınav Tarihi"
+          : t(col.labelKey)
+      : columnPageScope === "uygulama" && col.id === "drivingExamDate" && tab === "basarisiz"
+        ? "Son Sınav Tarihi"
+      : columnPageScope === "uygulama" && col.id === "drivingExamCode"
+        ? "Son Sınav Kodu"
+        : null) ??
     columnLabelOverrides?.[col.id] ??
     ((col.id === "group" && groupColumnMode === "term")
       ? t("candidates.col.term")
@@ -967,6 +1596,7 @@ export function CandidatesPage({
 
   const pickerOptions: ColumnOption[] = resolvedColumns
     .filter((col) => !col.pickerHidden && !forcedVisibleColumnIds.has(col.id))
+    .sort((left, right) => availableColumnIds.indexOf(left.id) - availableColumnIds.indexOf(right.id))
     .map((col) => ({
       id: col.id,
       label: getColumnLabel(col),
@@ -974,25 +1604,47 @@ export function CandidatesPage({
   const allVisibleSelected =
     candidates.length > 0 && candidates.every((candidate) => selectedCandidateIds.has(candidate.id));
   const selectedCount = selectedCandidateIds.size;
+  const isDrivingExamCodeTabActive =
+    examDateSidebar?.examType === "uygulama" && examSidebarTab === "codes";
+  const shouldDimBlockedLatestCodeRows =
+    examDateSidebar?.examType === "uygulama" &&
+    !selectedExamDate &&
+    !selectedDrivingExamCode &&
+    activeTags.length === 0 &&
+    activeFilterCount === 0 &&
+    !normalizeTextQuery(search);
   const examDateFilterParams = useMemo<Partial<GetCandidatesParams>>(() => {
-    if (!examDateSidebar || !selectedExamDate) {
+    if (isDrivingExamCodeTabActive && selectedDrivingExamCode) {
+      return { drivingExamCode: selectedDrivingExamCode };
+    }
+    if (isDrivingExamCodeTabActive || !examDateSidebar || !selectedExamDate) {
       return {};
     }
 
     return examDateSidebar.field === "eSinavDate"
       ? { eSinavDate: selectedExamDate }
       : { drivingExamDate: selectedExamDate };
-  }, [examDateSidebar, selectedExamDate]);
+  }, [examDateSidebar, isDrivingExamCodeTabActive, selectedDrivingExamCode, selectedExamDate]);
   const displayedExamDateOptions = useMemo(
     () => sortExamDateOptionsNewestFirst(examDateOptions),
     [examDateOptions]
   );
+  const showLicenseClassSummary =
+    !!examDateSidebar?.showLicenseClassTotalSummary &&
+    (examSidebarTab === "dates" || !!selectedDrivingExamCode);
   const licenseClassTotalSummary = useMemo(
     () =>
-      examDateSidebar?.showLicenseClassTotalSummary
+      showLicenseClassSummary
         ? formatLicenseClassTotalSummary(candidateLicenseClassCounts)
         : "",
-    [candidateLicenseClassCounts, examDateSidebar]
+    [candidateLicenseClassCounts, showLicenseClassSummary]
+  );
+  const licenseClassTotalSummaryItems = useMemo(
+    () =>
+      showLicenseClassSummary
+        ? buildLicenseClassTotalSummaryItems(candidateLicenseClassCounts)
+        : [],
+    [candidateLicenseClassCounts, showLicenseClassSummary]
   );
 
   useEffect(() => {
@@ -1021,14 +1673,57 @@ export function CandidatesPage({
 
   useEffect(() => {
     setSelectedExamDate("");
+    setSelectedDrivingExamCode("");
+    setExamSidebarTab("dates");
     setExamDateOptions([]);
+    setExamCodeOptions([]);
   }, [examDateSidebar?.field]);
 
   useEffect(() => {
+    if (examDateSidebar?.examType !== "uygulama") {
+      setExamCodeOptions([]);
+      return;
+    }
+
     const controller = new AbortController();
+    getExamCodes("uygulama", controller.signal)
+      .then((result) => setExamCodeOptions(result))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setExamCodeOptions([]);
+      });
+    return () => controller.abort();
+  }, [examDateSidebar?.examType, refreshKey]);
+
+  useEffect(() => {
+    if (examDateSidebar?.examType !== "uygulama" || !selectedExamDate) {
+      setPracticeVehicles([]);
+      setPracticeInstructors([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    getVehicles({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
+      .then((response) => setPracticeVehicles(response.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setPracticeVehicles([]);
+      });
+    getInstructors({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
+      .then((response) => setPracticeInstructors(response.items))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setPracticeInstructors([]);
+      });
+    return () => controller.abort();
+  }, [examDateSidebar?.examType, selectedExamDate, refreshKey]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const tabParams = isDrivingExamCodeTabActive ? {} : resolvedTabConfig.buildParams(tab);
     const requestParams = {
       search: normalizeTextQuery(debouncedSearch),
-      ...resolvedTabConfig.buildParams(tab),
+      ...tabParams,
       tags: activeTags.length > 0 ? activeTags : undefined,
       ...filtersToQuery(debouncedFilters),
       ...examDateFilterParams,
@@ -1071,6 +1766,7 @@ export function CandidatesPage({
     debouncedFilters,
     debouncedSearch,
     examDateFilterParams,
+    isDrivingExamCodeTabActive,
     page,
     pageSize,
     refreshKey,
@@ -1094,7 +1790,7 @@ export function CandidatesPage({
       {
         examType: examDateSidebar.examType,
         search: normalizeTextQuery(debouncedSearch),
-        ...(tab === "havuz" ? { status: "active" } : resolvedTabConfig.buildParams(tab)),
+        status: "active",
         tags: activeTags.length > 0 ? activeTags : undefined,
         ...filtersToQuery(debouncedFilters),
       },
@@ -1118,8 +1814,6 @@ export function CandidatesPage({
     debouncedSearch,
     examDateSidebar,
     refreshKey,
-    resolvedTabConfig,
-    tab,
   ]);
 
   // Load the full tag catalog for the filter bar. Refetched on refreshKey
@@ -1174,6 +1868,13 @@ export function CandidatesPage({
     selectedExamDate,
   ]);
 
+  useEffect(() => {
+    if (!selectedDrivingExamCode) return;
+    if (!examCodeOptions.some((option) => option.code === selectedDrivingExamCode)) {
+      setSelectedDrivingExamCode("");
+    }
+  }, [examCodeOptions, selectedDrivingExamCode]);
+
   const handleSearchChange = (value: string) => {
     setSearch(value);
     setPage(1);
@@ -1183,22 +1884,8 @@ export function CandidatesPage({
     setExamScheduleModalOpen(true);
   };
 
-  const handleExamSyncClick = async () => {
-    if (!examDateSidebar || examScheduleSyncing) {
-      return;
-    }
-
-    setExamScheduleSyncing(true);
-
-    try {
-      await syncExamSchedules(examDateSidebar.examType);
-      setRefreshKey((current) => current + 1);
-      showToast(t("candidates.toast.examScheduleSynced"));
-    } catch {
-      showToast(t("candidates.toast.examScheduleSyncFailed"), "error");
-    } finally {
-      setExamScheduleSyncing(false);
-    }
+  const handleExamCodeAddClick = () => {
+    setExamCodeModalOpen(true);
   };
 
   const handleExamDateDelete = async (option: ExamScheduleOption) => {
@@ -1214,10 +1901,105 @@ export function CandidatesPage({
       }
       setRefreshKey((current) => current + 1);
       showToast(t("candidates.toast.examScheduleDeleted"));
-    } catch {
-      showToast(t("candidates.toast.examScheduleDeleteFailed"), "error");
+    } catch (error) {
+      const errorCode = error instanceof ApiError ? error.errorCode : undefined;
+      const message = errorCode === "examScheduleDatePassed"
+        ? t("candidates.toast.examScheduleDeletePastDate")
+        : errorCode === "examScheduleHasCandidates"
+          ? t("candidates.toast.examScheduleDeleteHasCandidates")
+          : t("candidates.toast.examScheduleDeleteFailed");
+      showToast(message, "error");
     } finally {
       setDeletingExamScheduleId(null);
+    }
+  };
+
+  const examScheduleMutationErrorMessage = (error: unknown, fallback: string) => {
+    const errorCode = error instanceof ApiError ? error.errorCode : undefined;
+    if (errorCode === "examScheduleDatePassed") {
+      return t("candidates.toast.examScheduleDeletePastDate");
+    }
+    if (errorCode === "examScheduleHasCandidates") {
+      return t("candidates.toast.examScheduleDeleteHasCandidates");
+    }
+    return fallback;
+  };
+
+  const handleExamDateEdit = async (option: ExamScheduleOption, date: string) => {
+    if (editingExamScheduleId) {
+      return;
+    }
+
+    setEditingExamScheduleId(option.id);
+    try {
+      await updateExamSchedule(option.id, {
+        examType: option.examType,
+        date,
+        examCodeId: option.examCodeId ?? null,
+        time: option.examType === "e_sinav" ? option.time : undefined,
+        capacity: option.capacity,
+      });
+      if (selectedExamDate === option.date) {
+        setSelectedExamDate(date);
+      }
+      setRefreshKey((current) => current + 1);
+      showToast("Sınav tarihi güncellendi");
+    } catch (error) {
+      showToast(examScheduleMutationErrorMessage(error, "Sınav tarihi güncellenemedi"), "error");
+    } finally {
+      setEditingExamScheduleId(null);
+    }
+  };
+
+  const handleExamCodeDelete = async (option: ExamCodeOption) => {
+    if (deletingExamCodeId) {
+      return;
+    }
+
+    setDeletingExamCodeId(option.id);
+    try {
+      await deleteExamCode(option.id);
+      if (selectedDrivingExamCode === option.code) {
+        setSelectedDrivingExamCode("");
+      }
+      setRefreshKey((current) => current + 1);
+      showToast("Sınav kodu silindi");
+    } catch (error) {
+      const errorCode = error instanceof ApiError ? error.errorCode : undefined;
+      showToast(
+        errorCode === "examCodeHasSchedules" || errorCode === "examCodeHasCandidates"
+          ? "Bu sınav kodu bağlı kayıt olduğu için silinemez."
+          : "Sınav kodu silinemedi",
+        "error"
+      );
+    } finally {
+      setDeletingExamCodeId(null);
+    }
+  };
+
+  const handleExamCodeEdit = async (option: ExamCodeOption, code: string) => {
+    if (editingExamCodeId) {
+      return;
+    }
+
+    setEditingExamCodeId(option.id);
+    try {
+      await updateExamCode(option.id, code);
+      if (selectedDrivingExamCode === option.code) {
+        setSelectedDrivingExamCode(code);
+      }
+      setRefreshKey((current) => current + 1);
+      showToast("Sınav kodu güncellendi");
+    } catch (error) {
+      const errorCode = error instanceof ApiError ? error.errorCode : undefined;
+      showToast(
+        errorCode === "examCodeHasSchedules" || errorCode === "examCodeHasCandidates"
+          ? "Sınav kodu güncellenemedi."
+          : "Sınav kodu güncellenemedi",
+        "error"
+      );
+    } finally {
+      setEditingExamCodeId(null);
     }
   };
 
@@ -1247,11 +2029,20 @@ export function CandidatesPage({
   };
 
   const handleExamDateSelect = (value: string) => {
+    if (value) {
+      setSelectedDrivingExamCode("");
+    }
     if (value && examDateSidebar && tab === "havuz") {
       setTab("randevulu");
     }
     setPage(1);
     setSelectedExamDate(value);
+  };
+
+  const handleExamCodeSelect = (value: string) => {
+    setSelectedExamDate("");
+    setSelectedDrivingExamCode(value);
+    setPage(1);
   };
 
   const clearAllFilters = () => {
@@ -1604,7 +2395,7 @@ export function CandidatesPage({
 
     setBulkExamDateValue(
       displayedExamDateOptions.some((option) => option.date === selectedExamDate)
-        ? selectedExamDate
+        ? displayedExamDateOptions.find((option) => option.date === selectedExamDate)?.id ?? ""
         : ""
     );
     setBulkActionMode("examDate");
@@ -1670,11 +2461,17 @@ export function CandidatesPage({
     try {
       const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
       const selectedIds = Array.from(selectedCandidateIds);
-      const assignedExamDate = bulkExamDateValue;
+      const selectedSchedule = displayedExamDateOptions.find((option) => option.id === bulkExamDateValue);
+      if (!selectedSchedule) {
+        showToast(t("candidates.toast.bulkExamFailed"), "error");
+        return;
+      }
+      const assignedExamDate = selectedSchedule.date;
       const result = await assignCandidatesToExamDate(
         selectedIds,
         examDateSidebar.examType,
         assignedExamDate,
+        selectedSchedule.id,
         candidateById
       );
 
@@ -1789,7 +2586,15 @@ export function CandidatesPage({
             aria-label={t("candidates.aria.licenseClassSummary")}
             className="tag-filter-summary-chip tag-filter-license-summary"
           >
-            {licenseClassTotalSummary}
+            {licenseClassTotalSummaryItems.map((item, index) => (
+              <Fragment key={item.licenseClass}>
+                {index > 0 ? " " : null}
+                <span className="tag-filter-license-summary-item">
+                  <span className="tag-filter-license-summary-class">{item.licenseClass}</span>
+                  <span className="tag-filter-license-summary-count">({item.count})</span>
+                </span>
+              </Fragment>
+            ))}
           </span>
         ) : null}
       </div>
@@ -1876,7 +2681,14 @@ export function CandidatesPage({
               </tr>
             ) : (
               candidates.map((c) => (
-                <tr key={c.id}>
+                <tr
+                  className={
+                    shouldDimBlockedLatestCodeRows && c.isBlockedForLatestDrivingExamCode
+                      ? "cand-row--blocked-latest-code"
+                      : undefined
+                  }
+                  key={c.id}
+                >
                   {bulkSelectEnabled && (
                     <td
                       className="cand-select-td"
@@ -1936,8 +2748,10 @@ export function CandidatesPage({
   );
 
   const tabsSearchRow = (
-    <div className={showTabs ? "tabs-search-row" : "tabs-search-row no-tabs"}>
-      {showTabs && <PageTabs active={tab} onChange={handleTabChange} tabs={resolvedTabConfig.tabs} />}
+    <div className={showTabs && !isDrivingExamCodeTabActive ? "tabs-search-row" : "tabs-search-row no-tabs"}>
+      {showTabs && !isDrivingExamCodeTabActive && (
+        <PageTabs active={tab} onChange={handleTabChange} tabs={resolvedTabConfig.tabs} />
+      )}
       <div className="search-box">
         <SearchInput
           onChange={handleSearchChange}
@@ -2020,7 +2834,7 @@ export function CandidatesPage({
                   >
                     <option value="">{t("candidates.bulk.datePlaceholder")}</option>
                     {displayedExamDateOptions.map((option) => (
-                      <option key={option.id} value={option.date}>
+                      <option data-secondary={option.examCode ?? undefined} key={option.id} value={option.id}>
                         {formatBulkExamDateOptionLabel(option, examDateSidebar?.showTime)}
                       </option>
                     ))}
@@ -2171,17 +2985,31 @@ export function CandidatesPage({
         <div className="candidates-layout">
           <CandidateExamDateSidebar
             actions={[
-              { label: "Tarih Ekle", onClick: handleExamDateAddClick },
-              {
-                label: "Mebbis",
-                onClick: handleExamSyncClick,
-                disabled: examScheduleSyncing,
-              },
+              { label: "Sınav Tarihi Ekle", onClick: handleExamDateAddClick },
             ]}
             deletingOptionId={deletingExamScheduleId}
+            deletingCodeId={deletingExamCodeId}
+            editingOptionId={editingExamScheduleId}
+            editingCodeId={editingExamCodeId}
+            codeOptions={examDateSidebar.examType === "uygulama" ? examCodeOptions : undefined}
+            onCodeAdd={examDateSidebar.examType === "uygulama" ? handleExamCodeAddClick : undefined}
+            onCodeDelete={examDateSidebar.examType === "uygulama" ? handleExamCodeDelete : undefined}
+            onCodeEdit={examDateSidebar.examType === "uygulama" ? handleExamCodeEdit : undefined}
+            onCodeSelect={examDateSidebar.examType === "uygulama" ? handleExamCodeSelect : undefined}
             onDelete={handleExamDateDelete}
+            onEdit={handleExamDateEdit}
             onSelect={handleExamDateSelect}
+            onSidebarTabChange={(nextTab) => {
+              setExamSidebarTab(nextTab);
+              setPage(1);
+              if (nextTab === "dates") {
+                setSelectedDrivingExamCode("");
+              } else {
+                setSelectedExamDate("");
+              }
+            }}
             options={displayedExamDateOptions}
+            selectedCode={selectedDrivingExamCode}
             selectedDate={selectedExamDate}
             showTime={examDateSidebar.showTime}
             summaryMode={examDateSidebar.summaryMode}
@@ -2223,6 +3051,7 @@ export function CandidatesPage({
       />
       {examDateSidebar ? (
         <NewExamScheduleModal
+          examCodes={examDateSidebar.examType === "uygulama" ? examCodeOptions : undefined}
           examType={examDateSidebar.examType}
           onClose={() => setExamScheduleModalOpen(false)}
           onSaved={() => {
@@ -2230,6 +3059,16 @@ export function CandidatesPage({
             setRefreshKey((current) => current + 1);
           }}
           open={examScheduleModalOpen}
+        />
+      ) : null}
+      {examDateSidebar?.examType === "uygulama" ? (
+        <NewExamCodeModal
+          onClose={() => setExamCodeModalOpen(false)}
+          onSaved={() => {
+            setExamCodeModalOpen(false);
+            setRefreshKey((current) => current + 1);
+          }}
+          open={examCodeModalOpen}
         />
       ) : null}
     </>

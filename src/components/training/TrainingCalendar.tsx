@@ -114,6 +114,7 @@ type TrainingCalendarProps = {
    *  Backend zaten beforeGroupStartDate ile reddediyor; UI ipucu için. */
   disabledBeforeDate?: Date | null;
   readOnly?: boolean;
+  initialView?: View;
 };
 
 // Custom view key'lerimiz — RBC `Views` enum'unda yok, ama `views` map'ine
@@ -164,8 +165,9 @@ export function TrainingCalendar({
   focusDate,
   disabledBeforeDate,
   readOnly = false,
+  initialView = ROLLING_2W_VIEW,
 }: TrainingCalendarProps) {
-  const [view, setView] = useState<View>(ROLLING_2W_VIEW);
+  const [view, setView] = useState<View>(initialView);
   // Hafta görünümü açılışta 2 gün öncesinden başlasın — kullanıcı
   // yakın geçmişte olanı hızlıca görsün, gelecek de aynı pencerede.
   const [date, setDate] = useState<Date>(() => {
@@ -350,7 +352,7 @@ export function TrainingCalendar({
     },
     date,
     dayPropGetter,
-    defaultView: ROLLING_2W_VIEW,
+    defaultView: initialView,
     endAccessor: "end",
     eventPropGetter: eventStyleGetter,
     events,

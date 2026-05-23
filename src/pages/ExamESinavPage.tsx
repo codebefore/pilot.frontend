@@ -4,16 +4,7 @@ import type { ESinavTabValue, GetCandidatesParams } from "../lib/candidates-api"
 
 export function ExamESinavPage() {
   const t = useT();
-  const defaultVisibleColumnIds: CandidateColumnId[] = [
-    "photo",
-    "name",
-    "nationalId",
-    "group",
-    "status",
-    "eSinavAttemptCount",
-    "mebSyncStatus",
-    "referenceName",
-  ];
+  const defaultVisibleColumnIds: CandidateColumnId[] = [];
   const tabs: { key: ESinavTabValue; label: string }[] = [
     { key: "havuz", label: t("examESinav.tab.havuz") },
     { key: "basarisiz", label: t("examESinav.tab.basarisiz") },
@@ -26,9 +17,8 @@ export function ExamESinavPage() {
 
   return (
     <CandidatesPage
-      columnStorageKey="exams.e-sinav.columns.v7"
+      columnStorageKey="exams.e-sinav.columns.v8"
       columnLabelOverrides={{
-        eSinavDate: "Tarih",
         eSinavAttemptCount: "Hak",
       }}
       defaultVisibleColumnIds={defaultVisibleColumnIds}

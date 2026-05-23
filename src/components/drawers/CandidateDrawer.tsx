@@ -895,7 +895,7 @@ export function CandidateDrawer({
               </DrawerRow>
               <DrawerRow label="Simülatör">{formatLessonHours(educationPlan.simulatorLessonHours)}</DrawerRow>
               <DrawerRow label="Direksiyon">{formatLessonHours(educationPlan.practiceLessonHours)}</DrawerRow>
-              <DrawerRow label="Uygulama Sınavı">
+              <DrawerRow label="Direksiyon Sınavı">
                 {educationPlan.requiresPracticeExam ? "Gerekli" : "Muaf"}
               </DrawerRow>
             </DrawerSection>
@@ -949,7 +949,7 @@ export function CandidateDrawer({
               inputLang={dateInputLang}
               inputType="date"
               inputValue={candidate.drivingExamDate ?? ""}
-              label="Uygulama Tarihi"
+              label="Direksiyon Tarihi"
               onSave={(value) => saveField({ drivingExamDate: value || null })}
             />
             <EditableRow
@@ -970,7 +970,7 @@ export function CandidateDrawer({
             <EditableRow
               displayValue={`${candidate.drivingExamAttemptCount ?? 1}/4`}
               inputValue={String(candidate.drivingExamAttemptCount ?? 1)}
-              label="Uygulama Hakkı"
+              label="Direksiyon Hakkı"
               options={EXAM_ATTEMPT_OPTIONS}
               onSave={(value) => saveField({ drivingExamAttemptCount: Number(value) })}
             />

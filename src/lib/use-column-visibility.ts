@@ -6,15 +6,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
  * `defaultVisibleIds` (or every column id when omitted). Unknown ids coming
  * from storage (stale keys after a column removal) are silently dropped.
  *
- * The hook guarantees at least one column stays visible — attempts to hide
- * the last visible column are ignored so the table never renders empty.
+ * The hook guarantees at least one column stays visible unless `allowEmpty`
+ * is enabled for tables with forced/locked columns.
  */
 export function useColumnVisibility(
   storageKey: string,
   allColumnIds: string[],
-  defaultVisibleIds?: string[]
+  defaultVisibleIds?: string[],
+  options: { allowEmpty?: boolean } = {}
 ) {
   const fallback = defaultVisibleIds ?? allColumnIds;
+  const allowEmpty = options.allowEmpty ?? false;
 
   const readFromStorage = useCallback((): string[] => {
     try {
@@ -25,14 +27,14 @@ export function useColumnVisibility(
       const filtered = parsed.filter(
         (id): id is string => typeof id === "string" && allColumnIds.includes(id)
       );
-      return filtered.length > 0 ? filtered : fallback;
+      return filtered.length > 0 || allowEmpty ? filtered : fallback;
     } catch {
       return fallback;
     }
     // allColumnIds / fallback identities change whenever the caller
     // re-renders with new columns, which is the intended signal to re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey, allColumnIds.join(","), fallback.join(",")]);
+  }, [storageKey, allColumnIds.join(","), fallback.join(","), allowEmpty]);
 
   const [state, setState] = useState<{ storageKey: string; visibleIds: string[] }>(() => ({
     storageKey,
@@ -63,7 +65,7 @@ export function useColumnVisibility(
         const current = currentState.visibleIds;
         if (current.includes(id)) {
           // Never allow hiding the last visible column.
-          if (current.length === 1) return currentState;
+          if (!allowEmpty && current.length === 1) return currentState;
           return { ...currentState, visibleIds: current.filter((c) => c !== id) };
         }
         // Preserve the original column order defined by `allColumnIds`.
@@ -72,7 +74,7 @@ export function useColumnVisibility(
         return { ...currentState, visibleIds: allColumnIds.filter((c) => next.has(c)) };
       });
     },
-    [allColumnIds]
+    [allColumnIds, allowEmpty]
   );
 
   const reset = useCallback(

@@ -11,6 +11,7 @@ type CandidatePayloadOverrides = {
   tags?: string[];
   mebExamDate?: string | null;
   drivingExamDate?: string | null;
+  drivingExamScheduleId?: string | null;
   graduationDate?: string | null;
 };
 
@@ -34,6 +35,9 @@ function buildCandidateUpdatePayload(
   const hasDrivingExamDateOverride =
     overrides !== undefined &&
     Object.prototype.hasOwnProperty.call(overrides, "drivingExamDate");
+  const hasDrivingExamScheduleOverride =
+    overrides !== undefined &&
+    Object.prototype.hasOwnProperty.call(overrides, "drivingExamScheduleId");
   const hasGraduationDateOverride =
     overrides !== undefined &&
     Object.prototype.hasOwnProperty.call(overrides, "graduationDate");
@@ -57,6 +61,9 @@ function buildCandidateUpdatePayload(
     drivingExamDate: hasDrivingExamDateOverride
       ? overrides.drivingExamDate
       : candidate.drivingExamDate,
+    drivingExamScheduleId: hasDrivingExamScheduleOverride
+      ? overrides.drivingExamScheduleId
+      : undefined,
     graduationDate: hasGraduationDateOverride
       ? overrides.graduationDate
       : candidate.graduationDate,
@@ -156,6 +163,7 @@ export async function assignCandidatesToExamDate(
   candidateIds: string[],
   examType: CandidateExamDateType,
   examDate: string,
+  examScheduleId?: string | null,
   cache?: Map<string, CandidateResponse>
 ): Promise<BulkCandidateUpdateResult> {
   const results = await Promise.allSettled(
@@ -164,7 +172,7 @@ export async function assignCandidatesToExamDate(
       const overrides =
         examType === "e_sinav"
           ? { mebExamDate: examDate }
-          : { drivingExamDate: examDate };
+          : { drivingExamDate: examDate, drivingExamScheduleId: examScheduleId ?? null };
 
       await updateCandidate(id, buildCandidateUpdatePayload(candidate, overrides));
     })

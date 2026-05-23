@@ -105,13 +105,13 @@ describe("Sidebar live stats", () => {
 
     expect(trainingMenu).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("link", { name: "Teorik Eğitim" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Uygulama Eğitim" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Direksiyon Eğitim" })).not.toBeInTheDocument();
 
     fireEvent.click(trainingMenu);
 
     expect(trainingMenu).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toHaveClass("active");
-    expect(screen.getByRole("link", { name: "Uygulama Eğitim" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Direksiyon Eğitim" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "E-Sınav" })).not.toBeInTheDocument();
   });
 
@@ -159,7 +159,7 @@ describe("Sidebar live stats", () => {
 
     expect(screen.getByRole("button", { name: "Sınavlar" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "E-Sınav" })).toHaveClass("active");
-    expect(screen.getByRole("link", { name: "Uygulama" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Direksiyon" })).toBeInTheDocument();
   });
 
   it("renders training submenu and highlights the active child route", async () => {
@@ -176,7 +176,7 @@ describe("Sidebar live stats", () => {
     await waitFor(() => expect(screen.getByText("4")).toBeInTheDocument());
 
     expect(screen.getByRole("button", { name: "Eğitim Planı" })).toHaveClass("active");
-    expect(screen.getByRole("link", { name: "Uygulama Eğitim" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "Direksiyon Eğitim" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toBeInTheDocument();
   });
 });

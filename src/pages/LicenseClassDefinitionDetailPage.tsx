@@ -100,14 +100,14 @@ export function LicenseClassDefinitionDetailPage() {
 
           <div className="instructor-detail-summary-grid">
             <Field label="Teorik Sınav" value={formatBool(definition.requiresTheoryExam)} />
-            <Field label="Uygulama Sınavı" value={formatBool(definition.requiresPracticeExam)} />
+            <Field label="Direksiyon Sınavı" value={formatBool(definition.requiresPracticeExam)} />
             <Field label="Teorik Ders Saati" value={formatHours(definition.theoryLessonHours)} />
             <Field
               label="Simülatör Ders Saati"
               value={formatHours(definition.simulatorLessonHours)}
             />
             <Field
-              label="Direkt Uygulama Saati"
+              label="Direkt Direksiyon Saati"
               value={formatHours(definition.directPracticeLessonHours)}
             />
           </div>

@@ -426,7 +426,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
                       Eski Başvuru{" "}
                       {!errors.tc && reuseSources.length > 0 ? (
                         <span className="candidate-reuse-label-hint">
-                          (Bu kişi uygulamada zaten kayıtlı. İstersen eski bilgileri
+                          (Bu kişi direksiyonda zaten kayıtlı. İstersen eski bilgileri
                           otomatik doldurabilirim.)
                         </span>
                       ) : null}

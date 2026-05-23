@@ -427,8 +427,8 @@
   min-width: 240px;
 }
 .tabs-search-row.no-tabs .search-box {
-  flex: 1 1 100%;
-  min-width: 0;
+  flex: 0 1 360px;
+  min-width: 240px;
   padding: 12px 0;
 }
 @media (max-width: 860px) {

@@ -899,12 +899,12 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     const key = bulkValueKey(field, lessonType);
     const parsed = parseAmount(valueOverride ?? bulkValues[key] ?? "");
     if (parsed == null) {
-      showToast("Toplu uygulama için geçerli bir tutar girin", "error");
+      showToast("Toplu direksiyon için geçerli bir tutar girin", "error");
       return false;
     }
     const targetIds = Array.from(selectedProgramIds);
     if (targetIds.length === 0) {
-      showToast("Toplu uygulama için önce program seçin", "error");
+      showToast("Toplu direksiyon için önce program seçin", "error");
       return false;
     }
 
@@ -976,7 +976,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
       setBulkValueFor(field, lessonType, "");
       return true;
     } catch {
-      showToast("Toplu uygulama başarısız", "error");
+      showToast("Toplu direksiyon başarısız", "error");
       return false;
     } finally {
       setSaving(false);

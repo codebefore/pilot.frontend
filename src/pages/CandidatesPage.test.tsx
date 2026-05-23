@@ -10,7 +10,6 @@ import { renderWithProviders } from "../test/render-with-providers";
 
 const getCandidatesMock = vi.fn();
 const getExamScheduleOptionsMock = vi.fn();
-const syncExamSchedulesMock = vi.fn();
 const getCandidateByIdMock = vi.fn();
 const updateCandidateMock = vi.fn();
 const updateCandidateTagMock = vi.fn();
@@ -18,6 +17,7 @@ const deleteCandidateTagMock = vi.fn();
 const searchCandidateTagsMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const getGroupsMock = vi.fn();
+const getExamCodesMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -97,8 +97,18 @@ vi.mock("../lib/exam-schedules-api", async () => {
   return {
     ...actual,
     createExamSchedule: vi.fn(),
-    syncExamSchedules: (...args: Parameters<typeof actual.syncExamSchedules>) =>
-      syncExamSchedulesMock(...args),
+  };
+});
+
+vi.mock("../lib/exam-codes-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/exam-codes-api")>(
+    "../lib/exam-codes-api"
+  );
+  return {
+    ...actual,
+    createExamCode: vi.fn(),
+    getExamCodes: (...args: Parameters<typeof actual.getExamCodes>) =>
+      getExamCodesMock(...args),
   };
 });
 
@@ -153,7 +163,6 @@ describe("CandidatesPage tabs", () => {
     localStorage.clear();
     getCandidatesMock.mockReset();
     getExamScheduleOptionsMock.mockReset();
-    syncExamSchedulesMock.mockReset();
     getCandidateByIdMock.mockReset();
     updateCandidateMock.mockReset();
     updateCandidateTagMock.mockReset();
@@ -161,13 +170,10 @@ describe("CandidatesPage tabs", () => {
     searchCandidateTagsMock.mockReset();
     assignCandidateGroupMock.mockReset();
     getGroupsMock.mockReset();
+    getExamCodesMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
-    syncExamSchedulesMock.mockResolvedValue({
-      examType: "e_sinav",
-      createdCount: 0,
-      dateCount: 0,
-    });
+    getExamCodesMock.mockResolvedValue([]);
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "cand-1",
@@ -334,6 +340,59 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
+  it("filters by driving exam code only while the code sidebar tab is active", async () => {
+    getExamCodesMock.mockResolvedValue([
+      {
+        id: "code-1",
+        examType: "uygulama",
+        code: "100000001",
+        scheduleCount: 2,
+        candidateCount: 3,
+        createdAtUtc: "2026-05-01T10:00:00Z",
+      },
+    ]);
+    renderUygulamaPage();
+
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+    fireEvent.click(await screen.findByRole("tab", { name: "Sınav Kodları" }));
+
+    expect(screen.queryByRole("button", { name: "Havuz" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Başarısız" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Randevulu" })).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: /100000001/i }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          drivingExamCode: "100000001",
+          page: 1,
+          pageSize: 10,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+    const codeQuery = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+    expect(codeQuery.drivingExamTab).toBeUndefined();
+    expect(codeQuery.status).toBeUndefined();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Sınav Tarihleri" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: "active",
+          drivingExamTab: "havuz",
+          page: 1,
+          pageSize: 10,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+    const dateQuery = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+    expect(dateQuery.drivingExamCode).toBeUndefined();
+  });
+
   it("loads e-sinav date options without the havuz tab constraint", async () => {
     renderESinavPage();
 
@@ -359,13 +418,13 @@ describe("CandidatesPage tabs", () => {
   it("shows exam toolbar actions only on exam pages", async () => {
     const examView = renderESinavPage();
 
-    expect(await screen.findByRole("button", { name: "Tarih Ekle" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mebbis" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Sınav Tarihi Ekle" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mebbis" })).not.toBeInTheDocument();
 
     examView.unmount();
     renderPage();
 
-    expect(screen.queryByRole("button", { name: "Tarih Ekle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sınav Tarihi Ekle" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mebbis" })).not.toBeInTheDocument();
   });
 
@@ -386,8 +445,7 @@ describe("CandidatesPage tabs", () => {
       within(sidebar).queryByText("Bu görünümde atanmış tarih yok.")
     ).not.toBeInTheDocument();
     expect(within(sidebar).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Tarih Ekle",
-      "Mebbis",
+      "Sınav Tarihi Ekle",
     ]);
   });
 
@@ -458,18 +516,8 @@ describe("CandidatesPage tabs", () => {
       .getAllByRole("button")
       .map((button) => button.textContent?.trim() ?? "");
 
-    expect(sidebarButtons[0]).toBe("Tarih Ekle");
-    expect(sidebarButtons[1]).toBe("Mebbis");
-  });
-
-  it("calls the backend sync endpoint from the e-sinav action", async () => {
-    renderESinavPage();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Mebbis" }));
-
-    await waitFor(() => {
-      expect(syncExamSchedulesMock).toHaveBeenCalledWith("e_sinav");
-    });
+    expect(sidebarButtons[0]).toBe("Sınav Tarihi Ekle");
+    expect(sidebarButtons).not.toContain("Mebbis");
   });
 
   it("moves the divider forward when the day changes", async () => {
@@ -548,9 +596,9 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    await screen.findByRole("columnheader", { name: "Mebbis" });
+    await screen.findByRole("columnheader", { name: "Direksiyon Sınav Ücreti Durumu" });
     expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Hak" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Hak" })).toBeInTheDocument();
   });
 
   it("filters the uygulama page by the selected driving exam date", async () => {
@@ -579,6 +627,8 @@ describe("CandidatesPage tabs", () => {
       throw new Error("exam date sidebar not found");
     }
 
+    const scheduleOptionCallCount = getExamScheduleOptionsMock.mock.calls.length;
+
     fireEvent.click(
       await within(sidebar).findByRole("button", { name: /03\.06\.2026/i, pressed: false })
     );
@@ -595,6 +645,7 @@ describe("CandidatesPage tabs", () => {
         expect.any(AbortSignal)
       );
     });
+    expect(getExamScheduleOptionsMock).toHaveBeenCalledTimes(scheduleOptionCallCount);
   });
 
   it("renders the uygulama sidebar summary without license class counts", async () => {
@@ -863,8 +914,8 @@ describe("CandidatesPage tabs", () => {
     }
 
     expect(within(picker).queryByText("E-Sınav Tarihi")).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Uygulama Tarihi")).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Uygulama Hakkı")).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Direksiyon Tarihi")).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Direksiyon Hakkı")).not.toBeInTheDocument();
   });
 
   it("renders unified exam attempt and status values on the Tümü tab", async () => {
@@ -984,10 +1035,10 @@ describe("CandidatesPage tabs", () => {
 
     expect(await screen.findByText("E-sınav 2/4")).toBeInTheDocument();
     expect(screen.getByText("E-sınav randevulu")).toBeInTheDocument();
-    expect(screen.getByText("Uygulama 1/4")).toBeInTheDocument();
-    expect(screen.getByText("Uygulama havuz")).toBeInTheDocument();
-    expect(screen.getByText("Uygulama 3/4")).toBeInTheDocument();
-    expect(screen.getByText("Uygulama başarılı")).toBeInTheDocument();
+    expect(screen.getByText("Direksiyon 1/4")).toBeInTheDocument();
+    expect(screen.getByText("Direksiyon havuz")).toBeInTheDocument();
+    expect(screen.getByText("Direksiyon 3/4")).toBeInTheDocument();
+    expect(screen.getByText("Direksiyon başarılı")).toBeInTheDocument();
   });
 
   it("keeps e-sinav date hidden and attempt visible but out of the picker", async () => {
@@ -1009,13 +1060,13 @@ describe("CandidatesPage tabs", () => {
     expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
   });
 
-  it("keeps uygulama date and attempt columns hidden and out of the picker", async () => {
+  it("keeps uygulama locked columns visible and out of the picker", async () => {
     renderUygulamaPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    await screen.findByRole("columnheader", { name: "Mebbis" });
+    await screen.findByRole("columnheader", { name: "Direksiyon Sınav Ücreti Durumu" });
     expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Hak" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Hak" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
     const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
@@ -1026,6 +1077,28 @@ describe("CandidatesPage tabs", () => {
 
     expect(within(picker).queryByText(/^Tarih$/)).not.toBeInTheDocument();
     expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Direksiyon Sınav Ücreti Durumu")).not.toBeInTheDocument();
+  });
+
+  it("shows last exam date after fee status on the uygulama failed tab", async () => {
+    renderUygulamaPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Başarısız" }));
+
+    await screen.findByRole("columnheader", { name: "Son Sınav Tarihi" });
+    const headers = screen.getAllByRole("columnheader").map((header) => header.textContent?.trim());
+    expect(headers).toEqual(
+      expect.arrayContaining([
+        "Direksiyon Sınav Ücreti Durumu",
+        "Son Sınav Tarihi",
+        "Son Sınav Kodu",
+      ])
+    );
+    expect(headers.indexOf("Son Sınav Tarihi")).toBe(
+      headers.indexOf("Direksiyon Sınav Ücreti Durumu") + 1
+    );
+    expect(headers.indexOf("Son Sınav Kodu")).toBe(headers.indexOf("Son Sınav Tarihi") + 1);
   });
 
   it("renders the group column with the term month in the same cell", async () => {
@@ -1791,7 +1864,7 @@ describe("CandidatesPage tabs", () => {
     expect(optionLabels).not.toContain("12.05.2026 09:00 - 3 aday");
 
     fireEvent.change(screen.getByLabelText("Toplu sınav tarihi seç"), {
-      target: { value: "2026-05-12" },
+      target: { value: "e_sinav-2026-05-12" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
 

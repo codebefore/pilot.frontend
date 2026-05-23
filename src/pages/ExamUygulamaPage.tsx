@@ -4,15 +4,7 @@ import type { CandidateExamTabValue, GetCandidatesParams } from "../lib/candidat
 
 export function ExamUygulamaPage() {
   const t = useT();
-  const defaultVisibleColumnIds: CandidateColumnId[] = [
-    "photo",
-    "name",
-    "nationalId",
-    "group",
-    "status",
-    "mebSyncStatus",
-    "referenceName",
-  ];
+  const defaultVisibleColumnIds: CandidateColumnId[] = [];
   const tabs: { key: CandidateExamTabValue; label: string }[] = [
     { key: "havuz", label: t("examESinav.tab.havuz") },
     { key: "basarisiz", label: t("examESinav.tab.basarisiz") },
@@ -25,7 +17,7 @@ export function ExamUygulamaPage() {
 
   return (
     <CandidatesPage
-      columnStorageKey="exams.uygulama.columns.v7"
+      columnStorageKey="exams.uygulama.columns.v8"
       columnLabelOverrides={{
         drivingExamDate: "Tarih",
         drivingExamAttemptCount: "Hak",
@@ -39,6 +31,7 @@ export function ExamUygulamaPage() {
         summaryMode: "capacity",
         title: t("candidates.col.drivingExamDate"),
       }}
+      groupColumnMode="term"
       tabConfig={{
         tabs,
         defaultTab: "havuz",

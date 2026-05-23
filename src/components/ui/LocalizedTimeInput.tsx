@@ -22,6 +22,12 @@ type LocalizedTimeInputProps = {
   size?: "md" | "sm";
   inputRef?: Ref<HTMLInputElement>;
   stepMinutes?: number;
+  timeOptions?: Array<string | { value: string; label: string }>;
+};
+
+type TimeOption = {
+  value: string;
+  label: string;
 };
 
 function formatTime(hour: number, minute: number): string {
@@ -41,6 +47,12 @@ function buildTimeOptions(stepMinutes: number): string[] {
   return options;
 }
 
+function normalizeTimeOptions(options: Array<string | { value: string; label: string }>): TimeOption[] {
+  return options.map((option) =>
+    typeof option === "string" ? { value: option, label: option } : option
+  );
+}
+
 export function LocalizedTimeInput({
   value,
   onChange,
@@ -53,12 +65,21 @@ export function LocalizedTimeInput({
   size = "md",
   inputRef,
   stepMinutes = 5,
+  timeOptions: customTimeOptions,
 }: LocalizedTimeInputProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
   const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
-  const timeOptions = useMemo(() => buildTimeOptions(stepMinutes), [stepMinutes]);
+  const timeOptions = useMemo(
+    () =>
+      customTimeOptions
+        ? normalizeTimeOptions(customTimeOptions)
+        : normalizeTimeOptions(buildTimeOptions(stepMinutes)),
+    [customTimeOptions, stepMinutes]
+  );
+  const selectedOption = timeOptions.find((option) => option.value === value);
+  const displayValue = selectedOption?.label ?? value;
 
   useEffect(() => {
     if (!open) return;
@@ -162,7 +183,7 @@ export function LocalizedTimeInput({
           placeholder={placeholder}
           readOnly
           type="text"
-          value={value}
+          value={displayValue}
         />
         <span className="localized-date-icons" aria-hidden="true">
           <ClockIcon size={size === "sm" ? 14 : 16} />
@@ -190,26 +211,26 @@ export function LocalizedTimeInput({
         >
           <div className="localized-time-popover-header">
             <div className="localized-time-popover-title">Saat Sec</div>
-            <div className="localized-time-popover-value">{value || placeholder}</div>
+            <div className="localized-time-popover-value">{displayValue || placeholder}</div>
           </div>
 
           <div className="localized-time-list" role="listbox">
             {timeOptions.map((option) => (
               <button
-                key={option}
-                aria-selected={option === value}
+                key={option.value}
+                aria-selected={option.value === value}
                 className={[
                   "localized-time-option",
-                  option === value ? "selected" : "",
+                  option.value === value ? "selected" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                onClick={() => selectTime(option)}
-                ref={option === value ? selectedOptionRef : null}
+                onClick={() => selectTime(option.value)}
+                ref={option.value === value ? selectedOptionRef : null}
                 role="option"
                 type="button"
               >
-                {option}
+                {option.label}
               </button>
             ))}
           </div>

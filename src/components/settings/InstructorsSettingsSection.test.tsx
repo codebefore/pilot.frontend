@@ -151,7 +151,7 @@ describe("InstructorsSettingsSection", () => {
         createBranch("first_aid", "İlk Yardım", 20),
         createBranch("vehicle_technique", "Araç Tekniği", 30),
         createBranch("traffic_ethics", "Trafik Adabı", 40),
-        createBranch("practice", "Uygulama", 50),
+        createBranch("practice", "Direksiyon", 50),
       ],
       page: 1,
       pageSize: 100,
@@ -211,7 +211,7 @@ describe("InstructorsSettingsSection", () => {
 
     expect(await screen.findByText("HASAN KORKMAZ")).toBeInTheDocument();
     expect(screen.getAllByText("Usta Öğretici").length).toBeGreaterThan(0);
-    expect(screen.getByText("Uygulama, Trafik ve Çevre")).toBeInTheDocument();
+    expect(screen.getByText("Direksiyon, Trafik ve Çevre")).toBeInTheDocument();
     expect(getTrainingBranchDefinitionsMock).toHaveBeenCalledWith(
       { activity: "active", page: 1, pageSize: 100 },
       expect.any(AbortSignal)

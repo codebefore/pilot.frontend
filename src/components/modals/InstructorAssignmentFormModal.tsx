@@ -125,7 +125,7 @@ export function InstructorAssignmentFormModal({
 	      next.branches = "En az bir branş seçilmeli";
 	    }
 	    if (values.branches.includes("practice") && values.licenseClassCodes.length === 0) {
-	      next.licenseClassCodes = "Uygulama branşı için en az bir ehliyet sınıfı seçilmeli";
+	      next.licenseClassCodes = "Direksiyon branşı için en az bir ehliyet sınıfı seçilmeli";
 	    }
 	    setErrors(next);
     return Object.keys(next).length === 0;

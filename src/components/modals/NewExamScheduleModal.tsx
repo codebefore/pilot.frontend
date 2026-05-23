@@ -8,15 +8,18 @@ import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+import type { ExamCodeOption } from "../../lib/types";
 
 type NewExamScheduleForm = {
   date: string;
+  examCodeId: string;
   time: string;
   capacity: number;
 };
 
 type NewExamScheduleModalProps = {
   examType: "e_sinav" | "uygulama";
+  examCodes?: ExamCodeOption[];
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -29,17 +32,19 @@ function todayISO(): string {
 function defaultValues(): NewExamScheduleForm {
   return {
     date: todayISO(),
+    examCodeId: "",
     time: "09:00",
     capacity: 20,
   };
 }
 
 function modalTitle(examType: "e_sinav" | "uygulama"): string {
-  return examType === "e_sinav" ? "Yeni E-Sınav Tarihi" : "Yeni Uygulama Tarihi";
+  return examType === "e_sinav" ? "Yeni E-Sınav Tarihi" : "Yeni Direksiyon Tarihi";
 }
 
 export function NewExamScheduleModal({
   examType,
+  examCodes = [],
   open,
   onClose,
   onSaved,
@@ -60,16 +65,21 @@ export function NewExamScheduleModal({
     formState: { errors },
   } = useForm<NewExamScheduleForm>({ defaultValues: defaultValues() });
   const date = watch("date");
+  const examCodeId = watch("examCodeId");
   const time = watch("time");
   const showTimeField = examType === "e_sinav";
+  const showExamCodeField = examType === "uygulama";
   const dateRegistration = register("date", { required: "Zorunlu alan" });
   const timeRegistration = register("time", { required: "Zorunlu alan" });
 
   useEffect(() => {
     if (open) {
-      reset(defaultValues());
+      reset({
+        ...defaultValues(),
+        examCodeId: examCodes[0]?.id ?? "",
+      });
     }
-  }, [open, reset]);
+  }, [examCodes, open, reset]);
 
   const submit = handleSubmit(async (data) => {
     setSubmitting(true);
@@ -78,6 +88,7 @@ export function NewExamScheduleModal({
       await createExamSchedule({
         examType,
         date: data.date,
+        ...(showExamCodeField ? { examCodeId: data.examCodeId } : {}),
         ...(showTimeField ? { time: data.time.trim() } : {}),
         capacity: Number(data.capacity),
       });
@@ -93,6 +104,12 @@ export function NewExamScheduleModal({
         const timeError = error.validationErrors.time?.[0] ?? error.validationErrors.Time?.[0];
         if (timeError) {
           setError("time", { message: timeError });
+        }
+
+        const codeError =
+          error.validationErrors.examCodeId?.[0] ?? error.validationErrors.ExamCodeId?.[0];
+        if (codeError) {
+          setError("examCodeId", { message: codeError });
         }
 
         const capacityError =
@@ -180,6 +197,27 @@ export function NewExamScheduleModal({
                 value={time}
               />
               {errors.time ? <div className="form-error">{errors.time.message}</div> : null}
+            </div>
+          ) : null}
+
+          {showExamCodeField ? (
+            <div className="form-group">
+              <label className="form-label">Sınav Kodu</label>
+              <select
+                className={fieldClass(!!errors.examCodeId, "form-select")}
+                value={examCodeId}
+                {...register("examCodeId", { required: "Sınav kodu zorunlu" })}
+              >
+                <option value="">Sınav kodu seçin</option>
+                {examCodes.map((code) => (
+                  <option key={code.id} value={code.id}>
+                    {code.code}
+                  </option>
+                ))}
+              </select>
+              {errors.examCodeId ? (
+                <div className="form-error">{errors.examCodeId.message}</div>
+              ) : null}
             </div>
           ) : null}
         </div>

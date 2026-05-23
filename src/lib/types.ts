@@ -92,10 +92,24 @@ export interface CandidateResponse {
   mebSyncStatus?: string | null;
   mebExamDate?: string | null;
   drivingExamDate?: string | null;
+  drivingExamCode?: string | null;
+  drivingExamAttemptId?: string | null;
+  drivingExamScheduleId?: string | null;
+  drivingExamScheduledAt?: string | null;
+  drivingExamVehicleId?: string | null;
+  drivingExamVehiclePlate?: string | null;
+  drivingExamInstructorId?: string | null;
+  drivingExamInstructorFullName?: string | null;
+  drivingExamAttendanceStatus?: CandidateExamAttendanceStatus | null;
+  drivingExamResultStatus?: CandidateExamResultStatus | null;
+  drivingExamFee?: number | null;
+  drivingExamAttemptRowVersion?: number | null;
   graduationDate?: string | null;
   mebExamResult?: string | null;
   eSinavAttemptCount?: number | null;
+  eSinavTheoryExamFeeStatus?: CandidateExamFeeStatus | null;
   drivingExamAttemptCount?: number | null;
+  drivingExamFeeStatus?: CandidateExamFeeStatus | null;
   isTheoryExempt?: boolean;
   totalFee: number;
   totalPaid: number;
@@ -112,6 +126,7 @@ export interface CandidateResponse {
   appointmentStatusLabel?: string | null;
   secondPracticeRoundEnabled?: boolean;
   canToggleSecondPracticeRound?: boolean;
+  isBlockedForLatestDrivingExamCode?: boolean;
   timeline?: CandidateTimelineEvent[];
 }
 
@@ -158,6 +173,7 @@ export interface CandidateUpsertRequest {
   mebSyncStatus?: string | null;
   mebExamDate?: string | null;
   drivingExamDate?: string | null;
+  drivingExamScheduleId?: string | null;
   graduationDate?: string | null;
   mebExamResult?: string | null;
   eSinavAttemptCount?: number | null;
@@ -185,8 +201,15 @@ type CandidateAccountingStatus = "active" | "cancelled";
 export type CandidatePaymentMethod = "cash" | "bank_transfer" | "credit_card" | "mail_order" | "other";
 export type CandidateAccountingType = "kurs" | "teorik_sinav" | "direksiyon_sinav" | "diger";
 export type CandidateExamType = "theory" | "practice";
-export type CandidateExamFeeStatus = "pending" | "charged" | "paid";
-type CandidateExamAttendanceStatus = "attended" | "absent";
+export type CandidateExamFeeStatus =
+  | "pending"
+  | "charged"
+  | "paid"
+  | "partially_paid"
+  | "partially_refunded"
+  | "refunded"
+  | "cancelled";
+type CandidateExamAttendanceStatus = "attended" | "absent" | "reported";
 type CandidateExamResultStatus = "passed" | "failed";
 
 export interface CandidateExamAttemptResponse {
@@ -197,6 +220,8 @@ export interface CandidateExamAttemptResponse {
   attemptNumber: number;
   score: number | null;
   expiresAt: string | null;
+  examScheduleId: string | null;
+  examCode: string | null;
   vehicleId: string | null;
   vehiclePlate: string | null;
   instructorId: string | null;
@@ -217,6 +242,8 @@ export interface CandidateExamAttemptUpsertRequest {
   attemptNumber?: number | null;
   score?: number | null;
   expiresAt?: string | null;
+  examScheduleId?: string | null;
+  examCode?: string | null;
   vehicleId?: string | null;
   vehiclePlate?: string | null;
   instructorId?: string | null;
@@ -226,6 +253,24 @@ export interface CandidateExamAttemptUpsertRequest {
   fee: number;
   feeStatus: CandidateExamFeeStatus;
   rowVersion?: number;
+}
+
+export interface CandidateKCertificateResponse {
+  id: string;
+  candidateId: string;
+  documentNumber: string;
+  startDate: string;
+  expiryDate: string;
+  lastLessonEndDate: string;
+  createdAtUtc: string;
+  rowVersion: number;
+}
+
+export interface CandidateKCertificateCreateRequest {
+  documentNumber: string;
+  startDate: string;
+  expiryDate: string;
+  lastLessonEndDate: string;
 }
 
 interface AccountingCashRegisterSummaryResponse {
@@ -542,6 +587,8 @@ export interface CandidateGroupAssignmentResponse {
 export interface ExamScheduleOption {
   id: string;
   examType: "e_sinav" | "uygulama";
+  examCodeId?: string | null;
+  examCode?: string | null;
   date: string;
   time: string;
   capacity: number;
@@ -558,6 +605,15 @@ export interface ExamScheduleSyncResponse {
   examType: "e_sinav" | "uygulama";
   createdCount: number;
   dateCount: number;
+}
+
+export interface ExamCodeOption {
+  id: string;
+  examType: "uygulama";
+  code: string;
+  scheduleCount: number;
+  candidateCount: number;
+  createdAtUtc: string;
 }
 
 /* ── Vehicles ── */
