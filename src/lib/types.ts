@@ -313,6 +313,7 @@ export interface CandidateAccountingPaymentResponse {
   id: string;
   candidateId: string;
   type: CandidateAccountingType;
+  number: string | null;
   paymentMethod: CandidatePaymentMethod;
   cashRegisterId: string | null;
   cashRegister: AccountingCashRegisterSummaryResponse | null;
@@ -461,6 +462,7 @@ export interface PaymentMovementResponse {
   candidate: PaymentCandidateSummaryResponse;
   type: CandidateAccountingType;
   installmentDescription: string | null;
+  number: string | null;
   cashRegisterId: string | null;
   cashRegister: AccountingCashRegisterSummaryResponse | null;
   amount: number;
@@ -477,6 +479,7 @@ export interface PaymentRefundMovementResponse {
   paymentId: string;
   candidate: PaymentCandidateSummaryResponse;
   type: CandidateAccountingType;
+  number: string | null;
   cashRegisterId: string | null;
   cashRegister: AccountingCashRegisterSummaryResponse | null;
   amount: number;

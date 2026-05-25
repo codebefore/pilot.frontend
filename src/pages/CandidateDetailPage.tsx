@@ -510,10 +510,10 @@ export function CandidateDetailPage() {
     }
   };
 
-  const handleCancelMovement = async (movementId: string) => {
+  const handleCancelMovement = async (movementId: string, cancellationReason: string) => {
     if (!candidate) return;
     try {
-      await cancelCandidateAccountingMovement(candidate.id, movementId, "Borçlandırma iptal edildi.");
+      await cancelCandidateAccountingMovement(candidate.id, movementId, cancellationReason);
       await refreshAccounting();
       showToast("Borçlandırma iptal edildi");
     } catch (error) {
@@ -706,7 +706,9 @@ export function CandidateDetailPage() {
                 candidate={candidate}
                 invoiceSaving={invoiceSaving}
                 movementSaving={movementSaving}
-                onCancelMovement={(movementId) => void handleCancelMovement(movementId)}
+                onCancelMovement={(movementId, cancellationReason) =>
+                  void handleCancelMovement(movementId, cancellationReason)
+                }
                 onCancelPayment={(paymentId, cancellationReason) =>
                   void handleCancelPayment(paymentId, cancellationReason)
                 }
@@ -1809,6 +1811,21 @@ function todayIsoDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+function nowDateTimeLocal(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Istanbul",
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
+}
+
 function addDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -2686,6 +2703,19 @@ function fromDateTimeLocalValue(value: string): string {
   return new Date(value).toISOString();
 }
 
+function fromApplicationDateTimeLocalValue(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return fromDateTimeLocalValue(value);
+  const [, year, month, day, hour, minute] = match;
+  return new Date(Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour) - 3,
+    Number(minute)
+  )).toISOString();
+}
+
 function toDateTimeLocalValue(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -3026,6 +3056,7 @@ type AccountingLedgerColumnId =
   | "paidAmount"
   | "remainingAmount"
   | "number"
+  | "receiptNumber"
   | "method"
   | "cashRegister"
   | "refundedAmount"
@@ -3048,17 +3079,18 @@ const ACCOUNTING_LEDGER_COLUMNS: Array<{
   locked?: boolean;
 }> = [
   { id: "type", label: "Tür", sortField: "type", locked: true },
-  { id: "description", label: "Açıklama", sortField: "description" },
   { id: "dueDate", label: "Vade Tarihi", sortField: "dueDate" },
   { id: "amount", label: "Tutar", sortField: "amount" },
   { id: "paidAmount", label: "Ödenen", sortField: "paidAmount" },
   { id: "remainingAmount", label: "Kalan", sortField: "remainingAmount" },
-  { id: "number", label: "No", sortField: "number" },
+  { id: "paidAt", label: "Ödeme Tarihi", sortField: "paidAt" },
+  { id: "receiptNumber", label: "Makbuz No", sortField: "receiptNumber" },
   { id: "method", label: "Yöntem", sortField: "method" },
   { id: "cashRegister", label: "Kasa", sortField: "cashRegister" },
-  { id: "refundedAmount", label: "İade", sortField: "refundedAmount" },
-  { id: "paidAt", label: "Ödeme Tarihi", sortField: "paidAt" },
+  { id: "description", label: "Açıklama", sortField: "description" },
   { id: "actions", label: "İşlemler", locked: true },
+  { id: "refundedAmount", label: "İade", sortField: "refundedAmount" },
+  { id: "number", label: "Borç No", sortField: "number" },
 ];
 
 const ACCOUNTING_LEDGER_COLUMN_OPTIONS: ColumnOption[] = ACCOUNTING_LEDGER_COLUMNS.map((column) => ({
@@ -3069,21 +3101,18 @@ const ACCOUNTING_LEDGER_COLUMN_OPTIONS: ColumnOption[] = ACCOUNTING_LEDGER_COLUM
 
 const DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS: AccountingLedgerColumnId[] = [
   "type",
-  "description",
   "dueDate",
   "amount",
-  "paidAmount",
-  "remainingAmount",
-  "number",
+  "paidAt",
+  "receiptNumber",
   "method",
   "cashRegister",
-  "refundedAmount",
-  "paidAt",
+  "description",
   "actions",
 ];
 
 const DEFAULT_ACCOUNTING_LEDGER_FILTERS: AccountingLedgerFilters = {
-  kind: "all",
+  kind: "hideCancelled",
   status: "all",
   method: "all",
   cashRegister: "all",
@@ -3136,7 +3165,7 @@ function AccountingTab({
     note: string | null,
     movementId: string | null
   ) => void;
-  onCancelMovement: (movementId: string) => void;
+  onCancelMovement: (movementId: string, cancellationReason: string) => void;
   onCancelPayment: (paymentId: string, cancellationReason: string) => void;
   onRefundPayment: (paymentId: string, amount: number | null, note: string | null) => void;
   onSaveInvoice: (
@@ -3196,7 +3225,7 @@ function AccountingTab({
     amount: "",
     method: "cash",
     cashRegisterId: "",
-    paidAtUtc: todayIsoDate(),
+    paidAtUtc: nowDateTimeLocal(),
     note: "",
     movementId: "",
   });
@@ -3223,9 +3252,12 @@ function AccountingTab({
     useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
   const [cancelPayment, setCancelPayment] =
     useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
+  const [cancelMovement, setCancelMovement] =
+    useState<CandidateAccountingSummaryResponse["movements"][number] | null>(null);
   const [refundPayment, setRefundPayment] =
     useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
   const [paymentCancelReason, setPaymentCancelReason] = useState("");
+  const [movementCancelReason, setMovementCancelReason] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
   const [refundNote, setRefundNote] = useState("");
   const [sectionSummaryOpen, setSectionSummaryOpen] = useState(false);
@@ -3387,7 +3419,7 @@ function AccountingTab({
       amount,
       method: defaultMethod,
       cashRegisterId: firstRegister?.id ?? "",
-      paidAtUtc: todayIsoDate(),
+      paidAtUtc: nowDateTimeLocal(),
       note: "",
       movementId,
     });
@@ -3411,6 +3443,10 @@ function AccountingTab({
     setRefundPayment(payment);
     setRefundAmount(String(Math.max(0, payment.amount - payment.refundedAmount)));
     setRefundNote("");
+  };
+  const openCancelMovementModal = (movement: CandidateAccountingSummaryResponse["movements"][number]) => {
+    setCancelMovement(movement);
+    setMovementCancelReason("");
   };
   useEffect(() => {
     if (!accounting) return;
@@ -3626,7 +3662,7 @@ function AccountingTab({
 
       <AccountingMovementSection
         movements={sectionMovements(["kurs"])}
-        onCancelMovement={onCancelMovement}
+        onCancelMovement={openCancelMovementModal}
         onCancelPayment={(payment) => {
           setCancelPayment(payment);
           setPaymentCancelReason("");
@@ -3641,7 +3677,7 @@ function AccountingTab({
       />
       <AccountingMovementSection
         movements={sectionMovements(["teorik_sinav", "direksiyon_sinav"])}
-        onCancelMovement={onCancelMovement}
+        onCancelMovement={openCancelMovementModal}
         onCancelPayment={(payment) => {
           setCancelPayment(payment);
           setPaymentCancelReason("");
@@ -3656,7 +3692,7 @@ function AccountingTab({
       />
       <AccountingMovementSection
         movements={sectionMovements(["diger"])}
-        onCancelMovement={onCancelMovement}
+        onCancelMovement={openCancelMovementModal}
         onCancelPayment={(payment) => {
           setCancelPayment(payment);
           setPaymentCancelReason("");
@@ -3875,7 +3911,7 @@ function AccountingTab({
                   parsedPaymentAmount,
                   paymentModal.method,
                   paymentModal.cashRegisterId || null,
-                  paymentModal.paidAtUtc,
+                  fromApplicationDateTimeLocalValue(paymentModal.paidAtUtc),
                   paymentModal.note.trim() || null,
                   paymentModal.movementId || null
                 );
@@ -3918,7 +3954,30 @@ function AccountingTab({
           </label>
           <label className="form-group">
             <span className="form-label">Ödeme Tarihi</span>
-            <LocalizedDateInput className="form-input" onChange={(paidAtUtc) => setPaymentModal((current) => ({ ...current, paidAtUtc }))} value={paymentModal.paidAtUtc} />
+            <LocalizedDateInput
+              className="form-input"
+              onChange={(date) =>
+                setPaymentModal((current) => ({
+                  ...current,
+                  paidAtUtc: combineDateAndTimeLocal(date, timePartFromDateTimeLocal(current.paidAtUtc)),
+                }))
+              }
+              value={datePartFromDateTimeLocal(paymentModal.paidAtUtc)}
+            />
+          </label>
+          <label className="form-group">
+            <span className="form-label">Ödeme Saati</span>
+            <LocalizedTimeInput
+              ariaLabel="Ödeme saati"
+              className="form-input"
+              onChange={(time) =>
+                setPaymentModal((current) => ({
+                  ...current,
+                  paidAtUtc: combineDateAndTimeLocal(datePartFromDateTimeLocal(current.paidAtUtc), time),
+                }))
+              }
+              value={timePartFromDateTimeLocal(paymentModal.paidAtUtc)}
+            />
           </label>
           <label className="form-group">
             <span className="form-label">Açıklama</span>
@@ -4014,6 +4073,42 @@ function AccountingTab({
       <Modal
         footer={
           <>
+            <button className="btn btn-secondary" onClick={() => setCancelMovement(null)} type="button">Vazgeç</button>
+            <button
+              className="btn btn-primary"
+              disabled={movementCancelReason.trim().length < 3}
+              onClick={() => {
+                if (!cancelMovement) return;
+                onCancelMovement(cancelMovement.id, movementCancelReason.trim());
+                setCancelMovement(null);
+              }}
+              type="button"
+            >
+              Sil
+            </button>
+          </>
+        }
+        onClose={() => setCancelMovement(null)}
+        open={Boolean(cancelMovement)}
+        title="Borçlandırmayı Sil"
+      >
+        <div className="candidate-accounting-modal-form">
+          <label className="form-group">
+            <span className="form-label">Silme Açıklaması</span>
+            <textarea
+              className="form-input"
+              onChange={(event) => setMovementCancelReason(event.target.value)}
+              placeholder="Silme açıklaması"
+              rows={3}
+              value={movementCancelReason}
+            />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        footer={
+          <>
             <button className="btn btn-secondary" onClick={() => setCancelPayment(null)} type="button">Vazgeç</button>
             <button
               className="btn btn-primary"
@@ -4047,10 +4142,10 @@ function AccountingTab({
             <button className="btn btn-secondary" onClick={() => setRefundPayment(null)} type="button">Vazgeç</button>
             <button
               className="btn btn-primary"
-              disabled={(parseMoneyInput(refundAmount) ?? 0) <= 0}
+              disabled={(parseMoneyInput(refundAmount) ?? 0) <= 0 || refundNote.trim().length < 3}
               onClick={() => {
                 if (!refundPayment) return;
-                onRefundPayment(refundPayment.id, parseMoneyInput(refundAmount), refundNote.trim() || null);
+                onRefundPayment(refundPayment.id, parseMoneyInput(refundAmount), refundNote.trim());
                 setRefundPayment(null);
               }}
               type="button"
@@ -4070,7 +4165,7 @@ function AccountingTab({
           </label>
           <label className="form-group">
             <span className="form-label">Açıklama</span>
-            <input className="form-input" onChange={(event) => setRefundNote(event.target.value)} placeholder="İade açıklaması" value={refundNote} />
+            <textarea className="form-input" onChange={(event) => setRefundNote(event.target.value)} placeholder="İade açıklaması" rows={3} value={refundNote} />
           </label>
         </div>
       </Modal>
@@ -4188,7 +4283,7 @@ function AccountingMovementSection({
   payments: CandidateAccountingSummaryResponse["payments"];
   refunds: CandidateAccountingSummaryResponse["refunds"];
   onPay: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
-  onCancelMovement: (movementId: string) => void;
+  onCancelMovement: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
   onCancelPayment: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
   onCreateInvoice: (amount: number) => void;
   onOpenReceipt: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
@@ -4201,8 +4296,18 @@ function AccountingMovementSection({
   } | null>(null);
   const [sort, setSort] = useState<AccountingLedgerSortState>(null);
   const [filters, setFilters] = useState<AccountingLedgerFilters>(DEFAULT_ACCOUNTING_LEDGER_FILTERS);
+  useEffect(() => {
+    const stalePrefixes = [
+      "candidate-accounting-ledger-columns:",
+      "candidate-accounting-ledger-columns:v2:",
+      "candidate-accounting-ledger-columns:v3:",
+    ];
+    for (const prefix of stalePrefixes) {
+      localStorage.removeItem(`${prefix}${title}`);
+    }
+  }, [title]);
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    `candidate-accounting-ledger-columns:${title}`,
+    `candidate-accounting-ledger-columns:v4:${title}`,
     ACCOUNTING_LEDGER_COLUMNS.map((column) => column.id),
     DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS
   );
@@ -4351,6 +4456,10 @@ function AccountingMovementSection({
           </thead>
           <tbody>
             {sortedMovements.flatMap((movement) => {
+              if (filters.kind === "hideCancelled" && movement.status === "cancelled") {
+                return [];
+              }
+
               const relatedPayments = payments
                 .filter((item) =>
                   item.allocations.some((allocation) => allocation.movementId === movement.id)
@@ -4363,6 +4472,7 @@ function AccountingMovementSection({
               const canCancelMovement = movement.status === "active" && (!hasPaymentHistory || netPaidAmount <= 0);
               const displayDebtAmount = movement.status === "active" ? movement.remainingAmount : movement.amount;
               const canCreateInvoice = movement.status === "active" && displayDebtAmount > 0;
+              const transactionParentClass = movement.status === "cancelled" ? "parent-cancelled" : "";
               const debtMatches =
                 displayDebtAmount > 0 && accountingMovementPassesFilters(movement, filters);
               const childRows = relatedPayments.flatMap((item) => {
@@ -4395,53 +4505,6 @@ function AccountingMovementSection({
 
               return [
                 <Fragment key={movement.id}>
-                  {childRows.map((row) => {
-                    if (row.kind === "payment") {
-                      return (
-                        <tr
-                          className={`candidate-accounting-transaction-row ${
-                            row.item.status === "cancelled" ? "status-cancelled" : "status-paid"
-                          }`}
-                          key={`payment:${row.item.id}:${movement.id}`}
-                        >
-                          {visibleColumns.map((column) => (
-                            <td className={accountingLedgerCellClassName(column.id)} key={column.id}>
-                              {renderAccountingPaymentCell({
-                                columnId: column.id,
-                                movement,
-                                payment: row.item,
-                                allocation: row.allocation,
-                                openActionMenu,
-                                toggleActionMenu,
-                                closeActionMenu,
-                                onOpenReceipt,
-                                onOpenRefund,
-                                onCancelPayment,
-                              })}
-                            </td>
-                          ))}
-                          <td className="col-picker-td" />
-                        </tr>
-                      );
-                    }
-
-                    return (
-                      <tr className="candidate-accounting-transaction-row status-refunded" key={`refund:${row.refund.id}:${movement.id}`}>
-                        {visibleColumns.map((column) => (
-                          <td className={accountingLedgerCellClassName(column.id)} key={column.id}>
-                            {renderAccountingRefundCell({
-                              columnId: column.id,
-                              movement,
-                              payment: row.item,
-                              refund: row.refund,
-                              amount: row.amount,
-                            })}
-                          </td>
-                        ))}
-                        <td className="col-picker-td" />
-                      </tr>
-                    );
-                  })}
                   {debtMatches ? (
                     <tr className={`candidate-accounting-movement-row ${status.className}`}>
                       {visibleColumns.map((column) => (
@@ -4469,6 +4532,53 @@ function AccountingMovementSection({
                       <td className="col-picker-td" />
                     </tr>
                   ) : null}
+                  {childRows.map((row) => {
+                    if (row.kind === "payment") {
+                      return (
+                        <tr
+                          className={`candidate-accounting-transaction-row ${
+                            row.item.status === "cancelled" ? "status-cancelled" : "status-paid"
+                          } ${transactionParentClass}`}
+                          key={`payment:${row.item.id}:${movement.id}`}
+                        >
+                          {visibleColumns.map((column) => (
+                            <td className={accountingLedgerCellClassName(column.id)} key={column.id}>
+                              {renderAccountingPaymentCell({
+                                columnId: column.id,
+                                movement,
+                                payment: row.item,
+                                allocation: row.allocation,
+                                openActionMenu,
+                                toggleActionMenu,
+                                closeActionMenu,
+                                onOpenReceipt,
+                                onOpenRefund,
+                                onCancelPayment,
+                              })}
+                            </td>
+                          ))}
+                          <td className="col-picker-td" />
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr className={`candidate-accounting-transaction-row status-refunded ${transactionParentClass}`} key={`refund:${row.refund.id}:${movement.id}`}>
+                        {visibleColumns.map((column) => (
+                          <td className={accountingLedgerCellClassName(column.id)} key={column.id}>
+                            {renderAccountingRefundCell({
+                              columnId: column.id,
+                              movement,
+                              payment: row.item,
+                              refund: row.refund,
+                              amount: row.amount,
+                            })}
+                          </td>
+                        ))}
+                        <td className="col-picker-td" />
+                      </tr>
+                    );
+                  })}
                 </Fragment>,
               ];
             })}
@@ -4543,9 +4653,7 @@ function buildAccountingLedgerFilterControl(
         onChange={(value) => setFilter("kind", value)}
         options={[
           { value: "all", label: "Tümü" },
-          { value: "debt", label: "Borç" },
-          { value: "payment", label: "Ödendi" },
-          { value: "refund", label: "İade" },
+          { value: "hideCancelled", label: "Silinenleri gösterme" },
         ]}
         title="Satır tipi"
         value={filters.kind}
@@ -4583,22 +4691,6 @@ function buildAccountingLedgerFilterControl(
     );
   }
 
-  if (columnId === "actions") {
-    return (
-      <TableHeaderFilter
-        active={filters.status !== DEFAULT_ACCOUNTING_LEDGER_FILTERS.status}
-        onChange={(value) => setFilter("status", value)}
-        options={[
-          { value: "all", label: "Tümü" },
-          { value: "active", label: "Aktif" },
-          { value: "cancelled", label: "İptal" },
-        ]}
-        title="Durum"
-        value={filters.status}
-      />
-    );
-  }
-
   return null;
 }
 
@@ -4615,7 +4707,7 @@ function accountingMovementPassesFilters(
   movement: CandidateAccountingSummaryResponse["movements"][number],
   filters: AccountingLedgerFilters
 ) {
-  if (filters.kind !== "all" && filters.kind !== "debt") return false;
+  if (filters.kind === "hideCancelled" && movement.status === "cancelled") return false;
   if (filters.status === "active" && movement.status !== "active") return false;
   if (filters.status === "cancelled" && movement.status !== "cancelled") return false;
   if (filters.method !== "all") return false;
@@ -4628,7 +4720,7 @@ function accountingPaymentPassesFilters(
   payment: CandidateAccountingSummaryResponse["payments"][number],
   filters: AccountingLedgerFilters
 ) {
-  if (filters.kind !== "all" && filters.kind !== "payment") return false;
+  if (filters.kind === "hideCancelled" && payment.status === "cancelled") return false;
   if (filters.status === "active" && payment.status !== "active") return false;
   if (filters.status === "cancelled" && payment.status !== "cancelled") return false;
   if (filters.method !== "all" && payment.paymentMethod !== filters.method) return false;
@@ -4644,7 +4736,6 @@ function accountingRefundPassesFilters(
   refund: CandidateAccountingSummaryResponse["refunds"][number],
   filters: AccountingLedgerFilters
 ) {
-  if (filters.kind !== "all" && filters.kind !== "refund") return false;
   if (filters.status === "cancelled") return false;
   if (filters.method !== "all") return false;
 
@@ -4681,6 +4772,8 @@ function accountingMovementSortValue(
       return movement.remainingAmount;
     case "number":
       return movement.number;
+    case "receiptNumber":
+      return relatedPayment?.number ?? "";
     case "method":
       return movement.lastPaymentMethod ? paymentMethodLabel(movement.lastPaymentMethod) : "";
     case "cashRegister":
@@ -4749,7 +4842,7 @@ function renderAccountingMovementCell({
   closeActionMenu: () => void;
   onPay: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
   onCreateInvoice: (amount: number) => void;
-  onCancelMovement: (movementId: string) => void;
+  onCancelMovement: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
 }) {
   if (columnId === "type") {
     return (
@@ -4767,6 +4860,7 @@ function renderAccountingMovementCell({
   if (columnId === "paidAmount") return "—";
   if (columnId === "remainingAmount") return formatCurrencyTRY(displayDebtAmount);
   if (columnId === "number") return movement.number;
+  if (columnId === "receiptNumber") return "—";
   if (columnId === "method") {
     return "—";
   }
@@ -4775,6 +4869,10 @@ function renderAccountingMovementCell({
     return "—";
   }
   if (columnId === "paidAt") {
+    return renderFinanceDateTime(movement.createdAtUtc);
+  }
+
+  if (!canPay && !canCreateInvoice && !canCancelMovement) {
     return "—";
   }
 
@@ -4800,7 +4898,7 @@ function renderAccountingMovementCell({
             <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onCreateInvoice(displayDebtAmount); }} type="button">Fatura</button>
           ) : null}
           {canCancelMovement ? (
-            <button className="candidate-accounting-action is-danger" onClick={() => { closeActionMenu(); onCancelMovement(movement.id); }} type="button">Sil</button>
+            <button className="candidate-accounting-action is-danger" onClick={() => { closeActionMenu(); onCancelMovement(movement); }} type="button">Sil</button>
           ) : null}
         </div>
       ) : null}
@@ -4851,13 +4949,14 @@ function renderAccountingPaymentCell({
   if (columnId === "description") return payment.status === "cancelled"
     ? payment.cancellationReason || "Ödeme iptali"
     : payment.note || "Ödeme";
-  if (columnId === "dueDate") return renderFinanceDateTime(payment.cancelledAtUtc ?? payment.paidAtUtc);
+  if (columnId === "dueDate") return formatDateTR(movement.dueDate);
   if (columnId === "amount") return formatCurrencyTRY(allocation.amount);
   if (columnId === "paidAmount") return payment.status === "cancelled" ? "—" : formatCurrencyTRY(allocation.amount);
   if (columnId === "remainingAmount") {
     return payment.status === "cancelled" ? formatCurrencyTRY(allocation.amount) : "—";
   }
   if (columnId === "number") return movement.number;
+  if (columnId === "receiptNumber") return payment.number ?? "—";
   if (columnId === "method") return payment.status === "cancelled" ? "İptal" : paymentMethodLabel(payment.paymentMethod);
   if (columnId === "cashRegister") return payment.cashRegister?.name ?? "—";
   if (columnId === "refundedAmount") {
@@ -4921,11 +5020,12 @@ function renderAccountingRefundCell({
     );
   }
   if (columnId === "description") return refund.note || "İade";
-  if (columnId === "dueDate") return renderFinanceDateTime(refund.refundedAtUtc);
+  if (columnId === "dueDate") return formatDateTR(movement.dueDate);
   if (columnId === "amount") return formatCurrencyTRY(amount);
   if (columnId === "paidAmount") return "—";
   if (columnId === "remainingAmount") return formatCurrencyTRY(amount);
   if (columnId === "number") return movement.number;
+  if (columnId === "receiptNumber") return payment.number ?? "—";
   if (columnId === "method") return "İade";
   if (columnId === "cashRegister") return refund.cashRegister?.name ?? payment.cashRegister?.name ?? "—";
   if (columnId === "refundedAmount") return formatCurrencyTRY(amount);
@@ -4943,6 +5043,7 @@ function AccountingReceiptModal({
   onClose: () => void;
 }) {
   if (!payment) return null;
+  const receiptNumber = payment.number?.trim() || payment.id.slice(0, 8).toLocaleUpperCase("tr-TR");
 
   return (
     <Modal
@@ -4963,11 +5064,12 @@ function AccountingReceiptModal({
             <span>Ödeme Makbuzu</span>
           </div>
           <div className="candidate-payment-receipt-no">
-            #{payment.id.slice(0, 8).toLocaleUpperCase("tr-TR")}
+            #{receiptNumber}
           </div>
         </div>
         <div className="candidate-payment-receipt-amount">{formatCurrencyTRY(payment.amount)}</div>
         <dl className="candidate-payment-receipt-grid">
+          <div><dt>Makbuz No</dt><dd>{receiptNumber}</dd></div>
           <div><dt>Aday</dt><dd>{candidate.firstName} {candidate.lastName}</dd></div>
           <div><dt>TC Kimlik No</dt><dd>{candidate.nationalId}</dd></div>
           <div><dt>Tür</dt><dd>{accountingTypeLabel(payment.type)}</dd></div>

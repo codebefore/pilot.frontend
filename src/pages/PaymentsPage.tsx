@@ -56,6 +56,7 @@ type DetailColumnId =
   | "cancelKind"
   | "date"
   | "amount"
+  | "receiptNumber"
   | "method"
   | "cashRegister"
   | "description";
@@ -234,6 +235,7 @@ const DETAIL_COLUMNS: {
   { id: "cancelKind", label: "İptal Türü", sortable: true, filterable: true },
   { id: "date", label: "Tarih", sortable: true },
   { id: "amount", label: "Tutar", sortable: true, numeric: true },
+  { id: "receiptNumber", label: "Makbuz No", sortable: true },
   { id: "method", label: "Yöntem", sortable: true, filterable: true },
   { id: "cashRegister", label: "Kasa", sortable: true, filterable: true },
   { id: "description", label: "Açıklama", sortable: true },
@@ -525,6 +527,12 @@ function rowDescription(row: PaymentDetailRow): string {
   if (row.kind === "cancelled")
     return row.payment.cancellationReason?.trim() || "İptal";
   return row.payment.note?.trim() || row.payment.installmentDescription || "-";
+}
+
+function rowReceiptNumber(row: PaymentDetailRow): string {
+  if (row.kind === "refund") return row.refund.number?.trim() || "-";
+  if (row.kind === "cancelledDebt") return "-";
+  return row.payment.number?.trim() || "-";
 }
 
 function rowCancelKindLabel(row: PaymentDetailRow): string {
@@ -940,6 +948,7 @@ function rowSortValue(
   if (field === "cancelKind") return rowCancelKindLabel(row);
   if (field === "date") return row.date;
   if (field === "amount") return row.amount;
+  if (field === "receiptNumber") return rowReceiptNumber(row);
   if (field === "method") return rowMethodLabel(row);
   if (field === "cashRegister") return rowCashRegisterLabel(row);
   return rowDescription(row);
@@ -952,6 +961,7 @@ function rowFilterValue(row: PaymentDetailRow, field: DetailSortField): string {
   if (field === "cancelKind") return rowCancelKindLabel(row);
   if (field === "date") return dateKey(row.date);
   if (field === "amount") return String(row.amount);
+  if (field === "receiptNumber") return rowReceiptNumber(row);
   if (field === "method") return rowMethodLabel(row);
   if (field === "cashRegister") return rowCashRegisterLabel(row);
   return rowDescription(row);
@@ -2709,6 +2719,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         ? money(row.amount)
         : `-${money(row.amount)}`;
     }
+    if (columnId === "receiptNumber") return rowReceiptNumber(row);
     if (columnId === "method") return rowMethodLabel(row);
     if (columnId === "cashRegister") return rowCashRegisterLabel(row);
     return rowDescription(row);
@@ -3268,6 +3279,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 column.sortable ? "sortable-th" : "",
                                 isActive ? "active" : "",
                                 column.numeric ? "finance-matrix-amount" : "",
+                                `finance-col-${column.id}`,
                               ]
                                 .filter(Boolean)
                                 .join(" ")}
@@ -3349,6 +3361,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   column.id === "description"
                                     ? "finance-detail-description-cell"
                                     : "",
+                                  `finance-col-${column.id}`,
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}
@@ -3388,6 +3401,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 column.sortable ? "sortable-th" : "",
                                 isActive ? "active" : "",
                                 column.numeric ? "finance-matrix-amount" : "",
+                                `finance-col-${column.id}`,
                               ]
                                 .filter(Boolean)
                                 .join(" ")}
@@ -3469,6 +3483,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   column.id === "total"
                                     ? "finance-matrix-total"
                                     : "",
+                                  `finance-col-${column.id}`,
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}
@@ -3508,6 +3523,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               column.sortable ? "sortable-th" : "",
                               isActive ? "active" : "",
                               column.numeric ? "finance-matrix-amount" : "",
+                              `finance-col-${column.id}`,
+                              `finance-detail-col-${column.id}`,
                             ]
                               .filter(Boolean)
                               .join(" ")}
@@ -3606,6 +3623,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   column.id === "description"
                                     ? "finance-detail-description-cell"
                                     : "",
+                                  `finance-col-${column.id}`,
+                                  `finance-detail-col-${column.id}`,
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}
@@ -3649,6 +3668,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 column.sortable ? "sortable-th" : "",
                                 isActive ? "active" : "",
                                 column.numeric ? "finance-matrix-amount" : "",
+                                `finance-col-${column.id}`,
                               ]
                                 .filter(Boolean)
                                 .join(" ")}
@@ -3745,6 +3765,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   column.id === "notes"
                                     ? "finance-detail-description-cell"
                                     : "",
+                                  `finance-col-${column.id}`,
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}
@@ -3786,6 +3807,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 column.sortable ? "sortable-th" : "",
                                 isActive ? "active" : "",
                                 column.numeric ? "finance-matrix-amount" : "",
+                                `finance-col-${column.id}`,
                               ]
                                 .filter(Boolean)
                                 .join(" ")}
@@ -3853,6 +3875,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   column.numeric
                                     ? "finance-matrix-amount payment-credit"
                                     : "",
+                                  `finance-col-${column.id}`,
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}
@@ -3894,6 +3917,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               column.sortable ? "sortable-th" : "",
                               isActive ? "active" : "",
                               column.numeric ? "finance-matrix-amount" : "",
+                              `finance-col-${column.id}`,
                             ]
                               .filter(Boolean)
                               .join(" ")}
@@ -3966,6 +3990,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 column.id === "selectedOutflow"
                                   ? "payment-debit"
                                   : "",
+                                `finance-col-${column.id}`,
                               ]
                                 .filter(Boolean)
                                 .join(" ")}
@@ -4005,6 +4030,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               column.sortable ? "sortable-th" : "",
                               isActive ? "active" : "",
                               column.numeric ? "finance-matrix-amount" : "",
+                              `finance-col-${column.id}`,
                             ]
                               .filter(Boolean)
                               .join(" ")}
@@ -4074,6 +4100,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 column.numeric
                                   ? "finance-matrix-amount payment-credit"
                                   : "",
+                                `finance-col-${column.id}`,
                               ]
                                 .filter(Boolean)
                                 .join(" ")}
@@ -4123,6 +4150,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                             column.sortable ? "sortable-th" : "",
                             isActive ? "active" : "",
                             column.numeric ? "finance-matrix-amount" : "",
+                            `finance-col-${column.id}`,
                           ]
                             .filter(Boolean)
                             .join(" ")}
@@ -4192,6 +4220,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               column.numeric
                                 ? "finance-matrix-amount payment-credit"
                                 : "",
+                              `finance-col-${column.id}`,
                             ]
                               .filter(Boolean)
                               .join(" ")}
@@ -4235,6 +4264,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                             column.sortable ? "sortable-th" : "",
                             isActive ? "active" : "",
                             column.numeric ? "finance-matrix-amount" : "",
+                            `finance-col-${column.id}`,
                           ]
                             .filter(Boolean)
                             .join(" ")}
@@ -4294,16 +4324,16 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   ) : (
                     periodStats.items.map((row) => (
                       <tr key={row.key}>
-                        <th scope="row">{row.licenseClass}</th>
-                        <td className="finance-matrix-amount">{row.count}</td>
-                        <td className="finance-matrix-amount">{money(row.revenue)}</td>
-                        <td className="finance-matrix-amount">
+                        <th className="finance-col-licenseClass" scope="row">{row.licenseClass}</th>
+                        <td className="finance-matrix-amount finance-col-count">{row.count}</td>
+                        <td className="finance-matrix-amount finance-col-revenue">{money(row.revenue)}</td>
+                        <td className="finance-matrix-amount finance-col-average">
                           {row.count > 0 ? money(row.revenue / row.count) : "-"}
                         </td>
-                        <td className="finance-matrix-amount payment-credit">
+                        <td className="finance-matrix-amount payment-credit finance-col-collected">
                           {money(row.collected)}
                         </td>
-                        <td className="finance-matrix-amount finance-period-percent">
+                        <td className="finance-matrix-amount finance-period-percent finance-col-collectionRate">
                           {row.revenue > 0
                             ? percent((row.collected / row.revenue) * 100)
                             : "-"}
@@ -4314,22 +4344,22 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <th>Toplam</th>
-                    <td className="finance-matrix-amount finance-matrix-total">
+                    <th className="finance-col-licenseClass">Toplam</th>
+                    <td className="finance-matrix-amount finance-matrix-total finance-col-count">
                       {periodStats.total.count}
                     </td>
-                    <td className="finance-matrix-amount finance-matrix-total">
+                    <td className="finance-matrix-amount finance-matrix-total finance-col-revenue">
                       {money(periodStats.total.revenue)}
                     </td>
-                    <td className="finance-matrix-amount finance-matrix-total">
+                    <td className="finance-matrix-amount finance-matrix-total finance-col-average">
                       {periodStats.total.count > 0
                         ? money(periodStats.total.revenue / periodStats.total.count)
                         : "-"}
                     </td>
-                    <td className="finance-matrix-amount finance-matrix-total payment-credit">
+                    <td className="finance-matrix-amount finance-matrix-total payment-credit finance-col-collected">
                       {money(periodStats.total.collected)}
                     </td>
-                    <td className="finance-matrix-amount finance-matrix-total">
+                    <td className="finance-matrix-amount finance-matrix-total finance-col-collectionRate">
                       {periodStats.total.revenue > 0
                         ? percent(
                             (periodStats.total.collected /
