@@ -13,6 +13,7 @@ import {
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { isPhoneStartingWith5 } from "../../lib/phone";
+import { useTheme } from "../../lib/theme";
 import {
   getTurkeyDistrictOptions,
   resolveTurkeyDistrictValue,
@@ -41,7 +42,7 @@ type GeneralFormValues = {
 };
 
 type GeneralFormErrors = Partial<Record<keyof GeneralFormValues, string>>;
-type GeneralInstitutionTab = "institution" | "founder";
+type GeneralInstitutionTab = "institution" | "founder" | "theme";
 
 const EMPTY_VALUES: GeneralFormValues = {
   institutionName: "",
@@ -133,6 +134,7 @@ function isValidTaxId(value: string): boolean {
 export function GeneralInstitutionSection() {
   const t = useT();
   const { showToast } = useToast();
+  const { options: themeOptions, setTheme, theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -415,6 +417,7 @@ export function GeneralInstitutionSection() {
   const tabs: { key: GeneralInstitutionTab; label: string }[] = [
     { key: "institution", label: t("settings.general.section.institution") },
     { key: "founder", label: t("settings.general.section.founder") },
+    { key: "theme", label: t("settings.general.section.theme") },
   ];
 
   if (loading) {
@@ -432,7 +435,9 @@ export function GeneralInstitutionSection() {
       <div className="settings-tab-toolbar">
         <PageTabs active={activeTab} onChange={setActiveTab} tabs={tabs} />
         <span className="settings-panel-note">
-          {serverState
+          {activeTab === "theme"
+            ? t("settings.general.theme.localNote")
+            : serverState
             ? t("settings.general.lastSaved", {
                 at: new Date(serverState.updatedAtUtc).toLocaleString("tr-TR"),
               })
@@ -624,6 +629,55 @@ export function GeneralInstitutionSection() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+      ) : null}
+
+      {activeTab === "theme" ? (
+      <section className="settings-surface">
+        <div className="settings-surface-header">
+          <div className="settings-surface-title">
+            {t("settings.general.theme.title")}
+          </div>
+        </div>
+
+        <div className="settings-surface-body">
+          <div className="settings-theme-grid">
+            {themeOptions.map((option) => (
+              <button
+                aria-pressed={theme === option.key}
+                className={theme === option.key ? "settings-theme-card active" : "settings-theme-card"}
+                key={option.key}
+                onClick={() => setTheme(option.key)}
+                type="button"
+              >
+                <span className="settings-theme-preview">
+                  <span
+                    className="settings-theme-preview-bar"
+                    style={{ backgroundColor: option.swatches[0] }}
+                  />
+                  <span className="settings-theme-preview-body" style={{ backgroundColor: option.swatches[1] }}>
+                    <span style={{ backgroundColor: option.swatches[2] }} />
+                    <span style={{ backgroundColor: option.swatches[2] }} />
+                    <span style={{ backgroundColor: option.swatches[0] }} />
+                  </span>
+                </span>
+                <span className="settings-theme-copy">
+                  <strong>{option.label}</strong>
+                  <span>{option.description}</span>
+                </span>
+                <span className="settings-theme-swatches">
+                  {option.swatches.map((swatch) => (
+                    <span
+                      aria-hidden="true"
+                      key={swatch}
+                      style={{ backgroundColor: swatch }}
+                    />
+                  ))}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
       </section>

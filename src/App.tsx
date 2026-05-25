@@ -8,6 +8,7 @@ import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider } from "./lib/i18n";
 import { getInstitutions } from "./lib/institutions-api";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
+import { ThemeProvider } from "./lib/theme";
 import type { Institution } from "./lib/types";
 
 const CandidateDetailPage = lazy(() => import("./pages/CandidateDetailPage").then((m) => ({ default: m.CandidateDetailPage })));
@@ -153,23 +154,25 @@ export default function App() {
   return (
     <BrowserRouter>
       <LanguageProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route element={<LoginPage />} path="/login" />
-                <Route
-                  element={
-                    <RequireAuth>
-                      <AppShell />
-                    </RequireAuth>
-                  }
-                  path="/*"
-                />
-              </Routes>
-            </Suspense>
-          </ToastProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route element={<LoginPage />} path="/login" />
+                  <Route
+                    element={
+                      <RequireAuth>
+                        <AppShell />
+                      </RequireAuth>
+                    }
+                    path="/*"
+                  />
+                </Routes>
+              </Suspense>
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </LanguageProvider>
     </BrowserRouter>
   );

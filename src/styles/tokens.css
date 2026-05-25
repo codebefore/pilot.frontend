@@ -1,5 +1,6 @@
 /* Design tokens shared by the Pilot frontend. */
-:root {
+:root,
+[data-theme="pilot"] {
   --brand: #22B094;
   --brand-dark: #1a9478;
   --brand-light: #e6f7f3;
@@ -36,4 +37,111 @@
   --shadow:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.06);
   --shadow-xl: 0 20px 25px -5px rgba(0,0,0,.1), 0 8px 10px -6px rgba(0,0,0,.1);
+
+  --header-bg: rgba(255,255,255,.97);
+  --backdrop-bg: rgba(0,0,0,.35);
+}
+
+[data-theme="emerald"] {
+  --brand: #38b6ff;
+  --brand-dark: #0b82d8;
+  --brand-light: #e0f4ff;
+  --brand-subtle: #f2fbff;
+
+  --black: #020617;
+  --white: #ffffff;
+  --gray-900: #0f172a;
+  --gray-800: #1e293b;
+  --gray-700: #334155;
+  --gray-600: #475569;
+  --gray-500: #64748b;
+  --gray-400: #94a3b8;
+  --gray-300: #cbd5e1;
+  --gray-200: #e2e8f0;
+  --gray-100: #f1f5f9;
+  --gray-50:  #f6fbff;
+
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --blue: #2563eb;
+  --blue-light: #eff6ff;
+  --orange: #d97706;
+  --orange-light: #fffbeb;
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
+
+  --header-bg: rgba(255,255,255,.97);
+  --backdrop-bg: rgba(15,23,42,.38);
+}
+
+[data-theme="blueDark"] {
+  --brand: #38b6ff;
+  --brand-dark: #7dd3fc;
+  --brand-light: #12344d;
+  --brand-subtle: #0f2538;
+
+  --black: #f8fafc;
+  --white: #162033;
+  --gray-900: #f8fafc;
+  --gray-800: #e2e8f0;
+  --gray-700: #cbd5e1;
+  --gray-600: #94a3b8;
+  --gray-500: #64748b;
+  --gray-400: #475569;
+  --gray-300: #334155;
+  --gray-200: #223047;
+  --gray-100: #162033;
+  --gray-50:  #0b1220;
+
+  --red: #fb7185;
+  --red-light: #3f1d2b;
+  --blue: #38b6ff;
+  --blue-light: #0f2f4a;
+  --orange: #fbbf24;
+  --orange-light: #3a2a0a;
+  --purple: #c084fc;
+  --purple-light: #30204d;
+
+  --shadow:    0 1px 3px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.35);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -4px rgba(0,0,0,.35);
+  --shadow-xl: 0 20px 25px -5px rgba(0,0,0,.55), 0 8px 10px -6px rgba(0,0,0,.4);
+
+  --header-bg: rgba(22,32,51,.94);
+  --backdrop-bg: rgba(0,0,0,.58);
+}
+
+[data-theme="midnight"] {
+  --brand: #38c7aa;
+  --brand-dark: #5eead4;
+  --brand-light: #123b37;
+  --brand-subtle: #102622;
+
+  --black: #f9fafb;
+  --white: #1f2937;
+  --gray-900: #f9fafb;
+  --gray-800: #f3f4f6;
+  --gray-700: #e5e7eb;
+  --gray-600: #d1d5db;
+  --gray-500: #9ca3af;
+  --gray-400: #6b7280;
+  --gray-300: #4b5563;
+  --gray-200: #374151;
+  --gray-100: #1f2937;
+  --gray-50:  #111827;
+
+  --red: #f87171;
+  --red-light: #3f1d24;
+  --blue: #60a5fa;
+  --blue-light: #172554;
+  --orange: #fbbf24;
+  --orange-light: #3a2a0a;
+  --purple: #a78bfa;
+  --purple-light: #2e244f;
+
+  --shadow:    0 1px 3px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.35);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.45), 0 4px 6px -4px rgba(0,0,0,.35);
+  --shadow-xl: 0 20px 25px -5px rgba(0,0,0,.5), 0 8px 10px -6px rgba(0,0,0,.35);
+
+  --header-bg: rgba(31,41,55,.94);
+  --backdrop-bg: rgba(0,0,0,.55);
 }
