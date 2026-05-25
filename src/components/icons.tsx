@@ -207,11 +207,51 @@ export const UploadCloudIcon = (p?: IconProps) =>
     p
   );
 
+export const CameraIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z" />,
+      <circle key="2" cx="12" cy="13" r="4" />,
+    ],
+    p
+  );
+
+export const ScannerIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M6 3h12v7H6z" />,
+      <path key="2" d="M4 14h16a2 2 0 0 1 2 2v3H2v-3a2 2 0 0 1 2-2z" />,
+      <path key="3" d="M6 19h12" />,
+      <path key="4" d="M8 10h8" />,
+    ],
+    p
+  );
+
 export const FileIcon = (p?: IconProps) =>
   svg(
     [
       <path key="1" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />,
       <polyline key="2" points="14 2 14 8 20 8" />,
+    ],
+    p
+  );
+
+export const EyeIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />,
+      <circle key="2" cx="12" cy="12" r="3" />,
+    ],
+    p
+  );
+
+export const EyeOffIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M17.94 17.94A10.94 10.94 0 0 1 12 19C5 19 1 12 1 12a20.3 20.3 0 0 1 5.06-5.94" />,
+      <path key="2" d="M9.9 4.24A10.6 10.6 0 0 1 12 4c7 0 11 8 11 8a20.2 20.2 0 0 1-3.22 4.31" />,
+      <path key="3" d="M14.12 14.12A3 3 0 0 1 9.88 9.88" />,
+      <path key="4" d="M1 1l22 22" />,
     ],
     p
   );

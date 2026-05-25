@@ -75,6 +75,19 @@ export interface InstitutionSettingsUpsertRequest {
   rowVersion: number | null;
 }
 
+export interface InstitutionIntegrationsResponse {
+  hasOcrApiKey: boolean;
+  ocrApiKey: string | null;
+  updatedAtUtc: string | null;
+  rowVersion: number | null;
+}
+
+export interface InstitutionIntegrationsUpsertRequest {
+  ocrApiKey: string | null;
+  clearOcrApiKey: boolean;
+  rowVersion: number | null;
+}
+
 export async function getInstitutionSettings(
   signal?: AbortSignal
 ): Promise<InstitutionSettingsResponse | null> {
@@ -96,6 +109,25 @@ export function upsertInstitutionSettings(
   body: InstitutionSettingsUpsertRequest
 ): Promise<InstitutionSettingsResponse> {
   return httpPut<InstitutionSettingsResponse>("/api/institution-settings", body);
+}
+
+export function getInstitutionIntegrations(
+  signal?: AbortSignal
+): Promise<InstitutionIntegrationsResponse> {
+  return httpGet<InstitutionIntegrationsResponse>(
+    "/api/institution-settings/integrations",
+    undefined,
+    { signal }
+  );
+}
+
+export function upsertInstitutionIntegrations(
+  body: InstitutionIntegrationsUpsertRequest
+): Promise<InstitutionIntegrationsResponse> {
+  return httpPut<InstitutionIntegrationsResponse>(
+    "/api/institution-settings/integrations",
+    body
+  );
 }
 
 export function uploadInstitutionLogo(

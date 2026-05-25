@@ -6,6 +6,7 @@ import { CertificateProgramFeeMatrixSettingsSection } from "../components/settin
 import { ClassroomsSettingsSection } from "../components/settings/ClassroomsSettingsSection";
 import { GeneralInstitutionSection } from "../components/settings/GeneralInstitutionSection";
 import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
+import { IntegrationsSettingsSection } from "../components/settings/IntegrationsSettingsSection";
 import { LicenseClassDefinitionsSettingsSection } from "../components/settings/LicenseClassDefinitionsSettingsSection";
 import { ReferencesSettingsSection } from "../components/settings/ReferencesSettingsSection";
 import { TrainingBranchesSettingsSection } from "../components/settings/TrainingBranchesSettingsSection";
@@ -93,6 +94,11 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.cashRegisters.label",
         descriptionKey: "settings.nav.cashRegisters.description",
         to: "/settings/definitions/cash-registers",
+      },
+      {
+        labelKey: "settings.nav.integrations.label",
+        descriptionKey: "settings.nav.integrations.description",
+        to: "/settings/definitions/integrations",
       },
     ],
   },
@@ -191,6 +197,7 @@ export function SettingsPage() {
               <Route element={<VehiclesSettingsSection />} path="definitions/vehicles" />
               <Route element={<VehicleDetailPage />} path="definitions/vehicles/:vehicleId" />
               <Route element={<CashRegistersSettingsSection />} path="definitions/cash-registers" />
+              <Route element={<IntegrationsSettingsSection />} path="definitions/integrations" />
               <Route element={<InstructorsSettingsSection />} path="definitions/instructors" />
               <Route element={<InstructorDetailPage />} path="definitions/instructors/:instructorId" />
               <Route element={<UsersPage embedded />} path="definitions/users" />

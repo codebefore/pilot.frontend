@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
 import type {
+  CandidateDocumentOcrSuggestionResponse,
   DocumentMetadataField,
   DocumentChecklistEntry,
   DocumentResponse,
@@ -187,6 +188,18 @@ export function updateCandidateDocumentMebbisTransfer(
   return httpPut<DocumentResponse>(
     `/api/candidates/${candidateId}/documents/types/${documentTypeId}/mebbis`,
     { isMebbisTransferred },
+    { signal }
+  );
+}
+
+export function analyzeCandidateDocumentOcr(
+  candidateId: string,
+  documentId: string,
+  signal?: AbortSignal
+): Promise<CandidateDocumentOcrSuggestionResponse> {
+  return httpPost<CandidateDocumentOcrSuggestionResponse>(
+    `/api/candidates/${candidateId}/documents/${documentId}/ocr`,
+    {},
     { signal }
   );
 }

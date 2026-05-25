@@ -1236,6 +1236,12 @@ export interface DocumentResponse {
   updatedAtUtc: string;
 }
 
+export interface CandidateDocumentOcrSuggestionResponse {
+  metadata: Record<string, string | null>;
+  confidence: number | null;
+  warnings: string[];
+}
+
 /* ── Users & Roles ── */
 
 export type PermissionLevel = "view" | "full";
