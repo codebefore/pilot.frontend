@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Sidebar } from "./Sidebar";
 import { SidebarStatsProvider } from "../../lib/sidebar-stats";
+import type { AuthInstitution } from "../../lib/auth-storage";
 import { renderWithProviders } from "../../test/render-with-providers";
 
 const getSidebarStatsMock = vi.fn();
@@ -12,19 +13,43 @@ vi.mock("../../lib/stats-api", () => ({
   getSidebarStats: (...args: unknown[]) => getSidebarStatsMock(...args),
 }));
 
-function renderSidebar(path = "/") {
+const institutions: AuthInstitution[] = [
+  {
+    id: "i1",
+    name: "Pilot Sürücü Kursu",
+    slug: "pilot-surucu-kursu",
+    roleName: "Kurum Yöneticisi",
+    isDefault: true,
+  },
+  {
+    id: "i2",
+    name: "İkinci Kurum",
+    slug: "ikinci-kurum",
+    roleName: "Personel",
+    isDefault: false,
+  },
+];
+
+function renderSidebar(path = "/", onInstitutionChange = async () => {}) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[path]}>
       <SidebarStatsProvider>
         <Sidebar
           activeInstitutionId="i1"
-          institutions={[{ id: "i1", name: "Pilot Sürücü Kursu", type: "MTSK" }]}
+          institutions={institutions}
           onClose={() => {}}
-          onInstitutionChange={() => {}}
+          onInstitutionChange={onInstitutionChange}
           open
         />
       </SidebarStatsProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
+    {
+      auth: {
+        institutions,
+        activeInstitution: institutions[0],
+        selectInstitution: onInstitutionChange,
+      },
+    }
   );
 }
 
@@ -52,6 +77,24 @@ describe("Sidebar live stats", () => {
     expect(screen.getByText("5")).toBeInTheDocument();
     // MEB jobs badge → failed + manualReview (3)
     expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("uses session institutions for tenant switching", async () => {
+    const onInstitutionChange = vi.fn().mockResolvedValue(undefined);
+    getSidebarStatsMock.mockResolvedValue({
+      candidates: { total: 0, active: 0 },
+      groups: { total: 0 },
+      documents: { missingCount: 0 },
+      mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
+    });
+
+    renderSidebar("/", onInstitutionChange);
+
+    fireEvent.click(screen.getByRole("button", { name: /Pilot Sürücü Kursu.*pilot-surucu-kursu/i }));
+    fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*ikinci-kurum.*Personel/i }));
+
+    await waitFor(() => expect(onInstitutionChange).toHaveBeenCalledWith("i2"));
   });
 
   it("renders no badges when stats fetch fails", async () => {

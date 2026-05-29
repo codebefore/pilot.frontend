@@ -45,6 +45,7 @@ import {
   createCandidateTag,
   searchCandidateTags,
   type CandidateExamDateType,
+  type CandidateListTabValue,
   type GetCandidatesParams,
   type CandidateSortField,
   type SortDirection,
@@ -74,7 +75,6 @@ import {
   candidateMebSyncStatusToPill,
   CANDIDATE_GENDER_OPTIONS,
   CANDIDATE_STATUS_OPTIONS,
-  CANDIDATE_STATUS_VALUES,
   candidateStatusLabel,
   candidateStatusToPill,
   existingLicenseTypeLabel,
@@ -99,19 +99,16 @@ import type {
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
-type CandidateTab = "all" | CandidateStatusValue;
+type CandidateTab = CandidateListTabValue;
 type BulkActionMode = "status" | "tags" | "export" | "examDate" | "group" | null;
 type CandidateListTabKey = string;
 
 const TAB_KEYS: CandidateTab[] = [
-  "all",
-  "pre_registered",
-  "active",
-  "parked",
-  "graduated",
-  "dropped",
+  "active_period",
+  "unassigned",
+  "completed",
 ];
-const DEFAULT_TAB: CandidateTab = "active";
+const DEFAULT_TAB: CandidateTab = "active_period";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -120,6 +117,17 @@ const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
 
 type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
+
+function candidateListTabLabel(value: CandidateTab): string {
+  switch (value) {
+    case "active_period":
+      return "Aktif Dönem";
+    case "unassigned":
+      return "Atanmamış";
+    case "completed":
+      return "Tamamlananlar";
+  }
+}
 
 export type CandidateColumnId =
   | "photo"
@@ -910,12 +918,12 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
 ];
 
 const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, CandidateColumnId[]> = {
-  all: [
+  active_period: [
     "photo",
     "name",
     "licenseClass",
     "group",
-    "status",
+    "groupStartDate",
     "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
@@ -923,67 +931,23 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "totalDebt",
     "referenceName",
   ],
-  pre_registered: [
+  unassigned: [
     "photo",
     "name",
     "phoneNumber",
     "licenseClass",
     "documents",
-    "group",
-    "status",
-    "groupStartDate",
     "totalFee",
     "totalPaid",
     "totalDebt",
     "referenceName",
   ],
-  active: [
+  completed: [
     "photo",
     "name",
     "licenseClass",
     "group",
-    "status",
-    "eSinavAttemptCount",
-    "eSinavPoolStatus",
-    "totalFee",
-    "totalPaid",
-    "totalDebt",
-    "referenceName",
-  ],
-  parked: [
-    "photo",
-    "name",
-    "licenseClass",
-    "group",
-    "status",
-    "eSinavAttemptCount",
-    "eSinavPoolStatus",
-    "totalFee",
-    "totalPaid",
-    "totalDebt",
-    "referenceName",
-  ],
-  graduated: [
-    "photo",
-    "name",
-    "licenseClass",
-    "group",
-    "status",
     "graduationDate",
-    "eSinavPoolStatus",
-    "totalFee",
-    "totalPaid",
-    "totalDebt",
-    "referenceName",
-  ],
-  dropped: [
-    "photo",
-    "name",
-    "licenseClass",
-    "group",
-    "status",
-    "terminationReason",
-    "terminationDate",
     "eSinavPoolStatus",
     "totalFee",
     "totalPaid",
@@ -1140,7 +1104,7 @@ export function CandidatesPage({
     () =>
       TAB_KEYS.map((key) => ({
         key,
-        label: key === "all" ? "Tümü" : candidateStatusLabel(key),
+        label: candidateListTabLabel(key),
       })),
     []
   );
@@ -1150,7 +1114,7 @@ export function CandidatesPage({
         tabs: defaultTabs,
         defaultTab,
         buildParams: (tab: CandidateListTabKey): Partial<GetCandidatesParams> => ({
-          status: tab === "all" ? undefined : tab,
+          candidateTab: tab as CandidateListTabValue,
         }),
       },
     [defaultTab, defaultTabs, tabConfig]
@@ -1208,7 +1172,7 @@ export function CandidatesPage({
         }
         if (eSinavAllowedColumnIds && !eSinavAllowedColumnIds.has(column.id)) return false;
         if (drivingAllowedColumnIds && !drivingAllowedColumnIds.has(column.id)) return false;
-        if ((tab === "graduated" || tab === "dropped") && column.id === "eSinavAttemptCount") {
+        if (tab === "completed" && column.id === "eSinavAttemptCount") {
           return false;
         }
         return true;
@@ -1554,18 +1518,9 @@ export function CandidatesPage({
     ((col.id === "group" && groupColumnMode === "term")
       ? t("candidates.col.term")
       : t(col.labelKey));
-  const currentStatusTab = useMemo(() => {
-    if (tab === "all") return tab;
-    return CANDIDATE_STATUS_VALUES.includes(tab as CandidateStatusValue)
-      ? (tab as CandidateStatusValue)
-      : null;
-  }, [tab]);
   const visibleBulkStatusOptions = useMemo(
-    () =>
-      currentStatusTab === "all" || currentStatusTab === null
-        ? BULK_STATUS_OPTIONS
-        : BULK_STATUS_OPTIONS.filter((option) => option.value !== currentStatusTab),
-    [currentStatusTab]
+    () => BULK_STATUS_OPTIONS,
+    []
   );
   const headerPeriodGroupOptions = useMemo(() => {
     const terms = Array.from(

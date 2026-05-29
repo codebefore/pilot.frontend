@@ -15,7 +15,6 @@ import { useToast } from "../ui/Toast";
 
 type UserFormValues = {
   fullName: string;
-  email: string;
   phone: string;
   password: string;
   mebbisUsername: string;
@@ -36,7 +35,6 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
   editing
     ? {
         fullName: editing.fullName,
-        email: editing.email ?? "",
         phone: editing.phone ?? "",
         password: "",
         mebbisUsername: editing.mebbisUsername ?? "",
@@ -46,7 +44,6 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
       }
     : {
         fullName: "",
-        email: "",
         phone: "",
         password: "",
         mebbisUsername: "",
@@ -58,8 +55,6 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
 const VALIDATION_FIELD_MAP: Record<string, keyof UserFormValues> = {
   fullName: "fullName",
   FullName: "fullName",
-  email: "email",
-  Email: "email",
   phone: "phone",
   Phone: "phone",
   password: "password",
@@ -118,7 +113,6 @@ export function UserFormModal({
     setSubmitting(true);
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
-      email: values.email.trim() ? values.email.trim() : null,
       phone: values.phone.trim(),
       password: values.password.trim() || null,
       mebbisUsername: values.mebbisUsername.trim() || null,
@@ -211,17 +205,14 @@ export function UserFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">E-posta</label>
+            <label className="form-label">Telefon</label>
             <input
-              className={fieldClass(!!errors.email, "form-input")}
-              placeholder="kullanici@kurum.com"
-              type="email"
-              {...register("email", {
-                validate: (value) =>
-                  !value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) || "Geçersiz e-posta",
-              })}
+              className={fieldClass(!!errors.phone, "form-input")}
+              maxLength={32}
+              placeholder="Telefon"
+              {...phoneRegistration}
             />
-            {errors.email && <div className="form-error">{errors.email.message}</div>}
+            {errors.phone && <div className="form-error">{errors.phone.message}</div>}
           </div>
           <div className="form-group">
             <label className="form-label">Panel Şifresi</label>
@@ -242,16 +233,6 @@ export function UserFormModal({
         </div>
 
         <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Telefon</label>
-            <input
-              className={fieldClass(!!errors.phone, "form-input")}
-              maxLength={32}
-              placeholder="Telefon"
-              {...phoneRegistration}
-            />
-            {errors.phone && <div className="form-error">{errors.phone.message}</div>}
-          </div>
           <div className="form-group">
             <label className="form-label">MEBBİS Kullanıcı Adı</label>
             <input

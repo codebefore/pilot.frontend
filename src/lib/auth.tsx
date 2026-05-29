@@ -1,19 +1,25 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-import { loginWithPassword } from "./auth-api";
+import { loginWithPassword, selectInstitution as selectInstitutionApi, type LoginResponse } from "./auth-api";
 import {
   clearStoredAuthSession,
   readStoredAuthSession,
   writeStoredAuthSession,
+  type AuthInstitution,
   type AuthSession,
   type AuthUser,
 } from "./auth-storage";
 
-type AuthContextValue = {
+export type AuthContextValue = {
   user: AuthUser | null;
   accessToken: string | null;
+  institutions: AuthInstitution[];
+  activeInstitution: AuthInstitution | null;
+  hasInstitution: boolean;
+  institutionRequired: boolean;
   login: (phone: string, password: string) => Promise<void>;
+  selectInstitution: (institutionId: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -23,6 +29,9 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(() => readStoredAuthSession());
+  const [institutionRequired, setInstitutionRequired] = useState(
+    () => !!session && !session.activeInstitution
+  );
 
   useEffect(() => {
     if (session) writeStoredAuthSession(session);
@@ -30,35 +39,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   useEffect(() => {
-    const onUnauthorized = () => setSession(null);
+    const onUnauthorized = () => {
+      setInstitutionRequired(false);
+      setSession(null);
+    };
     window.addEventListener("pilot:unauthorized", onUnauthorized);
     return () => window.removeEventListener("pilot:unauthorized", onUnauthorized);
+  }, []);
+
+  useEffect(() => {
+    const onInstitutionRequired = () => setInstitutionRequired(true);
+    window.addEventListener("pilot:institution-required", onInstitutionRequired);
+    return () => window.removeEventListener("pilot:institution-required", onInstitutionRequired);
   }, []);
 
   const login = async (phone: string, password: string) => {
     if (!phone || !password) throw new Error("Telefon ve şifre gerekli");
     const response = await loginWithPassword({ phone, password });
-    setSession({
-      accessToken: response.accessToken,
-      expiresAtUtc: response.expiresAtUtc,
-      user: {
-        id: response.user.id,
-        phone: response.user.phone,
-        name: response.user.fullName,
-        roleName: response.user.roleName,
-        isSuperAdmin: response.user.isSuperAdmin,
-      },
-    });
+    setSession(mapLoginResponse(response));
+    setInstitutionRequired(!response.activeInstitution);
   };
 
-  const logout = () => setSession(null);
+  const selectInstitution = async (institutionId: string) => {
+    if (!institutionId) return;
+    const response = await selectInstitutionApi(institutionId);
+    setSession(mapLoginResponse(response));
+    setInstitutionRequired(!response.activeInstitution);
+  };
+
+  const logout = () => {
+    setInstitutionRequired(false);
+    setSession(null);
+  };
 
   return (
     <AuthContext.Provider
       value={{
         user: session?.user ?? null,
         accessToken: session?.accessToken ?? null,
+        institutions: session?.institutions ?? [],
+        activeInstitution: session?.activeInstitution ?? null,
+        hasInstitution: (session?.institutions.length ?? 0) > 0,
+        institutionRequired,
         login,
+        selectInstitution,
         logout,
       }}
     >
@@ -80,4 +104,20 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate replace state={{ from: location }} to="/login" />;
   }
   return <>{children}</>;
+}
+
+function mapLoginResponse(response: LoginResponse): AuthSession {
+  return {
+    accessToken: response.accessToken,
+    expiresAtUtc: response.expiresAtUtc,
+    user: {
+      id: response.user.id,
+      phone: response.user.phone,
+      name: response.user.fullName,
+      roleName: response.activeInstitution?.roleName ?? response.user.roleName,
+      isSuperAdmin: response.user.isSuperAdmin,
+    },
+    institutions: response.institutions,
+    activeInstitution: response.activeInstitution,
+  };
 }

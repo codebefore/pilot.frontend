@@ -1,5 +1,9 @@
 import { getApiBaseUrl } from "./api";
-import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
+import {
+  getStoredAccessToken,
+  notifyInstitutionRequired,
+  notifyUnauthorized,
+} from "./auth-storage";
 
 /**
  * Structured validation error delivered through
@@ -16,6 +20,7 @@ export type ApiValidationError = {
 export class ApiError extends Error {
   status: number;
   statusText: string;
+  problemTitle?: string;
   errorCode?: string;
   validationErrors?: Record<string, string[]>;
   validationErrorCodes?: Record<string, ApiValidationError[]>;
@@ -25,12 +30,14 @@ export class ApiError extends Error {
     statusText: string,
     validationErrors?: Record<string, string[]>,
     validationErrorCodes?: Record<string, ApiValidationError[]>,
-    errorCode?: string
+    errorCode?: string,
+    problemTitle?: string
   ) {
     super(`API error ${status}: ${statusText}`);
     this.name = "ApiError";
     this.status = status;
     this.statusText = statusText;
+    this.problemTitle = problemTitle;
     this.validationErrors = validationErrors;
     this.validationErrorCodes = validationErrorCodes;
     this.errorCode = errorCode;
@@ -83,20 +90,26 @@ async function handleResponse<T>(response: Response): Promise<T> {
     let validationErrors: Record<string, string[]> | undefined;
     let validationErrorCodes: Record<string, ApiValidationError[]> | undefined;
     let errorCode: string | undefined;
+    let problemTitle: string | undefined;
     try {
       const body = await response.json();
       if (body?.errors) validationErrors = body.errors;
       if (body?.errorCodes) validationErrorCodes = body.errorCodes;
       if (typeof body?.errorCode === "string") errorCode = body.errorCode;
+      if (typeof body?.title === "string") problemTitle = body.title;
     } catch {
       // ignore parse errors
+    }
+    if (response.status === 403 && problemTitle === "Active institution is required.") {
+      notifyInstitutionRequired();
     }
     throw new ApiError(
       response.status,
       response.statusText,
       validationErrors,
       validationErrorCodes,
-      errorCode
+      errorCode,
+      problemTitle
     );
   }
 

@@ -203,13 +203,13 @@ describe("GroupsPage", () => {
     expect(getGroupsMock.mock.calls[1]?.[0]).not.toHaveProperty("termId");
   });
 
-  it("does not render a meb status filter and fetches groups without mebStatus", async () => {
+  it("renders group search and a meb status filter", async () => {
     renderWithProviders(<GroupsPage />);
 
     await waitFor(() => expect(getGroupsMock).toHaveBeenCalled());
 
-    expect(screen.queryByLabelText("MEB Durumu")).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Grup ara...")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("MEB Durumu")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Grup ara...")).toBeInTheDocument();
     expect(getGroupsMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         page: 1,
@@ -220,6 +220,53 @@ describe("GroupsPage", () => {
     const lastParams = getGroupsMock.mock.calls[getGroupsMock.mock.calls.length - 1]?.[0];
     expect(lastParams).not.toHaveProperty("mebStatus");
     expect(lastParams).not.toHaveProperty("termId");
+  });
+
+  it("sends the selected meb status filter", async () => {
+    renderWithProviders(<GroupsPage />);
+    await waitFor(() => expect(getGroupsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText("MEB Durumu"), {
+      target: { value: "sent" },
+    });
+
+    await waitFor(() => {
+      expect(getGroupsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          mebStatus: "sent",
+          page: 1,
+          pageSize: 100,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("sends normalized group search after two characters", async () => {
+    renderWithProviders(<GroupsPage />);
+    await waitFor(() => expect(getGroupsMock).toHaveBeenCalled());
+    expect(getGroupsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Grup ara..."), {
+      target: { value: "A" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(getGroupsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Grup ara..."), {
+      target: { value: "  1A  " },
+    });
+
+    await waitFor(() => {
+      expect(getGroupsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          search: "1A",
+          page: 1,
+          pageSize: 100,
+        }),
+        expect.any(AbortSignal)
+      );
+    });
   });
 
   it("still fetches groups when there are no terms yet", async () => {

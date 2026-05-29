@@ -77,6 +77,22 @@
   transition: all .15s;
 }
 .inst-selector-btn:hover { border-color: var(--brand); color: var(--brand-dark); }
+.inst-selector-btn:disabled {
+  cursor: not-allowed;
+  opacity: .7;
+}
+
+.inst-selector-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+.inst-selector-text small {
+  color: var(--gray-400);
+  font-size: 10px;
+  font-weight: 600;
+}
 
 .inst-dot {
   width: 7px; height: 7px;

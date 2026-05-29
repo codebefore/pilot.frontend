@@ -3,13 +3,11 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 
 import { Header } from "./components/layout/Header";
 import { Sidebar } from "./components/layout/Sidebar";
-import { ToastProvider } from "./components/ui/Toast";
+import { ToastProvider, useToast } from "./components/ui/Toast";
 import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider } from "./lib/i18n";
-import { getInstitutions } from "./lib/institutions-api";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
 import { ThemeProvider } from "./lib/theme";
-import type { Institution } from "./lib/types";
 
 const CandidateDetailPage = lazy(() => import("./pages/CandidateDetailPage").then((m) => ({ default: m.CandidateDetailPage })));
 const CandidatesPage = lazy(() => import("./pages/CandidatesPage").then((m) => ({ default: m.CandidatesPage })));
@@ -34,33 +32,22 @@ function isFeesRoute(pathname: string) {
   return pathname.replace(/\/+$/, "") === "/settings/definitions/fees";
 }
 
-function AppShell() {
-  const { user } = useAuth();
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [institutionId, setInstitutionId] = useState<string>("");
+export function AppShell() {
+  const {
+    user,
+    institutions,
+    activeInstitution,
+    hasInstitution,
+    institutionRequired,
+    selectInstitution,
+  } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHoverOpen, setSidebarHoverOpen] = useState(false);
   const location = useLocation();
   const fullScreenRoute = isFeesRoute(location.pathname);
   const sidebarVisible = !sidebarCollapsed || sidebarHoverOpen;
-  const activeInstitution = institutions.find((item) => item.id === institutionId) ?? institutions[0] ?? null;
-
-  useEffect(() => {
-    const controller = new AbortController();
-    getInstitutions(controller.signal)
-      .then((items) => {
-        setInstitutions(items);
-        setInstitutionId((current) => current || items[0]?.id || "");
-      })
-      .catch((error: unknown) => {
-        if ((error as { name?: string }).name !== "AbortError") {
-          setInstitutions([]);
-          setInstitutionId("");
-        }
-      });
-    return () => controller.abort();
-  }, []);
+  const activeInstitutionId = activeInstitution?.id ?? "";
 
   // Route değişince mobilde sidebar'ı otomatik kapat.
   useEffect(() => {
@@ -74,12 +61,12 @@ function AppShell() {
   };
 
   return (
-    <SidebarStatsProvider>
+    <SidebarStatsProvider key={activeInstitutionId || "no-institution"}>
       {!fullScreenRoute ? (
         <Header
-          activeInstitutionId={institutionId}
+          activeInstitutionId={activeInstitutionId}
           institutions={institutions}
-          onInstitutionChange={setInstitutionId}
+          onInstitutionChange={selectInstitution}
           onMenuToggle={() => setSidebarOpen((v) => !v)}
           onSidebarToggle={toggleDesktopSidebar}
           sidebarCollapsed={sidebarCollapsed}
@@ -95,11 +82,11 @@ function AppShell() {
       )}
       {!fullScreenRoute ? (
         <Sidebar
-          activeInstitutionId={institutionId}
+          activeInstitutionId={activeInstitutionId}
           desktopVisible={sidebarVisible}
           institutions={institutions}
           onClose={() => setSidebarOpen(false)}
-          onInstitutionChange={setInstitutionId}
+          onInstitutionChange={selectInstitution}
           onMouseLeave={() => {
             if (sidebarCollapsed) setSidebarHoverOpen(false);
           }}
@@ -115,38 +102,87 @@ function AppShell() {
           .filter(Boolean)
           .join(" ")}
       >
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route
-              element={<DashboardPage activeInstitution={activeInstitution} userName={user?.name ?? null} />}
-              path="/"
-            />
-            <Route element={<CandidatesPage />} path="/candidates" />
-            <Route element={<CandidateDetailPage />} path="/candidates/:candidateId" />
-            <Route element={<GroupsPage />}     path="/groups" />
-            <Route element={<DocumentsPage />}  path="/documents" />
-            <Route element={<Navigate replace to="/payments/balances" />} path="/payments" />
-            <Route element={<PaymentsPage mode="balances" />} path="/payments/balances" />
-            <Route element={<PaymentsPage mode="collections" />} path="/payments/collections" />
-            <Route element={<PaymentsPage mode="invoices" />} path="/payments/invoices" />
-            <Route element={<PaymentsPage mode="cash" />} path="/payments/cash" />
-            <Route element={<PaymentsPage mode="statistics" />} path="/payments/statistics" />
-            <Route element={<Navigate replace to="/training/teorik" />} path="/training" />
-            <Route element={<TrainingPage type="teorik" />} path="/training/teorik" />
-            <Route element={<TrainingPage type="uygulama" />} path="/training/uygulama" />
-            <Route element={<Navigate replace to="/exams/e-sinav" />} path="/exams" />
-            <Route element={<ExamESinavPage />} path="/exams/e-sinav" />
-            <Route element={<Navigate replace to="/exams/uygulama" />} path="/exams/direksiyon" />
-            <Route element={<ExamUygulamaPage />} path="/exams/uygulama" />
-            <Route element={<MebJobsPage />}    path="/meb-jobs" />
-            <Route element={<NotificationsPage />} path="/notifications" />
-            <Route element={<SettingsPage />}    path="/settings/*" />
-            <Route element={<ProfilePage />} path="/profile" />
-            <Route element={<Navigate replace to="/" />} path="*" />
-          </Routes>
-        </Suspense>
+        {!hasInstitution || institutionRequired || !activeInstitution ? (
+          <NoActiveInstitutionState institutions={institutions} onSelect={selectInstitution} />
+        ) : (
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route
+                element={<DashboardPage activeInstitution={activeInstitution} userName={user?.name ?? null} />}
+                path="/"
+              />
+              <Route element={<CandidatesPage />} path="/candidates" />
+              <Route element={<CandidateDetailPage />} path="/candidates/:candidateId" />
+              <Route element={<GroupsPage />}     path="/groups" />
+              <Route element={<DocumentsPage />}  path="/documents" />
+              <Route element={<Navigate replace to="/payments/balances" />} path="/payments" />
+              <Route element={<PaymentsPage mode="balances" />} path="/payments/balances" />
+              <Route element={<PaymentsPage mode="collections" />} path="/payments/collections" />
+              <Route element={<PaymentsPage mode="invoices" />} path="/payments/invoices" />
+              <Route element={<PaymentsPage mode="cash" />} path="/payments/cash" />
+              <Route element={<PaymentsPage mode="statistics" />} path="/payments/statistics" />
+              <Route element={<Navigate replace to="/training/teorik" />} path="/training" />
+              <Route element={<TrainingPage type="teorik" />} path="/training/teorik" />
+              <Route element={<TrainingPage type="uygulama" />} path="/training/uygulama" />
+              <Route element={<Navigate replace to="/exams/e-sinav" />} path="/exams" />
+              <Route element={<ExamESinavPage />} path="/exams/e-sinav" />
+              <Route element={<Navigate replace to="/exams/uygulama" />} path="/exams/direksiyon" />
+              <Route element={<ExamUygulamaPage />} path="/exams/uygulama" />
+              <Route element={<MebJobsPage />}    path="/meb-jobs" />
+              <Route element={<NotificationsPage />} path="/notifications" />
+              <Route element={<SettingsPage />}    path="/settings/*" />
+              <Route element={<ProfilePage />} path="/profile" />
+              <Route element={<Navigate replace to="/" />} path="*" />
+            </Routes>
+          </Suspense>
+        )}
       </main>
     </SidebarStatsProvider>
+  );
+}
+
+function NoActiveInstitutionState({
+  institutions,
+  onSelect,
+}: {
+  institutions: ReturnType<typeof useAuth>["institutions"];
+  onSelect: (institutionId: string) => Promise<void>;
+}) {
+  const [selectingId, setSelectingId] = useState<string | null>(null);
+  const { showToast } = useToast();
+
+  const handleSelect = async (institutionId: string, institutionName: string) => {
+    setSelectingId(institutionId);
+    try {
+      await onSelect(institutionId);
+      showToast(`${institutionName} seçildi`);
+    } catch {
+      showToast("Kurum değiştirilemedi", "error");
+    } finally {
+      setSelectingId(null);
+    }
+  };
+
+  return (
+    <div className="empty-state tenant-empty-state">
+      <h3>Aktif kurum bulunamadı</h3>
+      <p>Devam etmek için erişimin olan kurumlardan birini seç.</p>
+      {institutions.length > 0 ? (
+        <div className="tenant-empty-actions">
+          {institutions.map((institution) => (
+            <button
+              className="btn btn-secondary"
+              disabled={selectingId !== null}
+              key={institution.id}
+              onClick={() => void handleSelect(institution.id, institution.name)}
+              type="button"
+            >
+              {selectingId === institution.id ? "Seçiliyor..." : institution.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

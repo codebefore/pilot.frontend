@@ -32,13 +32,12 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
 
-type UserSortField = "fullName" | "email" | "phone" | "mebbisUsername" | "roleName" | "isActive";
+type UserSortField = "fullName" | "phone" | "mebbisUsername" | "roleName" | "isActive";
 type SortDirection = "asc" | "desc";
 type SortState = { field: UserSortField; direction: SortDirection } | null;
 type UserColumnId = UserSortField;
 type UserFilters = {
   fullName: string;
-  email: string;
   phone: string;
   mebbisUsername: string;
   roleId: string;
@@ -55,7 +54,6 @@ type UserColumnDef = {
 
 const DEFAULT_FILTERS: UserFilters = {
   fullName: "",
-  email: "",
   phone: "",
   mebbisUsername: "",
   roleId: "all",
@@ -65,8 +63,14 @@ const DEFAULT_FILTERS: UserFilters = {
 const USER_COLUMN_IDS: UserColumnId[] = [
   "fullName",
   "mebbisUsername",
-  "email",
   "phone",
+  "roleName",
+  "isActive",
+];
+const DEFAULT_VISIBLE_USER_COLUMN_IDS: UserColumnId[] = [
+  "fullName",
+  "phone",
+  "mebbisUsername",
   "roleName",
   "isActive",
 ];
@@ -96,13 +100,6 @@ function buildColumns(): UserColumnDef[] {
           <span className="form-subsection-note">—</span>
         ),
       skeletonWidth: 120,
-    },
-    {
-      id: "email",
-      label: "E-posta",
-      sortField: "email",
-      renderCell: (user) => user.email || "—",
-      skeletonWidth: 180,
     },
     {
       id: "phone",
@@ -153,8 +150,9 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.users.columns.v1",
-    USER_COLUMN_IDS
+    "settings.users.columns.v2",
+    USER_COLUMN_IDS,
+    DEFAULT_VISIBLE_USER_COLUMN_IDS
   );
 
   const [users, setUsers] = useState<AppUserResponse[]>([]);
@@ -227,7 +225,6 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
     const fullName = filters.fullName.trim().toLocaleLowerCase("tr-TR");
-    const email = filters.email.trim().toLocaleLowerCase("tr-TR");
     const phone = filters.phone.replace(/\D/g, "");
     const mebbisUsername = filters.mebbisUsername.trim().toLocaleLowerCase("tr-TR");
 
@@ -235,7 +232,6 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
       if (query) {
         const haystack = [
           user.fullName,
-          user.email ?? "",
           user.phone ?? "",
           user.mebbisUsername ?? "",
           user.roleName ?? "",
@@ -245,9 +241,6 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
         if (!haystack.includes(query)) return false;
       }
       if (fullName && !user.fullName.toLocaleLowerCase("tr-TR").includes(fullName)) {
-        return false;
-      }
-      if (email && !(user.email ?? "").toLocaleLowerCase("tr-TR").includes(email)) {
         return false;
       }
       if (phone && !(user.phone ?? "").replace(/\D/g, "").includes(phone)) {
@@ -378,7 +371,6 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     if (isVisible(id) && sort?.field === id) setSort(null);
     if (isVisible(id)) {
       if (id === "fullName") setFilter("fullName", DEFAULT_FILTERS.fullName);
-      if (id === "email") setFilter("email", DEFAULT_FILTERS.email);
       if (id === "phone") setFilter("phone", DEFAULT_FILTERS.phone);
       if (id === "mebbisUsername") setFilter("mebbisUsername", DEFAULT_FILTERS.mebbisUsername);
       if (id === "roleName") setFilter("roleId", DEFAULT_FILTERS.roleId);
@@ -700,19 +692,6 @@ function buildColumnFilterControl(
         placeholder="MEBBİS kullanıcı ara"
         title="MEBBİS filtresi"
         value={filters.mebbisUsername}
-      />
-    );
-  }
-
-  if (columnId === "email") {
-    return (
-      <TableHeaderTextFilter
-        active={filters.email.trim().length > 0}
-        onApply={(value) => setFilter("email", value)}
-        onClear={() => setFilter("email", "")}
-        placeholder="E-posta ara"
-        title="E-posta filtresi"
-        value={filters.email}
       />
     );
   }

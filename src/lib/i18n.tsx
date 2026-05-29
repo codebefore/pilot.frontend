@@ -423,6 +423,16 @@ const tr = {
   "profile.language": "Dil",
   "profile.role.admin": "Yönetici",
   "profile.role.superAdmin": "Süper Admin",
+  "profile.password.title": "Şifre",
+  "profile.password.current": "Mevcut şifre",
+  "profile.password.new": "Yeni şifre",
+  "profile.password.confirm": "Yeni şifre tekrar",
+  "profile.password.submit": "Şifreyi Güncelle",
+  "profile.password.saving": "Güncelleniyor",
+  "profile.password.toast.changed": "Şifre güncellendi, tekrar giriş yap",
+  "profile.password.error.length": "Mevcut şifre ve en az 8 karakter yeni şifre gerekli",
+  "profile.password.error.confirm": "Yeni şifreler eşleşmiyor",
+  "profile.password.error.failed": "Şifre güncellenemedi",
 
   // Documents page
   "documents.title": "Evrak Kontrol",
@@ -794,6 +804,8 @@ const tr = {
   "group.validation.invalidMebStatus": "Desteklenen değerler: {values}",
   "group.validation.termNotFound": "Seçilen dönem bulunamadı",
   "group.validation.startDateOutsideTerm": "Başlangıç tarihi seçilen dönem ayının içinde olmalı",
+  "group.validation.capacityBelowActiveCandidates":
+    "Kontenjan aktif aday sayısından düşük olamaz (aktif: {active})",
   "group.validation.hasActiveCandidates": "Aktif adayı olan grup silinemez",
   "group.validation.rowVersionRequired": "Kayıt sürümü zorunlu",
   "group.validation.concurrencyConflict":
@@ -1547,6 +1559,16 @@ const en: Record<keyof typeof tr, string> = {
   "profile.language": "Language",
   "profile.role.admin": "Administrator",
   "profile.role.superAdmin": "Super Admin",
+  "profile.password.title": "Password",
+  "profile.password.current": "Current password",
+  "profile.password.new": "New password",
+  "profile.password.confirm": "Confirm new password",
+  "profile.password.submit": "Update Password",
+  "profile.password.saving": "Updating",
+  "profile.password.toast.changed": "Password updated, sign in again",
+  "profile.password.error.length": "Current password and a new password of at least 8 characters are required",
+  "profile.password.error.confirm": "New passwords do not match",
+  "profile.password.error.failed": "Password could not be updated",
 
   // Documents page
   "documents.title": "Documents",
@@ -1925,6 +1947,8 @@ const en: Record<keyof typeof tr, string> = {
   "group.validation.invalidMebStatus": "Supported values: {values}",
   "group.validation.termNotFound": "Selected term was not found",
   "group.validation.startDateOutsideTerm": "Start date must be inside the selected term month",
+  "group.validation.capacityBelowActiveCandidates":
+    "Capacity cannot be lower than active candidate count ({active})",
   "group.validation.hasActiveCandidates": "Group cannot be deleted while it still has active candidates",
   "group.validation.rowVersionRequired": "Row version is required",
   "group.validation.concurrencyConflict":

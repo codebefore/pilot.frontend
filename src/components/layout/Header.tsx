@@ -1,5 +1,5 @@
 import { useLanguage } from "../../lib/i18n";
-import type { Institution } from "../../lib/types";
+import type { AuthInstitution } from "../../lib/auth-storage";
 import { MenuIcon } from "../icons";
 import { InstitutionSelector } from "./InstitutionSelector";
 import { NotificationsMenu } from "./NotificationsMenu";
@@ -7,8 +7,8 @@ import { UserMenu } from "./UserMenu";
 
 type HeaderProps = {
   activeInstitutionId: string;
-  institutions: Institution[];
-  onInstitutionChange: (id: string) => void;
+  institutions: AuthInstitution[];
+  onInstitutionChange: (id: string) => Promise<void>;
   userInitials: string;
   onMenuToggle: () => void;
   onSidebarToggle: () => void;

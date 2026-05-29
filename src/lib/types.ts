@@ -1249,7 +1249,6 @@ export type PermissionLevel = "view" | "full";
 export interface AppUserResponse {
   id: string;
   fullName: string;
-  email: string | null;
   phone: string | null;
   hasPassword: boolean;
   mebbisUsername: string | null;
@@ -1264,7 +1263,6 @@ export interface AppUserResponse {
 
 export interface AppUserUpsertRequest {
   fullName: string;
-  email?: string | null;
   phone: string;
   password?: string | null;
   mebbisUsername?: string | null;
@@ -1456,14 +1454,6 @@ export interface SidebarStatsResponse {
   documents: { missingCount: number };
   mebJobs: { failed: number; manualReview: number };
   payments: { dueToday: number };
-}
-
-export type InstitutionType = "MTSK" | "İş Mak." | "SRC" | "Psikoteknik" | "Kurum";
-
-export interface Institution {
-  id: string;
-  name: string;
-  type: InstitutionType;
 }
 
 export interface DashboardOverviewResponse {

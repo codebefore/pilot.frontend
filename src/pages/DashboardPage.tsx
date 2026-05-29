@@ -20,10 +20,11 @@ import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
 import { TaskItem } from "../components/ui/TaskItem";
 import { useToast } from "../components/ui/Toast";
+import type { AuthInstitution } from "../lib/auth-storage";
 import { useT } from "../lib/i18n";
 import { useSidebarStats } from "../lib/sidebar-stats";
 import { getDashboardOverview } from "../lib/stats-api";
-import type { DashboardMebJobResponse, DashboardOverviewResponse, Institution } from "../lib/types";
+import type { DashboardMebJobResponse, DashboardOverviewResponse } from "../lib/types";
 
 type StatCardConfig = {
   key: string;
@@ -35,7 +36,7 @@ type StatCardConfig = {
 };
 
 type DashboardPageProps = {
-  activeInstitution?: Institution | null;
+  activeInstitution?: AuthInstitution | null;
   userName?: string | null;
 };
 

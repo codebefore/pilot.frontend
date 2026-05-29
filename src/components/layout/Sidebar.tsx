@@ -3,7 +3,8 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
 import { useSidebarStats } from "../../lib/sidebar-stats";
-import type { Institution, SidebarStatsResponse } from "../../lib/types";
+import type { AuthInstitution } from "../../lib/auth-storage";
+import type { SidebarStatsResponse } from "../../lib/types";
 import { navSections, type NavItem } from "../../nav";
 import type { NavKey } from "../../types";
 import { ChevronDownIcon } from "../icons";
@@ -13,8 +14,8 @@ type SidebarProps = {
   open: boolean;
   onClose: () => void;
   activeInstitutionId: string;
-  institutions: Institution[];
-  onInstitutionChange: (id: string) => void;
+  institutions: AuthInstitution[];
+  onInstitutionChange: (id: string) => Promise<void>;
   desktopVisible?: boolean;
   onMouseLeave?: () => void;
 };

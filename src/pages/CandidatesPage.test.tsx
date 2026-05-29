@@ -225,7 +225,7 @@ describe("CandidatesPage tabs", () => {
     vi.useRealTimers();
   });
 
-  it("defaults to the 'active' tab and sends status='active'", async () => {
+  it("defaults to the active period tab and sends candidateTab='active_period'", async () => {
     renderPage();
 
     await waitFor(() => {
@@ -233,7 +233,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ status: "active", page: 1, pageSize: 10 });
+    expect(callArgs).toMatchObject({ candidateTab: "active_period", page: 1, pageSize: 10 });
   });
 
   it("renders e-sinav tabs and defaults to the havuz filter", async () => {
@@ -734,98 +734,67 @@ describe("CandidatesPage tabs", () => {
     expect(within(tagBar).queryByText(/\(2\/10\)\s*B\(2\)/i)).not.toBeInTheDocument();
   });
 
-  it("renders exactly the 5 canonical candidate status tabs", async () => {
+  it("renders the canonical candidate list tabs", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    expect(screen.getByRole("button", { name: "Tümü" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ön Kayıt" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Aktif" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Park" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mezun" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dosya Yakan / Ayrılan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aktif Dönem" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Atanmamış" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tamamlananlar" })).toBeInTheDocument();
 
-    // Legacy tabs must not exist anymore.
     expect(screen.queryByRole("button", { name: "Tüm Adaylar" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Tamamlanan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tümü" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ön Kayıt" })).not.toBeInTheDocument();
   });
 
-  it("does not send status when the Tümü tab is selected", async () => {
+  it("sends candidateTab='unassigned' when the Atanmamış tab is selected", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
+    fireEvent.click(screen.getByRole("button", { name: "Atanmamış" }));
 
     await waitFor(() => {
       const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+      expect(lastCall.candidateTab).toBe("unassigned");
       expect(lastCall.status).toBeUndefined();
       expect(lastCall.page).toBe(1);
       expect(lastCall.pageSize).toBe(10);
     });
   });
 
-  it("shows status by default on the Tümü tab and still lets the user hide it from the picker", async () => {
+  it("lets the user show and hide the status column from the picker", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
+    fireEvent.click(screen.getByLabelText("Sütunlar"));
+    const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
+    expect(picker).not.toBeNull();
+    if (!picker) {
+      throw new Error("column picker menu not found");
+    }
+    fireEvent.click(within(picker).getByLabelText("Durum"));
 
-    expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
-    fireEvent.click(screen.getByLabelText("Durum"));
+    fireEvent.click(within(picker).getByLabelText("Durum"));
 
     await waitFor(() => {
       expect(screen.queryByRole("columnheader", { name: /^Durum$/i })).not.toBeInTheDocument();
     });
   });
 
-  it("sends status='pre_registered' when the Ön Kayıt tab is selected", async () => {
+  it("sends candidateTab='completed' when the Tamamlananlar tab is selected", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Ön Kayıt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tamamlananlar" }));
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          status: "pre_registered",
-          page: 1,
-          pageSize: 10,
-        }),
-        expect.any(AbortSignal)
-      );
-    });
-  });
-
-  it("sends status='graduated' when the Mezun tab is selected", async () => {
-    renderPage();
-    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
-
-    fireEvent.click(screen.getByRole("button", { name: "Mezun" }));
-
-    await waitFor(() => {
-      expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          status: "graduated",
-          page: 1,
-          pageSize: 10,
-        }),
-        expect.any(AbortSignal)
-      );
-    });
-  });
-
-  it("sends status='dropped' when the Dosya Yakan / Ayrılan tab is selected", async () => {
-    renderPage();
-    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
-
-    fireEvent.click(screen.getByRole("button", { name: "Dosya Yakan / Ayrılan" }));
-
-    await waitFor(() => {
-      expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          status: "dropped",
+          candidateTab: "completed",
           page: 1,
           pageSize: 10,
         }),
@@ -918,7 +887,7 @@ describe("CandidatesPage tabs", () => {
     expect(within(picker).queryByText("Direksiyon Hakkı")).not.toBeInTheDocument();
   });
 
-  it("renders unified exam attempt and status values on the Tümü tab", async () => {
+  it("renders unified exam attempt and status values on the active period tab", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [
         {
@@ -1030,8 +999,6 @@ describe("CandidatesPage tabs", () => {
 
     renderPage();
     await screen.findByText("Ayse Demir");
-
-    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
 
     expect(await screen.findByText("E-sınav 2/4")).toBeInTheDocument();
     expect(screen.getByText("E-sınav randevulu")).toBeInTheDocument();
@@ -1993,18 +1960,7 @@ describe("CandidatesPage tabs", () => {
       (bulkStatusSelect as HTMLSelectElement).querySelectorAll("option")
     ).map((option) => option.value);
 
-    expect(optionValues).not.toContain("active");
-    expect(optionValues).toEqual(["", "pre_registered", "parked", "graduated", "dropped"]);
-
-    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
-
-    await waitFor(() => {
-      const allTabOptionValues = Array.from(
-        (screen.getByLabelText("Toplu durum seç") as HTMLSelectElement).querySelectorAll("option")
-      ).map((option) => option.value);
-
-      expect(allTabOptionValues).toContain("active");
-    });
+    expect(optionValues).toEqual(["", "pre_registered", "active", "parked", "graduated", "dropped"]);
   });
 });
 
@@ -2074,15 +2030,14 @@ describe("CandidatesPage sorting", () => {
     });
   });
 
-  it("sends sort params together with the active tab filter", async () => {
+  it("sends sort params together with the selected candidate tab filter", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    // Switch away from the default "active" tab to prove sort+tab coexist.
-    fireEvent.click(screen.getByRole("button", { name: "Mezun" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tamamlananlar" }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ status: "graduated" }),
+        expect.objectContaining({ candidateTab: "completed" }),
         expect.any(AbortSignal)
       );
     });
@@ -2091,7 +2046,7 @@ describe("CandidatesPage sorting", () => {
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          status: "graduated",
+          candidateTab: "completed",
           sortBy: "groupTitle",
           sortDir: "asc",
           page: 1,

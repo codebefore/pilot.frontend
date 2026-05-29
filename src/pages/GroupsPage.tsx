@@ -8,14 +8,17 @@ import { NewTermModal } from "../components/modals/NewTermModal";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
+import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { parseGroupTitle } from "../lib/group-code";
 import { getGroups } from "../lib/groups-api";
 import { ApiError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
+import { normalizeTextQuery } from "../lib/search";
 import {
   formatDateTR,
+  GROUP_MEB_STATUS_OPTIONS,
   groupMebStatusLabel,
   groupMebStatusToPill,
 } from "../lib/status-maps";
@@ -123,14 +126,19 @@ const DEFAULT_VISIBLE_GROUP_COLUMN_IDS: GroupColumnId[] = [
 ];
 const DEFAULT_LOADING_TERM_SECTION_COUNT = 2;
 const DEFAULT_LOADING_ROWS_PER_SECTION = 3;
+const GROUP_SEARCH_DEBOUNCE_MS = 300;
 
 async function loadAllGroups(
   termId: string | undefined,
+  search: string | undefined,
+  mebStatus: string | undefined,
   signal: AbortSignal
 ): Promise<GroupResponse[]> {
   const baseParams = {
     pageSize: GROUP_FETCH_PAGE_SIZE,
     ...(termId ? { termId } : {}),
+    ...(search ? { search } : {}),
+    ...(mebStatus ? { mebStatus } : {}),
   };
   const firstPage = await getGroups(
     {
@@ -209,6 +217,8 @@ export function GroupsPage() {
   const [deletingTerm, setDeletingTerm] = useState(false);
 
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
+  const [search, setSearch] = useState("");
+  const [selectedMebStatus, setSelectedMebStatus] = useState("");
 
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -221,6 +231,10 @@ export function GroupsPage() {
     id: column.id,
     label: t(column.labelKey),
   }));
+  const effectiveSearch = useMemo(() => {
+    const normalized = normalizeTextQuery(search) ?? "";
+    return normalized.length >= 2 ? normalized : undefined;
+  }, [search]);
 
   /* ── Terms ───────────────────────────────────────────── */
 
@@ -292,7 +306,11 @@ export function GroupsPage() {
     const controller = new AbortController();
     setLoading(true);
 
-    loadAllGroups(selectedTermId || undefined, controller.signal)
+    loadAllGroups(
+      selectedTermId || undefined,
+      effectiveSearch,
+      selectedMebStatus || undefined,
+      controller.signal)
       .then((items) => {
         setGroups(items);
       })
@@ -306,6 +324,8 @@ export function GroupsPage() {
 
     return () => controller.abort();
   }, [
+    effectiveSearch,
+    selectedMebStatus,
     selectedTermId,
     refreshKey,
     showToast,
@@ -704,6 +724,29 @@ export function GroupsPage() {
               {buildTermLabel(term, sortedTerms, lang)}
               {" · "}
               {t("terms.groupCount", { count: term.groupCount })}
+            </option>
+          ))}
+        </CustomSelect>
+
+        <div className="search-box">
+          <SearchInput
+            debounceMs={GROUP_SEARCH_DEBOUNCE_MS}
+            onChange={setSearch}
+            placeholder={t("groups.searchPlaceholder")}
+            value={search}
+          />
+        </div>
+
+        <CustomSelect
+          aria-label={t("groups.card.mebStatus")}
+          className="form-select term-bar-select"
+          onChange={(e) => setSelectedMebStatus(e.target.value)}
+          value={selectedMebStatus}
+        >
+          <option value="">{t("common.all")}</option>
+          {GROUP_MEB_STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </CustomSelect>

@@ -3279,6 +3279,9 @@ function AccountingTab({
   const activeMovements = allMovements.filter((item) => item.status === "active");
   const payments = accounting?.payments ?? [];
   const feeSuggestions = accounting?.feeSuggestions ?? [];
+  const primaryCourseFeeSuggestion = feeSuggestions.find(
+    (suggestion) => suggestion.feeType === "certificate_program_matrix"
+  );
   const totalDebtAmount = activeMovements.reduce((sum, item) => sum + item.remainingAmount, 0);
   const courseFeeMovements = activeMovements.filter((item) => item.type === "kurs");
   const courseFeeSummary = {
@@ -3390,8 +3393,11 @@ function AccountingTab({
       description,
     });
   };
-  const openPaymentPlanModal = () => {
-    const defaultAmount = candidate.totalFee > 0 ? candidate.totalFee : courseFeeSummary.totalAmount;
+  const openPaymentPlanModal = (amount?: number) => {
+    const defaultAmount =
+      amount ??
+      primaryCourseFeeSuggestion?.amount ??
+      (candidate.totalFee > 0 ? candidate.totalFee : courseFeeSummary.totalAmount);
     setPaymentPlanModal({
       open: true,
       amount: defaultAmount > 0 ? String(defaultAmount) : "",
@@ -3613,7 +3619,7 @@ function AccountingTab({
           <strong>Borçlandırma ekle, ödeme al veya fatura kaydet</strong>
         </div>
         <div className="candidate-finance-action-buttons">
-          <button className="btn btn-primary" onClick={openPaymentPlanModal} type="button">
+          <button className="btn btn-primary" onClick={() => openPaymentPlanModal()} type="button">
             Ödeme Planı Oluştur
           </button>
           <button className="btn btn-primary" onClick={() => openDebtModal()} type="button">
@@ -3643,13 +3649,11 @@ function AccountingTab({
             {feeSuggestions.map((suggestion) => (
               <button
                 className="btn btn-secondary btn-sm"
-                disabled={movementSaving}
                 key={`${suggestion.feeType}:${suggestion.feeId}`}
                 onClick={() =>
-                  onCreateMovement(
+                  openDebtModal(
                     suggestion.type,
-                    todayIsoDate(),
-                    suggestion.amount,
+                    String(suggestion.amount),
                     suggestion.description
                   )
                 }

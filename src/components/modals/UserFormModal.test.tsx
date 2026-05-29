@@ -23,7 +23,6 @@ describe("UserFormModal", () => {
     createUserMock.mockResolvedValue({
       id: "user-2",
       fullName: "Kemal Can",
-      email: null,
       phone: "5551234567",
       hasPassword: false,
       mebbisUsername: null,
@@ -43,7 +42,6 @@ describe("UserFormModal", () => {
         editing={{
           id: "user-1",
           fullName: "Ada Yilmaz",
-          email: "ada@example.com",
           phone: "5551234567",
           hasPassword: true,
           mebbisUsername: "ada.mebbis",
@@ -82,7 +80,7 @@ describe("UserFormModal", () => {
     expect(screen.getByRole("button", { name: "Patron" })).toBeInTheDocument();
   });
 
-  it("submits null email and requires phone when creating a user", async () => {
+  it("submits without email and requires phone when creating a user", async () => {
     const onSaved = vi.fn();
 
     renderWithProviders(
@@ -107,7 +105,6 @@ describe("UserFormModal", () => {
     await waitFor(() => {
       expect(createUserMock).toHaveBeenCalledWith({
         fullName: "Kemal Can",
-        email: null,
         phone: "5551234567",
         password: null,
         mebbisUsername: null,

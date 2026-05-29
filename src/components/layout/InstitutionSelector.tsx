@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { Institution } from "../../lib/types";
+import type { AuthInstitution } from "../../lib/auth-storage";
 import { useToast } from "../ui/Toast";
 
 type InstitutionSelectorProps = {
-  institutions: Institution[];
+  institutions: AuthInstitution[];
   activeId: string;
-  onSelect: (id: string) => void;
+  onSelect: (id: string) => Promise<void>;
 };
 
 export function InstitutionSelector({
@@ -15,10 +15,12 @@ export function InstitutionSelector({
   onSelect,
 }: InstitutionSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [selectingId, setSelectingId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
-  const active = institutions.find((i) => i.id === activeId) ?? institutions[0];
+  const active = activeId ? institutions.find((i) => i.id === activeId) : undefined;
   const hasInstitutions = institutions.length > 0;
+  const loading = selectingId !== null;
 
   useEffect(() => {
     if (!open) return;
@@ -33,12 +35,15 @@ export function InstitutionSelector({
     <div className={open ? "inst-selector open" : "inst-selector"} ref={ref}>
       <button
         className="inst-selector-btn"
-        disabled={!hasInstitutions}
+        disabled={!hasInstitutions || loading}
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
         <span className="inst-dot" />
-        <span>{active?.name ?? "Kurum yükleniyor"}</span>
+        <span className="inst-selector-text">
+          <span>{active?.name ?? (hasInstitutions ? "Kurum seç" : "Kurum bulunamadı")}</span>
+          {active?.slug ? <small>{active.slug}</small> : null}
+        </span>
       </button>
 
       {open && hasInstitutions && (
@@ -47,17 +52,33 @@ export function InstitutionSelector({
           {institutions.map((inst) => (
             <button
               className={inst.id === activeId ? "inst-menu-item active" : "inst-menu-item"}
+              disabled={loading}
               key={inst.id}
-              onClick={() => {
-                onSelect(inst.id);
-                setOpen(false);
-                if (inst.id !== activeId) showToast(`${inst.name} seçildi`);
+              onClick={async () => {
+                if (inst.id === activeId) {
+                  setOpen(false);
+                  return;
+                }
+
+                setSelectingId(inst.id);
+                try {
+                  await onSelect(inst.id);
+                  setOpen(false);
+                  showToast(`${inst.name} seçildi`);
+                } catch {
+                  showToast("Kurum değiştirilemedi", "error");
+                } finally {
+                  setSelectingId(null);
+                }
               }}
               type="button"
             >
               <span className="inst-dot" />
-              {inst.name}
-              <span className="inst-type-badge">{inst.type}</span>
+              <span className="inst-menu-item-main">
+                <span>{inst.name}</span>
+                <small>{inst.slug}</small>
+              </span>
+              {inst.roleName ? <span className="inst-role-badge">{inst.roleName}</span> : null}
             </button>
           ))}
         </div>

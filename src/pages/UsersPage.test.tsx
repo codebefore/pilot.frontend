@@ -22,6 +22,7 @@ vi.mock("../lib/roles-api", () => ({
 
 describe("UsersPage", () => {
   beforeEach(() => {
+    localStorage.clear();
     getUsersMock.mockReset();
     deleteUserMock.mockReset();
     getRolesMock.mockReset();
@@ -30,7 +31,6 @@ describe("UsersPage", () => {
       {
         id: "user-1",
         fullName: "Ada Yilmaz",
-        email: "ada@example.com",
         phone: "5551234567",
         roleId: "role-1",
         roleName: "Patron",
@@ -79,5 +79,26 @@ describe("UsersPage", () => {
     await waitFor(() => {
       expect(screen.queryByText("Ada Yilmaz")).not.toBeInTheDocument();
     });
+  });
+
+  it("does not expose email as a user column", async () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Ada Yilmaz");
+
+    expect(screen.queryByRole("columnheader", { name: "E-posta" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Telefon" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Sütunlar"));
+    const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
+    expect(picker).not.toBeNull();
+    if (!picker) {
+      throw new Error("column picker menu not found");
+    }
+    expect(within(picker).queryByLabelText("E-posta")).not.toBeInTheDocument();
   });
 });
