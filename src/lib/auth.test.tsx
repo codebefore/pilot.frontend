@@ -10,6 +10,7 @@ const selectInstitutionMock = vi.fn();
 
 vi.mock("./auth-api", () => ({
   loginWithPassword: (...args: unknown[]) => loginWithPasswordMock(...args),
+  logoutSession: vi.fn(),
   selectInstitution: (...args: unknown[]) => selectInstitutionMock(...args),
 }));
 
@@ -33,6 +34,8 @@ function response(activeInstitution = kurumA, token = "token-a") {
   return {
     accessToken: token,
     expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+    refreshToken: `refresh-${token}`,
+    refreshTokenExpiresAtUtc: new Date(Date.now() + 14 * 24 * 60 * 60_000).toISOString(),
     user: {
       id: "user-1",
       fullName: "Test User",

@@ -10,6 +10,8 @@ import {
 const validSession: AuthSession = {
   accessToken: "token-a",
   expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+  refreshToken: "refresh-a",
+  refreshTokenExpiresAtUtc: new Date(Date.now() + 14 * 24 * 60 * 60_000).toISOString(),
   user: {
     id: "user-1",
     phone: "5551112233",
@@ -83,10 +85,19 @@ describe("auth storage", () => {
     expect(localStorage.getItem("pilot.auth")).toBeNull();
   });
 
-  it("clears expired sessions", () => {
+  it("keeps sessions with expired access token while refresh token is valid", () => {
     writeStoredAuthSession({
       ...validSession,
       expiresAtUtc: new Date(Date.now() - 60_000).toISOString(),
+    });
+
+    expect(readStoredAuthSession()?.refreshToken).toBe("refresh-a");
+  });
+
+  it("clears sessions with expired refresh token", () => {
+    writeStoredAuthSession({
+      ...validSession,
+      refreshTokenExpiresAtUtc: new Date(Date.now() - 60_000).toISOString(),
     });
 
     expect(readStoredAuthSession()).toBeNull();

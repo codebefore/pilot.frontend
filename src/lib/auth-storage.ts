@@ -19,6 +19,8 @@ export type AuthUser = {
 export type AuthSession = {
   accessToken: string;
   expiresAtUtc: string;
+  refreshToken: string;
+  refreshTokenExpiresAtUtc: string;
   user: AuthUser;
   institutions: AuthInstitution[];
   activeInstitution: AuthInstitution | null;
@@ -32,6 +34,8 @@ export function readStoredAuthSession(): AuthSession | null {
     if (
       !session.accessToken ||
       !session.expiresAtUtc ||
+      !session.refreshToken ||
+      !session.refreshTokenExpiresAtUtc ||
       !isAuthUser(session.user) ||
       !Array.isArray(session.institutions) ||
       !session.institutions.every(isAuthInstitution) ||
@@ -42,7 +46,8 @@ export function readStoredAuthSession(): AuthSession | null {
       return null;
     }
     const expiresAt = new Date(session.expiresAtUtc).getTime();
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    const refreshExpiresAt = new Date(session.refreshTokenExpiresAtUtc).getTime();
+    if (!Number.isFinite(expiresAt) || !Number.isFinite(refreshExpiresAt) || refreshExpiresAt <= Date.now()) {
       clearStoredAuthSession();
       return null;
     }
@@ -62,7 +67,25 @@ export function clearStoredAuthSession(): void {
 }
 
 export function getStoredAccessToken(): string | null {
-  return readStoredAuthSession()?.accessToken ?? null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as Partial<AuthSession>;
+    return typeof session.accessToken === "string" ? session.accessToken : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredRefreshToken(): string | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as Partial<AuthSession>;
+    return typeof session.refreshToken === "string" ? session.refreshToken : null;
+  } catch {
+    return null;
+  }
 }
 
 export function notifyUnauthorized(): void {
@@ -71,6 +94,10 @@ export function notifyUnauthorized(): void {
 
 export function notifyInstitutionRequired(): void {
   window.dispatchEvent(new Event("pilot:institution-required"));
+}
+
+export function notifySessionRefreshed(session: AuthSession): void {
+  window.dispatchEvent(new CustomEvent<AuthSession>("pilot:session-refreshed", { detail: session }));
 }
 
 function isAuthUser(value: unknown): value is AuthUser {

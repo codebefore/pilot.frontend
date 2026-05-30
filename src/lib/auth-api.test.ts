@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearStoredAuthSession } from "./auth-storage";
-import { changePassword, loginWithPassword, selectInstitution } from "./auth-api";
+import { changePassword, loginWithPassword, logoutSession, refreshSession, selectInstitution } from "./auth-api";
 
 describe("auth api", () => {
   beforeEach(() => {
@@ -14,6 +14,8 @@ describe("auth api", () => {
           JSON.stringify({
             accessToken: "token",
             expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+            refreshToken: "refresh-token",
+            refreshTokenExpiresAtUtc: new Date(Date.now() + 14 * 24 * 60 * 60_000).toISOString(),
             user: {
               id: "user-1",
               fullName: "Test User",
@@ -56,5 +58,25 @@ describe("auth api", () => {
     expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/password");
     expect(init?.method).toBe("POST");
     expect(init?.body).toBe(JSON.stringify({ currentPassword: "old-secret", newPassword: "new-secret" }));
+  });
+
+  it("posts refresh requests to the auth refresh endpoint", async () => {
+    await refreshSession({ refreshToken: "refresh-token" });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/refresh");
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ refreshToken: "refresh-token" }));
+  });
+
+  it("posts logout requests to the auth logout endpoint", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await logoutSession({ refreshToken: "refresh-token" });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/logout");
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ refreshToken: "refresh-token" }));
   });
 });

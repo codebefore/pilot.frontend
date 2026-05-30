@@ -1,9 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-import { loginWithPassword, selectInstitution as selectInstitutionApi, type LoginResponse } from "./auth-api";
+import {
+  loginWithPassword,
+  logoutSession,
+  selectInstitution as selectInstitutionApi,
+  type LoginResponse,
+} from "./auth-api";
 import {
   clearStoredAuthSession,
+  getStoredRefreshToken,
   readStoredAuthSession,
   writeStoredAuthSession,
   type AuthInstitution,
@@ -53,6 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("pilot:institution-required", onInstitutionRequired);
   }, []);
 
+  useEffect(() => {
+    const onSessionRefreshed = (event: Event) => {
+      const refreshedSession = (event as CustomEvent<AuthSession>).detail;
+      if (refreshedSession) {
+        setSession(refreshedSession);
+        setInstitutionRequired(!refreshedSession.activeInstitution);
+      }
+    };
+    window.addEventListener("pilot:session-refreshed", onSessionRefreshed);
+    return () => window.removeEventListener("pilot:session-refreshed", onSessionRefreshed);
+  }, []);
+
   const login = async (phone: string, password: string) => {
     if (!phone || !password) throw new Error("Telefon ve şifre gerekli");
     const response = await loginWithPassword({ phone, password });
@@ -68,6 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    const refreshToken = getStoredRefreshToken();
+    if (refreshToken) {
+      void logoutSession({ refreshToken }).catch(() => undefined);
+    }
     setInstitutionRequired(false);
     setSession(null);
   };
@@ -110,6 +132,8 @@ function mapLoginResponse(response: LoginResponse): AuthSession {
   return {
     accessToken: response.accessToken,
     expiresAtUtc: response.expiresAtUtc,
+    refreshToken: response.refreshToken,
+    refreshTokenExpiresAtUtc: response.refreshTokenExpiresAtUtc,
     user: {
       id: response.user.id,
       phone: response.user.phone,

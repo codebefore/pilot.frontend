@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, httpGet } from "./http";
-import { clearStoredAuthSession } from "./auth-storage";
+import { clearStoredAuthSession, writeStoredAuthSession } from "./auth-storage";
 
 describe("http client", () => {
   beforeEach(() => {
@@ -52,5 +52,110 @@ describe("http client", () => {
     expect(unauthorized).not.toHaveBeenCalled();
     window.removeEventListener("pilot:institution-required", institutionRequired);
     window.removeEventListener("pilot:unauthorized", unauthorized);
+  });
+
+  it("refreshes the session and retries once on unauthorized responses", async () => {
+    writeStoredAuthSession({
+      accessToken: "old-token",
+      expiresAtUtc: new Date(Date.now() - 60_000).toISOString(),
+      refreshToken: "refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "Test User",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [],
+      activeInstitution: null,
+    });
+    const refreshed = vi.fn();
+    window.addEventListener("pilot:session-refreshed", refreshed);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          accessToken: "new-token",
+          expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+          refreshToken: "new-refresh-token",
+          refreshTokenExpiresAtUtc: new Date(Date.now() + 120_000).toISOString(),
+          user: {
+            id: "user-1",
+            fullName: "Test User",
+            phone: "5551112233",
+            roleName: "Operator",
+            isSuperAdmin: false,
+          },
+          institutions: [],
+          activeInstitution: null,
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+    );
+
+    await expect(httpGet<{ ok: boolean }>("/api/test")).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe("http://127.0.0.1:5080/api/auth/refresh");
+    expect(new Headers(vi.mocked(fetch).mock.calls[2][1]?.headers).get("Authorization")).toBe("Bearer new-token");
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    window.removeEventListener("pilot:session-refreshed", refreshed);
+  });
+
+  it("deduplicates concurrent refresh attempts", async () => {
+    writeStoredAuthSession({
+      accessToken: "old-token",
+      expiresAtUtc: new Date(Date.now() - 60_000).toISOString(),
+      refreshToken: "refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "Test User",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [],
+      activeInstitution: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          accessToken: "new-token",
+          expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+          refreshToken: "new-refresh-token",
+          refreshTokenExpiresAtUtc: new Date(Date.now() + 120_000).toISOString(),
+          user: {
+            id: "user-1",
+            fullName: "Test User",
+            phone: "5551112233",
+            roleName: "Operator",
+            isSuperAdmin: false,
+          },
+          institutions: [],
+          activeInstitution: null,
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        .mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })))
+    );
+
+    await Promise.all([
+      expect(httpGet<{ ok: boolean }>("/api/one")).resolves.toEqual({ ok: true }),
+      expect(httpGet<{ ok: boolean }>("/api/two")).resolves.toEqual({ ok: true }),
+    ]);
+
+    const refreshCalls = vi.mocked(fetch).mock.calls.filter(([url]) =>
+      String(url) === "http://127.0.0.1:5080/api/auth/refresh"
+    );
+    expect(refreshCalls).toHaveLength(1);
   });
 });

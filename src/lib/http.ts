@@ -1,9 +1,17 @@
 import { getApiBaseUrl } from "./api";
 import {
   getStoredAccessToken,
+  getStoredRefreshToken,
   notifyInstitutionRequired,
+  notifySessionRefreshed,
   notifyUnauthorized,
+  readStoredAuthSession,
+  writeStoredAuthSession,
+  type AuthInstitution,
+  type AuthSession,
 } from "./auth-storage";
+
+let refreshSessionPromise: Promise<boolean> | null = null;
 
 /**
  * Structured validation error delivered through
@@ -121,7 +129,7 @@ export async function httpGet<T>(
   params?: QueryParams,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetch(buildUrl(path, params), {
+  const response = await fetchWithAuthRetry(buildUrl(path, params), {
     headers: buildHeaders(),
     signal: options?.signal,
   });
@@ -133,7 +141,7 @@ export async function httpPost<T>(
   body: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetch(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path), {
     method: "POST",
     headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -152,7 +160,7 @@ export async function httpPostForm<T>(
   form: FormData,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetch(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path), {
     method: "POST",
     headers: buildHeaders(),
     body: form,
@@ -166,7 +174,7 @@ export async function httpPut<T>(
   body: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetch(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path), {
     method: "PUT",
     headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -180,7 +188,7 @@ export async function httpPatch<T>(
   body: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetch(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path), {
     method: "PATCH",
     headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -194,7 +202,7 @@ export async function httpDelete<T = void>(
   params?: QueryParams,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetch(buildUrl(path, params), {
+  const response = await fetchWithAuthRetry(buildUrl(path, params), {
     method: "DELETE",
     headers: buildHeaders(),
     signal: options?.signal,
@@ -209,4 +217,106 @@ function buildHeaders(base?: HeadersInit): HeadersInit {
     headers.set("Authorization", `Bearer ${token}`);
   }
   return headers;
+}
+
+async function fetchWithAuthRetry(url: string, init: RequestInit): Promise<Response> {
+  const response = await fetch(url, init);
+  if (response.status !== 401 || isAuthRefreshRequest(url)) {
+    return response;
+  }
+
+  const refreshed = await refreshStoredSession();
+  if (!refreshed) {
+    return response;
+  }
+
+  return fetch(url, {
+    ...init,
+    headers: replaceAuthorizationHeader(init.headers),
+  });
+}
+
+function isAuthRefreshRequest(url: string): boolean {
+  return new URL(url, window.location.origin).pathname.endsWith("/api/auth/refresh");
+}
+
+function replaceAuthorizationHeader(headersInit?: HeadersInit): Headers {
+  const headers = new Headers(headersInit);
+  headers.delete("Authorization");
+  const token = getStoredAccessToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return headers;
+}
+
+type RefreshLoginResponse = {
+  accessToken: string;
+  expiresAtUtc: string;
+  refreshToken: string;
+  refreshTokenExpiresAtUtc: string;
+  user: {
+    id: string;
+    fullName: string;
+    phone: string | null;
+    roleName: string | null;
+    isSuperAdmin: boolean;
+  };
+  institutions: AuthInstitution[];
+  activeInstitution: AuthInstitution | null;
+};
+
+async function refreshStoredSession(): Promise<boolean> {
+  if (refreshSessionPromise) {
+    return refreshSessionPromise;
+  }
+
+  refreshSessionPromise = refreshStoredSessionOnce().finally(() => {
+    refreshSessionPromise = null;
+  });
+  return refreshSessionPromise;
+}
+
+async function refreshStoredSessionOnce(): Promise<boolean> {
+  const refreshToken = getStoredRefreshToken();
+  if (!refreshToken) {
+    notifyUnauthorized();
+    return false;
+  }
+
+  const response = await fetch(buildUrl("/api/auth/refresh"), {
+    method: "POST",
+    headers: new Headers({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!response.ok) {
+    notifyUnauthorized();
+    return false;
+  }
+
+  const refreshed = await response.json() as RefreshLoginResponse;
+  const session = mapRefreshResponse(refreshed);
+  writeStoredAuthSession(session);
+  notifySessionRefreshed(session);
+  return true;
+}
+
+function mapRefreshResponse(response: RefreshLoginResponse): AuthSession {
+  const previous = readStoredAuthSession();
+  return {
+    accessToken: response.accessToken,
+    expiresAtUtc: response.expiresAtUtc,
+    refreshToken: response.refreshToken,
+    refreshTokenExpiresAtUtc: response.refreshTokenExpiresAtUtc,
+    user: {
+      id: response.user.id,
+      phone: response.user.phone,
+      name: response.user.fullName,
+      roleName: response.activeInstitution?.roleName ?? response.user.roleName,
+      isSuperAdmin: response.user.isSuperAdmin,
+    },
+    institutions: response.institutions,
+    activeInstitution: response.activeInstitution ?? previous?.activeInstitution ?? null,
+  };
 }
