@@ -64,6 +64,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     onKeyDown,
     placeholder,
     size = "md",
+    title,
     value,
     ...rest
   },
@@ -188,6 +189,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
         onKeyDown={handleTriggerKeyDown}
         role="button"
         tabIndex={disabled ? -1 : 0}
+        title={title}
       >
         <span
           className={[

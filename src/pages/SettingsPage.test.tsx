@@ -29,6 +29,10 @@ vi.mock("../components/settings/ClassroomsSettingsSection", () => ({
   ClassroomsSettingsSection: () => <div>Classrooms Section Mock</div>,
 }));
 
+vi.mock("../components/settings/ReferencesSettingsSection", () => ({
+  ReferencesSettingsSection: () => <div>References Section Mock</div>,
+}));
+
 vi.mock("./DocumentTypesPage", () => ({
   DocumentTypesPage: () => <div>Document Types Section Mock</div>,
 }));
@@ -45,13 +49,17 @@ vi.mock("./RoleEditorPage", () => ({
   RoleEditorPage: () => <div>Role Editor Section Mock</div>,
 }));
 
-function renderSettingsPage(initialPath = "/settings/general") {
+function renderSettingsPage(
+  initialPath = "/settings/general",
+  auth?: NonNullable<Parameters<typeof renderWithProviders>[1]>["auth"]
+) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route element={<SettingsPage />} path="/settings/*" />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
+    { auth }
   );
 }
 
@@ -91,5 +99,62 @@ describe("SettingsPage", () => {
     renderSettingsPage("/settings/definitions/permissions");
 
     expect(await screen.findByText("Users Section Mock")).toBeInTheDocument();
+  });
+
+  it("redirects unauthorized settings routes to the first permitted section", async () => {
+    renderSettingsPage("/settings/general", {
+      user: {
+        id: "training-user",
+        phone: "5000000001",
+        name: "Training User",
+        roleName: "Eğitim",
+        isSuperAdmin: false,
+      },
+      permissions: { training: "view" },
+    });
+
+    expect(await screen.findByText("Instructors Section Mock")).toBeInTheDocument();
+    expect(screen.queryByText("General Section Mock")).not.toBeInTheDocument();
+  });
+
+  it("shows only settings nav links allowed by the active permissions", async () => {
+    renderSettingsPage("/settings/definitions/instructors", {
+      user: {
+        id: "training-user",
+        phone: "5000000001",
+        name: "Training User",
+        roleName: "Eğitim",
+        isSuperAdmin: false,
+      },
+      permissions: { training: "view" },
+    });
+
+    expect(await screen.findByText("Instructors Section Mock")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ekip/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Araçlar/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Branşlar/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Derslikler/i })).toBeInTheDocument();
+
+    expect(screen.queryByRole("link", { name: /Genel/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Kullanıcılar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Evrak Türleri/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Kasalar/i })).not.toBeInTheDocument();
+  });
+
+  it("allows candidate users to access reference definitions without general settings permission", async () => {
+    renderSettingsPage("/settings/definitions/references", {
+      user: {
+        id: "candidate-user",
+        phone: "5000000002",
+        name: "Candidate User",
+        roleName: "Aday",
+        isSuperAdmin: false,
+      },
+      permissions: { candidates: "view" },
+    });
+
+    expect(await screen.findByText("References Section Mock")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Referanslar/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Genel/i })).not.toBeInTheDocument();
   });
 });

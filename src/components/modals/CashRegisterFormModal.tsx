@@ -22,6 +22,7 @@ type CashRegisterFormValues = {
 type CashRegisterFormModalProps = {
   open: boolean;
   editing: CashRegisterResponse | null;
+  canManage?: boolean;
   onClose: () => void;
   onSaved: (saved: CashRegisterResponse) => void;
   onConcurrencyConflict?: () => void;
@@ -114,12 +115,14 @@ function applyServerFieldErrors(
 export function CashRegisterFormModal({
   open,
   editing,
+  canManage = true,
   onClose,
   onSaved,
   onConcurrencyConflict,
 }: CashRegisterFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
 
   const {
@@ -139,6 +142,7 @@ export function CashRegisterFormModal({
   }, [editing, open, reset]);
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
     setSubmitting(true);
 
     const payload: CashRegisterUpsertRequest = {
@@ -184,7 +188,13 @@ export function CashRegisterFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             {t("settings.cashRegisters.form.cancel")}
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? t("settings.cashRegisters.form.saving") : t("settings.cashRegisters.form.save")}
           </button>
         </>
@@ -203,6 +213,7 @@ export function CashRegisterFormModal({
             <label className="form-label">{t("settings.cashRegisters.form.name")}</label>
             <input
               className={fieldClass(errors.name?.message)}
+              disabled={!canManage}
               placeholder={t("settings.cashRegisters.form.namePlaceholder")}
               {...register("name", { required: t("cashRegister.validation.required") })}
             />
@@ -211,7 +222,11 @@ export function CashRegisterFormModal({
 
           <div className="form-group">
             <label className="form-label">{t("settings.cashRegisters.form.type")}</label>
-            <select className={fieldClass(errors.type?.message)} {...register("type")}>
+            <select
+              className={fieldClass(errors.type?.message)}
+              disabled={!canManage}
+              {...register("type")}
+            >
               {CASH_REGISTER_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {t(`settings.cashRegisters.type.${type}` as TranslationKey)}
@@ -226,7 +241,7 @@ export function CashRegisterFormModal({
           <div className="form-group">
             <label className="form-label">{t("settings.cashRegisters.form.isActive")}</label>
             <label className="switch-toggle">
-              <input type="checkbox" {...register("isActive")} />
+              <input disabled={!canManage} type="checkbox" {...register("isActive")} />
               <span className="switch-toggle-control" aria-hidden="true" />
               <span>
                 {watch("isActive")
@@ -240,7 +255,7 @@ export function CashRegisterFormModal({
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label">{t("settings.cashRegisters.form.notes")}</label>
-            <textarea className="form-input" rows={3} {...register("notes")} />
+            <textarea className="form-input" disabled={!canManage} rows={3} {...register("notes")} />
           </div>
         </div>
       </form>

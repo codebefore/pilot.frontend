@@ -9,6 +9,7 @@ import { useToast } from "../ui/Toast";
 type CandidateTagManagerModalProps = {
   open: boolean;
   tags: CandidateTag[];
+  canManage?: boolean;
   onClose: () => void;
   onDeleted: (tag: CandidateTag) => void;
   onRenamed: (previousTag: CandidateTag, nextTag: CandidateTag) => void;
@@ -25,6 +26,7 @@ function usageLabel(count: number): string {
 export function CandidateTagManagerModal({
   open,
   tags,
+  canManage = true,
   onClose,
   onDeleted,
   onRenamed,
@@ -34,6 +36,7 @@ export function CandidateTagManagerModal({
   const [draftName, setDraftName] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const noPermissionTitle = "Yetkiniz yok.";
 
   useEffect(() => {
     if (!open) {
@@ -51,6 +54,7 @@ export function CandidateTagManagerModal({
   );
 
   const startEditing = (tag: CandidateTag) => {
+    if (!canManage) return;
     setEditingId(tag.id);
     setDraftName(tag.name);
     setConfirmDeleteId(null);
@@ -62,6 +66,7 @@ export function CandidateTagManagerModal({
   };
 
   const handleRename = async (tag: CandidateTag) => {
+    if (!canManage) return;
     const nextName = normalizeTagName(draftName);
     if (!nextName) {
       showToast("Etiket adı boş olamaz", "error");
@@ -92,6 +97,7 @@ export function CandidateTagManagerModal({
   };
 
   const handleDelete = async (tag: CandidateTag) => {
+    if (!canManage) return;
     setSavingId(tag.id);
 
     try {
@@ -137,8 +143,9 @@ export function CandidateTagManagerModal({
                     <input
                       aria-label={`${tag.name} etiket adı`}
                       className="form-input"
-                      disabled={isSaving}
+                      disabled={isSaving || !canManage}
                       onChange={(event) => setDraftName(event.target.value)}
+                      title={!canManage ? noPermissionTitle : undefined}
                       type="text"
                       value={draftName}
                     />
@@ -163,8 +170,9 @@ export function CandidateTagManagerModal({
                       </button>
                       <button
                         className="btn btn-primary btn-sm"
-                        disabled={isSaving}
+                        disabled={isSaving || !canManage}
                         onClick={() => void handleRename(tag)}
+                        title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
                         {isSaving ? "Kaydediliyor..." : "Kaydet"}
@@ -182,8 +190,9 @@ export function CandidateTagManagerModal({
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
-                        disabled={isSaving}
+                        disabled={isSaving || !canManage}
                         onClick={() => void handleDelete(tag)}
+                        title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
                         {isSaving ? "Siliniyor..." : "Evet, Sil"}
@@ -193,17 +202,22 @@ export function CandidateTagManagerModal({
                     <>
                       <button
                         className="btn btn-secondary btn-sm"
+                        disabled={!canManage}
                         onClick={() => startEditing(tag)}
+                        title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
                         Düzenle
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
+                        disabled={!canManage}
                         onClick={() => {
+                          if (!canManage) return;
                           setConfirmDeleteId(tag.id);
                           setEditingId(null);
                         }}
+                        title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
                         Sil

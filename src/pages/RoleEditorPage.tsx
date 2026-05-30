@@ -6,7 +6,9 @@ import { PageToolbar } from "../components/layout/PageToolbar";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/http";
+import { canManageArea } from "../lib/permissions";
 import { createRole, getRoles, updateRole } from "../lib/roles-api";
 import type { RoleResponse, RoleUpsertRequest } from "../lib/types";
 
@@ -32,6 +34,9 @@ export function RoleEditorPage() {
   const location = useLocation();
   const { roleId } = useParams();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManagePermissions = canManageArea(user, permissions, "permissions");
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const [loading, setLoading] = useState(Boolean(roleId));
   const [submitting, setSubmitting] = useState(false);
@@ -97,6 +102,8 @@ export function RoleEditorPage() {
   const backToPermissions = buildPermissionsPath(editingRole?.id);
 
   const submit = handleSubmit(async (values) => {
+    if (!canManagePermissions) return;
+
     setSubmitting(true);
     const payload: RoleUpsertRequest = {
       name: values.name.trim(),
@@ -195,8 +202,9 @@ export function RoleEditorPage() {
             </button>
             <button
               className="btn btn-primary btn-sm"
-              disabled={loading || submitting}
+              disabled={loading || submitting || !canManagePermissions}
               onClick={submit}
+              title={!canManagePermissions ? noPermissionTitle : undefined}
               type="button"
             >
               {submitting ? "Kaydediliyor..." : "Kaydet"}
@@ -230,6 +238,7 @@ export function RoleEditorPage() {
                     <label className="form-label">Rol Adı</label>
                     <input
                       className={errors.name ? "form-input error" : "form-input"}
+                      disabled={!canManagePermissions}
                       placeholder="Örn. Eğitim Koordinatörü"
                       {...register("name", {
                         required: "Zorunlu alan",
@@ -242,7 +251,11 @@ export function RoleEditorPage() {
 
                 <div className="form-row full">
                   <label className="switch-toggle">
-                    <input type="checkbox" {...register("isActive")} />
+                    <input
+                      disabled={!canManagePermissions}
+                      type="checkbox"
+                      {...register("isActive")}
+                    />
                     <span className="switch-toggle-control" aria-hidden="true" />
                     <span>{watch("isActive") ? "Aktif" : "Pasif"}</span>
                   </label>

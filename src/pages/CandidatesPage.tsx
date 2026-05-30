@@ -68,6 +68,8 @@ import {
 } from "../lib/driving-exam-time-slots";
 import { setPracticeCandidateScope } from "../lib/practice-candidate-scope";
 import { useLanguage, useT } from "../lib/i18n";
+import { useAuth } from "../lib/auth";
+import { canManageArea } from "../lib/permissions";
 import {
   candidateExamResultLabel,
   candidateGenderLabel,
@@ -359,6 +361,7 @@ function DrivingExamTimeCell({
   candidate,
   editing,
   disabled,
+  disabledTitle,
   onEdit,
   onCancel,
   onSave,
@@ -366,6 +369,7 @@ function DrivingExamTimeCell({
   candidate: CandidateResponse;
   editing: boolean;
   disabled: boolean;
+  disabledTitle?: string;
   onEdit: () => void;
   onCancel: () => void;
   onSave: (time: string) => void;
@@ -391,6 +395,7 @@ function DrivingExamTimeCell({
           className="cand-inline-edit-trigger"
           disabled={disabled}
           onClick={onEdit}
+          title={disabled ? disabledTitle : undefined}
           type="button"
         >
           {label}
@@ -406,6 +411,7 @@ function DrivingExamSelectCell({
   options,
   editing,
   disabled,
+  disabledTitle,
   ariaLabel,
   onEdit,
   onCancel,
@@ -416,6 +422,7 @@ function DrivingExamSelectCell({
   options: { value: string; label: string }[];
   editing: boolean;
   disabled: boolean;
+  disabledTitle?: string;
   ariaLabel: string;
   onEdit: () => void;
   onCancel: () => void;
@@ -445,6 +452,7 @@ function DrivingExamSelectCell({
           className="cand-inline-edit-trigger"
           disabled={disabled}
           onClick={onEdit}
+          title={disabled ? disabledTitle : undefined}
           type="button"
         >
           {label}
@@ -1085,6 +1093,10 @@ export function CandidatesPage({
 }: CandidatesPageProps = {}) {
   const t = useT();
   const { lang } = useLanguage();
+  const { user, permissions } = useAuth();
+  const canManageCandidates = canManageArea(user, permissions, "candidates");
+  const canManageGroups = canManageArea(user, permissions, "groups");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const compactLicenseClassOptions = useMemo(
     () =>
@@ -1304,6 +1316,7 @@ export function CandidatesPage({
     candidate: CandidateResponse,
     patch: { time?: string; vehicleId?: string; instructorId?: string }
   ) => {
+    if (!canManageCandidates) return;
     if (!candidate.drivingExamAttemptId || !candidate.drivingExamAttemptRowVersion) {
       showToast("Direksiyon randevusu bulunamadı.", "error");
       return;
@@ -1412,7 +1425,8 @@ export function CandidatesPage({
               <DrivingExamTimeCell
                 candidate={candidate}
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "time"}
-                disabled={savingPracticeCandidateId === candidate.id}
+                disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
+                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "time" })}
                 onCancel={() => setEditingPracticeCell(null)}
                 onSave={(time) => savePracticeAttemptField(candidate, { time })}
@@ -1432,7 +1446,8 @@ export function CandidatesPage({
                   label: vehicle.plateNumber,
                 }))}
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "vehicle"}
-                disabled={savingPracticeCandidateId === candidate.id}
+                disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
+                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
                 ariaLabel="Plaka seç"
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "vehicle" })}
                 onCancel={() => setEditingPracticeCell(null)}
@@ -1453,7 +1468,8 @@ export function CandidatesPage({
                   label: instructorFullName(instructor),
                 }))}
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "instructor"}
-                disabled={savingPracticeCandidateId === candidate.id}
+                disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
+                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
                 ariaLabel="Usta öğretici seç"
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "instructor" })}
                 onCancel={() => setEditingPracticeCell(null)}
@@ -1836,14 +1852,17 @@ export function CandidatesPage({
   };
 
   const handleExamDateAddClick = () => {
+    if (!canManageGroups) return;
     setExamScheduleModalOpen(true);
   };
 
   const handleExamCodeAddClick = () => {
+    if (!canManageGroups) return;
     setExamCodeModalOpen(true);
   };
 
   const handleExamDateDelete = async (option: ExamScheduleOption) => {
+    if (!canManageGroups) return;
     if (deletingExamScheduleId) {
       return;
     }
@@ -1881,6 +1900,7 @@ export function CandidatesPage({
   };
 
   const handleExamDateEdit = async (option: ExamScheduleOption, date: string) => {
+    if (!canManageGroups) return;
     if (editingExamScheduleId) {
       return;
     }
@@ -1907,6 +1927,7 @@ export function CandidatesPage({
   };
 
   const handleExamCodeDelete = async (option: ExamCodeOption) => {
+    if (!canManageGroups) return;
     if (deletingExamCodeId) {
       return;
     }
@@ -1933,6 +1954,7 @@ export function CandidatesPage({
   };
 
   const handleExamCodeEdit = async (option: ExamCodeOption, code: string) => {
+    if (!canManageGroups) return;
     if (editingExamCodeId) {
       return;
     }
@@ -2009,6 +2031,7 @@ export function CandidatesPage({
   };
 
   const openAddTagInput = () => {
+    if (!canManageCandidates) return;
     setNewTagDraft("");
     setIsAddingTag(true);
     window.setTimeout(() => newTagInputRef.current?.focus(), 0);
@@ -2050,6 +2073,7 @@ export function CandidatesPage({
   };
 
   const commitNewTag = async () => {
+    if (!canManageCandidates) return;
     const name = newTagDraft.trim();
     if (!name) {
       closeAddTagInput();
@@ -2276,6 +2300,7 @@ export function CandidatesPage({
   };
 
   const openBulkStatusAction = () => {
+    if (!canManageCandidates) return;
     if (selectedCandidateIds.size === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
@@ -2284,6 +2309,7 @@ export function CandidatesPage({
   };
 
   const openBulkTagAction = () => {
+    if (!canManageCandidates) return;
     if (selectedCandidateIds.size === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
@@ -2300,6 +2326,7 @@ export function CandidatesPage({
   };
 
   const openPracticeTrainingForSelected = () => {
+    if (!canManageCandidates) return;
     if (selectedCandidateIds.size === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
@@ -2313,6 +2340,7 @@ export function CandidatesPage({
   };
 
   const openBulkGroupAction = async () => {
+    if (!canManageGroups) return;
     if (selectedCandidateIds.size === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
@@ -2334,6 +2362,7 @@ export function CandidatesPage({
   };
 
   const openBulkExamDateAction = () => {
+    if (!canManageCandidates) return;
     if (selectedCandidateIds.size === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
@@ -2357,6 +2386,7 @@ export function CandidatesPage({
   };
 
   const applyBulkStatusChange = async () => {
+    if (!canManageCandidates) return;
     if (!bulkStatusValue || selectedCandidateIds.size === 0) {
       return;
     }
@@ -2382,6 +2412,7 @@ export function CandidatesPage({
   };
 
   const applyBulkTagChange = async () => {
+    if (!canManageCandidates) return;
     if (bulkTagValues.length === 0 || selectedCandidateIds.size === 0) {
       return;
     }
@@ -2407,6 +2438,7 @@ export function CandidatesPage({
   };
 
   const applyBulkExamDateChange = async () => {
+    if (!canManageCandidates) return;
     if (!examDateSidebar || !bulkExamDateValue || selectedCandidateIds.size === 0) {
       return;
     }
@@ -2460,6 +2492,7 @@ export function CandidatesPage({
   };
 
   const applyBulkGroupChange = async () => {
+    if (!canManageGroups) return;
     if (!bulkGroupId || selectedCandidateIds.size === 0) {
       return;
     }
@@ -2508,7 +2541,8 @@ export function CandidatesPage({
           <input
             aria-label={t("candidates.tags.newFilterPlaceholder")}
             className="tag-filter-new-input"
-            disabled={isCreatingTag}
+            disabled={isCreatingTag || !canManageCandidates}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             onBlur={() => {
               void commitNewTag();
             }}
@@ -2523,7 +2557,9 @@ export function CandidatesPage({
           <button
             aria-label={t("candidates.tags.addFilter")}
             className="tag-filter-add"
+            disabled={!canManageCandidates}
             onClick={openAddTagInput}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             + {t("candidates.tags.addFilter")}
@@ -2531,7 +2567,12 @@ export function CandidatesPage({
         )}
         <button
           className="tag-filter-manage"
-          onClick={() => setTagManagerOpen(true)}
+          disabled={!canManageCandidates}
+          onClick={() => {
+            if (!canManageCandidates) return;
+            setTagManagerOpen(true);
+          }}
+          title={!canManageCandidates ? noPermissionTitle : undefined}
           type="button"
         >
           {t("candidates.bulk.manageTags")}
@@ -2745,8 +2786,9 @@ export function CandidatesPage({
                   </CustomSelect>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkStatusValue || bulkSaving}
+                    disabled={selectedCount === 0 || !bulkStatusValue || bulkSaving || !canManageCandidates}
                     onClick={applyBulkStatusChange}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {bulkSaving ? t("candidates.bulk.applying") : t("candidates.bulk.apply")}
@@ -2763,8 +2805,9 @@ export function CandidatesPage({
                   />
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || bulkTagValues.length === 0 || bulkSaving}
+                    disabled={selectedCount === 0 || bulkTagValues.length === 0 || bulkSaving || !canManageCandidates}
                     onClick={applyBulkTagChange}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
@@ -2796,8 +2839,9 @@ export function CandidatesPage({
                   </CustomSelect>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkExamDateValue || bulkSaving}
+                    disabled={selectedCount === 0 || !bulkExamDateValue || bulkSaving || !canManageCandidates}
                     onClick={applyBulkExamDateChange}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
@@ -2825,8 +2869,9 @@ export function CandidatesPage({
                   </CustomSelect>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkGroupId || bulkSaving}
+                    disabled={selectedCount === 0 || !bulkGroupId || bulkSaving || !canManageGroups}
                     onClick={applyBulkGroupChange}
+                    title={!canManageGroups ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
@@ -2837,7 +2882,9 @@ export function CandidatesPage({
                   {examDateSidebar ? (
                     <button
                       className="btn btn-secondary btn-sm"
+                      disabled={!canManageCandidates}
                       onClick={openBulkExamDateAction}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
                       type="button"
                     >
                       {t("candidates.bulk.setExamDate")}
@@ -2845,28 +2892,36 @@ export function CandidatesPage({
                   ) : null}
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageGroups}
                     onClick={openBulkGroupAction}
+                    title={!canManageGroups ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("candidates.bulk.assignGroup")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageCandidates}
                     onClick={openBulkTagAction}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("candidates.bulk.addTag")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageCandidates}
                     onClick={openBulkStatusAction}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("candidates.bulk.changeStatus")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageCandidates}
                     onClick={openPracticeTrainingForSelected}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("candidates.bulk.practiceTraining")}
@@ -2915,7 +2970,12 @@ export function CandidatesPage({
               </button>
               <button
                 className="btn btn-primary btn-sm"
-                onClick={() => setModalOpen(true)}
+                disabled={!canManageCandidates}
+                onClick={() => {
+                  if (!canManageCandidates) return;
+                  setModalOpen(true);
+                }}
+                title={!canManageCandidates ? noPermissionTitle : undefined}
                 type="button"
               >
                 <PlusIcon size={14} />
@@ -2940,8 +3000,14 @@ export function CandidatesPage({
         <div className="candidates-layout">
           <CandidateExamDateSidebar
             actions={[
-              { label: "Sınav Tarihi Ekle", onClick: handleExamDateAddClick },
+              {
+                label: "Sınav Tarihi Ekle",
+                onClick: handleExamDateAddClick,
+                disabled: !canManageGroups,
+                title: !canManageGroups ? noPermissionTitle : undefined,
+              },
             ]}
+            canManageMutations={canManageGroups}
             deletingOptionId={deletingExamScheduleId}
             deletingCodeId={deletingExamCodeId}
             editingOptionId={editingExamScheduleId}
@@ -2984,6 +3050,7 @@ export function CandidatesPage({
 
       <CandidateDrawer
         candidateId={selectedId}
+        canManageCandidates={canManageCandidates}
         onClose={closeDrawer}
         onDeleted={() => {
           closeDrawer();
@@ -2993,11 +3060,13 @@ export function CandidatesPage({
       />
 
       <NewCandidateModal
+        canManage={canManageCandidates}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmitNew}
         open={modalOpen}
       />
       <CandidateTagManagerModal
+        canManage={canManageCandidates}
         onClose={() => setTagManagerOpen(false)}
         onDeleted={handleTagDeleted}
         onRenamed={handleTagRenamed}
@@ -3006,6 +3075,7 @@ export function CandidatesPage({
       />
       {examDateSidebar ? (
         <NewExamScheduleModal
+          canManage={canManageCandidates}
           examCodes={examDateSidebar.examType === "uygulama" ? examCodeOptions : undefined}
           examType={examDateSidebar.examType}
           onClose={() => setExamScheduleModalOpen(false)}
@@ -3018,6 +3088,7 @@ export function CandidatesPage({
       ) : null}
       {examDateSidebar?.examType === "uygulama" ? (
         <NewExamCodeModal
+          canManage={canManageCandidates}
           onClose={() => setExamCodeModalOpen(false)}
           onSaved={() => {
             setExamCodeModalOpen(false);

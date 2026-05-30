@@ -19,6 +19,7 @@ type TrainingEventDetailModalProps = {
   onStatusChange?: (eventId: string, status: TrainingLessonStatus) => Promise<void> | void;
   onNotesChange?: (eventId: string, notes: string) => Promise<void> | void;
   onDelete?: (event: TrainingCalendarEvent) => Promise<void> | void;
+  readOnly?: boolean;
 };
 
 const fmtDate = (d: Date) => format(d, "d MMMM yyyy, EEEE", { locale: tr });
@@ -40,6 +41,7 @@ export function TrainingEventDetailModal({
   onStatusChange,
   onNotesChange,
   onDelete,
+  readOnly = false,
 }: TrainingEventDetailModalProps) {
   const t = useT();
   const STATUS_OPTIONS = useMemo(
@@ -79,11 +81,12 @@ export function TrainingEventDetailModal({
   }, [event?.id]);
 
   const editable = event !== null;
+  const noPermissionTitle = "Yetkiniz yok.";
 
   return (
     <Modal
       footer={
-        confirmingDelete && editable && onDelete ? (
+        confirmingDelete && editable && onDelete && !readOnly ? (
           <>
             <span className="training-event-delete-confirm">
               {t("training.detail.deleteConfirm")}
@@ -112,8 +115,10 @@ export function TrainingEventDetailModal({
             {editable && onDelete ? (
               <button
                 className="btn btn-danger"
+                disabled={readOnly}
                 onClick={() => setConfirmingDelete(true)}
                 style={{ marginRight: "auto" }}
+                title={readOnly ? noPermissionTitle : undefined}
                 type="button"
               >
                 {t("training.detail.delete")}
@@ -160,6 +165,8 @@ export function TrainingEventDetailModal({
             displayValue={event.instructorName}
             inputValue={event.instructorId}
             label={t("training.detail.field.instructor")}
+            disabled={readOnly}
+            disabledTitle={noPermissionTitle}
             onSave={saveInstructor}
             options={instructorOptions}
           />
@@ -173,6 +180,8 @@ export function TrainingEventDetailModal({
               }
               inputValue={event.status ?? "planned"}
               label={t("training.detail.field.status")}
+              disabled={readOnly}
+              disabledTitle={noPermissionTitle}
               onSave={saveStatus}
               options={STATUS_OPTIONS}
             />
@@ -209,6 +218,8 @@ export function TrainingEventDetailModal({
               displayValue={event.notes ?? "—"}
               inputValue={event.notes ?? ""}
               label={t("training.detail.field.notes")}
+              disabled={readOnly}
+              disabledTitle={noPermissionTitle}
               onSave={saveNotes}
             />
           ) : event.notes ? (

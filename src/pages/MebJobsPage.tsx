@@ -13,6 +13,7 @@ import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import { getCandidates } from "../lib/candidates-api";
 import {
   cancelMebbisJob,
@@ -24,6 +25,7 @@ import {
   type MebbisJobResponse,
 } from "../lib/mebbis-jobs-api";
 import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
+import { canManageArea } from "../lib/permissions";
 import type { JobStatus } from "../types";
 
 type StatusFilter = "all" | "running" | "queued" | "manual" | "failed" | "success";
@@ -187,6 +189,9 @@ export function MebJobsPage() {
     new Map()
   );
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
+  const noPermissionTitle = "Yetkiniz yok.";
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("selected");
   const candidateMapsRef = useRef({
@@ -332,6 +337,7 @@ export function MebJobsPage() {
   const closeDrawer = () => setSearchParams({});
 
   const handleCancel = async (job: MebJob) => {
+    if (!canManageMebJobs) return;
     setActionPendingId(job.id);
     try {
       await cancelMebbisJob(job.id);
@@ -360,7 +366,9 @@ export function MebJobsPage() {
             </button>
             <button
               className="btn btn-primary btn-sm"
+              disabled={!canManageMebJobs}
               onClick={() => setModalOpen(true)}
+              title={!canManageMebJobs ? noPermissionTitle : undefined}
               type="button"
             >
               <PlusIcon size={14} />
@@ -547,8 +555,9 @@ export function MebJobsPage() {
                       {ACTIVE_STATUSES.includes(job.status) && (
                         <button
                           className="btn btn-danger btn-sm"
-                          disabled={actionPendingId === job.id}
+                          disabled={actionPendingId === job.id || !canManageMebJobs}
                           onClick={() => void handleCancel(job)}
+                          title={!canManageMebJobs ? noPermissionTitle : undefined}
                           type="button"
                         >
                           İptal
@@ -580,13 +589,16 @@ export function MebJobsPage() {
 
       <JobDrawer
         job={selected}
+        canCancel={canManageMebJobs}
         onCancel={() => selected && void handleCancel(selected)}
         onClose={closeDrawer}
       />
 
       <NewMebJobModal
+        canManage={canManageMebJobs}
         onClose={() => setModalOpen(false)}
         onSubmit={async (values) => {
+          if (!canManageMebJobs) return;
           await createCandidateLookupJob(values.candidateId);
           setModalOpen(false);
           showToast("MEB işi kuyruğa alındı");

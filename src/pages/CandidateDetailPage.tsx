@@ -69,6 +69,8 @@ import {
   type TrainingCalendarEvent,
 } from "../lib/training-calendar";
 import { useColumnVisibility } from "../lib/use-column-visibility";
+import { useAuth } from "../lib/auth";
+import { canManageArea, canViewArea } from "../lib/permissions";
 import { buildBranchHelpers } from "../lib/training-branches";
 import {
   DEFAULT_DRIVING_EXAM_TIME,
@@ -312,6 +314,13 @@ export function CandidateDetailPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageCandidates = canManageArea(user, permissions, "candidates");
+  const canViewDocuments = canViewArea(user, permissions, "documents");
+  const canViewPayments = canViewArea(user, permissions, "payments");
+  const canManagePayments = canManageArea(user, permissions, "payments");
+  const canManageDocuments = canManageArea(user, permissions, "documents");
+  const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
   const { candidateId } = useParams<{ candidateId: string }>();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -334,14 +343,21 @@ export function CandidateDetailPage() {
       tab === "general" ||
       tab === "license" ||
       tab === "training" ||
-      tab === "documents" ||
-      tab === "payments"
+      (tab === "documents" && canViewDocuments) ||
+      (tab === "payments" && canViewPayments)
     ) {
       setActiveTab(tab);
     } else if (tab === "exams") {
       setActiveTab("training");
     }
-  }, [searchParams]);
+  }, [canViewDocuments, canViewPayments, searchParams]);
+
+  useEffect(() => {
+    if ((activeTab === "documents" && !canViewDocuments) || (activeTab === "payments" && !canViewPayments)) {
+      setActiveTab("general");
+      setSearchParams({ tab: "general" }, { replace: true });
+    }
+  }, [activeTab, canViewDocuments, canViewPayments, setSearchParams]);
 
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -448,6 +464,7 @@ export function CandidateDetailPage() {
     amount: number,
     description: string
   ) => {
+    if (!canManagePayments) return;
     if (!candidate || movementSaving) return;
     setMovementSaving(true);
     try {
@@ -469,6 +486,7 @@ export function CandidateDetailPage() {
       description: string;
     }>
   ) => {
+    if (!canManagePayments) return;
     if (!candidate || movementSaving || movements.length === 0) return;
     setMovementSaving(true);
     try {
@@ -491,6 +509,7 @@ export function CandidateDetailPage() {
     note: string | null,
     movementId: string | null = null,
   ) => {
+    if (!canManagePayments) return;
     if (!candidate || paymentSaving) return;
     setPaymentSaving(true);
     try {
@@ -513,6 +532,7 @@ export function CandidateDetailPage() {
   };
 
   const handleCancelMovement = async (movementId: string, cancellationReason: string) => {
+    if (!canManagePayments) return;
     if (!candidate) return;
     try {
       await cancelCandidateAccountingMovement(candidate.id, movementId, cancellationReason);
@@ -524,6 +544,7 @@ export function CandidateDetailPage() {
   };
 
   const handleCancelPayment = async (paymentId: string, cancellationReason: string) => {
+    if (!canManagePayments) return;
     if (!candidate) return;
     try {
       await cancelCandidateAccountingPayment(candidate.id, paymentId, cancellationReason);
@@ -535,6 +556,7 @@ export function CandidateDetailPage() {
   };
 
   const handleRefundPayment = async (paymentId: string, amount: number | null, note: string | null) => {
+    if (!canManagePayments) return;
     if (!candidate) return;
     try {
       await createCandidateAccountingRefund(candidate.id, paymentId, { amount, note });
@@ -556,6 +578,7 @@ export function CandidateDetailPage() {
       notes?: string | null;
     }
   ) => {
+    if (!canManagePayments) return;
     if (!candidate || invoiceSaving) return;
     setInvoiceSaving(true);
     try {
@@ -577,6 +600,7 @@ export function CandidateDetailPage() {
   };
 
   const handleDeleteInvoice = async (invoiceId: string) => {
+    if (!canManagePayments) return;
     if (!candidate) return;
     try {
       await deleteCandidateAccountingInvoice(candidate.id, invoiceId);
@@ -617,12 +641,15 @@ export function CandidateDetailPage() {
         <>
           <CandidateHero candidate={candidate} age={age} accounting={accounting} />
           <SecondPracticeRoundBanner
+            canManageCandidates={canManageCandidates}
             candidate={candidate}
             onCandidateUpdated={setCandidate}
           />
 
           <nav className="candidate-detail-tabs" role="tablist">
-            {TABS.map((tab) => {
+            {TABS.filter((tab) =>
+              tab.key === "documents" ? canViewDocuments : tab.key === "payments" ? canViewPayments : true
+            ).map((tab) => {
               const summary = candidate.documentSummary;
               const docInfo =
                 tab.key === "documents" && summary
@@ -648,6 +675,7 @@ export function CandidateDetailPage() {
             {activeTab === "general" && (
               <GeneralTab
                 age={age}
+                canManageCandidates={canManageCandidates}
                 candidate={candidate}
                 onSaved={(updated) => setCandidate(updated)}
               />
@@ -655,6 +683,7 @@ export function CandidateDetailPage() {
             {activeTab === "license" && (
               <LicenseInfoTab
                 age={age}
+                canManageCandidates={canManageCandidates}
                 candidate={candidate}
                 onSaved={(updated) => setCandidate(updated)}
                 onTheoryExemptChanged={(value) =>
@@ -667,6 +696,7 @@ export function CandidateDetailPage() {
             {activeTab === "training" && (
               <>
                 <CandidateExamAttemptsSection
+                  canManageCandidates={canManageCandidates}
                   candidate={candidate}
                   onAccountingChanged={refreshAccounting}
                   onOpenAccountingPayment={openAccountingPayment}
@@ -676,12 +706,15 @@ export function CandidateDetailPage() {
                     )
                   }
                 />
-                <CandidateKCertificateSection candidate={candidate} />
+                <CandidateKCertificateSection canManageCandidates={canManageCandidates} candidate={candidate} />
                 <TrainingTab candidate={candidate} />
               </>
             )}
             {activeTab === "documents" && (
               <DocumentsTab
+                canManageCandidates={canManageCandidates}
+                canManageDocuments={canManageDocuments}
+                canManageMebJobs={canManageMebJobs}
                 candidate={candidate}
                 candidateId={candidate.id}
                 documents={documents}
@@ -705,6 +738,7 @@ export function CandidateDetailPage() {
                 accounting={accounting}
                 accountingError={accountingError}
                 accountingLoading={accountingLoading}
+                canManagePayments={canManagePayments}
                 candidate={candidate}
                 invoiceSaving={invoiceSaving}
                 movementSaving={movementSaving}
@@ -952,9 +986,11 @@ function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
 }
 
 function SecondPracticeRoundBanner({
+  canManageCandidates,
   candidate,
   onCandidateUpdated,
 }: {
+  canManageCandidates: boolean;
   candidate: CandidateResponse;
   onCandidateUpdated: (next: CandidateResponse) => void;
 }) {
@@ -963,12 +999,14 @@ function SecondPracticeRoundBanner({
   const [confirmingDrop, setConfirmingDrop] = useState(false);
   const enabled = candidate.secondPracticeRoundEnabled === true;
   const canToggle = candidate.canToggleSecondPracticeRound === true;
+  const noPermissionTitle = "Yetkiniz yok.";
 
   if (!enabled && !canToggle) {
     return null;
   }
 
   const toggleSecondRound = async (next: boolean) => {
+    if (!canManageCandidates) return;
     setSaving(true);
     try {
       const updated = await setCandidateSecondPracticeRound(
@@ -987,6 +1025,7 @@ function SecondPracticeRoundBanner({
   };
 
   const markDropped = async () => {
+    if (!canManageCandidates) return;
     setSaving(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -1018,10 +1057,16 @@ function SecondPracticeRoundBanner({
       {enabled ? (
         <button
           className="btn btn-secondary"
-          disabled={saving || !canToggle}
+          disabled={saving || !canToggle || !canManageCandidates}
           onClick={() => toggleSecondRound(false)}
           type="button"
-          title={!canToggle ? "2. aşamada sınav kaydı mevcut, kapatılamaz." : undefined}
+          title={
+            !canManageCandidates
+              ? noPermissionTitle
+              : !canToggle
+                ? "2. aşamada sınav kaydı mevcut, kapatılamaz."
+                : undefined
+          }
         >
           Kapat
         </button>
@@ -1030,8 +1075,9 @@ function SecondPracticeRoundBanner({
           <span>Adayın dosyasını yakmak istediğinize emin misiniz?</span>
           <button
             className="btn btn-danger"
-            disabled={saving}
+            disabled={saving || !canManageCandidates}
             onClick={markDropped}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             Evet, yak
@@ -1049,16 +1095,18 @@ function SecondPracticeRoundBanner({
         <div className="candidate-second-round-banner-actions">
           <button
             className="btn btn-secondary"
-            disabled={saving}
+            disabled={saving || !canManageCandidates}
             onClick={() => setConfirmingDrop(true)}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             Dosya Yakıldı
           </button>
           <button
             className="btn btn-primary"
-            disabled={saving}
+            disabled={saving || !canManageCandidates}
             onClick={() => toggleSecondRound(true)}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             2. Aşamayı Aç
@@ -1069,18 +1117,21 @@ function SecondPracticeRoundBanner({
   );
 }
 
-function GeneralTab({ candidate, onSaved }: {
+function GeneralTab({ candidate, canManageCandidates, onSaved }: {
   candidate: CandidateResponse;
   age: number | null;
+  canManageCandidates: boolean;
   onSaved: (updated: CandidateResponse) => void;
 }) {
   const { showToast } = useToast();
   const [tagsSaving, setTagsSaving] = useState(false);
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const saveGeneralField = async (
     patch: Partial<CandidateUpsertRequest>,
     message = "Aday bilgileri güncellendi"
   ) => {
+    if (!canManageCandidates) return;
     try {
       const updated = await updateCandidateField(candidate, patch);
       onSaved(updated);
@@ -1110,6 +1161,7 @@ function GeneralTab({ candidate, onSaved }: {
   };
 
   const saveTags = async (names: string[]) => {
+    if (!canManageCandidates) return;
     setTagsSaving(true);
     try {
       const updated = await updateCandidateField(candidate, { tags: names });
@@ -1136,6 +1188,8 @@ function GeneralTab({ candidate, onSaved }: {
             <h3 className="candidate-detail-section-title">Aday Durumu</h3>
             <div className="candidate-detail-edit-list">
               <EditableRow
+                disabled={!canManageCandidates}
+                disabledTitle={noPermissionTitle}
                 displayValue={candidateStatusLabel(candidate.status)}
                 inputValue={candidate.status}
                 label="Durum"
@@ -1144,6 +1198,8 @@ function GeneralTab({ candidate, onSaved }: {
               />
               {candidate.status === "dropped" ? (
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={noPermissionTitle}
                   displayValue={candidate.terminationReason ?? ""}
                   inputValue={candidate.terminationReason ?? ""}
                   label="Yakma Nedeni"
@@ -1162,7 +1218,8 @@ function GeneralTab({ candidate, onSaved }: {
             <h3 className="candidate-detail-section-title">Etiketler</h3>
             <CandidateTagsInput
               ariaLabel="Aday etiketleri"
-              disabled={tagsSaving}
+              disabled={tagsSaving || !canManageCandidates}
+              disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
               onChange={(names) => {
                 void saveTags(names);
               }}
@@ -1398,14 +1455,17 @@ function formatTimelineDate(iso: string): string {
 }
 
 function CandidateContactsEditor({
+  canManageCandidates,
   candidate,
   onSave,
 }: {
+  canManageCandidates: boolean;
   candidate: CandidateResponse;
   onSave: (patch: Partial<CandidateUpsertRequest>, message: string) => Promise<void>;
 }) {
   const [drafts, setDrafts] = useState<Array<{ id: string; type: CandidateContactType }>>([]);
   const contacts = buildCandidateContacts(candidate);
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const saveContacts = async (
     nextContacts: CandidateContactUpsertRequest[],
@@ -1502,6 +1562,7 @@ function CandidateContactsEditor({
   };
 
   const addDraft = (type: CandidateContactType) => {
+    if (!canManageCandidates) return;
     setDrafts((current) => [
       ...current,
       { id: `${type}-${Date.now()}-${current.length}`, type },
@@ -1515,8 +1576,10 @@ function CandidateContactsEditor({
         {CONTACT_KINDS.map((kind) => (
           <button
             className="btn btn-secondary btn-sm"
+            disabled={!canManageCandidates}
             key={kind.type}
             onClick={() => addDraft(kind.type)}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             Yeni {kind.singular}
@@ -1536,6 +1599,7 @@ function CandidateContactsEditor({
               contact={contact}
               key={`${contact.id || contact.type}-${index}`}
               label={label}
+              canManageCandidates={canManageCandidates}
               onDelete={() => deleteContact(contact)}
               onSave={(value, ownerName) => updateContact(contact, value, ownerName)}
             />
@@ -1546,6 +1610,7 @@ function CandidateContactsEditor({
             draftId={draft.id}
             inputType={contactInputType(draft.type)}
             isPhone={draft.type === "phone"}
+            canManageCandidates={canManageCandidates}
             key={draft.id}
             label={`Yeni ${contactTypeLabel(draft.type)}`}
             onCancel={(draftId) =>
@@ -1575,11 +1640,13 @@ function contactInputType(type: CandidateContactType): "text" | "tel" | "textare
 function CandidateContactRow({
   contact,
   label,
+  canManageCandidates,
   onSave,
   onDelete,
 }: {
   contact: CandidateContactResponse;
   label: string;
+  canManageCandidates: boolean;
   onSave: (value: string, ownerName: string | null) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
@@ -1589,6 +1656,7 @@ function CandidateContactRow({
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
   const isPhone = contact.type === "phone";
+  const noPermissionTitle = "Yetkiniz yok.";
   const unchanged =
     trimmedValue === contact.value &&
     (!isPhone || ownerName.trim() === (contact.ownerName ?? ""));
@@ -1599,7 +1667,7 @@ function CandidateContactRow({
   }, [contact.ownerName, contact.value]);
 
   const save = async () => {
-    if (!trimmedValue || saving || unchanged) return;
+    if (!canManageCandidates || !trimmedValue || saving || unchanged) return;
     setSaving(true);
     try {
       await onSave(trimmedValue, isPhone ? ownerName.trim() || null : null);
@@ -1657,8 +1725,9 @@ function CandidateContactRow({
           <>
             <button
               className="btn btn-primary btn-sm"
-              disabled={!trimmedValue || saving || unchanged}
+              disabled={!trimmedValue || saving || unchanged || !canManageCandidates}
               onClick={() => void save()}
+              title={!canManageCandidates ? noPermissionTitle : undefined}
               type="button"
             >
               {saving ? "Kaydediliyor..." : "Kaydet"}
@@ -1679,7 +1748,9 @@ function CandidateContactRow({
         ) : (
           <button
             className="btn btn-secondary btn-sm"
+            disabled={!canManageCandidates}
             onClick={() => setEditing(true)}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             Düzenle
@@ -1687,8 +1758,9 @@ function CandidateContactRow({
         )}
         <button
           className="btn btn-danger btn-sm"
-          disabled={saving}
+          disabled={saving || !canManageCandidates}
           onClick={() => void onDelete()}
+          title={!canManageCandidates ? noPermissionTitle : undefined}
           type="button"
         >
           Sil
@@ -1703,6 +1775,7 @@ function CandidateContactDraftRow({
   label,
   inputType,
   isPhone,
+  canManageCandidates,
   onCreate,
   onCancel,
 }: {
@@ -1710,6 +1783,7 @@ function CandidateContactDraftRow({
   label: string;
   inputType: "text" | "tel" | "textarea";
   isPhone: boolean;
+  canManageCandidates: boolean;
   onCreate: (value: string, ownerName: string | null) => Promise<void>;
   onCancel: (draftId: string) => void;
 }) {
@@ -1718,9 +1792,10 @@ function CandidateContactDraftRow({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const save = async () => {
-    if (!trimmedValue || saving) return;
+    if (!canManageCandidates || !trimmedValue || saving) return;
 
     setSaving(true);
     try {
@@ -1776,8 +1851,9 @@ function CandidateContactDraftRow({
       <div className="candidate-contact-row-actions">
         <button
           className="btn btn-primary btn-sm"
-          disabled={!trimmedValue || saving}
+          disabled={!trimmedValue || saving || !canManageCandidates}
           onClick={() => void save()}
+          title={!canManageCandidates ? noPermissionTitle : undefined}
           type="button"
         >
           {saving ? "Kaydediliyor..." : "Kaydet"}
@@ -2016,16 +2092,19 @@ function formatExistingLicenseSelectionLabel(
 
 function LicenseInfoTab({
   age,
+  canManageCandidates,
   candidate,
   onSaved,
   onTheoryExemptChanged,
 }: {
   age: number | null;
+  canManageCandidates: boolean;
   candidate: CandidateResponse;
   onSaved: (updated: CandidateResponse) => void;
   onTheoryExemptChanged?: (value: boolean) => void;
 }) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const { options: licenseClassOptions } = useInitialLicenseClassOptions();
   const licenseClassLabel = useMemo(
     () =>
@@ -2070,6 +2149,7 @@ function LicenseInfoTab({
   };
 
   const saveGroup = async (groupId: string) => {
+    if (!canManageCandidates) return;
     try {
       if (!groupId) {
         await removeActiveGroupAssignment(candidate.id);
@@ -2175,6 +2255,7 @@ function LicenseInfoTab({
     patch: Partial<CandidateUpsertRequest>,
     message = "Başvuru bilgileri güncellendi"
   ) => {
+    if (!canManageCandidates) return;
     try {
       const updated = await updateCandidateField(candidate, patch);
       onSaved(updated);
@@ -2186,6 +2267,7 @@ function LicenseInfoTab({
   };
 
   const saveRegistrationNumber = async (value: string) => {
+    if (!canManageCandidates) return;
     const trimmed = value.trim();
     if (!trimmed) {
       showToast("Aday numarası boş olamaz", "error");
@@ -2203,6 +2285,7 @@ function LicenseInfoTab({
   };
 
   const saveRegistrationDate = async (value: string) => {
+    if (!canManageCandidates) return;
     if (!value) {
       showToast("Kayıt tarihi boş olamaz", "error");
       throw new Error("registration date empty");
@@ -2223,6 +2306,7 @@ function LicenseInfoTab({
   const hasExistingLicenseDraft = hasExistingLicense || licenseFieldsOpen;
   const isTheoryExempt = hasExistingLicenseDraft || (candidate.isTheoryExempt ?? false);
   const toggleTheoryExempt = async () => {
+    if (!canManageCandidates) return;
     if (hasExistingLicenseDraft) return;
     const next = !isTheoryExempt;
     setExemptSaving(true);
@@ -2295,6 +2379,7 @@ function LicenseInfoTab({
     patch: Partial<CandidateUpsertRequest>,
     message = "Ehliyet bilgileri güncellendi"
   ) => {
+    if (!canManageCandidates) return;
     try {
       const updated = await updateCandidateExistingLicense(
         candidate.id,
@@ -2378,6 +2463,8 @@ function LicenseInfoTab({
         <h3 className="candidate-detail-section-title">Başvuru Bilgileri</h3>
         <div className="candidate-detail-edit-list">
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={licenseClassLabel}
             inputValue={candidate.licenseClass}
             label="Ehliyet Tipi"
@@ -2411,8 +2498,9 @@ function LicenseInfoTab({
           >
             <input
               checked={isTheoryExempt}
-              disabled={exemptSaving || hasExistingLicenseDraft}
+              disabled={exemptSaving || hasExistingLicenseDraft || !canManageCandidates}
               onChange={toggleTheoryExempt}
+              title={!canManageCandidates ? noPermissionTitle : undefined}
               type="checkbox"
             />
             <span>{isTheoryExempt ? "Muaf" : "Değil"}</span>
@@ -2427,8 +2515,9 @@ function LicenseInfoTab({
           <label className="switch-toggle switch-toggle-knob-right">
             <input
               checked={licenseFieldsOpen}
-              disabled={existingLicenseToggleSaving}
+              disabled={existingLicenseToggleSaving || !canManageCandidates}
               onChange={(event) => handleToggleExistingLicense(event.target.checked)}
+              title={!canManageCandidates ? noPermissionTitle : undefined}
               type="checkbox"
             />
             <span>{licenseFieldsOpen ? "Var" : "Yok"}</span>
@@ -2438,6 +2527,8 @@ function LicenseInfoTab({
 
         <div className="candidate-detail-edit-list">
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
               displayValue={
                 hasLicense
                   ? formatExistingLicenseSelectionLabel(
@@ -2468,6 +2559,8 @@ function LicenseInfoTab({
               }
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
               displayValue={hasLicense ? formatDateTR(candidate.existingLicenseIssuedAt) : formatDateTR(issuedAt)}
               inputType="date"
               inputValue={hasLicense ? candidate.existingLicenseIssuedAt ?? "" : issuedAt}
@@ -2478,6 +2571,8 @@ function LicenseInfoTab({
               }
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
               displayValue={hasLicense ? candidate.existingLicenseNumber ?? "" : licenseNumber}
               inputValue={hasLicense ? candidate.existingLicenseNumber ?? "" : licenseNumber}
               label="Belge No"
@@ -2486,6 +2581,8 @@ function LicenseInfoTab({
               }
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
               displayValue={hasLicense ? candidate.existingLicenseIssuedProvince ?? "" : issuedProvince}
               inputValue={hasLicense ? candidate.existingLicenseIssuedProvince ?? "" : issuedProvince}
               label="Belge Veriliş İli"
@@ -2507,12 +2604,16 @@ function LicenseInfoTab({
           <h3 className="candidate-detail-section-title">Kayıt Bilgileri</h3>
           <div className="candidate-detail-edit-list">
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
               displayValue={candidate.registrationNumber}
               inputValue={candidate.registrationNumber}
               label="Aday No"
               onSave={saveRegistrationNumber}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
               displayValue={formatDateTR(candidate.createdAtUtc)}
               inputType="date"
               inputValue={candidate.createdAtUtc.slice(0, 10)}
@@ -2526,6 +2627,8 @@ function LicenseInfoTab({
           <h3 className="candidate-detail-section-title">Referans</h3>
           <div className="candidate-detail-edit-list">
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
               displayValue={candidate.referenceName ?? ""}
               inputValue={candidate.referenceName ?? ""}
               label="Referans"
@@ -2545,6 +2648,8 @@ function LicenseInfoTab({
         <h3 className="candidate-detail-section-title">Grup / Dönem Bilgileri</h3>
         <div className="candidate-detail-edit-list">
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidate.currentGroup?.title ?? "Atanmamış"}
             inputValue={candidate.currentGroup?.groupId ?? ""}
             label="Aktif Grup"
@@ -2581,6 +2686,8 @@ function LicenseInfoTab({
         <h3 className="candidate-detail-section-title">Kimlik Bilgileri</h3>
         <div className="candidate-detail-edit-list">
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidate.firstName}
             inputValue={candidate.firstName}
             label="Ad"
@@ -2588,6 +2695,8 @@ function LicenseInfoTab({
             onSave={(value) => saveApplicationField({ firstName: value.trim() }, "Ad güncellendi")}
           />
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidate.lastName}
             inputValue={candidate.lastName}
             label="Soyad"
@@ -2595,6 +2704,8 @@ function LicenseInfoTab({
             onSave={(value) => saveApplicationField({ lastName: value.trim() }, "Soyad güncellendi")}
           />
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidate.nationalId}
             inputType="tel"
             inputValue={candidate.nationalId}
@@ -2602,6 +2713,8 @@ function LicenseInfoTab({
             onSave={(value) => saveApplicationField({ nationalId: value.trim() }, "TC kimlik güncellendi")}
           />
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidate.identitySerialNumber ?? ""}
             inputValue={candidate.identitySerialNumber ?? ""}
             label="Kimlik Seri No"
@@ -2610,6 +2723,8 @@ function LicenseInfoTab({
             }
           />
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidate.motherName ?? ""}
             inputValue={candidate.motherName ?? ""}
             label="Anne Adı"
@@ -2617,6 +2732,8 @@ function LicenseInfoTab({
             onSave={(value) => saveApplicationField({ motherName: value.trim() || null }, "Anne adı güncellendi")}
           />
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidate.fatherName ?? ""}
             inputValue={candidate.fatherName ?? ""}
             label="Baba Adı"
@@ -2624,6 +2741,8 @@ function LicenseInfoTab({
             onSave={(value) => saveApplicationField({ fatherName: value.trim() || null }, "Baba adı güncellendi")}
           />
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={candidateGenderLabel(candidate.gender)}
             inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
             label="Cinsiyet"
@@ -2633,6 +2752,8 @@ function LicenseInfoTab({
             }
           />
           <EditableRow
+            disabled={!canManageCandidates}
+            disabledTitle={noPermissionTitle}
             displayValue={formatDateTR(candidate.birthDate)}
             inputType="date"
             inputValue={candidate.birthDate ?? ""}
@@ -2645,7 +2766,11 @@ function LicenseInfoTab({
 
       <section className="instructor-detail-card">
         <h3 className="candidate-detail-section-title">İletişim</h3>
-        <CandidateContactsEditor candidate={candidate} onSave={saveApplicationField} />
+        <CandidateContactsEditor
+          canManageCandidates={canManageCandidates}
+          candidate={candidate}
+          onSave={saveApplicationField}
+        />
       </section>
     </div>
   );
@@ -3124,6 +3249,7 @@ function AccountingTab({
   accounting,
   accountingLoading,
   accountingError,
+  canManagePayments,
   candidate,
   movementSaving,
   paymentSaving,
@@ -3140,6 +3266,7 @@ function AccountingTab({
   accounting: CandidateAccountingSummaryResponse | null;
   accountingLoading: boolean;
   accountingError: string | null;
+  canManagePayments: boolean;
   candidate: CandidateResponse;
   movementSaving: boolean;
   paymentSaving: boolean;
@@ -3337,6 +3464,7 @@ function AccountingTab({
     : null;
   const paymentOpenBalance = paymentTargetMovement?.remainingAmount ?? typeOpenBalance(paymentModal.type);
   const canSaveDebt =
+    canManagePayments &&
     Boolean(debtModal.dueDate) &&
     parsedDebtAmount != null &&
     parsedDebtAmount > 0 &&
@@ -3358,10 +3486,12 @@ function AccountingTab({
         )
       : [];
   const canSavePaymentPlan =
+    canManagePayments &&
     hasValidPaymentPlan &&
     paymentPlanModal.previewOpen &&
     !movementSaving;
   const canSavePayment =
+    canManagePayments &&
     parsedPaymentAmount != null &&
     parsedPaymentAmount > 0 &&
     parsedPaymentAmount <= paymentOpenBalance &&
@@ -3373,6 +3503,7 @@ function AccountingTab({
     invoiceSubtotal != null ? Math.round((invoiceSubtotal * invoiceVatRate / 100) * 100) / 100 : 0;
   const invoiceTotal = invoiceSubtotal != null ? invoiceSubtotal + invoiceVatAmount : 0;
   const canSaveInvoice =
+    canManagePayments &&
     Boolean(invoiceModal.invoiceNo.trim()) &&
     Boolean(invoiceModal.invoiceType.trim()) &&
     Boolean(invoiceModal.invoiceDate) &&
@@ -3385,6 +3516,7 @@ function AccountingTab({
     amount = "",
     description = ""
   ) => {
+    if (!canManagePayments) return;
     setDebtModal({
       open: true,
       type,
@@ -3394,6 +3526,7 @@ function AccountingTab({
     });
   };
   const openPaymentPlanModal = (amount?: number) => {
+    if (!canManagePayments) return;
     const defaultAmount =
       amount ??
       primaryCourseFeeSuggestion?.amount ??
@@ -3419,6 +3552,7 @@ function AccountingTab({
     amount = "",
     movementId = ""
   ) => {
+    if (!canManagePayments) return;
     const defaultMethod: CandidatePaymentMethod = "cash";
     const firstRegister = cashRegisters.find((register) => register.type === defaultMethod);
     setPaymentModal({
@@ -3436,6 +3570,7 @@ function AccountingTab({
     invoice: CandidateAccountingInvoiceResponse | null = null,
     amount?: number
   ) => {
+    if (!canManagePayments) return;
     setInvoiceModal({
       open: true,
       invoice,
@@ -3448,14 +3583,17 @@ function AccountingTab({
     });
   };
   const openRefundModal = (payment: CandidateAccountingSummaryResponse["payments"][number]) => {
+    if (!canManagePayments) return;
     setRefundPayment(payment);
     setRefundAmount(String(Math.max(0, payment.amount - payment.refundedAmount)));
     setRefundNote("");
   };
   const openCancelMovementModal = (movement: CandidateAccountingSummaryResponse["movements"][number]) => {
+    if (!canManagePayments) return;
     setCancelMovement(movement);
     setMovementCancelReason("");
   };
+  const noPermissionTitle = "Yetkiniz yok.";
   useEffect(() => {
     if (!accounting) return;
     const queryKey = searchParams.toString();
@@ -3619,25 +3757,51 @@ function AccountingTab({
           <strong>Borçlandırma ekle, ödeme al veya fatura kaydet</strong>
         </div>
         <div className="candidate-finance-action-buttons">
-          <button className="btn btn-primary" onClick={() => openPaymentPlanModal()} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={!canManagePayments}
+            onClick={() => openPaymentPlanModal()}
+            title={!canManagePayments ? noPermissionTitle : undefined}
+            type="button"
+          >
             Ödeme Planı Oluştur
           </button>
-          <button className="btn btn-primary" onClick={() => openDebtModal()} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={!canManagePayments}
+            onClick={() => openDebtModal()}
+            title={!canManagePayments ? noPermissionTitle : undefined}
+            type="button"
+          >
             Borç Ekle
           </button>
           {feeSuggestions.length ? (
             <button
               className="btn btn-secondary"
+              disabled={!canManagePayments}
               onClick={() => setFeeSuggestionsOpen((value) => !value)}
+              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
               {feeSuggestionsOpen ? "Önerileri Gizle" : "Ücret Önerileri"}
             </button>
           ) : null}
-          <button className="btn btn-secondary" onClick={() => openPaymentModal()} type="button">
+          <button
+            className="btn btn-secondary"
+            disabled={!canManagePayments}
+            onClick={() => openPaymentModal()}
+            title={!canManagePayments ? noPermissionTitle : undefined}
+            type="button"
+          >
             Ödeme Al
           </button>
-          <button className="btn btn-secondary" onClick={() => openInvoiceModal()} type="button">
+          <button
+            className="btn btn-secondary"
+            disabled={!canManagePayments}
+            onClick={() => openInvoiceModal()}
+            title={!canManagePayments ? noPermissionTitle : undefined}
+            type="button"
+          >
             Fatura Ekle
           </button>
         </div>
@@ -3649,6 +3813,7 @@ function AccountingTab({
             {feeSuggestions.map((suggestion) => (
               <button
                 className="btn btn-secondary btn-sm"
+                disabled={!canManagePayments}
                 key={`${suggestion.feeType}:${suggestion.feeId}`}
                 onClick={() =>
                   openDebtModal(
@@ -3657,6 +3822,7 @@ function AccountingTab({
                     suggestion.description
                   )
                 }
+                title={!canManagePayments ? noPermissionTitle : undefined}
                 type="button"
               >
                 {suggestion.description} · {formatCurrencyTRY(suggestion.amount)}
@@ -3670,6 +3836,7 @@ function AccountingTab({
         movements={sectionMovements(["kurs"])}
         onCancelMovement={openCancelMovementModal}
         onCancelPayment={(payment) => {
+          if (!canManagePayments) return;
           setCancelPayment(payment);
           setPaymentCancelReason("");
         }}
@@ -3677,6 +3844,7 @@ function AccountingTab({
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
         onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
+        canManagePayments={canManagePayments}
         payments={payments}
         refunds={accounting?.refunds ?? []}
         title="Kurs Ödemesi"
@@ -3685,6 +3853,7 @@ function AccountingTab({
         movements={sectionMovements(["teorik_sinav", "direksiyon_sinav"])}
         onCancelMovement={openCancelMovementModal}
         onCancelPayment={(payment) => {
+          if (!canManagePayments) return;
           setCancelPayment(payment);
           setPaymentCancelReason("");
         }}
@@ -3692,6 +3861,7 @@ function AccountingTab({
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
         onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
+        canManagePayments={canManagePayments}
         payments={payments}
         refunds={accounting?.refunds ?? []}
         title="Sınav Ücretleri"
@@ -3700,6 +3870,7 @@ function AccountingTab({
         movements={sectionMovements(["diger"])}
         onCancelMovement={openCancelMovementModal}
         onCancelPayment={(payment) => {
+          if (!canManagePayments) return;
           setCancelPayment(payment);
           setPaymentCancelReason("");
         }}
@@ -3707,6 +3878,7 @@ function AccountingTab({
         onOpenReceipt={(payment) => setReceiptPayment(payment)}
         onOpenRefund={openRefundModal}
         onPay={(movement) => openPaymentModal(movement.type, String(movement.remainingAmount), movement.id)}
+        canManagePayments={canManagePayments}
         payments={payments}
         refunds={accounting?.refunds ?? []}
         title="Diğer Ödemeler"
@@ -3737,10 +3909,22 @@ function AccountingTab({
                   <td>%{invoice.vatRate} · {formatCurrencyTRY(invoice.vatAmount)}</td>
                   <td>{formatCurrencyTRY(invoice.totalAmount)}</td>
                   <td>
-                    <button className="btn btn-secondary btn-sm" onClick={() => openInvoiceModal(invoice)} type="button">
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={!canManagePayments}
+                      onClick={() => openInvoiceModal(invoice)}
+                      title={!canManagePayments ? noPermissionTitle : undefined}
+                      type="button"
+                    >
                       Düzenle
                     </button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => onDeleteInvoice(invoice.id)} type="button">
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={!canManagePayments}
+                      onClick={() => onDeleteInvoice(invoice.id)}
+                      title={!canManagePayments ? noPermissionTitle : undefined}
+                      type="button"
+                    >
                       Sil
                     </button>
                   </td>
@@ -3761,7 +3945,7 @@ function AccountingTab({
             </button>
             <button
               className="btn btn-secondary"
-              disabled={!hasValidPaymentPlan}
+              disabled={!canManagePayments || !hasValidPaymentPlan}
               onClick={() => setPaymentPlanModal((current) => ({ ...current, previewOpen: true }))}
               type="button"
             >
@@ -3790,6 +3974,7 @@ function AccountingTab({
             <span className="form-label">Kurs Ücreti</span>
             <input
               className="form-input"
+              disabled={!canManagePayments}
               inputMode="decimal"
               onChange={(event) =>
                 setPaymentPlanModal((current) => ({ ...current, amount: event.target.value, previewOpen: false }))
@@ -3802,6 +3987,7 @@ function AccountingTab({
             <span className="form-label">Taksit Sayısı</span>
             <input
               className="form-input"
+              disabled={!canManagePayments}
               inputMode="numeric"
               min={1}
               max={36}
@@ -3820,6 +4006,7 @@ function AccountingTab({
             <span className="form-label">İlk Vade Tarihi</span>
             <LocalizedDateInput
               className="form-input"
+              disabled={!canManagePayments}
               onChange={(dueDate) => setPaymentPlanModal((current) => ({ ...current, dueDate, previewOpen: false }))}
               value={paymentPlanModal.dueDate}
             />
@@ -3871,6 +4058,7 @@ function AccountingTab({
                 onCreateMovement(debtModal.type, debtModal.dueDate, parsedDebtAmount, debtModal.description.trim());
                 setDebtModal((current) => ({ ...current, open: false }));
               }}
+              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
               {movementSaving ? "Kaydediliyor..." : "Kaydet"}
@@ -3882,21 +4070,22 @@ function AccountingTab({
         title="Borç Ekle"
       >
         <AccountingTypePicker
+          disabled={!canManagePayments}
           onChange={(type) => setDebtModal((current) => ({ ...current, type }))}
           value={debtModal.type}
         />
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
             <span className="form-label">Vade Tarihi</span>
-            <LocalizedDateInput className="form-input" onChange={(dueDate) => setDebtModal((current) => ({ ...current, dueDate }))} value={debtModal.dueDate} />
+            <LocalizedDateInput className="form-input" disabled={!canManagePayments} onChange={(dueDate) => setDebtModal((current) => ({ ...current, dueDate }))} value={debtModal.dueDate} />
           </label>
           <label className="form-group">
             <span className="form-label">Tutar</span>
-            <input className="form-input" inputMode="decimal" onChange={(event) => setDebtModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={debtModal.amount} />
+            <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setDebtModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={debtModal.amount} />
           </label>
           <label className="form-group">
             <span className="form-label">Açıklama</span>
-            <input className="form-input" onChange={(event) => setDebtModal((current) => ({ ...current, description: event.target.value }))} placeholder="1. taksit, ilk ödeme..." value={debtModal.description} />
+            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setDebtModal((current) => ({ ...current, description: event.target.value }))} placeholder="1. taksit, ilk ödeme..." value={debtModal.description} />
           </label>
         </div>
       </Modal>
@@ -3923,6 +4112,7 @@ function AccountingTab({
                 );
                 setPaymentModal((current) => ({ ...current, open: false }));
               }}
+              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
               {paymentSaving ? "Kaydediliyor..." : "Ödeme Kaydet"}
@@ -3934,6 +4124,7 @@ function AccountingTab({
         title="Ödeme Al"
       >
         <AccountingTypePicker
+          disabled={!canManagePayments}
           onChange={(type) => setPaymentModal((current) => ({ ...current, type, movementId: "" }))}
           value={paymentModal.type}
         />
@@ -3942,13 +4133,14 @@ function AccountingTab({
             <span className="form-label">Yöntem</span>
             <PaymentMethodPicker
               onChange={selectPaymentMethod}
+              disabled={!canManagePayments}
               value={paymentModal.method}
             />
           </div>
           <div className="form-group">
             <span className="form-label">Kasa</span>
             <CashRegisterPicker
-              disabled={!paymentNeedsRegister}
+              disabled={!canManagePayments || !paymentNeedsRegister}
               onChange={(cashRegisterId) => setPaymentModal((current) => ({ ...current, cashRegisterId }))}
               registers={availableCashRegisters}
               value={paymentModal.cashRegisterId}
@@ -3956,12 +4148,13 @@ function AccountingTab({
           </div>
           <label className="form-group">
             <span className="form-label">Tutar</span>
-            <input className="form-input" inputMode="decimal" onChange={(event) => setPaymentModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={paymentModal.amount} />
+            <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setPaymentModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={paymentModal.amount} />
           </label>
           <label className="form-group">
             <span className="form-label">Ödeme Tarihi</span>
             <LocalizedDateInput
               className="form-input"
+              disabled={!canManagePayments}
               onChange={(date) =>
                 setPaymentModal((current) => ({
                   ...current,
@@ -3976,6 +4169,7 @@ function AccountingTab({
             <LocalizedTimeInput
               ariaLabel="Ödeme saati"
               className="form-input"
+              disabled={!canManagePayments}
               onChange={(time) =>
                 setPaymentModal((current) => ({
                   ...current,
@@ -3987,7 +4181,7 @@ function AccountingTab({
           </label>
           <label className="form-group">
             <span className="form-label">Açıklama</span>
-            <input className="form-input" onChange={(event) => setPaymentModal((current) => ({ ...current, note: event.target.value }))} placeholder="Ödeme açıklaması" value={paymentModal.note} />
+            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setPaymentModal((current) => ({ ...current, note: event.target.value }))} placeholder="Ödeme açıklaması" value={paymentModal.note} />
           </label>
         </div>
       </Modal>
@@ -4013,6 +4207,7 @@ function AccountingTab({
                 });
                 setInvoiceModal((current) => ({ ...current, open: false }));
               }}
+              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
               {invoiceSaving ? "Kaydediliyor..." : "Fatura Kaydet"}
@@ -4026,12 +4221,13 @@ function AccountingTab({
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
             <span className="form-label">Fatura No</span>
-            <input className="form-input" onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceNo: event.target.value }))} placeholder="Fatura No" value={invoiceModal.invoiceNo} />
+            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceNo: event.target.value }))} placeholder="Fatura No" value={invoiceModal.invoiceNo} />
           </label>
           <label className="form-group">
             <span className="form-label">Fatura Tipi</span>
             <CustomSelect
               className="form-select"
+              disabled={!canManagePayments}
               onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceType: event.target.value }))}
               value={invoiceModal.invoiceType}
             >
@@ -4044,15 +4240,15 @@ function AccountingTab({
           </label>
           <label className="form-group">
             <span className="form-label">Fatura Tarihi</span>
-            <LocalizedDateInput className="form-input" onChange={(invoiceDate) => setInvoiceModal((current) => ({ ...current, invoiceDate }))} value={invoiceModal.invoiceDate} />
+            <LocalizedDateInput className="form-input" disabled={!canManagePayments} onChange={(invoiceDate) => setInvoiceModal((current) => ({ ...current, invoiceDate }))} value={invoiceModal.invoiceDate} />
           </label>
           <label className="form-group">
             <span className="form-label">Tutar</span>
-            <input className="form-input" inputMode="decimal" onChange={(event) => setInvoiceModal((current) => ({ ...current, subtotal: event.target.value }))} placeholder="0,00" value={invoiceModal.subtotal} />
+            <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setInvoiceModal((current) => ({ ...current, subtotal: event.target.value }))} placeholder="0,00" value={invoiceModal.subtotal} />
           </label>
           <label className="form-group">
             <span className="form-label">KDV Oranı</span>
-	            <CustomSelect className="form-select" onChange={(event) => setInvoiceModal((current) => ({ ...current, vatRate: event.target.value }))} value={invoiceModal.vatRate}>
+	            <CustomSelect className="form-select" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, vatRate: event.target.value }))} value={invoiceModal.vatRate}>
 	              <option value="0">%0</option>
 	              <option value="1">%1</option>
 	              <option value="10">%10</option>
@@ -4065,7 +4261,7 @@ function AccountingTab({
           </label>
           <label className="form-group">
             <span className="form-label">Not</span>
-            <input className="form-input" onChange={(event) => setInvoiceModal((current) => ({ ...current, notes: event.target.value }))} placeholder="Fatura notu" value={invoiceModal.notes} />
+            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, notes: event.target.value }))} placeholder="Fatura notu" value={invoiceModal.notes} />
           </label>
         </div>
       </Modal>
@@ -4082,12 +4278,14 @@ function AccountingTab({
             <button className="btn btn-secondary" onClick={() => setCancelMovement(null)} type="button">Vazgeç</button>
             <button
               className="btn btn-primary"
-              disabled={movementCancelReason.trim().length < 3}
+              disabled={!canManagePayments || movementCancelReason.trim().length < 3}
               onClick={() => {
+                if (!canManagePayments) return;
                 if (!cancelMovement) return;
                 onCancelMovement(cancelMovement.id, movementCancelReason.trim());
                 setCancelMovement(null);
               }}
+              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
               Sil
@@ -4103,6 +4301,7 @@ function AccountingTab({
             <span className="form-label">Silme Açıklaması</span>
             <textarea
               className="form-input"
+              disabled={!canManagePayments}
               onChange={(event) => setMovementCancelReason(event.target.value)}
               placeholder="Silme açıklaması"
               rows={3}
@@ -4118,12 +4317,14 @@ function AccountingTab({
             <button className="btn btn-secondary" onClick={() => setCancelPayment(null)} type="button">Vazgeç</button>
             <button
               className="btn btn-primary"
-              disabled={paymentCancelReason.trim().length < 3}
+              disabled={!canManagePayments || paymentCancelReason.trim().length < 3}
               onClick={() => {
+                if (!canManagePayments) return;
                 if (!cancelPayment) return;
                 onCancelPayment(cancelPayment.id, paymentCancelReason.trim());
                 setCancelPayment(null);
               }}
+              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
               İptal Et
@@ -4137,7 +4338,7 @@ function AccountingTab({
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
             <span className="form-label">İptal Sebebi</span>
-            <textarea className="form-input" onChange={(event) => setPaymentCancelReason(event.target.value)} placeholder="İptal sebebi" rows={3} value={paymentCancelReason} />
+            <textarea className="form-input" disabled={!canManagePayments} onChange={(event) => setPaymentCancelReason(event.target.value)} placeholder="İptal sebebi" rows={3} value={paymentCancelReason} />
           </label>
         </div>
       </Modal>
@@ -4148,12 +4349,14 @@ function AccountingTab({
             <button className="btn btn-secondary" onClick={() => setRefundPayment(null)} type="button">Vazgeç</button>
             <button
               className="btn btn-primary"
-              disabled={(parseMoneyInput(refundAmount) ?? 0) <= 0 || refundNote.trim().length < 3}
+              disabled={!canManagePayments || (parseMoneyInput(refundAmount) ?? 0) <= 0 || refundNote.trim().length < 3}
               onClick={() => {
+                if (!canManagePayments) return;
                 if (!refundPayment) return;
                 onRefundPayment(refundPayment.id, parseMoneyInput(refundAmount), refundNote.trim());
                 setRefundPayment(null);
               }}
+              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
               İade Et
@@ -4167,11 +4370,11 @@ function AccountingTab({
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
             <span className="form-label">İade Tutarı</span>
-            <input className="form-input" inputMode="decimal" onChange={(event) => setRefundAmount(event.target.value)} placeholder="0,00" value={refundAmount} />
+            <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setRefundAmount(event.target.value)} placeholder="0,00" value={refundAmount} />
           </label>
           <label className="form-group">
             <span className="form-label">Açıklama</span>
-            <textarea className="form-input" onChange={(event) => setRefundNote(event.target.value)} placeholder="İade açıklaması" rows={3} value={refundNote} />
+            <textarea className="form-input" disabled={!canManagePayments} onChange={(event) => setRefundNote(event.target.value)} placeholder="İade açıklaması" rows={3} value={refundNote} />
           </label>
         </div>
       </Modal>
@@ -4180,9 +4383,11 @@ function AccountingTab({
 }
 
 function AccountingTypePicker({
+  disabled = false,
   value,
   onChange,
 }: {
+  disabled?: boolean;
   value: CandidateAccountingType;
   onChange: (value: CandidateAccountingType) => void;
 }) {
@@ -4191,6 +4396,7 @@ function AccountingTypePicker({
       {ACCOUNTING_TYPES.map((type) => (
         <button
           className={value === type ? "candidate-accounting-type active" : "candidate-accounting-type"}
+          disabled={disabled}
           key={type}
           onClick={() => onChange(type)}
           type="button"
@@ -4203,9 +4409,11 @@ function AccountingTypePicker({
 }
 
 function PaymentMethodPicker({
+  disabled = false,
   value,
   onChange,
 }: {
+  disabled?: boolean;
   value: CandidatePaymentMethod;
   onChange: (value: CandidatePaymentMethod) => void;
 }) {
@@ -4214,6 +4422,7 @@ function PaymentMethodPicker({
       {PAYMENT_METHODS.map((method) => (
         <button
           className={value === method ? "candidate-accounting-type active" : "candidate-accounting-type"}
+          disabled={disabled}
           key={method}
           onClick={() => onChange(method)}
           type="button"
@@ -4277,6 +4486,7 @@ function AccountingMovementSection({
   movements,
   payments,
   refunds,
+  canManagePayments,
   onPay,
   onCancelMovement,
   onCancelPayment,
@@ -4288,6 +4498,7 @@ function AccountingMovementSection({
   movements: CandidateAccountingSummaryResponse["movements"];
   payments: CandidateAccountingSummaryResponse["payments"];
   refunds: CandidateAccountingSummaryResponse["refunds"];
+  canManagePayments: boolean;
   onPay: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
   onCancelMovement: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
   onCancelPayment: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
@@ -4526,6 +4737,7 @@ function AccountingMovementSection({
                             canPay,
                             canCancelMovement,
                             canCreateInvoice,
+                            canManagePayments,
                             openActionMenu,
                             toggleActionMenu,
                             closeActionMenu,
@@ -4554,6 +4766,7 @@ function AccountingMovementSection({
                                 movement,
                                 payment: row.item,
                                 allocation: row.allocation,
+                                canManagePayments,
                                 openActionMenu,
                                 toggleActionMenu,
                                 closeActionMenu,
@@ -4829,6 +5042,7 @@ function renderAccountingMovementCell({
   canPay,
   canCancelMovement,
   canCreateInvoice,
+  canManagePayments,
   openActionMenu,
   toggleActionMenu,
   closeActionMenu,
@@ -4843,6 +5057,7 @@ function renderAccountingMovementCell({
   canPay: boolean;
   canCancelMovement: boolean;
   canCreateInvoice: boolean;
+  canManagePayments: boolean;
   openActionMenu: { movementId: string; top: number; left: number } | null;
   toggleActionMenu: (movementId: string, event: MouseEvent<HTMLButtonElement>) => void;
   closeActionMenu: () => void;
@@ -4887,7 +5102,9 @@ function renderAccountingMovementCell({
     <>
       <button
         className="candidate-accounting-actions-trigger"
+        disabled={!canManagePayments}
         onClick={(event) => toggleActionMenu(menuKey, event)}
+        title={!canManagePayments ? "Yetkiniz yok." : undefined}
         type="button"
       >
         İşlemler
@@ -4898,13 +5115,13 @@ function renderAccountingMovementCell({
           style={{ left: openActionMenu.left, top: openActionMenu.top }}
         >
           {canPay ? (
-            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onPay(movement); }} type="button">Öde</button>
+            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onPay(movement); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">Öde</button>
           ) : null}
           {canCreateInvoice ? (
-            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onCreateInvoice(displayDebtAmount); }} type="button">Fatura</button>
+            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCreateInvoice(displayDebtAmount); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">Fatura</button>
           ) : null}
           {canCancelMovement ? (
-            <button className="candidate-accounting-action is-danger" onClick={() => { closeActionMenu(); onCancelMovement(movement); }} type="button">Sil</button>
+            <button className="candidate-accounting-action is-danger" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCancelMovement(movement); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">Sil</button>
           ) : null}
         </div>
       ) : null}
@@ -4917,6 +5134,7 @@ function renderAccountingPaymentCell({
   movement,
   payment,
   allocation,
+  canManagePayments,
   openActionMenu,
   toggleActionMenu,
   closeActionMenu,
@@ -4928,6 +5146,7 @@ function renderAccountingPaymentCell({
   movement: CandidateAccountingSummaryResponse["movements"][number];
   payment: CandidateAccountingSummaryResponse["payments"][number];
   allocation: CandidateAccountingSummaryResponse["payments"][number]["allocations"][number];
+  canManagePayments: boolean;
   openActionMenu: { movementId: string; top: number; left: number } | null;
   toggleActionMenu: (movementId: string, event: MouseEvent<HTMLButtonElement>) => void;
   closeActionMenu: () => void;
@@ -4993,10 +5212,10 @@ function renderAccountingPaymentCell({
         >
           <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onOpenReceipt(payment); }} type="button">Makbuz</button>
           {refundableAmount > 0 ? (
-            <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onOpenRefund(payment); }} type="button">İade</button>
+            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onOpenRefund(payment); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">İade</button>
           ) : null}
           {isCancellable ? (
-            <button className="candidate-accounting-action is-danger" onClick={() => { closeActionMenu(); onCancelPayment(payment); }} type="button">İptal</button>
+            <button className="candidate-accounting-action is-danger" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCancelPayment(payment); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">İptal</button>
           ) : null}
         </div>
       ) : null}
@@ -5120,21 +5339,25 @@ function formatExamScheduleOptionSecondary(schedule: ExamScheduleOption): string
 }
 
 function CandidateExamAttemptsSection({
+  canManageCandidates,
   candidate,
   onAccountingChanged,
   onOpenAccountingPayment,
   onTheoryExemptChanged,
 }: {
+  canManageCandidates: boolean;
   candidate: CandidateResponse;
   onAccountingChanged?: () => Promise<void> | void;
   onOpenAccountingPayment?: (movementId: string) => void;
   onTheoryExemptChanged?: (value: boolean) => void;
 }) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [exemptSaving, setExemptSaving] = useState(false);
   const isTheoryExempt = candidate.isTheoryExempt ?? false;
   const hasExistingLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
   const toggleTheoryExempt = async () => {
+    if (!canManageCandidates) return;
     if (hasExistingLicense) return;
     const next = !isTheoryExempt;
     setExemptSaving(true);
@@ -5306,6 +5529,7 @@ function CandidateExamAttemptsSection({
   };
 
   const openAddForm = (examType: CandidateExamType = "theory") => {
+    if (!canManageCandidates) return;
     const defaultPracticeSchedule = examType === "practice" ? practiceSchedules[0] : null;
     setEditingAttempt(null);
     setFeeTouched(false);
@@ -5326,6 +5550,7 @@ function CandidateExamAttemptsSection({
   };
 
   const openEditForm = (attempt: CandidateExamAttemptResponse) => {
+    if (!canManageCandidates) return;
     setEditingAttempt(attempt);
     setFeeTouched(true);
     setDeleteConfirmId(null);
@@ -5349,6 +5574,7 @@ function CandidateExamAttemptsSection({
   };
 
   const saveAttempt = async () => {
+    if (!canManageCandidates) return;
     const fee = editingAttempt ? editingAttempt.fee : parseMoneyInput(form.fee) ?? 0;
     const maxAttemptNumber = candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus);
     const attemptNumber = editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus);
@@ -5459,6 +5685,7 @@ function CandidateExamAttemptsSection({
     attempt: CandidateExamAttemptResponse,
     nextScore: number | null
   ): Promise<boolean> => {
+    if (!canManageCandidates) return false;
     setRowSavingId(attempt.id);
     try {
       // PUT endpoint full upsert kabul ediyor — score dışında her şeyi
@@ -5498,6 +5725,7 @@ function CandidateExamAttemptsSection({
     nextAttendanceStatus: CandidateExamAttemptResponse["examAttendanceStatus"],
     nextResultStatus: CandidateExamAttemptResponse["examResultStatus"]
   ): Promise<boolean> => {
+    if (!canManageCandidates) return false;
     setRowSavingId(attempt.id);
     try {
       const updated = await updateCandidateExamAttempt(candidate.id, attempt.id, {
@@ -5569,6 +5797,7 @@ function CandidateExamAttemptsSection({
 
 
   const confirmDelete = async (attempt: CandidateExamAttemptResponse) => {
+    if (!canManageCandidates) return;
     setRowSavingId(attempt.id);
     try {
       await deleteCandidateExamAttempt(candidate.id, attempt.id);
@@ -5618,13 +5847,19 @@ function CandidateExamAttemptsSection({
                 <input
                   type="checkbox"
                   checked={isTheoryExempt}
-                  disabled={exemptSaving || hasExistingLicense}
+                  disabled={exemptSaving || hasExistingLicense || !canManageCandidates}
                   onChange={toggleTheoryExempt}
                 />
                 <span className="switch-toggle-control" aria-hidden="true" />
                 <span>Muaf</span>
               </label>
-              <button className="btn btn-primary btn-sm candidate-exam-add-button" onClick={() => openAddForm("theory")} type="button">
+              <button
+                className="btn btn-primary btn-sm candidate-exam-add-button"
+                disabled={!canManageCandidates}
+                onClick={() => openAddForm("theory")}
+                title={!canManageCandidates ? noPermissionTitle : undefined}
+                type="button"
+              >
                 Yeni
               </button>
             </div>
@@ -5656,7 +5891,7 @@ function CandidateExamAttemptsSection({
                   <CandidateExamAttemptRow
                     attempt={attempt}
                     attemptLimit={candidateExamAttemptLimit(attempts, attempt.examType)}
-                    disabled={rowSavingId === attempt.id}
+                    disabled={rowSavingId === attempt.id || !canManageCandidates}
                     deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
                     onCharge={() => chargeAttempt(attempt)}
@@ -5680,7 +5915,13 @@ function CandidateExamAttemptsSection({
         <div className="candidate-exam-attempts-head">
           <h3 className="candidate-detail-section-title">Direksiyon</h3>
           {!loading && !error ? (
-            <button className="btn btn-primary btn-sm candidate-exam-add-button" onClick={() => openAddForm("practice")} type="button">
+            <button
+              className="btn btn-primary btn-sm candidate-exam-add-button"
+              disabled={!canManageCandidates}
+              onClick={() => openAddForm("practice")}
+              title={!canManageCandidates ? noPermissionTitle : undefined}
+              type="button"
+            >
               Yeni
             </button>
           ) : null}
@@ -5714,7 +5955,7 @@ function CandidateExamAttemptsSection({
                   <CandidatePracticeExamAttemptRow
                     attempt={attempt}
                     attemptLimit={candidateExamAttemptLimit(attempts, attempt.examType)}
-                    disabled={rowSavingId === attempt.id}
+                    disabled={rowSavingId === attempt.id || !canManageCandidates}
                     deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
                     onCharge={() => chargeAttempt(attempt)}
@@ -5742,7 +5983,13 @@ function CandidateExamAttemptsSection({
             <button className="btn btn-secondary" disabled={saving} onClick={closeAttemptForm} type="button">
               Vazgeç
             </button>
-            <button className="btn btn-primary" disabled={saving} onClick={saveAttempt} type="button">
+            <button
+              className="btn btn-primary"
+              disabled={saving || !canManageCandidates}
+              onClick={saveAttempt}
+              title={!canManageCandidates ? noPermissionTitle : undefined}
+              type="button"
+            >
               Kaydet
             </button>
           </>
@@ -6514,7 +6761,13 @@ function kCertificateResponseToRow(certificate: CandidateKCertificateResponse): 
   };
 }
 
-function CandidateKCertificateSection({ candidate }: { candidate: CandidateResponse }) {
+function CandidateKCertificateSection({
+  canManageCandidates,
+  candidate,
+}: {
+  canManageCandidates: boolean;
+  candidate: CandidateResponse;
+}) {
   const [lessons, setLessons] = useState<TrainingLessonResponse[]>([]);
   const renewSavingRef = useRef(false);
   const [hiddenRowIds, setHiddenRowIds] = useState<string[]>([]);
@@ -6522,6 +6775,7 @@ function CandidateKCertificateSection({ candidate }: { candidate: CandidateRespo
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const noPermissionTitle = "Yetkiniz yok.";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -6574,6 +6828,7 @@ function CandidateKCertificateSection({ candidate }: { candidate: CandidateRespo
   const displayRows = useMemo(() => [...visibleRows].reverse(), [visibleRows]);
 
   const renewKCertificate = async () => {
+    if (!canManageCandidates) return;
     if (renewSavingRef.current) return;
     const previousRow = visibleRows[visibleRows.length - 1];
     if (!previousRow) return;
@@ -6604,6 +6859,7 @@ function CandidateKCertificateSection({ candidate }: { candidate: CandidateRespo
   };
 
   const deleteKCertificateRow = async (row: KCertificateRow) => {
+    if (!canManageCandidates) return;
     if (row.persisted) {
       setSaving(true);
       try {
@@ -6630,8 +6886,9 @@ function CandidateKCertificateSection({ candidate }: { candidate: CandidateRespo
         <div className="candidate-k-certificate-actions">
           <button
             className="btn btn-secondary btn-sm"
-            disabled={saving || visibleRows.length === 0}
+            disabled={saving || visibleRows.length === 0 || !canManageCandidates}
             onClick={() => void renewKCertificate()}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             Yenile
@@ -6686,8 +6943,9 @@ function CandidateKCertificateSection({ candidate }: { candidate: CandidateRespo
                   <td>
                     <button
                       className="btn btn-danger btn-sm"
-                      disabled={saving}
+                      disabled={saving || !canManageCandidates}
                       onClick={() => void deleteKCertificateRow(row)}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
                       type="button"
                     >
                       Sil
@@ -7011,6 +7269,9 @@ function findCandidateFeeMatrixRow(
 }
 
 function DocumentsTab({
+  canManageCandidates,
+  canManageDocuments,
+  canManageMebJobs,
   candidate,
   candidateId,
   documents,
@@ -7020,6 +7281,9 @@ function DocumentsTab({
   onRefresh,
   onDeleted,
 }: {
+  canManageCandidates: boolean;
+  canManageDocuments: boolean;
+  canManageMebJobs: boolean;
   candidate: CandidateResponse;
   candidateId: string;
   documents: DocumentResponse[] | null;
@@ -7030,6 +7294,7 @@ function DocumentsTab({
   onDeleted: () => void;
 }) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [statusFilter, setStatusFilter] = useState<CandidateDocumentFilter>("all");
   const [bulkMebbisLoading, setBulkMebbisLoading] = useState(false);
   const [candidateSyncQueuing, setCandidateSyncQueuing] = useState(false);
@@ -7077,6 +7342,7 @@ function DocumentsTab({
   );
 
   const handleDeleteCandidate = async () => {
+    if (!canManageCandidates) return;
     if (deleting) return;
     setDeleting(true);
     try {
@@ -7188,6 +7454,7 @@ function DocumentsTab({
   const completedChecklistCount = documentChecklistItems.filter((item) => item.status === "done").length;
   const actionableChecklistCount = documentChecklistItems.filter((item) => item.status !== "not_applicable").length;
   const handleBulkMebbisTransfer = async () => {
+    if (!canManageDocuments) return;
     if (bulkMebbisLoading || pendingMebbisTypes.length === 0) return;
     setBulkMebbisLoading(true);
     try {
@@ -7214,6 +7481,7 @@ function DocumentsTab({
   };
 
   const handleQueueCandidateSync = async () => {
+    if (!canManageMebJobs) return;
     if (candidateSyncQueuing) return;
     setCandidateSyncQueuing(true);
     try {
@@ -7279,8 +7547,9 @@ function DocumentsTab({
                 </button>
                 <button
                   className="btn btn-danger btn-sm"
-                  disabled={deleting}
+                  disabled={deleting || !canManageCandidates}
                   onClick={handleDeleteCandidate}
+                  title={!canManageCandidates ? noPermissionTitle : undefined}
                   type="button"
                 >
                   {deleting ? "Siliniyor..." : "Evet, Sil"}
@@ -7291,16 +7560,18 @@ function DocumentsTab({
                 <div className="candidate-detail-doc-actions-bar">
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0}
+                    disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0 || !canManageDocuments}
                     onClick={handleBulkMebbisTransfer}
+                    title={!canManageDocuments ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {bulkMebbisLoading ? "İşaretleniyor..." : "Mebbis İşaretle"}
                   </button>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={candidateSyncQueuing}
+                    disabled={candidateSyncQueuing || !canManageMebJobs}
                     onClick={handleQueueCandidateSync}
+                    title={!canManageMebJobs ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {candidateSyncQueuing ? "Kuyruğa alınıyor..." : "Döneme Kaydet"}
@@ -7315,7 +7586,9 @@ function DocumentsTab({
                   </button>
                   <button
                     className="btn btn-danger btn-sm"
+                    disabled={!canManageCandidates}
                     onClick={() => setConfirmDelete(true)}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     Aday Sil
@@ -7337,6 +7610,7 @@ function DocumentsTab({
         <div className="candidate-detail-doc-hero-grid">
           {heroTypes.map((type) => (
             <HeroDocumentCard
+              canManageDocuments={canManageDocuments}
               candidateId={candidateId}
               key={type.id}
               notApplicable={isNotApplicable(type)}
@@ -7352,6 +7626,7 @@ function DocumentsTab({
         <ul className="candidate-detail-doc-list candidate-detail-doc-photo-grid">
           {photoTypes.filter(matchesFilter).map((type) => (
             <DocRow
+              canManageDocuments={canManageDocuments}
               candidateId={candidateId}
               key={type.id}
               onRefresh={onRefresh}
@@ -7366,6 +7641,7 @@ function DocumentsTab({
         <ul className="candidate-detail-doc-list candidate-detail-doc-contract-grid">
           {contractTypes.filter(matchesFilter).map((type) => (
             <DocRow
+              canManageDocuments={canManageDocuments}
               candidateId={candidateId}
               defaultMetadataValues={type.key === "contract_back" ? contractBackMetadataDefaults : undefined}
               key={type.id}
@@ -7385,6 +7661,7 @@ function DocumentsTab({
         <ul className="candidate-detail-doc-list">
           {filteredRequiredTypes.map((type) => (
             <DocRow
+              canManageDocuments={canManageDocuments}
               candidateId={candidateId}
               key={type.id}
               onRefresh={onRefresh}
@@ -7404,6 +7681,7 @@ function DocumentsTab({
             <ul className="candidate-detail-doc-list">
               {filteredOptionalTypes.map((type) => (
                 <DocRow
+                  canManageDocuments={canManageDocuments}
                   candidateId={candidateId}
                   key={type.id}
                   onRefresh={onRefresh}
@@ -7475,12 +7753,14 @@ function CandidateDocumentChecklistModal({
 }
 
 function HeroDocumentCard({
+  canManageDocuments,
   candidateId,
   notApplicable = false,
   type,
   upload,
   onRefresh,
 }: {
+  canManageDocuments: boolean;
   candidateId: string;
   notApplicable?: boolean;
   type: DocumentTypeResponse;
@@ -7488,10 +7768,12 @@ function HeroDocumentCard({
   onRefresh: () => Promise<void>;
 }) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const isAvailable = !notApplicable && upload !== null && (upload.hasFile || upload.isPhysicallyAvailable);
   const [saving, setSaving] = useState(false);
 
   const setAvailable = async () => {
+    if (!canManageDocuments) return;
     if (notApplicable) return;
     if (saving || isAvailable) return;
     setSaving(true);
@@ -7518,6 +7800,7 @@ function HeroDocumentCard({
   };
 
   const setUnavailable = async () => {
+    if (!canManageDocuments) return;
     if (notApplicable) return;
     if (saving || !isAvailable) return;
     if (!upload) return;
@@ -7565,9 +7848,15 @@ function HeroDocumentCard({
         role="switch"
         aria-checked={isAvailable}
         aria-label={notApplicable ? `${type.name} gerekli değil` : `${type.name} durumu`}
-        disabled={saving || notApplicable}
+        disabled={saving || notApplicable || !canManageDocuments}
         onClick={isAvailable ? setUnavailable : setAvailable}
-        title={notApplicable ? "Mevcut ehliyet bilgisi ekleyin" : undefined}
+        title={
+          !canManageDocuments
+            ? noPermissionTitle
+            : notApplicable
+              ? "Mevcut ehliyet bilgisi ekleyin"
+              : undefined
+        }
       >
         <span className="candidate-detail-doc-hero-switch-track-label">
           {isAvailable ? "Var" : "Yok"}
@@ -7579,17 +7868,20 @@ function HeroDocumentCard({
 }
 
 function HealthReportExtraFields({
+  canManageDocuments,
   candidateId,
   documentTypeId,
   upload,
   onRefresh,
 }: {
+  canManageDocuments: boolean;
   candidateId: string;
   documentTypeId: string;
   upload: DocumentResponse | null;
   onRefresh: () => Promise<void>;
 }) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [saving, setSaving] = useState(false);
 
   const meta = upload?.metadata ?? {};
@@ -7602,6 +7894,7 @@ function HealthReportExtraFields({
   const storedDisability = meta[HEALTH_REPORT_META_KEYS.disability];
 
   const persist = async (nextMetadata: Record<string, string>) => {
+    if (!canManageDocuments) return;
     if (saving) return;
     setSaving(true);
     try {
@@ -7647,10 +7940,11 @@ function HealthReportExtraFields({
           <CustomSelect
             aria-label="E-Sınav Yabancı Dil Seçimi"
             className="form-select"
-            disabled={saving}
+            disabled={saving || !canManageDocuments}
             onChange={(event) =>
               persist({ [HEALTH_REPORT_META_KEYS.foreignLanguage]: event.target.value })
             }
+            title={!canManageDocuments ? noPermissionTitle : undefined}
             value={foreignLanguage}
           >
             <option value="">Seçin...</option>
@@ -7666,10 +7960,11 @@ function HealthReportExtraFields({
           <CustomSelect
             aria-label="Özür Durumu"
             className="form-select"
-            disabled={saving}
+            disabled={saving || !canManageDocuments}
             onChange={(event) =>
               persist({ [HEALTH_REPORT_META_KEYS.disability]: event.target.value })
             }
+            title={!canManageDocuments ? noPermissionTitle : undefined}
             value={disability}
           >
             <option value="">Seçin...</option>
@@ -7686,7 +7981,7 @@ function HealthReportExtraFields({
         <span className="switch-toggle">
           <input
             checked={needsTranslator}
-            disabled={saving}
+            disabled={saving || !canManageDocuments}
             onChange={(event) =>
               persist({
                 [HEALTH_REPORT_META_KEYS.needsTranslator]: event.target.checked ? "yes" : "no",
@@ -7702,7 +7997,7 @@ function HealthReportExtraFields({
         <span className="switch-toggle">
           <input
             checked={needsSignLanguageTranslator}
-            disabled={saving}
+            disabled={saving || !canManageDocuments}
             onChange={(event) =>
               persist({
                 [HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator]: event.target.checked
@@ -8498,12 +8793,14 @@ function CandidateDocumentOcrReviewModal({
 }
 
 function DocRow({
+  canManageDocuments,
   candidateId,
   defaultMetadataValues,
   type,
   upload,
   onRefresh,
 }: {
+  canManageDocuments: boolean;
   candidateId: string;
   defaultMetadataValues?: Record<string, string>;
   type: DocumentTypeResponse;
@@ -8511,6 +8808,7 @@ function DocRow({
   onRefresh: () => Promise<void>;
 }) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [markingPhysical, setMarkingPhysical] = useState(false);
@@ -8610,6 +8908,7 @@ function DocRow({
   };
 
   const handleUpload = async (file: File): Promise<boolean> => {
+    if (!canManageDocuments) return false;
     if (uploading) return false;
     setUploading(true);
     try {
@@ -8631,6 +8930,7 @@ function DocRow({
   };
 
   const handleMarkPhysical = async () => {
+    if (!canManageDocuments) return;
     if (markingPhysical) return;
     setMarkingPhysical(true);
     try {
@@ -8651,6 +8951,7 @@ function DocRow({
   };
 
   const handleMarkMissing = async () => {
+    if (!canManageDocuments) return;
     if (!upload || deleting) return;
     setDeleting(true);
     try {
@@ -8666,6 +8967,7 @@ function DocRow({
   };
 
   const handleDelete = async () => {
+    if (!canManageDocuments) return;
     if (!upload || deleting) return;
     setDeleting(true);
     try {
@@ -8681,6 +8983,7 @@ function DocRow({
   };
 
   const handleMebbisToggle = async (checked: boolean) => {
+    if (!canManageDocuments) return;
     if (markingMebbis || checked === isMebbisTransferred) return;
     setMarkingMebbis(true);
     try {
@@ -8713,6 +9016,7 @@ function DocRow({
   };
 
   const handleSaveMetadata = async (override?: Record<string, string>): Promise<boolean> => {
+    if (!canManageDocuments) return false;
     if (metadataSaving) return false;
     const source = override ?? metadataValues;
     const payload: Record<string, string> = {};
@@ -8757,6 +9061,7 @@ function DocRow({
   };
 
   const handleApplyOcr = async (nextValues: Record<string, string>) => {
+    if (!canManageDocuments) return;
     if (!validateMetadata(nextValues)) return;
     const saved = await handleSaveMetadata(nextValues);
     if (!saved) return;
@@ -8865,6 +9170,7 @@ function DocRow({
                     <LocalizedDateInput
                       ariaLabel={field.label}
                       className={error ? "form-input error" : "form-input"}
+                      disabled={!canManageDocuments}
                       lang="tr-TR"
                       onChange={(next) => {
                         setMetadataValue(field.key, next);
@@ -8878,6 +9184,7 @@ function DocRow({
                     <CustomSelect
                       aria-label={field.label}
                       className={error ? "form-select error" : "form-select"}
+                      disabled={!canManageDocuments}
                       onChange={(event) => {
                         const next = event.target.value;
                         setMetadataValue(field.key, next);
@@ -8897,6 +9204,7 @@ function DocRow({
                       <input
                         aria-label={field.label}
                         className={error ? "form-input error" : "form-input"}
+                        disabled={!canManageDocuments}
                         onBlur={(event) => {
                           const next = event.target.value;
                           if (next === (upload?.metadata?.[field.key] ?? "")) return;
@@ -8915,6 +9223,7 @@ function DocRow({
                     <input
                       aria-label={field.label}
                       className={error ? "form-input error" : "form-input"}
+                      disabled={!canManageDocuments}
                       onBlur={(event) => {
                         const next = event.target.value;
                         if (next === (upload?.metadata?.[field.key] ?? "")) return;
@@ -8934,6 +9243,7 @@ function DocRow({
         ) : null}
         {type.key === "health_report" ? (
           <HealthReportExtraFields
+            canManageDocuments={canManageDocuments}
             candidateId={candidateId}
             documentTypeId={type.id}
             upload={upload}
@@ -8946,8 +9256,9 @@ function DocRow({
         {!isMebbisTransferred ? (
           <button
             className="btn btn-sm btn-primary"
-            disabled={busy || status === "missing"}
+            disabled={busy || status === "missing" || !canManageDocuments}
             onClick={() => handleMebbisToggle(true)}
+            title={!canManageDocuments ? noPermissionTitle : undefined}
             type="button"
           >
             {markingMebbis ? "Kaydediliyor..." : "Mebbis Aktar"}
@@ -8979,8 +9290,9 @@ function DocRow({
         {canAnalyzeOcr ? (
           <button
             className="btn btn-secondary btn-sm"
-            disabled={busy}
+            disabled={busy || !canManageDocuments}
             onClick={handleAnalyzeOcr}
+            title={!canManageDocuments ? noPermissionTitle : undefined}
             type="button"
           >
             {ocrLoading ? "Okunuyor..." : "OCR"}
@@ -8992,9 +9304,13 @@ function DocRow({
             <button
               aria-expanded={uploadPopoverOpen}
               className="btn btn-secondary btn-sm"
-              disabled={busy}
-              onClick={() => setUploadPopoverOpen((current) => !current)}
+              disabled={busy || !canManageDocuments}
+              onClick={() => {
+                if (!canManageDocuments) return;
+                setUploadPopoverOpen((current) => !current);
+              }}
               ref={uploadTriggerRef}
+              title={!canManageDocuments ? noPermissionTitle : undefined}
               type="button"
             >
               {uploading ? "Yükleniyor..." : "Yükle"}
@@ -9021,8 +9337,9 @@ function DocRow({
           role="switch"
           aria-checked={hasDocumentAvailable}
           aria-label={`${type.name} var yok durumu`}
-          disabled={busy || upload?.hasFile}
+          disabled={busy || upload?.hasFile || !canManageDocuments}
           onClick={hasDocumentAvailable ? handleMarkMissing : handleMarkPhysical}
+          title={!canManageDocuments ? noPermissionTitle : undefined}
         >
           <span className="candidate-detail-doc-hero-switch-track-label">
             {hasDocumentAvailable ? "Var" : "Yok"}
@@ -9036,8 +9353,9 @@ function DocRow({
               <span>Silinsin mi?</span>
               <button
                 className="btn btn-danger btn-sm"
-                disabled={busy}
+                disabled={busy || !canManageDocuments}
                 onClick={handleDelete}
+                title={!canManageDocuments ? noPermissionTitle : undefined}
                 type="button"
               >
                 {deleting ? "Siliniyor..." : "Evet"}
@@ -9054,8 +9372,12 @@ function DocRow({
           ) : (
             <button
               className="btn btn-danger btn-sm"
-              disabled={busy}
-              onClick={() => setConfirmingDelete(true)}
+              disabled={busy || !canManageDocuments}
+              onClick={() => {
+                if (!canManageDocuments) return;
+                setConfirmingDelete(true);
+              }}
+              title={!canManageDocuments ? noPermissionTitle : undefined}
               type="button"
             >
               Sil

@@ -20,6 +20,16 @@ const institutions: AuthInstitution[] = [
     slug: "pilot-surucu-kursu",
     roleName: "Kurum Yöneticisi",
     isDefault: true,
+    permissions: {
+      dashboard: "view",
+      candidates: "view",
+      groups: "view",
+      documents: "view",
+      payments: "view",
+      training: "view",
+      mebjobs: "view",
+      settings: "view",
+    },
   },
   {
     id: "i2",
@@ -27,6 +37,7 @@ const institutions: AuthInstitution[] = [
     slug: "ikinci-kurum",
     roleName: "Personel",
     isDefault: false,
+    permissions: { dashboard: "view", candidates: "view" },
   },
 ];
 
@@ -47,6 +58,7 @@ function renderSidebar(path = "/", onInstitutionChange = async () => {}) {
       auth: {
         institutions,
         activeInstitution: institutions[0],
+        permissions: institutions[0].permissions,
         selectInstitution: onInstitutionChange,
       },
     }

@@ -82,4 +82,47 @@ describe("UploadDocumentModal", () => {
       expect(onUploaded).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("does not submit when opened without manage permission", async () => {
+    const onUploaded = vi.fn();
+    const documentTypes = [
+      {
+        id: "type-id",
+        module: "candidate",
+        key: "national_id",
+        name: "Kimlik",
+        sortOrder: 1,
+        isRequired: true,
+        isActive: true,
+        metadataFields: [],
+        createdAtUtc: "2026-01-01T00:00:00Z",
+        updatedAtUtc: "2026-01-01T00:00:00Z",
+      },
+    ];
+
+    renderWithProviders(
+      <UploadDocumentModal
+        canManage={false}
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypes={documentTypes}
+        initialDocumentTypeId="type-id"
+        onClose={() => {}}
+        onUploaded={onUploaded}
+        open
+      />
+    );
+
+    const submitButton = screen.getByRole("button", { name: "Yükle" });
+    expect(submitButton).toBeDisabled();
+    expect(submitButton).toHaveAttribute("title", "Yetkiniz yok.");
+
+    fireEvent.click(screen.getByLabelText("Fiziksel evrak elde var, dosya yüklemiyorum"));
+    fireEvent.submit(document.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(uploadDocumentMock).not.toHaveBeenCalled();
+      expect(onUploaded).not.toHaveBeenCalled();
+    });
+  });
 });

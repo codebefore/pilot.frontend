@@ -6,6 +6,7 @@ export type AuthInstitution = {
   slug: string;
   roleName: string | null;
   isDefault: boolean;
+  permissions: Record<string, "view" | "full">;
 };
 
 export type AuthUser = {
@@ -117,7 +118,13 @@ function isAuthInstitution(value: unknown): value is AuthInstitution {
     typeof institution.name === "string" &&
     typeof institution.slug === "string" &&
     (institution.roleName === null || typeof institution.roleName === "string") &&
-    typeof institution.isDefault === "boolean";
+    typeof institution.isDefault === "boolean" &&
+    isPermissions(institution.permissions);
+}
+
+function isPermissions(value: unknown): value is Record<string, "view" | "full"> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value).every((level) => level === "view" || level === "full");
 }
 
 function isActiveInstitutionInMemberships(session: AuthSession): boolean {

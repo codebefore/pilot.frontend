@@ -18,6 +18,7 @@ import { CheckboxListPopover } from "../components/ui/CheckboxListPopover";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { applyTagsToCandidates } from "../lib/candidate-bulk";
+import { useAuth } from "../lib/auth";
 import {
   EMPTY_CANDIDATE_FILTERS,
   countActiveCandidateFilters,
@@ -32,6 +33,7 @@ import {
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
 import { getGroups } from "../lib/groups-api";
 import { useLanguage, useT } from "../lib/i18n";
+import { canManageArea } from "../lib/permissions";
 import { buildWhatsAppUrl } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
@@ -144,6 +146,11 @@ export function DocumentsPage() {
   const t = useT();
   const { lang } = useLanguage();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageDocuments = canManageArea(user, permissions, "documents");
+  const canManageCandidates = canManageArea(user, permissions, "candidates");
+  const canManageGroups = canManageArea(user, permissions, "groups");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { options: licenseClassOptions } = useLicenseClassOptions();
 
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
@@ -393,6 +400,7 @@ export function DocumentsPage() {
   };
 
   const openAddTagInput = () => {
+    if (!canManageCandidates) return;
     setNewTagDraft("");
     setIsAddingTag(true);
     window.setTimeout(() => newTagInputRef.current?.focus(), 0);
@@ -405,6 +413,7 @@ export function DocumentsPage() {
   };
 
   const commitNewTag = async () => {
+    if (!canManageCandidates) return;
     const name = newTagDraft.trim();
     if (!name) {
       closeAddTagInput();
@@ -508,6 +517,7 @@ export function DocumentsPage() {
   };
 
   const openBulkTagAction = () => {
+    if (!canManageCandidates) return;
     if (selectedCount === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
@@ -516,6 +526,7 @@ export function DocumentsPage() {
   };
 
   const openBulkGroupAction = async () => {
+    if (!canManageGroups) return;
     if (selectedCount === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
@@ -537,6 +548,7 @@ export function DocumentsPage() {
   };
 
   const applyBulkTagChange = async () => {
+    if (!canManageCandidates) return;
     if (bulkTagValues.length === 0 || selectedCount === 0) return;
     setBulkSaving(true);
     try {
@@ -555,6 +567,7 @@ export function DocumentsPage() {
   };
 
   const applyBulkGroupChange = async () => {
+    if (!canManageGroups) return;
     if (!bulkGroupId || selectedCount === 0) return;
     setBulkSaving(true);
     try {
@@ -576,6 +589,7 @@ export function DocumentsPage() {
   };
 
   const openUpload = (entry?: DocumentChecklistEntry, documentTypeId?: string) => {
+    if (!canManageDocuments) return;
     const firstMissingType = documentTypeId ?? (
       entry?.missingDocumentKeys[0]
         ? documentTypes.find((item) => item.key === entry.missingDocumentKeys[0])?.id
@@ -691,14 +705,17 @@ export function DocumentsPage() {
                   <CandidateTagsInput
                     ariaLabel={t("candidates.aria.bulkTagSelect")}
                     className="candidate-bulk-tags-input"
+                    disabled={!canManageCandidates}
+                    disabledTitle={noPermissionTitle}
                     onChange={setBulkTagValues}
                     placeholder={t("candidates.bulk.tagSearchPlaceholder")}
                     value={bulkTagValues}
                   />
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || bulkTagValues.length === 0 || bulkSaving}
+                    disabled={!canManageCandidates || selectedCount === 0 || bulkTagValues.length === 0 || bulkSaving}
                     onClick={applyBulkTagChange}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
@@ -708,9 +725,10 @@ export function DocumentsPage() {
                 <>
                   <CustomSelect
                     aria-label={t("candidates.aria.bulkGroupSelect")}
-                    disabled={bulkGroupLoading}
+                    disabled={bulkGroupLoading || !canManageGroups}
                     onChange={(event) => setBulkGroupId(event.target.value)}
                     size="sm"
+                    title={!canManageGroups ? noPermissionTitle : undefined}
                     value={bulkGroupId}
                   >
                     <option value="">
@@ -726,8 +744,9 @@ export function DocumentsPage() {
                   </CustomSelect>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkGroupId || bulkSaving}
+                    disabled={!canManageGroups || selectedCount === 0 || !bulkGroupId || bulkSaving}
                     onClick={applyBulkGroupChange}
+                    title={!canManageGroups ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
@@ -737,14 +756,18 @@ export function DocumentsPage() {
                 <>
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageGroups}
                     onClick={openBulkGroupAction}
+                    title={!canManageGroups ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("candidates.bulk.assignGroup")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageCandidates}
                     onClick={openBulkTagAction}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("candidates.bulk.addTag")}
@@ -856,7 +879,9 @@ export function DocumentsPage() {
           <button
             aria-label={t("candidates.tags.addFilter")}
             className="tag-filter-add"
+            disabled={!canManageCandidates}
             onClick={openAddTagInput}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
             + {t("candidates.tags.addFilter")}
@@ -864,7 +889,9 @@ export function DocumentsPage() {
         )}
         <button
           className="tag-filter-manage"
+          disabled={!canManageCandidates}
           onClick={() => setTagManagerOpen(true)}
+          title={!canManageCandidates ? noPermissionTitle : undefined}
           type="button"
         >
           Etiketleri Yönet
@@ -1104,6 +1131,7 @@ export function DocumentsPage() {
                               <button
                                 aria-label={`${documentType.name}: var`}
                                 className="documents-doc-icon-btn"
+                                disabled={!canManageDocuments}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   setManageTarget({
@@ -1112,7 +1140,11 @@ export function DocumentsPage() {
                                     documentTypeId,
                                   });
                                 }}
-                                title={`${documentType.name}: Var - Görüntüle / Düzenle`}
+                                title={
+                                  !canManageDocuments
+                                    ? noPermissionTitle
+                                    : `${documentType.name}: Var - Görüntüle / Düzenle`
+                                }
                                 type="button"
                               >
                                 <span className="documents-doc-icon present">
@@ -1123,11 +1155,12 @@ export function DocumentsPage() {
                               <button
                                 aria-label={`${documentType.name}: yok, yukle`}
                                 className="documents-doc-icon-btn"
+                                disabled={!canManageDocuments}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   openUpload(entry, documentTypeId);
                                 }}
-                                title={`${documentType.name}: Yok - Yükle`}
+                                title={!canManageDocuments ? noPermissionTitle : `${documentType.name}: Yok - Yükle`}
                                 type="button"
                               >
                                 <span className="documents-doc-icon missing">
@@ -1170,6 +1203,7 @@ export function DocumentsPage() {
       />
 
       <UploadDocumentModal
+        canManage={canManageDocuments}
         candidateId={uploadTarget?.candidateId ?? null}
         candidateName={uploadTarget?.candidateName}
         documentTypes={documentTypes}
@@ -1186,6 +1220,7 @@ export function DocumentsPage() {
         documentTypes={documentTypes}
         onClose={() => setManageTarget(null)}
         onSaved={handleDocumentSaved}
+        canManageDocuments={canManageDocuments}
         open={manageTarget !== null}
       />
 
@@ -1193,12 +1228,14 @@ export function DocumentsPage() {
         onClose={() => setTagManagerOpen(false)}
         onDeleted={handleTagDeleted}
         onRenamed={handleTagRenamed}
+        canManage={canManageCandidates}
         open={tagManagerOpen}
         tags={allTags}
       />
 
       <CandidateDrawer
         candidateId={selectedId}
+        canManageCandidates={canManageCandidates}
         onClose={closeDrawer}
         onDeleted={() => {
           closeDrawer();

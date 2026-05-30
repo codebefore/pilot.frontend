@@ -7,8 +7,10 @@ import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/http";
 import { useT, type TranslationKey } from "../lib/i18n";
+import { canManageArea } from "../lib/permissions";
 import {
   deleteRole,
   getPermissionAreas,
@@ -58,6 +60,9 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManagePermissions = canManageArea(user, permissions, "permissions");
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [areas, setAreas] = useState<PermissionAreasResponse | null>(null);
@@ -205,6 +210,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   };
 
   const handleLevelChange = (area: string, value: MatrixValue) => {
+    if (!canManagePermissions) return;
     setMatrix((prev) => {
       const next = { ...prev, [area]: value };
       setDirty(!isEqualMatrix(next, originalMatrixRef.current));
@@ -213,11 +219,13 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   };
 
   const handleReset = () => {
+    if (!canManagePermissions) return;
     setMatrix({ ...originalMatrixRef.current });
     setDirty(false);
   };
 
   const handleSave = async () => {
+    if (!canManagePermissions) return;
     if (!selectedRoleId) return;
     setSaving(true);
     try {
@@ -236,6 +244,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   };
 
   const handleCreateRole = () => {
+    if (!canManagePermissions) return;
     requestDiscardChanges(() => {
       navigate(
         embedded
@@ -246,6 +255,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   };
 
   const handleEditRole = () => {
+    if (!canManagePermissions) return;
     if (!selectedRole) return;
     requestDiscardChanges(() => {
       navigate(
@@ -257,6 +267,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   };
 
   const handleDeleteRole = async () => {
+    if (!canManagePermissions) return;
     if (!selectedRole) return;
     setDeletingRoleId(selectedRole.id);
     try {
@@ -276,7 +287,13 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const activeRoleCount = roles.filter((role) => role.isActive).length;
 
   const actions = (
-    <button className="btn btn-primary btn-sm" onClick={handleCreateRole} type="button">
+    <button
+      className="btn btn-primary btn-sm"
+      disabled={!canManagePermissions}
+      onClick={handleCreateRole}
+      title={!canManagePermissions ? noPermissionTitle : undefined}
+      type="button"
+    >
       Yeni Rol
     </button>
   );
@@ -372,7 +389,9 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                 <div className="permissions-detail-actions">
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManagePermissions}
                     onClick={handleEditRole}
+                    title={!canManagePermissions ? noPermissionTitle : undefined}
                     type="button"
                   >
                     Rolü Düzenle
@@ -394,8 +413,9 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
-                        disabled={deletingRoleId === selectedRole.id}
+                        disabled={deletingRoleId === selectedRole.id || !canManagePermissions}
                         onClick={handleDeleteRole}
+                        title={!canManagePermissions ? noPermissionTitle : undefined}
                         type="button"
                       >
                         {deletingRoleId === selectedRole.id ? "Siliniyor..." : "Sil"}
@@ -404,8 +424,12 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                   ) : (
                     <button
                       className="btn btn-secondary btn-sm"
-                      disabled={deletingRoleId !== null}
-                      onClick={() => setConfirmDeleteRoleId(selectedRole.id)}
+                      disabled={deletingRoleId !== null || !canManagePermissions}
+                      onClick={() => {
+                        if (!canManagePermissions) return;
+                        setConfirmDeleteRoleId(selectedRole.id);
+                      }}
+                      title={!canManagePermissions ? noPermissionTitle : undefined}
                       type="button"
                     >
                       Sil
@@ -413,16 +437,18 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                   )}
                   <button
                     className="btn btn-secondary btn-sm"
-                    disabled={!dirty || saving}
+                    disabled={!dirty || saving || !canManagePermissions}
                     onClick={handleReset}
+                    title={!canManagePermissions ? noPermissionTitle : undefined}
                     type="button"
                   >
                     Geri Al
                   </button>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={!dirty || saving}
+                    disabled={!dirty || saving || !canManagePermissions}
                     onClick={handleSave}
+                    title={!canManagePermissions ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {saving ? "Kaydediliyor..." : "Kaydet"}
@@ -465,7 +491,9 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                                   : "permissions-level-btn"
                               }
                               key={option.value}
+                              disabled={!canManagePermissions}
                               onClick={() => handleLevelChange(area, option.value)}
+                              title={!canManagePermissions ? noPermissionTitle : undefined}
                               type="button"
                             >
                               {option.label}

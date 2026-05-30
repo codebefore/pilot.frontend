@@ -19,6 +19,7 @@ type TrainingBranchFormValues = {
 
 type TrainingBranchFormModalProps = {
   open: boolean;
+  canManage?: boolean;
   editing: TrainingBranchDefinitionResponse | null;
   onClose: () => void;
   onSaved: (saved: TrainingBranchDefinitionResponse) => void;
@@ -57,11 +58,13 @@ function buildPayload(
 
 export function TrainingBranchFormModal({
   open,
+  canManage = true,
   editing,
   onClose,
   onSaved,
 }: TrainingBranchFormModalProps) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const {
     formState: { errors },
@@ -78,6 +81,7 @@ export function TrainingBranchFormModal({
   }, [editing, open, reset]);
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
     if (!editing) return;
     setSubmitting(true);
     try {
@@ -101,7 +105,13 @@ export function TrainingBranchFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             İptal
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>

@@ -19,6 +19,7 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import { getDocumentTypes } from "../lib/documents-api";
 import { useT } from "../lib/i18n";
 import type { DocumentTypeResponse } from "../lib/types";
@@ -98,6 +99,9 @@ function buildColumns(t: ReturnType<typeof useT>): DocumentTypeColumnDef[] {
 export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) {
   const t = useT();
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const canManageDocumentTypes = user?.isSuperAdmin ?? false;
+  const noPermissionTitle = "Yetkiniz yok.";
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.document-types.columns.v1",
     DOCUMENT_TYPE_COLUMN_IDS
@@ -205,6 +209,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
   };
 
   const openEdit = (item: DocumentTypeResponse) => {
+    if (!canManageDocumentTypes) return;
     setEditing(item);
     setFormOpen(true);
   };
@@ -347,8 +352,9 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
                     <button
                       aria-label={t("documentTypes.edit")}
                       className="icon-btn"
+                      disabled={!canManageDocumentTypes}
                       onClick={() => openEdit(item)}
-                      title={t("documentTypes.edit")}
+                      title={!canManageDocumentTypes ? noPermissionTitle : t("documentTypes.edit")}
                       type="button"
                     >
                       <PencilIcon size={14} />
@@ -414,6 +420,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
         </>
       )}
       <DocumentTypeFormModal
+        canManage={canManageDocumentTypes}
         editing={editing}
         nextSortOrder={0}
         onClose={() => {

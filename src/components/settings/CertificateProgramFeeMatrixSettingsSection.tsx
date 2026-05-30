@@ -7,6 +7,8 @@ import {
   getCertificateProgramFeeMatrix,
   updateCertificateProgramFeeMatrix,
 } from "../../lib/certificate-program-fee-matrix-api";
+import { useAuth } from "../../lib/auth";
+import { canManageArea } from "../../lib/permissions";
 import type {
   CertificateProgramFeeBulkApplyRequest,
   CertificateProgramFeeProgramResponse,
@@ -654,8 +656,11 @@ function isRowDirty(
 
 export function CertificateProgramFeeMatrixSettingsSection() {
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const canManagePayments = canManageArea(user, permissions, "payments");
+  const noPermissionTitle = "Yetkiniz yok.";
   const [year, setYear] = useState(CURRENT_YEAR);
   const [rows, setRows] = useState<CertificateProgramFeeRowResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -801,6 +806,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   }, [isDirty]);
 
   const updateRow = (key: string, field: EditableField, value: string) => {
+    if (!canManagePayments) return;
     const parsed = parseAmount(value);
     if (isProgramScopedField(field)) {
       // Program-scoped fees live on the program, not the row. The clicked
@@ -857,6 +863,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   };
 
   const save = async () => {
+    if (!canManagePayments) return;
     setSaving(true);
     try {
       const payloadRows = rows.filter((row) => row.id || hasRowEditableValue(row)).map(toUpsertRow);
@@ -896,6 +903,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     lessonType?: "theory" | "practice",
     valueOverride?: string
   ): Promise<boolean> => {
+    if (!canManagePayments) return false;
     const key = bulkValueKey(field, lessonType);
     const parsed = parseAmount(valueOverride ?? bulkValues[key] ?? "");
     if (parsed == null) {
@@ -1000,6 +1008,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
    *  fields contribute one job per filled side. Run sequentially so backend
    *  writes stay ordered and we don't race ourselves on RowVersion. */
   const applyAllBulkFields = async () => {
+    if (!canManagePayments) return;
     const jobs: { field: EditableField; lessonType?: "theory" | "practice" }[] = [];
     for (const f of EDITABLE_FIELDS) {
       if (isDualLessonBulkField(f.value)) {
@@ -1023,13 +1032,13 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        if (!saving && isDirty) save();
+        if (canManagePayments && !saving && isDirty) save();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saving, isDirty, year, rows]);
+  }, [canManagePayments, saving, isDirty, year, rows]);
 
   const goBack = () => {
     const state = location.state as { from?: unknown } | null;
@@ -1098,7 +1107,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
             {sections.length > 0 ? (
               <button
                 className={`btn btn-secondary btn-sm${selectionMode ? " active" : ""}`}
+                disabled={!canManagePayments}
                 onClick={toggleSelectionMode}
+                title={!canManagePayments ? noPermissionTitle : undefined}
                 type="button"
               >
                 {selectionMode ? "Seçimi kapat" : "Toplu seçim"}
@@ -1107,9 +1118,15 @@ export function CertificateProgramFeeMatrixSettingsSection() {
             {selectionMode ? null : (
               <button
                 className="btn btn-primary btn-sm"
-                disabled={saving || !isDirty}
+                disabled={!canManagePayments || saving || !isDirty}
                 onClick={save}
-                title={isDirty ? "Kaydet (⌘/Ctrl+S)" : "Değişiklik yok"}
+                title={
+                  !canManagePayments
+                    ? noPermissionTitle
+                    : isDirty
+                      ? "Kaydet (⌘/Ctrl+S)"
+                      : "Değişiklik yok"
+                }
                 type="button"
               >
                 {saving ? "Kaydediliyor..." : "Kaydet"}
@@ -1131,8 +1148,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
               <div className="fee-matrix-bulk-hint-actions">
                 <button
                   className="btn btn-secondary btn-sm"
-                  disabled={saving || selectionCount === 0}
+                  disabled={!canManagePayments || saving || selectionCount === 0}
                   onClick={clearProgramSelection}
+                  title={!canManagePayments ? noPermissionTitle : undefined}
                   type="button"
                 >
                   Seçimi temizle
@@ -1140,12 +1158,17 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                 <button
                   className="btn btn-primary btn-sm"
                   disabled={
+                    !canManagePayments ||
                     saving ||
                     selectionCount === 0 ||
                     EDITABLE_FIELDS.every((f) => !bulkColumnHasValue(f.value))
                   }
                   onClick={applyAllBulkFields}
-                  title="Toplu satırdaki tüm dolu input'ları sırayla uygula"
+                  title={
+                    !canManagePayments
+                      ? noPermissionTitle
+                      : "Toplu satırdaki tüm dolu input'ları sırayla uygula"
+                  }
                   type="button"
                 >
                   Tümünü uygula
@@ -1436,7 +1459,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                                   lessonType === "theory" ? "Teorik" : "Direksiyon"
                                                 } için toplu değer`}
                                                 className="form-input fee-matrix-bulk-input fee-matrix-bulk-input--split"
-                                                disabled={saving}
+                                                disabled={!canManagePayments || saving}
                                                 inputMode="decimal"
                                                 key={lessonType}
                                                 onChange={(event) =>
@@ -1458,7 +1481,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                                   }
                                                 }}
                                                 placeholder={slotLabel}
-                                                title={slotTitle}
+                                                title={!canManagePayments ? noPermissionTitle : slotTitle}
                                                 value={bulkValues[slotKey] ?? ""}
                                               />
                                             );
@@ -1477,7 +1500,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                       <input
                                         aria-label={`${fieldLabel} için toplu değer`}
                                         className="form-input fee-matrix-bulk-input"
-                                        disabled={saving}
+                                        disabled={!canManagePayments || saving}
                                         inputMode="decimal"
                                         onChange={(event) =>
                                           setBulkValueFor(field, undefined, event.target.value)
@@ -1494,7 +1517,11 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                           }
                                         }}
                                         placeholder="—"
-                                        title={`${fieldLabel} için değer girip Enter'a basın`}
+                                        title={
+                                          !canManagePayments
+                                            ? noPermissionTitle
+                                            : `${fieldLabel} için değer girip Enter'a basın`
+                                        }
                                         value={value}
                                       />
                                     </th>
@@ -1577,6 +1604,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                           selected={selectedProgramIds.has(row.program.id)}
                                           stickyOffsets={stickyOffsets}
                                           updateRow={updateRow}
+                                          canManage={canManagePayments}
+                                          noPermissionTitle={noPermissionTitle}
                                         />
                                       </Fragment>
                                     );
@@ -1629,6 +1658,8 @@ function MatrixCell({
   stickyOffsets,
   onToggleSelect,
   isBulkTarget,
+  canManage,
+  noPermissionTitle,
 }: {
   column: Column;
   row: CertificateProgramFeeRowResponse;
@@ -1640,6 +1671,8 @@ function MatrixCell({
   stickyOffsets: Map<string, number>;
   onToggleSelect: (programId: string) => void;
   isBulkTarget: boolean;
+  canManage: boolean;
+  noPermissionTitle: string;
 }) {
   const stickyOffset = column.sticky ? stickyOffsets.get(column.key) : undefined;
   const baseClass = `fee-matrix-td fee-matrix-td--${column.kind} fee-matrix-td--key-${column.key}${
@@ -1676,8 +1709,9 @@ function MatrixCell({
       <td className={baseClass} rowSpan={rowSpan} style={style}>
         <EditableMoneyCell
           ariaLabel={column.label}
-          disabled={false}
+          disabled={!canManage}
           field={field}
+          title={!canManage ? noPermissionTitle : undefined}
           row={row}
           rowKeyValue={rowKeyValue}
           updateRow={updateRow}
@@ -1707,6 +1741,7 @@ function EditableMoneyCell({
   field,
   row,
   rowKeyValue,
+  title,
   updateRow,
 }: {
   ariaLabel: string;
@@ -1714,9 +1749,10 @@ function EditableMoneyCell({
   field: EditableField;
   row: CertificateProgramFeeRowResponse;
   rowKeyValue: string;
+  title?: string;
   updateRow: (key: string, field: EditableField, value: string) => void;
 }) {
-  const externalValue = disabled ? null : readEditableValue(row, field);
+  const externalValue = readEditableValue(row, field);
   const [text, setText] = useState<string>(() => serializeAmount(externalValue));
   const lastEmittedRef = useRef<number | null>(externalValue);
 
@@ -1736,7 +1772,8 @@ function EditableMoneyCell({
         className="form-input fee-matrix-money-input"
         disabled
         inputMode="decimal"
-        value=""
+        title={title}
+        value={serializeAmount(externalValue)}
       />
     );
   }
@@ -1753,6 +1790,7 @@ function EditableMoneyCell({
         updateRow(rowKeyValue, field, raw);
       }}
       placeholder="0,00"
+      title={title}
       value={text}
     />
   );

@@ -98,6 +98,29 @@ describe("GroupDrawer", () => {
     expect(await screen.findByRole("button", { name: "Aday Ekle" })).toBeInTheDocument();
   });
 
+  it("keeps group mutation panels closed when actions are disabled", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup());
+    renderWithProviders(
+      <GroupDrawer groupId="group-1" canManageGroups={false} onClose={() => {}} />
+    );
+
+    const deleteButton = await screen.findByRole("button", { name: "Grup Sil" });
+    const addCandidateButton = screen.getByRole("button", { name: "Aday Ekle" });
+
+    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toHaveAttribute("title", "Yetkiniz yok.");
+    expect(addCandidateButton).toBeDisabled();
+    expect(addCandidateButton).toHaveAttribute("title", "Yetkiniz yok.");
+
+    fireEvent.click(deleteButton);
+    fireEvent.click(addCandidateButton);
+
+    expect(screen.queryByRole("button", { name: "Evet, Sil" })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("İsim veya TC ara...")).not.toBeInTheDocument();
+    expect(deleteGroupMock).not.toHaveBeenCalled();
+    expect(assignCandidateGroupMock).not.toHaveBeenCalled();
+  });
+
   it("still shows candidate add action when meb status is sent", async () => {
     getGroupByIdMock.mockResolvedValue(buildGroup({ mebStatus: "sent" }));
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);

@@ -134,4 +134,44 @@ describe("PermissionsPage", () => {
       expect(deleteRoleMock).toHaveBeenCalledWith("role-2");
     });
   });
+
+  it("keeps role mutation actions disabled for permissions view-only users", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/settings/definitions/permissions"]}>
+        <PermissionsPage />
+      </MemoryRouter>,
+      {
+        auth: {
+          user: {
+            id: "permissions-viewer",
+            phone: "5073737262",
+            name: "Permissions Viewer",
+            roleName: "Yetki İzleme",
+            isSuperAdmin: false,
+          },
+          permissions: { permissions: "view" },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(getRolePermissionsMock).toHaveBeenCalledWith(
+        "role-2",
+        expect.any(AbortSignal)
+      );
+    });
+
+    const newButton = screen.getByRole("button", { name: /Yeni Rol/i });
+    const editButton = screen.getByRole("button", { name: "Rolü Düzenle" });
+    const deleteButton = screen.getByRole("button", { name: "Sil" });
+
+    for (const button of [newButton, editButton, deleteButton]) {
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", "Yetkiniz yok.");
+      fireEvent.click(button);
+    }
+
+    expect(screen.queryByText(/"Müdür" silinsin mi\?/i)).not.toBeInTheDocument();
+    expect(deleteRoleMock).not.toHaveBeenCalled();
+  });
 });

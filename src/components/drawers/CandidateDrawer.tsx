@@ -70,6 +70,7 @@ function formatOptionalText(value: string | null | undefined): string {
 
 type CandidateDrawerProps = {
   candidateId: string | null;
+  canManageCandidates?: boolean;
   onClose: () => void;
   onDeleted: () => void;
   onUpdated?: () => void;
@@ -133,6 +134,7 @@ function buildExistingLicenseDraft(candidate: CandidateResponse | null): Existin
 
 export function CandidateDrawer({
   candidateId,
+  canManageCandidates = true,
   onClose,
   onDeleted,
   onUpdated,
@@ -175,6 +177,8 @@ export function CandidateDrawer({
   const educationPlan = candidate?.educationPlan ?? null;
   const candidateHasExistingLicense =
     candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType;
+  const noPermissionTitle = "Yetkiniz yok.";
+  const candidateEditDisabledTitle = !canManageCandidates ? noPermissionTitle : undefined;
 
   useEffect(() => {
     if (!candidateId) {
@@ -256,6 +260,7 @@ export function CandidateDrawer({
   }, [candidateId]);
 
   const saveField = async (patch: Partial<CandidateUpsertRequest>) => {
+    if (!canManageCandidates) return;
     if (!candidate || !candidateId) return;
     try {
       const updated = await updateCandidate(candidateId, {
@@ -431,6 +436,7 @@ export function CandidateDrawer({
     existingLicenseDraft.pre2016 !== (candidate?.existingLicensePre2016 ?? false);
 
   const saveExistingLicense = async () => {
+    if (!canManageCandidates) return;
     if (!candidate) return;
 
     if (existingLicenseDraft.enabled) {
@@ -479,6 +485,7 @@ export function CandidateDrawer({
   };
 
   const saveGroup = async (groupId: string) => {
+    if (!canManageCandidates) return;
     if (!candidateId) return;
     try {
       if (!groupId) {
@@ -514,6 +521,7 @@ export function CandidateDrawer({
   };
 
   const handleDeleteConfirm = async () => {
+    if (!canManageCandidates) return;
     if (!candidateId) return;
     setDeleting(true);
     try {
@@ -540,12 +548,29 @@ export function CandidateDrawer({
     <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
       <span style={{ fontSize: 13, color: "var(--gray-600)", flex: 1 }}>Emin misiniz?</span>
       <button className="btn btn-secondary btn-sm" disabled={deleting} onClick={() => setConfirmDelete(false)} type="button">Vazgeç</button>
-      <button className="btn btn-danger btn-sm" disabled={deleting} onClick={handleDeleteConfirm} type="button">
+      <button
+        className="btn btn-danger btn-sm"
+        disabled={deleting || !canManageCandidates}
+        onClick={handleDeleteConfirm}
+        title={candidateEditDisabledTitle}
+        type="button"
+      >
         {deleting ? "Siliniyor..." : "Evet, Sil"}
       </button>
     </div>
   ) : (
-    <button className="btn btn-danger btn-sm" disabled={loading} onClick={() => setConfirmDelete(true)} type="button">Aday Sil</button>
+    <button
+      className="btn btn-danger btn-sm"
+      disabled={loading || !canManageCandidates}
+      onClick={() => {
+        if (!canManageCandidates) return;
+        setConfirmDelete(true);
+      }}
+      title={candidateEditDisabledTitle}
+      type="button"
+    >
+      Aday Sil
+    </button>
   );
 
   const whatsappUrl = buildWhatsAppUrl(candidate?.phoneNumber);
@@ -563,7 +588,12 @@ export function CandidateDrawer({
             <button
               aria-label={candidate.photo ? "Profil resmini değiştir" : "Profil resmi yükle"}
               className="drawer-profile-avatar-button"
-              onClick={() => setUploadOpen(true)}
+              disabled={!canManageCandidates}
+              onClick={() => {
+                if (!canManageCandidates) return;
+                setUploadOpen(true);
+              }}
+              title={candidateEditDisabledTitle}
               type="button"
             >
               <CandidateAvatar candidate={candidate} className="drawer-profile-avatar" size={64} />
@@ -590,18 +620,24 @@ export function CandidateDrawer({
 
           <DrawerSection title="Kişisel Bilgiler">
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidate.firstName}
               inputValue={candidate.firstName}
               label="Ad"
               onSave={(v) => saveField({ firstName: v })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidate.lastName}
               inputValue={candidate.lastName}
               label="Soyad"
               onSave={(v) => saveField({ lastName: v })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidate.nationalId}
               inputType="tel"
               inputValue={candidate.nationalId}
@@ -609,6 +645,8 @@ export function CandidateDrawer({
               onSave={(v) => saveField({ nationalId: v })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={formatDateTR(candidate.birthDate)}
               inputLang={dateInputLang}
               inputType="date"
@@ -617,6 +655,8 @@ export function CandidateDrawer({
               onSave={(v) => saveField({ birthDate: v || null })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidateGenderLabel(candidate.gender)}
               inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
               label="Cinsiyet"
@@ -628,6 +668,8 @@ export function CandidateDrawer({
               }
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidate.phoneNumber ?? ""}
               inputType="tel"
               inputValue={candidate.phoneNumber ?? ""}
@@ -635,6 +677,8 @@ export function CandidateDrawer({
               onSave={(v) => saveField({ phoneNumber: v || null })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={formatOptionalText(candidate.referenceName)}
               inputValue={candidate.referenceName ?? ""}
               label="Referans"
@@ -646,6 +690,8 @@ export function CandidateDrawer({
             <div className="drawer-form">
               <CandidateTagsInput
                 ariaLabel={t("candidates.tags.label")}
+                disabled={!canManageCandidates}
+                disabledTitle={candidateEditDisabledTitle}
                 onChange={(names) => {
                   void saveField({ tags: names });
                 }}
@@ -656,6 +702,8 @@ export function CandidateDrawer({
 
           <DrawerSection title="Kayıt Bilgileri">
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidate.licenseClass}
               inputValue={candidate.licenseClass}
               label="Ehliyet Tipi"
@@ -663,6 +711,8 @@ export function CandidateDrawer({
               onSave={(v) => saveField({ licenseClass: v as LicenseClass })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={
                 candidate.currentGroup
                   ? buildGroupHeading(
@@ -685,6 +735,8 @@ export function CandidateDrawer({
             {candidateHasExistingLicense ? (
               <>
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={candidateEditDisabledTitle}
                   displayValue={
                     candidate.existingLicenseType
                       ? existingLicenseTypeLabel(
@@ -704,6 +756,8 @@ export function CandidateDrawer({
                   }
                 />
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={candidateEditDisabledTitle}
                   displayValue={formatDateTR(candidate.existingLicenseIssuedAt)}
                   inputLang={dateInputLang}
                   inputType="date"
@@ -714,6 +768,8 @@ export function CandidateDrawer({
                   }
                 />
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={candidateEditDisabledTitle}
                   displayValue={candidate.existingLicenseNumber ?? ""}
                   inputValue={candidate.existingLicenseNumber ?? ""}
                   label="Belge No"
@@ -722,6 +778,8 @@ export function CandidateDrawer({
                   }
                 />
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={candidateEditDisabledTitle}
                   displayValue={candidate.existingLicenseIssuedProvince ?? ""}
                   inputValue={candidate.existingLicenseIssuedProvince ?? ""}
                   label="Belge Veriliş İli"
@@ -733,6 +791,8 @@ export function CandidateDrawer({
                   }
                 />
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={candidateEditDisabledTitle}
                   displayValue={candidate.existingLicensePre2016 ? "Evet" : "Hayir"}
                   inputValue={candidate.existingLicensePre2016 ? "true" : "false"}
                   label="2016 Ocak Öncesi"
@@ -748,6 +808,7 @@ export function CandidateDrawer({
                   <input
                     aria-label="Mevcut sürücü belgesi var"
                     checked={existingLicenseDraft.enabled}
+                    disabled={!canManageCandidates}
                     onChange={(event) => {
                       const enabled = event.target.checked;
                       setExistingLicenseError(null);
@@ -778,6 +839,7 @@ export function CandidateDrawer({
                       <CustomSelect
                         aria-label="Mevcut Belge"
                         className="form-select"
+                        disabled={!canManageCandidates}
                         onChange={(event) =>
                           setExistingLicenseDraft((current) => ({
                             ...current,
@@ -800,6 +862,7 @@ export function CandidateDrawer({
                       <LocalizedDateInput
                         ariaLabel="Belge Tarihi"
                         defaultOnOpen={today}
+                        disabled={!canManageCandidates}
                         lang={dateInputLang}
                         onChange={(value) =>
                           setExistingLicenseDraft((current) => ({
@@ -816,6 +879,7 @@ export function CandidateDrawer({
                       <input
                         aria-label="Belge No"
                         className="form-input"
+                        disabled={!canManageCandidates}
                         onChange={(event) =>
                           setExistingLicenseDraft((current) => ({
                             ...current,
@@ -832,6 +896,7 @@ export function CandidateDrawer({
                       <CustomSelect
                         aria-label="Belge Veriliş İli"
                         className="form-select"
+                        disabled={!canManageCandidates}
                         onChange={(event) =>
                           setExistingLicenseDraft((current) => ({
                             ...current,
@@ -853,6 +918,7 @@ export function CandidateDrawer({
                       <label className="switch-toggle">
                         <input
                           checked={existingLicenseDraft.pre2016}
+                          disabled={!canManageCandidates}
                           onChange={(event) =>
                             setExistingLicenseDraft((current) => ({
                               ...current,
@@ -876,8 +942,9 @@ export function CandidateDrawer({
                   <div className="drawer-form-actions">
                     <button
                       className="btn btn-primary btn-sm"
-                      disabled={existingLicenseSaving}
+                      disabled={existingLicenseSaving || !canManageCandidates}
                       onClick={saveExistingLicense}
+                      title={candidateEditDisabledTitle}
                       type="button"
                     >
                       {existingLicenseSaving ? "Kaydediliyor..." : "Kaydet"}
@@ -903,6 +970,8 @@ export function CandidateDrawer({
 
           <DrawerSection title="Durum">
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidateStatusLabel(candidate.status)}
               inputValue={normalizeCandidateStatusValue(candidate.status)}
               label="Durum"
@@ -912,12 +981,16 @@ export function CandidateDrawer({
             {normalizeCandidateStatusValue(candidate.status) === "dropped" ? (
               <>
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={candidateEditDisabledTitle}
                   displayValue={formatOptionalText(candidate.terminationReason)}
                   inputValue={candidate.terminationReason ?? ""}
                   label="Sonlanma Nedeni"
                   onSave={(value) => saveField({ terminationReason: value || null })}
                 />
                 <EditableRow
+                  disabled={!canManageCandidates}
+                  disabledTitle={candidateEditDisabledTitle}
                   displayValue={formatDateTR(candidate.terminationDate)}
                   inputLang={dateInputLang}
                   inputType="date"
@@ -928,6 +1001,8 @@ export function CandidateDrawer({
               </>
             ) : null}
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={candidateMebSyncStatusLabel(candidate.mebSyncStatus)}
               inputValue={normalizeCandidateMebSyncStatusValue(candidate.mebSyncStatus) ?? "not_synced"}
               label="Mebbis"
@@ -936,8 +1011,8 @@ export function CandidateDrawer({
             />
             <EditableRow
               displayValue={formatDateTR(candidate.mebExamDate)}
-              disabled={isESinavAttemptLimitReached}
-              disabledTitle="4 hak doldu"
+              disabled={isESinavAttemptLimitReached || !canManageCandidates}
+              disabledTitle={!canManageCandidates ? noPermissionTitle : "4 hak doldu"}
               inputLang={dateInputLang}
               inputType="date"
               inputValue={candidate.mebExamDate ?? ""}
@@ -945,6 +1020,8 @@ export function CandidateDrawer({
               onSave={(value) => saveField({ mebExamDate: value || null })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={formatDateTR(candidate.drivingExamDate)}
               inputLang={dateInputLang}
               inputType="date"
@@ -953,6 +1030,8 @@ export function CandidateDrawer({
               onSave={(value) => saveField({ drivingExamDate: value || null })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={formatDateTR(candidate.graduationDate)}
               inputLang={dateInputLang}
               inputType="date"
@@ -961,6 +1040,8 @@ export function CandidateDrawer({
               onSave={(value) => saveField({ graduationDate: value || null })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={`${candidate.eSinavAttemptCount ?? 1}/4`}
               inputValue={String(candidate.eSinavAttemptCount ?? 1)}
               label="E-Sınav Hakkı"
@@ -968,6 +1049,8 @@ export function CandidateDrawer({
               onSave={(value) => saveField({ eSinavAttemptCount: Number(value) })}
             />
             <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={candidateEditDisabledTitle}
               displayValue={`${candidate.drivingExamAttemptCount ?? 1}/4`}
               inputValue={String(candidate.drivingExamAttemptCount ?? 1)}
               label="Direksiyon Hakkı"
@@ -1068,6 +1151,7 @@ export function CandidateDrawer({
       ) : null}
 
       <UploadDocumentModal
+        canManage={canManageCandidates}
         candidateId={candidate ? candidateId : null}
         candidateName={candidate ? `${candidate.firstName} ${candidate.lastName}` : undefined}
         lockedDocumentTypeKey="biometric_photo"

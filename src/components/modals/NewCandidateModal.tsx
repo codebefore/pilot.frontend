@@ -48,6 +48,7 @@ type NewCandidateForm = {
 
 type NewCandidateModalProps = {
   open: boolean;
+  canManage?: boolean;
   onClose: () => void;
   onSubmit: () => void;
 };
@@ -166,9 +167,10 @@ function isValidTurkishNationalId(value: string) {
   return digits[9] === tenthDigit && digits[10] === eleventhDigit;
 }
 
-export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModalProps) {
+export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }: NewCandidateModalProps) {
   const { showToast } = useToast();
   const t = useT();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const [reuseSources, setReuseSources] = useState<CandidateReuseSourceResponse[]>([]);
   const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
@@ -323,6 +325,7 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
   }, [selectedReuseSource, setValue]);
 
   const submit = handleSubmit(async (data) => {
+    if (!canManage) return;
     setSubmitting(true);
     try {
       const defaultProgram = findDefaultCertificateProgram(certificatePrograms, data.className);
@@ -404,7 +407,13 @@ export function NewCandidateModal({ open, onClose, onSubmit }: NewCandidateModal
           <button className="btn btn-secondary" onClick={onClose} type="button" disabled={submitting}>
             İptal
           </button>
-          <button className="btn btn-primary" onClick={submit} type="button" disabled={submitting}>
+          <button
+            className="btn btn-primary"
+            onClick={submit}
+            type="button"
+            disabled={submitting || !canManage}
+            title={!canManage ? noPermissionTitle : undefined}
+          >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>

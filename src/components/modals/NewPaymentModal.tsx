@@ -20,6 +20,7 @@ type NewPaymentForm = {
 
 type NewPaymentModalProps = {
   open: boolean;
+  canManage?: boolean;
   onClose: () => void;
   onSubmit: () => void;
 };
@@ -34,9 +35,10 @@ const defaultValues = (): NewPaymentForm => ({
   note: "",
 });
 
-export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProps) {
+export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: NewPaymentModalProps) {
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
+  const noPermissionTitle = "Yetkiniz yok.";
   const [debtors, setDebtors] = useState<CandidateResponse[]>([]);
   const {
     control,
@@ -80,7 +82,10 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
     return () => controller.abort();
   }, [open, reset, setValue]);
 
-  const submit = handleSubmit(() => onSubmit());
+  const submit = handleSubmit(() => {
+    if (!canManage) return;
+    onSubmit();
+  });
 
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
     hasError ? `${base} error` : base;
@@ -92,7 +97,13 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
           <button className="btn btn-secondary" onClick={onClose} type="button">
             İptal
           </button>
-          <button className="btn btn-primary" onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={!canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             Kaydet & Makbuz Kes
           </button>
         </>
@@ -107,6 +118,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
             <label className="form-label">Aday</label>
             <CustomSelect
               className={fieldClass(!!errors.candidateId, "form-select")}
+              disabled={!canManage}
               {...register("candidateId", { required: "Aday seçin" })}
             >
               {debtors.map((candidate) => (
@@ -124,6 +136,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
             <label className="form-label">Tutar (TL)</label>
             <input
               className={fieldClass(!!errors.amount, "form-input")}
+              disabled={!canManage}
               type="number"
               {...register("amount", {
                 required: "Zorunlu alan",
@@ -144,6 +157,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
               render={({ field }) => (
                 <CustomSelect
                   className="form-select"
+                  disabled={!canManage}
                   name={field.name}
                   onBlur={field.onBlur}
                   onChange={(event) => field.onChange(event.target.value)}
@@ -161,6 +175,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
             <LocalizedDateInput
               ariaLabel="Tarih"
               className={fieldClass(!!errors.date, "form-input")}
+              disabled={!canManage}
               inputRef={dateRegistration.ref}
               lang={dateInputLang}
               name={dateRegistration.name}
@@ -178,6 +193,7 @@ export function NewPaymentModal({ open, onClose, onSubmit }: NewPaymentModalProp
             <label className="form-label">Not</label>
             <textarea
               className="form-input"
+              disabled={!canManage}
               placeholder="Ödeme notu (opsiyonel)"
               rows={3}
               {...register("note")}

@@ -92,6 +92,24 @@ describe("DocumentTypesPage", () => {
     expect(createDocumentTypeMock).not.toHaveBeenCalled();
   });
 
+  it("disables editing for non-super-admin users even with document permissions", async () => {
+    renderWithProviders(<DocumentTypesPage />, {
+      auth: {
+        user: {
+          id: "document-manager",
+          phone: "5000000001",
+          name: "Document Manager",
+          roleName: "Evrak",
+          isSuperAdmin: false,
+        },
+        permissions: { documents: "full", documentTypes: "full" },
+      },
+    });
+    await waitFor(() => expect(screen.getByText("Nüfus Cüzdanı")).toBeInTheDocument());
+
+    expect(screen.getByRole("button", { name: /Düzenle/i })).toBeDisabled();
+  });
+
   it("submits canonical english payload when editing", async () => {
     renderWithProviders(<DocumentTypesPage />);
     await waitFor(() => expect(screen.getByText("Nüfus Cüzdanı")).toBeInTheDocument());

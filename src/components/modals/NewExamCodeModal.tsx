@@ -12,16 +12,19 @@ type NewExamCodeForm = {
 
 type NewExamCodeModalProps = {
   open: boolean;
+  canManage?: boolean;
   onClose: () => void;
   onSaved: () => void;
 };
 
 export function NewExamCodeModal({
   open,
+  canManage = true,
   onClose,
   onSaved,
 }: NewExamCodeModalProps) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const inputId = useId();
   const {
@@ -40,6 +43,7 @@ export function NewExamCodeModal({
   }, [open, reset]);
 
   const submit = handleSubmit(async (data) => {
+    if (!canManage) return;
     const cleaned = data.code.replace(/\D/g, "");
     if (cleaned.length !== 9) {
       setError("code", { message: "Sınav kodu 9 haneli olmalı." });
@@ -69,7 +73,13 @@ export function NewExamCodeModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             İptal
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>
@@ -86,6 +96,7 @@ export function NewExamCodeModal({
             </label>
             <input
               className={errors.code ? "form-input error" : "form-input"}
+              disabled={!canManage}
               id={inputId}
               inputMode="numeric"
               maxLength={9}

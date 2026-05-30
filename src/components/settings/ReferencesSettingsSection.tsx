@@ -10,9 +10,14 @@ import {
   updateCandidateReference,
   type CandidateReferenceResponse,
 } from "../../lib/candidate-references-api";
+import { useAuth } from "../../lib/auth";
+import { canManageArea } from "../../lib/permissions";
 
 export function ReferencesSettingsSection() {
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageCandidates = canManageArea(user, permissions, "candidates");
+  const noPermissionTitle = "Yetkiniz yok.";
   const [items, setItems] = useState<CandidateReferenceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -44,6 +49,7 @@ export function ReferencesSettingsSection() {
   const refresh = () => setRefreshKey((value) => value + 1);
 
   const handleCreate = async () => {
+    if (!canManageCandidates) return;
     const trimmed = newName.trim();
     if (!trimmed) return;
     setSaving(true);
@@ -68,6 +74,7 @@ export function ReferencesSettingsSection() {
   };
 
   const startEdit = (item: CandidateReferenceResponse) => {
+    if (!canManageCandidates) return;
     setEditing(item);
     setEditName(item.name);
     setEditActive(item.isActive);
@@ -79,6 +86,7 @@ export function ReferencesSettingsSection() {
   };
 
   const handleSaveEdit = async () => {
+    if (!canManageCandidates) return;
     if (!editing) return;
     const trimmed = editName.trim();
     if (!trimmed) return;
@@ -101,6 +109,7 @@ export function ReferencesSettingsSection() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canManageCandidates) return;
     setDeletingId(id);
     try {
       await deleteCandidateReference(id);
@@ -133,11 +142,16 @@ export function ReferencesSettingsSection() {
         <div className="settings-surface-header">
           <div className="settings-surface-title">Referans Listesi</div>
           {!creating ? (
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => setCreating(true)}
-              type="button"
-            >
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={!canManageCandidates}
+            onClick={() => {
+              if (!canManageCandidates) return;
+              setCreating(true);
+            }}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
+            type="button"
+          >
               Yeni Referans
             </button>
           ) : null}
@@ -148,6 +162,7 @@ export function ReferencesSettingsSection() {
             <input
               autoFocus
               className="form-input"
+              disabled={!canManageCandidates}
               onChange={(event) => setNewName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") void handleCreate();
@@ -161,8 +176,9 @@ export function ReferencesSettingsSection() {
             />
             <button
               className="btn btn-primary btn-sm"
-              disabled={saving || !newName.trim()}
+              disabled={!canManageCandidates || saving || !newName.trim()}
               onClick={() => void handleCreate()}
+              title={!canManageCandidates ? noPermissionTitle : undefined}
               type="button"
             >
               Ekle
@@ -211,6 +227,7 @@ export function ReferencesSettingsSection() {
                         <input
                           autoFocus
                           className="form-input"
+                          disabled={!canManageCandidates}
                           onChange={(event) => setEditName(event.target.value)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") void handleSaveEdit();
@@ -227,6 +244,7 @@ export function ReferencesSettingsSection() {
                         <label className="switch-toggle switch-toggle-sm">
                           <input
                             checked={editActive}
+                            disabled={!canManageCandidates}
                             onChange={(event) => setEditActive(event.target.checked)}
                             type="checkbox"
                           />
@@ -245,8 +263,9 @@ export function ReferencesSettingsSection() {
                         <>
                           <button
                             className="btn btn-primary btn-sm"
-                            disabled={saving || !editName.trim()}
+                            disabled={!canManageCandidates || saving || !editName.trim()}
                             onClick={() => void handleSaveEdit()}
+                            title={!canManageCandidates ? noPermissionTitle : undefined}
                             type="button"
                           >
                             Kaydet
@@ -264,8 +283,9 @@ export function ReferencesSettingsSection() {
                         <>
                           <button
                             className="btn btn-danger btn-sm"
-                            disabled={deletingId === item.id}
+                            disabled={!canManageCandidates || deletingId === item.id}
                             onClick={() => void handleDelete(item.id)}
+                            title={!canManageCandidates ? noPermissionTitle : undefined}
                             type="button"
                           >
                             Sil
@@ -283,16 +303,21 @@ export function ReferencesSettingsSection() {
                         <>
                           <button
                             className="icon-button"
+                            disabled={!canManageCandidates}
                             onClick={() => startEdit(item)}
-                            title="Düzenle"
+                            title={!canManageCandidates ? noPermissionTitle : "Düzenle"}
                             type="button"
                           >
                             <PencilIcon size={16} />
                           </button>
                           <button
                             className="icon-button"
-                            onClick={() => setConfirmDeleteId(item.id)}
-                            title="Sil"
+                            disabled={!canManageCandidates}
+                            onClick={() => {
+                              if (!canManageCandidates) return;
+                              setConfirmDeleteId(item.id);
+                            }}
+                            title={!canManageCandidates ? noPermissionTitle : "Sil"}
                             type="button"
                           >
                             <TrashIcon size={16} />

@@ -551,6 +551,39 @@ describe("CandidatesPage tabs", () => {
     expect(groups.findIndex((group) => group.contains(movedDivider))).toBe(1);
   });
 
+  it("keeps exam schedule row mutations disabled when management is not allowed", () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+
+    renderWithProviders(
+      <CandidateExamDateSidebar
+        canManageMutations={false}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onSelect={vi.fn()}
+        options={[examScheduleOption("2026-05-25", { candidateCount: 3 })]}
+        selectedDate=""
+        title="E-Sınav Tarihi"
+      />
+    );
+
+    const editButton = screen.getByRole("button", { name: /25\.05\.2026 sınav tarihini düzenle/i });
+    const deleteButton = screen.getByRole("button", { name: /25\.05\.2026 sınav tarihini sil/i });
+
+    expect(editButton).toBeDisabled();
+    expect(editButton).toHaveAttribute("title", "Yetkiniz yok.");
+    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toHaveAttribute("title", "Yetkiniz yok.");
+
+    fireEvent.click(editButton);
+    fireEvent.click(deleteButton);
+
+    expect(screen.queryByRole("button", { name: /25\.05\.2026 sınav tarihini kaydet/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Bu tarihi sil/i })).not.toBeInTheDocument();
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
   it("moves e-sinav from havuz to randevulu when a date is selected", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-05-12", { candidateCount: 3 }),

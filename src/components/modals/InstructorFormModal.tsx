@@ -35,6 +35,7 @@ type InstructorFormValues = {
 type InstructorFormModalProps = {
   open: boolean;
   editing: InstructorResponse | null;
+  canManage?: boolean;
   onClose: () => void;
   onSaved: (saved: InstructorResponse) => void;
   onConcurrencyConflict?: () => void;
@@ -140,12 +141,14 @@ function getEmptyValues(editing: InstructorResponse | null): InstructorFormValue
 export function InstructorFormModal({
   open,
   editing,
+  canManage = true,
   onClose,
   onSaved,
   onConcurrencyConflict,
 }: InstructorFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoInstructor, setPhotoInstructor] = useState<InstructorResponse | null>(editing);
@@ -196,6 +199,7 @@ export function InstructorFormModal({
   }, [editing, licenseClassOptions, open, selectedLicenseClassCodes, setValue]);
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
     setSubmitting(true);
 
     const payload: InstructorUpsertRequest = {
@@ -242,6 +246,7 @@ export function InstructorFormModal({
   const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
+    if (!canManage) return;
     if (!file || !photoInstructor) return;
 
     setPhotoBusy(true);
@@ -257,6 +262,7 @@ export function InstructorFormModal({
   };
 
   const handlePhotoDelete = async () => {
+    if (!canManage) return;
     if (!photoInstructor || !photoInstructor.hasPhoto) return;
     setPhotoBusy(true);
     try {
@@ -277,7 +283,13 @@ export function InstructorFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             İptal
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>
@@ -300,7 +312,7 @@ export function InstructorFormModal({
                 {photoBusy ? "Yükleniyor..." : photoInstructor.hasPhoto ? "Değiştir" : "Resim Yükle"}
                 <input
                   accept="image/jpeg,image/png,image/webp"
-                  disabled={photoBusy}
+                  disabled={photoBusy || !canManage}
                   hidden
                   onChange={handlePhotoChange}
                   type="file"
@@ -309,8 +321,9 @@ export function InstructorFormModal({
               {photoInstructor.hasPhoto ? (
                 <button
                   className="btn btn-link btn-sm btn-link-danger"
-                  disabled={photoBusy}
+                  disabled={photoBusy || !canManage}
                   onClick={handlePhotoDelete}
+                  title={!canManage ? noPermissionTitle : undefined}
                   type="button"
                 >
                   Kaldır

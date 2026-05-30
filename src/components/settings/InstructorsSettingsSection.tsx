@@ -10,6 +10,8 @@ import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
+import { useAuth } from "../../lib/auth";
+import { canManageArea } from "../../lib/permissions";
 import {
   deleteInstructor,
   getInstructors,
@@ -253,6 +255,9 @@ export function InstructorsSettingsSection() {
   const t = useT();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageTraining = canManageArea(user, permissions, "training");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.instructors.columns.v2",
     INSTRUCTOR_COLUMN_IDS,
@@ -406,6 +411,7 @@ export function InstructorsSettingsSection() {
   };
 
   const handleDelete = async (instructor: InstructorResponse) => {
+    if (!canManageTraining) return;
     setDeletingInstructorId(instructor.id);
     try {
       await deleteInstructor(instructor.id);
@@ -477,10 +483,13 @@ export function InstructorsSettingsSection() {
               ) : null}
               <button
                 className="btn btn-primary btn-sm"
+                disabled={!canManageTraining}
                 onClick={() => {
+                  if (!canManageTraining) return;
                   setEditing(null);
                   setFormOpen(true);
                 }}
+                title={!canManageTraining ? noPermissionTitle : undefined}
                 type="button"
               >
                 <PlusIcon size={14} />
@@ -595,8 +604,9 @@ export function InstructorsSettingsSection() {
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
-                                disabled={deletingInstructorId === item.id}
+                                disabled={deletingInstructorId === item.id || !canManageTraining}
                                 onClick={() => handleDelete(item)}
+                                title={!canManageTraining ? noPermissionTitle : undefined}
                                 type="button"
                               >
                                 {deletingInstructorId === item.id ? t("settings.instructors.actions.deleting") : t("common.delete")}
@@ -607,11 +617,13 @@ export function InstructorsSettingsSection() {
                               <button
                                 aria-label={t("common.edit")}
                                 className="icon-btn"
+                                disabled={!canManageTraining}
                                 onClick={() => {
+                                  if (!canManageTraining) return;
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title={t("common.edit")}
+                                title={!canManageTraining ? noPermissionTitle : t("common.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
@@ -619,9 +631,12 @@ export function InstructorsSettingsSection() {
                               <button
                                 aria-label={t("common.delete")}
                                 className="icon-btn icon-btn-danger"
-                                disabled={deletingInstructorId !== null}
-                                onClick={() => setConfirmDeleteInstructorId(item.id)}
-                                title={t("common.delete")}
+                                disabled={deletingInstructorId !== null || !canManageTraining}
+                                onClick={() => {
+                                  if (!canManageTraining) return;
+                                  setConfirmDeleteInstructorId(item.id);
+                                }}
+                                title={!canManageTraining ? noPermissionTitle : t("common.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -653,6 +668,7 @@ export function InstructorsSettingsSection() {
       </div>
 
       <InstructorFormModal
+        canManage={canManageTraining}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

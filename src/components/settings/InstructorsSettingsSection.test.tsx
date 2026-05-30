@@ -99,11 +99,12 @@ function createBranch(code: string, name: string, displayOrder: number) {
   };
 }
 
-function renderSection() {
+function renderSection(auth?: NonNullable<Parameters<typeof renderWithProviders>[1]>["auth"]) {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/settings/definitions/instructors"]}>
       <InstructorsSettingsSection />
-    </MemoryRouter>
+    </MemoryRouter>,
+    { auth }
   );
 }
 
@@ -313,6 +314,35 @@ describe("InstructorsSettingsSection", () => {
     await waitFor(() => {
       expect(deleteInstructorMock).toHaveBeenCalledWith("i1");
     });
+  });
+
+  it("disables management actions for training view-only users", async () => {
+    renderSection({
+      user: {
+        id: "readonly-user",
+        phone: "5000000001",
+        name: "Read Only",
+        roleName: "Eğitim",
+        isSuperAdmin: false,
+      },
+      permissions: { training: "view" },
+    });
+    await screen.findByText("HASAN KORKMAZ");
+
+    expect(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Düzenle" })).toBeDisabled();
+    const deleteButton = screen.getByRole("button", { name: "Sil" });
+    expect(deleteButton).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
+    fireEvent.click(deleteButton);
+
+    expect(screen.queryByRole("button", { name: "Vazgeç" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(createInstructorMock).not.toHaveBeenCalled();
+    expect(updateInstructorMock).not.toHaveBeenCalled();
+    expect(deleteInstructorMock).not.toHaveBeenCalled();
   });
 
   it("submits canonical payload when creating", async () => {

@@ -11,10 +11,12 @@ import { CustomSelect } from "../components/ui/CustomSelect";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import { parseGroupTitle } from "../lib/group-code";
 import { getGroups } from "../lib/groups-api";
 import { ApiError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
+import { canManageArea } from "../lib/permissions";
 import { normalizeTextQuery } from "../lib/search";
 import {
   formatDateTR,
@@ -201,7 +203,10 @@ function compareGroupsByTitle(
 export function GroupsPage() {
   const { showToast } = useToast();
   const t = useT();
+  const { user, permissions } = useAuth();
   const { lang } = useLanguage();
+  const canManageGroups = canManageArea(user, permissions, "groups");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "groups.columns.v2",
     GROUP_COLUMN_IDS,
@@ -278,10 +283,12 @@ export function GroupsPage() {
   };
 
   const handleTermRename = (term: TermResponse) => {
+    if (!canManageGroups) return;
     setTermModalState({ mode: "edit", term });
   };
 
   const handleTermDeleteConfirm = async (term: TermResponse) => {
+    if (!canManageGroups) return;
     setDeletingTerm(true);
     try {
       await deleteTerm(term.id);
@@ -646,7 +653,9 @@ export function GroupsPage() {
           <>
             <button
               className="btn btn-secondary btn-sm"
+              disabled={!canManageGroups}
               onClick={() => setTermModalState({ mode: "create", term: null })}
+              title={!canManageGroups ? noPermissionTitle : undefined}
               type="button"
             >
               <PlusIcon size={14} />
@@ -654,7 +663,9 @@ export function GroupsPage() {
             </button>
             <button
               className="btn btn-primary btn-sm"
+              disabled={!canManageGroups}
               onClick={() => setModalOpen(true)}
+              title={!canManageGroups ? noPermissionTitle : undefined}
               type="button"
             >
               <PlusIcon size={14} />
@@ -687,14 +698,18 @@ export function GroupsPage() {
                 <>
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageGroups}
                     onClick={() => handleTermRename(selectedTerm)}
+                    title={!canManageGroups ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("terms.edit")}
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
+                    disabled={!canManageGroups}
                     onClick={() => setConfirmDeleteTermId(selectedTerm.id)}
+                    title={!canManageGroups ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("terms.delete")}
@@ -833,6 +848,7 @@ export function GroupsPage() {
       )}
 
       <NewGroupModal
+        canManage={canManageGroups}
         initialTermId={selectedTermId || null}
         onClose={() => setModalOpen(false)}
         onSubmit={handleGroupCreated}
@@ -840,6 +856,7 @@ export function GroupsPage() {
       />
 
       <NewTermModal
+        canManage={canManageGroups}
         onClose={() => setTermModalState(null)}
         onSaved={termModalState?.mode === "edit" ? handleTermSaved : handleTermCreated}
         open={termModalState !== null}
@@ -848,6 +865,7 @@ export function GroupsPage() {
 
       <GroupDrawer
         groupId={selectedGroupId}
+        canManageGroups={canManageGroups}
         onClose={() => setSelectedGroupId(null)}
         onDeleted={handleGroupDeleted}
         onUpdated={handleGroupUpdated}

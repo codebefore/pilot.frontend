@@ -20,8 +20,10 @@ import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
 import { TaskItem } from "../components/ui/TaskItem";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import type { AuthInstitution } from "../lib/auth-storage";
 import { useT } from "../lib/i18n";
+import { canManageArea, canViewArea } from "../lib/permissions";
 import { useSidebarStats } from "../lib/sidebar-stats";
 import { getDashboardOverview } from "../lib/stats-api";
 import type { DashboardMebJobResponse, DashboardOverviewResponse } from "../lib/types";
@@ -47,6 +49,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
   const navigate = useNavigate();
   const t = useT();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
   const { stats, loading: statsLoading } = useSidebarStats();
   const [dashboard, setDashboard] = useState<DashboardOverviewResponse>({
     pendingTasks: [],
@@ -66,6 +69,10 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
   });
   const [newCandidateOpen, setNewCandidateOpen] = useState(false);
   const [newPaymentOpen, setNewPaymentOpen] = useState(false);
+  const canManageCandidates = canManageArea(user, permissions, "candidates");
+  const canManagePayments = canManageArea(user, permissions, "payments");
+  const canViewMebJobs = canViewArea(user, permissions, "mebjobs");
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const mebAttention = stats.mebJobs.failed + stats.mebJobs.manualReview;
   const displayName = userName?.trim() || "Pilot";
@@ -339,7 +346,12 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
             <div className="quick-actions">
               <button
                 className="btn btn-primary btn-block"
-                onClick={() => setNewCandidateOpen(true)}
+                disabled={!canManageCandidates}
+                onClick={() => {
+                  if (!canManageCandidates) return;
+                  setNewCandidateOpen(true);
+                }}
+                title={!canManageCandidates ? noPermissionTitle : undefined}
                 type="button"
               >
                 <PlusIcon size={14} />
@@ -347,7 +359,12 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
               </button>
               <button
                 className="btn btn-secondary btn-block"
-                onClick={() => setNewPaymentOpen(true)}
+                disabled={!canManagePayments}
+                onClick={() => {
+                  if (!canManagePayments) return;
+                  setNewPaymentOpen(true);
+                }}
+                title={!canManagePayments ? noPermissionTitle : undefined}
                 type="button"
               >
                 <PaymentsIcon />
@@ -355,7 +372,12 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
               </button>
               <button
                 className="btn btn-secondary btn-block"
-                onClick={() => navigate("/meb-jobs")}
+                disabled={!canViewMebJobs}
+                onClick={() => {
+                  if (!canViewMebJobs) return;
+                  navigate("/meb-jobs");
+                }}
+                title={!canViewMebJobs ? noPermissionTitle : undefined}
                 type="button"
               >
                 <MebIcon />
@@ -367,6 +389,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
       </div>
 
       <NewCandidateModal
+        canManage={canManageCandidates}
         onClose={() => setNewCandidateOpen(false)}
         onSubmit={() => {
           setNewCandidateOpen(false);
@@ -376,6 +399,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
       />
 
       <NewPaymentModal
+        canManage={canManagePayments}
         onClose={() => setNewPaymentOpen(false)}
         onSubmit={() => {
           setNewPaymentOpen(false);

@@ -18,6 +18,8 @@ import {
   createCashTransfer,
   getPaymentsOverview,
 } from "../lib/payments-api";
+import { useAuth } from "../lib/auth";
+import { canManageArea } from "../lib/permissions";
 import { formatDateTR } from "../lib/status-maps";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useToast } from "../components/ui/Toast";
@@ -1163,6 +1165,9 @@ function cashMovementTypeLabel(type: string): string {
 
 export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManagePayments = canManageArea(user, permissions, "payments");
+  const noPermissionTitle = "Yetkiniz yok.";
   const isBalancesPage = mode === "balances";
   const isCollectionsPage = mode === "collections";
   const isInvoicesPage = mode === "invoices";
@@ -2391,6 +2396,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   };
 
   const saveCashAction = async (payload: CashActionSubmitPayload) => {
+    if (!canManagePayments) return;
     try {
       setCashActionSaving(true);
       if (payload.mode === "transfer") {
@@ -3178,21 +3184,36 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   <div className="finance-cash-actions" aria-label="Kasa aksiyonları">
                     <button
                       className="finance-cash-action finance-cash-action--inflow"
-                      onClick={() => setCashActionMode("inflow")}
+                      disabled={!canManagePayments}
+                      onClick={() => {
+                        if (!canManagePayments) return;
+                        setCashActionMode("inflow");
+                      }}
+                      title={!canManagePayments ? noPermissionTitle : undefined}
                       type="button"
                     >
                       Giriş
                     </button>
                     <button
                       className="finance-cash-action"
-                      onClick={() => setCashActionMode("outflow")}
+                      disabled={!canManagePayments}
+                      onClick={() => {
+                        if (!canManagePayments) return;
+                        setCashActionMode("outflow");
+                      }}
+                      title={!canManagePayments ? noPermissionTitle : undefined}
                       type="button"
                     >
                       Çıkış
                     </button>
                     <button
                       className="finance-cash-action"
-                      onClick={() => setCashActionMode("transfer")}
+                      disabled={!canManagePayments}
+                      onClick={() => {
+                        if (!canManagePayments) return;
+                        setCashActionMode("transfer");
+                      }}
+                      title={!canManagePayments ? noPermissionTitle : undefined}
                       type="button"
                     >
                       Transfer
@@ -4380,6 +4401,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             onClose={() => setCashActionMode(null)}
             onSubmit={saveCashAction}
             registers={cashActionRegisters}
+            canManagePayments={canManagePayments}
           />
         </>
       )}
@@ -4395,6 +4417,7 @@ type CashActionRegisterOption = {
 
 type CashActionModalProps = {
   mode: CashActionMode | null;
+  canManagePayments?: boolean;
   onClose: () => void;
   onSubmit: (payload: CashActionSubmitPayload) => void;
   registers: CashActionRegisterOption[];
@@ -4418,7 +4441,14 @@ type CashActionSubmitPayload =
       note: string | null;
     };
 
-function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashActionModalProps) {
+function CashActionModal({
+  mode,
+  canManagePayments = true,
+  onClose,
+  onSubmit,
+  registers,
+  saving,
+}: CashActionModalProps) {
   const [date, setDate] = useState(todayDateInput);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -4435,6 +4465,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
       : "Transfer";
   const parsedAmount = Number(amount);
   const canSubmit =
+    canManagePayments &&
     Boolean(mode) &&
     parsedAmount > 0 &&
     Boolean(date) &&
@@ -4486,6 +4517,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
               }
             }}
             type="button"
+            title={!canManagePayments ? "Yetkiniz yok." : undefined}
           >
             {saving ? "Kaydediliyor..." : "Kaydet"}
           </button>
@@ -4504,6 +4536,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
               <label className="form-label">Çıkış Kasası</label>
               <CustomSelect
                 className="form-select"
+                disabled={!canManagePayments}
                 onChange={(event) => setSourceCashRegisterId(event.target.value)}
                 value={sourceCashRegisterId}
               >
@@ -4518,6 +4551,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
               <label className="form-label">Giriş Kasası</label>
               <CustomSelect
                 className="form-select"
+                disabled={!canManagePayments}
                 onChange={(event) => setTargetCashRegisterId(event.target.value)}
                 value={targetCashRegisterId}
               >
@@ -4535,6 +4569,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
               <label className="form-label">Kasa</label>
               <CustomSelect
                 className="form-select"
+                disabled={!canManagePayments}
                 onChange={(event) => setCashRegisterId(event.target.value)}
                 value={cashRegisterId}
               >
@@ -4553,6 +4588,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
             <label className="form-label">Tutar</label>
             <input
               className="form-input"
+              disabled={!canManagePayments}
               min="0"
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0"
@@ -4566,6 +4602,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
             <LocalizedDateInput
               ariaLabel="Tarih"
               className="form-input"
+              disabled={!canManagePayments}
               name="cash-action-date"
               onChange={setDate}
               value={date}
@@ -4577,6 +4614,7 @@ function CashActionModal({ mode, onClose, onSubmit, registers, saving }: CashAct
           <label className="form-label">Açıklama</label>
           <textarea
             className="form-input"
+            disabled={!canManagePayments}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Açıklama"
             rows={3}

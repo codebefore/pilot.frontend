@@ -36,6 +36,7 @@ type LicenseClassDefinitionFormValues = {
 
 type LicenseClassDefinitionFormModalProps = {
   open: boolean;
+  canManage?: boolean;
   editing: LicenseClassDefinitionResponse | null;
   onClose: () => void;
   onSaved: (saved: LicenseClassDefinitionResponse) => void;
@@ -181,6 +182,7 @@ function validateOptionalInteger(value: string, min: number, max: number, messag
 
 export function LicenseClassDefinitionFormModal({
   open,
+  canManage = true,
   editing,
   onClose,
   onSaved,
@@ -188,6 +190,7 @@ export function LicenseClassDefinitionFormModal({
 }: LicenseClassDefinitionFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
 
@@ -238,6 +241,8 @@ export function LicenseClassDefinitionFormModal({
   }, [existingLicensePre2016, hasExistingLicense, open, setValue]);
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
+
     setSubmitting(true);
 
     const payload: LicenseClassDefinitionUpsertRequest = {
@@ -294,7 +299,13 @@ export function LicenseClassDefinitionFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             İptal
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>

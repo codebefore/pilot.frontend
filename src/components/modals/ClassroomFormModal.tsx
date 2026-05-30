@@ -24,6 +24,7 @@ type ClassroomFormValues = {
 type ClassroomFormModalProps = {
   open: boolean;
   editing: ClassroomResponse | null;
+  canManage?: boolean;
   onClose: () => void;
   onSaved: (saved: ClassroomResponse) => void;
   onConcurrencyConflict?: () => void;
@@ -113,12 +114,14 @@ function applyServerFieldErrors(
 export function ClassroomFormModal({
   open,
   editing,
+  canManage = true,
   onClose,
   onSaved,
   onConcurrencyConflict,
 }: ClassroomFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
@@ -160,6 +163,7 @@ export function ClassroomFormModal({
   }, [open, showToast, t]);
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
     setSubmitting(true);
 
     const capacityValue = Number.parseInt(values.capacity, 10);
@@ -207,7 +211,13 @@ export function ClassroomFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             {t("settings.classrooms.form.cancel")}
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? t("settings.classrooms.form.saving") : t("settings.classrooms.form.save")}
           </button>
         </>

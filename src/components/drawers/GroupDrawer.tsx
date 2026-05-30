@@ -37,12 +37,13 @@ import { useToast } from "../ui/Toast";
 
 type GroupDrawerProps = {
   groupId: string | null;
+  canManageGroups?: boolean;
   onClose: () => void;
   onUpdated?: () => void;
   onDeleted?: () => void;
 };
 
-export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
+export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
   const t = useT();
   const { lang } = useLanguage();
@@ -155,6 +156,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
   };
 
   const saveField = async (patch: Partial<GroupUpdateRequest>) => {
+    if (!canManageGroups) return;
     if (!group || !groupId || !group.startDate) return;
     try {
       const updated = await updateGroup(groupId, {
@@ -190,6 +192,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
   };
 
   const handleRemoveCandidate = async (candidateId: string) => {
+    if (!canManageGroups) return;
     if (!groupId) return;
     setRemoving(candidateId);
     try {
@@ -203,6 +206,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
   };
 
   const handleAddCandidate = async (candidateId: string) => {
+    if (!canManageGroups) return;
     if (!groupId) return;
     setAdding(candidateId);
     try {
@@ -218,6 +222,7 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
   };
 
   const handleDeleteConfirm = async () => {
+    if (!canManageGroups) return;
     if (!groupId) return;
     setDeleting(true);
     try {
@@ -245,7 +250,8 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
 
   if (!groupId) return null;
 
-  const canEdit = true;
+  const canEdit = canManageGroups;
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const title = loading
     ? "Grup Detayı"
@@ -267,8 +273,9 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
       </button>
       <button
         className="btn btn-danger btn-sm"
-        disabled={deleting}
+        disabled={deleting || !canManageGroups}
         onClick={handleDeleteConfirm}
+        title={!canManageGroups ? noPermissionTitle : undefined}
         type="button"
       >
         {deleting ? "Siliniyor..." : "Evet, Sil"}
@@ -277,8 +284,12 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
   ) : (
     <button
       className="btn btn-danger btn-sm"
-      disabled={loading}
-      onClick={() => setConfirmDelete(true)}
+      disabled={loading || !canManageGroups}
+      onClick={() => {
+        if (!canManageGroups) return;
+        setConfirmDelete(true);
+      }}
+      title={!canManageGroups ? noPermissionTitle : undefined}
       type="button"
     >
       Grup Sil
@@ -296,6 +307,8 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
           <DrawerSection title="Grup Bilgileri">
             <GroupCodeEditableRow
               title={group.title}
+              disabled={!canManageGroups}
+              disabledTitle={noPermissionTitle}
               onSave={(groupNumber, groupBranch) =>
                 saveField({
                   groupNumber: Number(groupNumber),
@@ -307,6 +320,8 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
               displayValue={buildTermLabel(group.term, sortedTerms, lang)}
               inputValue={group.term.id}
               label="Dönem"
+              disabled={!canManageGroups}
+              disabledTitle={noPermissionTitle}
               options={termOptions}
               onSave={(v) => saveField({ termId: v })}
             />
@@ -315,6 +330,8 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
               inputType="number"
               inputValue={String(group.capacity)}
               label="Kapasite"
+              disabled={!canManageGroups}
+              disabledTitle={noPermissionTitle}
               onSave={(v) => saveField({ capacity: Number(v) })}
             />
             <EditableRow
@@ -323,12 +340,16 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
               inputType="date"
               inputValue={group.startDate ?? ""}
               label="Başlangıç"
+              disabled={!canManageGroups}
+              disabledTitle={noPermissionTitle}
               onSave={(v) => saveField({ startDate: v })}
             />
             <EditableRow
               displayValue={groupMebStatusLabel(group.mebStatus)}
               inputValue={normalizeGroupMebStatusValue(group.mebStatus) ?? ""}
               label="MEB Durumu"
+              disabled={!canManageGroups}
+              disabledTitle={noPermissionTitle}
               options={GROUP_MEB_STATUS_OPTIONS}
               onSave={(v) => saveField({ mebStatus: v })}
             />
@@ -345,27 +366,29 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
                     {c.firstName} {c.lastName}
                     <span className="candidate-tc">{c.nationalId}</span>
                   </span>
-                  {canEdit && (
-                    <button
-                      className="icon-btn"
-                      disabled={removing === c.candidateId}
-                      onClick={() => handleRemoveCandidate(c.candidateId)}
-                      title="Gruptan Çıkar"
-                      type="button"
-                    >
-                      <XIcon size={13} />
-                    </button>
-                  )}
+                  <button
+                    className="icon-btn"
+                    disabled={removing === c.candidateId || !canEdit}
+                    onClick={() => handleRemoveCandidate(c.candidateId)}
+                    title={!canEdit ? noPermissionTitle : "Gruptan Çıkar"}
+                    type="button"
+                  >
+                    <XIcon size={13} />
+                  </button>
                 </div>
               ))
             )}
 
-            {canEdit && (
             <div className="candidate-search-add">
               {!searchOpen ? (
                 <button
                   className="btn btn-secondary btn-sm candidate-add-btn"
-                  onClick={() => setSearchOpen(true)}
+                  disabled={!canEdit}
+                  onClick={() => {
+                    if (!canEdit) return;
+                    setSearchOpen(true);
+                  }}
+                  title={!canEdit ? noPermissionTitle : undefined}
                   type="button"
                 >
                   <PlusIcon size={12} />
@@ -402,8 +425,9 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
                       {searchResults.map((c) => (
                         <li key={c.id}>
                           <button
-                            disabled={adding === c.id}
+                            disabled={adding === c.id || !canEdit}
                             onClick={() => handleAddCandidate(c.id)}
+                            title={!canEdit ? noPermissionTitle : undefined}
                             type="button"
                           >
                             <span className="candidate-name">{c.firstName} {c.lastName}</span>
@@ -419,7 +443,6 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
                 </div>
               )}
             </div>
-            )}
           </DrawerSection>
         </>
       ) : loadError ? (
@@ -436,10 +459,12 @@ export function GroupDrawer({ groupId, onClose, onUpdated, onDeleted }: GroupDra
 
 type GroupCodeEditableRowProps = {
   title: string;
+  disabled?: boolean;
+  disabledTitle?: string;
   onSave: (groupNumber: string, groupBranch: string) => Promise<void>;
 };
 
-function GroupCodeEditableRow({ title, onSave }: GroupCodeEditableRowProps) {
+function GroupCodeEditableRow({ title, disabled = false, disabledTitle, onSave }: GroupCodeEditableRowProps) {
   const initialCode = parseGroupTitle(title);
   const [editing, setEditing] = useState(false);
   const [groupNumber, setGroupNumber] = useState(initialCode?.groupNumber ?? GROUP_NUMBER_VALUES[0]);
@@ -459,6 +484,7 @@ function GroupCodeEditableRow({ title, onSave }: GroupCodeEditableRowProps) {
   }, [title]);
 
   const startEdit = () => {
+    if (disabled) return;
     const next = parseGroupTitle(title);
     if (!next) {
       return;
@@ -552,7 +578,13 @@ function GroupCodeEditableRow({ title, onSave }: GroupCodeEditableRowProps) {
         <span className="editable-row-view">
           <span className="value">{title || "—"}</span>
           {isEditable ? (
-            <button className="icon-btn edit-trigger" onClick={startEdit} title="Düzenle" type="button">
+            <button
+              className="icon-btn edit-trigger"
+              disabled={disabled}
+              onClick={startEdit}
+              title={disabled ? disabledTitle : "Düzenle"}
+              type="button"
+            >
               <PencilIcon size={12} />
             </button>
           ) : null}

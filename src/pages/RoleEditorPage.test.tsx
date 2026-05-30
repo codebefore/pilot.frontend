@@ -56,4 +56,40 @@ describe("RoleEditorPage", () => {
       });
     });
   });
+
+  it("does not create a role for permissions view-only users", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/settings/definitions/permissions/roles/new"]}>
+        <Routes>
+          <Route
+            element={<RoleEditorPage />}
+            path="/settings/definitions/permissions/roles/new"
+          />
+        </Routes>
+      </MemoryRouter>,
+      {
+        auth: {
+          user: {
+            id: "viewer",
+            phone: "5073737262",
+            name: "Finans",
+            roleName: "finans",
+            isSuperAdmin: false,
+          },
+          permissions: { permissions: "view" },
+        },
+      }
+    );
+
+    const saveButton = screen.getByRole("button", { name: "Kaydet" });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("title", "Yetkiniz yok.");
+
+    fireEvent.submit(document.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(createRoleMock).not.toHaveBeenCalled();
+      expect(updateRoleMock).not.toHaveBeenCalled();
+    });
+  });
 });

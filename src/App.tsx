@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { Header } from "./components/layout/Header";
@@ -6,6 +6,7 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider } from "./lib/i18n";
+import { canViewAnyArea, firstAllowedTenantPath, settingsPermissionAreas } from "./lib/permissions";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
 import { ThemeProvider } from "./lib/theme";
 
@@ -26,6 +27,35 @@ const TrainingPage = lazy(() => import("./pages/TrainingPage").then((m) => ({ de
 
 function RouteFallback() {
   return <div className="page-loading">Yükleniyor...</div>;
+}
+
+function RequireTenantPermission({
+  areas,
+  children,
+}: {
+  areas: readonly string[];
+  children: ReactElement;
+}) {
+  const { user, permissions } = useAuth();
+  const location = useLocation();
+
+  if (canViewAnyArea(user, permissions, areas)) {
+    return children;
+  }
+
+  const fallbackPath = firstAllowedTenantPath(user, permissions);
+  if (fallbackPath && fallbackPath !== location.pathname) {
+    return <Navigate replace to={fallbackPath} />;
+  }
+
+  return (
+    <div className="page-shell">
+      <section className="empty-state">
+        <h2>Yetkiniz yok</h2>
+        <p>Bu ekrana erişmek için gerekli yetkiye sahip değilsiniz.</p>
+      </section>
+    </div>
+  );
 }
 
 function isFeesRoute(pathname: string) {
@@ -108,29 +138,145 @@ export function AppShell() {
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route
-                element={<DashboardPage activeInstitution={activeInstitution} userName={user?.name ?? null} />}
+                element={
+                  <RequireTenantPermission areas={["dashboard"]}>
+                    <DashboardPage activeInstitution={activeInstitution} userName={user?.name ?? null} />
+                  </RequireTenantPermission>
+                }
                 path="/"
               />
-              <Route element={<CandidatesPage />} path="/candidates" />
-              <Route element={<CandidateDetailPage />} path="/candidates/:candidateId" />
-              <Route element={<GroupsPage />}     path="/groups" />
-              <Route element={<DocumentsPage />}  path="/documents" />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["candidates"]}>
+                    <CandidatesPage />
+                  </RequireTenantPermission>
+                }
+                path="/candidates"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["candidates"]}>
+                    <CandidateDetailPage />
+                  </RequireTenantPermission>
+                }
+                path="/candidates/:candidateId"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["groups"]}>
+                    <GroupsPage />
+                  </RequireTenantPermission>
+                }
+                path="/groups"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["documents"]}>
+                    <DocumentsPage />
+                  </RequireTenantPermission>
+                }
+                path="/documents"
+              />
               <Route element={<Navigate replace to="/payments/balances" />} path="/payments" />
-              <Route element={<PaymentsPage mode="balances" />} path="/payments/balances" />
-              <Route element={<PaymentsPage mode="collections" />} path="/payments/collections" />
-              <Route element={<PaymentsPage mode="invoices" />} path="/payments/invoices" />
-              <Route element={<PaymentsPage mode="cash" />} path="/payments/cash" />
-              <Route element={<PaymentsPage mode="statistics" />} path="/payments/statistics" />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["payments"]}>
+                    <PaymentsPage mode="balances" />
+                  </RequireTenantPermission>
+                }
+                path="/payments/balances"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["payments"]}>
+                    <PaymentsPage mode="collections" />
+                  </RequireTenantPermission>
+                }
+                path="/payments/collections"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["payments"]}>
+                    <PaymentsPage mode="invoices" />
+                  </RequireTenantPermission>
+                }
+                path="/payments/invoices"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["payments"]}>
+                    <PaymentsPage mode="cash" />
+                  </RequireTenantPermission>
+                }
+                path="/payments/cash"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["payments"]}>
+                    <PaymentsPage mode="statistics" />
+                  </RequireTenantPermission>
+                }
+                path="/payments/statistics"
+              />
               <Route element={<Navigate replace to="/training/teorik" />} path="/training" />
-              <Route element={<TrainingPage type="teorik" />} path="/training/teorik" />
-              <Route element={<TrainingPage type="uygulama" />} path="/training/uygulama" />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["training"]}>
+                    <TrainingPage type="teorik" />
+                  </RequireTenantPermission>
+                }
+                path="/training/teorik"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["training"]}>
+                    <TrainingPage type="uygulama" />
+                  </RequireTenantPermission>
+                }
+                path="/training/uygulama"
+              />
               <Route element={<Navigate replace to="/exams/e-sinav" />} path="/exams" />
-              <Route element={<ExamESinavPage />} path="/exams/e-sinav" />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["groups"]}>
+                    <ExamESinavPage />
+                  </RequireTenantPermission>
+                }
+                path="/exams/e-sinav"
+              />
               <Route element={<Navigate replace to="/exams/uygulama" />} path="/exams/direksiyon" />
-              <Route element={<ExamUygulamaPage />} path="/exams/uygulama" />
-              <Route element={<MebJobsPage />}    path="/meb-jobs" />
-              <Route element={<NotificationsPage />} path="/notifications" />
-              <Route element={<SettingsPage />}    path="/settings/*" />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["groups"]}>
+                    <ExamUygulamaPage />
+                  </RequireTenantPermission>
+                }
+                path="/exams/uygulama"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["mebjobs"]}>
+                    <MebJobsPage />
+                  </RequireTenantPermission>
+                }
+                path="/meb-jobs"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["dashboard"]}>
+                    <NotificationsPage />
+                  </RequireTenantPermission>
+                }
+                path="/notifications"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={settingsPermissionAreas}>
+                    <SettingsPage />
+                  </RequireTenantPermission>
+                }
+                path="/settings/*"
+              />
               <Route element={<ProfilePage />} path="/profile" />
               <Route element={<Navigate replace to="/" />} path="*" />
             </Routes>

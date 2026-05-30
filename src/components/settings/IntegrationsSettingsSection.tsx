@@ -5,13 +5,18 @@ import {
   upsertInstitutionIntegrations,
   type InstitutionIntegrationsResponse,
 } from "../../lib/institution-settings-api";
+import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
+import { canManageArea } from "../../lib/permissions";
 import { EyeIcon, EyeOffIcon } from "../icons";
 import { useToast } from "../ui/Toast";
 
 export function IntegrationsSettingsSection() {
   const t = useT();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageSettings = canManageArea(user, permissions, "settings");
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +46,7 @@ export function IntegrationsSettingsSection() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManageSettings) return;
     if (saving || !ocrApiKey.trim()) return;
 
     setSaving(true);
@@ -90,6 +96,7 @@ export function IntegrationsSettingsSection() {
                   <input
                     autoComplete="off"
                     className="form-input"
+                    disabled={!canManageSettings}
                     id="ocr-api-key"
                     onChange={(event) => setOcrApiKey(event.target.value)}
                     placeholder={
@@ -129,7 +136,8 @@ export function IntegrationsSettingsSection() {
       <div className="settings-form-actions">
         <button
           className="btn btn-primary btn-sm"
-          disabled={saving || !ocrApiKey.trim()}
+          disabled={!canManageSettings || saving || !ocrApiKey.trim()}
+          title={!canManageSettings ? noPermissionTitle : undefined}
           type="submit"
         >
           {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}

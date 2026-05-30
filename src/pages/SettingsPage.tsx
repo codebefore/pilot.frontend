@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
@@ -11,7 +12,9 @@ import { LicenseClassDefinitionsSettingsSection } from "../components/settings/L
 import { ReferencesSettingsSection } from "../components/settings/ReferencesSettingsSection";
 import { TrainingBranchesSettingsSection } from "../components/settings/TrainingBranchesSettingsSection";
 import { VehiclesSettingsSection } from "../components/settings/VehiclesSettingsSection";
+import { useAuth } from "../lib/auth";
 import { useT, type TranslationKey } from "../lib/i18n";
+import { canViewAnyArea } from "../lib/permissions";
 import { DocumentTypesPage } from "./DocumentTypesPage";
 import { InstructorDetailPage } from "./InstructorDetailPage";
 import { LicenseClassDefinitionDetailPage } from "./LicenseClassDefinitionDetailPage";
@@ -24,6 +27,7 @@ type SettingsNavItem = {
   descriptionKey: TranslationKey;
   to?: string;
   badge?: string;
+  permissionAreas: readonly string[];
 };
 
 type SettingsNavGroup = {
@@ -39,21 +43,25 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.general.label",
         descriptionKey: "settings.nav.general.description",
         to: "/settings/general",
+        permissionAreas: ["settings"],
       },
       {
         labelKey: "settings.nav.users.label",
         descriptionKey: "settings.nav.users.description",
         to: "/settings/definitions/users",
+        permissionAreas: ["users", "permissions"],
       },
       {
         labelKey: "settings.nav.instructors.label",
         descriptionKey: "settings.nav.instructors.description",
         to: "/settings/definitions/instructors",
+        permissionAreas: ["training"],
       },
       {
         labelKey: "settings.nav.vehicles.label",
         descriptionKey: "settings.nav.vehicles.description",
         to: "/settings/definitions/vehicles",
+        permissionAreas: ["training"],
       },
     ],
   },
@@ -64,41 +72,49 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.references.label",
         descriptionKey: "settings.nav.references.description",
         to: "/settings/definitions/references",
+        permissionAreas: ["candidates"],
       },
       {
         labelKey: "settings.nav.licenseClasses.label",
         descriptionKey: "settings.nav.licenseClasses.description",
         to: "/settings/definitions/license-classes",
+        permissionAreas: ["settings"],
       },
       {
         labelKey: "settings.nav.fees.label",
         descriptionKey: "settings.nav.fees.description",
         to: "/settings/definitions/fees",
+        permissionAreas: ["payments"],
       },
       {
         labelKey: "settings.nav.trainingBranches.label",
         descriptionKey: "settings.nav.trainingBranches.description",
         to: "/settings/definitions/training-branches",
+        permissionAreas: ["training"],
       },
       {
         labelKey: "settings.nav.classrooms.label",
         descriptionKey: "settings.nav.classrooms.description",
         to: "/settings/definitions/classrooms",
+        permissionAreas: ["training"],
       },
       {
         labelKey: "settings.nav.documentTypes.label",
         descriptionKey: "settings.nav.documentTypes.description",
         to: "/settings/definitions/document-types",
+        permissionAreas: ["documentTypes", "documents"],
       },
       {
         labelKey: "settings.nav.cashRegisters.label",
         descriptionKey: "settings.nav.cashRegisters.description",
         to: "/settings/definitions/cash-registers",
+        permissionAreas: ["payments"],
       },
       {
         labelKey: "settings.nav.integrations.label",
         descriptionKey: "settings.nav.integrations.description",
         to: "/settings/definitions/integrations",
+        permissionAreas: ["settings", "mebjobs"],
       },
     ],
   },
@@ -111,7 +127,18 @@ function isFeesRoute(pathname: string) {
 export function SettingsPage() {
   const t = useT();
   const location = useLocation();
+  const { user, permissions } = useAuth();
   const fullScreenFees = isFeesRoute(location.pathname);
+  const visibleGroups = SETTINGS_NAV_GROUPS
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canViewAnyArea(user, permissions, item.permissionAreas)),
+    }))
+    .filter((group) => group.items.length > 0);
+  const firstVisiblePath = visibleGroups.flatMap((group) => group.items).find((item) => item.to)?.to ?? "/profile";
+
+  const requireSettingsPermission = (areas: readonly string[], element: ReactElement) =>
+    canViewAnyArea(user, permissions, areas) ? element : <Navigate replace to={firstVisiblePath} />;
 
   return (
     <>
@@ -122,7 +149,7 @@ export function SettingsPage() {
           {!fullScreenFees ? (
           <aside className="settings-nav">
             <div className="settings-nav-groups">
-              {SETTINGS_NAV_GROUPS.map((group) => (
+              {visibleGroups.map((group) => (
                 <section className="settings-nav-group" key={group.titleKey}>
                   <div className="settings-nav-group-title">{t(group.titleKey)}</div>
 
@@ -172,41 +199,74 @@ export function SettingsPage() {
 
           <div className="settings-content">
             <Routes>
-              <Route index element={<Navigate replace to="general" />} />
-              <Route element={<GeneralInstitutionSection />} path="general" />
-              <Route element={<Navigate replace to="license-classes" />} path="definitions" />
+              <Route index element={<Navigate replace to={firstVisiblePath} />} />
               <Route
-                element={<LicenseClassDefinitionsSettingsSection />}
+                element={requireSettingsPermission(["settings"], <GeneralInstitutionSection />)}
+                path="general"
+              />
+              <Route element={<Navigate replace to={firstVisiblePath} />} path="definitions" />
+              <Route
+                element={requireSettingsPermission(["settings"], <LicenseClassDefinitionsSettingsSection />)}
                 path="definitions/license-classes"
               />
               <Route
-                element={<LicenseClassDefinitionDetailPage />}
+                element={requireSettingsPermission(["settings"], <LicenseClassDefinitionDetailPage />)}
                 path="definitions/license-classes/:definitionId"
               />
               <Route
-                element={<TrainingBranchesSettingsSection />}
+                element={requireSettingsPermission(["training"], <TrainingBranchesSettingsSection />)}
                 path="definitions/training-branches"
               />
-              <Route element={<ReferencesSettingsSection />} path="definitions/references" />
-              <Route element={<ClassroomsSettingsSection />} path="definitions/classrooms" />
-              <Route element={<CertificateProgramFeeMatrixSettingsSection />} path="definitions/fees" />
               <Route
-                element={<DocumentTypesPage embedded />}
+                element={requireSettingsPermission(["candidates"], <ReferencesSettingsSection />)}
+                path="definitions/references"
+              />
+              <Route
+                element={requireSettingsPermission(["training"], <ClassroomsSettingsSection />)}
+                path="definitions/classrooms"
+              />
+              <Route
+                element={requireSettingsPermission(["payments"], <CertificateProgramFeeMatrixSettingsSection />)}
+                path="definitions/fees"
+              />
+              <Route
+                element={requireSettingsPermission(["documentTypes", "documents"], <DocumentTypesPage embedded />)}
                 path="definitions/document-types"
               />
-              <Route element={<VehiclesSettingsSection />} path="definitions/vehicles" />
-              <Route element={<VehicleDetailPage />} path="definitions/vehicles/:vehicleId" />
-              <Route element={<CashRegistersSettingsSection />} path="definitions/cash-registers" />
-              <Route element={<IntegrationsSettingsSection />} path="definitions/integrations" />
-              <Route element={<InstructorsSettingsSection />} path="definitions/instructors" />
-              <Route element={<InstructorDetailPage />} path="definitions/instructors/:instructorId" />
-              <Route element={<UsersPage embedded />} path="definitions/users" />
               <Route
-                element={<RoleEditorPage />}
+                element={requireSettingsPermission(["training"], <VehiclesSettingsSection />)}
+                path="definitions/vehicles"
+              />
+              <Route
+                element={requireSettingsPermission(["training"], <VehicleDetailPage />)}
+                path="definitions/vehicles/:vehicleId"
+              />
+              <Route
+                element={requireSettingsPermission(["payments"], <CashRegistersSettingsSection />)}
+                path="definitions/cash-registers"
+              />
+              <Route
+                element={requireSettingsPermission(["settings", "mebjobs"], <IntegrationsSettingsSection />)}
+                path="definitions/integrations"
+              />
+              <Route
+                element={requireSettingsPermission(["training"], <InstructorsSettingsSection />)}
+                path="definitions/instructors"
+              />
+              <Route
+                element={requireSettingsPermission(["training"], <InstructorDetailPage />)}
+                path="definitions/instructors/:instructorId"
+              />
+              <Route
+                element={requireSettingsPermission(["users", "permissions"], <UsersPage embedded />)}
+                path="definitions/users"
+              />
+              <Route
+                element={requireSettingsPermission(["permissions"], <RoleEditorPage />)}
                 path="definitions/users/permissions/roles/new"
               />
               <Route
-                element={<RoleEditorPage />}
+                element={requireSettingsPermission(["permissions"], <RoleEditorPage />)}
                 path="definitions/users/permissions/roles/:roleId"
               />
               <Route
@@ -221,7 +281,7 @@ export function SettingsPage() {
                 element={<Navigate replace to="/settings/definitions/users?tab=permissions" />}
                 path="definitions/permissions/roles/:roleId"
               />
-              <Route element={<Navigate replace to="general" />} path="*" />
+              <Route element={<Navigate replace to={firstVisiblePath} />} path="*" />
             </Routes>
           </div>
         </div>

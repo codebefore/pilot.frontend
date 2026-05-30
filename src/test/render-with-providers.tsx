@@ -22,6 +22,19 @@ const defaultInstitution: AuthInstitution = {
   slug: "test-kurum",
   roleName: "super_admin",
   isDefault: true,
+  permissions: {
+    dashboard: "full",
+    candidates: "full",
+    groups: "full",
+    documents: "full",
+    documentTypes: "full",
+    payments: "full",
+    training: "full",
+    mebjobs: "full",
+    users: "full",
+    permissions: "full",
+    settings: "full",
+  },
 };
 
 export function renderWithProviders(ui: ReactElement, options?: { auth?: AuthOverride }) {
@@ -41,6 +54,7 @@ export function renderWithProviders(ui: ReactElement, options?: { auth?: AuthOve
     accessToken: options?.auth?.accessToken ?? (user ? "test-token" : null),
     institutions,
     activeInstitution,
+    permissions: options?.auth?.permissions ?? activeInstitution?.permissions ?? {},
     hasInstitution: options?.auth?.hasInstitution ?? institutions.length > 0,
     institutionRequired: options?.auth?.institutionRequired ?? false,
     login: options?.auth?.login ?? (async () => {}),

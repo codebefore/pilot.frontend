@@ -17,6 +17,7 @@ const institutions: AuthInstitution[] = [
     slug: "pilot-surucu-kursu",
     roleName: "Kurum Yöneticisi",
     isDefault: true,
+    permissions: { dashboard: "view", candidates: "view" },
   },
   {
     id: "i2",
@@ -24,6 +25,7 @@ const institutions: AuthInstitution[] = [
     slug: "ikinci-kurum",
     roleName: "Personel",
     isDefault: false,
+    permissions: { candidates: "view" },
   },
 ];
 

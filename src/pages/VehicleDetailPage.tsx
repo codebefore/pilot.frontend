@@ -5,6 +5,8 @@ import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { Modal } from "../components/ui/Modal";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
+import { canManageArea } from "../lib/permissions";
 import { getVehicle } from "../lib/vehicles-api";
 import {
   createVehicleDocument,
@@ -49,6 +51,9 @@ const DOCUMENT_TYPES: VehicleDocumentType[] = ["insurance", "inspection", "casco
 export function VehicleDetailPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageDocuments = canManageArea(user, permissions, "documents");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const [vehicle, setVehicle] = useState<VehicleResponse | null>(null);
   const [documents, setDocuments] = useState<VehicleDocumentResponse[]>([]);
@@ -110,6 +115,7 @@ export function VehicleDetailPage() {
   }, [vehicleId]);
 
   const openCreate = (type: VehicleDocumentType) => {
+    if (!canManageDocuments) return;
     setModalType(type);
     setModalEditing(null);
     const today = new Date();
@@ -120,6 +126,7 @@ export function VehicleDetailPage() {
   };
 
   const openEdit = (doc: VehicleDocumentResponse) => {
+    if (!canManageDocuments) return;
     setModalType(doc.documentType);
     setModalEditing(doc);
     setModalStart(doc.startDate.slice(0, 10));
@@ -133,6 +140,7 @@ export function VehicleDetailPage() {
   };
 
   const submitModal = async () => {
+    if (!canManageDocuments) return;
     if (!vehicleId || !modalType || !modalStart || !modalEnd) return;
     if (modalEnd < modalStart) {
       showToast("Bitiş tarihi başlangıçtan önce olamaz", "error");
@@ -167,6 +175,7 @@ export function VehicleDetailPage() {
   };
 
   const handleDelete = async (doc: VehicleDocumentResponse) => {
+    if (!canManageDocuments) return;
     if (!vehicleId) return;
     setDeletingId(doc.id);
     try {
@@ -282,7 +291,9 @@ export function VehicleDetailPage() {
                   <h3>{DOCUMENT_TYPE_LABELS[type]}</h3>
                   <button
                     className="btn btn-primary btn-sm"
+                    disabled={!canManageDocuments}
                     onClick={() => openCreate(type)}
+                    title={!canManageDocuments ? noPermissionTitle : undefined}
                     type="button"
                   >
                     Yeni {DOCUMENT_TYPE_LABELS[type]} Kaydı
@@ -327,8 +338,9 @@ export function VehicleDetailPage() {
                                   </button>
                                   <button
                                     className="btn btn-danger btn-sm"
-                                    disabled={deletingId === doc.id}
+                                    disabled={deletingId === doc.id || !canManageDocuments}
                                     onClick={() => handleDelete(doc)}
+                                    title={!canManageDocuments ? noPermissionTitle : undefined}
                                     type="button"
                                   >
                                     {deletingId === doc.id ? "Siliniyor..." : "Sil"}
@@ -338,14 +350,21 @@ export function VehicleDetailPage() {
                                 <>
                                   <button
                                     className="btn btn-secondary btn-sm"
+                                    disabled={!canManageDocuments}
                                     onClick={() => openEdit(doc)}
+                                    title={!canManageDocuments ? noPermissionTitle : undefined}
                                     type="button"
                                   >
                                     Düzenle
                                   </button>
                                   <button
                                     className="btn btn-link btn-sm btn-link-danger"
-                                    onClick={() => setConfirmDeleteId(doc.id)}
+                                    disabled={!canManageDocuments}
+                                    onClick={() => {
+                                      if (!canManageDocuments) return;
+                                      setConfirmDeleteId(doc.id);
+                                    }}
+                                    title={!canManageDocuments ? noPermissionTitle : undefined}
                                     type="button"
                                   >
                                     Sil
@@ -381,8 +400,9 @@ export function VehicleDetailPage() {
             </button>
             <button
               className="btn btn-primary"
-              disabled={modalBusy || !modalStart || !modalEnd}
+              disabled={modalBusy || !modalStart || !modalEnd || !canManageDocuments}
               onClick={submitModal}
+              title={!canManageDocuments ? noPermissionTitle : undefined}
               type="button"
             >
               {modalBusy ? "Kaydediliyor..." : "Kaydet"}

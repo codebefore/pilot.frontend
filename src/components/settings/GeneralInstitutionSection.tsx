@@ -10,8 +10,10 @@ import {
   type InstitutionSettingsResponse,
   type InstitutionSettingsUpsertRequest,
 } from "../../lib/institution-settings-api";
+import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { canManageArea } from "../../lib/permissions";
 import { isPhoneStartingWith5 } from "../../lib/phone";
 import { useTheme } from "../../lib/theme";
 import {
@@ -135,6 +137,9 @@ export function GeneralInstitutionSection() {
   const t = useT();
   const { showToast } = useToast();
   const { options: themeOptions, setTheme, theme } = useTheme();
+  const { user, permissions } = useAuth();
+  const canManageSettings = canManageArea(user, permissions, "settings");
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -250,6 +255,7 @@ export function GeneralInstitutionSection() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManageSettings) return;
     if (saving) return;
 
     const nextErrors: GeneralFormErrors = {};
@@ -340,6 +346,7 @@ export function GeneralInstitutionSection() {
   const handleLogoChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
+    if (!canManageSettings) return;
     if (!file) return;
 
     setUploading(true);
@@ -369,6 +376,7 @@ export function GeneralInstitutionSection() {
   };
 
   const handleLogoRemove = async () => {
+    if (!canManageSettings) return;
     if (!serverState?.logo) return;
     setRemovingLogo(true);
     try {
@@ -462,6 +470,7 @@ export function GeneralInstitutionSection() {
                 </label>
                 <input
                   className={errors.institutionName ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("institutionName")}
                   placeholder={t("settings.general.placeholder.institutionName")}
                   value={values.institutionName}
@@ -474,6 +483,7 @@ export function GeneralInstitutionSection() {
                 </label>
                 <input
                   className={errors.institutionOfficialName ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("institutionOfficialName")}
                   placeholder={t("settings.general.placeholder.institutionOfficialName")}
                   value={values.institutionOfficialName}
@@ -489,6 +499,7 @@ export function GeneralInstitutionSection() {
                 </label>
                 <input
                   className={errors.institutionCode ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("institutionCode")}
                   placeholder={t("settings.general.placeholder.institutionCode")}
                   value={values.institutionCode}
@@ -499,6 +510,7 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t("settings.general.field.phone")}</label>
                 <input
                   className={errors.institutionPhone ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   inputMode="numeric"
                   onChange={handlePhoneInput("institutionPhone")}
                   placeholder={t("settings.general.placeholder.phone")}
@@ -513,6 +525,7 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t("settings.general.field.email")}</label>
                 <input
                   className={errors.institutionEmail ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("institutionEmail")}
                   placeholder={t("settings.general.placeholder.email")}
                   type="email"
@@ -525,6 +538,7 @@ export function GeneralInstitutionSection() {
                 <CustomSelect
                   aria-label={t("settings.general.field.city")}
                   className={errors.city ? "form-select error" : "form-select"}
+                  disabled={!canManageSettings}
                   onChange={handleCityChange}
                   value={values.city}
                 >
@@ -545,7 +559,7 @@ export function GeneralInstitutionSection() {
                 <CustomSelect
                   aria-label={t("settings.general.field.district")}
                   className={errors.district ? "form-select error" : "form-select"}
-                  disabled={!values.city}
+                  disabled={!canManageSettings || !values.city}
                   onChange={handleInput("district")}
                   value={values.district}
                 >
@@ -568,6 +582,7 @@ export function GeneralInstitutionSection() {
                 </label>
                 <textarea
                   className={errors.institutionAddress ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("institutionAddress")}
                   placeholder={t("settings.general.placeholder.institutionAddress")}
                   rows={3}
@@ -593,6 +608,7 @@ export function GeneralInstitutionSection() {
                   <div className="settings-logo-actions">
                     <input
                       accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      disabled={!canManageSettings}
                       hidden
                       onChange={handleLogoChange}
                       ref={fileInputRef}
@@ -600,8 +616,9 @@ export function GeneralInstitutionSection() {
                     />
                     <button
                       className="btn btn-secondary btn-sm"
-                      disabled={uploading || removingLogo}
+                      disabled={!canManageSettings || uploading || removingLogo}
                       onClick={() => fileInputRef.current?.click()}
+                      title={!canManageSettings ? noPermissionTitle : undefined}
                       type="button"
                     >
                       {uploading
@@ -613,8 +630,9 @@ export function GeneralInstitutionSection() {
                     {serverState?.logo ? (
                       <button
                         className="btn btn-secondary btn-sm"
-                        disabled={uploading || removingLogo}
+                        disabled={!canManageSettings || uploading || removingLogo}
                         onClick={handleLogoRemove}
+                        title={!canManageSettings ? noPermissionTitle : undefined}
                         type="button"
                       >
                         {removingLogo
@@ -698,6 +716,7 @@ export function GeneralInstitutionSection() {
                 <CustomSelect
                   aria-label={t("settings.general.founder.type")}
                   className="form-select"
+                  disabled={!canManageSettings}
                   onChange={handleFounderTypeChange}
                   value={values.founderType}
                 >
@@ -709,6 +728,7 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t(founderNameLabelKey)}</label>
                 <input
                   className={errors.founderName ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("founderName")}
                   placeholder={t("settings.general.placeholder.founderName")}
                   value={values.founderName}
@@ -722,6 +742,7 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t(founderTaxIdLabelKey)}</label>
                 <input
                   className={errors.founderTaxId ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("founderTaxId")}
                   placeholder={
                     values.founderType === "legal"
@@ -738,6 +759,7 @@ export function GeneralInstitutionSection() {
                 </label>
                 <input
                   className={errors.founderTaxOffice ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("founderTaxOffice")}
                   placeholder={t("settings.general.placeholder.taxOffice")}
                   value={values.founderTaxOffice}
@@ -751,6 +773,7 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t("settings.general.founder.phone")}</label>
                 <input
                   className={errors.founderPhone ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   inputMode="numeric"
                   onChange={handlePhoneInput("founderPhone")}
                   placeholder={t("settings.general.placeholder.phone")}
@@ -766,6 +789,7 @@ export function GeneralInstitutionSection() {
                 <label className="form-label">{t("settings.general.founder.address")}</label>
                 <textarea
                   className={errors.founderAddress ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
                   onChange={handleInput("founderAddress")}
                   placeholder={t("settings.general.placeholder.address")}
                   rows={3}
@@ -782,7 +806,8 @@ export function GeneralInstitutionSection() {
       <div className="settings-form-actions">
         <button
           className="btn btn-primary btn-sm"
-          disabled={!dirty || saving || uploading || removingLogo}
+          disabled={!canManageSettings || !dirty || saving || uploading || removingLogo}
+          title={!canManageSettings ? noPermissionTitle : undefined}
           type="submit"
         >
           {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}

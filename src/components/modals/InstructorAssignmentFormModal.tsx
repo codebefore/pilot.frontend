@@ -26,6 +26,7 @@ import { useToast } from "../ui/Toast";
 
 type Props = {
   open: boolean;
+  canManage?: boolean;
   instructorId: string;
   editing: InstructorAssignment | null;
   branches: TrainingBranchDefinitionResponse[];
@@ -72,6 +73,7 @@ function fromExisting(a: InstructorAssignment): FormState {
 
 export function InstructorAssignmentFormModal({
   open,
+  canManage = true,
   instructorId,
   editing,
   branches,
@@ -80,6 +82,7 @@ export function InstructorAssignmentFormModal({
 }: Props) {
 	  const t = useT();
 	  const { showToast } = useToast();
+	  const noPermissionTitle = "Yetkiniz yok.";
 	  const { options: licenseClassOptions } = useLicenseClassOptions();
   const [values, setValues] = useState<FormState>(emptyState);
   const [submitting, setSubmitting] = useState(false);
@@ -157,6 +160,7 @@ export function InstructorAssignmentFormModal({
 
 	  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManage) return;
     if (submitting) return;
     if (!validate()) return;
 
@@ -210,7 +214,13 @@ export function InstructorAssignmentFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             {t("common.cancel")}
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>

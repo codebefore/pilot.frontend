@@ -29,6 +29,7 @@ type DocumentTypeFormValues = {
 
 type DocumentTypeFormModalProps = {
   open: boolean;
+  canManage?: boolean;
   /** When provided the modal is in edit mode; when null it creates a new type. */
   editing: DocumentTypeResponse | null;
   /** Default sort order suggested when creating (e.g. last + 1). */
@@ -84,6 +85,7 @@ const VALIDATION_FIELD_MAP: Record<string, keyof DocumentTypeFormValues> = {
 
 export function DocumentTypeFormModal({
   open,
+  canManage = true,
   editing,
   nextSortOrder,
   onClose,
@@ -91,6 +93,7 @@ export function DocumentTypeFormModal({
 }: DocumentTypeFormModalProps) {
   const t = useT();
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const [metadataFields, setMetadataFields] = useState<DocumentMetadataField[]>(
     editing?.metadataFields ?? []
@@ -213,6 +216,8 @@ export function DocumentTypeFormModal({
   };
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
+
     const metadataValidation = validateMetadataFields();
     if (metadataValidation) {
       setMetadataError(metadataValidation);
@@ -285,8 +290,9 @@ export function DocumentTypeFormModal({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting}
+            disabled={submitting || !canManage}
             onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
             {submitting ? t("documentTypeForm.saving") : t("documentTypeForm.save")}
@@ -388,7 +394,9 @@ export function DocumentTypeFormModal({
             </div>
             <button
               className="btn btn-secondary btn-sm"
+              disabled={!canManage}
               onClick={addField}
+              title={!canManage ? noPermissionTitle : undefined}
               type="button"
             >
               {t("documentTypeForm.addField")}
@@ -489,8 +497,9 @@ export function DocumentTypeFormModal({
                       <button
                         aria-label={t("documentTypeForm.moveUp")}
                         className="btn btn-secondary btn-sm"
-                        disabled={index === 0}
+                        disabled={index === 0 || !canManage}
                         onClick={() => moveField(index, -1)}
+                        title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
                         ↑
@@ -498,15 +507,18 @@ export function DocumentTypeFormModal({
                       <button
                         aria-label={t("documentTypeForm.moveDown")}
                         className="btn btn-secondary btn-sm"
-                        disabled={index === metadataFields.length - 1}
+                        disabled={index === metadataFields.length - 1 || !canManage}
                         onClick={() => moveField(index, 1)}
+                        title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
                         ↓
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
+                        disabled={!canManage}
                         onClick={() => removeField(index)}
+                        title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
                         {t("documentTypeForm.removeField")}
@@ -522,7 +534,9 @@ export function DocumentTypeFormModal({
                         </span>
                         <button
                           className="btn btn-secondary btn-sm"
+                          disabled={!canManage}
                           onClick={() => addOption(index)}
+                          title={!canManage ? noPermissionTitle : undefined}
                           type="button"
                         >
                           {t("documentTypeForm.addOption")}
@@ -557,7 +571,9 @@ export function DocumentTypeFormModal({
                             />
                             <button
                               className="btn btn-danger btn-sm"
+                              disabled={!canManage}
                               onClick={() => removeOption(index, optionIndex)}
+                              title={!canManage ? noPermissionTitle : undefined}
                               type="button"
                             >
                               ×

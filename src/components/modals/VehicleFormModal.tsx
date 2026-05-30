@@ -45,6 +45,7 @@ function normalizeUppercase(value: string): string {
 type VehicleFormModalProps = {
   open: boolean;
   editing: VehicleResponse | null;
+  canManage?: boolean;
   onClose: () => void;
   onSaved: (saved: VehicleResponse) => void;
   /**
@@ -198,12 +199,14 @@ function applyServerFieldErrors(
 export function VehicleFormModal({
   open,
   editing,
+  canManage = true,
   onClose,
   onSaved,
   onConcurrencyConflict,
 }: VehicleFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const { options: licenseClassOptions } = useLicenseClassOptions();
 
@@ -242,6 +245,7 @@ export function VehicleFormModal({
   }, [licenseClassOptions, open, selectedLicenseClasses, setValue]);
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
     setSubmitting(true);
 
     const payload: VehicleUpsertRequest = {
@@ -306,7 +310,13 @@ export function VehicleFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             İptal
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
         </>

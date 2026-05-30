@@ -29,6 +29,7 @@ type NewGroupForm = {
 
 type NewGroupModalProps = {
   open: boolean;
+  canManage?: boolean;
   /** When provided the form opens with this term already selected. */
   initialTermId?: string | null;
   onClose: () => void;
@@ -49,6 +50,7 @@ const defaultValues = (initialTermId?: string | null): NewGroupForm => ({
 
 export function NewGroupModal({
   open,
+  canManage = true,
   initialTermId,
   onClose,
   onSubmit,
@@ -57,6 +59,7 @@ export function NewGroupModal({
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const [groupTitles, setGroupTitles] = useState<string[]>([]);
   const [terms, setTerms] = useState<TermResponse[]>([]);
@@ -159,6 +162,7 @@ export function NewGroupModal({
   }, [lang, sortedTerms]);
 
   const submit = handleSubmit(async (data) => {
+    if (!canManage) return;
     setSubmitting(true);
     try {
       await createGroup({
@@ -236,8 +240,9 @@ export function NewGroupModal({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting}
+            disabled={submitting || !canManage}
             onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
             {submitting ? "Kaydediliyor..." : "Kaydet"}

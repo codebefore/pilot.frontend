@@ -8,7 +8,9 @@ import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
+import { useAuth } from "../../lib/auth";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { canManageArea } from "../../lib/permissions";
 import {
   deleteVehicle,
   getVehicles,
@@ -194,6 +196,9 @@ export function VehiclesSettingsSection() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const t = useT();
+  const { user, permissions } = useAuth();
+  const canManageTraining = canManageArea(user, permissions, "training");
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const [items, setItems] = useState<VehicleResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -289,6 +294,7 @@ export function VehiclesSettingsSection() {
   };
 
   const handleDelete = async (vehicle: VehicleResponse) => {
+    if (!canManageTraining) return;
     setDeletingVehicleId(vehicle.id);
     try {
       await deleteVehicle(vehicle.id);
@@ -360,10 +366,13 @@ export function VehiclesSettingsSection() {
               ) : null}
               <button
                 className="btn btn-primary btn-sm"
+                disabled={!canManageTraining}
                 onClick={() => {
+                  if (!canManageTraining) return;
                   setEditing(null);
                   setFormOpen(true);
                 }}
+                title={!canManageTraining ? noPermissionTitle : undefined}
                 type="button"
               >
                 <PlusIcon size={14} />
@@ -456,8 +465,9 @@ export function VehiclesSettingsSection() {
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
-                                disabled={deletingVehicleId === item.id}
+                                disabled={deletingVehicleId === item.id || !canManageTraining}
                                 onClick={() => handleDelete(item)}
+                                title={!canManageTraining ? noPermissionTitle : undefined}
                                 type="button"
                               >
                                 {deletingVehicleId === item.id ? t("settings.vehicles.action.deleting") : t("common.delete")}
@@ -468,11 +478,13 @@ export function VehiclesSettingsSection() {
                               <button
                                 aria-label={t("settings.vehicles.action.edit")}
                                 className="icon-btn"
+                                disabled={!canManageTraining}
                                 onClick={() => {
+                                  if (!canManageTraining) return;
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title={t("settings.vehicles.action.edit")}
+                                title={!canManageTraining ? noPermissionTitle : t("settings.vehicles.action.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
@@ -480,9 +492,12 @@ export function VehiclesSettingsSection() {
                               <button
                                 aria-label={t("settings.vehicles.action.delete")}
                                 className="icon-btn icon-btn-danger"
-                                disabled={deletingVehicleId !== null}
-                                onClick={() => setConfirmDeleteVehicleId(item.id)}
-                                title={t("settings.vehicles.action.delete")}
+                                disabled={deletingVehicleId !== null || !canManageTraining}
+                                onClick={() => {
+                                  if (!canManageTraining) return;
+                                  setConfirmDeleteVehicleId(item.id);
+                                }}
+                                title={!canManageTraining ? noPermissionTitle : t("settings.vehicles.action.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -514,6 +529,7 @@ export function VehiclesSettingsSection() {
       </div>
 
       <VehicleFormModal
+        canManage={canManageTraining}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

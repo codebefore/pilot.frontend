@@ -38,6 +38,7 @@ type ManageDocumentModalProps = {
   candidateName?: string;
   documentTypeId?: string;
   documentTypes: DocumentTypeResponse[];
+  canManageDocuments?: boolean;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -97,6 +98,7 @@ export function ManageDocumentModal({
   candidateName,
   documentTypeId,
   documentTypes,
+  canManageDocuments = true,
   onClose,
   onSaved,
 }: ManageDocumentModalProps) {
@@ -212,6 +214,7 @@ export function ManageDocumentModal({
       : null;
   const isMebbisTransferred = document?.isMebbisTransferred ?? false;
   const busy = submitting || actionPending !== null;
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const setMetadataValue = (key: string, value: string) => {
     setMetadataValues((current) => ({ ...current, [key]: value }));
@@ -240,6 +243,7 @@ export function ManageDocumentModal({
   };
 
   const toggleReplaceOpen = () => {
+    if (!canManageDocuments) return;
     setReplaceOpen((current) => {
       const next = !current;
       if (!next) {
@@ -251,6 +255,7 @@ export function ManageDocumentModal({
   };
 
   const submit = handleSubmit(async (data) => {
+    if (!canManageDocuments) return;
     if (!candidateId || !document) return;
     if (!validateMetadata()) return;
     if (replacementFile && replacementFile.size > MAX_BYTES) {
@@ -316,6 +321,7 @@ export function ManageDocumentModal({
   });
 
   const handleMebbisToggle = async () => {
+    if (!canManageDocuments) return;
     if (!candidateId || !document || !activeDocumentType || actionPending) return;
 
     setActionPending("mebbis");
@@ -348,6 +354,7 @@ export function ManageDocumentModal({
   };
 
   const handleDelete = async () => {
+    if (!canManageDocuments) return;
     if (!candidateId || !document || actionPending) return;
 
     setActionPending("delete");
@@ -402,8 +409,9 @@ export function ManageDocumentModal({
         </button>
         <button
           className="btn btn-primary"
-          disabled={busy}
+          disabled={busy || !canManageDocuments}
           onClick={submit}
+          title={!canManageDocuments ? noPermissionTitle : undefined}
           type="button"
         >
           {submitting ? t("documents.manage.saving") : t("common.save")}
@@ -510,8 +518,9 @@ export function ManageDocumentModal({
                 )}
                 <button
                   className="btn btn-secondary btn-sm"
-                  disabled={busy}
+                  disabled={busy || !canManageDocuments}
                   onClick={toggleReplaceOpen}
+                  title={!canManageDocuments ? noPermissionTitle : undefined}
                   type="button"
                 >
                   {replaceOpen
@@ -522,8 +531,9 @@ export function ManageDocumentModal({
                   className={`btn btn-sm ${
                     isMebbisTransferred ? "btn-secondary" : "btn-primary"
                   }`}
-                  disabled={busy}
+                  disabled={busy || !canManageDocuments}
                   onClick={handleMebbisToggle}
+                  title={!canManageDocuments ? noPermissionTitle : undefined}
                   type="button"
                 >
                   {actionPending === "mebbis"
@@ -536,8 +546,9 @@ export function ManageDocumentModal({
                   <>
                     <button
                       className="btn btn-danger btn-sm"
-                      disabled={busy}
+                      disabled={busy || !canManageDocuments}
                       onClick={handleDelete}
+                      title={!canManageDocuments ? noPermissionTitle : undefined}
                       type="button"
                     >
                       {actionPending === "delete"
@@ -556,8 +567,9 @@ export function ManageDocumentModal({
                 ) : (
                   <button
                     className="btn btn-danger btn-sm"
-                    disabled={busy}
+                    disabled={busy || !canManageDocuments}
                     onClick={() => setConfirmDelete(true)}
+                    title={!canManageDocuments ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {document.hasFile
@@ -575,6 +587,7 @@ export function ManageDocumentModal({
                 <label className="form-label">{t("documents.manage.newFile")}</label>
                 <FileDropInput
                   accept={ACCEPT}
+                  disabled={!canManageDocuments}
                   error={!!fileError}
                   file={replacementFile ?? undefined}
                   hint={t("documents.manage.replaceHint")}
@@ -609,6 +622,7 @@ export function ManageDocumentModal({
                       {field.inputType === "date" ? (
                         <LocalizedDateInput
                           ariaLabel={field.label}
+                          disabled={!canManageDocuments}
                           lang={dateInputLang}
                           onChange={(next) => setMetadataValue(field.key, next)}
                           placeholder={field.placeholder ?? ""}
@@ -618,6 +632,7 @@ export function ManageDocumentModal({
                         <CustomSelect
                           aria-label={field.label}
                           className="form-select"
+                          disabled={!canManageDocuments}
                           onChange={(event) =>
                             setMetadataValue(field.key, event.target.value)
                           }
@@ -636,6 +651,7 @@ export function ManageDocumentModal({
                         <input
                           aria-label={field.label}
                           className={fieldError ? "form-input error" : "form-input"}
+                          disabled={!canManageDocuments}
                           onChange={(event) =>
                             setMetadataValue(field.key, event.target.value)
                           }
@@ -658,6 +674,7 @@ export function ManageDocumentModal({
               <textarea
                 aria-label={t("uploadDoc.note")}
                 className={errors.note ? "form-input error" : "form-input"}
+                disabled={!canManageDocuments}
                 placeholder={t("uploadDoc.notePlaceholder")}
                 rows={3}
                 {...register("note")}

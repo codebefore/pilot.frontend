@@ -12,6 +12,7 @@ type NewMebJobSubmitValues = {
 
 type NewMebJobModalProps = {
   open: boolean;
+  canManage?: boolean;
   onClose: () => void;
   onSubmit: (values: NewMebJobSubmitValues) => void | Promise<void>;
 };
@@ -22,7 +23,12 @@ const RESULT_LIMIT = 20;
 
 type CandidateLite = Pick<CandidateResponse, "id" | "firstName" | "lastName" | "nationalId" | "licenseClass">;
 
-export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps) {
+export function NewMebJobModal({
+  open,
+  canManage = true,
+  onClose,
+  onSubmit,
+}: NewMebJobModalProps) {
   const [jobType, setJobType] = useState<string>("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -88,12 +94,13 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
   }, [open, debouncedSearch]);
 
   const canSubmit = useMemo(
-    () => Boolean(jobType) && Boolean(selected) && !submitting,
-    [jobType, selected, submitting]
+    () => canManage && Boolean(jobType) && Boolean(selected) && !submitting,
+    [canManage, jobType, selected, submitting]
   );
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!canManage) return;
     if (!canSubmit || !selected) return;
     setSubmitting(true);
     setSubmitError(null);
@@ -117,6 +124,7 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
             className="btn btn-primary"
             disabled={!canSubmit}
             onClick={(e) => void handleSubmit(e as unknown as React.FormEvent)}
+            title={!canManage ? "Yetkiniz yok." : undefined}
             type="button"
           >
             {submitting ? "Başlatılıyor…" : "İşi Başlat"}
@@ -133,6 +141,7 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
             <label className="form-label">İş Tipi</label>
             <CustomSelect
               className="form-select"
+              disabled={!canManage}
               onChange={(e) => setJobType(e.target.value)}
               placeholder="İş tipi seçin"
               value={jobType}
@@ -165,7 +174,9 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
                 </div>
                 <button
                   className="btn btn-secondary btn-sm"
+                  disabled={!canManage}
                   onClick={() => setSelected(null)}
+                  title={!canManage ? "Yetkiniz yok." : undefined}
                   type="button"
                 >
                   Değiştir
@@ -176,6 +187,7 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
                 <input
                   autoFocus
                   className="form-input"
+                  disabled={!canManage}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Ad, soyad veya TC ile ara…"
                   type="text"
@@ -192,8 +204,10 @@ export function NewMebJobModal({ open, onClose, onSubmit }: NewMebJobModalProps)
                     candidates.map((c) => (
                       <button
                         className="meb-modal-candidate-item"
+                        disabled={!canManage}
                         key={c.id}
                         onClick={() => setSelected(c)}
+                        title={!canManage ? "Yetkiniz yok." : undefined}
                         type="button"
                       >
                         <span className="meb-modal-candidate-name">

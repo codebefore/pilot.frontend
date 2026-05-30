@@ -121,7 +121,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       sortField: "isActive",
       renderCell: (item) => (
         <LicenseClassStatusToggle
-          disabled={togglingId === item.id}
+          disabled={togglingId === item.id || !canManage}
           item={item}
           onToggle={handleStatusToggle}
         />
@@ -260,6 +260,7 @@ export function LicenseClassDefinitionsSettingsSection() {
   };
 
   const handleDelete = async (item: LicenseClassDefinitionResponse) => {
+    if (!canManage) return;
     setDeletingId(item.id);
     try {
       await deleteLicenseClassDefinition(item.id);
@@ -278,6 +279,7 @@ export function LicenseClassDefinitionsSettingsSection() {
   };
 
   const handleStatusToggle = async (item: LicenseClassDefinitionResponse) => {
+    if (!canManage) return;
     setTogglingId(item.id);
     try {
       const saved = await updateLicenseClassDefinitionActivity(item.id, {
@@ -467,11 +469,13 @@ export function LicenseClassDefinitionsSettingsSection() {
                               <button
                                 aria-label={t("common.edit")}
                                 className="icon-btn"
+                                disabled={!canManage}
                                 onClick={() => {
+                                  if (!canManage) return;
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title={t("common.edit")}
+                                title={!canManage ? "Yetkiniz yok." : t("common.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
@@ -515,6 +519,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       </div>
 
       <LicenseClassDefinitionFormModal
+        canManage={canManage}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

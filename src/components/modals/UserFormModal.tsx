@@ -26,6 +26,7 @@ type UserFormValues = {
 type UserFormModalProps = {
   open: boolean;
   editing: AppUserResponse | null;
+  canManage?: boolean;
   roles: RoleResponse[];
   onClose: () => void;
   onSaved: (saved: AppUserResponse) => void;
@@ -72,11 +73,13 @@ const VALIDATION_FIELD_MAP: Record<string, keyof UserFormValues> = {
 export function UserFormModal({
   open,
   editing,
+  canManage = true,
   roles,
   onClose,
   onSaved,
 }: UserFormModalProps) {
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
 
   const {
@@ -110,6 +113,7 @@ export function UserFormModal({
     hasError ? `${base} error` : base;
 
   const submit = handleSubmit(async (values) => {
+    if (!canManage) return;
     setSubmitting(true);
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
@@ -157,8 +161,9 @@ export function UserFormModal({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting}
+            disabled={submitting || !canManage}
             onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
@@ -175,6 +180,7 @@ export function UserFormModal({
             <label className="form-label">Ad Soyad</label>
             <input
               className={fieldClass(!!errors.fullName, "form-input")}
+              disabled={!canManage}
               placeholder="Ad Soyad"
               {...register("fullName", {
                 required: "Zorunlu alan",
@@ -189,6 +195,7 @@ export function UserFormModal({
             <label className="form-label">Rol</label>
             <CustomSelect
               className={fieldClass(!!errors.roleId, "form-select")}
+              disabled={!canManage}
               value={selectedRoleId ?? ""}
               {...register("roleId")}
             >
@@ -208,6 +215,7 @@ export function UserFormModal({
             <label className="form-label">Telefon</label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
+              disabled={!canManage}
               maxLength={32}
               placeholder="Telefon"
               {...phoneRegistration}
@@ -219,6 +227,7 @@ export function UserFormModal({
             <input
               autoComplete="new-password"
               className={fieldClass(!!errors.password, "form-input")}
+              disabled={!canManage}
               placeholder={editing?.hasPassword ? "Değiştirmek için yeni şifre gir" : "En az 8 karakter"}
               type="password"
               {...register("password", {
@@ -237,6 +246,7 @@ export function UserFormModal({
             <label className="form-label">MEBBİS Kullanıcı Adı</label>
             <input
               className={fieldClass(!!errors.mebbisUsername, "form-input")}
+              disabled={!canManage}
               placeholder="MEBBİS kullanıcı adı"
               {...register("mebbisUsername")}
             />
@@ -249,6 +259,7 @@ export function UserFormModal({
             <input
               autoComplete="new-password"
               className={fieldClass(!!errors.mebbisPassword, "form-input")}
+              disabled={!canManage}
               placeholder={editing?.hasMebbisPassword ? "Değiştirmek için yeni şifre gir" : "MEBBİS şifresi"}
               type="password"
               {...register("mebbisPassword")}
@@ -264,7 +275,7 @@ export function UserFormModal({
 
         <div className="form-row full">
           <label className="switch-toggle">
-            <input type="checkbox" {...register("isActive")} />
+            <input disabled={!canManage} type="checkbox" {...register("isActive")} />
             <span className="switch-toggle-control" aria-hidden="true" />
             <span>{watch("isActive") ? "Aktif" : "Pasif"}</span>
           </label>

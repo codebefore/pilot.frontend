@@ -11,6 +11,7 @@ type CandidateTagsInputProps = {
   ariaLabel?: string;
   placeholder?: string;
   disabled?: boolean;
+  disabledTitle?: string;
   className?: string;
 };
 
@@ -41,6 +42,7 @@ export function CandidateTagsInput({
   ariaLabel,
   placeholder,
   disabled = false,
+  disabledTitle,
   className,
 }: CandidateTagsInputProps) {
   const t = useT();
@@ -237,6 +239,7 @@ export function CandidateTagsInput({
       <div
         aria-disabled={disabled}
         className={fieldClass}
+        title={disabled ? disabledTitle : undefined}
         onClick={() => {
           if (disabled) return;
           inputRef.current?.focus();

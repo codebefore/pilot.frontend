@@ -135,4 +135,37 @@ describe("UserFormModal", () => {
     expect(await screen.findByText("Zorunlu alan")).toBeInTheDocument();
     expect(createUserMock).not.toHaveBeenCalled();
   });
+
+  it("does not submit when opened without manage permission", async () => {
+    renderWithProviders(
+      <UserFormModal
+        canManage={false}
+        editing={null}
+        onClose={() => {}}
+        onSaved={() => {}}
+        open
+        roles={[]}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Ad Soyad"), {
+      target: { value: "Kemal Can" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Telefon"), {
+      target: { value: "5551234567" },
+    });
+
+    const saveButton = screen.getByRole("button", { name: "Kaydet" });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("title", "Yetkiniz yok.");
+
+    const form = document.querySelector("form");
+    if (!form) throw new Error("form not found");
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(createUserMock).not.toHaveBeenCalled();
+    });
+    expect(updateUserMock).not.toHaveBeenCalled();
+  });
 });

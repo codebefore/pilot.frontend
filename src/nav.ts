@@ -19,6 +19,7 @@ export type NavItem = {
   path: string;
   labelKey: TranslationKey;
   Icon: ComponentType;
+  permissionAreas: readonly string[];
   children?: NavChildItem[];
 };
 
@@ -26,6 +27,7 @@ type NavChildItem = {
   key: NavKey;
   path: string;
   labelKey: TranslationKey;
+  permissionAreas?: readonly string[];
 };
 
 type NavSection = {
@@ -37,20 +39,45 @@ export const navSections: NavSection[] = [
   {
     headingKey: "nav.main",
     items: [
-      { key: "dashboard", path: "/", labelKey: "nav.dashboard", Icon: DashboardIcon },
+      {
+        key: "dashboard",
+        path: "/",
+        labelKey: "nav.dashboard",
+        Icon: DashboardIcon,
+        permissionAreas: ["dashboard"],
+      },
     ],
   },
   {
     headingKey: "nav.operations",
     items: [
-      { key: "candidates", path: "/candidates", labelKey: "nav.candidates", Icon: CandidatesIcon },
-      { key: "documents",  path: "/documents",  labelKey: "nav.documents",  Icon: DocumentsIcon },
-      { key: "groups",     path: "/groups",     labelKey: "nav.groups",     Icon: GroupsIcon },
+      {
+        key: "candidates",
+        path: "/candidates",
+        labelKey: "nav.candidates",
+        Icon: CandidatesIcon,
+        permissionAreas: ["candidates"],
+      },
+      {
+        key: "documents",
+        path: "/documents",
+        labelKey: "nav.documents",
+        Icon: DocumentsIcon,
+        permissionAreas: ["documents"],
+      },
+      {
+        key: "groups",
+        path: "/groups",
+        labelKey: "nav.groups",
+        Icon: GroupsIcon,
+        permissionAreas: ["groups"],
+      },
       {
         key: "exams",
         path: "/exams",
         labelKey: "nav.exams",
         Icon: ExamsIcon,
+        permissionAreas: ["groups"],
         children: [
           { key: "examESinav", path: "/exams/e-sinav", labelKey: "nav.examESinav" },
           { key: "examUygulama", path: "/exams/uygulama", labelKey: "nav.examUygulama" },
@@ -61,6 +88,7 @@ export const navSections: NavSection[] = [
         path: "/training",
         labelKey: "nav.training",
         Icon: TrainingIcon,
+        permissionAreas: ["training"],
         children: [
           { key: "trainingTeorik", path: "/training/teorik", labelKey: "nav.trainingTeorik" },
           { key: "trainingUygulama", path: "/training/uygulama", labelKey: "nav.trainingUygulama" },
@@ -71,6 +99,7 @@ export const navSections: NavSection[] = [
         path: "/payments",
         labelKey: "nav.payments",
         Icon: PaymentsIcon,
+        permissionAreas: ["payments"],
         children: [
           {
             key: "paymentsCollections",
@@ -104,8 +133,30 @@ export const navSections: NavSection[] = [
   {
     headingKey: "nav.administration",
     items: [
-      { key: "settings", path: "/settings", labelKey: "nav.settings", Icon: SettingsIcon },
-      { key: "mebjobs",  path: "/meb-jobs", labelKey: "nav.mebJobs",  Icon: MebIcon },
+      {
+        key: "settings",
+        path: "/settings",
+        labelKey: "nav.settings",
+        Icon: SettingsIcon,
+        permissionAreas: [
+          "settings",
+          "candidates",
+          "users",
+          "permissions",
+          "training",
+          "payments",
+          "documents",
+          "documentTypes",
+          "mebjobs",
+        ],
+      },
+      {
+        key: "mebjobs",
+        path: "/meb-jobs",
+        labelKey: "nav.mebJobs",
+        Icon: MebIcon,
+        permissionAreas: ["mebjobs"],
+      },
     ],
   },
 ];

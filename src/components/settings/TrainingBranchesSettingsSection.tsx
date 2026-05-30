@@ -4,11 +4,14 @@ import { PencilIcon } from "../icons";
 import { TrainingBranchFormModal } from "../modals/TrainingBranchFormModal";
 import { StatusPill } from "../ui/StatusPill";
 import { useToast } from "../ui/Toast";
+import { useAuth } from "../../lib/auth";
 import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import type { TrainingBranchDefinitionResponse } from "../../lib/types";
 
 export function TrainingBranchesSettingsSection() {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const canManage = user?.isSuperAdmin ?? false;
   const [items, setItems] = useState<TrainingBranchDefinitionResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -125,11 +128,15 @@ export function TrainingBranchesSettingsSection() {
                     </td>
                     <td className="settings-table-actions">
                       <button
+                        aria-label="Düzenle"
                         className="icon-button"
+                        disabled={!canManage}
                         onClick={() => {
+                          if (!canManage) return;
                           setEditing(item);
                           setFormOpen(true);
                         }}
+                        title={!canManage ? "Yetkiniz yok." : "Düzenle"}
                         type="button"
                       >
                         <PencilIcon size={16} />
@@ -144,6 +151,7 @@ export function TrainingBranchesSettingsSection() {
       </div>
 
       <TrainingBranchFormModal
+        canManage={canManage}
         editing={editing}
         onClose={closeForm}
         onSaved={handleSaved}

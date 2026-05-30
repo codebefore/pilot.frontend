@@ -8,7 +8,9 @@ import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
+import { useAuth } from "../../lib/auth";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { canManageArea } from "../../lib/permissions";
 import {
   deleteCashRegister,
   getCashRegisters,
@@ -111,6 +113,9 @@ function buildColumns(t: ReturnType<typeof useT>): CashRegisterColumnDef[] {
 export function CashRegistersSettingsSection() {
   const { showToast } = useToast();
   const t = useT();
+  const { user, permissions } = useAuth();
+  const canManagePayments = canManageArea(user, permissions, "payments");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.cashRegisters.columns.v1",
     CASH_REGISTER_COLUMN_IDS
@@ -225,6 +230,7 @@ export function CashRegistersSettingsSection() {
   };
 
   const handleDelete = async (register: CashRegisterResponse) => {
+    if (!canManagePayments) return;
     setDeletingId(register.id);
     try {
       await deleteCashRegister(register.id);
@@ -296,10 +302,13 @@ export function CashRegistersSettingsSection() {
               ) : null}
               <button
                 className="btn btn-primary btn-sm"
+                disabled={!canManagePayments}
                 onClick={() => {
+                  if (!canManagePayments) return;
                   setEditing(null);
                   setFormOpen(true);
                 }}
+                title={!canManagePayments ? noPermissionTitle : undefined}
                 type="button"
               >
                 <PlusIcon size={14} />
@@ -392,8 +401,9 @@ export function CashRegistersSettingsSection() {
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
-                                disabled={deletingId === item.id}
+                                disabled={deletingId === item.id || !canManagePayments}
                                 onClick={() => handleDelete(item)}
+                                title={!canManagePayments ? noPermissionTitle : undefined}
                                 type="button"
                               >
                                 {deletingId === item.id
@@ -406,11 +416,13 @@ export function CashRegistersSettingsSection() {
                               <button
                                 aria-label={t("settings.cashRegisters.action.edit")}
                                 className="icon-btn"
+                                disabled={!canManagePayments}
                                 onClick={() => {
+                                  if (!canManagePayments) return;
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title={t("settings.cashRegisters.action.edit")}
+                                title={!canManagePayments ? noPermissionTitle : t("settings.cashRegisters.action.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
@@ -418,9 +430,12 @@ export function CashRegistersSettingsSection() {
                               <button
                                 aria-label={t("settings.cashRegisters.action.delete")}
                                 className="icon-btn icon-btn-danger"
-                                disabled={deletingId !== null}
-                                onClick={() => setConfirmDeleteId(item.id)}
-                                title={t("settings.cashRegisters.action.delete")}
+                                disabled={deletingId !== null || !canManagePayments}
+                                onClick={() => {
+                                  if (!canManagePayments) return;
+                                  setConfirmDeleteId(item.id);
+                                }}
+                                title={!canManagePayments ? noPermissionTitle : t("settings.cashRegisters.action.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -452,6 +467,7 @@ export function CashRegistersSettingsSection() {
       </div>
 
       <CashRegisterFormModal
+        canManage={canManagePayments}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

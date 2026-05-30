@@ -8,6 +8,7 @@ import { InstructorAvatar } from "../components/ui/InstructorAvatar";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import { openAuthorizedFile } from "../lib/authorized-files";
 import {
   deleteAssignment,
@@ -26,6 +27,7 @@ import {
 } from "../lib/instructors-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { useT } from "../lib/i18n";
+import { canManageArea } from "../lib/permissions";
 import type {
   InstructorAssignment,
   InstructorResponse,
@@ -50,6 +52,10 @@ export function InstructorDetailPage() {
   const t = useT();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageTraining = canManageArea(user, permissions, "training");
+  const canManageDocuments = canManageArea(user, permissions, "documents");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { instructorId } = useParams<{ instructorId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [instructor, setInstructor] = useState<InstructorResponse | null>(null);
@@ -113,11 +119,13 @@ export function InstructorDetailPage() {
     if (!instructor) return;
     if (searchParams.get("newAssignment") !== "1") return;
     setEditing(null);
-    setModalOpen(true);
+    if (canManageTraining) {
+      setModalOpen(true);
+    }
     const next = new URLSearchParams(searchParams);
     next.delete("newAssignment");
     setSearchParams(next, { replace: true });
-  }, [instructor, loading, searchParams, setSearchParams]);
+  }, [canManageTraining, instructor, loading, searchParams, setSearchParams]);
 
   const refreshAssignments = async () => {
     if (!instructorId) return;
@@ -138,6 +146,7 @@ export function InstructorDetailPage() {
   };
 
   const handleDocumentDelete = async (assignmentId: string, documentId: string) => {
+    if (!canManageDocuments) return;
     if (!instructorId) return;
     setDeletingDocId(documentId);
     try {
@@ -155,6 +164,7 @@ export function InstructorDetailPage() {
   };
 
   const handleDelete = async (a: InstructorAssignment) => {
+    if (!canManageTraining) return;
     if (!instructorId) return;
     setDeletingId(a.id);
     try {
@@ -170,6 +180,7 @@ export function InstructorDetailPage() {
   };
 
   const openLeaveModal = () => {
+    if (!canManageTraining) return;
     if (!instructor) return;
     const today = new Date();
     const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -179,6 +190,7 @@ export function InstructorDetailPage() {
   };
 
   const submitLeave = async () => {
+    if (!canManageTraining) return;
     if (!instructor || !instructorId || !leaveDate) return;
     setLeaveBusy(true);
     try {
@@ -198,6 +210,7 @@ export function InstructorDetailPage() {
   };
 
   const restoreInstructor = async () => {
+    if (!canManageTraining) return;
     if (!instructorId) return;
     setLeaveBusy(true);
     try {
@@ -261,8 +274,9 @@ export function InstructorDetailPage() {
                 {instructor.leftAtDate ? (
                   <button
                     className="btn btn-secondary btn-sm"
-                    disabled={leaveBusy}
+                    disabled={leaveBusy || !canManageTraining}
                     onClick={restoreInstructor}
+                    title={!canManageTraining ? noPermissionTitle : undefined}
                     type="button"
                   >
                     Aktif Et
@@ -270,8 +284,9 @@ export function InstructorDetailPage() {
                 ) : (
                   <button
                     className="btn btn-secondary btn-sm"
-                    disabled={leaveBusy}
+                    disabled={leaveBusy || !canManageTraining}
                     onClick={openLeaveModal}
+                    title={!canManageTraining ? noPermissionTitle : undefined}
                     type="button"
                   >
                     İşten Ayrıldı
@@ -336,10 +351,13 @@ export function InstructorDetailPage() {
               {instructor.isActive ? (
                 <button
                   className="btn btn-primary btn-sm"
+                  disabled={!canManageTraining}
                   onClick={() => {
+                    if (!canManageTraining) return;
                     setEditing(null);
                     setModalOpen(true);
                   }}
+                  title={!canManageTraining ? noPermissionTitle : undefined}
                   type="button"
                 >
                   <PlusIcon size={14} />
@@ -389,8 +407,9 @@ export function InstructorDetailPage() {
                               </button>
                               <button
                                 className="btn btn-danger btn-sm"
-                                disabled={deletingId === a.id}
+                                disabled={deletingId === a.id || !canManageTraining}
                                 onClick={() => handleDelete(a)}
+                                title={!canManageTraining ? noPermissionTitle : undefined}
                                 type="button"
                               >
                                 {deletingId === a.id
@@ -404,11 +423,13 @@ export function InstructorDetailPage() {
                                 <button
                                   aria-label={t("common.edit")}
                                   className="icon-btn"
+                                  disabled={!canManageTraining}
                                   onClick={() => {
+                                    if (!canManageTraining) return;
                                     setEditing(a);
                                     setModalOpen(true);
                                   }}
-                                  title={t("common.edit")}
+                                  title={!canManageTraining ? noPermissionTitle : t("common.edit")}
                                   type="button"
                                 >
                                   <PencilIcon size={14} />
@@ -417,9 +438,12 @@ export function InstructorDetailPage() {
                               <button
                                 aria-label={t("common.delete")}
                                 className="icon-btn icon-btn-danger"
-                                disabled={deletingId !== null}
-                                onClick={() => setConfirmDeleteId(a.id)}
-                                title={t("common.delete")}
+                                disabled={deletingId !== null || !canManageTraining}
+                                onClick={() => {
+                                  if (!canManageTraining) return;
+                                  setConfirmDeleteId(a.id);
+                                }}
+                                title={!canManageTraining ? noPermissionTitle : t("common.delete")}
                                 type="button"
                               >
                                 <TrashIcon size={14} />
@@ -466,7 +490,12 @@ export function InstructorDetailPage() {
                           {instructor.isActive ? (
                             <button
                               className="btn btn-secondary btn-sm"
-                              onClick={() => setDocModalAssignmentId(a.id)}
+                              disabled={!canManageDocuments}
+                              onClick={() => {
+                                if (!canManageDocuments) return;
+                                setDocModalAssignmentId(a.id);
+                              }}
+                              title={!canManageDocuments ? noPermissionTitle : undefined}
                               type="button"
                             >
                               <PlusIcon size={12} />
@@ -513,9 +542,9 @@ export function InstructorDetailPage() {
                                 <button
                                   aria-label={t("common.delete")}
                                   className="icon-btn icon-btn-danger"
-                                  disabled={deletingDocId === d.id}
+                                  disabled={deletingDocId === d.id || !canManageDocuments}
                                   onClick={() => handleDocumentDelete(a.id, d.id)}
-                                  title={t("common.delete")}
+                                  title={!canManageDocuments ? noPermissionTitle : t("common.delete")}
                                   type="button"
                                 >
                                   <TrashIcon size={12} />
@@ -538,6 +567,7 @@ export function InstructorDetailPage() {
       {instructorId && (
         <InstructorAssignmentFormModal
           branches={activeBranches}
+          canManage={canManageTraining}
           editing={editing}
           instructorId={instructorId}
           onClose={() => {
@@ -552,6 +582,7 @@ export function InstructorDetailPage() {
       {instructorId && docModalAssignmentId && (
         <AssignmentDocumentFormModal
           assignmentId={docModalAssignmentId}
+          canManage={canManageDocuments}
           instructorId={instructorId}
           onClose={() => setDocModalAssignmentId(null)}
           onSaved={async () => {
@@ -575,8 +606,9 @@ export function InstructorDetailPage() {
             </button>
             <button
               className="btn btn-primary"
-              disabled={leaveBusy || !leaveDate}
+              disabled={leaveBusy || !leaveDate || !canManageTraining}
               onClick={submitLeave}
+              title={!canManageTraining ? noPermissionTitle : undefined}
               type="button"
             >
               {leaveBusy ? "Kaydediliyor..." : "Kaydet"}

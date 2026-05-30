@@ -81,6 +81,44 @@ describe("UsersPage", () => {
     });
   });
 
+  it("keeps user mutation actions disabled for users view-only users", async () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <UsersPage />
+      </MemoryRouter>,
+      {
+        auth: {
+          user: {
+            id: "users-viewer",
+            phone: "5073737262",
+            name: "Users Viewer",
+            roleName: "Kullanıcı İzleme",
+            isSuperAdmin: false,
+          },
+          permissions: { users: "view" },
+        },
+      }
+    );
+
+    const row = await screen.findByText("Ada Yilmaz");
+    const tableRow = row.closest("tr");
+    expect(tableRow).not.toBeNull();
+
+    const newButton = screen.getByRole("button", { name: /Kullanıcı Ekle/i });
+    const editButton = within(tableRow as HTMLElement).getByRole("button", { name: "Düzenle" });
+    const deleteButton = within(tableRow as HTMLElement).getByRole("button", { name: "Sil" });
+
+    for (const button of [newButton, editButton, deleteButton]) {
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", "Yetkiniz yok.");
+      fireEvent.click(button);
+    }
+
+    expect(screen.queryByRole("button", { name: "Vazgeç" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(deleteUserMock).not.toHaveBeenCalled();
+  });
+
   it("does not expose email as a user column", async () => {
     renderWithProviders(
       <MemoryRouter>

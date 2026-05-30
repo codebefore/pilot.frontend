@@ -17,6 +17,7 @@ type NewTermForm = {
 
 type NewTermModalProps = {
   open: boolean;
+  canManage?: boolean;
   onClose: () => void;
   onSaved: (term: TermResponse) => void;
   term?: TermResponse | null;
@@ -50,11 +51,12 @@ function termValues(term?: TermResponse | null): NewTermForm {
   };
 }
 
-export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps) {
+export function NewTermModal({ open, canManage = true, onClose, onSaved, term }: NewTermModalProps) {
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const isEditMode = Boolean(term);
   const nameInputId = useId();
@@ -78,6 +80,7 @@ export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps
   }, [open, reset, term]);
 
   const submit = handleSubmit(async (data) => {
+    if (!canManage) return;
     setSubmitting(true);
     try {
       const normalizedMonthDate = toMonthStart(data.monthDate);
@@ -153,8 +156,9 @@ export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting}
+            disabled={submitting || !canManage}
             onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
             {submitting ? t("terms.form.saving") : t("terms.form.save")}
@@ -172,6 +176,7 @@ export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps
             <LocalizedDateInput
               ariaLabel={t("terms.form.month")}
               className={fieldClass(!!errors.monthDate, "form-input")}
+              disabled={!canManage}
               inputRef={monthDateRegistration.ref}
               lang={dateInputLang}
               mode="month"
@@ -198,6 +203,7 @@ export function NewTermModal({ open, onClose, onSaved, term }: NewTermModalProps
             <label className="form-label" htmlFor={nameInputId}>{t("terms.form.name")}</label>
             <input
               className={fieldClass(!!errors.name, "form-input")}
+              disabled={!canManage}
               id={nameInputId}
               placeholder={t("terms.form.namePlaceholder")}
               {...register("name")}

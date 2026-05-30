@@ -13,6 +13,10 @@ import {
 
 let refreshSessionPromise: Promise<boolean> | null = null;
 
+export const FORBIDDEN_ERROR_MESSAGE = "Yetkiniz yok.";
+export const ACTIVE_INSTITUTION_REQUIRED_MESSAGE = "Aktif kurum seçmeniz gerekiyor.";
+const ACTIVE_INSTITUTION_REQUIRED_TITLE = "Active institution is required.";
+
 /**
  * Structured validation error delivered through
  * `ValidationProblemDetails.Extensions["errorCodes"]` by endpoints that opt
@@ -41,7 +45,7 @@ export class ApiError extends Error {
     errorCode?: string,
     problemTitle?: string
   ) {
-    super(`API error ${status}: ${statusText}`);
+    super(getApiErrorMessage(status, statusText, problemTitle));
     this.name = "ApiError";
     this.status = status;
     this.statusText = statusText;
@@ -50,6 +54,20 @@ export class ApiError extends Error {
     this.validationErrorCodes = validationErrorCodes;
     this.errorCode = errorCode;
   }
+}
+
+function getApiErrorMessage(
+  status: number,
+  statusText: string,
+  problemTitle?: string
+): string {
+  if (status === 403) {
+    return problemTitle === ACTIVE_INSTITUTION_REQUIRED_TITLE
+      ? ACTIVE_INSTITUTION_REQUIRED_MESSAGE
+      : FORBIDDEN_ERROR_MESSAGE;
+  }
+
+  return problemTitle ?? `API error ${status}: ${statusText}`;
 }
 
 type QueryParamPrimitive = string | number | boolean | undefined | null;
@@ -91,10 +109,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T;
 
   if (!response.ok) {
-    if (response.status === 401) {
-      notifyUnauthorized();
-    }
-
     let validationErrors: Record<string, string[]> | undefined;
     let validationErrorCodes: Record<string, ApiValidationError[]> | undefined;
     let errorCode: string | undefined;
@@ -108,7 +122,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch {
       // ignore parse errors
     }
-    if (response.status === 403 && problemTitle === "Active institution is required.") {
+    if (response.status === 403 && problemTitle === ACTIVE_INSTITUTION_REQUIRED_TITLE) {
       notifyInstitutionRequired();
     }
     throw new ApiError(

@@ -38,6 +38,13 @@ describe("NewGroupModal", () => {
       totalCount: 0,
       totalPages: 0,
     });
+    getTermsMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 200,
+      totalCount: 0,
+      totalPages: 0,
+    });
   });
 
   it("defaults group number and branch to 1A", async () => {
@@ -447,6 +454,30 @@ describe("NewGroupModal", () => {
 
     await waitFor(() => {
       expect((groupBranchSelect as HTMLSelectElement).value).toBe("A");
+    });
+  });
+
+  it("does not submit when opened without manage permission", async () => {
+    renderWithProviders(
+      <NewGroupModal
+        canManage={false}
+        initialTermId="term-1"
+        onClose={() => {}}
+        onSubmit={() => {}}
+        open
+      />
+    );
+
+    const saveButton = await screen.findByRole("button", { name: "Kaydet" });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("title", "Yetkiniz yok.");
+
+    const form = document.querySelector("form");
+    if (!form) throw new Error("form not found");
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(createGroupMock).not.toHaveBeenCalled();
     });
   });
 });

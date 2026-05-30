@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { ApiError } from "../lib/http";
+import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import type { TranslationKey } from "../lib/i18n";
 import { PageToolbar } from "../components/layout/PageToolbar";
@@ -58,6 +59,7 @@ import type {
   VehicleResponse,
 } from "../lib/types";
 import { getVehicles } from "../lib/vehicles-api";
+import { canManageArea } from "../lib/permissions";
 
 import { buildBranchHelpers } from "../lib/training-branches";
 
@@ -102,6 +104,10 @@ function notifyMebbisJobQueued(jobId: string, jobType: string): void {
 export function TrainingPage({ type }: TrainingPageProps) {
   const { showToast } = useToast();
   const t = useT();
+  const { user, permissions } = useAuth();
+  const canManageTraining = canManageArea(user, permissions, "training");
+  const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
+  const noPermissionTitle = "Yetkiniz yok.";
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [serverGeneralError, setServerGeneralError] = useState<string | undefined>();
   const [modalOpen, setModalOpen] = useState(false);
@@ -719,6 +725,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleQuickAssign = async (branch: string) => {
+    if (!canManageTraining || !newLessonSlot) return;
     const { instructorId, groupId } = quickSettings;
     const startTime = newLessonSlot!.start;
     // Süre takvimden seçilen slot'tan türetiliyor — drag ile 4 saat
@@ -812,6 +819,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       vehicleId?: string;
     }
   ) => {
+    if (!canManageTraining || !newLessonSlot) return;
     const candidateId = quickSettings.candidateId;
     const instructorId = override?.instructorId ?? quickSettings.instructorId;
     const vehicleId = override?.vehicleId ?? quickSettings.vehicleId;
@@ -894,6 +902,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleCreateLesson = async (values: TrainingLessonSubmitValues) => {
+    if (!canManageTraining) return;
     setServerFieldErrors({});
     setServerGeneralError(undefined);
     try {
@@ -920,6 +929,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     event: TrainingCalendarEvent,
     overrides: Partial<TrainingLessonUpsertRequest>
   ) => {
+    if (!canManageTraining) return;
     try {
       const saved = await updateTrainingLesson(
         event.id,
@@ -940,6 +950,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleDeleteEvent = async (event: TrainingCalendarEvent) => {
+    if (!canManageTraining) return;
     try {
       await deleteTrainingLesson(event.id);
       setEvents((prev) => prev.filter((e) => e.id !== event.id));
@@ -952,6 +963,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleSelectSlot = (slot: { start: Date; end: Date }) => {
+    if (!canManageTraining) return;
     const snappedStart = snapStart(slot.start);
     const desiredMin = (slot.end.getTime() - slot.start.getTime()) / 60000;
     const durationMin = snapDuration(desiredMin);
@@ -1138,6 +1150,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     start: Date;
     end: Date;
   }) => {
+    if (!canManageTraining) return;
     // Kullanıcı hangi kenarı çekti? `event.start` değiştiyse üst kenar.
     const topChanged = start.getTime() !== event.start.getTime();
     let finalStart: Date;
@@ -1174,6 +1187,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     start: Date;
     end: Date;
   }) => {
+    if (!canManageTraining) return;
     const finalStart = snapStart(start);
     const durationMs = event.end.getTime() - event.start.getTime();
     const finalEnd = new Date(finalStart.getTime() + durationMs);
@@ -1301,6 +1315,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleCreateTheoryScheduleSyncJob = async () => {
+    if (!canManageMebJobs) return;
     if (!selectedTheoryGroup) {
       showToast(t("training.toast.selectGroupForMebbisTransfer"));
       return;
@@ -1326,6 +1341,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleCreateTheoryScheduleImportJob = async () => {
+    if (!canManageMebJobs) return;
     if (!selectedTheoryGroup) {
       showToast(t("training.toast.selectGroupForMebbisImport"));
       return;
@@ -1351,6 +1367,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleBulkDeleteGroupLessons = async () => {
+    if (!canManageTraining) return;
     if (!bulkDeleteGroup) return;
     setIsBulkDeleteLoading(true);
     try {
@@ -1376,6 +1393,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleBulkDeleteCandidateLessons = async () => {
+    if (!canManageTraining) return;
     if (!bulkDeleteCandidate) return;
     setIsBulkDeleteLoading(true);
     try {
@@ -1410,6 +1428,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 <button
                   className="btn btn-primary btn-sm"
                   disabled={
+                    !canManageMebJobs ||
                     !selectedTheoryGroup ||
                     isQuickAssignLoading ||
                     isBulkDeleteLoading ||
@@ -1417,6 +1436,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     isMebbisImportLoading
                   }
                   onClick={handleCreateTheoryScheduleSyncJob}
+                  title={!canManageMebJobs ? noPermissionTitle : undefined}
                   type="button"
                 >
                   <MebIcon size={14} />
@@ -1429,6 +1449,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 <button
                   className="btn btn-secondary btn-sm"
                   disabled={
+                    !canManageMebJobs ||
                     !selectedTheoryGroup ||
                     isQuickAssignLoading ||
                     isBulkDeleteLoading ||
@@ -1436,6 +1457,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     isMebbisImportLoading
                   }
                   onClick={handleCreateTheoryScheduleImportJob}
+                  title={!canManageMebJobs ? noPermissionTitle : undefined}
                   type="button"
                 >
                   <MebIcon size={14} />
@@ -1453,8 +1475,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   </span>
                   <button
                     className="btn btn-danger btn-sm"
-                    disabled={isQuickAssignLoading || isBulkDeleteLoading || selectedGroupLessonCount === 0}
-                    onClick={() => setBulkDeleteGroup(selectedTheoryGroup)}
+                    disabled={!canManageTraining || isQuickAssignLoading || isBulkDeleteLoading || selectedGroupLessonCount === 0}
+                    onClick={() => {
+                      if (!canManageTraining) return;
+                      setBulkDeleteGroup(selectedTheoryGroup);
+                    }}
+                    title={!canManageTraining ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("training.quick.deleteGroupLessons")}
@@ -1470,8 +1496,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   </span>
                   <button
                     className="btn btn-danger btn-sm"
-                    disabled={isQuickAssignLoading || isBulkDeleteLoading || selectedCandidateLessonCount === 0}
-                    onClick={() => setBulkDeleteCandidate(selectedPracticeCandidate)}
+                    disabled={!canManageTraining || isQuickAssignLoading || isBulkDeleteLoading || selectedCandidateLessonCount === 0}
+                    onClick={() => {
+                      if (!canManageTraining) return;
+                      setBulkDeleteCandidate(selectedPracticeCandidate);
+                    }}
+                    title={!canManageTraining ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("training.quick.deleteCandidateLessons")}
@@ -1582,6 +1612,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 onEventResize={handleEventResize}
                 onSelectEvent={handleSelectEvent}
                 onSelectSlot={handleSelectSlot}
+                readOnly={!canManageTraining}
               />
             </div>
           )}
@@ -1590,6 +1621,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
 	        <NewTrainingPlanModal
 	        branches={branches}
+	        canManage={canManageTraining}
 	        defaultType={type}
         initialSlot={newLessonSlot}
         instructors={instructors}
@@ -1621,8 +1653,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
             </button>
             <button
               className="btn btn-danger"
-              disabled={isBulkDeleteLoading}
+              disabled={isBulkDeleteLoading || !canManageTraining}
               onClick={() => void handleBulkDeleteGroupLessons()}
+              title={!canManageTraining ? noPermissionTitle : undefined}
               type="button"
             >
               {isBulkDeleteLoading
@@ -1663,8 +1696,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
             </button>
             <button
               className="btn btn-danger"
-              disabled={isBulkDeleteLoading}
+              disabled={isBulkDeleteLoading || !canManageTraining}
               onClick={() => void handleBulkDeleteCandidateLessons()}
+              title={!canManageTraining ? noPermissionTitle : undefined}
               type="button"
             >
               {isBulkDeleteLoading
@@ -1703,7 +1737,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
           branchHelpers={branchHelpers}
           isLoading={isQuickAssignLoading}
           onClose={() => setIsBranchPickerOpen(false)}
-          onPick={(branch) => void handleQuickAssign(branch)}
+          onPick={(branch) => {
+            if (!canManageTraining) return;
+            void handleQuickAssign(branch);
+          }}
           pos={popoverPos}
           slotInfo={
             newLessonSlot
@@ -1738,6 +1775,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
             pendingPracticeAssignment.current = null;
           }}
           onPick={(educationType) => {
+            if (!canManageTraining) return;
             const pending = pendingPracticeAssignment.current;
             if (!pending) {
               setPracticePopoverPos(null);
@@ -1794,6 +1832,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           if (!event) return;
           await persistEventUpdate(event, { status });
         }}
+        readOnly={!canManageTraining}
       />
     </>
   );

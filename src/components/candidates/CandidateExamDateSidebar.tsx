@@ -17,11 +17,12 @@ type CandidateExamDateSidebarProps = {
   onDelete?: (option: ExamScheduleOption) => void;
   onEdit?: (option: ExamScheduleOption, date: string) => void;
   deletingOptionId?: string | null;
-  actions?: { label: string; onClick: () => void; disabled?: boolean }[];
+  actions?: { label: string; onClick: () => void; disabled?: boolean; title?: string }[];
   codeOptions?: ExamCodeOption[];
   onCodeAdd?: () => void;
   onCodeDelete?: (option: ExamCodeOption) => void;
   onCodeEdit?: (option: ExamCodeOption, code: string) => void;
+  canManageMutations?: boolean;
   deletingCodeId?: string | null;
   editingOptionId?: string | null;
   editingCodeId?: string | null;
@@ -75,6 +76,7 @@ export function CandidateExamDateSidebar({
   onCodeAdd,
   onCodeDelete,
   onCodeEdit,
+  canManageMutations = true,
   deletingCodeId,
   editingOptionId,
   editingCodeId,
@@ -169,12 +171,15 @@ export function CandidateExamDateSidebar({
 
   const todayDividerDate = findTodayDividerDate(options, today);
   const showCodeTab = codeOptions !== undefined && onCodeSelect !== undefined;
+  const noPermissionTitle = "Yetkiniz yok.";
   const startDateEdit = (option: ExamScheduleOption) => {
+    if (!canManageMutations) return;
     setConfirmingId(null);
     setEditingDateId(option.id);
     setEditingDateValue(option.date);
   };
   const submitDateEdit = (option: ExamScheduleOption) => {
+    if (!canManageMutations) return;
     if (!editingDateValue || editingDateValue === option.date) {
       setEditingDateId(null);
       return;
@@ -182,12 +187,14 @@ export function CandidateExamDateSidebar({
     onEdit?.(option, editingDateValue);
   };
   const startCodeEdit = (option: ExamCodeOption) => {
+    if (!canManageMutations) return;
     setConfirmingCodeId(null);
     setEditingCodeLocalId(option.id);
     setEditingCodeValue(option.code);
     setEditingCodeError("");
   };
   const submitCodeEdit = (option: ExamCodeOption) => {
+    if (!canManageMutations) return;
     const cleaned = editingCodeValue.replace(/\D/g, "").slice(0, 9);
     if (cleaned.length !== 9) {
       setEditingCodeError("Sınav kodu 9 hane olmalı.");
@@ -237,7 +244,9 @@ export function CandidateExamDateSidebar({
             <div className="exam-date-sidebar-actions" role="toolbar" aria-label="Sınav kodu aksiyonları">
               <button
                 className="btn btn-secondary btn-sm exam-date-sidebar-action"
+                disabled={!canManageMutations}
                 onClick={onCodeAdd}
+                title={!canManageMutations ? noPermissionTitle : undefined}
                 type="button"
               >
                 Sınav Kodu Ekle
@@ -255,6 +264,7 @@ export function CandidateExamDateSidebar({
                     <input
                       autoFocus
                       className="exam-date-option-edit-input"
+                      disabled={!canManageMutations}
                       inputMode="numeric"
                       maxLength={9}
                       onChange={(event) => {
@@ -297,8 +307,9 @@ export function CandidateExamDateSidebar({
                     <button
                       aria-label="Sınav kodunu kaydet"
                       className="exam-date-option-action"
-                      disabled={editingCodeId === option.id}
+                      disabled={editingCodeId === option.id || !canManageMutations}
                       onClick={() => submitCodeEdit(option)}
+                      title={!canManageMutations ? noPermissionTitle : undefined}
                       type="button"
                     >
                       <CheckIcon size={14} />
@@ -322,12 +333,12 @@ export function CandidateExamDateSidebar({
                       <button
                         aria-label="Sınav kodunu düzenle"
                         className="exam-date-option-action"
-                        disabled={editingCodeId === option.id}
+                        disabled={editingCodeId === option.id || !canManageMutations}
                         onClick={(event) => {
                           event.stopPropagation();
                           startCodeEdit(option);
                         }}
-                        title="Düzenle"
+                        title={!canManageMutations ? noPermissionTitle : "Düzenle"}
                         type="button"
                       >
                         <PencilIcon size={14} />
@@ -337,12 +348,19 @@ export function CandidateExamDateSidebar({
                       <button
                         aria-label="Sınav kodunu sil"
                         className="exam-date-option-action danger"
-                        disabled={!canDelete || isDeleting}
+                        disabled={!canManageMutations || !canDelete || isDeleting}
                         onClick={(event) => {
+                          if (!canManageMutations) return;
                           event.stopPropagation();
                           setConfirmingCodeId((current) => (current === option.id ? null : option.id));
                         }}
-                        title={!canDelete ? "Bağlı sınav tarihi veya aday olduğu için silinemez." : "Sil"}
+                        title={
+                          !canManageMutations
+                            ? noPermissionTitle
+                            : !canDelete
+                              ? "Bağlı sınav tarihi veya aday olduğu için silinemez."
+                              : "Sil"
+                        }
                         type="button"
                       >
                         <TrashIcon size={14} />
@@ -364,8 +382,12 @@ export function CandidateExamDateSidebar({
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
-                        disabled={isDeleting}
-                        onClick={() => onCodeDelete(option)}
+                        disabled={isDeleting || !canManageMutations}
+                        onClick={() => {
+                          if (!canManageMutations) return;
+                          onCodeDelete(option);
+                        }}
+                        title={!canManageMutations ? noPermissionTitle : undefined}
                         type="button"
                       >
                         {isDeleting ? "Siliniyor…" : "Sil"}
@@ -387,6 +409,7 @@ export function CandidateExamDateSidebar({
               disabled={action.disabled}
               key={action.label}
               onClick={action.onClick}
+              title={action.title}
               type="button"
             >
               {action.label}
@@ -409,6 +432,7 @@ export function CandidateExamDateSidebar({
                     ariaLabel="Sınav tarihi"
                     className="exam-date-option-edit-input"
                     defaultOnOpen={option.date}
+                    disabled={!canManageMutations}
                     lang="tr-TR"
                     onChange={setEditingDateValue}
                     size="sm"
@@ -442,8 +466,9 @@ export function CandidateExamDateSidebar({
                   <button
                     aria-label={`${formatDateTR(option.date)} sınav tarihini kaydet`}
                     className="exam-date-option-action"
-                    disabled={editingOptionId === option.id}
+                    disabled={editingOptionId === option.id || !canManageMutations}
                     onClick={() => submitDateEdit(option)}
+                    title={!canManageMutations ? noPermissionTitle : undefined}
                     type="button"
                   >
                     <CheckIcon size={14} />
@@ -464,11 +489,12 @@ export function CandidateExamDateSidebar({
                     <button
                       aria-label={`${formatDateTR(option.date)} sınav tarihini düzenle`}
                       className="exam-date-option-action"
-                      disabled={editingOptionId === option.id}
+                      disabled={editingOptionId === option.id || !canManageMutations}
                       onClick={(event) => {
                         event.stopPropagation();
                         startDateEdit(option);
                       }}
+                      title={!canManageMutations ? noPermissionTitle : "Düzenle"}
                       type="button"
                     >
                       <PencilIcon size={14} />
@@ -478,11 +504,13 @@ export function CandidateExamDateSidebar({
                     <button
                       aria-label={`${formatDateTR(option.date)} sınav tarihini sil`}
                       className="exam-date-option-action danger"
-                      disabled={isDeleting}
+                      disabled={isDeleting || !canManageMutations}
                       onClick={(event) => {
+                        if (!canManageMutations) return;
                         event.stopPropagation();
                         setConfirmingId((current) => (current === option.id ? null : option.id));
                       }}
+                      title={!canManageMutations ? noPermissionTitle : "Sil"}
                       type="button"
                     >
                       <TrashIcon size={14} />
@@ -504,8 +532,12 @@ export function CandidateExamDateSidebar({
                     </button>
                     <button
                       className="btn btn-danger btn-sm"
-                      disabled={isDeleting}
-                      onClick={() => onDelete(option)}
+                      disabled={isDeleting || !canManageMutations}
+                      onClick={() => {
+                        if (!canManageMutations) return;
+                        onDelete(option);
+                      }}
+                      title={!canManageMutations ? noPermissionTitle : undefined}
                       type="button"
                     >
                       {isDeleting ? "Siliniyor…" : "Sil"}

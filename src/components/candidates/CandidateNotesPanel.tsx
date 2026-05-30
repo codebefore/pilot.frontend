@@ -4,6 +4,8 @@ import { BellIcon, CheckIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { NoteComposerModal, type NoteDraft } from "../notes/NoteComposerModal";
 import { Panel } from "../ui/Panel";
 import { useToast } from "../ui/Toast";
+import { useAuth } from "../../lib/auth";
+import { canManageArea } from "../../lib/permissions";
 import {
   createCandidateNote,
   deleteCandidateNote,
@@ -19,6 +21,9 @@ type Props = {
 
 export function CandidateNotesPanel({ candidateId }: Props) {
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageCandidates = canManageArea(user, permissions, "candidates");
+  const noPermissionTitle = "Yetkiniz yok.";
   const [notes, setNotes] = useState<CandidateNoteResponse[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<CandidateNoteResponse | null>(null);
@@ -38,11 +43,13 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   }, [load]);
 
   const beginCreate = () => {
+    if (!canManageCandidates) return;
     setEditing(null);
     setComposerOpen(true);
   };
 
   const beginEdit = (note: CandidateNoteResponse) => {
+    if (!canManageCandidates) return;
     setEditing(note);
     setComposerOpen(true);
   };
@@ -53,6 +60,8 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   };
 
   const handleSubmit = async ({ body, reminderAtUtc }: NoteDraft) => {
+    if (!canManageCandidates) return;
+
     setSaving(true);
     try {
       if (editing) {
@@ -72,6 +81,8 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   };
 
   const handleToggle = async (note: CandidateNoteResponse) => {
+    if (!canManageCandidates) return;
+
     try {
       await setCandidateNoteCompletion(candidateId, note.id, note.completedAtUtc === null);
       await load();
@@ -81,6 +92,8 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   };
 
   const handleDelete = async (note: CandidateNoteResponse) => {
+    if (!canManageCandidates) return;
+
     try {
       await deleteCandidateNote(candidateId, note.id);
       await load();
@@ -93,7 +106,13 @@ export function CandidateNotesPanel({ candidateId }: Props) {
     <>
       <Panel
         action={
-          <button className="panel-action" onClick={beginCreate} type="button">
+          <button
+            className="panel-action"
+            disabled={!canManageCandidates}
+            onClick={beginCreate}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
+            type="button"
+          >
             <PlusIcon size={14} /> Yeni Not
           </button>
         }
@@ -126,12 +145,14 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                   className={`user-notes-item${completed ? " is-completed" : ""}${overdue ? " is-overdue" : ""}`}
                   key={note.id}
                 >
-                  <button
-                    aria-label={completed ? "Tamamlandı işaretini kaldır" : "Tamamlandı olarak işaretle"}
-                    className="user-notes-item-toggle"
-                    onClick={() => void handleToggle(note)}
-                    type="button"
-                  >
+                    <button
+                      aria-label={completed ? "Tamamlandı işaretini kaldır" : "Tamamlandı olarak işaretle"}
+                      className="user-notes-item-toggle"
+                      disabled={!canManageCandidates}
+                      onClick={() => void handleToggle(note)}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
+                      type="button"
+                    >
                     {completed ? <CheckIcon size={12} /> : null}
                   </button>
                   <div className="user-notes-item-body">
@@ -149,7 +170,9 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                     <button
                       aria-label="Düzenle"
                       className="user-notes-item-action"
+                      disabled={!canManageCandidates}
                       onClick={() => beginEdit(note)}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
                       type="button"
                     >
                       <PencilIcon size={14} />
@@ -157,7 +180,9 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                     <button
                       aria-label="Sil"
                       className="user-notes-item-action is-danger"
+                      disabled={!canManageCandidates}
                       onClick={() => void handleDelete(note)}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
                       type="button"
                     >
                       <TrashIcon size={14} />

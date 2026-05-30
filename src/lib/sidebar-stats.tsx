@@ -9,6 +9,8 @@ import {
 
 import { getSidebarStats } from "./stats-api";
 import type { SidebarStatsResponse } from "./types";
+import { useAuth } from "./auth";
+import { canViewArea } from "./permissions";
 
 const ZERO_STATS: SidebarStatsResponse = {
   candidates: { total: 0, active: 0 },
@@ -30,12 +32,20 @@ type SidebarStatsContextValue = {
 const SidebarStatsContext = createContext<SidebarStatsContextValue | null>(null);
 
 export function SidebarStatsProvider({ children }: { children: ReactNode }) {
+  const { user, permissions } = useAuth();
   const [stats, setStats] = useState<SidebarStatsResponse>(ZERO_STATS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    if (!canViewArea(user, permissions, "dashboard")) {
+      setStats(ZERO_STATS);
+      setLoading(false);
+      setError(false);
+      return;
+    }
+
     const controller = new AbortController();
     setLoading(true);
     setError(false);
@@ -51,7 +61,7 @@ export function SidebarStatsProvider({ children }: { children: ReactNode }) {
       });
 
     return () => controller.abort();
-  }, [refreshKey]);
+  }, [permissions, refreshKey, user]);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 

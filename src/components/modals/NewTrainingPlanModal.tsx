@@ -34,6 +34,7 @@ export type TrainingLessonSubmitValues = {
 
 type NewTrainingPlanModalProps = {
   open: boolean;
+  canManage?: boolean;
   defaultType?: PlanType;
   initialSlot?: { start: Date; end: Date } | null;
   instructors: InstructorResponse[];
@@ -106,6 +107,7 @@ const instructorLabel = (instructor: InstructorResponse) =>
 
 export function NewTrainingPlanModal({
   open,
+  canManage = true,
   defaultType = "teorik",
   initialSlot = null,
 	  instructors,
@@ -119,6 +121,7 @@ export function NewTrainingPlanModal({
   serverGeneralError,
 }: NewTrainingPlanModalProps) {
   const t = useT();
+  const noPermissionTitle = "Yetkiniz yok.";
   const {
     control,
     register,
@@ -144,7 +147,10 @@ export function NewTrainingPlanModal({
     required: t("training.modal.required.time"),
   });
 
-  const submit = handleSubmit((values) => onSubmit(values));
+  const submit = handleSubmit((values) => {
+    if (!canManage) return;
+    onSubmit(values);
+  });
 
   // Server hatası varsa input vurgusu da yansısın.
   const serverErr = (field: string) => serverFieldErrors?.[field];
@@ -161,7 +167,13 @@ export function NewTrainingPlanModal({
           <button className="btn btn-secondary" onClick={onClose} type="button">
             {t("training.modal.cancel")}
           </button>
-          <button className="btn btn-primary" onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={!canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {t("training.modal.save")}
           </button>
         </>
@@ -190,6 +202,7 @@ export function NewTrainingPlanModal({
               render={({ field }) => (
                 <CustomSelect
                   className="form-select"
+                  disabled={!canManage}
                   name={field.name}
                   onBlur={field.onBlur}
                   onChange={(event) => field.onChange(event.target.value)}
@@ -210,6 +223,7 @@ export function NewTrainingPlanModal({
               render={({ field }) => (
                 <CustomSelect
                   className="form-select"
+                  disabled={!canManage}
                   name={field.name}
                   onBlur={field.onBlur}
                   onChange={(event) => field.onChange(event.target.value)}
@@ -228,6 +242,7 @@ export function NewTrainingPlanModal({
             <label className="form-label">{t("training.modal.field.date")}</label>
             <LocalizedDateInput
               className={fieldClass("date", !!errors.date, "form-input")}
+              disabled={!canManage}
               inputRef={dateRegistration.ref}
               name={dateRegistration.name}
               onBlur={dateRegistration.onBlur}
@@ -245,6 +260,7 @@ export function NewTrainingPlanModal({
             <label className="form-label">{t("training.modal.field.startTime")}</label>
             <LocalizedTimeInput
               className={fieldClass("startTime", !!errors.startTime, "form-input")}
+              disabled={!canManage}
               inputRef={startTimeRegistration.ref}
               name={startTimeRegistration.name}
               onBlur={startTimeRegistration.onBlur}
@@ -264,6 +280,7 @@ export function NewTrainingPlanModal({
             <label className="form-label">{t("training.modal.field.duration")}</label>
             <CustomSelect
               className={fieldClass("durationMinutes", false, "form-select")}
+              disabled={!canManage}
               {...register("durationMinutes", {
                 required: t("training.modal.required.duration"),
                 valueAsNumber: true,
@@ -287,6 +304,7 @@ export function NewTrainingPlanModal({
             <label className="form-label">{t("training.modal.field.instructor")}</label>
             <CustomSelect
               className={fieldClass("instructorId", !!errors.instructorId, "form-select")}
+              disabled={!canManage}
               {...register("instructorId", { required: t("training.modal.required.instructor") })}
             >
               <option value="">{t("training.modal.placeholder.select")}</option>
@@ -316,6 +334,7 @@ export function NewTrainingPlanModal({
               <label className="form-label">{t("training.modal.field.group")}</label>
               <CustomSelect
                 className={fieldClass("groupId", !!errors.groupId, "form-select")}
+                disabled={!canManage}
                 {...register("groupId", {
                   validate: (value) =>
                     type !== "teorik" || value ? true : t("training.modal.required.group"),
@@ -344,6 +363,7 @@ export function NewTrainingPlanModal({
               <label className="form-label">{t("training.modal.field.candidate")}</label>
               <CustomSelect
                 className={fieldClass("candidateId", !!errors.candidateId, "form-select")}
+                disabled={!canManage}
                 {...register("candidateId", {
                   validate: (value) =>
                     !needsPracticeFields || value ? true : t("training.modal.required.candidate"),
@@ -372,6 +392,7 @@ export function NewTrainingPlanModal({
 	              <label className="form-label">{t("training.modal.field.branch")}</label>
 	              <CustomSelect
 	                className={fieldClass("branchCode", !!errors.branchCode, "form-select")}
+	                disabled={!canManage}
 	                {...register("branchCode", {
 	                  validate: (value) =>
 	                    type !== "teorik" || value ? true : t("training.modal.required.branch"),
@@ -402,6 +423,7 @@ export function NewTrainingPlanModal({
               <label className="form-label">{t("training.modal.field.vehicle")}</label>
               <CustomSelect
                 className={fieldClass("vehicleId", !!errors.vehicleId, "form-select")}
+                disabled={!canManage}
                 {...register("vehicleId", {
                   validate: (value) =>
                     !needsPracticeFields || value ? true : t("training.modal.required.vehicle"),
@@ -427,7 +449,12 @@ export function NewTrainingPlanModal({
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label">{t("training.modal.field.notes")}</label>
-            <textarea className="form-textarea" rows={3} {...register("notes")} />
+            <textarea
+              className="form-textarea"
+              disabled={!canManage}
+              rows={3}
+              {...register("notes")}
+            />
           </div>
         </div>
       </form>

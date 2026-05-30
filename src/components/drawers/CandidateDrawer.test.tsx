@@ -202,6 +202,35 @@ describe("CandidateDrawer", () => {
     });
   });
 
+  it("keeps delete and upload panels closed when candidate actions are disabled", async () => {
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        canManageCandidates={false}
+        onClose={() => {}}
+        onDeleted={() => {}}
+        onUpdated={() => {}}
+      />
+    );
+
+    expect(await screen.findByRole("heading", { name: "Ada Yilmaz" })).toBeInTheDocument();
+
+    const deleteButton = screen.getByRole("button", { name: "Aday Sil" });
+    const uploadButton = screen.getByRole("button", { name: "Profil resmi yükle" });
+
+    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toHaveAttribute("title", "Yetkiniz yok.");
+    expect(uploadButton).toBeDisabled();
+    expect(uploadButton).toHaveAttribute("title", "Yetkiniz yok.");
+
+    fireEvent.click(deleteButton);
+    fireEvent.click(uploadButton);
+
+    expect(screen.queryByRole("button", { name: "Evet, Sil" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Evrak Yükle" })).not.toBeInTheDocument();
+    expect(updateCandidateMock).not.toHaveBeenCalled();
+  });
+
   it("saves only canonical english candidate status values", async () => {
     renderWithProviders(
       <CandidateDrawer

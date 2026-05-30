@@ -71,11 +71,12 @@ const sampleVehicle = {
   rowVersion: 1,
 };
 
-function renderSection() {
+function renderSection(auth?: NonNullable<Parameters<typeof renderWithProviders>[1]>["auth"]) {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/settings/definitions/vehicles"]}>
       <VehiclesSettingsSection />
-    </MemoryRouter>
+    </MemoryRouter>,
+    { auth }
   );
 }
 
@@ -363,6 +364,35 @@ describe("VehiclesSettingsSection", () => {
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("disables management actions for training view-only users", async () => {
+    renderSection({
+      user: {
+        id: "readonly-user",
+        phone: "5000000001",
+        name: "Read Only",
+        roleName: "Eğitim",
+        isSuperAdmin: false,
+      },
+      permissions: { training: "view" },
+    });
+    await screen.findByText("34 ABC 123");
+
+    expect(screen.getByRole("button", { name: /Yeni Araç/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Düzenle" })).toBeDisabled();
+    const deleteButton = screen.getByRole("button", { name: "Sil" });
+    expect(deleteButton).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
+    fireEvent.click(deleteButton);
+
+    expect(screen.queryByRole("button", { name: "Vazgeç" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(createVehicleMock).not.toHaveBeenCalled();
+    expect(updateVehicleMock).not.toHaveBeenCalled();
+    expect(deleteVehicleMock).not.toHaveBeenCalled();
   });
 
   it("shows unmapped server validation errors as a toast", async () => {

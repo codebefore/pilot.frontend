@@ -8,7 +8,9 @@ import { SearchInput } from "../ui/SearchInput";
 import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
+import { useAuth } from "../../lib/auth";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { canManageArea } from "../../lib/permissions";
 import {
   getClassrooms,
   type ClassroomActivityFilter,
@@ -119,6 +121,9 @@ function buildColumns(t: ReturnType<typeof useT>): ClassroomColumnDef[] {
 export function ClassroomsSettingsSection() {
   const { showToast } = useToast();
   const t = useT();
+  const { user, permissions } = useAuth();
+  const canManageTraining = canManageArea(user, permissions, "training");
+  const noPermissionTitle = "Yetkiniz yok.";
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.classrooms.columns.v1",
     CLASSROOM_COLUMN_IDS
@@ -307,10 +312,13 @@ export function ClassroomsSettingsSection() {
               {canCreateClassroom ? (
                 <button
                   className="btn btn-primary btn-sm"
+                  disabled={!canManageTraining}
                   onClick={() => {
+                    if (!canManageTraining) return;
                     setEditing(null);
                     setFormOpen(true);
                   }}
+                  title={!canManageTraining ? noPermissionTitle : undefined}
                   type="button"
                 >
                   <PlusIcon size={14} />
@@ -400,11 +408,13 @@ export function ClassroomsSettingsSection() {
                           <button
                             aria-label={t("settings.classrooms.action.edit")}
                             className="icon-btn"
+                            disabled={!canManageTraining}
                             onClick={() => {
+                              if (!canManageTraining) return;
                               setEditing(item);
                               setFormOpen(true);
                             }}
-                            title={t("settings.classrooms.action.edit")}
+                            title={!canManageTraining ? noPermissionTitle : t("settings.classrooms.action.edit")}
                             type="button"
                           >
                             <PencilIcon size={14} />
@@ -434,6 +444,7 @@ export function ClassroomsSettingsSection() {
       </div>
 
       <ClassroomFormModal
+        canManage={canManageTraining}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

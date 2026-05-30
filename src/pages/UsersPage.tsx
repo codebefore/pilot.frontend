@@ -21,7 +21,9 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
+import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/http";
+import { canManageArea, canViewArea } from "../lib/permissions";
 import { getRoles } from "../lib/roles-api";
 import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
@@ -148,6 +150,10 @@ const USER_PAGE_TABS: { key: UsersPageTab; label: string }[] = [
 
 export function UsersPage({ embedded = false }: UsersPageProps) {
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageUsers = canManageArea(user, permissions, "users");
+  const canViewPermissions = canViewArea(user, permissions, "permissions");
+  const noPermissionTitle = "Yetkiniz yok.";
   const [searchParams, setSearchParams] = useSearchParams();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.users.columns.v2",
@@ -172,9 +178,17 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   const [confirmDeleteUserId, setConfirmDeleteUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const activeTab: UsersPageTab =
-    searchParams.get("tab") === "permissions" ? "permissions" : "users";
+    searchParams.get("tab") === "permissions" && canViewPermissions ? "permissions" : "users";
+  const availableTabs = useMemo(
+    () =>
+      USER_PAGE_TABS.filter((tab) =>
+        tab.key === "permissions" ? canViewPermissions : true
+      ),
+    [canViewPermissions]
+  );
 
   const handleTabChange = (tab: UsersPageTab) => {
+    if (tab === "permissions" && !canViewPermissions) return;
     const nextParams = new URLSearchParams(searchParams);
     if (tab === "permissions") {
       nextParams.set("tab", "permissions");
@@ -316,11 +330,13 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   };
 
   const openCreate = () => {
+    if (!canManageUsers) return;
     setEditing(null);
     setFormOpen(true);
   };
 
   const openEdit = (user: AppUserResponse) => {
+    if (!canManageUsers) return;
     setEditing(user);
     setFormOpen(true);
   };
@@ -340,6 +356,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   };
 
   const handleDelete = async (user: AppUserResponse) => {
+    if (!canManageUsers) return;
     setDeletingUserId(user.id);
     try {
       await deleteUser(user.id);
@@ -402,7 +419,13 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
           Filtreleri Temizle
         </button>
       ) : null}
-      <button className="btn btn-primary btn-sm" onClick={openCreate} type="button">
+      <button
+        className="btn btn-primary btn-sm"
+        disabled={!canManageUsers}
+        onClick={openCreate}
+        title={!canManageUsers ? noPermissionTitle : undefined}
+        type="button"
+      >
         <PlusIcon size={14} />
         Kullanıcı Ekle
       </button>
@@ -511,8 +534,9 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
                         </button>
                         <button
                           className="btn btn-danger btn-sm"
-                          disabled={deletingUserId === user.id}
+                          disabled={deletingUserId === user.id || !canManageUsers}
                           onClick={() => handleDelete(user)}
+                          title={!canManageUsers ? noPermissionTitle : undefined}
                           type="button"
                         >
                           {deletingUserId === user.id ? "Siliniyor..." : "Sil"}
@@ -523,8 +547,9 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
                         <button
                           aria-label="Düzenle"
                           className="icon-btn"
+                          disabled={!canManageUsers}
                           onClick={() => openEdit(user)}
-                          title="Düzenle"
+                          title={!canManageUsers ? noPermissionTitle : "Düzenle"}
                           type="button"
                         >
                           <PencilIcon size={14} />
@@ -532,9 +557,12 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
                         <button
                           aria-label="Sil"
                           className="icon-btn icon-btn-danger"
-                          disabled={deletingUserId !== null}
-                          onClick={() => setConfirmDeleteUserId(user.id)}
-                          title="Sil"
+                          disabled={deletingUserId !== null || !canManageUsers}
+                          onClick={() => {
+                            if (!canManageUsers) return;
+                            setConfirmDeleteUserId(user.id);
+                          }}
+                          title={!canManageUsers ? noPermissionTitle : "Sil"}
                           type="button"
                         >
                           <TrashIcon size={14} />
@@ -572,7 +600,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
             <PageTabs
               active={activeTab}
               onChange={handleTabChange}
-              tabs={USER_PAGE_TABS}
+              tabs={availableTabs}
             />
           </div>
 
@@ -618,6 +646,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
         </>
       )}
       <UserFormModal
+        canManage={canManageUsers}
         editing={editing}
         onClose={() => {
           setFormOpen(false);

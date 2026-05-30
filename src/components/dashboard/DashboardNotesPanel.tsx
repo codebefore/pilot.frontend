@@ -4,6 +4,8 @@ import { BellIcon, CheckIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { NoteComposerModal, type NoteDraft } from "../notes/NoteComposerModal";
 import { Panel } from "../ui/Panel";
 import { useToast } from "../ui/Toast";
+import { useAuth } from "../../lib/auth";
+import { canManageArea } from "../../lib/permissions";
 import {
   createUserNote,
   deleteUserNote,
@@ -15,6 +17,9 @@ import {
 
 export function DashboardNotesPanel() {
   const { showToast } = useToast();
+  const { user, permissions } = useAuth();
+  const canManageDashboard = canManageArea(user, permissions, "dashboard");
+  const noPermissionTitle = "Yetkiniz yok.";
   const [notes, setNotes] = useState<UserNoteResponse[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<UserNoteResponse | null>(null);
@@ -34,11 +39,13 @@ export function DashboardNotesPanel() {
   }, [load]);
 
   const beginCreate = () => {
+    if (!canManageDashboard) return;
     setEditing(null);
     setComposerOpen(true);
   };
 
   const beginEdit = (note: UserNoteResponse) => {
+    if (!canManageDashboard) return;
     setEditing(note);
     setComposerOpen(true);
   };
@@ -49,6 +56,8 @@ export function DashboardNotesPanel() {
   };
 
   const handleSubmit = async ({ body, reminderAtUtc }: NoteDraft) => {
+    if (!canManageDashboard) return;
+
     setSaving(true);
     try {
       if (editing) {
@@ -68,6 +77,8 @@ export function DashboardNotesPanel() {
   };
 
   const handleToggle = async (note: UserNoteResponse) => {
+    if (!canManageDashboard) return;
+
     try {
       await setUserNoteCompletion(note.id, note.completedAtUtc === null);
       await load();
@@ -77,6 +88,8 @@ export function DashboardNotesPanel() {
   };
 
   const handleDelete = async (note: UserNoteResponse) => {
+    if (!canManageDashboard) return;
+
     try {
       await deleteUserNote(note.id);
       await load();
@@ -89,7 +102,13 @@ export function DashboardNotesPanel() {
     <>
       <Panel
         action={
-          <button className="panel-action" onClick={beginCreate} type="button">
+          <button
+            className="panel-action"
+            disabled={!canManageDashboard}
+            onClick={beginCreate}
+            title={!canManageDashboard ? noPermissionTitle : undefined}
+            type="button"
+          >
             <PlusIcon size={14} /> Yeni Not
           </button>
         }
@@ -121,7 +140,9 @@ export function DashboardNotesPanel() {
                   <button
                     aria-label={completed ? "Tamamlandı işaretini kaldır" : "Tamamlandı olarak işaretle"}
                     className="user-notes-item-toggle"
+                    disabled={!canManageDashboard}
                     onClick={() => void handleToggle(note)}
+                    title={!canManageDashboard ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {completed ? <CheckIcon size={12} /> : null}
@@ -140,7 +161,9 @@ export function DashboardNotesPanel() {
                     <button
                       aria-label="Düzenle"
                       className="user-notes-item-action"
+                      disabled={!canManageDashboard}
                       onClick={() => beginEdit(note)}
+                      title={!canManageDashboard ? noPermissionTitle : undefined}
                       type="button"
                     >
                       <PencilIcon size={14} />
@@ -148,7 +171,9 @@ export function DashboardNotesPanel() {
                     <button
                       aria-label="Sil"
                       className="user-notes-item-action is-danger"
+                      disabled={!canManageDashboard}
                       onClick={() => void handleDelete(note)}
+                      title={!canManageDashboard ? noPermissionTitle : undefined}
                       type="button"
                     >
                       <TrashIcon size={14} />

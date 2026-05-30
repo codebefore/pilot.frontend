@@ -10,11 +10,12 @@ const ACTIVE_STATUSES = new Set(["running", "queued"]);
 
 type JobDrawerProps = {
   job: MebJob | null;
+  canCancel?: boolean;
   onCancel: () => void;
   onClose: () => void;
 };
 
-export function JobDrawer({ job, onCancel, onClose }: JobDrawerProps) {
+export function JobDrawer({ job, canCancel = true, onCancel, onClose }: JobDrawerProps) {
   const [steps, setSteps] = useState<MebbisJobStepResponse[]>([]);
   const [loadingSteps, setLoadingSteps] = useState(false);
 
@@ -52,7 +53,13 @@ export function JobDrawer({ job, onCancel, onClose }: JobDrawerProps) {
       actions={
         <>
           {showCancel && (
-            <button className="btn btn-danger" onClick={onCancel} type="button">
+            <button
+              className="btn btn-danger"
+              disabled={!canCancel}
+              onClick={onCancel}
+              title={!canCancel ? "Yetkiniz yok." : undefined}
+              type="button"
+            >
               İşi İptal Et
             </button>
           )}

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
+import { canViewAnyArea } from "../../lib/permissions";
 import { useSidebarStats } from "../../lib/sidebar-stats";
+import { useAuth } from "../../lib/auth";
 import type { AuthInstitution } from "../../lib/auth-storage";
 import type { SidebarStatsResponse } from "../../lib/types";
 import { navSections, type NavItem } from "../../nav";
@@ -63,16 +65,34 @@ export function Sidebar({
   const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, permissions } = useAuth();
   const { stats, loading, error } = useSidebarStats();
+  const visibleSections = useMemo(
+    () =>
+      navSections
+        .map((section) => ({
+          ...section,
+          items: section.items
+            .filter((item) => canViewAnyArea(user, permissions, item.permissionAreas))
+            .map((item) => ({
+              ...item,
+              children: item.children?.filter((child) =>
+                canViewAnyArea(user, permissions, child.permissionAreas ?? item.permissionAreas)
+              ),
+            })),
+        }))
+        .filter((section) => section.items.length > 0),
+    [permissions, user]
+  );
   const activeParentKeys = useMemo(
     () =>
-      navSections.flatMap((section) =>
+      visibleSections.flatMap((section) =>
         section.items
           .filter((item) => item.children && item.children.length > 0)
           .filter((item) => isNavItemActive(location.pathname, item))
           .map((item) => item.key)
       ),
-    [location.pathname]
+    [location.pathname, visibleSections]
   );
   const [openSubmenus, setOpenSubmenus] = useState<Set<NavKey>>(
     () => new Set(activeParentKeys)
@@ -131,7 +151,7 @@ export function Sidebar({
             onSelect={onInstitutionChange}
           />
         </div>
-        {navSections.map((section) => (
+        {visibleSections.map((section) => (
           <div className="sidebar-section" key={section.headingKey}>
             <div className="sidebar-heading">{t(section.headingKey)}</div>
             {section.items.map((item) => {

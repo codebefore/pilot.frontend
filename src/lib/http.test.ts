@@ -23,7 +23,27 @@ describe("http client", () => {
 
     await expect(httpGet("/api/test")).rejects.toMatchObject({
       status: 400,
+      message: "Validation failed",
       problemTitle: "Validation failed",
+    } satisfies Partial<ApiError>);
+  });
+
+  it("uses a user-safe message for forbidden responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ title: "Forbidden" }), {
+          status: 403,
+          statusText: "Forbidden",
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    await expect(httpGet("/api/users")).rejects.toMatchObject({
+      status: 403,
+      message: "Yetkiniz yok.",
+      problemTitle: "Forbidden",
     } satisfies Partial<ApiError>);
   });
 
@@ -45,6 +65,7 @@ describe("http client", () => {
 
     await expect(httpGet("/api/candidates")).rejects.toMatchObject({
       status: 403,
+      message: "Aktif kurum seçmeniz gerekiyor.",
       problemTitle: "Active institution is required.",
     } satisfies Partial<ApiError>);
 
@@ -157,5 +178,57 @@ describe("http client", () => {
       String(url) === "http://127.0.0.1:5080/api/auth/refresh"
     );
     expect(refreshCalls).toHaveLength(1);
+  });
+
+  it("notifies unauthorized when refresh token is missing", async () => {
+    const unauthorized = vi.fn();
+    window.addEventListener("pilot:unauthorized", unauthorized);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 401, statusText: "Unauthorized" }))
+    );
+
+    await expect(httpGet("/api/document-types")).rejects.toMatchObject({
+      status: 401,
+    } satisfies Partial<ApiError>);
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(unauthorized).toHaveBeenCalledTimes(1);
+    window.removeEventListener("pilot:unauthorized", unauthorized);
+  });
+
+  it("notifies unauthorized when refresh request fails", async () => {
+    writeStoredAuthSession({
+      accessToken: "old-token",
+      expiresAtUtc: new Date(Date.now() - 60_000).toISOString(),
+      refreshToken: "refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "Test User",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [],
+      activeInstitution: null,
+    });
+    const unauthorized = vi.fn();
+    window.addEventListener("pilot:unauthorized", unauthorized);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(new Response(null, { status: 401, statusText: "Unauthorized" }))
+        .mockResolvedValueOnce(new Response(null, { status: 401, statusText: "Unauthorized" }))
+    );
+
+    await expect(httpGet("/api/document-types")).rejects.toMatchObject({
+      status: 401,
+    } satisfies Partial<ApiError>);
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe("http://127.0.0.1:5080/api/auth/refresh");
+    expect(unauthorized).toHaveBeenCalledTimes(1);
+    window.removeEventListener("pilot:unauthorized", unauthorized);
   });
 });

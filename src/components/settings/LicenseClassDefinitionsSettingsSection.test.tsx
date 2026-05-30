@@ -59,11 +59,12 @@ const sampleLicenseClass = {
   rowVersion: 1,
 };
 
-function renderSection() {
+function renderSection(auth?: NonNullable<Parameters<typeof renderWithProviders>[1]>["auth"]) {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/settings/definitions/license-classes"]}>
       <LicenseClassDefinitionsSettingsSection />
-    </MemoryRouter>
+    </MemoryRouter>,
+    { auth }
   );
 }
 
@@ -284,6 +285,25 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       );
     });
     expect(updateLicenseClassDefinitionMock).not.toHaveBeenCalled();
+  });
+
+  it("disables global catalog mutations for non-super-admin users", async () => {
+    renderSection({
+      user: {
+        id: "settings-manager",
+        phone: "5000000001",
+        name: "Settings Manager",
+        roleName: "Ayarlar",
+        isSuperAdmin: false,
+      },
+      permissions: { settings: "full", training: "full" },
+    });
+    await screen.findByText("B");
+
+    expect(screen.queryByRole("button", { name: /Yeni Kural/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Düzenle" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "B durumunu pasife al" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Sil" })).not.toBeInTheDocument();
   });
 
   it("shows server validation errors as a toast", async () => {

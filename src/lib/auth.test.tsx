@@ -20,6 +20,7 @@ const kurumA = {
   slug: "kurum-a",
   roleName: "Operator",
   isDefault: true,
+  permissions: { dashboard: "view", candidates: "view" },
 };
 
 const kurumB = {
@@ -28,6 +29,7 @@ const kurumB = {
   slug: "kurum-b",
   roleName: "Yönetici",
   isDefault: false,
+  permissions: { dashboard: "full", candidates: "full" },
 };
 
 function response(activeInstitution = kurumA, token = "token-a") {

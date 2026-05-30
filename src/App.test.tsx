@@ -38,6 +38,10 @@ vi.mock("./lib/user-notes-api", () => ({
   deleteUserNote: vi.fn(),
 }));
 
+vi.mock("./pages/CandidatesPage", () => ({
+  CandidatesPage: () => <div>Candidates Page Mock</div>,
+}));
+
 const institutions: AuthInstitution[] = [
   {
     id: "i1",
@@ -45,6 +49,16 @@ const institutions: AuthInstitution[] = [
     slug: "pilot-surucu-kursu",
     roleName: "Kurum Yöneticisi",
     isDefault: true,
+    permissions: {
+      dashboard: "view",
+      candidates: "view",
+      groups: "view",
+      documents: "view",
+      payments: "view",
+      training: "view",
+      mebjobs: "view",
+      settings: "view",
+    },
   },
   {
     id: "i2",
@@ -52,6 +66,7 @@ const institutions: AuthInstitution[] = [
     slug: "ikinci-kurum",
     roleName: "Personel",
     isDefault: false,
+    permissions: { dashboard: "view", candidates: "view" },
   },
 ];
 
@@ -116,6 +131,55 @@ describe("AppShell tenant state", () => {
     await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(2));
     expect(screen.getByText(/İkinci Kurum.*operasyon özeti/i)).toBeInTheDocument();
   });
+
+  it("redirects unauthorized tenant routes to the first permitted page", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/documents"]}>
+        <AppShell />
+      </MemoryRouter>,
+      {
+        auth: {
+          user: {
+            id: "candidate-viewer",
+            phone: "5000000001",
+            name: "Candidate Viewer",
+            roleName: "Aday",
+            isSuperAdmin: false,
+          },
+          institutions,
+          activeInstitution: institutions[0],
+          permissions: { candidates: "view" },
+        },
+      }
+    );
+
+    expect(await screen.findByText("Candidates Page Mock")).toBeInTheDocument();
+  });
+
+  it("shows no-permission state when no tenant page is allowed", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/documents"]}>
+        <AppShell />
+      </MemoryRouter>,
+      {
+        auth: {
+          user: {
+            id: "blocked-user",
+            phone: "5000000002",
+            name: "Blocked User",
+            roleName: "Kısıtlı",
+            isSuperAdmin: false,
+          },
+          institutions,
+          activeInstitution: institutions[0],
+          permissions: {},
+        },
+      }
+    );
+
+    expect(await screen.findByText("Yetkiniz yok")).toBeInTheDocument();
+    expect(screen.getByText("Bu ekrana erişmek için gerekli yetkiye sahip değilsiniz.")).toBeInTheDocument();
+  });
 });
 
 function renderSwitchingShell() {
@@ -132,6 +196,7 @@ function renderSwitchingShell() {
       accessToken: `token-${activeInstitution.id}`,
       institutions,
       activeInstitution,
+      permissions: activeInstitution.permissions,
       hasInstitution: true,
       institutionRequired: false,
       login: async () => {},

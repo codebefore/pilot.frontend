@@ -22,6 +22,7 @@ export type AuthContextValue = {
   accessToken: string | null;
   institutions: AuthInstitution[];
   activeInstitution: AuthInstitution | null;
+  permissions: Record<string, "view" | "full">;
   hasInstitution: boolean;
   institutionRequired: boolean;
   login: (phone: string, password: string) => Promise<void>;
@@ -101,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accessToken: session?.accessToken ?? null,
         institutions: session?.institutions ?? [],
         activeInstitution: session?.activeInstitution ?? null,
+        permissions: session?.activeInstitution?.permissions ?? {},
         hasInstitution: (session?.institutions.length ?? 0) > 0,
         institutionRequired,
         login,

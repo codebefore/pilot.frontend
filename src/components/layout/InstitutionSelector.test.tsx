@@ -12,6 +12,7 @@ const institutions: AuthInstitution[] = [
     slug: "kurum-a",
     roleName: "Yönetici",
     isDefault: true,
+    permissions: { dashboard: "view" },
   },
   {
     id: "kurum-b",
@@ -19,6 +20,7 @@ const institutions: AuthInstitution[] = [
     slug: "kurum-b",
     roleName: "Personel",
     isDefault: false,
+    permissions: { candidates: "view" },
   },
 ];
 

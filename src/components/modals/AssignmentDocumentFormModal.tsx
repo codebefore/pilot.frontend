@@ -8,6 +8,7 @@ import { useToast } from "../ui/Toast";
 
 type Props = {
   open: boolean;
+  canManage?: boolean;
   instructorId: string;
   assignmentId: string;
   onClose: () => void;
@@ -16,6 +17,7 @@ type Props = {
 
 export function AssignmentDocumentFormModal({
   open,
+  canManage = true,
   instructorId,
   assignmentId,
   onClose,
@@ -23,6 +25,7 @@ export function AssignmentDocumentFormModal({
 }: Props) {
   const t = useT();
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -41,6 +44,7 @@ export function AssignmentDocumentFormModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManage) return;
     if (submitting) return;
 
     if (!name.trim()) {
@@ -74,7 +78,13 @@ export function AssignmentDocumentFormModal({
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
             {t("common.cancel")}
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={submit} type="button">
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
             {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>

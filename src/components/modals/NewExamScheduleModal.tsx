@@ -18,6 +18,7 @@ type NewExamScheduleForm = {
 };
 
 type NewExamScheduleModalProps = {
+  canManage?: boolean;
   examType: "e_sinav" | "uygulama";
   examCodes?: ExamCodeOption[];
   open: boolean;
@@ -43,6 +44,7 @@ function modalTitle(examType: "e_sinav" | "uygulama"): string {
 }
 
 export function NewExamScheduleModal({
+  canManage = true,
   examType,
   examCodes = [],
   open,
@@ -52,6 +54,7 @@ export function NewExamScheduleModal({
   const { showToast } = useToast();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
+  const noPermissionTitle = "Yetkiniz yok.";
   const [submitting, setSubmitting] = useState(false);
   const capacityInputId = useId();
 
@@ -82,6 +85,7 @@ export function NewExamScheduleModal({
   }, [examCodes, open, reset]);
 
   const submit = handleSubmit(async (data) => {
+    if (!canManage) return;
     setSubmitting(true);
 
     try {
@@ -145,8 +149,9 @@ export function NewExamScheduleModal({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting}
+            disabled={submitting || !canManage}
             onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
             {submitting ? "Kaydediliyor..." : "Kaydet"}
@@ -164,6 +169,7 @@ export function NewExamScheduleModal({
             <LocalizedDateInput
               ariaLabel="Sinav Tarihi"
               className={fieldClass(!!errors.date, "form-input")}
+              disabled={!canManage}
               inputRef={dateRegistration.ref}
               lang={dateInputLang}
               name={dateRegistration.name}
@@ -185,6 +191,7 @@ export function NewExamScheduleModal({
               <LocalizedTimeInput
                 ariaLabel="Saat"
                 className={fieldClass(!!errors.time, "form-input")}
+                disabled={!canManage}
                 inputRef={timeRegistration.ref}
                 name={timeRegistration.name}
                 onBlur={timeRegistration.onBlur}
@@ -205,6 +212,7 @@ export function NewExamScheduleModal({
               <label className="form-label">Sınav Kodu</label>
               <select
                 className={fieldClass(!!errors.examCodeId, "form-select")}
+                disabled={!canManage}
                 value={examCodeId}
                 {...register("examCodeId", { required: "Sınav kodu zorunlu" })}
               >
@@ -227,6 +235,7 @@ export function NewExamScheduleModal({
             <label className="form-label" htmlFor={capacityInputId}>Kontenjan</label>
             <input
               className={fieldClass(!!errors.capacity, "form-input")}
+              disabled={!canManage}
               id={capacityInputId}
               min={1}
               type="number"

@@ -26,6 +26,7 @@ const validSession: AuthSession = {
       slug: "pilot-kurum",
       roleName: "Kurum Yöneticisi",
       isDefault: true,
+      permissions: { dashboard: "view", candidates: "full" },
     },
   ],
   activeInstitution: {
@@ -34,6 +35,7 @@ const validSession: AuthSession = {
     slug: "pilot-kurum",
     roleName: "Kurum Yöneticisi",
     isDefault: true,
+    permissions: { dashboard: "view", candidates: "full" },
   },
 };
 
@@ -78,6 +80,7 @@ describe("auth storage", () => {
         slug: "missing-kurum",
         roleName: "Personel",
         isDefault: false,
+        permissions: { candidates: "view" },
       },
     });
 

@@ -26,6 +26,7 @@ type UploadDocumentForm = {
 
 type UploadDocumentModalProps = {
   open: boolean;
+  canManage?: boolean;
   candidateId: string | null;
   candidateName?: string;
   initialDocumentTypeId?: string;
@@ -70,6 +71,7 @@ function applyDocumentMetadataDefaults(
 
 export function UploadDocumentModal({
   open,
+  canManage = true,
   candidateId,
   candidateName,
   initialDocumentTypeId,
@@ -83,6 +85,7 @@ export function UploadDocumentModal({
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
+  const noPermissionTitle = "Yetkiniz yok.";
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>(
     documentTypesProp ?? []
@@ -201,6 +204,8 @@ export function UploadDocumentModal({
   };
 
   const submit = handleSubmit(async (data) => {
+    if (!canManage) return;
+
     const resolvedCandidateId = candidateId ?? data.candidateId;
     if (!resolvedCandidateId) {
       setError("candidateId", { message: t("uploadDoc.errors.candidateRequired") });
@@ -285,8 +290,9 @@ export function UploadDocumentModal({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting}
+            disabled={submitting || !canManage}
             onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
             {submitting ? t("uploadDoc.submitting") : t("uploadDoc.submit")}
