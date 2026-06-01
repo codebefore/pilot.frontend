@@ -157,6 +157,13 @@ export const navSections: NavSection[] = [
         Icon: MebIcon,
         permissionAreas: ["mebjobs"],
       },
+      {
+        key: "outbox",
+        path: "/outbox",
+        labelKey: "nav.outbox",
+        Icon: MebIcon,
+        permissionAreas: ["__superadmin"],
+      },
     ],
   },
 ];

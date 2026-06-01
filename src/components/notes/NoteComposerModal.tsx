@@ -105,7 +105,6 @@ export function NoteComposerModal({
             <LocalizedDateInput
               ariaLabel="Hatırlatma tarihi"
               onChange={setReminderDate}
-              placeholder="gg.aa.yyyy"
               value={reminderDate}
             />
             <LocalizedTimeInput

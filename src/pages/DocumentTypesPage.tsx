@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DocumentTypeFormModal } from "../components/modals/DocumentTypeFormModal";
 import { PageToolbar } from "../components/layout/PageToolbar";
@@ -101,16 +102,14 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
   const { showToast } = useToast();
   const { user } = useAuth();
   const canManageDocumentTypes = user?.isSuperAdmin ?? false;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.document-types.columns.v1",
     DOCUMENT_TYPE_COLUMN_IDS
   );
 
-  const [items, setItems] = useState<DocumentTypeResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [includeInactive, setIncludeInactive] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [sort, setSort] = useState<SortState>(null);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
@@ -123,22 +122,13 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
   const columns = buildColumns(t);
   const visibleColumns = columns.filter((column) => isVisible(column.id));
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
+  const documentTypesQuery = useQuery<DocumentTypeResponse[]>({
+    queryKey: ["documentTypes", "list", { includeInactive }],
+    queryFn: ({ signal }) => getDocumentTypes({ includeInactive }, signal),
+  });
 
-    getDocumentTypes({ includeInactive }, controller.signal)
-      .then(setItems)
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        showToast(t("documentTypes.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [includeInactive, refreshKey, showToast, t]);
+  const items = documentTypesQuery.data ?? [];
+  const loading = documentTypesQuery.isPending;
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
@@ -243,16 +233,20 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
     setFormOpen(false);
     showToast(editing ? t("documentTypes.updated") : t("documentTypes.created"));
     setEditing(null);
-    // Optimistic merge keeps the row in place; refreshKey ensures we still
+    // Optimistic merge keeps the row in place; invalidate ensures we still
     // pick up server-side fields like updatedAtUtc on the next render.
-    setItems((prev) => {
-      const idx = prev.findIndex((p) => p.id === saved.id);
-      if (idx === -1) return [...prev, saved];
-      const next = prev.slice();
-      next[idx] = saved;
-      return next;
-    });
-    setRefreshKey((k) => k + 1);
+    queryClient.setQueryData<DocumentTypeResponse[]>(
+      ["documentTypes", "list", { includeInactive }],
+      (prev) => {
+        if (!prev) return [saved];
+        const idx = prev.findIndex((p) => p.id === saved.id);
+        if (idx === -1) return [...prev, saved];
+        const next = prev.slice();
+        next[idx] = saved;
+        return next;
+      }
+    );
+    void queryClient.invalidateQueries({ queryKey: ["documentTypes", "list"] });
   };
 
   const actions = (

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createDocumentType, updateDocumentType } from "../../lib/documents-api";
-import { ApiError } from "../../lib/http";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type {
   DocumentMetadataField,
   DocumentMetadataFieldOption,
@@ -19,13 +21,21 @@ const DOCUMENT_TYPE_MODULE = "candidate";
 
 const KEY_PATTERN = /^[a-z0-9_]+$/;
 
-type DocumentTypeFormValues = {
-  key: string;
-  name: string;
-  sortOrder: number;
-  isRequired: boolean;
-  isActive: boolean;
-};
+const documentTypeFormSchema = z.object({
+  key: z
+    .string()
+    .min(1, "documentTypeForm.errors.keyRequired" as TranslationKey)
+    .regex(KEY_PATTERN, "documentTypeForm.errors.keyFormat" as TranslationKey),
+  name: z.string().min(1, "documentTypeForm.errors.nameRequired" as TranslationKey),
+  sortOrder: z
+    .number({ error: "documentTypeForm.errors.sortOrderInvalid" as TranslationKey })
+    .int("documentTypeForm.errors.sortOrderInvalid" as TranslationKey)
+    .min(0, "documentTypeForm.errors.sortOrderInvalid" as TranslationKey),
+  isRequired: z.boolean(),
+  isActive: z.boolean(),
+});
+
+type DocumentTypeFormValues = z.infer<typeof documentTypeFormSchema>;
 
 type DocumentTypeFormModalProps = {
   open: boolean;
@@ -93,7 +103,7 @@ export function DocumentTypeFormModal({
 }: DocumentTypeFormModalProps) {
   const t = useT();
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const [metadataFields, setMetadataFields] = useState<DocumentMetadataField[]>(
     editing?.metadataFields ?? []
@@ -108,6 +118,7 @@ export function DocumentTypeFormModal({
     setError,
   } = useForm<DocumentTypeFormValues>({
     defaultValues: emptyValues(editing, nextSortOrder),
+    resolver: zodResolver(documentTypeFormSchema),
   });
 
   useEffect(() => {
@@ -255,17 +266,25 @@ export function DocumentTypeFormModal({
         : await createDocumentType(payload);
       onSaved(saved);
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        for (const [serverField, messages] of Object.entries(error.validationErrors)) {
-          const formField = VALIDATION_FIELD_MAP[serverField];
-          if (formField && messages?.[0]) {
-            setError(formField, { message: messages[0] });
-          } else if (serverField.toLowerCase().includes("metadata") && messages?.[0]) {
-            setMetadataError(messages[0]);
-          }
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        translateCode: (code, params) => t(code as TranslationKey, params),
+        fieldMap: VALIDATION_FIELD_MAP,
+      });
+      // Handle metadata-related server errors that don't map to form fields
+      if (!applied && unmappedMessages.length === 0) {
+        showToast(t("documentTypes.saveFailed"), "error");
+      } else if (unmappedMessages[0]) {
+        // Check if it's a metadata error
+        const isMetadataMsg = unmappedMessages[0].toLowerCase().includes("metadata") ||
+          unmappedMessages[0].toLowerCase().includes("alan");
+        if (isMetadataMsg) {
+          setMetadataError(unmappedMessages[0]);
+        } else {
+          showToast(unmappedMessages[0], "error");
         }
+      } else if (!applied) {
+        showToast(t("documentTypes.saveFailed"), "error");
       }
-      showToast(t("documentTypes.saveFailed"), "error");
     } finally {
       setSubmitting(false);
     }
@@ -319,16 +338,10 @@ export function DocumentTypeFormModal({
               className={fieldClass(!!errors.key, "form-input")}
               disabled={!!editing}
               placeholder="national_id"
-              {...register("key", {
-                required: t("documentTypeForm.errors.keyRequired"),
-                pattern: {
-                  value: KEY_PATTERN,
-                  message: t("documentTypeForm.errors.keyFormat"),
-                },
-              })}
+              {...register("key")}
             />
             {errors.key ? (
-              <div className="form-error">{errors.key.message}</div>
+              <div className="form-error">{t((errors.key.message ?? "") as TranslationKey)}</div>
             ) : (
               <div className="form-hint">{t("documentTypeForm.keyHelp")}</div>
             )}
@@ -339,16 +352,10 @@ export function DocumentTypeFormModal({
               className={fieldClass(!!errors.sortOrder, "form-input")}
               inputMode="numeric"
               type="number"
-              {...register("sortOrder", {
-                required: t("documentTypeForm.errors.sortOrderInvalid"),
-                valueAsNumber: true,
-                min: { value: 0, message: t("documentTypeForm.errors.sortOrderInvalid") },
-                validate: (v) =>
-                  Number.isFinite(v) || t("documentTypeForm.errors.sortOrderInvalid"),
-              })}
+              {...register("sortOrder", { valueAsNumber: true })}
             />
             {errors.sortOrder && (
-              <div className="form-error">{errors.sortOrder.message}</div>
+              <div className="form-error">{t((errors.sortOrder.message ?? "") as TranslationKey)}</div>
             )}
           </div>
         </div>
@@ -359,11 +366,9 @@ export function DocumentTypeFormModal({
             <input
               className={fieldClass(!!errors.name, "form-input")}
               placeholder={t("documentTypeForm.namePlaceholder")}
-              {...register("name", {
-                required: t("documentTypeForm.errors.nameRequired"),
-              })}
+              {...register("name")}
             />
-            {errors.name && <div className="form-error">{errors.name.message}</div>}
+            {errors.name && <div className="form-error">{t((errors.name.message ?? "") as TranslationKey)}</div>}
           </div>
         </div>
 

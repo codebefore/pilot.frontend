@@ -1,6 +1,6 @@
 import { getApiBaseUrl } from "./api";
 import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
-import { httpDelete, httpGet, httpPostForm, httpPut } from "./http";
+import { httpDelete, httpGet, httpPost, httpPostForm, httpPut } from "./http";
 
 export type FounderType = "real" | "legal";
 
@@ -127,6 +127,37 @@ export function upsertInstitutionIntegrations(
   return httpPut<InstitutionIntegrationsResponse>(
     "/api/institution-settings/integrations",
     body
+  );
+}
+
+export interface WhatsAppStatusResponse {
+  enabled: boolean;
+  hasPhoneNumberId: boolean;
+  hasAccessToken: boolean;
+  templateName: string;
+  templateLanguage: string;
+}
+
+export interface WhatsAppTestSendResponse {
+  status: "sent" | "failed";
+  sentAtUtc: string;
+  errorMessage: string | null;
+}
+
+export function getWhatsAppStatus(
+  signal?: AbortSignal
+): Promise<WhatsAppStatusResponse> {
+  return httpGet<WhatsAppStatusResponse>(
+    "/api/institution-settings/integrations/whatsapp",
+    undefined,
+    { signal }
+  );
+}
+
+export function testSendWhatsApp(phone: string): Promise<WhatsAppTestSendResponse> {
+  return httpPost<WhatsAppTestSendResponse>(
+    "/api/institution-settings/integrations/whatsapp/test-send",
+    { phone }
   );
 }
 

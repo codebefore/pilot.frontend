@@ -1,5 +1,6 @@
 import type { AriaAttributes, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { DashboardNotesPanel } from "../components/dashboard/DashboardNotesPanel";
@@ -22,7 +23,7 @@ import { TaskItem } from "../components/ui/TaskItem";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import type { AuthInstitution } from "../lib/auth-storage";
-import { useT } from "../lib/i18n";
+import { useT, type TranslationKey } from "../lib/i18n";
 import { canManageArea, canViewArea } from "../lib/permissions";
 import { useSidebarStats } from "../lib/sidebar-stats";
 import { getDashboardOverview } from "../lib/stats-api";
@@ -51,12 +52,13 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const { stats, loading: statsLoading } = useSidebarStats();
-  const [dashboard, setDashboard] = useState<DashboardOverviewResponse>({
-    pendingTasks: [],
-    recentMebJobs: [],
-    recentActivity: [],
+  const {
+    data: dashboard = { pendingTasks: [], recentMebJobs: [], recentActivity: [] },
+    isLoading: dashboardLoading,
+  } = useQuery<DashboardOverviewResponse>({
+    queryKey: ["dashboard", "overview"],
+    queryFn: ({ signal }) => getDashboardOverview(signal),
   });
-  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [mebSyncSort, setMebSyncSort] = useState<MebSyncSortState>({
     field: "time",
     direction: "desc",
@@ -72,41 +74,15 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const canManagePayments = canManageArea(user, permissions, "payments");
   const canViewMebJobs = canViewArea(user, permissions, "mebjobs");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const mebAttention = stats.mebJobs.failed + stats.mebJobs.manualReview;
   const displayName = userName?.trim() || "Pilot";
-  const institutionName = activeInstitution?.name ?? "Kurum ayarı yok";
+  const institutionName = activeInstitution?.name ?? t("dashboard.noInstitutionSetting");
   const periodLabel = new Intl.DateTimeFormat("tr-TR", {
     month: "long",
     year: "numeric",
   }).format(new Date());
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let mounted = true;
-    setDashboardLoading(true);
-    getDashboardOverview(controller.signal)
-      .then((payload) => {
-        if (mounted) setDashboard(payload);
-      })
-      .catch((error: unknown) => {
-        if (mounted && (error as { name?: string }).name !== "AbortError") {
-          setDashboard({
-            pendingTasks: [],
-            recentMebJobs: [],
-            recentActivity: [],
-          });
-        }
-      })
-      .finally(() => {
-        if (mounted) setDashboardLoading(false);
-      });
-    return () => {
-      mounted = false;
-      controller.abort();
-    };
-  }, []);
 
   const statCards: StatCardConfig[] = [
     {
@@ -147,19 +123,20 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
   ];
   const mebSyncFilterOptions = useMemo(
     () => ({
-      jobType: buildDashboardFilterOptions(dashboard.recentMebJobs.map((job) => job.jobType)),
-      target: buildDashboardFilterOptions(dashboard.recentMebJobs.map((job) => job.target)),
+      jobType: buildDashboardFilterOptions(dashboard.recentMebJobs.map((job) => job.jobType), t),
+      target: buildDashboardFilterOptions(dashboard.recentMebJobs.map((job) => job.target), t),
       status: buildDashboardFilterOptions(
         dashboard.recentMebJobs.map((job) => job.status),
-        formatMebSyncStatusLabel
+        t,
+        (s) => formatMebSyncStatusLabel(s, t)
       ),
-      time: buildDashboardFilterOptions(dashboard.recentMebJobs.map((job) => job.time)),
+      time: buildDashboardFilterOptions(dashboard.recentMebJobs.map((job) => job.time), t),
     }),
-    [dashboard.recentMebJobs]
+    [dashboard.recentMebJobs, t]
   );
   const visibleMebSyncJobs = useMemo(
-    () => sortDashboardMebJobs(filterDashboardMebJobs(dashboard.recentMebJobs, mebSyncFilters), mebSyncSort),
-    [dashboard.recentMebJobs, mebSyncFilters, mebSyncSort]
+    () => sortDashboardMebJobs(filterDashboardMebJobs(dashboard.recentMebJobs, mebSyncFilters), mebSyncSort, t),
+    [dashboard.recentMebJobs, mebSyncFilters, mebSyncSort, t]
   );
 
   const setMebSyncFilter = (field: MebSyncSortKey, value: string) => {
@@ -178,10 +155,8 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
   return (
     <>
       <div className="dash-header">
-        <h1>
-          Hoş geldin, <span>{displayName}</span>
-        </h1>
-        <p>{institutionName} — {periodLabel} operasyon özeti</p>
+        <h1>{t("dashboard.greeting", { name: displayName })}</h1>
+        <p>{t("dashboard.summary", { institution: institutionName, period: periodLabel })}</p>
       </div>
 
       <div className="dash-stats">
@@ -200,12 +175,12 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
       <div className="dash-content">
         <div className="dash-primary-grid">
           <Panel
-            action={<button className="panel-action" type="button">Tümünü gör</button>}
+            action={<button className="panel-action" type="button">{t("dashboard.viewAll")}</button>}
             icon={<span className="icon-orange"><AlertIcon /></span>}
-            title="Bekleyen Görevler"
+            title={t("dashboard.panel.pendingTasks")}
           >
             {dashboardLoading ? (
-              <div className="panel-empty">Yükleniyor...</div>
+              <div className="panel-empty">{t("common.loading")}</div>
             ) : dashboard.pendingTasks.length > 0 ? (
               dashboard.pendingTasks.map((task) => (
                 <TaskItem
@@ -218,15 +193,15 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
                 />
               ))
             ) : (
-              <div className="panel-empty">Bekleyen görev yok</div>
+              <div className="panel-empty">{t("dashboard.emptyPendingTasks")}</div>
             )}
           </Panel>
 
           <DashboardNotesPanel />
 
-          <Panel title="Son Hareketler">
+          <Panel title={t("dashboard.panel.recentActivity")}>
             {dashboardLoading ? (
-              <div className="panel-empty">Yükleniyor...</div>
+              <div className="panel-empty">{t("common.loading")}</div>
             ) : dashboard.recentActivity.length > 0 ? (
               dashboard.recentActivity.map((event) => (
                 <div className="activity-item" key={event.id}>
@@ -242,7 +217,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
                 </div>
               ))
             ) : (
-              <div className="panel-empty">Son hareket yok</div>
+              <div className="panel-empty">{t("dashboard.emptyRecentActivity")}</div>
             )}
           </Panel>
         </div>
@@ -255,7 +230,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
               </button>
             }
             icon={<span className="icon-brand"><MebIcon /></span>}
-            title="Meb Sync"
+            title={t("dashboard.panel.mebSync")}
           >
             <table className="data-table">
               <thead>
@@ -267,11 +242,11 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
                         active={mebSyncFilters.jobType !== "all"}
                         onChange={(value) => setMebSyncFilter("jobType", value)}
                         options={mebSyncFilterOptions.jobType}
-                        title="İş Tipi"
+                        title={t("dashboard.col.jobType")}
                         value={mebSyncFilters.jobType}
                       />
                     }
-                    label="İş Tipi"
+                    label={t("dashboard.col.jobType")}
                     onToggle={toggleMebSyncSort}
                     sort={mebSyncSort}
                   />
@@ -282,11 +257,11 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
                         active={mebSyncFilters.target !== "all"}
                         onChange={(value) => setMebSyncFilter("target", value)}
                         options={mebSyncFilterOptions.target}
-                        title="Aday / Grup"
+                        title={t("dashboard.col.candidateGroup")}
                         value={mebSyncFilters.target}
                       />
                     }
-                    label="Aday / Grup"
+                    label={t("dashboard.col.candidateGroup")}
                     onToggle={toggleMebSyncSort}
                     sort={mebSyncSort}
                   />
@@ -297,11 +272,11 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
                         active={mebSyncFilters.status !== "all"}
                         onChange={(value) => setMebSyncFilter("status", value)}
                         options={mebSyncFilterOptions.status}
-                        title="Durum"
+                        title={t("dashboard.col.status")}
                         value={mebSyncFilters.status}
                       />
                     }
-                    label="Durum"
+                    label={t("dashboard.col.status")}
                     onToggle={toggleMebSyncSort}
                     sort={mebSyncSort}
                   />
@@ -312,11 +287,11 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
                         active={mebSyncFilters.time !== "all"}
                         onChange={(value) => setMebSyncFilter("time", value)}
                         options={mebSyncFilterOptions.time}
-                        title="Zaman"
+                        title={t("dashboard.col.time")}
                         value={mebSyncFilters.time}
                       />
                     }
-                    label="Zaman"
+                    label={t("dashboard.col.time")}
                     onToggle={toggleMebSyncSort}
                     sort={mebSyncSort}
                   />
@@ -334,7 +309,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
                 {!dashboardLoading && visibleMebSyncJobs.length === 0 ? (
                   <tr>
                     <td colSpan={4}>
-                      {dashboard.recentMebJobs.length === 0 ? "MEB işi yok" : "Bu filtreye uyan iş yok"}
+                      {dashboard.recentMebJobs.length === 0 ? t("dashboard.emptyJobs") : t("dashboard.emptyJobsFiltered")}
                     </td>
                   </tr>
                 ) : null}
@@ -342,7 +317,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
             </table>
           </Panel>
 
-          <Panel title="Hızlı İşlemler">
+          <Panel title={t("dashboard.panel.quickActions")}>
             <div className="quick-actions">
               <button
                 className="btn btn-primary btn-block"
@@ -393,7 +368,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
         onClose={() => setNewCandidateOpen(false)}
         onSubmit={() => {
           setNewCandidateOpen(false);
-          showToast("Aday başarıyla kaydedildi");
+          showToast(t("dashboard.toast.candidateCreated"));
         }}
         open={newCandidateOpen}
       />
@@ -403,7 +378,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
         onClose={() => setNewPaymentOpen(false)}
         onSubmit={() => {
           setNewPaymentOpen(false);
-          showToast("Tahsilat kaydedildi, makbuz oluşturuldu");
+          showToast(t("dashboard.toast.paymentCreated"));
         }}
         open={newPaymentOpen}
       />
@@ -413,13 +388,14 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
 
 function buildDashboardFilterOptions(
   values: string[],
+  t: (key: TranslationKey) => string,
   formatLabel: (value: string) => string = (value) => value
 ): TableHeaderFilterOption[] {
   const distinct = Array.from(new Set(values))
     .filter((value) => value && value.trim().length > 0)
     .sort((a, b) => formatLabel(a).localeCompare(formatLabel(b), "tr", { sensitivity: "base" }));
   return [
-    { value: "all", label: "Tümü" },
+    { value: "all", label: t("common.field.all") },
     ...distinct.map((value) => ({ value, label: formatLabel(value) })),
   ];
 }
@@ -439,7 +415,8 @@ function filterDashboardMebJobs(
 
 function sortDashboardMebJobs(
   jobs: DashboardMebJobResponse[],
-  sort: MebSyncSortState
+  sort: MebSyncSortState,
+  t: (key: TranslationKey) => string
 ): DashboardMebJobResponse[] {
   const factor = sort.direction === "asc" ? 1 : -1;
   const valueOf = (job: DashboardMebJobResponse) => {
@@ -449,7 +426,7 @@ function sortDashboardMebJobs(
       case "target":
         return job.target;
       case "status":
-        return formatMebSyncStatusLabel(job.status);
+        return formatMebSyncStatusLabel(job.status, t);
       case "time":
         return job.time;
     }
@@ -460,20 +437,23 @@ function sortDashboardMebJobs(
   );
 }
 
-function formatMebSyncStatusLabel(status: string): string {
+function formatMebSyncStatusLabel(
+  status: string,
+  t: (key: TranslationKey) => string
+): string {
   switch (status) {
     case "success":
-      return "Başarılı";
+      return t("jobStatus.success");
     case "running":
-      return "Çalışıyor";
+      return t("jobStatus.running");
     case "queued":
-      return "Bekliyor";
+      return t("jobStatus.queued");
     case "failed":
-      return "Hata";
+      return t("jobStatus.failed");
     case "manual":
-      return "Manuel";
+      return t("jobStatus.manual");
     case "warning":
-      return "Uyarı";
+      return t("jobStatus.warning");
     default:
       return status;
   }

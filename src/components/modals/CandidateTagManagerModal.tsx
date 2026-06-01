@@ -5,6 +5,7 @@ import { ApiError } from "../../lib/http";
 import type { CandidateTag } from "../../lib/types";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+import { useT } from "../../lib/i18n";
 
 type CandidateTagManagerModalProps = {
   open: boolean;
@@ -36,7 +37,8 @@ export function CandidateTagManagerModal({
   const [draftName, setDraftName] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
 
   useEffect(() => {
     if (!open) {
@@ -119,12 +121,12 @@ export function CandidateTagManagerModal({
     <Modal
       footer={
         <button className="btn btn-secondary" onClick={onClose} type="button">
-          Kapat
+          {t("common.close")}
         </button>
       }
       onClose={onClose}
       open={open}
-      title="Etiket Yönetimi"
+      title={t("candidateTagManager.modalTitle")}
     >
       {sortedTags.length === 0 ? (
         <div className="tag-manager-empty">Henüz etiket yok.</div>
@@ -166,7 +168,7 @@ export function CandidateTagManagerModal({
                         onClick={cancelEditing}
                         type="button"
                       >
-                        Vazgeç
+                        {t("common.cancel")}
                       </button>
                       <button
                         className="btn btn-primary btn-sm"
@@ -175,7 +177,7 @@ export function CandidateTagManagerModal({
                         title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
-                        {isSaving ? "Kaydediliyor..." : "Kaydet"}
+                        {isSaving ? t("common.saving") : t("common.save")}
                       </button>
                     </>
                   ) : isConfirmingDelete ? (
@@ -186,7 +188,7 @@ export function CandidateTagManagerModal({
                         onClick={() => setConfirmDeleteId(null)}
                         type="button"
                       >
-                        Vazgeç
+                        {t("common.cancel")}
                       </button>
                       <button
                         className="btn btn-danger btn-sm"

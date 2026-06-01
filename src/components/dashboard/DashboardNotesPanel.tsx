@@ -6,6 +6,7 @@ import { Panel } from "../ui/Panel";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
 import { canManageArea } from "../../lib/permissions";
+import { useT } from "../../lib/i18n";
 import {
   createUserNote,
   deleteUserNote,
@@ -19,7 +20,8 @@ export function DashboardNotesPanel() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageDashboard = canManageArea(user, permissions, "dashboard");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [notes, setNotes] = useState<UserNoteResponse[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<UserNoteResponse | null>(null);

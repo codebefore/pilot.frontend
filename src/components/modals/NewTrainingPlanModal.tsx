@@ -1,14 +1,15 @@
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 import type {
 	  CandidateResponse,
 	  GroupResponse,
 	  InstructorResponse,
 	  TrainingBranchDefinitionResponse,
 	  TrainingLessonKind,
-	  TrainingLessonStatus,
 	  VehicleResponse,
 } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
@@ -18,19 +19,38 @@ import { Modal } from "../ui/Modal";
 
 type PlanType = TrainingLessonKind;
 
-export type TrainingLessonSubmitValues = {
-  type: PlanType;
-  status: TrainingLessonStatus;
-  date: string;
-  startTime: string;
-  durationMinutes: number;
-	  instructorId: string;
-	  groupId?: string;
-	  branchCode?: string;
-	  candidateId?: string;
-  vehicleId?: string;
-  notes?: string;
-};
+const trainingPlanSchema = z.object({
+  type: z.enum(["teorik", "uygulama"]),
+  status: z.enum(["planned", "completed"]),
+  date: z.string().min(1, "training.modal.required.date" as TranslationKey),
+  startTime: z.string().min(1, "training.modal.required.time" as TranslationKey),
+  durationMinutes: z.number({ error: "training.modal.required.duration" as TranslationKey }),
+  instructorId: z.string().min(1, "training.modal.required.instructor" as TranslationKey),
+  groupId: z.string().optional(),
+  branchCode: z.string().optional(),
+  candidateId: z.string().optional(),
+  vehicleId: z.string().optional(),
+  notes: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.type === "teorik") {
+    if (!data.groupId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "training.modal.required.group" as TranslationKey, path: ["groupId"] });
+    }
+    if (!data.branchCode) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "training.modal.required.branch" as TranslationKey, path: ["branchCode"] });
+    }
+  }
+  if (data.type === "uygulama") {
+    if (!data.candidateId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "training.modal.required.candidate" as TranslationKey, path: ["candidateId"] });
+    }
+    if (!data.vehicleId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "training.modal.required.vehicle" as TranslationKey, path: ["vehicleId"] });
+    }
+  }
+});
+
+export type TrainingLessonSubmitValues = z.infer<typeof trainingPlanSchema>;
 
 type NewTrainingPlanModalProps = {
   open: boolean;
@@ -121,7 +141,7 @@ export function NewTrainingPlanModal({
   serverGeneralError,
 }: NewTrainingPlanModalProps) {
   const t = useT();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const {
     control,
     register,
@@ -132,6 +152,7 @@ export function NewTrainingPlanModal({
     formState: { errors },
   } = useForm<TrainingLessonSubmitValues>({
     defaultValues: buildDefaultValues(defaultType, initialSlot),
+    resolver: zodResolver(trainingPlanSchema),
   });
 
   useEffect(() => {
@@ -142,10 +163,8 @@ export function NewTrainingPlanModal({
   const date = watch("date");
   const startTime = watch("startTime");
   const needsPracticeFields = type === "uygulama";
-  const dateRegistration = register("date", { required: t("training.modal.required.date") });
-  const startTimeRegistration = register("startTime", {
-    required: t("training.modal.required.time"),
-  });
+  const dateRegistration = register("date");
+  const startTimeRegistration = register("startTime");
 
   const submit = handleSubmit((values) => {
     if (!canManage) return;
@@ -198,7 +217,6 @@ export function NewTrainingPlanModal({
             <Controller
               control={control}
               name="type"
-              rules={{ required: true }}
               render={({ field }) => (
                 <CustomSelect
                   className="form-select"
@@ -219,7 +237,6 @@ export function NewTrainingPlanModal({
             <Controller
               control={control}
               name="status"
-              rules={{ required: true }}
               render={({ field }) => (
                 <CustomSelect
                   className="form-select"
@@ -251,7 +268,7 @@ export function NewTrainingPlanModal({
               }
               value={date}
             />
-            {errors.date && <div className="form-error">{errors.date.message}</div>}
+            {errors.date && <div className="form-error">{t((errors.date.message ?? "") as TranslationKey)}</div>}
             {!errors.date && serverErr("date") ? (
               <div className="form-error">{serverErr("date")}</div>
             ) : null}
@@ -270,7 +287,7 @@ export function NewTrainingPlanModal({
               value={startTime}
             />
             {errors.startTime && (
-              <div className="form-error">{errors.startTime.message}</div>
+              <div className="form-error">{t((errors.startTime.message ?? "") as TranslationKey)}</div>
             )}
             {!errors.startTime && serverErr("startTime") ? (
               <div className="form-error">{serverErr("startTime")}</div>
@@ -281,10 +298,7 @@ export function NewTrainingPlanModal({
             <CustomSelect
               className={fieldClass("durationMinutes", false, "form-select")}
               disabled={!canManage}
-              {...register("durationMinutes", {
-                required: t("training.modal.required.duration"),
-                valueAsNumber: true,
-              })}
+              {...register("durationMinutes", { valueAsNumber: true })}
             >
               {/* Min 1 saat. Backend süre < 60 dk'yı 400 ile reddeder. */}
               <option value={60}>{t("training.modal.duration.h1")}</option>
@@ -305,7 +319,7 @@ export function NewTrainingPlanModal({
             <CustomSelect
               className={fieldClass("instructorId", !!errors.instructorId, "form-select")}
               disabled={!canManage}
-              {...register("instructorId", { required: t("training.modal.required.instructor") })}
+              {...register("instructorId")}
             >
               <option value="">{t("training.modal.placeholder.select")}</option>
               {/* Eğitmen filtresi tip'e göre: teorik → en az bir teorik
@@ -323,7 +337,7 @@ export function NewTrainingPlanModal({
                 ))}
             </CustomSelect>
             {errors.instructorId && (
-              <div className="form-error">{errors.instructorId.message}</div>
+              <div className="form-error">{t((errors.instructorId.message ?? "") as TranslationKey)}</div>
             )}
             {!errors.instructorId && serverErr("instructorId") ? (
               <div className="form-error">{serverErr("instructorId")}</div>
@@ -335,10 +349,7 @@ export function NewTrainingPlanModal({
               <CustomSelect
                 className={fieldClass("groupId", !!errors.groupId, "form-select")}
                 disabled={!canManage}
-                {...register("groupId", {
-                  validate: (value) =>
-                    type !== "teorik" || value ? true : t("training.modal.required.group"),
-                })}
+                {...register("groupId")}
               >
                 <option value="">{t("training.modal.placeholder.select")}</option>
                 {/* Aktif aday'ı 0 olan grupları gizle — ders atanacak
@@ -352,7 +363,7 @@ export function NewTrainingPlanModal({
                   ))}
               </CustomSelect>
               {errors.groupId && (
-                <div className="form-error">{errors.groupId.message}</div>
+                <div className="form-error">{t((errors.groupId.message ?? "") as TranslationKey)}</div>
               )}
               {!errors.groupId && serverErr("groupId") ? (
                 <div className="form-error">{serverErr("groupId")}</div>
@@ -364,10 +375,7 @@ export function NewTrainingPlanModal({
               <CustomSelect
                 className={fieldClass("candidateId", !!errors.candidateId, "form-select")}
                 disabled={!canManage}
-                {...register("candidateId", {
-                  validate: (value) =>
-                    !needsPracticeFields || value ? true : t("training.modal.required.candidate"),
-                })}
+                {...register("candidateId")}
               >
                 <option value="">{t("training.modal.placeholder.select")}</option>
                 {candidates.map((candidate) => (
@@ -377,7 +385,7 @@ export function NewTrainingPlanModal({
                 ))}
               </CustomSelect>
               {errors.candidateId && (
-                <div className="form-error">{errors.candidateId.message}</div>
+                <div className="form-error">{t((errors.candidateId.message ?? "") as TranslationKey)}</div>
               )}
               {!errors.candidateId && serverErr("candidateId") ? (
                 <div className="form-error">{serverErr("candidateId")}</div>
@@ -393,10 +401,7 @@ export function NewTrainingPlanModal({
 	              <CustomSelect
 	                className={fieldClass("branchCode", !!errors.branchCode, "form-select")}
 	                disabled={!canManage}
-	                {...register("branchCode", {
-	                  validate: (value) =>
-	                    type !== "teorik" || value ? true : t("training.modal.required.branch"),
-	                })}
+	                {...register("branchCode")}
 	              >
 	                <option value="">{t("training.modal.placeholder.select")}</option>
 	                {branches
@@ -408,7 +413,7 @@ export function NewTrainingPlanModal({
 	                  ))}
 	              </CustomSelect>
 	              {errors.branchCode && (
-	                <div className="form-error">{errors.branchCode.message}</div>
+	                <div className="form-error">{t((errors.branchCode.message ?? "") as TranslationKey)}</div>
 	              )}
 	              {!errors.branchCode && serverErr("branchCode") ? (
 	                <div className="form-error">{serverErr("branchCode")}</div>

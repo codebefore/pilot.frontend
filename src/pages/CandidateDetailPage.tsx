@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { candidateKeys } from "../lib/queries/use-candidates";
+import { useGroup } from "../lib/queries/use-groups";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
@@ -60,7 +63,7 @@ import { getCashRegisters } from "../lib/cash-registers-api";
 import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstructors } from "../lib/instructors-api";
-import { getGroupById, getGroups } from "../lib/groups-api";
+import { getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { getTrainingLessons } from "../lib/training-lessons-api";
 import { getVehicles } from "../lib/vehicles-api";
@@ -322,20 +325,72 @@ export function CandidateDetailPage() {
   const canManageDocuments = canManageArea(user, permissions, "documents");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
   const { candidateId } = useParams<{ candidateId: string }>();
-  const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
-  const [documents, setDocuments] = useState<DocumentResponse[] | null>(null);
-  const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[] | null>(null);
-  const [documentsLoading, setDocumentsLoading] = useState(false);
-  const [documentsError, setDocumentsError] = useState<string | null>(null);
-  const [accounting, setAccounting] = useState<CandidateAccountingSummaryResponse | null>(null);
-  const [accountingLoading, setAccountingLoading] = useState(false);
-  const [accountingError, setAccountingError] = useState<string | null>(null);
   const [movementSaving, setMovementSaving] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [invoiceSaving, setInvoiceSaving] = useState(false);
+
+  // ── Fetch 1: candidate detail ────────────────────────────────────────────
+  const {
+    data: candidate = null,
+    isLoading: loading,
+    isError: isErrorCandidate,
+    refetch: refetchCandidate,
+  } = useQuery({
+    queryKey: candidateId ? candidateKeys.detail(candidateId) : candidateKeys.detail("__missing__"),
+    queryFn: ({ signal }) => getCandidateById(candidateId as string, signal),
+    enabled: Boolean(candidateId),
+  });
+  const error = isErrorCandidate ? "Aday bilgileri yüklenemedi" : null;
+  // setCandidate is used in handlers that mutate and get back a fresh object;
+  // bridge to queryClient.setQueryData so the RQ cache stays in sync.
+  const setCandidate = (
+    updater: CandidateResponse | null | ((prev: CandidateResponse | null) => CandidateResponse | null)
+  ) => {
+    if (!candidateId) return;
+    if (typeof updater === "function") {
+      const prev = queryClient.getQueryData<CandidateResponse>(candidateKeys.detail(candidateId)) ?? null;
+      const next = updater(prev);
+      if (next !== null) queryClient.setQueryData(candidateKeys.detail(candidateId), next);
+    } else if (updater !== null) {
+      queryClient.setQueryData(candidateKeys.detail(candidateId), updater);
+    }
+  };
+
+  // ── Fetch 2: documents + document types (lazy: only when documents tab is open) ──
+  const {
+    data: documents = null,
+    isLoading: documentsLoading,
+    isError: isErrorDocuments,
+  } = useQuery({
+    queryKey: candidateId ? ["candidates", "documents", candidateId] : ["candidates", "documents", "__missing__"],
+    queryFn: ({ signal }) => getCandidateDocuments(candidateId as string, signal),
+    enabled: Boolean(candidateId) && activeTab === "documents",
+  });
+  const {
+    data: documentTypes = null,
+    isLoading: documentTypesLoading,
+    isError: isErrorDocumentTypes,
+  } = useQuery({
+    queryKey: ["documentTypes", "candidate"],
+    queryFn: ({ signal }) => getDocumentTypes({ module: "candidate", includeInactive: false }, signal),
+    enabled: activeTab === "documents",
+  });
+  const documentsError = (isErrorDocuments || isErrorDocumentTypes) ? "Evraklar yüklenemedi" : null;
+  const combinedDocumentsLoading = documentsLoading || documentTypesLoading;
+
+  // ── Fetch 3: candidate accounting ───────────────────────────────────────
+  const {
+    data: accounting = null,
+    isLoading: accountingLoading,
+    isError: isErrorAccounting,
+  } = useQuery({
+    queryKey: candidateId ? ["candidates", "accounting", candidateId] : ["candidates", "accounting", "__missing__"],
+    queryFn: ({ signal }) => getCandidateAccounting(candidateId as string, signal),
+    enabled: Boolean(candidateId),
+  });
+  const accountingError = isErrorAccounting ? "Finans bilgileri yüklenemedi" : null;
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -359,86 +414,11 @@ export function CandidateDetailPage() {
     }
   }, [activeTab, canViewDocuments, canViewPayments, setSearchParams]);
 
-  const [reloadKey, setReloadKey] = useState(0);
-
-  useEffect(() => {
-    if (!candidateId) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    getCandidateById(candidateId, controller.signal)
-      .then((data) => setCandidate(data))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError("Aday bilgileri yüklenemedi");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [candidateId, reloadKey]);
-
   const age = useMemo(() => calculateAge(candidate?.birthDate ?? null), [candidate]);
-
-  // Lazy-load documents + types when the Evraklar tab is first opened.
-  useEffect(() => {
-    if (activeTab !== "documents") return;
-    if (!candidateId) return;
-    if (documents !== null && documentTypes !== null) return;
-
-    const controller = new AbortController();
-    setDocumentsLoading(true);
-    setDocumentsError(null);
-
-    Promise.all([
-      getCandidateDocuments(candidateId, controller.signal),
-      getDocumentTypes({ module: "candidate", includeInactive: false }, controller.signal),
-    ])
-      .then(([docs, types]) => {
-        setDocuments(docs);
-        setDocumentTypes(types);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setDocumentsError("Evraklar yüklenemedi");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setDocumentsLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [activeTab, candidateId, documents, documentTypes]);
-
-  // Hero accounting status badge requires the full accounting snapshot
-  // (installment due dates), so fetch it as soon as the candidate is known
-  // rather than waiting for the Finans tab.
-  useEffect(() => {
-    if (!candidateId) return;
-    if (accounting !== null) return;
-
-    const controller = new AbortController();
-    setAccountingLoading(true);
-    setAccountingError(null);
-
-    getCandidateAccounting(candidateId, controller.signal)
-      .then((response) => setAccounting(response))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setAccountingError("Finans bilgileri yüklenemedi");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setAccountingLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [accounting, candidateId]);
 
   const refreshAccounting = async () => {
     if (!candidateId) return;
-    const response = await getCandidateAccounting(candidateId);
-    setAccounting(response);
+    await queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
   };
 
   const openAccountingPayment = (movementId: string) => {
@@ -633,7 +613,7 @@ export function CandidateDetailPage() {
         <PageLoadError
           title="Aday bilgileri yüklenemedi"
           description="Aday detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
-          onRetry={() => setReloadKey((k) => k + 1)}
+          onRetry={() => void refetchCandidate()}
         />
       )}
 
@@ -719,16 +699,13 @@ export function CandidateDetailPage() {
                 candidateId={candidate.id}
                 documents={documents}
                 documentTypes={documentTypes}
-                loading={documentsLoading}
+                loading={combinedDocumentsLoading}
                 error={documentsError}
                 onRefresh={async () => {
                   if (!candidateId) return;
-                  try {
-                    const docs = await getCandidateDocuments(candidateId);
-                    setDocuments(docs);
-                  } catch {
-                    /* swallow — toast already shown by tab */
-                  }
+                  await queryClient.invalidateQueries({
+                    queryKey: ["candidates", "documents", candidateId],
+                  });
                 }}
                 onDeleted={() => navigate("/candidates")}
               />
@@ -2112,30 +2089,11 @@ function LicenseInfoTab({
         ?.label ?? candidate.licenseClass,
     [licenseClassOptions, candidate.licenseClass]
   );
-  const [groupCapacity, setGroupCapacity] = useState<{
-    filled: number;
-    capacity: number;
-  } | null>(null);
-
-  // Pull the active group separately to surface its capacity/utilisation, since
-  // the candidate response only carries summary fields (no counts).
-  useEffect(() => {
-    const groupId = candidate.currentGroup?.groupId;
-    if (!groupId) {
-      setGroupCapacity(null);
-      return;
-    }
-    const controller = new AbortController();
-    getGroupById(groupId, controller.signal)
-      .then((group) =>
-        setGroupCapacity({ filled: group.activeCandidateCount, capacity: group.capacity })
-      )
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setGroupCapacity(null);
-      });
-    return () => controller.abort();
-  }, [candidate.currentGroup?.groupId]);
+  // ── Fetch 4: current group detail (for capacity) ────────────────────────
+  const { data: currentGroupData } = useGroup(candidate.currentGroup?.groupId ?? null);
+  const groupCapacity = currentGroupData
+    ? { filled: currentGroupData.activeCandidateCount, capacity: currentGroupData.capacity }
+    : null;
 
   const loadGroupOptions = async (): Promise<SelectOption[]> => {
     const response = await getGroups({ pageSize: 200 });
@@ -2183,8 +2141,6 @@ function LicenseInfoTab({
   const [licenseFieldsOpen, setLicenseFieldsOpen] = useState(
     candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)
   );
-  const [existingLicenseOptions, setExistingLicenseOptions] = useState<SelectOption[]>([]);
-  const [existingLicenseOptionsLoading, setExistingLicenseOptionsLoading] = useState(false);
   const [existingLicenseToggleSaving, setExistingLicenseToggleSaving] = useState(false);
 
   useEffect(() => {
@@ -2202,48 +2158,37 @@ function LicenseInfoTab({
     setLicenseFieldsOpen(candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType));
   }, [candidate]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setExistingLicenseOptionsLoading(true);
-
-    getLicenseClassDefinitions(
-      {
-        activity: "active",
-        page: 1,
-        pageSize: 1000,
-        sortBy: "displayOrder",
-        sortDir: "asc",
-      },
-      controller.signal
-    )
-      .then((definitionResponse) => {
-        setExistingLicenseOptions(
-          buildExistingLicenseOptionsFromDefinitions(
-            definitionResponse.items,
+  // ── Fetch 5: license class definitions (for existing-license options) ───
+  const {
+    data: licenseClassDefinitionsData,
+    isLoading: existingLicenseOptionsLoading,
+  } = useQuery({
+    queryKey: ["licenseClassDefinitions", "active"],
+    queryFn: ({ signal }) =>
+      getLicenseClassDefinitions(
+        { activity: "active", page: 1, pageSize: 1000, sortBy: "displayOrder", sortDir: "asc" },
+        signal
+      ),
+  });
+  const existingLicenseOptions = useMemo(
+    () =>
+      licenseClassDefinitionsData
+        ? buildExistingLicenseOptionsFromDefinitions(
+            licenseClassDefinitionsData.items,
             candidate.licenseClass,
             candidate.existingLicenseType,
             candidate.existingLicensePre2016,
             configuredExistingLicenseTypeOptions
           )
-        );
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setExistingLicenseOptions([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setExistingLicenseOptionsLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, [
-    candidate.existingLicensePre2016,
-    candidate.existingLicenseType,
-    candidate.licenseClass,
-    configuredExistingLicenseTypeOptions,
-  ]);
+        : [],
+    [
+      licenseClassDefinitionsData,
+      candidate.licenseClass,
+      candidate.existingLicenseType,
+      candidate.existingLicensePre2016,
+      configuredExistingLicenseTypeOptions,
+    ]
+  );
 
   useEffect(() => {
     if (existingLicenseOptionsLoading || !licenseType) return;

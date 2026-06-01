@@ -1,22 +1,30 @@
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { Modal } from "../ui/Modal";
 import { getCandidates } from "../../lib/candidates-api";
-import { useLanguage } from "../../lib/i18n";
+import { useLanguage, useT, currentLocale } from "../../lib/i18n";
 import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 
-type PaymentMethodKey = "Nakit" | "Havale" | "KrediKarti";
+const newPaymentSchema = z.object({
+  candidateId: z.string().min(1, "Aday seçin"),
+  amount: z.number().min(1, "Pozitif bir değer girin"),
+  method: z.enum(["Nakit", "Havale", "KrediKarti"]),
+  date: z
+    .string()
+    .min(1, "Zorunlu alan")
+    .refine((v) => {
+      const diff = (new Date(v).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+      return diff <= 1;
+    }, "Gelecek tarih olamaz"),
+  note: z.string(),
+});
 
-type NewPaymentForm = {
-  candidateId: string;
-  amount: number;
-  method: PaymentMethodKey;
-  date: string;
-  note: string;
-};
+type NewPaymentForm = z.infer<typeof newPaymentSchema>;
 
 type NewPaymentModalProps = {
   open: boolean;
@@ -36,9 +44,10 @@ const defaultValues = (): NewPaymentForm => ({
 });
 
 export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: NewPaymentModalProps) {
+  const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [debtors, setDebtors] = useState<CandidateResponse[]>([]);
   const {
     control,
@@ -48,16 +57,9 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewPaymentForm>({ defaultValues: defaultValues() });
+  } = useForm<NewPaymentForm>({ defaultValues: defaultValues(), resolver: zodResolver(newPaymentSchema) });
   const date = watch("date");
-  const dateRegistration = register("date", {
-    required: "Zorunlu alan",
-    validate: (v) => {
-      const diff = (new Date(v).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-      if (diff > 1) return "Gelecek tarih olamaz";
-      return true;
-    },
-  });
+  const dateRegistration = register("date");
 
   useEffect(() => {
     if (!open) {
@@ -95,7 +97,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} type="button">
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -110,21 +112,21 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
       }
       onClose={onClose}
       open={open}
-      title="Tahsilat Girişi"
+      title={t("newPayment.modalTitle")}
     >
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Aday</label>
+            <label className="form-label">{t("common.field.candidate")}</label>
             <CustomSelect
               className={fieldClass(!!errors.candidateId, "form-select")}
               disabled={!canManage}
-              {...register("candidateId", { required: "Aday seçin" })}
+              {...register("candidateId")}
             >
               {debtors.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
                   {`${candidate.firstName} ${candidate.lastName}`.trim()} — Bakiye:{" "}
-                  {candidate.totalDebt.toLocaleString("tr-TR")} TL
+                  {candidate.totalDebt.toLocaleString(currentLocale())} TL
                 </option>
               ))}
             </CustomSelect>
@@ -133,27 +135,22 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">Tutar (TL)</label>
+            <label className="form-label">{t("newPayment.field.amount")}</label>
             <input
               className={fieldClass(!!errors.amount, "form-input")}
               disabled={!canManage}
               type="number"
-              {...register("amount", {
-                required: "Zorunlu alan",
-                valueAsNumber: true,
-                min: { value: 1, message: "Pozitif bir değer girin" },
-              })}
+              {...register("amount", { valueAsNumber: true })}
             />
             {errors.amount && <div className="form-error">{errors.amount.message}</div>}
           </div>
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Ödeme Tipi</label>
+            <label className="form-label">{t("newPayment.field.method")}</label>
             <Controller
               control={control}
               name="method"
-              rules={{ required: true }}
               render={({ field }) => (
                 <CustomSelect
                   className="form-select"
@@ -171,7 +168,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Tarih</label>
+            <label className="form-label">{t("common.field.date")}</label>
             <LocalizedDateInput
               ariaLabel="Tarih"
               className={fieldClass(!!errors.date, "form-input")}
@@ -190,7 +187,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
         </div>
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">Not</label>
+            <label className="form-label">{t("common.field.note")}</label>
             <textarea
               className="form-input"
               disabled={!canManage}

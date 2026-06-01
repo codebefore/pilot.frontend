@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { Modal } from "../components/ui/Modal";
@@ -62,17 +63,12 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManagePermissions = canManageArea(user, permissions, "permissions");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
-  const [areas, setAreas] = useState<PermissionAreasResponse | null>(null);
+  const queryClient = useQueryClient();
   const [matrix, setMatrix] = useState<Record<string, MatrixValue>>({});
   const originalMatrixRef = useRef<Record<string, MatrixValue>>({});
   const [dirty, setDirty] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDeleteRoleId, setConfirmDeleteRoleId] = useState<string | null>(null);
   const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
@@ -80,33 +76,29 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
 
   const requestedRoleId = searchParams.get("role");
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setLoadError(false);
+  const rolesQuery = useQuery<RoleResponse[]>({
+    queryKey: ["roles", "list", { includeInactive: false }],
+    queryFn: ({ signal }) => getRoles({ includeInactive: false }, signal),
+  });
 
-    Promise.all([
-      getRoles({ includeInactive: false }, controller.signal),
-      getPermissionAreas(controller.signal),
-    ])
-    .then(([roleList, areaResponse]) => {
-      const sortedRoles = roleList
-          .filter((role) => role.isActive)
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name, "tr"));
-        setRoles(sortedRoles);
-        setAreas(areaResponse);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setLoadError(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+  const areasQuery = useQuery<PermissionAreasResponse>({
+    queryKey: ["permissionAreas", "list"],
+    queryFn: ({ signal }) => getPermissionAreas(signal),
+  });
 
-    return () => controller.abort();
-  }, [reloadKey]);
+  const rawRoles = rolesQuery.data ?? [];
+  const areas = areasQuery.data ?? null;
+  const loading = rolesQuery.isPending || areasQuery.isPending;
+  const loadError = rolesQuery.isError || areasQuery.isError;
+
+  const roles = useMemo(
+    () =>
+      rawRoles
+        .filter((role) => role.isActive)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, "tr")),
+    [rawRoles]
+  );
 
   const selectedRoleId = useMemo(() => {
     if (requestedRoleId && roles.some((role) => role.id === requestedRoleId)) {
@@ -132,33 +124,38 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
     setSearchParams(nextParams, { replace: true });
   }, [requestedRoleId, searchParams, selectedRoleId, setSearchParams]);
 
+  const rolePermissionsQuery = useQuery<RolePermissionResponse[]>({
+    queryKey: ["rolePermissions", "detail", selectedRoleId],
+    queryFn: ({ signal }) => getRolePermissions(selectedRoleId as string, signal),
+    enabled: !!selectedRoleId,
+  });
+
+  const permissionsLoading = rolePermissionsQuery.isPending && !!selectedRoleId;
+
   useEffect(() => {
-    if (!selectedRoleId || !areas) {
+    if (!areas) return;
+    if (!selectedRoleId) {
       setMatrix({});
       originalMatrixRef.current = {};
       setDirty(false);
-      setPermissionsLoading(false);
       setConfirmDeleteRoleId(null);
       return;
     }
+    if (rolePermissionsQuery.isError) return;
+    if (!rolePermissionsQuery.data) return;
+    applyLoadedMatrix(areas.areas, rolePermissionsQuery.data);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areas, selectedRoleId, rolePermissionsQuery.data, rolePermissionsQuery.isError]);
 
-    const controller = new AbortController();
-    setPermissionsLoading(true);
-
-    getRolePermissions(selectedRoleId, controller.signal)
-      .then((permissions) => applyLoadedMatrix(areas.areas, permissions))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        showToast("Yetkiler yüklenemedi", "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setPermissionsLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-  }, [areas, selectedRoleId, showToast]);
+  // Error toast lives in its own effect keyed only on the query's error state
+  // for this role so refetching adjacent queries (e.g. areas after a retry)
+  // does not double-fire the toast.
+  useEffect(() => {
+    if (rolePermissionsQuery.isError && selectedRoleId) {
+      showToast("Yetkiler yüklenemedi", "error");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolePermissionsQuery.isError, selectedRoleId]);
 
   const applyLoadedMatrix = (
     areaList: string[],
@@ -272,7 +269,10 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
     setDeletingRoleId(selectedRole.id);
     try {
       await deleteRole(selectedRole.id);
-      setRoles((prev) => prev.filter((role) => role.id !== selectedRole.id));
+      queryClient.setQueryData<RoleResponse[]>(
+        ["roles", "list", { includeInactive: false }],
+        (prev) => (prev ? prev.filter((role) => role.id !== selectedRole.id) : [])
+      );
       setConfirmDeleteRoleId(null);
       showToast("Rol silindi");
     } catch (error) {
@@ -303,7 +303,10 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
       <PageLoadError
         title="Roller yüklenemedi"
         description="Rol listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
-        onRetry={() => setReloadKey((k) => k + 1)}
+        onRetry={() => {
+          void queryClient.invalidateQueries({ queryKey: ["roles", "list", { includeInactive: false }] });
+          void queryClient.invalidateQueries({ queryKey: ["permissionAreas", "list"] });
+        }}
       />
     </div>
   ) : (

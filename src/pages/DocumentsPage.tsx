@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
@@ -28,12 +29,12 @@ import {
 import {
   assignCandidateGroup,
   createCandidateTag,
-  searchCandidateTags,
 } from "../lib/candidates-api";
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
-import { getGroups } from "../lib/groups-api";
 import { useLanguage, useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
+import { useCandidateTags } from "../lib/queries/use-candidates";
+import { useGroups } from "../lib/queries/use-groups";
 import { buildWhatsAppUrl } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
@@ -53,8 +54,8 @@ const INITIAL_FILTERS: Filters = {
   search: "",
 };
 
-const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = [20, 50, 100];
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 
 type DocumentSortField = "name" | "licenseClass" | "term";
@@ -150,8 +151,9 @@ export function DocumentsPage() {
   const canManageDocuments = canManageArea(user, permissions, "documents");
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const canManageGroups = canManageArea(user, permissions, "groups");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -167,17 +169,6 @@ export function DocumentsPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [totalPages, setTotalPages] = useState(1);
-  const [tabCounts, setTabCounts] = useState({ all: 0, missing: 0, complete: 0 });
-
-  const [entries, setEntries] = useState<DocumentChecklistEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const lastCompletedFetchKeyRef = useRef<string | null>(null);
-
-  const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>([]);
-  const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
-  const [manageTarget, setManageTarget] = useState<ManageTarget>(null);
 
   const [allTags, setAllTags] = useState<CandidateTag[]>([]);
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -186,6 +177,9 @@ export function DocumentsPage() {
   const [newTagDraft, setNewTagDraft] = useState("");
   const newTagInputRef = useRef<HTMLInputElement | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
+
+  const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
+  const [manageTarget, setManageTarget] = useState<ManageTarget>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("selected");
@@ -197,47 +191,31 @@ export function DocumentsPage() {
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkTagValues, setBulkTagValues] = useState<string[]>([]);
   const [bulkGroupId, setBulkGroupId] = useState("");
-  const [bulkGroupOptions, setBulkGroupOptions] = useState<GroupResponse[]>([]);
-  const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [hiddenDocumentColumnIds, setHiddenDocumentColumnIds] = useState<Set<string>>(new Set());
 
-  const selectedCount = selectedCandidateIds.size;
-  const allVisibleSelected =
-    entries.length > 0 && entries.every((entry) => selectedCandidateIds.has(entry.candidateId));
-
-  useEffect(() => {
-    const controller = new AbortController();
-    getDocumentTypes(undefined, controller.signal)
-      .then(setDocumentTypes)
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+  // --- React Query: document types ---
+  const { data: documentTypes = [] } = useQuery<DocumentTypeResponse[]>({
+    queryKey: ["documents", "types"],
+    queryFn: ({ signal }) =>
+      getDocumentTypes(undefined, signal).catch((err) => {
         showToast(t("uploadDoc.errors.typesLoadFailed"), "error");
-      });
-    return () => controller.abort();
-  }, [showToast, t]);
+        throw err;
+      }),
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    getGroups({ pageSize: 200 }, controller.signal)
-      .then((result) => setBulkGroupOptions(result.items))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      });
-    return () => controller.abort();
-  }, []);
+  // --- React Query: groups for bulk actions and Dönem filter ---
+  const { data: bulkGroupsData, isLoading: bulkGroupLoading } = useGroups({ pageSize: 200 });
+  const bulkGroupOptions: GroupResponse[] = bulkGroupsData?.items ?? [];
 
-  // Load the full list of candidate tags for the filter chips. Refreshes with
-  // refreshKey so bulk-added tags show up here too.
+  // --- React Query: candidate tags for filter chips ---
+  const { data: tagsData } = useCandidateTags("", 200);
+
+  // Sync fetched tags into local state so mutations (create/rename/delete) can
+  // update the list without a full refetch.
   useEffect(() => {
-    const controller = new AbortController();
-    searchCandidateTags(undefined, 200, controller.signal)
-      .then(setAllTags)
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      });
-    return () => controller.abort();
-  }, [refreshKey]);
+    if (tagsData) setAllTags(tagsData);
+  }, [tagsData]);
 
   // Drop active tag filters that no longer exist (e.g. renamed/deleted elsewhere).
   useEffect(() => {
@@ -265,72 +243,64 @@ export function DocumentsPage() {
     return () => window.clearTimeout(timer);
   }, [candidateFilters]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const candidateFilterQuery = filtersToQuery(debouncedCandidateFilters);
-    const requestParams = {
-      search: normalizeTextQuery(debouncedSearch),
-      tags: activeTags.length > 0 ? activeTags : undefined,
-      ...candidateFilterQuery,
-      hasMissingDocuments:
-        tab === "missing" ? true : tab === "complete" ? false : candidateFilterQuery.hasMissingDocuments,
-      page,
-      pageSize,
-    };
-    const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
-    if (lastCompletedFetchKeyRef.current === fetchKey) {
-      return;
-    }
+  // --- React Query: document checklist (main list) ---
+  const candidateFilterQuery = filtersToQuery(debouncedCandidateFilters);
+  const checklistParams = {
+    search: normalizeTextQuery(debouncedSearch),
+    tags: activeTags.length > 0 ? activeTags : undefined,
+    ...candidateFilterQuery,
+    hasMissingDocuments:
+      tab === "missing" ? true : tab === "complete" ? false : candidateFilterQuery.hasMissingDocuments,
+    page,
+    pageSize,
+  };
 
-    setLoading(true);
-
-    getDocumentChecklist(requestParams, controller.signal)
-      .then((result) => {
-        lastCompletedFetchKeyRef.current = fetchKey;
-        setEntries(result.items);
-        setTotalPages(result.totalPages);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+  const {
+    data: checklistData,
+    isFetching: loading,
+  } = useQuery({
+    queryKey: ["documents", "list", checklistParams],
+    queryFn: ({ signal }) =>
+      getDocumentChecklist(checklistParams, signal).catch((err) => {
         showToast(t("documents.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+        throw err;
+      }),
+  });
 
-    return () => controller.abort();
-  }, [activeTags, debouncedCandidateFilters, debouncedSearch, page, pageSize, refreshKey, showToast, t, tab]);
+  const entries: DocumentChecklistEntry[] = checklistData?.items ?? [];
+  const totalPages = checklistData?.totalPages ?? 1;
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const candidateFilterQuery = filtersToQuery(debouncedCandidateFilters);
-    const { hasMissingDocuments: _ignored, ...baseCandidateFilterQuery } = candidateFilterQuery;
-    const baseParams = {
-      search: normalizeTextQuery(debouncedSearch),
-      tags: activeTags.length > 0 ? activeTags : undefined,
-      ...baseCandidateFilterQuery,
-      page: 1,
-      pageSize: 1,
-    };
+  // --- React Query: tab counts ---
+  const { hasMissingDocuments: _ignored, ...baseCandidateFilterQuery } = candidateFilterQuery;
+  const baseCountParams = {
+    search: normalizeTextQuery(debouncedSearch),
+    tags: activeTags.length > 0 ? activeTags : undefined,
+    ...baseCandidateFilterQuery,
+    page: 1,
+    pageSize: 1,
+  };
 
-    Promise.all([
-      getDocumentChecklist(baseParams, controller.signal),
-      getDocumentChecklist({ ...baseParams, hasMissingDocuments: true }, controller.signal),
-      getDocumentChecklist({ ...baseParams, hasMissingDocuments: false }, controller.signal),
-    ])
-      .then(([allResult, missingResult, completeResult]) => {
-        setTabCounts({
-          all: allResult.totalCount,
-          missing: missingResult.totalCount,
-          complete: completeResult.totalCount,
-        });
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      });
+  const { data: tabCountAll } = useQuery({
+    queryKey: ["documents", "tabCount", "all", baseCountParams],
+    queryFn: ({ signal }) => getDocumentChecklist(baseCountParams, signal),
+  });
+  const { data: tabCountMissing } = useQuery({
+    queryKey: ["documents", "tabCount", "missing", baseCountParams],
+    queryFn: ({ signal }) => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: true }, signal),
+  });
+  const { data: tabCountComplete } = useQuery({
+    queryKey: ["documents", "tabCount", "complete", baseCountParams],
+    queryFn: ({ signal }) => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: false }, signal),
+  });
+  const tabCounts = {
+    all: tabCountAll?.totalCount ?? 0,
+    missing: tabCountMissing?.totalCount ?? 0,
+    complete: tabCountComplete?.totalCount ?? 0,
+  };
 
-    return () => controller.abort();
-  }, [activeTags, debouncedCandidateFilters, debouncedSearch, refreshKey]);
+  const selectedCount = selectedCandidateIds.size;
+  const allVisibleSelected =
+    entries.length > 0 && entries.every((entry) => selectedCandidateIds.has(entry.candidateId));
 
   const patchFilters = (patch: Partial<Filters>) => {
     setFilters((current) => ({ ...current, ...patch }));
@@ -470,13 +440,17 @@ export function DocumentsPage() {
       const mapped = current.map((name) => (name === previousTag.name ? nextTag.name : name));
       return mapped.filter((name, index) => mapped.indexOf(name) === index);
     });
-    setRefreshKey((k) => k + 1);
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "tags"] });
   };
 
   const handleTagDeleted = (tag: CandidateTag) => {
     removeTagFromCatalog(tag.id);
     setActiveTags((current) => current.filter((name) => name !== tag.name));
-    setRefreshKey((k) => k + 1);
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "tags"] });
   };
 
   const toggleBulkSelection = () => {
@@ -525,7 +499,7 @@ export function DocumentsPage() {
     setBulkActionMode("tags");
   };
 
-  const openBulkGroupAction = async () => {
+  const openBulkGroupAction = () => {
     if (!canManageGroups) return;
     if (selectedCount === 0) {
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
@@ -534,17 +508,6 @@ export function DocumentsPage() {
 
     setBulkActionMode("group");
     setBulkGroupId("");
-    if (bulkGroupOptions.length > 0) return;
-
-    setBulkGroupLoading(true);
-    try {
-      const result = await getGroups({ pageSize: 200 });
-      setBulkGroupOptions(result.items);
-    } catch {
-      showToast(t("candidates.toast.bulkGroupFailed"), "error");
-    } finally {
-      setBulkGroupLoading(false);
-    }
   };
 
   const applyBulkTagChange = async () => {
@@ -558,7 +521,9 @@ export function DocumentsPage() {
       setBulkActionMode(null);
       setSelectedCandidateIds(new Set());
       setBulkTagValues([]);
-      setRefreshKey((k) => k + 1);
+      void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+      void queryClient.invalidateQueries({ queryKey: ["candidates", "tags"] });
     } catch {
       showToast(t("candidates.toast.bulkTagFailed"), "error");
     } finally {
@@ -580,7 +545,8 @@ export function DocumentsPage() {
       setBulkSelectEnabled(false);
       setSelectedCandidateIds(new Set());
       setBulkGroupId("");
-      setRefreshKey((k) => k + 1);
+      void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
     } catch {
       showToast(t("candidates.toast.bulkGroupFailed"), "error");
     } finally {
@@ -610,13 +576,15 @@ export function DocumentsPage() {
   const handleUploaded = () => {
     setUploadTarget(null);
     showToast(t("documents.uploaded"));
-    setRefreshKey((current) => current + 1);
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
   };
 
   const handleDocumentSaved = () => {
     setManageTarget(null);
     showToast(t("documents.manage.saved"));
-    setRefreshKey((current) => current + 1);
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
   };
 
   const emptyMessage = hasAnyFilter
@@ -1239,9 +1207,13 @@ export function DocumentsPage() {
         onClose={closeDrawer}
         onDeleted={() => {
           closeDrawer();
-          setRefreshKey((k) => k + 1);
+          void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+          void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
         }}
-        onUpdated={() => setRefreshKey((k) => k + 1)}
+        onUpdated={() => {
+          void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+          void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+        }}
       />
     </>
   );

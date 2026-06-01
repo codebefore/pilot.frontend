@@ -55,6 +55,10 @@ const runningJob = {
   nextAttemptAtUtc: null,
   leaseOwnerClientId: null,
   leaseExpiresAtUtc: null,
+  queuePublishedAtUtc: "2026-05-30T09:59:05Z",
+  queuePublishLastAttemptAtUtc: "2026-05-30T09:59:05Z",
+  queuePublishAttemptCount: 1,
+  queuePublishError: null,
   startedAtUtc: "2026-05-30T10:00:00Z",
   completedAtUtc: null,
   createdAtUtc: "2026-05-30T09:59:00Z",
@@ -108,6 +112,7 @@ describe("MebJobsPage", () => {
     renderPage();
 
     expect(await screen.findByText("Aday Durum Görüntüleme")).toBeInTheDocument();
+    expect(screen.getByText("Stream")).toBeInTheDocument();
 
     const newJobButton = screen.getByRole("button", { name: /Yeni MEB İşi/ });
     expect(newJobButton).toBeDisabled();

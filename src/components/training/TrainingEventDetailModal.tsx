@@ -81,7 +81,7 @@ export function TrainingEventDetailModal({
   }, [event?.id]);
 
   const editable = event !== null;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   return (
     <Modal

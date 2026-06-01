@@ -1,4 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
+import { useGroups } from "../lib/queries/use-groups";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
@@ -39,11 +43,9 @@ import {
 } from "../lib/candidate-bulk";
 import {
   assignCandidateGroup,
-  getCandidates,
   getExamScheduleOptions,
   getCandidateById,
   createCandidateTag,
-  searchCandidateTags,
   type CandidateExamDateType,
   type CandidateListTabValue,
   type GetCandidatesParams,
@@ -96,6 +98,7 @@ import type {
   GroupResponse,
   InstructorResponse,
   LicenseClass,
+  PagedResponse,
   VehicleResponse,
 } from "../lib/types";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
@@ -1096,7 +1099,7 @@ export function CandidatesPage({
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const canManageGroups = canManageArea(user, permissions, "groups");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const compactLicenseClassOptions = useMemo(
     () =>
@@ -1217,19 +1220,11 @@ export function CandidatesPage({
   const [bulkGroupId, setBulkGroupId] = useState("");
   const [bulkGroupOptions, setBulkGroupOptions] = useState<GroupResponse[]>([]);
   const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
-  const [headerGroupCatalog, setHeaderGroupCatalog] = useState<GroupResponse[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
-  const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
-  const [candidateLicenseClassCounts, setCandidateLicenseClassCounts] = useState<
-    ExamScheduleLicenseClassCount[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [totalPages, setTotalPages] = useState(1);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [allTags, setAllTags] = useState<CandidateTag[]>([]);
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
@@ -1243,7 +1238,6 @@ export function CandidatesPage({
   );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = countActiveCandidateFilters(filters);
-  const lastCompletedFetchKeyRef = useRef<string | null>(null);
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -1251,16 +1245,73 @@ export function CandidatesPage({
   const [selectedExamDate, setSelectedExamDate] = useState("");
   const [selectedDrivingExamCode, setSelectedDrivingExamCode] = useState("");
   const [examSidebarTab, setExamSidebarTab] = useState<"dates" | "codes">("dates");
-  const [examDateOptions, setExamDateOptions] = useState<ExamScheduleOption[]>([]);
-  const [examCodeOptions, setExamCodeOptions] = useState<ExamCodeOption[]>([]);
-  const [examDateOptionsLoading, setExamDateOptionsLoading] = useState(false);
-  const [practiceVehicles, setPracticeVehicles] = useState<VehicleResponse[]>([]);
-  const [practiceInstructors, setPracticeInstructors] = useState<InstructorResponse[]>([]);
   const [editingPracticeCell, setEditingPracticeCell] = useState<{
     candidateId: string;
     field: "time" | "vehicle" | "instructor";
   } | null>(null);
   const [savingPracticeCandidateId, setSavingPracticeCandidateId] = useState<string | null>(null);
+
+  /* ── React Query — side data (independent of candidate list query) ── */
+
+  const examCodesQuery = useQuery({
+    queryKey: ["examCodes", "uygulama"],
+    queryFn: ({ signal }) => getExamCodes("uygulama", signal),
+    enabled: examDateSidebar?.examType === "uygulama",
+  });
+  const examCodeOptions: ExamCodeOption[] = examCodesQuery.data ?? [];
+
+  const practiceVehiclesEnabled =
+    examDateSidebar?.examType === "uygulama" && !!selectedExamDate;
+  const practiceVehiclesQuery = useQuery({
+    queryKey: ["vehicles", "list", { activity: "active", page: 1, pageSize: 500 }],
+    queryFn: ({ signal }) =>
+      getVehicles({ activity: "active", page: 1, pageSize: 500 }, signal),
+    enabled: practiceVehiclesEnabled,
+  });
+  const practiceVehicles: VehicleResponse[] = practiceVehiclesQuery.data?.items ?? [];
+
+  const practiceInstructorsQuery = useQuery({
+    queryKey: ["instructors", "list", { activity: "active", page: 1, pageSize: 500 }],
+    queryFn: ({ signal }) =>
+      getInstructors({ activity: "active", page: 1, pageSize: 500 }, signal),
+    enabled: practiceVehiclesEnabled,
+  });
+  const practiceInstructors: InstructorResponse[] =
+    practiceInstructorsQuery.data?.items ?? [];
+
+  const examScheduleOptionsParams = useMemo(
+    () =>
+      examDateSidebar
+        ? {
+            examType: examDateSidebar.examType,
+            search: normalizeTextQuery(debouncedSearch),
+            status: "active" as const,
+            tags: activeTags.length > 0 ? activeTags : undefined,
+            ...filtersToQuery(debouncedFilters),
+          }
+        : null,
+    [activeTags, debouncedFilters, debouncedSearch, examDateSidebar]
+  );
+  const examDateOptionsQuery = useQuery({
+    queryKey: ["candidates", "examScheduleOptions", examScheduleOptionsParams],
+    queryFn: ({ signal }) => getExamScheduleOptions(examScheduleOptionsParams!, signal),
+    enabled: !!examScheduleOptionsParams,
+  });
+  const examDateOptions: ExamScheduleOption[] = useMemo(
+    () => sortExamDateOptionsNewestFirst(examDateOptionsQuery.data ?? []),
+    [examDateOptionsQuery.data]
+  );
+  const examDateOptionsLoading = !!examScheduleOptionsParams && examDateOptionsQuery.isFetching;
+
+  // Tag catalog for the filter bar. Tag mutations from within this page do
+  // optimistic queryClient.setQueryData updates; cross-page mutations
+  // invalidate via candidateKeys.tags() in the use-candidates mutation hooks.
+  const allTagsQuery = useCandidateTags("", 200);
+  const allTags: CandidateTag[] = allTagsQuery.data ?? [];
+
+  // Group catalog for the "Grup" column header filter.
+  const headerGroupCatalogQuery = useGroups({ pageSize: 200 });
+  const headerGroupCatalog: GroupResponse[] = headerGroupCatalogQuery.data?.items ?? [];
 
   const defaultVisibleColumnIds = useMemo<CandidateColumnId[]>(() => {
     if (defaultVisibleColumnIdsProp) return defaultVisibleColumnIdsProp;
@@ -1358,24 +1409,33 @@ export function CandidatesPage({
         rowVersion: candidate.drivingExamAttemptRowVersion,
       });
 
-      setCandidates((items) => items.map((item) =>
-        item.id === candidate.id
-          ? {
-              ...item,
-              drivingExamScheduledAt: updated.scheduledAt,
-              drivingExamDate: item.drivingExamDate,
-              drivingExamVehicleId: updated.vehicleId,
-              drivingExamVehiclePlate: updated.vehiclePlate,
-              drivingExamInstructorId: updated.instructorId,
-              drivingExamInstructorFullName: updated.instructorFullName,
-              drivingExamAttendanceStatus: updated.examAttendanceStatus,
-              drivingExamResultStatus: updated.examResultStatus,
-              drivingExamFee: updated.fee,
-              drivingExamFeeStatus: updated.feeStatus,
-              drivingExamAttemptRowVersion: updated.rowVersion,
-            }
-          : item
-      ));
+      queryClient.setQueriesData<PagedResponse<CandidateResponse>>(
+        { queryKey: candidateKeys.lists() },
+        (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.id === candidate.id
+                    ? {
+                        ...item,
+                        drivingExamScheduledAt: updated.scheduledAt,
+                        drivingExamDate: item.drivingExamDate,
+                        drivingExamVehicleId: updated.vehicleId,
+                        drivingExamVehiclePlate: updated.vehiclePlate,
+                        drivingExamInstructorId: updated.instructorId,
+                        drivingExamInstructorFullName: updated.instructorFullName,
+                        drivingExamAttendanceStatus: updated.examAttendanceStatus,
+                        drivingExamResultStatus: updated.examResultStatus,
+                        drivingExamFee: updated.fee,
+                        drivingExamFeeStatus: updated.feeStatus,
+                        drivingExamAttemptRowVersion: updated.rowVersion,
+                      }
+                    : item
+                ),
+              }
+            : current
+      );
       setEditingPracticeCell(null);
       showToast("Direksiyon randevusu güncellendi");
     } catch (error) {
@@ -1572,8 +1632,6 @@ export function CandidatesPage({
       id: col.id,
       label: getColumnLabel(col),
     }));
-  const allVisibleSelected =
-    candidates.length > 0 && candidates.every((candidate) => selectedCandidateIds.has(candidate.id));
   const selectedCount = selectedCandidateIds.size;
   const isDrivingExamCodeTabActive =
     examDateSidebar?.examType === "uygulama" && examSidebarTab === "codes";
@@ -1603,21 +1661,6 @@ export function CandidatesPage({
   const showLicenseClassSummary =
     !!examDateSidebar?.showLicenseClassTotalSummary &&
     (examSidebarTab === "dates" || !!selectedDrivingExamCode);
-  const licenseClassTotalSummary = useMemo(
-    () =>
-      showLicenseClassSummary
-        ? formatLicenseClassTotalSummary(candidateLicenseClassCounts)
-        : "",
-    [candidateLicenseClassCounts, showLicenseClassSummary]
-  );
-  const licenseClassTotalSummaryItems = useMemo(
-    () =>
-      showLicenseClassSummary
-        ? buildLicenseClassTotalSummaryItems(candidateLicenseClassCounts)
-        : [],
-    [candidateLicenseClassCounts, showLicenseClassSummary]
-  );
-
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search);
@@ -1646,53 +1689,11 @@ export function CandidatesPage({
     setSelectedExamDate("");
     setSelectedDrivingExamCode("");
     setExamSidebarTab("dates");
-    setExamDateOptions([]);
-    setExamCodeOptions([]);
   }, [examDateSidebar?.field]);
 
-  useEffect(() => {
-    if (examDateSidebar?.examType !== "uygulama") {
-      setExamCodeOptions([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    getExamCodes("uygulama", controller.signal)
-      .then((result) => setExamCodeOptions(result))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setExamCodeOptions([]);
-      });
-    return () => controller.abort();
-  }, [examDateSidebar?.examType, refreshKey]);
-
-  useEffect(() => {
-    if (examDateSidebar?.examType !== "uygulama" || !selectedExamDate) {
-      setPracticeVehicles([]);
-      setPracticeInstructors([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    getVehicles({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
-      .then((response) => setPracticeVehicles(response.items))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setPracticeVehicles([]);
-      });
-    getInstructors({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
-      .then((response) => setPracticeInstructors(response.items))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setPracticeInstructors([]);
-      });
-    return () => controller.abort();
-  }, [examDateSidebar?.examType, selectedExamDate, refreshKey]);
-
-  useEffect(() => {
-    const controller = new AbortController();
+  const candidatesRequestParams = useMemo<GetCandidatesParams>(() => {
     const tabParams = isDrivingExamCodeTabActive ? {} : resolvedTabConfig.buildParams(tab);
-    const requestParams = {
+    return {
       search: normalizeTextQuery(debouncedSearch),
       ...tabParams,
       tags: activeTags.length > 0 ? activeTags : undefined,
@@ -1703,35 +1704,6 @@ export function CandidatesPage({
       page,
       pageSize,
     };
-    const fetchKey = JSON.stringify({ ...requestParams, refreshKey });
-    if (lastCompletedFetchKeyRef.current === fetchKey) {
-      return;
-    }
-
-    setLoading(true);
-
-    getCandidates(
-      requestParams,
-      controller.signal
-    )
-      .then((result) => {
-        lastCompletedFetchKeyRef.current = fetchKey;
-        setCandidates(result.items);
-        setCandidateLicenseClassCounts(result.licenseClassCounts ?? []);
-        setTotalPages(result.totalPages);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setCandidateLicenseClassCounts([]);
-        showToast(t("candidates.toast.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => {
-      controller.abort();
-    };
   }, [
     activeTags,
     debouncedFilters,
@@ -1740,78 +1712,50 @@ export function CandidatesPage({
     isDrivingExamCodeTabActive,
     page,
     pageSize,
-    refreshKey,
     resolvedTabConfig,
-    showToast,
     sort,
     tab,
   ]);
 
+  const candidatesQuery = useCandidates(candidatesRequestParams);
+  const candidates = candidatesQuery.data?.items ?? [];
+  const totalPages = candidatesQuery.data?.totalPages ?? 1;
+  const loading = candidatesQuery.isLoading;
+  const candidateLicenseClassCounts: ExamScheduleLicenseClassCount[] =
+    candidatesQuery.isError ? [] : candidatesQuery.data?.licenseClassCounts ?? [];
+  const licenseClassTotalSummary = useMemo(
+    () =>
+      showLicenseClassSummary
+        ? formatLicenseClassTotalSummary(candidateLicenseClassCounts)
+        : "",
+    [candidateLicenseClassCounts, showLicenseClassSummary]
+  );
+  const licenseClassTotalSummaryItems = useMemo(
+    () =>
+      showLicenseClassSummary
+        ? buildLicenseClassTotalSummaryItems(candidateLicenseClassCounts)
+        : [],
+    [candidateLicenseClassCounts, showLicenseClassSummary]
+  );
+
   useEffect(() => {
-    if (!examDateSidebar) {
-      setExamDateOptions([]);
-      setExamDateOptionsLoading(false);
-      return;
+    if (candidatesQuery.isError) {
+      showToast(t("candidates.toast.loadFailed"), "error");
     }
+  }, [candidatesQuery.isError, showToast, t]);
 
-    const controller = new AbortController();
-    setExamDateOptionsLoading(true);
-
-    getExamScheduleOptions(
-      {
-        examType: examDateSidebar.examType,
-        search: normalizeTextQuery(debouncedSearch),
-        status: "active",
-        tags: activeTags.length > 0 ? activeTags : undefined,
-        ...filtersToQuery(debouncedFilters),
-      },
-      controller.signal
-    )
-      .then((result) => {
-        setExamDateOptions(sortExamDateOptionsNewestFirst(result));
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setExamDateOptions([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setExamDateOptionsLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [
-    activeTags,
-    debouncedFilters,
-    debouncedSearch,
-    examDateSidebar,
-    refreshKey,
-  ]);
-
-  // Load the full tag catalog for the filter bar. Refetched on refreshKey
-  // bumps so newly created tags surface after create/edit flows.
-  useEffect(() => {
-    const controller = new AbortController();
-    searchCandidateTags("", 200, controller.signal)
-      .then((result) => setAllTags(result))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setAllTags([]);
-      });
-    return () => controller.abort();
-  }, [refreshKey]);
-
-  // Fetch the group catalog so the "Grup" column header filter has options
-  // ready without waiting for a bulk action. Kept separate from
-  // `bulkGroupOptions`, which is loaded on demand by the bulk-action flow.
-  useEffect(() => {
-    const controller = new AbortController();
-    getGroups({ pageSize: 200 }, controller.signal)
-      .then((result) => setHeaderGroupCatalog(result.items))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      });
-    return () => controller.abort();
-  }, [refreshKey]);
+  const invalidateCandidates = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+  };
+  const refreshAll = () => {
+    invalidateCandidates();
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.tags("") });
+    void queryClient.invalidateQueries({ queryKey: ["groups", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["examCodes"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "examScheduleOptions"] });
+  };
+  const allVisibleSelected =
+    candidates.length > 0 && candidates.every((candidate) => selectedCandidateIds.has(candidate.id));
 
   // If any of the active filter tags disappear (deleted or renamed elsewhere),
   // drop them so the candidate list is not stuck filtered-to-nothing.
@@ -1873,7 +1817,7 @@ export function CandidatesPage({
       if (selectedExamDate === option.date) {
         setSelectedExamDate("");
       }
-      setRefreshKey((current) => current + 1);
+      refreshAll();
       showToast(t("candidates.toast.examScheduleDeleted"));
     } catch (error) {
       const errorCode = error instanceof ApiError ? error.errorCode : undefined;
@@ -1917,7 +1861,7 @@ export function CandidatesPage({
       if (selectedExamDate === option.date) {
         setSelectedExamDate(date);
       }
-      setRefreshKey((current) => current + 1);
+      refreshAll();
       showToast("Sınav tarihi güncellendi");
     } catch (error) {
       showToast(examScheduleMutationErrorMessage(error, "Sınav tarihi güncellenemedi"), "error");
@@ -1938,7 +1882,7 @@ export function CandidatesPage({
       if (selectedDrivingExamCode === option.code) {
         setSelectedDrivingExamCode("");
       }
-      setRefreshKey((current) => current + 1);
+      refreshAll();
       showToast("Sınav kodu silindi");
     } catch (error) {
       const errorCode = error instanceof ApiError ? error.errorCode : undefined;
@@ -1965,7 +1909,7 @@ export function CandidatesPage({
       if (selectedDrivingExamCode === option.code) {
         setSelectedDrivingExamCode(code);
       }
-      setRefreshKey((current) => current + 1);
+      refreshAll();
       showToast("Sınav kodu güncellendi");
     } catch (error) {
       const errorCode = error instanceof ApiError ? error.errorCode : undefined;
@@ -2044,16 +1988,19 @@ export function CandidatesPage({
   };
 
   const upsertTagCatalog = (tag: CandidateTag) => {
-    setAllTags((current) => {
-      const next = current.some((item) => item.id === tag.id || item.name === tag.name)
-        ? current.map((item) => (item.id === tag.id || item.name === tag.name ? tag : item))
-        : [...current, tag];
+    queryClient.setQueryData<CandidateTag[]>(candidateKeys.tags(""), (current) => {
+      const list = current ?? [];
+      const next = list.some((item) => item.id === tag.id || item.name === tag.name)
+        ? list.map((item) => (item.id === tag.id || item.name === tag.name ? tag : item))
+        : [...list, tag];
       return next.slice().sort((left, right) => left.name.localeCompare(right.name, "tr"));
     });
   };
 
   const removeTagFromCatalog = (tagId: string) => {
-    setAllTags((current) => current.filter((tag) => tag.id !== tagId));
+    queryClient.setQueryData<CandidateTag[]>(candidateKeys.tags(""), (current) =>
+      (current ?? []).filter((tag) => tag.id !== tagId)
+    );
   };
 
   const handleTagRenamed = (previousTag: CandidateTag, nextTag: CandidateTag) => {
@@ -2063,13 +2010,13 @@ export function CandidatesPage({
       const mapped = current.map((name) => (name === previousTag.name ? nextTag.name : name));
       return mapped.filter((name, index) => mapped.indexOf(name) === index);
     });
-    setRefreshKey((k) => k + 1);
+    refreshAll();
   };
 
   const handleTagDeleted = (tag: CandidateTag) => {
     removeTagFromCatalog(tag.id);
     setActiveTags((current) => current.filter((name) => name !== tag.name));
-    setRefreshKey((k) => k + 1);
+    refreshAll();
   };
 
   const commitNewTag = async () => {
@@ -2157,7 +2104,7 @@ export function CandidatesPage({
   const handleSubmitNew = () => {
     setModalOpen(false);
     setPage(1);
-    setRefreshKey((k) => k + 1);
+    refreshAll();
   };
 
   const exportCandidatesToCsv = (rowsToExport: CandidateResponse[]) => {
@@ -2403,7 +2350,7 @@ export function CandidatesPage({
       setBulkActionMode(null);
       setSelectedCandidateIds(new Set());
       setBulkStatusValue("");
-      setRefreshKey((k) => k + 1);
+      refreshAll();
     } catch {
       showToast(t("candidates.toast.bulkStatusFailed"), "error");
     } finally {
@@ -2429,7 +2376,7 @@ export function CandidatesPage({
       setBulkActionMode(null);
       setSelectedCandidateIds(new Set());
       setBulkTagValues([]);
-      setRefreshKey((k) => k + 1);
+      refreshAll();
     } catch {
       showToast(t("candidates.toast.bulkTagFailed"), "error");
     } finally {
@@ -2483,7 +2430,7 @@ export function CandidatesPage({
       setSelectedExamDate(assignedExamDate);
       setTab("randevulu");
       setPage(1);
-      setRefreshKey((k) => k + 1);
+      refreshAll();
     } catch {
       showToast(t("candidates.toast.bulkExamFailed"), "error");
     } finally {
@@ -2510,7 +2457,7 @@ export function CandidatesPage({
       setBulkSelectEnabled(false);
       setSelectedCandidateIds(new Set());
       setBulkGroupId("");
-      setRefreshKey((k) => k + 1);
+      refreshAll();
     } catch {
       showToast(t("candidates.toast.bulkGroupFailed"), "error");
     } finally {
@@ -3054,9 +3001,9 @@ export function CandidatesPage({
         onClose={closeDrawer}
         onDeleted={() => {
           closeDrawer();
-          setRefreshKey((k) => k + 1);
+          refreshAll();
         }}
-        onUpdated={() => setRefreshKey((k) => k + 1)}
+        onUpdated={() => refreshAll()}
       />
 
       <NewCandidateModal
@@ -3081,7 +3028,7 @@ export function CandidatesPage({
           onClose={() => setExamScheduleModalOpen(false)}
           onSaved={() => {
             setExamScheduleModalOpen(false);
-            setRefreshKey((current) => current + 1);
+            refreshAll();
           }}
           open={examScheduleModalOpen}
         />
@@ -3092,7 +3039,7 @@ export function CandidatesPage({
           onClose={() => setExamCodeModalOpen(false)}
           onSaved={() => {
             setExamCodeModalOpen(false);
-            setRefreshKey((current) => current + 1);
+            refreshAll();
           }}
           open={examCodeModalOpen}
         />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { PageLoadError } from "../components/ui/PageLoadError";
@@ -10,7 +11,8 @@ import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/http";
 import { canManageArea } from "../lib/permissions";
 import { createRole, getRoles, updateRole } from "../lib/roles-api";
-import type { RoleResponse, RoleUpsertRequest } from "../lib/types";
+import type { RoleUpsertRequest } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 type RoleFormValues = {
   name: string;
@@ -36,13 +38,22 @@ export function RoleEditorPage() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManagePermissions = canManageArea(user, permissions, "permissions");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
 
-  const [loading, setLoading] = useState(Boolean(roleId));
   const [submitting, setSubmitting] = useState(false);
-  const [editingRole, setEditingRole] = useState<RoleResponse | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+
+  const rolesQuery = useQuery({
+    queryKey: ["roles", "list", { includeInactive: true }],
+    queryFn: ({ signal }) => getRoles({ includeInactive: true }, signal),
+    enabled: Boolean(roleId),
+  });
+
+  const editingRole = roleId
+    ? (rolesQuery.data?.find((item) => item.id === roleId) ?? null)
+    : null;
+  const loading = Boolean(roleId) && rolesQuery.isLoading;
+  const loadError = Boolean(roleId) && rolesQuery.isError;
 
   const {
     formState: { errors },
@@ -55,33 +66,14 @@ export function RoleEditorPage() {
 
   useEffect(() => {
     if (!roleId) {
-      setEditingRole(null);
-      setLoading(false);
-      setLoadError(false);
       reset(EMPTY_VALUES);
       return;
     }
-
-    const controller = new AbortController();
-    setLoading(true);
-    setLoadError(false);
-
-    getRoles({ includeInactive: true }, controller.signal)
-      .then((roles) => {
-        const role = roles.find((item) => item.id === roleId) ?? null;
-        setEditingRole(role);
-        reset(role ? { name: role.name, isActive: role.isActive } : EMPTY_VALUES);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setLoadError(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [reset, roleId, reloadKey]);
+    if (rolesQuery.isSuccess) {
+      reset(editingRole ? { name: editingRole.name, isActive: editingRole.isActive } : EMPTY_VALUES);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleId, rolesQuery.isSuccess, editingRole?.id, reset]);
 
   const usersPermissionsRoute = location.pathname.startsWith(
     "/settings/definitions/users/permissions"
@@ -153,7 +145,7 @@ export function RoleEditorPage() {
           <PageLoadError
             title="Rol bilgisi yüklenemedi"
             description="Rol detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
-            onRetry={() => setReloadKey((k) => k + 1)}
+            onRetry={() => void rolesQuery.refetch()}
           />
         </div>
       </>

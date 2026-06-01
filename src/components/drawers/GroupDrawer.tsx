@@ -251,7 +251,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   if (!groupId) return null;
 
   const canEdit = canManageGroups;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const title = loading
     ? "Grup Detayı"
@@ -465,6 +465,7 @@ type GroupCodeEditableRowProps = {
 };
 
 function GroupCodeEditableRow({ title, disabled = false, disabledTitle, onSave }: GroupCodeEditableRowProps) {
+  const t = useT();
   const initialCode = parseGroupTitle(title);
   const [editing, setEditing] = useState(false);
   const [groupNumber, setGroupNumber] = useState(initialCode?.groupNumber ?? GROUP_NUMBER_VALUES[0]);
@@ -568,7 +569,7 @@ function GroupCodeEditableRow({ title, disabled = false, disabledTitle, onSave }
             className="icon-btn"
             disabled={saving}
             onClick={cancel}
-            title="Vazgeç"
+            title={t("common.cancel")}
             type="button"
           >
             <XIcon size={13} />

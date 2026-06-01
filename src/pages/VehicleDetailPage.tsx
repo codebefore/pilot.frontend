@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { Modal } from "../components/ui/Modal";
@@ -8,6 +9,7 @@ import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { canManageArea } from "../lib/permissions";
 import { getVehicle } from "../lib/vehicles-api";
+import { useT, currentLocale } from "../lib/i18n";
 import {
   createVehicleDocument,
   deleteVehicleDocument,
@@ -24,7 +26,6 @@ import {
 import type {
   VehicleDocumentResponse,
   VehicleDocumentType,
-  VehicleResponse,
 } from "../lib/types";
 
 function formatDate(iso: string | null): string {
@@ -36,7 +37,7 @@ function formatDate(iso: string | null): string {
 
 function formatOdometer(value: number | null, unit: "km" | "hour"): string {
   if (value == null) return "—";
-  const formatted = value.toLocaleString("tr-TR");
+  const formatted = value.toLocaleString(currentLocale());
   return unit === "hour" ? `${formatted} sa` : `${formatted} km`;
 }
 
@@ -53,13 +54,29 @@ export function VehicleDetailPage() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageDocuments = canManageArea(user, permissions, "documents");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const { vehicleId } = useParams<{ vehicleId: string }>();
-  const [vehicle, setVehicle] = useState<VehicleResponse | null>(null);
-  const [documents, setDocuments] = useState<VehicleDocumentResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+
+  const vehicleQuery = useQuery({
+    queryKey: ["vehicles", "detail", vehicleId],
+    queryFn: ({ signal }) => getVehicle(vehicleId as string, signal),
+    enabled: Boolean(vehicleId),
+  });
+  const documentsQuery = useQuery({
+    queryKey: ["vehicleDocuments", vehicleId],
+    queryFn: ({ signal }) => listVehicleDocuments(vehicleId as string, signal),
+    enabled: Boolean(vehicleId),
+  });
+
+  const vehicle = vehicleQuery.data ?? null;
+  const documents = documentsQuery.data ?? [];
+  const loading = vehicleQuery.isLoading || documentsQuery.isLoading;
+  const error =
+    vehicleQuery.isError || documentsQuery.isError
+      ? "Araç bilgileri yüklenemedi"
+      : null;
 
   const [modalType, setModalType] = useState<VehicleDocumentType | null>(null);
   const [modalEditing, setModalEditing] = useState<VehicleDocumentResponse | null>(null);
@@ -70,31 +87,6 @@ export function VehicleDetailPage() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!vehicleId) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    Promise.all([
-      getVehicle(vehicleId, controller.signal),
-      listVehicleDocuments(vehicleId, controller.signal),
-    ])
-      .then(([v, docs]) => {
-        setVehicle(v);
-        setDocuments(docs);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError("Araç bilgileri yüklenemedi");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [vehicleId, reloadKey]);
 
   const groupedDocs = useMemo(() => {
     const map: Record<VehicleDocumentType, VehicleDocumentResponse[]> = {
@@ -108,11 +100,10 @@ export function VehicleDetailPage() {
     return map;
   }, [documents]);
 
-  const refreshDocuments = useCallback(async () => {
+  const refreshDocuments = async () => {
     if (!vehicleId) return;
-    const docs = await listVehicleDocuments(vehicleId);
-    setDocuments(docs);
-  }, [vehicleId]);
+    await queryClient.invalidateQueries({ queryKey: ["vehicleDocuments", vehicleId] });
+  };
 
   const openCreate = (type: VehicleDocumentType) => {
     if (!canManageDocuments) return;
@@ -212,7 +203,10 @@ export function VehicleDetailPage() {
         <PageLoadError
           title="Araç bilgileri yüklenemedi"
           description="Araç detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
-          onRetry={() => setReloadKey((k) => k + 1)}
+          onRetry={() => {
+            void vehicleQuery.refetch();
+            void documentsQuery.refetch();
+          }}
         />
       )}
 

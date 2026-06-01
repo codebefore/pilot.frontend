@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useT } from "../../lib/i18n";
 import {
   getNotifications,
+  notificationTone,
   type NotificationResponse,
 } from "../../lib/notifications-api";
 import { BellIcon } from "../icons";
@@ -87,9 +88,7 @@ export function NotificationsMenu() {
                   role={n.linkPath ? "button" : undefined}
                   style={n.linkPath ? { cursor: "pointer" } : undefined}
                 >
-                  <span
-                    className={`notif-dot-tone tone-${n.severity === "expired" ? "danger" : "warn"}`}
-                  />
+                  <span className={`notif-dot-tone tone-${notificationTone(n.severity)}`} />
                   <div className="notif-body">
                     <div className="notif-title">{n.title}</div>
                     <div className="notif-text">{n.body}</div>

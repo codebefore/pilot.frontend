@@ -198,7 +198,7 @@ export function VehiclesSettingsSection() {
   const t = useT();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const [items, setItems] = useState<VehicleResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);

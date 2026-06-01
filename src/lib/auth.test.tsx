@@ -1,17 +1,20 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider, useAuth } from "./auth";
 import { clearStoredAuthSession, readStoredAuthSession } from "./auth-storage";
 
-const loginWithPasswordMock = vi.fn();
+const requestLoginCodeMock = vi.fn();
+const verifyLoginCodeMock = vi.fn();
 const selectInstitutionMock = vi.fn();
 
 vi.mock("./auth-api", () => ({
-  loginWithPassword: (...args: unknown[]) => loginWithPasswordMock(...args),
   logoutSession: vi.fn(),
+  requestLoginCode: (...args: unknown[]) => requestLoginCodeMock(...args),
   selectInstitution: (...args: unknown[]) => selectInstitutionMock(...args),
+  verifyLoginCode: (...args: unknown[]) => verifyLoginCodeMock(...args),
 }));
 
 const kurumA = {
@@ -58,7 +61,7 @@ function Harness() {
       <div data-testid="active">{auth.activeInstitution?.slug ?? "none"}</div>
       <div data-testid="role">{auth.user?.roleName ?? "none"}</div>
       <div data-testid="required">{auth.institutionRequired ? "yes" : "no"}</div>
-      <button onClick={() => void auth.login("5551112233", "secret")} type="button">
+      <button onClick={() => void auth.login("5551112233", "123456")} type="button">
         login
       </button>
       <button onClick={() => void auth.selectInstitution("kurum-b").catch(() => {})} type="button">
@@ -72,11 +75,19 @@ function Harness() {
 }
 
 function renderHarness() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
   return render(
     <MemoryRouter>
-      <AuthProvider>
-        <Harness />
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Harness />
+        </AuthProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
 }
@@ -84,12 +95,13 @@ function renderHarness() {
 describe("AuthProvider", () => {
   beforeEach(() => {
     clearStoredAuthSession();
-    loginWithPasswordMock.mockReset();
+    requestLoginCodeMock.mockReset();
+    verifyLoginCodeMock.mockReset();
     selectInstitutionMock.mockReset();
   });
 
   it("stores institutions and active institution after login", async () => {
-    loginWithPasswordMock.mockResolvedValue(response());
+    verifyLoginCodeMock.mockResolvedValue(response());
     renderHarness();
 
     await act(async () => {
@@ -101,7 +113,7 @@ describe("AuthProvider", () => {
   });
 
   it("updates token, active institution and role after institution selection", async () => {
-    loginWithPasswordMock.mockResolvedValue(response());
+    verifyLoginCodeMock.mockResolvedValue(response());
     selectInstitutionMock.mockResolvedValue(response(kurumB, "token-b"));
     renderHarness();
 
@@ -118,7 +130,7 @@ describe("AuthProvider", () => {
   });
 
   it("keeps the old session when institution selection fails", async () => {
-    loginWithPasswordMock.mockResolvedValue(response());
+    verifyLoginCodeMock.mockResolvedValue(response());
     selectInstitutionMock.mockRejectedValue(new Error("failed"));
     renderHarness();
 
@@ -134,7 +146,7 @@ describe("AuthProvider", () => {
   });
 
   it("clears session on unauthorized event", async () => {
-    loginWithPasswordMock.mockResolvedValue(response());
+    verifyLoginCodeMock.mockResolvedValue(response());
     renderHarness();
 
     await act(async () => {
@@ -148,7 +160,7 @@ describe("AuthProvider", () => {
   });
 
   it("marks institution required without clearing session", async () => {
-    loginWithPasswordMock.mockResolvedValue(response());
+    verifyLoginCodeMock.mockResolvedValue(response());
     renderHarness();
 
     await act(async () => {

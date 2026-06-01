@@ -6,7 +6,7 @@ import type {
   UpdateTermRequest,
 } from "./types";
 
-interface GetTermsParams extends QueryParams {
+export interface GetTermsParams extends QueryParams {
   page?: number;
   pageSize?: number;
 }

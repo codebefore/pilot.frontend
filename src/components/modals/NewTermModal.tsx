@@ -1,19 +1,23 @@
 import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createTerm, updateTerm } from "../../lib/terms-api";
 import { ApiError } from "../../lib/http";
-import { useLanguage, useT } from "../../lib/i18n";
+import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type { TermResponse } from "../../lib/types";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { useToast } from "../ui/Toast";
 import { Modal } from "../ui/Modal";
 
-type NewTermForm = {
-  /** ISO date snapped to the first day of the month, e.g. "2026-04-01". */
-  monthDate: string;
-  name: string;
-};
+// Error message is an i18n key; render code translates via t().
+const termFormSchema = z.object({
+  monthDate: z.string().min(1, "terms.form.monthRequired"),
+  name: z.string(),
+});
+type NewTermForm = z.infer<typeof termFormSchema>;
 
 type NewTermModalProps = {
   open: boolean;
@@ -56,7 +60,7 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const isEditMode = Boolean(term);
   const nameInputId = useId();
@@ -69,11 +73,9 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewTermForm>({ defaultValues: termValues(term) });
+  } = useForm<NewTermForm>({ defaultValues: termValues(term), resolver: zodResolver(termFormSchema) });
   const monthDate = watch("monthDate");
-  const monthDateRegistration = register("monthDate", {
-    required: t("terms.form.monthRequired"),
-  });
+  const monthDateRegistration = register("monthDate");
 
   useEffect(() => {
     if (open) reset(termValues(term));
@@ -112,28 +114,15 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
           onClose();
           return;
         }
-
-        if (error.validationErrors) {
-          const monthError =
-            error.validationErrors.monthDate?.[0] ??
-            error.validationErrors.MonthDate?.[0];
-          if (monthError) {
-            setError("monthDate", { message: monthError });
-          }
-
-          const nameError =
-            error.validationErrors.name?.[0] ??
-            error.validationErrors.Name?.[0];
-          if (nameError) {
-            setError("name", { message: nameError });
-          }
-
-          showToast(t(isEditMode ? "terms.updateFailed" : "terms.createFailed"), "error");
-          return;
-        }
       }
 
-      showToast(t(isEditMode ? "terms.updateFailed" : "terms.createFailed"), "error");
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        translateCode: (code) => t(code as TranslationKey),
+      });
+      if (applied) return;
+      const fallback = unmappedMessages[0]
+        ?? t(isEditMode ? "terms.updateFailed" : "terms.createFailed");
+      showToast(fallback, "error");
     } finally {
       setSubmitting(false);
     }
@@ -191,7 +180,7 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
               value={monthDate}
             />
             {errors.monthDate ? (
-              <div className="form-error">{errors.monthDate.message}</div>
+              <div className="form-error">{t((errors.monthDate.message ?? "") as TranslationKey)}</div>
             ) : (
               <div className="form-hint">{t("terms.form.monthHelp")}</div>
             )}

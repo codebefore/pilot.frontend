@@ -1,21 +1,25 @@
 import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createExamSchedule } from "../../lib/exam-schedules-api";
-import { ApiError } from "../../lib/http";
-import { useLanguage } from "../../lib/i18n";
+import { useLanguage, useT } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 import type { ExamCodeOption } from "../../lib/types";
 
-type NewExamScheduleForm = {
-  date: string;
-  examCodeId: string;
-  time: string;
-  capacity: number;
-};
+const newExamScheduleSchema = z.object({
+  date: z.string().min(1, "Zorunlu alan"),
+  examCodeId: z.string().min(1, "Sınav kodu zorunlu"),
+  time: z.string().min(1, "Zorunlu alan"),
+  capacity: z.number().min(1, "Kontenjan 1 veya daha buyuk olmali."),
+});
+
+type NewExamScheduleForm = z.infer<typeof newExamScheduleSchema>;
 
 type NewExamScheduleModalProps = {
   canManage?: boolean;
@@ -54,7 +58,8 @@ export function NewExamScheduleModal({
   const { showToast } = useToast();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const capacityInputId = useId();
 
@@ -66,14 +71,14 @@ export function NewExamScheduleModal({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewExamScheduleForm>({ defaultValues: defaultValues() });
+  } = useForm<NewExamScheduleForm>({ defaultValues: defaultValues(), resolver: zodResolver(newExamScheduleSchema) });
   const date = watch("date");
   const examCodeId = watch("examCodeId");
   const time = watch("time");
   const showTimeField = examType === "e_sinav";
   const showExamCodeField = examType === "uygulama";
-  const dateRegistration = register("date", { required: "Zorunlu alan" });
-  const timeRegistration = register("time", { required: "Zorunlu alan" });
+  const dateRegistration = register("date");
+  const timeRegistration = register("time");
 
   useEffect(() => {
     if (open) {
@@ -99,34 +104,12 @@ export function NewExamScheduleModal({
       showToast("Sinav tarihi eklendi");
       onSaved();
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        const dateError = error.validationErrors.date?.[0] ?? error.validationErrors.Date?.[0];
-        if (dateError) {
-          setError("date", { message: dateError });
-        }
-
-        const timeError = error.validationErrors.time?.[0] ?? error.validationErrors.Time?.[0];
-        if (timeError) {
-          setError("time", { message: timeError });
-        }
-
-        const codeError =
-          error.validationErrors.examCodeId?.[0] ?? error.validationErrors.ExamCodeId?.[0];
-        if (codeError) {
-          setError("examCodeId", { message: codeError });
-        }
-
-        const capacityError =
-          error.validationErrors.capacity?.[0] ?? error.validationErrors.Capacity?.[0];
-        if (capacityError) {
-          setError("capacity", { message: capacityError });
-        }
-
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError);
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
         showToast("Sinav tarihi eklenemedi", "error");
-        return;
       }
-
-      showToast("Sinav tarihi eklenemedi", "error");
     } finally {
       setSubmitting(false);
     }
@@ -145,7 +128,7 @@ export function NewExamScheduleModal({
             onClick={onClose}
             type="button"
           >
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -154,7 +137,7 @@ export function NewExamScheduleModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
@@ -165,7 +148,7 @@ export function NewExamScheduleModal({
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Sinav Tarihi</label>
+            <label className="form-label">{t("newExamSchedule.field.examDate")}</label>
             <LocalizedDateInput
               ariaLabel="Sinav Tarihi"
               className={fieldClass(!!errors.date, "form-input")}
@@ -187,7 +170,7 @@ export function NewExamScheduleModal({
 
           {showTimeField ? (
             <div className="form-group">
-              <label className="form-label">Saat</label>
+              <label className="form-label">{t("common.field.time")}</label>
               <LocalizedTimeInput
                 ariaLabel="Saat"
                 className={fieldClass(!!errors.time, "form-input")}
@@ -209,12 +192,12 @@ export function NewExamScheduleModal({
 
           {showExamCodeField ? (
             <div className="form-group">
-              <label className="form-label">Sınav Kodu</label>
+              <label className="form-label">{t("newExamSchedule.field.examCode")}</label>
               <select
                 className={fieldClass(!!errors.examCodeId, "form-select")}
                 disabled={!canManage}
                 value={examCodeId}
-                {...register("examCodeId", { required: "Sınav kodu zorunlu" })}
+                {...register("examCodeId")}
               >
                 <option value="">Sınav kodu seçin</option>
                 {examCodes.map((code) => (
@@ -239,14 +222,7 @@ export function NewExamScheduleModal({
               id={capacityInputId}
               min={1}
               type="number"
-              {...register("capacity", {
-                required: "Zorunlu alan",
-                valueAsNumber: true,
-                min: {
-                  value: 1,
-                  message: "Kontenjan 1 veya daha buyuk olmali.",
-                },
-              })}
+              {...register("capacity", { valueAsNumber: true })}
             />
             {errors.capacity ? (
               <div className="form-error">{errors.capacity.message}</div>

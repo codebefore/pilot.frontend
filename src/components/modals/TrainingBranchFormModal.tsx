@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import {
   updateTrainingBranchDefinition,
 } from "../../lib/training-branch-definitions-api";
@@ -10,12 +13,14 @@ import type {
 } from "../../lib/types";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+import { useT } from "../../lib/i18n";
 
-type TrainingBranchFormValues = {
-  code: string;
-  name: string;
-  colorHex: string;
-};
+const trainingBranchSchema = z.object({
+  code: z.string(),
+  name: z.string().min(1, "Ad zorunlu"),
+  colorHex: z.string(),
+});
+type TrainingBranchFormValues = z.infer<typeof trainingBranchSchema>;
 
 type TrainingBranchFormModalProps = {
   open: boolean;
@@ -64,15 +69,18 @@ export function TrainingBranchFormModal({
   onSaved,
 }: TrainingBranchFormModalProps) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const {
     formState: { errors },
     handleSubmit,
     register,
     reset,
+    setError,
   } = useForm<TrainingBranchFormValues>({
     defaultValues: getValues(editing),
+    resolver: zodResolver(trainingBranchSchema),
   });
 
   useEffect(() => {
@@ -89,8 +97,12 @@ export function TrainingBranchFormModal({
       const saved = await updateTrainingBranchDefinition(editing.id, payload);
       onSaved(saved);
     } catch (error) {
-      console.error(error);
-      showToast("Branş kaydedilemedi", "error");
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError);
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
+        showToast("Branş kaydedilemedi", "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -103,7 +115,7 @@ export function TrainingBranchFormModal({
       footer={
         <>
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -112,18 +124,18 @@ export function TrainingBranchFormModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title="Branş Düzenle"
+      title={t("trainingBranchForm.modalTitle")}
     >
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Kod</label>
+            <label className="form-label">{t("trainingBranchForm.field.code")}</label>
             <input
               className={fieldClass(errors.code?.message)}
               disabled
@@ -136,7 +148,7 @@ export function TrainingBranchFormModal({
             <input
               className={fieldClass(errors.name?.message)}
               placeholder="Trafik ve Çevre"
-              {...register("name", { required: "Ad zorunlu" })}
+              {...register("name")}
             />
             {errors.name ? <div className="form-error">{errors.name.message}</div> : null}
           </div>
@@ -144,11 +156,11 @@ export function TrainingBranchFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Renk</label>
+            <label className="form-label">{t("common.field.color")}</label>
             <input className="branch-color-input" type="color" {...register("colorHex")} />
           </div>
           <div className="form-group">
-            <label className="form-label">Sistem Limiti</label>
+            <label className="form-label">{t("trainingBranchForm.field.systemLimit")}</label>
             <input
               className="form-input"
               disabled

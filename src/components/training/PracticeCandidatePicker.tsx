@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { useT } from "../../lib/i18n";
+import { useT, currentLocale } from "../../lib/i18n";
 import {
   getCandidates,
   type CandidateSortField,
@@ -196,7 +196,7 @@ export function PracticeCandidatePicker({
 
   const formatLastLesson = (d: Date | null) => {
     if (!d) return null;
-    return d.toLocaleString("tr-TR", {
+    return d.toLocaleString(currentLocale(), {
       day: "2-digit",
       month: "short",
       hour: "2-digit",

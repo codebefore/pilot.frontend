@@ -466,6 +466,9 @@ describe("CandidatesPage tabs", () => {
     if (!sidebar) {
       throw new Error("exam date sidebar not found");
     }
+    // RQ resolves examScheduleOptions asynchronously; wait until at least one
+    // date button shows up before reading the list.
+    await within(sidebar).findByText(/25\.05\.2026/);
     const labels = within(sidebar)
       .getAllByRole("button")
       .map((button) => button.textContent?.trim() ?? "")
@@ -762,8 +765,8 @@ describe("CandidatesPage tabs", () => {
       throw new Error("tag filter bar not found");
     }
 
-    expect(await within(tagBar).findByLabelText("Ehliyet sınıfı özeti"))
-      .toHaveTextContent("B(8) A2(0)");
+    const summaryNode = await within(tagBar).findByLabelText("Ehliyet sınıfı özeti");
+    await waitFor(() => expect(summaryNode).toHaveTextContent("B(8) A2(0)"));
     expect(within(tagBar).queryByText(/\(2\/10\)\s*B\(2\)/i)).not.toBeInTheDocument();
   });
 
@@ -1192,7 +1195,7 @@ describe("CandidatesPage tabs", () => {
 
     expect(await screen.findByRole("columnheader", { name: "Dönem" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Grup" })).not.toBeInTheDocument();
-    expect(screen.getByText("NİSAN 2026 / 2")).toBeInTheDocument();
+    expect(await screen.findByText("NİSAN 2026 / 2")).toBeInTheDocument();
     expect(screen.queryByText("NİSAN 2026 - 1B")).not.toBeInTheDocument();
   });
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { currentLocale, useT, type TranslationKey } from "../../lib/i18n";
 
 import { listMebbisJobSteps, type MebbisJobStepResponse } from "../../lib/mebbis-jobs-api";
 import type { MebJob } from "../../lib/mebbis-jobs";
@@ -16,6 +17,7 @@ type JobDrawerProps = {
 };
 
 export function JobDrawer({ job, canCancel = true, onCancel, onClose }: JobDrawerProps) {
+  const t = useT();
   const [steps, setSteps] = useState<MebbisJobStepResponse[]>([]);
   const [loadingSteps, setLoadingSteps] = useState(false);
 
@@ -43,7 +45,7 @@ export function JobDrawer({ job, canCancel = true, onCancel, onClose }: JobDrawe
     };
   }, [job]);
 
-  const trackerSteps = useMemo(() => steps.map(mapStep), [steps]);
+  const trackerSteps = useMemo(() => steps.map((s) => mapStep(s, t)), [steps, t]);
 
   if (!job) return null;
   const showCancel = ACTIVE_STATUSES.has(job.status);
@@ -57,24 +59,24 @@ export function JobDrawer({ job, canCancel = true, onCancel, onClose }: JobDrawe
               className="btn btn-danger"
               disabled={!canCancel}
               onClick={onCancel}
-              title={!canCancel ? "Yetkiniz yok." : undefined}
+              title={!canCancel ? t("common.noPermission") : undefined}
               type="button"
             >
-              İşi İptal Et
+              {t("jobDrawer.cancelButton")}
             </button>
           )}
           <button className="btn btn-secondary" onClick={onClose} type="button">
-            Kapat
+            {t("common.close")}
           </button>
         </>
       }
       onClose={onClose}
       open
-      title={`MEB İşi ${job.jobNo}`}
+      title={`${t("jobDrawer.title")} ${job.jobNo}`}
     >
-      <DrawerSection title="Genel Bilgi">
-        <DrawerRow label="İş Tipi">{job.jobType}</DrawerRow>
-        <DrawerRow label="Aday">
+      <DrawerSection title={t("jobDrawer.section.general")}>
+        <DrawerRow label={t("jobDrawer.row.jobType")}>{job.jobType}</DrawerRow>
+        <DrawerRow label={t("jobDrawer.row.candidate")}>
           {job.candidateName ? (
             <>
               {job.candidateName}
@@ -84,29 +86,33 @@ export function JobDrawer({ job, canCancel = true, onCancel, onClose }: JobDrawe
             job.targetSecondary
           )}
         </DrawerRow>
-        <DrawerRow label="Adım">{job.step}</DrawerRow>
-        <DrawerRow label="Başlangıç">{formatFullTime(job.startedAtIso)}</DrawerRow>
-        <DrawerRow label="Bitiş">
+        <DrawerRow label={t("jobDrawer.row.step")}>{job.step}</DrawerRow>
+        <DrawerRow label={t("jobDrawer.row.startedAt")}>{formatFullTime(job.startedAtIso)}</DrawerRow>
+        <DrawerRow label={t("jobDrawer.row.completedAt")}>
           {job.completedAtIso ? formatFullTime(job.completedAtIso) : "-"}
         </DrawerRow>
-        <DrawerRow label="Süre">{formatDuration(job.startedAtIso, job.completedAtIso)}</DrawerRow>
-        <DrawerRow label="Durum">
+        <DrawerRow label={t("jobDrawer.row.duration")}>{formatDuration(job.startedAtIso, job.completedAtIso, t)}</DrawerRow>
+        <DrawerRow label={t("jobDrawer.row.status")}>
           <StatusPill status={job.status} />
         </DrawerRow>
+        <DrawerRow label={t("jobDrawer.row.queue")}>{formatQueuePublishStatus(job, t)}</DrawerRow>
+        {job.queuePublishError && (
+          <DrawerRow label={t("jobDrawer.row.queueError")}>{job.queuePublishError}</DrawerRow>
+        )}
       </DrawerSection>
 
-      <DrawerSection title="Adımlar">
+      <DrawerSection title={t("jobDrawer.section.steps")}>
         {loadingSteps ? (
-          <div className="drawer-log">Adımlar yükleniyor.</div>
+          <div className="drawer-log">{t("jobDrawer.stepsLoading")}</div>
         ) : trackerSteps.length > 0 ? (
           <StepTracker steps={trackerSteps} />
         ) : (
-          <div className="drawer-log">Henüz adım kaydı yok.</div>
+          <div className="drawer-log">{t("jobDrawer.stepsEmpty")}</div>
         )}
       </DrawerSection>
 
       {(job.errorMessage || steps.length > 0) && (
-        <DrawerSection title="Kayıt Detayı">
+        <DrawerSection title={t("jobDrawer.section.log")}>
           <div className="drawer-log">
             {job.errorMessage && (
               <div>
@@ -127,9 +133,9 @@ export function JobDrawer({ job, canCancel = true, onCancel, onClose }: JobDrawe
   );
 }
 
-function mapStep(step: MebbisJobStepResponse): Step {
+function mapStep(step: MebbisJobStepResponse, t: (key: TranslationKey) => string): Step {
   return {
-    title: stepLabel(step.stepName),
+    title: stepLabel(step.stepName, t),
     state: stepState(step.status),
     detail: `${step.message ?? step.status} - ${formatStepTime(step.createdAtUtc)}`,
   };
@@ -150,26 +156,27 @@ function stepState(status: string): StepState {
   }
 }
 
-function stepLabel(stepName: string): string {
-  const labels: Record<string, string> = {
-    job_leased: "İş alındı",
-    job_started: "İş başladı",
-    mebbis_tab_selected: "MEBBİS tabı seçildi",
-    mebbis_tab_opened: "MEBBİS tabı açıldı",
-    candidate_lookup_navigation: "Aday durum sayfasına gidildi",
-    candidate_lookup_started: "Aday sorgusu başladı",
-    lease_renewed: "Kilit yenilendi",
-    candidate_lookup_completed: "Aday sorgusu tamamlandı",
-    session_check_started: "Oturum kontrolü başladı",
-    session_probe_completed: "Oturum kontrolü tamamlandı",
-    job_succeeded: "İş tamamlandı",
-    job_failed: "İş başarısız",
-    job_retry_scheduled: "Eski hata kaydı",
-    manual_action_required: "Manuel işlem gerekli",
-    job_cancelled: "İş iptal edildi",
-  };
+const STEP_LABEL_KEY: Record<string, TranslationKey> = {
+  job_leased: "jobDrawer.step.jobLeased",
+  job_started: "jobDrawer.step.jobStarted",
+  mebbis_tab_selected: "jobDrawer.step.mebbisTabSelected",
+  mebbis_tab_opened: "jobDrawer.step.mebbisTabOpened",
+  candidate_lookup_navigation: "jobDrawer.step.candidateLookupNavigation",
+  candidate_lookup_started: "jobDrawer.step.candidateLookupStarted",
+  lease_renewed: "jobDrawer.step.leaseRenewed",
+  candidate_lookup_completed: "jobDrawer.step.candidateLookupCompleted",
+  session_check_started: "jobDrawer.step.sessionCheckStarted",
+  session_probe_completed: "jobDrawer.step.sessionProbeCompleted",
+  job_succeeded: "jobDrawer.step.jobSucceeded",
+  job_failed: "jobDrawer.step.jobFailed",
+  job_retry_scheduled: "jobDrawer.step.jobRetryScheduled",
+  manual_action_required: "jobDrawer.step.manualActionRequired",
+  job_cancelled: "jobDrawer.step.jobCancelled",
+};
 
-  return labels[stepName] ?? stepName;
+function stepLabel(stepName: string, t: (key: TranslationKey) => string): string {
+  const key = STEP_LABEL_KEY[stepName];
+  return key ? t(key) : stepName;
 }
 
 function formatStepTime(value: string): string {
@@ -178,7 +185,7 @@ function formatStepTime(value: string): string {
     return "-";
   }
 
-  return date.toLocaleTimeString("tr-TR", {
+  return date.toLocaleTimeString(currentLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -188,7 +195,7 @@ function formatStepTime(value: string): string {
 function formatFullTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("tr-TR", {
+  return date.toLocaleString(currentLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -198,18 +205,41 @@ function formatFullTime(value: string): string {
   });
 }
 
-function formatDuration(startIso: string, endIso: string | null): string {
+function formatQueuePublishStatus(
+  job: MebJob,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): string {
+  if (job.queuePublishError) {
+    return t("jobDrawer.queue.streamError", { count: job.queuePublishAttemptCount ?? 0 });
+  }
+
+  if (job.queuePublishedAtIso) {
+    return t("jobDrawer.queue.streamPublished", { at: formatFullTime(job.queuePublishedAtIso) });
+  }
+
+  if (job.queuePublishLastAttemptAtIso) {
+    return t("jobDrawer.queue.dbFallback", { at: formatFullTime(job.queuePublishLastAttemptAtIso) });
+  }
+
+  return t("jobDrawer.queue.dbQueue");
+}
+
+function formatDuration(
+  startIso: string,
+  endIso: string | null,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): string {
   const start = new Date(startIso);
   if (Number.isNaN(start.getTime())) return "-";
   const end = endIso ? new Date(endIso) : new Date();
   if (Number.isNaN(end.getTime())) return "-";
   const ms = Math.max(0, end.getTime() - start.getTime());
   const sec = Math.floor(ms / 1000);
-  if (sec < 60) return `${sec} sn`;
+  if (sec < 60) return t("jobDrawer.duration.seconds", { sec });
   const min = Math.floor(sec / 60);
   const remSec = sec % 60;
-  if (min < 60) return `${min} dk ${remSec} sn`;
+  if (min < 60) return t("jobDrawer.duration.minutes", { min, sec: remSec });
   const h = Math.floor(min / 60);
   const remMin = min % 60;
-  return `${h} sa ${remMin} dk`;
+  return t("jobDrawer.duration.hours", { h, min: remMin });
 }

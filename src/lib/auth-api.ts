@@ -3,12 +3,16 @@ import type { AuthInstitution } from "./auth-storage";
 
 type LoginRequest = {
   phone: string;
-  password: string;
 };
 
-type ChangePasswordRequest = {
-  currentPassword: string;
-  newPassword: string;
+type VerifyLoginCodeRequest = {
+  phone: string;
+  code: string;
+};
+
+export type LoginCodeResponse = {
+  phone: string;
+  expiresAtUtc: string;
 };
 
 type RefreshTokenRequest = {
@@ -35,8 +39,12 @@ export type LoginResponse = {
   activeInstitution: AuthInstitution | null;
 };
 
-export function loginWithPassword(body: LoginRequest): Promise<LoginResponse> {
-  return httpPost<LoginResponse>("/api/auth/login", body);
+export function requestLoginCode(body: LoginRequest): Promise<LoginCodeResponse> {
+  return httpPost<LoginCodeResponse>("/api/auth/login/request-code", body);
+}
+
+export function verifyLoginCode(body: VerifyLoginCodeRequest): Promise<LoginResponse> {
+  return httpPost<LoginResponse>("/api/auth/login/verify-code", body);
 }
 
 export function selectInstitution(institutionId: string): Promise<LoginResponse> {
@@ -45,10 +53,6 @@ export function selectInstitution(institutionId: string): Promise<LoginResponse>
 
 export function refreshSession(body: RefreshTokenRequest): Promise<LoginResponse> {
   return httpPost<LoginResponse>("/api/auth/refresh", body);
-}
-
-export function changePassword(body: ChangePasswordRequest): Promise<void> {
-  return httpPost<void>("/api/auth/password", body);
 }
 
 export function logoutSession(body: LogoutRequest): Promise<void> {

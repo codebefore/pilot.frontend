@@ -1250,7 +1250,6 @@ export interface AppUserResponse {
   id: string;
   fullName: string;
   phone: string | null;
-  hasPassword: boolean;
   mebbisUsername: string | null;
   hasMebbisPassword: boolean;
   roleId: string | null;
@@ -1264,7 +1263,6 @@ export interface AppUserResponse {
 export interface AppUserUpsertRequest {
   fullName: string;
   phone: string;
-  password?: string | null;
   mebbisUsername?: string | null;
   mebbisPassword?: string | null;
   roleId?: string | null;

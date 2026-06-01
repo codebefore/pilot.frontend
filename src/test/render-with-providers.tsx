@@ -1,10 +1,20 @@
 import type { ReactElement } from "react";
 import { render } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { AuthContext, type AuthContextValue } from "../lib/auth";
 import type { AuthInstitution, AuthUser } from "../lib/auth-storage";
 import { ToastProvider } from "../components/ui/Toast";
 import { LanguageProvider } from "../lib/i18n";
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: 0, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+}
 
 type AuthOverride = Partial<AuthContextValue> | undefined;
 
@@ -57,15 +67,22 @@ export function renderWithProviders(ui: ReactElement, options?: { auth?: AuthOve
     permissions: options?.auth?.permissions ?? activeInstitution?.permissions ?? {},
     hasInstitution: options?.auth?.hasInstitution ?? institutions.length > 0,
     institutionRequired: options?.auth?.institutionRequired ?? false,
+    requestLoginCode: options?.auth?.requestLoginCode ?? (async () => ({
+      phone: "5000000000",
+      expiresAtUtc: new Date(Date.now() + 5 * 60_000).toISOString(),
+    })),
     login: options?.auth?.login ?? (async () => {}),
     selectInstitution: options?.auth?.selectInstitution ?? (async () => {}),
     logout: options?.auth?.logout ?? (() => {}),
   };
+  const queryClient = createTestQueryClient();
   return render(
     <LanguageProvider>
-      <ToastProvider>
-        <AuthContext.Provider value={authValue}>{ui}</AuthContext.Provider>
-      </ToastProvider>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <AuthContext.Provider value={authValue}>{ui}</AuthContext.Provider>
+        </ToastProvider>
+      </QueryClientProvider>
     </LanguageProvider>
   );
 }

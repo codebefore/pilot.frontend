@@ -36,7 +36,7 @@ function renderPage() {
 
 function checklistPageCalls() {
   return getDocumentChecklistMock.mock.calls.filter(
-    ([params]) => params?.pageSize === 20
+    ([params]) => params?.pageSize === 10
   );
 }
 
@@ -51,7 +51,7 @@ describe("DocumentsPage", () => {
     getDocumentChecklistMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
       totalCount: 0,
       totalPages: 1,
     });
@@ -101,7 +101,7 @@ describe("DocumentsPage", () => {
       expect(getDocumentChecklistMock).toHaveBeenCalledWith(
         expect.objectContaining({
           page: 1,
-          pageSize: 20,
+          pageSize: 10,
         }),
         expect.any(AbortSignal)
       );
@@ -172,7 +172,7 @@ describe("DocumentsPage", () => {
         expect.objectContaining({
           hasMissingDocuments: true,
           page: 1,
-          pageSize: 20,
+          pageSize: 10,
         }),
         expect.any(AbortSignal),
       ]);
@@ -185,7 +185,7 @@ describe("DocumentsPage", () => {
         expect.objectContaining({
           hasMissingDocuments: false,
           page: 1,
-          pageSize: 20,
+          pageSize: 10,
         }),
         expect.any(AbortSignal),
       ]);
@@ -239,7 +239,7 @@ describe("DocumentsPage", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
       totalCount: 1,
       totalPages: 1,
     });
@@ -289,7 +289,7 @@ describe("DocumentsPage", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 10,
       totalCount: 1,
       totalPages: 1,
     });

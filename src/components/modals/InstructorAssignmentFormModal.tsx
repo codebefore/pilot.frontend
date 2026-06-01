@@ -82,7 +82,7 @@ export function InstructorAssignmentFormModal({
 }: Props) {
 	  const t = useT();
 	  const { showToast } = useToast();
-	  const noPermissionTitle = "Yetkiniz yok.";
+	  const noPermissionTitle = t("common.noPermission");
 	  const { options: licenseClassOptions } = useLicenseClassOptions();
   const [values, setValues] = useState<FormState>(emptyState);
   const [submitting, setSubmitting] = useState(false);
@@ -306,7 +306,7 @@ export function InstructorAssignmentFormModal({
 	        {values.branches.includes("practice") ? (
 	          <div className="form-row">
 	            <div className="form-group">
-	              <label className="form-label">Ehliyet Tipleri</label>
+	              <label className="form-label">{t("common.field.licenseClasses")}</label>
 	              <div className="settings-checkbox-list">
 	                {licenseClassOptions.map((option) => (
 	                  <label className="switch-toggle" key={option.value}>

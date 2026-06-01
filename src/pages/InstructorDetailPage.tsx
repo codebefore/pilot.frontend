@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../components/icons";
 import { AssignmentDocumentFormModal } from "../components/modals/AssignmentDocumentFormModal";
@@ -28,11 +29,7 @@ import {
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
-import type {
-  InstructorAssignment,
-  InstructorResponse,
-  TrainingBranchDefinitionResponse,
-} from "../lib/types";
+import type { InstructorAssignment } from "../lib/types";
 
 function formatFileSize(bytes: number | null): string | null {
   if (bytes == null || bytes < 0) return null;
@@ -55,14 +52,38 @@ export function InstructorDetailPage() {
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const canManageDocuments = canManageArea(user, permissions, "documents");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const { instructorId } = useParams<{ instructorId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [instructor, setInstructor] = useState<InstructorResponse | null>(null);
-  const [assignments, setAssignments] = useState<InstructorAssignment[]>([]);
-  const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const instructorQuery = useQuery({
+    queryKey: ["instructors", "detail", instructorId],
+    queryFn: ({ signal }) => getInstructor(instructorId as string, signal),
+    enabled: Boolean(instructorId),
+  });
+  const assignmentsQuery = useQuery({
+    queryKey: ["instructorAssignments", instructorId],
+    queryFn: () => listAssignments(instructorId as string),
+    enabled: Boolean(instructorId),
+  });
+  const branchesQuery = useQuery({
+    queryKey: ["trainingBranchDefinitions", "list", { activity: "all", page: 1, pageSize: 100 }],
+    queryFn: ({ signal }) =>
+      getTrainingBranchDefinitions({ activity: "all", page: 1, pageSize: 100 }, signal),
+    enabled: Boolean(instructorId),
+  });
+
+  const instructor = instructorQuery.data ?? null;
+  const assignments = assignmentsQuery.data ?? [];
+  const branches = branchesQuery.data?.items ?? [];
+  const loading =
+    instructorQuery.isLoading || assignmentsQuery.isLoading || branchesQuery.isLoading;
+  const error =
+    instructorQuery.isError || assignmentsQuery.isError || branchesQuery.isError
+      ? t("settings.instructors.errors.loadFailed")
+      : null;
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<InstructorAssignment | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -73,36 +94,6 @@ export function InstructorDetailPage() {
   const [leaveDate, setLeaveDate] = useState<string>("");
   const [leaveReason, setLeaveReason] = useState<string>("");
   const [leaveBusy, setLeaveBusy] = useState(false);
-
-  useEffect(() => {
-    if (!instructorId) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    Promise.all([
-      getInstructor(instructorId, controller.signal),
-      listAssignments(instructorId),
-      getTrainingBranchDefinitions(
-        { activity: "all", page: 1, pageSize: 100 },
-        controller.signal
-      ),
-    ])
-      .then(([instructorData, assignmentList, branchData]) => {
-        setInstructor(instructorData);
-        setAssignments(assignmentList);
-        setBranches(branchData.items);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(t("settings.instructors.errors.loadFailed"));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [instructorId, t]);
 
   const branchLabelMap = useMemo(() => {
     return branches.reduce<Record<string, string>>((acc, b) => {
@@ -131,12 +122,10 @@ export function InstructorDetailPage() {
     if (!instructorId) return;
     // Instructor header (MEBBİS, sözleşme tarihleri vb.) backend'de latest
     // assignment'tan flatten edildiği için atama değişince beraber yenile.
-    const [list, freshInstructor] = await Promise.all([
-      listAssignments(instructorId),
-      getInstructor(instructorId),
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["instructorAssignments", instructorId] }),
+      queryClient.invalidateQueries({ queryKey: ["instructors", "detail", instructorId] }),
     ]);
-    setAssignments(list);
-    setInstructor(freshInstructor);
   };
 
   const handleSaved = async () => {
@@ -199,7 +188,7 @@ export function InstructorDetailPage() {
         reason: leaveReason.trim() || null,
         rowVersion: instructor.rowVersion,
       });
-      setInstructor(updated);
+      queryClient.setQueryData(["instructors", "detail", instructorId], updated);
       setLeaveModalOpen(false);
       showToast("İşten ayrılma kaydedildi");
     } catch {
@@ -215,7 +204,7 @@ export function InstructorDetailPage() {
     setLeaveBusy(true);
     try {
       const updated = await clearInstructorLeft(instructorId);
-      setInstructor(updated);
+      queryClient.setQueryData(["instructors", "detail", instructorId], updated);
       showToast("Eğitmen aktif duruma alındı");
     } catch {
       showToast("Aktif duruma alınamadı", "error");

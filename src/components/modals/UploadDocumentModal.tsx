@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { getCandidates } from "../../lib/candidates-api";
 import { getDocumentTypes, uploadDocument } from "../../lib/documents-api";
-import { ApiError } from "../../lib/http";
 import { useLanguage, useT } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type {
   CandidateResponse,
   DocumentMetadataField,
@@ -16,13 +18,15 @@ import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
-type UploadDocumentForm = {
-  candidateId: string;
-  documentTypeId: string;
-  file: File | null;
-  isPhysicallyAvailable: boolean;
-  note: string;
-};
+const uploadDocumentSchema = z.object({
+  candidateId: z.string(),
+  documentTypeId: z.string(),
+  file: z.instanceof(File).nullable(),
+  isPhysicallyAvailable: z.boolean(),
+  note: z.string(),
+});
+
+type UploadDocumentForm = z.infer<typeof uploadDocumentSchema>;
 
 type UploadDocumentModalProps = {
   open: boolean;
@@ -38,7 +42,6 @@ type UploadDocumentModalProps = {
 };
 
 const ACCEPT = "image/jpeg,image/png,application/pdf";
-const MAX_BYTES = 10 * 1024 * 1024;
 const HEALTH_REPORT_META_KEYS = {
   disability: "disability",
 } as const;
@@ -85,7 +88,7 @@ export function UploadDocumentModal({
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>(
     documentTypesProp ?? []
@@ -105,6 +108,7 @@ export function UploadDocumentModal({
     watch,
   } = useForm<UploadDocumentForm>({
     defaultValues: emptyForm(candidateId, initialDocumentTypeId),
+    resolver: zodResolver(uploadDocumentSchema),
   });
 
   const selectedCandidateId = watch("candidateId");
@@ -251,21 +255,8 @@ export function UploadDocumentModal({
       });
       onUploaded();
     } catch (error) {
-      if (error instanceof ApiError) {
-        const candidateError =
-          error.validationErrors?.candidateId?.[0] ??
-          error.validationErrors?.CandidateId?.[0];
-        const documentTypeError =
-          error.validationErrors?.documentTypeId?.[0] ??
-          error.validationErrors?.DocumentTypeId?.[0];
-        const fileError = error.validationErrors?.file?.[0] ?? error.validationErrors?.File?.[0];
-
-        if (candidateError) setError("candidateId", { message: candidateError });
-        if (documentTypeError) setError("documentTypeId", { message: documentTypeError });
-        if (fileError) setError("file", { message: fileError });
-      }
-
-      showToast(t("documents.uploadFailed"), "error");
+      const { unmappedMessages } = applyApiErrorsToForm(error, setError);
+      showToast(unmappedMessages[0] ?? t("documents.uploadFailed"), "error");
     } finally {
       setSubmitting(false);
     }
@@ -320,9 +311,7 @@ export function UploadDocumentModal({
               <CustomSelect
                 className={fieldClass(!!errors.candidateId, "form-select")}
                 value={selectedCandidateId}
-                {...register("candidateId", {
-                  required: t("uploadDoc.errors.candidateRequired"),
-                })}
+                {...register("candidateId")}
               >
                 <option value="">{t("uploadDoc.candidatePlaceholder")}</option>
                 {candidates.map((candidate) => (
@@ -355,7 +344,7 @@ export function UploadDocumentModal({
               <CustomSelect
                 className={fieldClass(!!errors.documentTypeId, "form-select")}
                 value={selectedDocumentTypeId}
-                {...register("documentTypeId", { required: t("uploadDoc.errors.docTypeRequired") })}
+                {...register("documentTypeId")}
               >
                 <option value="">{t("uploadDoc.docTypePlaceholder")}</option>
                 {documentTypes.map((documentType) => (
@@ -399,18 +388,6 @@ export function UploadDocumentModal({
                   ref={field.ref}
                 />
               )}
-              rules={{
-                validate: (file) => {
-                  if (!file) {
-                    // "Fiziksel evrak elde var" işaretliyse dosya zorunlu değil.
-                    return isPhysicallyAvailable
-                      ? true
-                      : t("uploadDoc.errors.fileRequired");
-                  }
-                  if (file.size > MAX_BYTES) return t("uploadDoc.errors.fileTooLarge");
-                  return true;
-                },
-              }}
             />
             {errors.file && <div className="form-error">{errors.file.message}</div>}
           </div>

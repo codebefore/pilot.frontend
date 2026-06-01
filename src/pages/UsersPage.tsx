@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { FilterIcon, PencilIcon, PlusIcon, TrashIcon } from "../components/icons";
@@ -29,6 +30,7 @@ import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 import { PermissionsPage } from "./PermissionsPage";
+import { useT } from "../lib/i18n";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -153,7 +155,8 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   const { user, permissions } = useAuth();
   const canManageUsers = canManageArea(user, permissions, "users");
   const canViewPermissions = canViewArea(user, permissions, "permissions");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [searchParams, setSearchParams] = useSearchParams();
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.users.columns.v2",
@@ -161,11 +164,23 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     DEFAULT_VISIBLE_USER_COLUMN_IDS
   );
 
-  const [users, setUsers] = useState<AppUserResponse[]>([]);
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const queryClient = useQueryClient();
+
+  const usersQuery = useQuery<AppUserResponse[]>({
+    queryKey: ["users", "list"],
+    queryFn: ({ signal }) => getUsers({ includeInactive: true }, signal),
+  });
+
+  const rolesQuery = useQuery<RoleResponse[]>({
+    queryKey: ["roles", "list"],
+    queryFn: ({ signal }) => getRoles({ includeInactive: true }, signal),
+  });
+
+  const users = usersQuery.data ?? [];
+  const roles = rolesQuery.data ?? [];
+  const loading = usersQuery.isPending || rolesQuery.isPending;
+  const loadError = usersQuery.isError || rolesQuery.isError;
+
   const [sort, setSort] = useState<SortState>(null);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
@@ -198,30 +213,6 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     }
     setSearchParams(nextParams, { replace: true });
   };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setLoadError(false);
-
-    Promise.all([
-      getUsers({ includeInactive: true }, controller.signal),
-      getRoles({ includeInactive: true }, controller.signal),
-    ])
-      .then(([userList, roleList]) => {
-        setUsers(userList);
-        setRoles(roleList);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setLoadError(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [refreshKey]);
 
   const roleFilterOptions = useMemo(
     () => [
@@ -345,14 +336,16 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     setFormOpen(false);
     showToast(editing ? "Kullanıcı güncellendi" : "Kullanıcı eklendi");
     setEditing(null);
-    setUsers((prev) => {
+    // Optimistic update: merge saved user into cache immediately
+    queryClient.setQueryData<AppUserResponse[]>(["users", "list"], (prev) => {
+      if (!prev) return [saved];
       const idx = prev.findIndex((p) => p.id === saved.id);
       if (idx === -1) return [...prev, saved];
       const next = prev.slice();
       next[idx] = saved;
       return next;
     });
-    setRefreshKey((k) => k + 1);
+    void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
   };
 
   const handleDelete = async (user: AppUserResponse) => {
@@ -360,7 +353,9 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     setDeletingUserId(user.id);
     try {
       await deleteUser(user.id);
-      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      queryClient.setQueryData<AppUserResponse[]>(["users", "list"], (prev) =>
+        prev ? prev.filter((u) => u.id !== user.id) : []
+      );
       setConfirmDeleteUserId(null);
       showToast("Kullanıcı silindi");
     } catch (error) {
@@ -436,7 +431,10 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     <PageLoadError
       title="Kullanıcılar yüklenemedi"
       description="Kullanıcı listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
-      onRetry={() => setRefreshKey((k) => k + 1)}
+      onRetry={() => {
+        void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+        void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
+      }}
     />
   ) : (
     <>
@@ -445,7 +443,10 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
           <span>Liste güncellenemedi. Görüntülenen veriler son başarılı yüklemeden.</span>
           <button
             className="btn btn-link btn-sm"
-            onClick={() => setRefreshKey((k) => k + 1)}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+              void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
+            }}
             type="button"
           >
             Tekrar Dene

@@ -22,3 +22,14 @@ export function getNotifications(
 ): Promise<NotificationListResponse> {
   return httpGet<NotificationListResponse>("/api/notifications", undefined, { signal });
 }
+
+export function notificationTone(severity: NotificationSeverity): "danger" | "warn" | "info" {
+  switch (severity) {
+    case "expired":
+      return "danger";
+    case "warning":
+      return "warn";
+    case "info":
+      return "info";
+  }
+}

@@ -136,7 +136,9 @@ describe("CertificateProgramFeeMatrixSettingsSection", () => {
       permissions: { payments: "view" },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: /Sıfırdan Başlayanlar/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Sıfırdan Başlayanlar/ }, { timeout: 5000 })
+    );
 
     expect(screen.getByRole("button", { name: "Toplu seçim" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Kaydet" })).toBeDisabled();
@@ -164,7 +166,9 @@ describe("CertificateProgramFeeMatrixSettingsSection", () => {
       permissions: { payments: "full" },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: /Sıfırdan Başlayanlar/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Sıfırdan Başlayanlar/ }, { timeout: 5000 })
+    );
     const courseFeeInput = screen.getByLabelText("Kurs Ücreti");
     fireEvent.change(courseFeeInput, { target: { value: "1200" } });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));

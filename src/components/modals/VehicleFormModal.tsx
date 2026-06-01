@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createVehicle, updateVehicle } from "../../lib/vehicles-api";
 import {
@@ -11,6 +13,7 @@ import {
 } from "../../lib/vehicle-catalog";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type { VehicleResponse, VehicleUpsertRequest } from "../../lib/types";
 import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { CustomSelect } from "../ui/CustomSelect";
@@ -55,6 +58,26 @@ type VehicleFormModalProps = {
    */
   onConcurrencyConflict?: () => void;
 };
+
+const vehicleFormSchema = z.object({
+  plateNumber: z.string().min(1, "Plaka zorunlu"),
+  brand: z.string().min(1, "Marka zorunlu"),
+  model: z.string(),
+  modelYear: z.string(),
+  color: z.string(),
+  status: z.string(),
+  isActive: z.boolean(),
+  transmissionType: z.string(),
+  vehicleType: z.string(),
+  licenseClasses: z.array(z.string()).min(1, "En az bir ehliyet tipi seçilmeli"),
+  ownershipType: z.string(),
+  fuelType: z.string().nullable().optional(),
+  registrationDate: z.string(),
+  serviceStartDate: z.string(),
+  accidentNotes: z.string(),
+  otherDetails: z.string(),
+  notes: z.string(),
+});
 
 const VALIDATION_FIELD_MAP: Record<string, keyof VehicleFormValues> = {
   plateNumber: "plateNumber",
@@ -150,51 +173,6 @@ function hasConcurrencyError(
   );
 }
 
-function applyServerFieldErrors(
-  error: ApiError,
-  setError: (field: keyof VehicleFormValues, error: { message: string }) => void,
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string
-): { appliedFieldError: boolean; unmappedMessage: string | null } {
-  const codes = error.validationErrorCodes;
-  const fallback = error.validationErrors;
-  let appliedFieldError = false;
-  let unmappedMessage: string | null = null;
-
-  // Prefer structured codes when the server provided them: they translate and
-  // interpolate {min}/{max}/{values} cleanly. Fall back to the plain-text
-  // `errors` map only for fields the server didn't annotate with a code.
-  if (codes) {
-    for (const [serverField, fieldErrors] of Object.entries(codes)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      const first = fieldErrors[0];
-      if (!first) continue;
-      if (!formField) {
-        unmappedMessage ??= t(first.code as TranslationKey, first.params);
-        continue;
-      }
-      setError(formField, { message: t(first.code as TranslationKey, first.params) });
-      appliedFieldError = true;
-    }
-  }
-
-  if (fallback) {
-    for (const [serverField, messages] of Object.entries(fallback)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      if (!messages?.[0]) continue;
-      if (!formField) {
-        unmappedMessage ??= messages[0];
-        continue;
-      }
-      // Only use the plain text when the structured map didn't already cover
-      // the field — otherwise we would overwrite a translated message.
-      if (codes && codes[serverField]?.length) continue;
-      setError(formField, { message: messages[0] });
-      appliedFieldError = true;
-    }
-  }
-
-  return { appliedFieldError, unmappedMessage };
-}
 
 export function VehicleFormModal({
   open,
@@ -206,7 +184,7 @@ export function VehicleFormModal({
 }: VehicleFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const { options: licenseClassOptions } = useLicenseClassOptions();
 
@@ -221,6 +199,8 @@ export function VehicleFormModal({
     watch,
   } = useForm<VehicleFormValues>({
     defaultValues: getEmptyValues(editing),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(vehicleFormSchema) as any,
   });
   const selectedLicenseClasses = watch("licenseClasses");
 
@@ -286,13 +266,14 @@ export function VehicleFormModal({
           onConcurrencyConflict?.();
           return;
         }
-        const { appliedFieldError, unmappedMessage } = applyServerFieldErrors(error, setError, t);
-        if (unmappedMessage) {
-          showToast(unmappedMessage, "error");
-        } else if (!appliedFieldError) {
-          showToast(t("vehicle.validation.generic"), "error");
-        }
-      } else {
+      }
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        translateCode: (code, params) => t(code as TranslationKey, params),
+        fieldMap: VALIDATION_FIELD_MAP as Record<string, import("react-hook-form").Path<VehicleFormValues>>,
+      });
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
         showToast(t("vehicle.validation.generic"), "error");
       }
     } finally {
@@ -308,7 +289,7 @@ export function VehicleFormModal({
       footer={
         <>
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -317,22 +298,21 @@ export function VehicleFormModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title={editing ? "Araç Düzenle" : "Yeni Araç"}
+      title={editing ? t("vehicleForm.modalTitleEdit") : t("vehicleForm.modalTitleNew")}
     >
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Plaka</label>
+            <label className="form-label">{t("vehicleForm.field.plate")}</label>
             <Controller
               control={control}
               name="plateNumber"
-              rules={{ required: "Plaka zorunlu" }}
               render={({ field }) => (
                 <input
                   {...field}
@@ -350,11 +330,10 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Marka</label>
+            <label className="form-label">{t("vehicleForm.field.brand")}</label>
             <Controller
               control={control}
               name="brand"
-              rules={{ required: "Marka zorunlu" }}
               render={({ field }) => (
                 <input
                   {...field}
@@ -374,7 +353,7 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Model</label>
+            <label className="form-label">{t("vehicleForm.field.model")}</label>
             <Controller
               control={control}
               name="model"
@@ -395,7 +374,7 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Model Yılı</label>
+            <label className="form-label">{t("vehicleForm.field.modelYear")}</label>
             <Controller
               control={control}
               name="modelYear"
@@ -416,7 +395,7 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Araç Türü</label>
+            <label className="form-label">{t("common.field.vehicleType")}</label>
             <Controller
               control={control}
               name="vehicleType"
@@ -434,11 +413,10 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Ehliyet Tipleri</label>
+            <label className="form-label">{t("common.field.licenseClasses")}</label>
             <Controller
               control={control}
               name="licenseClasses"
-              rules={{ validate: (value) => (value && value.length > 0) || "En az bir ehliyet tipi seçilmeli" }}
               render={({ field }) => {
                 const values = field.value ?? [];
                 const toggle = (option: string, checked: boolean) => {
@@ -473,7 +451,7 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Vites</label>
+            <label className="form-label">{t("vehicleForm.field.transmission")}</label>
             <Controller
               control={control}
               name="transmissionType"
@@ -493,7 +471,7 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Araç Durumu</label>
+            <label className="form-label">{t("vehicleForm.field.activity")}</label>
             <Controller
               control={control}
               name="status"
@@ -512,7 +490,7 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Sahiplik</label>
+            <label className="form-label">{t("vehicleForm.field.ownership")}</label>
             <Controller
               control={control}
               name="ownershipType"
@@ -529,7 +507,7 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Yakıt</label>
+            <label className="form-label">{t("vehicleForm.field.fuel")}</label>
             <Controller
               control={control}
               name="fuelType"
@@ -553,12 +531,12 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Renk</label>
+            <label className="form-label">{t("common.field.color")}</label>
             <input className={fieldClass(errors.color?.message)} placeholder="Beyaz" {...register("color")} />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Genel Durum</label>
+            <label className="form-label">{t("common.field.generalStatus")}</label>
             <label className="switch-toggle">
               <input type="checkbox" {...register("isActive")} />
               <span className="switch-toggle-control" aria-hidden="true" />
@@ -571,7 +549,7 @@ export function VehicleFormModal({
           <summary>Detaylar</summary>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Tescil Tarihi</label>
+              <label className="form-label">{t("vehicleForm.field.registrationDate")}</label>
               <Controller
                 control={control}
                 name="registrationDate"
@@ -580,7 +558,6 @@ export function VehicleFormModal({
                     ariaLabel="Tescil Tarihi"
                     className={fieldClass(errors.registrationDate?.message)}
                     onChange={(nextValue) => field.onChange(nextValue ?? "")}
-                    placeholder="gg.aa.yyyy"
                     value={field.value}
                   />
                 )}
@@ -588,7 +565,7 @@ export function VehicleFormModal({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Hizmete Giriş Tarihi</label>
+              <label className="form-label">{t("vehicleForm.field.serviceStartDate")}</label>
               <Controller
                 control={control}
                 name="serviceStartDate"
@@ -597,7 +574,6 @@ export function VehicleFormModal({
                     ariaLabel="Hizmete Giriş Tarihi"
                     className={fieldClass(errors.serviceStartDate?.message)}
                     onChange={(nextValue) => field.onChange(nextValue ?? "")}
-                    placeholder="gg.aa.yyyy"
                     value={field.value}
                   />
                 )}
@@ -607,12 +583,12 @@ export function VehicleFormModal({
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Kaza</label>
+              <label className="form-label">{t("vehicleForm.field.crashCount")}</label>
               <textarea className="form-input" rows={3} {...register("accidentNotes")} />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Diğer</label>
+              <label className="form-label">{t("vehicleForm.field.other")}</label>
               <textarea className="form-input" rows={3} {...register("otherDetails")} />
             </div>
           </div>
@@ -620,7 +596,7 @@ export function VehicleFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">Not</label>
+            <label className="form-label">{t("common.field.note")}</label>
             <textarea className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>

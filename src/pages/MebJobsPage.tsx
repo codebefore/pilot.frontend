@@ -1,6 +1,7 @@
 import type { AriaAttributes, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { JobDrawer } from "../components/drawers/JobDrawer";
 import { PlusIcon, RefreshIcon } from "../components/icons";
@@ -18,15 +19,18 @@ import { getCandidates } from "../lib/candidates-api";
 import {
   cancelMebbisJob,
   createCandidateLookupJob,
+  getMebbisJobQueueStatus,
   listMebbisJobs,
   mapMebbisStatusToJobStatus,
   mebbisJobTypeLabel,
   parseJobPayload,
+  retryMebbisJobQueuePublishes,
   type MebbisJobResponse,
 } from "../lib/mebbis-jobs-api";
 import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
 import { canManageArea } from "../lib/permissions";
 import type { JobStatus } from "../types";
+import { useT, currentLocale } from "../lib/i18n";
 
 type StatusFilter = "all" | "running" | "queued" | "manual" | "failed" | "success";
 
@@ -35,6 +39,7 @@ type SortKey =
   | "candidate"
   | "step"
   | "status"
+  | "queue"
   | "startedAt"
   | "duration";
 
@@ -77,6 +82,8 @@ function sortJobs(jobs: MebJob[], sort: SortState): MebJob[] {
         return compareString(a.step, b.step);
       case "status":
         return compareNumber(STATUS_ORDER[a.status], STATUS_ORDER[b.status]);
+      case "queue":
+        return compareNumber(queueStateOrder(a), queueStateOrder(b));
       case "startedAt":
         return compareNumber(
           new Date(a.startedAtIso).getTime() || 0,
@@ -86,6 +93,12 @@ function sortJobs(jobs: MebJob[], sort: SortState): MebJob[] {
         return compareNumber(durationOf(a), durationOf(b));
     }
   });
+}
+
+function queueStateOrder(job: MebJob): number {
+  if (job.queuePublishError) return 0;
+  if (job.queuePublishedAtIso) return 2;
+  return 1;
 }
 
 const FILTERS: { key: StatusFilter; label: string }[] = [
@@ -176,96 +189,79 @@ export function MebJobsPage() {
   const [startedAtFilter, setStartedAtFilter] = useState<string>("all");
   const [durationFilter, setDurationFilter] = useState<string>("all");
   const [sort, setSort] = useState<SortState>({ field: "startedAt", direction: "desc" });
-  const [jobs, setJobs] = useState<MebJob[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
-  const [pollFailing, setPollFailing] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [modalOpen, setModalOpen] = useState(false);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
-  const [candidatesById, setCandidatesById] = useState<Map<string, CandidateLite>>(new Map());
-  const [candidatesByNationalId, setCandidatesByNationalId] = useState<Map<string, CandidateLite>>(
-    new Map()
-  );
+  const [queueRetrying, setQueueRetrying] = useState(false);
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("selected");
-  const candidateMapsRef = useRef({
-    byId: candidatesById,
-    byNationalId: candidatesByNationalId,
+  const queryClient = useQueryClient();
+
+  const candidatesQuery = useQuery({
+    queryKey: ["candidates", "list", { pageSize: 500 }],
+    queryFn: () => getCandidates({ pageSize: 500 }),
+    staleTime: 5 * 60 * 1000,
   });
 
-  useEffect(() => {
-    candidateMapsRef.current = { byId: candidatesById, byNationalId: candidatesByNationalId };
-  }, [candidatesById, candidatesByNationalId]);
+  const candidatesById = useMemo<Map<string, CandidateLite>>(() => {
+    if (!candidatesQuery.data) return new Map();
+    return new Map(
+      candidatesQuery.data.items.map((c) => [
+        c.id,
+        { id: c.id, firstName: c.firstName, lastName: c.lastName, nationalId: c.nationalId },
+      ])
+    );
+  }, [candidatesQuery.data]);
 
-  const loadJobs = useCallback(
-    async (showSpinner = true) => {
-      if (showSpinner) {
-        setLoading(true);
-        setLoadError(false);
-      }
-      try {
-        const items = await listMebbisJobs(100);
-        const { byId, byNationalId } = candidateMapsRef.current;
-        setJobs(items.map((item) => mapBackendJob(item, byId, byNationalId)));
-        setLastSyncedAt(Date.now());
-        setPollFailing(false);
-      } catch {
-        if (showSpinner) setLoadError(true);
-        else setPollFailing(true);
-      } finally {
-        if (showSpinner) setLoading(false);
-      }
+  const candidatesByNationalId = useMemo<Map<string, CandidateLite>>(() => {
+    if (!candidatesQuery.data) return new Map();
+    return new Map(
+      candidatesQuery.data.items.map((c) => [
+        c.nationalId,
+        { id: c.id, firstName: c.firstName, lastName: c.lastName, nationalId: c.nationalId },
+      ])
+    );
+  }, [candidatesQuery.data]);
+
+  // Raw jobs from the server. Mapping to candidate-enriched MebJob[] is done
+  // below in a useMemo so it re-runs when the candidate maps resolve later —
+  // putting it in `select` captures the maps via closure and React Query
+  // would not re-invoke `select` just because an unrelated query updated.
+  const jobsQuery = useQuery<MebbisJobResponse[]>({
+    queryKey: ["mebbisJobs", "list"],
+    queryFn: () => listMebbisJobs(100),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      const hasActive = data.some((j) => ACTIVE_STATUSES.includes(mapMebbisStatusToJobStatus(j.status)));
+      return hasActive ? POLL_INTERVAL_MS : false;
     },
-    []
+  });
+
+  const queueStatusQuery = useQuery({
+    queryKey: ["mebbisJobs", "queue", "status"],
+    queryFn: getMebbisJobQueueStatus,
+    refetchInterval: 30_000,
+  });
+
+  const jobs = useMemo<MebJob[]>(
+    () =>
+      (jobsQuery.data ?? []).map((item) =>
+        mapBackendJob(item, candidatesById, candidatesByNationalId)
+      ),
+    [jobsQuery.data, candidatesById, candidatesByNationalId]
   );
+  const loading = jobsQuery.isPending;
+  const loadError = jobsQuery.isError;
+  const lastSyncedAt = jobsQuery.dataUpdatedAt > 0 ? jobsQuery.dataUpdatedAt : null;
+  const pollFailing = jobsQuery.isError && !jobsQuery.isPending;
 
-  useEffect(() => {
-    let cancelled = false;
-    getCandidates({ pageSize: 500 })
-      .then((response) => {
-        if (cancelled) return;
-        const list: CandidateLite[] = response.items.map((c) => ({
-          id: c.id,
-          firstName: c.firstName,
-          lastName: c.lastName,
-          nationalId: c.nationalId,
-        }));
-        setCandidatesById(new Map(list.map((c) => [c.id, c])));
-        setCandidatesByNationalId(new Map(list.map((c) => [c.nationalId, c])));
-      })
-      .catch(() => {
-        // sessizce yut — sadece aday ad eşleşmesi olmaz
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    void loadJobs();
-  }, [loadJobs]);
-
-  // Aktif (running/queued) iş varken arka planda polling
-  const hasActiveJob = useMemo(
-    () => jobs.some((j) => ACTIVE_STATUSES.includes(j.status)),
-    [jobs]
-  );
-
-  useEffect(() => {
-    if (!hasActiveJob) return;
-    const id = window.setInterval(() => {
-      void loadJobs(false);
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [hasActiveJob, loadJobs]);
-
-  // pollFailing banner'ı "X dk önce güncellendi" metnini canlı tutmak için tick.
+  // nowTick: "X dk önce güncellendi" metnini canlı tutmak için tick.
   useEffect(() => {
     if (!pollFailing) return;
     const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
@@ -342,11 +338,26 @@ export function MebJobsPage() {
     try {
       await cancelMebbisJob(job.id);
       showToast("İş iptal edildi");
-      await loadJobs(false);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
     } catch {
       showToast("İş iptal edilemedi", "error");
     } finally {
       setActionPendingId(null);
+    }
+  };
+
+  const handleQueueRetry = async () => {
+    if (!canManageMebJobs) return;
+    setQueueRetrying(true);
+    try {
+      const result = await retryMebbisJobQueuePublishes(100);
+      showToast(`${result.retriedCount} kuyruk işi yeniden denendi`);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
+    } catch {
+      showToast("Kuyruk işleri yeniden denenemedi", "error");
+    } finally {
+      setQueueRetrying(false);
     }
   };
 
@@ -358,7 +369,7 @@ export function MebJobsPage() {
             <button
               className="btn btn-secondary btn-sm"
               disabled={loading}
-              onClick={() => void loadJobs()}
+              onClick={() => void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] })}
               type="button"
             >
               <RefreshIcon size={14} />
@@ -390,6 +401,15 @@ export function MebJobsPage() {
         ))}
       </div>
 
+      <QueueHealthBand
+        canRetry={canManageMebJobs}
+        loading={queueStatusQuery.isPending}
+        noPermissionTitle={noPermissionTitle}
+        onRetry={handleQueueRetry}
+        retrying={queueRetrying}
+        status={queueStatusQuery.data}
+      />
+
       <div className="jobs-toolbar">
         {FILTERS.map((f) => (
           <FilterChip
@@ -409,7 +429,7 @@ export function MebJobsPage() {
           </span>
           <button
             className="btn btn-link btn-sm"
-            onClick={() => void loadJobs()}
+            onClick={() => void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] })}
             type="button"
           >
             Yenile
@@ -422,7 +442,7 @@ export function MebJobsPage() {
           <PageLoadError
             title="MEB işleri yüklenemedi"
             description="MEB iş listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
-            onRetry={() => void loadJobs()}
+            onRetry={() => void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] })}
           />
         ) : (
         <Panel>
@@ -490,6 +510,12 @@ export function MebJobsPage() {
                   sort={sort}
                 />
                 <SortableTh
+                  field="queue"
+                  label="Kuyruk"
+                  onToggle={toggleSort}
+                  sort={sort}
+                />
+                <SortableTh
                   field="startedAt"
                   filterControl={
                     <TableHeaderFilter
@@ -543,6 +569,9 @@ export function MebJobsPage() {
                     <StatusPill status={job.status} />
                   </td>
                   <td>
+                    <QueuePublishStatus job={job} />
+                  </td>
+                  <td>
                     <span className="job-time">{formatJobTime(job.startedAtIso)}</span>
                   </td>
                   <td>
@@ -569,14 +598,14 @@ export function MebJobsPage() {
               ))}
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td className="data-table-empty" colSpan={7}>
+                  <td className="data-table-empty" colSpan={8}>
                     Bu filtreye uyan iş yok.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td className="data-table-empty" colSpan={7}>
+                  <td className="data-table-empty" colSpan={8}>
                     MEB işleri yükleniyor.
                   </td>
                 </tr>
@@ -602,7 +631,7 @@ export function MebJobsPage() {
           await createCandidateLookupJob(values.candidateId);
           setModalOpen(false);
           showToast("MEB işi kuyruğa alındı");
-          await loadJobs();
+          void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
         }}
         open={modalOpen}
       />
@@ -669,7 +698,117 @@ function mapBackendJob(
     startedAtIso: job.startedAtUtc ?? job.createdAtUtc,
     completedAtIso: job.completedAtUtc,
     errorMessage: job.errorMessage,
+    queuePublishedAtIso: job.queuePublishedAtUtc ?? null,
+    queuePublishLastAttemptAtIso: job.queuePublishLastAttemptAtUtc ?? null,
+    queuePublishAttemptCount: job.queuePublishAttemptCount ?? 0,
+    queuePublishError: job.queuePublishError ?? null,
   };
+}
+
+function QueuePublishStatus({ job }: { job: MebJob }) {
+  const label = getQueuePublishLabel(job);
+  const tone = job.queuePublishError
+    ? "danger"
+    : job.queuePublishedAtIso
+      ? "success"
+      : "muted";
+  return (
+    <span className={`queue-publish-status ${tone}`} title={getQueuePublishTitle(job)}>
+      {label}
+    </span>
+  );
+}
+
+function QueueHealthBand({
+  canRetry,
+  loading,
+  noPermissionTitle,
+  onRetry,
+  retrying,
+  status,
+}: {
+  canRetry: boolean;
+  loading: boolean;
+  noPermissionTitle: string;
+  onRetry: () => void;
+  retrying: boolean;
+  status?: Awaited<ReturnType<typeof getMebbisJobQueueStatus>>;
+}) {
+  const hasUnpublished = (status?.unpublishedPendingCount ?? 0) > 0;
+  const tone =
+    status?.healthStatus === "danger"
+      ? "danger"
+      : status?.healthStatus === "warning"
+        ? "warning"
+        : "success";
+  const disabled = loading || retrying || !canRetry || !hasUnpublished;
+
+  return (
+    <div className={`queue-health-band ${tone}`}>
+      <div className="queue-health-main">
+        <span className="queue-health-title">Kuyruk</span>
+        <span className="queue-health-meta">
+          {loading
+            ? "Durum alınıyor"
+            : `${status?.streamsEnabled ? "Redis Stream" : "DB fallback"} · ${status?.streamName ?? "-"} · ${status?.consumerGroupName ?? "-"}`}
+        </span>
+        {status?.healthMessage && <span className="queue-health-message">{status.healthMessage}</span>}
+        {status?.redisError && <span className="queue-health-error">{status.redisError}</span>}
+        {status?.lastExtensionSeenAtUtc && (
+          <span className="queue-health-meta">
+            Son extension: {status.lastExtensionDisplayName ?? "-"} · {formatFullDateTime(status.lastExtensionSeenAtUtc)}
+          </span>
+        )}
+      </div>
+      <div className="queue-health-metrics">
+        <span>Aktif {status?.activeJobCount ?? 0}</span>
+        <span>Bekleyen {status?.pendingJobCount ?? 0}</span>
+        <span>Publish bekleyen {status?.unpublishedPendingCount ?? 0}</span>
+        <span>Hata {status?.publishErrorCount ?? 0}</span>
+        <span>
+          Extension {status?.healthyExtensionClientCount ?? 0}/{status?.activeExtensionClientCount ?? 0}
+        </span>
+        {status?.streamsEnabled && (
+          <>
+            <span>Redis pending {status.redisPendingMessageCount ?? "-"}</span>
+            <span>Consumer {status.redisConsumerCount ?? "-"}</span>
+          </>
+        )}
+      </div>
+      <button
+        className="btn btn-secondary btn-sm"
+        disabled={disabled}
+        onClick={onRetry}
+        title={!canRetry ? noPermissionTitle : !hasUnpublished ? "Yeniden denenecek publish yok." : undefined}
+        type="button"
+      >
+        {retrying ? "Deneniyor" : "Publish retry"}
+      </button>
+    </div>
+  );
+}
+
+function getQueuePublishLabel(job: MebJob): string {
+  if (job.queuePublishError) return "Stream hata";
+  if (job.queuePublishedAtIso) return "Stream";
+  if ((job.queuePublishAttemptCount ?? 0) > 0) return "DB fallback";
+  return "DB";
+}
+
+function getQueuePublishTitle(job: MebJob): string {
+  if (job.queuePublishError) {
+    return job.queuePublishError;
+  }
+
+  if (job.queuePublishedAtIso) {
+    return `Redis Stream'e yazıldı: ${formatFullDateTime(job.queuePublishedAtIso)}`;
+  }
+
+  if (job.queuePublishLastAttemptAtIso) {
+    return `Son deneme: ${formatFullDateTime(job.queuePublishLastAttemptAtIso)}`;
+  }
+
+  return "DB kuyruğu kullanılıyor.";
 }
 
 function buildStepText(job: MebbisJobResponse): string {
@@ -714,9 +853,21 @@ function formatJobTime(value: string): string {
     return "-";
   }
 
-  return date.toLocaleString("tr-TR", {
+  return date.toLocaleString(currentLocale(), {
     day: "2-digit",
     month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatFullDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString(currentLocale(), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });

@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createCashRegister, updateCashRegister } from "../../lib/cash-registers-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type {
   CashRegisterResponse,
   CashRegisterType,
@@ -11,6 +14,13 @@ import type {
 } from "../../lib/types";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+
+const cashRegisterFormSchema = z.object({
+  name: z.string().min(1, "cashRegister.validation.required"),
+  type: z.string(),
+  isActive: z.boolean(),
+  notes: z.string(),
+});
 
 type CashRegisterFormValues = {
   name: string;
@@ -71,47 +81,6 @@ function hasConcurrencyError(
   );
 }
 
-function applyServerFieldErrors(
-  error: ApiError,
-  setError: (field: keyof CashRegisterFormValues, error: { message: string }) => void,
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string
-): { appliedFieldError: boolean; unmappedMessage: string | null } {
-  const codes = error.validationErrorCodes;
-  const fallback = error.validationErrors;
-  let appliedFieldError = false;
-  let unmappedMessage: string | null = null;
-
-  if (codes) {
-    for (const [serverField, fieldErrors] of Object.entries(codes)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      const first = fieldErrors[0];
-      if (!first) continue;
-      if (!formField) {
-        unmappedMessage ??= t(first.code as TranslationKey, first.params);
-        continue;
-      }
-      setError(formField, { message: t(first.code as TranslationKey, first.params) });
-      appliedFieldError = true;
-    }
-  }
-
-  if (fallback) {
-    for (const [serverField, messages] of Object.entries(fallback)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      if (!messages?.[0]) continue;
-      if (!formField) {
-        unmappedMessage ??= messages[0];
-        continue;
-      }
-      if (codes && codes[serverField]?.length) continue;
-      setError(formField, { message: messages[0] });
-      appliedFieldError = true;
-    }
-  }
-
-  return { appliedFieldError, unmappedMessage };
-}
-
 export function CashRegisterFormModal({
   open,
   editing,
@@ -122,7 +91,7 @@ export function CashRegisterFormModal({
 }: CashRegisterFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
 
   const {
@@ -134,6 +103,7 @@ export function CashRegisterFormModal({
     watch,
   } = useForm<CashRegisterFormValues>({
     defaultValues: getEmptyValues(editing),
+    resolver: zodResolver(cashRegisterFormSchema) as any,
   });
 
   useEffect(() => {
@@ -165,10 +135,13 @@ export function CashRegisterFormModal({
           onConcurrencyConflict?.();
           return;
         }
-        const { appliedFieldError, unmappedMessage } = applyServerFieldErrors(error, setError, t);
-        if (unmappedMessage) {
-          showToast(unmappedMessage, "error");
-        } else if (!appliedFieldError) {
+        const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+          translateCode: (code, params) => t(code as TranslationKey, params),
+          fieldMap: VALIDATION_FIELD_MAP,
+        });
+        if (unmappedMessages[0]) {
+          showToast(unmappedMessages[0], "error");
+        } else if (!applied) {
           showToast(t("cashRegister.validation.generic"), "error");
         }
       } else {
@@ -215,9 +188,9 @@ export function CashRegisterFormModal({
               className={fieldClass(errors.name?.message)}
               disabled={!canManage}
               placeholder={t("settings.cashRegisters.form.namePlaceholder")}
-              {...register("name", { required: t("cashRegister.validation.required") })}
+              {...register("name")}
             />
-            {errors.name && <div className="form-error">{errors.name.message}</div>}
+            {errors.name && <div className="form-error">{t((errors.name.message ?? "") as TranslationKey)}</div>}
           </div>
 
           <div className="form-group">

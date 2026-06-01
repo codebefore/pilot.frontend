@@ -1,32 +1,20 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { useT } from "../lib/i18n";
-import {
-  getNotifications,
-  type NotificationResponse,
-} from "../lib/notifications-api";
+import { getNotifications, notificationTone } from "../lib/notifications-api";
 
 export function NotificationsPage() {
   const t = useT();
   const navigate = useNavigate();
-  const [items, setItems] = useState<NotificationResponse[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    getNotifications(controller.signal)
-      .then((response) => setItems(response.items))
-      .catch(() => {
-        /* surface nothing; the page is informational */
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, []);
+  const notificationsQuery = useQuery({
+    queryKey: ["notifications", "list"],
+    queryFn: ({ signal }) => getNotifications(signal),
+  });
+  const items = notificationsQuery.data?.items ?? [];
+  const loading = notificationsQuery.isLoading;
 
   return (
     <>
@@ -50,9 +38,7 @@ export function NotificationsPage() {
                 onClick={() => n.linkPath && navigate(n.linkPath)}
                 style={n.linkPath ? { cursor: "pointer" } : undefined}
               >
-                <span
-                  className={`notif-dot-tone tone-${n.severity === "expired" ? "danger" : "warn"}`}
-                />
+                <span className={`notif-dot-tone tone-${notificationTone(n.severity)}`} />
                 <div className="notif-body">
                   <div className="notif-title">{n.title}</div>
                   <div className="notif-text">{n.body}</div>

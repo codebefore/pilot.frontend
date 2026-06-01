@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Path, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import {
   createLicenseClassDefinition,
   updateLicenseClassDefinition,
@@ -18,6 +21,28 @@ import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
+const optionalNonNegInt = (max: number, message: string) =>
+  z.string().refine((v) => {
+    if (!v.trim()) return true;
+    const n = Number(v.replace(",", "."));
+    return Number.isInteger(n) && n >= 0 && n <= max;
+  }, message);
+
+const licenseClassDefinitionSchema = z.object({
+  code: z.string().min(1, "Hedef kod zorunlu"),
+  category: z.string(),
+  minimumAge: optionalNonNegInt(100, "Yaş şartı 0 ile 100 arasında olmalı"),
+  hasExistingLicense: z.boolean(),
+  existingLicenseType: z.string(),
+  existingLicensePre2016: z.boolean(),
+  requiresTheoryExam: z.boolean(),
+  requiresPracticeExam: z.boolean(),
+  theoryLessonHours: optionalNonNegInt(999, "Ders saati 0 ile 999 arasında olmalı"),
+  simulatorLessonHours: optionalNonNegInt(999, "Ders saati 0 ile 999 arasında olmalı"),
+  directPracticeLessonHours: optionalNonNegInt(999, "Ders saati 0 ile 999 arasında olmalı"),
+  isActive: z.boolean(),
+  notes: z.string(),
+});
 type LicenseClassDefinitionFormValues = {
   code: string;
   category: LicenseClassDefinitionUpsertRequest["category"];
@@ -77,50 +102,6 @@ function hasConcurrencyError(
   );
 }
 
-function applyServerFieldErrors(
-  error: ApiError,
-  setError: (
-    field: keyof LicenseClassDefinitionFormValues,
-    error: { message: string }
-  ) => void,
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string
-): { appliedFieldError: boolean; unmappedMessage: string | null } {
-  const codes = error.validationErrorCodes;
-  const fallback = error.validationErrors;
-  let appliedFieldError = false;
-  let unmappedMessage: string | null = null;
-
-  if (codes) {
-    for (const [serverField, fieldErrors] of Object.entries(codes)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      const first = fieldErrors[0];
-      if (!first) continue;
-      if (!formField) {
-        unmappedMessage ??= t(first.code as TranslationKey, first.params);
-        continue;
-      }
-      setError(formField, { message: t(first.code as TranslationKey, first.params) });
-      appliedFieldError = true;
-    }
-  }
-
-  if (fallback) {
-    for (const [serverField, messages] of Object.entries(fallback)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      if (!messages?.[0]) continue;
-      if (!formField) {
-        unmappedMessage ??= messages[0];
-        continue;
-      }
-      if (codes && codes[serverField]?.length) continue;
-      setError(formField, { message: messages[0] });
-      appliedFieldError = true;
-    }
-  }
-
-  return { appliedFieldError, unmappedMessage };
-}
-
 function normalizeUppercase(value: string): string {
   return value.toLocaleUpperCase("tr-TR");
 }
@@ -171,15 +152,6 @@ function parseOptionalNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function validateOptionalInteger(value: string, min: number, max: number, message: string): true | string {
-  const parsed = parseOptionalNumber(value);
-  if (parsed === null) return true;
-  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
-    return message;
-  }
-  return true;
-}
-
 export function LicenseClassDefinitionFormModal({
   open,
   canManage = true,
@@ -190,7 +162,7 @@ export function LicenseClassDefinitionFormModal({
 }: LicenseClassDefinitionFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
 
@@ -205,6 +177,8 @@ export function LicenseClassDefinitionFormModal({
     watch,
   } = useForm<LicenseClassDefinitionFormValues>({
     defaultValues: getEmptyValues(editing),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(licenseClassDefinitionSchema) as any,
   });
   const hasExistingLicense = watch("hasExistingLicense");
   const existingLicensePre2016 = watch("existingLicensePre2016");
@@ -269,19 +243,18 @@ export function LicenseClassDefinitionFormModal({
         : await createLicenseClassDefinition(payload);
       onSaved(saved);
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.status === 409 && hasConcurrencyError(error.validationErrorCodes)) {
-          showToast(t("licenseClassDefinition.validation.concurrencyConflict"), "error");
-          onConcurrencyConflict?.();
-          return;
-        }
-        const { appliedFieldError, unmappedMessage } = applyServerFieldErrors(error, setError, t);
-        if (unmappedMessage) {
-          showToast(unmappedMessage, "error");
-        } else if (!appliedFieldError) {
-          showToast(t("licenseClassDefinition.validation.generic"), "error");
-        }
-      } else {
+      if (error instanceof ApiError && error.status === 409 && hasConcurrencyError(error.validationErrorCodes)) {
+        showToast(t("licenseClassDefinition.validation.concurrencyConflict"), "error");
+        onConcurrencyConflict?.();
+        return;
+      }
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        translateCode: (code, params) => t(code as TranslationKey, params),
+        fieldMap: VALIDATION_FIELD_MAP as Record<string, Path<LicenseClassDefinitionFormValues>>,
+      });
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
         showToast(t("licenseClassDefinition.validation.generic"), "error");
       }
     } finally {
@@ -297,7 +270,7 @@ export function LicenseClassDefinitionFormModal({
       footer={
         <>
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -306,22 +279,21 @@ export function LicenseClassDefinitionFormModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title={editing ? "Ehliyet Kuralı Düzenle" : "Yeni Ehliyet Kuralı"}
+      title={editing ? t("licenseClassDef.modalTitleEdit") : t("licenseClassDef.modalTitleNew")}
     >
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row license-rule-basics-row">
           <div className="form-group">
-            <label className="form-label">Hedef Kod</label>
+            <label className="form-label">{t("licenseClassDef.field.targetCode")}</label>
             <Controller
               control={control}
               name="code"
-              rules={{ required: "Hedef kod zorunlu" }}
               render={({ field }) => (
                 <input
                   {...field}
@@ -337,7 +309,7 @@ export function LicenseClassDefinitionFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Araç Tipi</label>
+            <label className="form-label">{t("common.field.vehicleType")}</label>
             <Controller
               control={control}
               name="category"
@@ -355,7 +327,7 @@ export function LicenseClassDefinitionFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Yaş Şartı</label>
+            <label className="form-label">{t("licenseClassDef.field.minimumAge")}</label>
             <input
               className={fieldClass(errors.minimumAge?.message)}
               inputMode="numeric"
@@ -363,10 +335,7 @@ export function LicenseClassDefinitionFormModal({
               placeholder="18"
               step={1}
               type="number"
-              {...register("minimumAge", {
-                validate: (value) =>
-                  validateOptionalInteger(value, 0, 100, "Yaş şartı 0 ile 100 arasında olmalı"),
-              })}
+              {...register("minimumAge")}
             />
             {errors.minimumAge && <div className="form-error">{errors.minimumAge.message}</div>}
           </div>
@@ -440,35 +409,26 @@ export function LicenseClassDefinitionFormModal({
               error={errors.theoryLessonHours?.message}
               label="Teorik Ders Saati"
               placeholder="34"
-              registerProps={register("theoryLessonHours", {
-                validate: (value) =>
-                  validateOptionalInteger(value, 0, 999, "Ders saati 0 ile 999 arasında olmalı"),
-              })}
+              registerProps={register("theoryLessonHours")}
             />
             <NumberField
               error={errors.simulatorLessonHours?.message}
               label="Simülatör Saati"
               placeholder="2"
-              registerProps={register("simulatorLessonHours", {
-                validate: (value) =>
-                  validateOptionalInteger(value, 0, 999, "Ders saati 0 ile 999 arasında olmalı"),
-              })}
+              registerProps={register("simulatorLessonHours")}
             />
             <NumberField
               error={errors.directPracticeLessonHours?.message}
               label="Direksiyon Saati"
               placeholder="14"
-              registerProps={register("directPracticeLessonHours", {
-                validate: (value) =>
-                  validateOptionalInteger(value, 0, 999, "Ders saati 0 ile 999 arasında olmalı"),
-              })}
+              registerProps={register("directPracticeLessonHours")}
             />
           </div>
         </div>
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">Not</label>
+            <label className="form-label">{t("common.field.note")}</label>
             <textarea className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>

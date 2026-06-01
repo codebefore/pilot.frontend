@@ -17,6 +17,7 @@ import type {
   CertificateProgramFeeRowUpsertRequest,
 } from "../../lib/types";
 import { useToast } from "../ui/Toast";
+import { useT, currentLocale } from "../../lib/i18n";
 
 type StoredEditableField = keyof Pick<
   CertificateProgramFeeRowResponse,
@@ -142,7 +143,7 @@ const FROM_SCRATCH_SECTION_LABEL = "Sıfırdan Başlayanlar";
 
 function formatMoney(value: number | null): string {
   if (value == null) return "—";
-  return value.toLocaleString("tr-TR", {
+  return value.toLocaleString(currentLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -660,7 +661,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   const navigate = useNavigate();
   const location = useLocation();
   const canManagePayments = canManageArea(user, permissions, "payments");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [year, setYear] = useState(CURRENT_YEAR);
   const [rows, setRows] = useState<CertificateProgramFeeRowResponse[]>([]);
   const [loading, setLoading] = useState(true);

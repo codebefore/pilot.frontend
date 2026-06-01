@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import { Header } from "./components/layout/Header";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -7,8 +9,11 @@ import { ToastProvider, useToast } from "./components/ui/Toast";
 import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider } from "./lib/i18n";
 import { canViewAnyArea, firstAllowedTenantPath, settingsPermissionAreas } from "./lib/permissions";
+import { createQueryClient } from "./lib/query-client";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
 import { ThemeProvider } from "./lib/theme";
+
+const queryClient = createQueryClient();
 
 const CandidateDetailPage = lazy(() => import("./pages/CandidateDetailPage").then((m) => ({ default: m.CandidateDetailPage })));
 const CandidatesPage = lazy(() => import("./pages/CandidatesPage").then((m) => ({ default: m.CandidatesPage })));
@@ -20,6 +25,7 @@ const GroupsPage = lazy(() => import("./pages/GroupsPage").then((m) => ({ defaul
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const MebJobsPage = lazy(() => import("./pages/MebJobsPage").then((m) => ({ default: m.MebJobsPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
+const OutboxPage = lazy(() => import("./pages/OutboxPage").then((m) => ({ default: m.OutboxPage })));
 const PaymentsPage = lazy(() => import("./pages/PaymentsPage").then((m) => ({ default: m.PaymentsPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
@@ -271,6 +277,14 @@ export function AppShell() {
               />
               <Route
                 element={
+                  <RequireTenantPermission areas={["__superadmin"]}>
+                    <OutboxPage />
+                  </RequireTenantPermission>
+                }
+                path="/outbox"
+              />
+              <Route
+                element={
                   <RequireTenantPermission areas={settingsPermissionAreas}>
                     <SettingsPage />
                   </RequireTenantPermission>
@@ -337,23 +351,26 @@ export default function App() {
     <BrowserRouter>
       <LanguageProvider>
         <ThemeProvider>
-          <AuthProvider>
-            <ToastProvider>
-              <Suspense fallback={<RouteFallback />}>
-                <Routes>
-                  <Route element={<LoginPage />} path="/login" />
-                  <Route
-                    element={
-                      <RequireAuth>
-                        <AppShell />
-                      </RequireAuth>
-                    }
-                    path="/*"
-                  />
-                </Routes>
-              </Suspense>
-            </ToastProvider>
-          </AuthProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <ToastProvider>
+                <Suspense fallback={<RouteFallback />}>
+                  <Routes>
+                    <Route element={<LoginPage />} path="/login" />
+                    <Route
+                      element={
+                        <RequireAuth>
+                          <AppShell />
+                        </RequireAuth>
+                      }
+                      path="/*"
+                    />
+                  </Routes>
+                </Suspense>
+              </ToastProvider>
+            </AuthProvider>
+            {import.meta.env.DEV ? <ReactQueryDevtools buttonPosition="bottom-right" /> : null}
+          </QueryClientProvider>
         </ThemeProvider>
       </LanguageProvider>
     </BrowserRouter>

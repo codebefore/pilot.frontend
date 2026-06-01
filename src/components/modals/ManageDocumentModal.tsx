@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import {
   downloadAuthorizedFile,
@@ -15,7 +17,8 @@ import {
   updateCandidateDocumentMebbisTransfer,
 } from "../../lib/documents-api";
 import { ApiError } from "../../lib/http";
-import { useLanguage, useT } from "../../lib/i18n";
+import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { formatDateTR } from "../../lib/status-maps";
 import type {
   DocumentMetadataField,
@@ -28,9 +31,11 @@ import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 
-type ManageDocumentForm = {
-  note: string;
-};
+const manageDocumentFormSchema = z.object({
+  note: z.string(),
+});
+
+type ManageDocumentForm = z.infer<typeof manageDocumentFormSchema>;
 
 type ManageDocumentModalProps = {
   open: boolean;
@@ -129,6 +134,7 @@ export function ManageDocumentModal({
     setError,
   } = useForm<ManageDocumentForm>({
     defaultValues: emptyForm(),
+    resolver: zodResolver(manageDocumentFormSchema),
   });
 
   useEffect(() => {
@@ -214,7 +220,7 @@ export function ManageDocumentModal({
       : null;
   const isMebbisTransferred = document?.isMebbisTransferred ?? false;
   const busy = submitting || actionPending !== null;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const setMetadataValue = (key: string, value: string) => {
     setMetadataValues((current) => ({ ...current, [key]: value }));
@@ -289,13 +295,14 @@ export function ManageDocumentModal({
 
       onSaved();
     } catch (error) {
-      if (error instanceof ApiError) {
-        const noteError =
-          error.validationErrors?.note?.[0] ?? error.validationErrors?.Note?.[0];
-        if (noteError) {
-          setError("note", { message: noteError });
-        }
+      // Apply note field errors via applyApiErrorsToForm
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        translateCode: (code, params) => t(code as TranslationKey, params),
+        fieldMap: { note: "note", Note: "note" },
+      });
 
+      // Handle file and metadata errors manually (not mapped to form fields)
+      if (error instanceof ApiError) {
         const uploadFileError =
           error.validationErrors?.file?.[0] ?? error.validationErrors?.File?.[0];
         if (uploadFileError) {
@@ -314,7 +321,11 @@ export function ManageDocumentModal({
         }
       }
 
-      showToast(t("documents.manage.saveFailed"), "error");
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
+        showToast(t("documents.manage.saveFailed"), "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -679,7 +690,7 @@ export function ManageDocumentModal({
                 rows={3}
                 {...register("note")}
               />
-              {errors.note && <div className="form-error">{errors.note.message}</div>}
+              {errors.note && <div className="form-error">{t((errors.note.message ?? "") as TranslationKey)}</div>}
             </div>
           </div>
         </form>

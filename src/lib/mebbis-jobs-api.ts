@@ -26,6 +26,10 @@ export type MebbisJobResponse = {
   nextAttemptAtUtc: string | null;
   leaseOwnerClientId: string | null;
   leaseExpiresAtUtc: string | null;
+  queuePublishedAtUtc?: string | null;
+  queuePublishLastAttemptAtUtc?: string | null;
+  queuePublishAttemptCount?: number;
+  queuePublishError?: string | null;
   startedAtUtc: string | null;
   completedAtUtc: string | null;
   createdAtUtc: string;
@@ -53,6 +57,36 @@ type MebbisJobStepListResponse = {
   items: MebbisJobStepResponse[];
 };
 
+export type MebbisJobQueueStatusResponse = {
+  streamsEnabled: boolean;
+  streamName: string;
+  consumerGroupName: string;
+  publishRetryEnabled: boolean;
+  pendingJobCount: number;
+  activeJobCount: number;
+  unpublishedPendingCount: number;
+  publishErrorCount: number;
+  activeExtensionClientCount: number;
+  healthyExtensionClientCount: number;
+  extensionHeartbeatFreshSeconds: number;
+  lastExtensionSeenAtUtc: string | null;
+  lastExtensionDisplayName: string | null;
+  lastPublishedAtUtc: string | null;
+  lastPublishAttemptAtUtc: string | null;
+  redisPendingMessageCount: number | null;
+  redisConsumerCount: number | null;
+  redisLowestPendingMessageId: string | null;
+  redisHighestPendingMessageId: string | null;
+  redisError: string | null;
+  healthStatus: "healthy" | "warning" | "danger" | string;
+  healthMessage: string;
+};
+
+export type MebbisJobQueueRetryResponse = {
+  retriedCount: number;
+  retriedAtUtc: string;
+};
+
 export async function listMebbisJobs(limit = 100): Promise<MebbisJobResponse[]> {
   const response = await httpGet<MebbisJobListResponse>("/api/mebbis/jobs", {
     limit,
@@ -67,6 +101,16 @@ export async function getMebbisJob(jobId: string): Promise<MebbisJobResponse> {
 export async function listMebbisJobSteps(jobId: string): Promise<MebbisJobStepResponse[]> {
   const response = await httpGet<MebbisJobStepListResponse>(`/api/mebbis/jobs/${jobId}/steps`);
   return response.items;
+}
+
+export async function getMebbisJobQueueStatus(): Promise<MebbisJobQueueStatusResponse> {
+  return httpGet<MebbisJobQueueStatusResponse>("/api/mebbis/jobs/queue/status");
+}
+
+export async function retryMebbisJobQueuePublishes(
+  limit = 100
+): Promise<MebbisJobQueueRetryResponse> {
+  return httpPost<MebbisJobQueueRetryResponse>("/api/mebbis/jobs/queue/retry", { limit });
 }
 
 export async function cancelMebbisJob(jobId: string): Promise<MebbisJobResponse> {

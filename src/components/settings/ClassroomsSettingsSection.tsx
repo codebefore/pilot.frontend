@@ -123,7 +123,7 @@ export function ClassroomsSettingsSection() {
   const t = useT();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.classrooms.columns.v1",
     CLASSROOM_COLUMN_IDS

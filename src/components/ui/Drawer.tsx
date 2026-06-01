@@ -1,6 +1,8 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { useT } from "../../lib/i18n";
+
 type DrawerProps = {
   open: boolean;
   title: string;
@@ -10,6 +12,7 @@ type DrawerProps = {
 };
 
 export function Drawer({ open, title, onClose, children, actions }: DrawerProps) {
+  const t = useT();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -28,7 +31,7 @@ export function Drawer({ open, title, onClose, children, actions }: DrawerProps)
         <div className="drawer-header">
           <h3>{title}</h3>
           <button
-            aria-label="Kapat"
+            aria-label={t("common.close")}
             className="modal-close"
             onClick={onClose}
             type="button"

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createUser, updateUser } from "../../lib/users-api";
-import { ApiError } from "../../lib/http";
 import { isPhoneStartingWith5 } from "../../lib/phone";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type {
   AppUserResponse,
   AppUserUpsertRequest,
@@ -12,16 +14,21 @@ import type {
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+import { useT } from "../../lib/i18n";
 
-type UserFormValues = {
-  fullName: string;
-  phone: string;
-  password: string;
-  mebbisUsername: string;
-  mebbisPassword: string;
-  roleId: string;
-  isActive: boolean;
-};
+const userFormSchema = z.object({
+  fullName: z.string().min(1, "Zorunlu alan").min(3, "En az 3 karakter"),
+  phone: z
+    .string()
+    .min(1, "Zorunlu alan")
+    .refine((v) => isPhoneStartingWith5(v), "5 ile başlamalı"),
+  mebbisUsername: z.string(),
+  mebbisPassword: z.string(),
+  roleId: z.string(),
+  isActive: z.boolean(),
+});
+
+type UserFormValues = z.infer<typeof userFormSchema>;
 
 type UserFormModalProps = {
   open: boolean;
@@ -37,7 +44,6 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
     ? {
         fullName: editing.fullName,
         phone: editing.phone ?? "",
-        password: "",
         mebbisUsername: editing.mebbisUsername ?? "",
         mebbisPassword: "",
         roleId: editing.roleId ?? "",
@@ -46,7 +52,6 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
     : {
         fullName: "",
         phone: "",
-        password: "",
         mebbisUsername: "",
         mebbisPassword: "",
         roleId: "",
@@ -54,19 +59,11 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
       };
 
 const VALIDATION_FIELD_MAP: Record<string, keyof UserFormValues> = {
-  fullName: "fullName",
   FullName: "fullName",
-  phone: "phone",
   Phone: "phone",
-  password: "password",
-  Password: "password",
-  mebbisUsername: "mebbisUsername",
   MebbisUsername: "mebbisUsername",
-  mebbisPassword: "mebbisPassword",
   MebbisPassword: "mebbisPassword",
-  roleId: "roleId",
   RoleId: "roleId",
-  isActive: "isActive",
   IsActive: "isActive",
 };
 
@@ -79,7 +76,8 @@ export function UserFormModal({
   onSaved,
 }: UserFormModalProps) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
 
   const {
@@ -90,13 +88,10 @@ export function UserFormModal({
     setError,
     setValue,
     watch,
-  } = useForm<UserFormValues>({ defaultValues: emptyValues(editing) });
+  } = useForm<UserFormValues>({ defaultValues: emptyValues(editing), resolver: zodResolver(userFormSchema) });
   const selectedRoleId = watch("roleId");
   const activeRoles = useMemo(() => roles.filter((role) => role.isActive), [roles]);
-  const phoneRegistration = register("phone", {
-    required: "Zorunlu alan",
-    validate: (value) => isPhoneStartingWith5(value) || "5 ile başlamalı",
-  });
+  const phoneRegistration = register("phone");
 
   useEffect(() => {
     if (!open) return;
@@ -118,7 +113,6 @@ export function UserFormModal({
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
       phone: values.phone.trim(),
-      password: values.password.trim() || null,
       mebbisUsername: values.mebbisUsername.trim() || null,
       mebbisPassword: values.mebbisPassword.trim() || null,
       roleId: values.roleId || null,
@@ -131,15 +125,14 @@ export function UserFormModal({
         : await createUser(payload);
       onSaved(saved);
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        for (const [serverField, messages] of Object.entries(error.validationErrors)) {
-          const formField = VALIDATION_FIELD_MAP[serverField];
-          if (formField && messages?.[0]) {
-            setError(formField, { message: messages[0] });
-          }
-        }
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        fieldMap: VALIDATION_FIELD_MAP,
+      });
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
+        showToast(editing ? "Kullanıcı güncellenemedi" : "Kullanıcı eklenemedi", "error");
       }
-      showToast(editing ? "Kullanıcı güncellenemedi" : "Kullanıcı eklenemedi", "error");
     } finally {
       setSubmitting(false);
     }
@@ -157,7 +150,7 @@ export function UserFormModal({
             onClick={onClose}
             type="button"
           >
-            Vazgeç
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -166,33 +159,30 @@ export function UserFormModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title={editing ? "Kullanıcıyı Düzenle" : "Yeni Kullanıcı"}
+      title={editing ? t("userForm.modalTitleEdit") : t("userForm.modalTitleNew")}
     >
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Ad Soyad</label>
+            <label className="form-label">{t("common.field.fullName")}</label>
             <input
               className={fieldClass(!!errors.fullName, "form-input")}
               disabled={!canManage}
               placeholder="Ad Soyad"
-              {...register("fullName", {
-                required: "Zorunlu alan",
-                minLength: { value: 3, message: "En az 3 karakter" },
-              })}
+              {...register("fullName")}
             />
             {errors.fullName && (
               <div className="form-error">{errors.fullName.message}</div>
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">Rol</label>
+            <label className="form-label">{t("common.field.role")}</label>
             <CustomSelect
               className={fieldClass(!!errors.roleId, "form-select")}
               disabled={!canManage}
@@ -212,38 +202,21 @@ export function UserFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Telefon</label>
+            <label className="form-label">{t("common.field.phone")}</label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
               disabled={!canManage}
               maxLength={32}
-              placeholder="Telefon"
+              placeholder="5XX XXX XX XX"
               {...phoneRegistration}
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
-          </div>
-          <div className="form-group">
-            <label className="form-label">Panel Şifresi</label>
-            <input
-              autoComplete="new-password"
-              className={fieldClass(!!errors.password, "form-input")}
-              disabled={!canManage}
-              placeholder={editing?.hasPassword ? "Değiştirmek için yeni şifre gir" : "En az 8 karakter"}
-              type="password"
-              {...register("password", {
-                minLength: { value: 8, message: "En az 8 karakter" },
-              })}
-            />
-            {editing?.hasPassword ? (
-              <div className="form-hint">Mevcut panel şifresi kayıtlı; boş bırakırsan değişmez.</div>
-            ) : null}
-            {errors.password && <div className="form-error">{errors.password.message}</div>}
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">MEBBİS Kullanıcı Adı</label>
+            <label className="form-label">{t("common.field.mebbisUsername")}</label>
             <input
               className={fieldClass(!!errors.mebbisUsername, "form-input")}
               disabled={!canManage}
@@ -255,7 +228,7 @@ export function UserFormModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">MEBBİS Şifresi</label>
+            <label className="form-label">{t("common.field.mebbisPassword")}</label>
             <input
               autoComplete="new-password"
               className={fieldClass(!!errors.mebbisPassword, "form-input")}

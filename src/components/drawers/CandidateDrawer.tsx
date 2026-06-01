@@ -177,7 +177,7 @@ export function CandidateDrawer({
   const educationPlan = candidate?.educationPlan ?? null;
   const candidateHasExistingLicense =
     candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const candidateEditDisabledTitle = !canManageCandidates ? noPermissionTitle : undefined;
 
   useEffect(() => {

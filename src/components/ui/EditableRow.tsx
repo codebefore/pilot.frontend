@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useT } from "../../lib/i18n";
 import { CheckIcon, PencilIcon, XIcon } from "../icons";
 import { CustomSelect } from "./CustomSelect";
 import { LocalizedDateInput } from "./LocalizedDateInput";
@@ -37,6 +38,7 @@ export function EditableRow({
   transform,
   onSave,
 }: EditableRowProps) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(inputValue);
   const [saving, setSaving] = useState(false);
@@ -149,7 +151,7 @@ export function EditableRow({
           <button className="icon-btn icon-btn-confirm" disabled={saving || loadingOptions} onClick={save} title="Kaydet" type="button">
             <CheckIcon size={13} />
           </button>
-          <button className="icon-btn" disabled={saving} onClick={cancel} title="Vazgeç" type="button">
+          <button className="icon-btn" disabled={saving} onClick={cancel} title={t("common.cancel")} type="button">
             <XIcon size={13} />
           </button>
         </span>

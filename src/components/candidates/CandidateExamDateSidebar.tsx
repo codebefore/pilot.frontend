@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckIcon, PencilIcon, TrashIcon, XIcon } from "../icons";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { formatExamScheduleLicenseClassSummary } from "../../lib/exam-schedule-summary";
+import { useT } from "../../lib/i18n";
 import { formatDateTR } from "../../lib/status-maps";
 import type { ExamCodeOption, ExamScheduleOption } from "../../lib/types";
 
@@ -169,9 +170,10 @@ export function CandidateExamDateSidebar({
     }
   }, [editingCodeId, editingCodeLocalId]);
 
+  const t = useT();
   const todayDividerDate = findTodayDividerDate(options, today);
   const showCodeTab = codeOptions !== undefined && onCodeSelect !== undefined;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const startDateEdit = (option: ExamScheduleOption) => {
     if (!canManageMutations) return;
     setConfirmingId(null);

@@ -12,7 +12,7 @@ import {
 } from "../../lib/institution-settings-api";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/http";
-import { useT, type TranslationKey } from "../../lib/i18n";
+import { useT, type TranslationKey, currentLocale } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
 import { isPhoneStartingWith5 } from "../../lib/phone";
 import { useTheme } from "../../lib/theme";
@@ -139,7 +139,7 @@ export function GeneralInstitutionSection() {
   const { options: themeOptions, setTheme, theme } = useTheme();
   const { user, permissions } = useAuth();
   const canManageSettings = canManageArea(user, permissions, "settings");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -447,7 +447,7 @@ export function GeneralInstitutionSection() {
             ? t("settings.general.theme.localNote")
             : serverState
             ? t("settings.general.lastSaved", {
-                at: new Date(serverState.updatedAtUtc).toLocaleString("tr-TR"),
+                at: new Date(serverState.updatedAtUtc).toLocaleString(currentLocale()),
               })
             : t("settings.general.notSavedYet")}
         </span>

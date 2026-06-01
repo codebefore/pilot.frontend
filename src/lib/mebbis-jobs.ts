@@ -15,6 +15,10 @@ export type MebJob = {
   /** Bitiş tarihi (ISO) — `succeeded`/`failed`/`cancelled` için doludur. */
   completedAtIso: string | null;
   errorMessage?: string | null;
+  queuePublishedAtIso?: string | null;
+  queuePublishLastAttemptAtIso?: string | null;
+  queuePublishAttemptCount?: number;
+  queuePublishError?: string | null;
 };
 
 export type JobsSummaryTone = "brand" | "blue" | "gray" | "orange" | "purple" | "red";

@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { LICENSE_CLASS_DEFINITION_CATEGORY_LABELS } from "../lib/license-class-definition-catalog";
 import { getLicenseClassDefinition } from "../lib/license-class-definitions-api";
-import type { LicenseClassDefinitionResponse } from "../lib/types";
 
 function formatBool(value: boolean): string {
   return value ? "Evet" : "Hayır";
@@ -17,29 +16,15 @@ function formatHours(value: number | null): string {
 export function LicenseClassDefinitionDetailPage() {
   const navigate = useNavigate();
   const { definitionId } = useParams<{ definitionId: string }>();
-  const [definition, setDefinition] = useState<LicenseClassDefinitionResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
 
-  useEffect(() => {
-    if (!definitionId) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    getLicenseClassDefinition(definitionId, controller.signal)
-      .then((data) => setDefinition(data))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError("Ehliyet tipi bilgileri yüklenemedi");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [definitionId, reloadKey]);
+  const definitionQuery = useQuery({
+    queryKey: ["licenseClassDefinitions", "detail", definitionId],
+    queryFn: ({ signal }) => getLicenseClassDefinition(definitionId as string, signal),
+    enabled: Boolean(definitionId),
+  });
+  const definition = definitionQuery.data ?? null;
+  const loading = definitionQuery.isLoading;
+  const error = definitionQuery.isError ? "Ehliyet tipi bilgileri yüklenemedi" : null;
 
   return (
     <div className="instructor-detail">
@@ -63,7 +48,7 @@ export function LicenseClassDefinitionDetailPage() {
         <PageLoadError
           title="Ehliyet tipi bilgileri yüklenemedi"
           description="Tanım detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
-          onRetry={() => setReloadKey((k) => k + 1)}
+          onRetry={() => void definitionQuery.refetch()}
         />
       )}
 

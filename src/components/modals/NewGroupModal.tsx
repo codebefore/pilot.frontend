@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createGroup, getGroups } from "../../lib/groups-api";
 import {
@@ -10,22 +12,24 @@ import {
   suggestNextGroupCodeParts,
 } from "../../lib/group-code";
 import { ApiError } from "../../lib/http";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { getTerms } from "../../lib/terms-api";
 import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
-import { useLanguage, useT } from "../../lib/i18n";
+import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import type { TermResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { useToast } from "../ui/Toast";
 
-type NewGroupForm = {
-  groupNumber: string;
-  groupBranch: string;
-  termId: string;
-  capacity: number;
-  startDate: string;
-};
+const newGroupFormSchema = z.object({
+  groupNumber: z.string().min(1, "group.validation.required"),
+  groupBranch: z.string().min(1, "group.validation.required"),
+  termId: z.string().min(1, "group.validation.required"),
+  capacity: z.number().min(1, "En az 1").max(50, "En fazla 50"),
+  startDate: z.string().min(1, "group.validation.required"),
+});
+type NewGroupForm = z.infer<typeof newGroupFormSchema>;
 
 type NewGroupModalProps = {
   open: boolean;
@@ -59,7 +63,7 @@ export function NewGroupModal({
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const [groupTitles, setGroupTitles] = useState<string[]>([]);
   const [terms, setTerms] = useState<TermResponse[]>([]);
@@ -73,15 +77,15 @@ export function NewGroupModal({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewGroupForm>({ defaultValues: defaultValues(initialTermId) });
+  } = useForm<NewGroupForm>({ defaultValues: defaultValues(initialTermId), resolver: zodResolver(newGroupFormSchema) });
   const selectedTermId = watch("termId");
   const groupNumber = watch("groupNumber");
   const groupBranch = watch("groupBranch");
   const startDate = watch("startDate");
-  const termIdRegistration = register("termId", { required: "Zorunlu alan" });
-  const groupNumberRegistration = register("groupNumber", { required: "Zorunlu alan" });
-  const groupBranchRegistration = register("groupBranch", { required: "Zorunlu alan" });
-  const startDateRegistration = register("startDate", { required: "Zorunlu alan" });
+  const termIdRegistration = register("termId");
+  const groupNumberRegistration = register("groupNumber");
+  const groupBranchRegistration = register("groupBranch");
+  const startDateRegistration = register("startDate");
 
   useEffect(() => {
     if (open) {
@@ -189,35 +193,18 @@ export function NewGroupModal({
           showToast(message, "error");
           return;
         }
-
-        const termIdError = error.validationErrors.termId?.[0] ?? error.validationErrors.TermId?.[0];
-        if (termIdError) {
-          setError("termId", { message: termIdError });
-        }
-
-        const groupNumberError =
-          error.validationErrors.groupNumber?.[0] ?? error.validationErrors.GroupNumber?.[0];
-        if (groupNumberError) {
-          setError("groupNumber", { message: groupNumberError });
-        }
-
-        const groupBranchError =
-          error.validationErrors.groupBranch?.[0] ?? error.validationErrors.GroupBranch?.[0];
-        if (groupBranchError) {
-          setError("groupBranch", { message: groupBranchError });
-        }
-
-        const capacityError =
-          error.validationErrors.capacity?.[0] ?? error.validationErrors.Capacity?.[0];
-        if (capacityError) {
-          setError("capacity", { message: capacityError });
-        }
-
-        showToast("Grup olusturulamadi. Form alanlarini kontrol edin.", "error");
-        return;
       }
 
-      showToast("Grup olusturulamadi. Lutfen tekrar deneyin.", "error");
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        translateCode: (code) => t(code as TranslationKey),
+      });
+      if (applied) {
+        showToast("Grup olusturulamadi. Form alanlarini kontrol edin.", "error");
+      } else if (unmappedMessages.length > 0) {
+        showToast(unmappedMessages[0], "error");
+      } else {
+        showToast("Grup olusturulamadi. Lutfen tekrar deneyin.", "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -236,7 +223,7 @@ export function NewGroupModal({
             onClick={onClose}
             type="button"
           >
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -245,13 +232,13 @@ export function NewGroupModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title="Yeni Grup"
+      title={t("newGroup.modalTitle")}
     >
       <form onSubmit={submit}>
         <div className="form-row">
@@ -270,14 +257,14 @@ export function NewGroupModal({
               ))}
             </CustomSelect>
             {errors.termId && (
-              <div className="form-error">{errors.termId.message}</div>
+              <div className="form-error">{t((errors.termId.message ?? "") as TranslationKey)}</div>
             )}
           </div>
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Grup No</label>
+            <label className="form-label">{t("newGroup.field.groupNumber")}</label>
             <CustomSelect
               className={fieldClass(!!errors.groupNumber, "form-select")}
               value={groupNumber}
@@ -290,11 +277,11 @@ export function NewGroupModal({
               ))}
             </CustomSelect>
             {errors.groupNumber && (
-              <div className="form-error">{errors.groupNumber.message}</div>
+              <div className="form-error">{t((errors.groupNumber.message ?? "") as TranslationKey)}</div>
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">Şube</label>
+            <label className="form-label">{t("newGroup.field.branch")}</label>
             <CustomSelect
               className={fieldClass(!!errors.groupBranch, "form-select")}
               value={groupBranch}
@@ -307,7 +294,7 @@ export function NewGroupModal({
               ))}
             </CustomSelect>
             {errors.groupBranch && (
-              <div className="form-error">{errors.groupBranch.message}</div>
+              <div className="form-error">{t((errors.groupBranch.message ?? "") as TranslationKey)}</div>
             )}
             <div className="form-hint">
               Başlık:{" "}
@@ -325,22 +312,17 @@ export function NewGroupModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Kontenjan</label>
+            <label className="form-label">{t("common.field.capacity")}</label>
             <input
               className={fieldClass(!!errors.capacity, "form-input")}
               inputMode="numeric"
               type="number"
-              {...register("capacity", {
-                required: "Zorunlu alan",
-                valueAsNumber: true,
-                min: { value: 1, message: "En az 1" },
-                max: { value: 50, message: "En fazla 50" },
-              })}
+              {...register("capacity", { valueAsNumber: true })}
             />
             {errors.capacity && <div className="form-error">{errors.capacity.message}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">Başlangıç</label>
+            <label className="form-label">{t("common.field.startDate")}</label>
             <LocalizedDateInput
               ariaLabel="Başlangıç"
               className={fieldClass(!!errors.startDate, "form-input")}
@@ -354,7 +336,7 @@ export function NewGroupModal({
               value={startDate}
             />
             {errors.startDate && (
-              <div className="form-error">{errors.startDate.message}</div>
+              <div className="form-error">{t((errors.startDate.message ?? "") as TranslationKey)}</div>
             )}
           </div>
         </div>

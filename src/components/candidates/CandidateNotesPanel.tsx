@@ -6,6 +6,7 @@ import { Panel } from "../ui/Panel";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
 import { canManageArea } from "../../lib/permissions";
+import { useT } from "../../lib/i18n";
 import {
   createCandidateNote,
   deleteCandidateNote,
@@ -23,7 +24,8 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [notes, setNotes] = useState<CandidateNoteResponse[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<CandidateNoteResponse | null>(null);

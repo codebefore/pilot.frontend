@@ -235,7 +235,7 @@ describe("NewCandidateModal", () => {
     fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
       target: { value: "Yilmaz" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Telefon"), {
+    fireEvent.change(screen.getByPlaceholderText("5XX XXX XX XX"), {
       target: { value: "5551234567" },
     });
 
@@ -276,7 +276,7 @@ describe("NewCandidateModal", () => {
     fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
       target: { value: "Yilmaz" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Telefon"), {
+    fireEvent.change(screen.getByPlaceholderText("5XX XXX XX XX"), {
       target: { value: "5551234567" },
     });
 
@@ -444,7 +444,7 @@ describe("NewCandidateModal", () => {
     fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
       target: { value: "Yilmaz" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Telefon"), {
+    fireEvent.change(screen.getByPlaceholderText("5XX XXX XX XX"), {
       target: { value: "5551234567" },
     });
 

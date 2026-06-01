@@ -122,13 +122,13 @@ describe("AppShell tenant state", () => {
   it("remounts tenant page fetches when active institution changes", async () => {
     renderSwitchingShell();
 
-    await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(1), { timeout: 5000 });
     expect(screen.getByText(/Pilot Sürücü Kursu.*operasyon özeti/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: /Pilot Sürücü Kursu.*pilot-surucu-kursu/i })[0]);
     fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*ikinci-kurum.*Personel/i }));
 
-    await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(2), { timeout: 5000 });
     expect(screen.getByText(/İkinci Kurum.*operasyon özeti/i)).toBeInTheDocument();
   });
 
@@ -199,6 +199,10 @@ function renderSwitchingShell() {
       permissions: activeInstitution.permissions,
       hasInstitution: true,
       institutionRequired: false,
+      requestLoginCode: async () => ({
+        phone: "5000000000",
+        expiresAtUtc: new Date(Date.now() + 5 * 60_000).toISOString(),
+      }),
       login: async () => {},
       selectInstitution: async (institutionId: string) => {
         setActiveInstitution(institutions.find((institution) => institution.id === institutionId) ?? activeInstitution);

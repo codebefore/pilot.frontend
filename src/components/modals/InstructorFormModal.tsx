@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import {
   createInstructor,
@@ -9,6 +11,7 @@ import {
 } from "../../lib/instructors-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { isPhoneStartingWith5 } from "../../lib/phone";
 import type {
   InstructorCreateRequest,
@@ -41,6 +44,20 @@ type InstructorFormModalProps = {
   onConcurrencyConflict?: () => void;
 };
 
+const instructorFormSchema = z.object({
+  firstName: z.string().min(1, "Ad zorunlu"),
+  lastName: z.string().min(1, "Soyad zorunlu"),
+  nationalId: z.string(),
+  phoneNumber: z.string().refine(
+    (value) => !value.trim() || isPhoneStartingWith5(value),
+    "5 ile başlamalı"
+  ),
+  email: z.string(),
+  isActive: z.boolean(),
+  licenseClassCodes: z.array(z.string()),
+  notes: z.string(),
+});
+
 const VALIDATION_FIELD_MAP: Record<string, keyof InstructorFormValues> = {
   firstName: "firstName",
   FirstName: "firstName",
@@ -69,46 +86,6 @@ function hasConcurrencyError(
   );
 }
 
-function applyServerFieldErrors(
-  error: ApiError,
-  setError: (field: keyof InstructorFormValues, error: { message: string }) => void,
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string
-): { appliedFieldError: boolean; unmappedMessage: string | null } {
-  const codes = error.validationErrorCodes;
-  const fallback = error.validationErrors;
-  let appliedFieldError = false;
-  let unmappedMessage: string | null = null;
-
-  if (codes) {
-    for (const [serverField, fieldErrors] of Object.entries(codes)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      const first = fieldErrors[0];
-      if (!first) continue;
-      if (!formField) {
-        unmappedMessage ??= t(first.code as TranslationKey, first.params);
-        continue;
-      }
-      setError(formField, { message: t(first.code as TranslationKey, first.params) });
-      appliedFieldError = true;
-    }
-  }
-
-  if (fallback) {
-    for (const [serverField, messages] of Object.entries(fallback)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      if (!messages?.[0]) continue;
-      if (!formField) {
-        unmappedMessage ??= messages[0];
-        continue;
-      }
-      if (codes && codes[serverField]?.length) continue;
-      setError(formField, { message: messages[0] });
-      appliedFieldError = true;
-    }
-  }
-
-  return { appliedFieldError, unmappedMessage };
-}
 
 function normalizeUppercase(value: string): string {
   return value.toLocaleUpperCase("tr-TR");
@@ -148,7 +125,7 @@ export function InstructorFormModal({
 }: InstructorFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoInstructor, setPhotoInstructor] = useState<InstructorResponse | null>(editing);
@@ -165,12 +142,10 @@ export function InstructorFormModal({
     watch,
   } = useForm<InstructorFormValues>({
     defaultValues: getEmptyValues(editing),
+    resolver: zodResolver(instructorFormSchema),
   });
   const selectedLicenseClassCodes = watch("licenseClassCodes");
-  const phoneNumberRegistration = register("phoneNumber", {
-    validate: (value) =>
-      !value.trim() || isPhoneStartingWith5(value) || "5 ile başlamalı",
-  });
+  const phoneNumberRegistration = register("phoneNumber");
 
   useEffect(() => {
     if (!open) return;
@@ -227,13 +202,14 @@ export function InstructorFormModal({
           onConcurrencyConflict?.();
           return;
         }
-        const { appliedFieldError, unmappedMessage } = applyServerFieldErrors(error, setError, t);
-        if (unmappedMessage) {
-          showToast(unmappedMessage, "error");
-        } else if (!appliedFieldError) {
-          showToast(t("instructor.validation.generic"), "error");
-        }
-      } else {
+      }
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        translateCode: (code, params) => t(code as TranslationKey, params),
+        fieldMap: VALIDATION_FIELD_MAP as Record<string, import("react-hook-form").Path<InstructorFormValues>>,
+      });
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
         showToast(t("instructor.validation.generic"), "error");
       }
     } finally {
@@ -281,7 +257,7 @@ export function InstructorFormModal({
       footer={
         <>
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -290,13 +266,13 @@ export function InstructorFormModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title={editing ? "Ekip Üyesini Düzenle" : "Yeni Ekip Üyesi"}
+      title={editing ? t("instructorForm.modalTitleEdit") : t("instructorForm.modalTitleNew")}
     >
       <form className="settings-form" onSubmit={submit}>
         {!photoInstructor ? (
@@ -309,7 +285,7 @@ export function InstructorFormModal({
             <InstructorAvatar instructor={photoInstructor} size={72} />
             <div className="instructor-photo-actions">
               <label className="btn btn-secondary btn-sm">
-                {photoBusy ? "Yükleniyor..." : photoInstructor.hasPhoto ? "Değiştir" : "Resim Yükle"}
+                {photoBusy ? t("common.loading") : photoInstructor.hasPhoto ? "Değiştir" : "Resim Yükle"}
                 <input
                   accept="image/jpeg,image/png,image/webp"
                   disabled={photoBusy || !canManage}
@@ -336,7 +312,7 @@ export function InstructorFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">TC Kimlik No</label>
+            <label className="form-label">{t("common.field.nationalId")}</label>
             <input
               className={fieldClass(errors.nationalId?.message)}
               inputMode="numeric"
@@ -354,7 +330,6 @@ export function InstructorFormModal({
             <Controller
               control={control}
               name="firstName"
-              rules={{ required: "Ad zorunlu" }}
               render={({ field }) => (
                 <input
                   {...field}
@@ -370,11 +345,10 @@ export function InstructorFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">Soyad</label>
+            <label className="form-label">{t("common.field.lastName")}</label>
             <Controller
               control={control}
               name="lastName"
-              rules={{ required: "Soyad zorunlu" }}
               render={({ field }) => (
                 <input
                   {...field}
@@ -392,18 +366,18 @@ export function InstructorFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Telefon</label>
+            <label className="form-label">{t("common.field.phone")}</label>
             <input
               className={fieldClass(errors.phoneNumber?.message)}
               inputMode="numeric"
               maxLength={32}
-              placeholder="5XXXXXXXXX"
+              placeholder="5XX XXX XX XX"
               {...phoneNumberRegistration}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">E-posta</label>
+            <label className="form-label">{t("common.field.email")}</label>
             <input
               className={fieldClass(errors.email?.message)}
               placeholder="egitmen@kurum.com"
@@ -415,7 +389,7 @@ export function InstructorFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Genel Durum</label>
+            <label className="form-label">{t("common.field.generalStatus")}</label>
             <label className="switch-toggle">
               <input type="checkbox" {...register("isActive")} />
               <span className="switch-toggle-control" aria-hidden="true" />
@@ -426,7 +400,7 @@ export function InstructorFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">Not</label>
+            <label className="form-label">{t("common.field.note")}</label>
             <textarea className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>

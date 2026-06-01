@@ -12,12 +12,14 @@ import {
 } from "../../lib/candidate-references-api";
 import { useAuth } from "../../lib/auth";
 import { canManageArea } from "../../lib/permissions";
+import { useT } from "../../lib/i18n";
 
 export function ReferencesSettingsSection() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [items, setItems] = useState<CandidateReferenceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);

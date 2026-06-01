@@ -1,12 +1,13 @@
 import type { JobStatus } from "../../types";
+import { useT, type TranslationKey } from "../../lib/i18n";
 
-const LABELS: Record<JobStatus, string> = {
-  success: "Başarılı",
-  running: "Çalışıyor",
-  queued:  "Bekliyor",
-  failed:  "Hata",
-  warning: "Uyarı",
-  manual:  "Manuel",
+const LABEL_KEY: Record<JobStatus, TranslationKey> = {
+  success: "jobStatus.success",
+  running: "jobStatus.running",
+  queued: "jobStatus.queued",
+  failed: "jobStatus.failed",
+  warning: "jobStatus.warning",
+  manual: "jobStatus.manual",
 };
 
 type StatusPillProps = {
@@ -15,10 +16,11 @@ type StatusPillProps = {
 };
 
 export function StatusPill({ status, label }: StatusPillProps) {
+  const t = useT();
   return (
     <span className={`job-status-pill pill-${status}`}>
       <span className="dot" />
-      {label ?? LABELS[status]}
+      {label ?? t(LABEL_KEY[status])}
     </span>
   );
 }

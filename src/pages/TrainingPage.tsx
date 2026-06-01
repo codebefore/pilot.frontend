@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
 import { ApiError } from "../lib/http";
 import { useAuth } from "../lib/auth";
-import { useT } from "../lib/i18n";
+import { useT, currentLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/i18n";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { MebIcon } from "../components/icons";
@@ -107,34 +108,88 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [serverGeneralError, setServerGeneralError] = useState<string | undefined>();
   const [modalOpen, setModalOpen] = useState(false);
   const [newLessonSlot, setNewLessonSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [events, setEvents] = useState<TrainingCalendarEvent[]>([]);
-  // Uygulama sayfasında, seçili adayın grubunun teorik dersleri "ghost"
-  // (dimmed) event olarak takvimde gösterilir — kullanıcı çakışmayı
-  // görsel olarak fark etsin diye. Sadece type === "uygulama"'da dolar.
-  const [theoryEventsForOverlay, setTheoryEventsForOverlay] = useState<
-    TrainingCalendarEvent[]
-  >([]);
-  // Simetrik: teorik sayfasında, seçili grubun adaylarının uygulama
-  // dersleri ghost event olarak gösterilir. Sadece type === "teorik"'te.
-  const [practiceEventsForOverlay, setPracticeEventsForOverlay] = useState<
-    TrainingCalendarEvent[]
-  >([]);
+  // Overlay events (ghost rendering for cross-cutting conflict visibility).
+  // Uygulama page → theory overlay, teorik page → practice overlay.
+  // Date range is a fixed ±90/180-day window around now; recomputed only on
+  // type change so React Query caches it correctly across re-renders.
+  const overlayWindow = useMemo(() => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(now.getDate() - 90);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(now);
+    to.setDate(now.getDate() + 180);
+    to.setHours(23, 59, 59, 999);
+    return { fromUtc: from.toISOString(), toUtc: to.toISOString() };
+  }, [type]);
+
+  const theoryOverlayQuery = useQuery({
+    queryKey: ["training", "lessons", "overlay", "teorik", overlayWindow],
+    queryFn: ({ signal }) =>
+      getTrainingLessons({ kind: "teorik", ...overlayWindow }, signal),
+    enabled: type === "uygulama",
+  });
+  const theoryEventsForOverlay = useMemo<TrainingCalendarEvent[]>(
+    () =>
+      type === "uygulama"
+        ? theoryOverlayQuery.data?.items.map(trainingLessonToCalendarEvent) ?? []
+        : [],
+    [type, theoryOverlayQuery.data]
+  );
+
+  const practiceOverlayQuery = useQuery({
+    queryKey: ["training", "lessons", "overlay", "uygulama", overlayWindow],
+    queryFn: ({ signal }) =>
+      getTrainingLessons({ kind: "uygulama", ...overlayWindow }, signal),
+    enabled: type === "teorik",
+  });
+  const practiceEventsForOverlay = useMemo<TrainingCalendarEvent[]>(
+    () =>
+      type === "teorik"
+        ? practiceOverlayQuery.data?.items.map(trainingLessonToCalendarEvent) ?? []
+        : [],
+    [type, practiceOverlayQuery.data]
+  );
   const [loading, setLoading] = useState(true);
-  const [instructors, setInstructors] = useState<InstructorResponse[]>([]);
-  const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
-  const [vehicles, setVehicles] = useState<VehicleResponse[]>([]);
+  const queryClient = useQueryClient();
+
+  const instructorsQuery = useQuery({
+    queryKey: ["training", "instructors"],
+    queryFn: ({ signal }) =>
+      getInstructors({ activity: "active", page: 1, pageSize: 100 }, signal),
+  });
+  const instructors: InstructorResponse[] = instructorsQuery.data?.items ?? [];
+
+  const groupsQuery = useQuery({
+    queryKey: ["training", "groups"],
+    queryFn: ({ signal }) =>
+      getGroups({ page: 1, pageSize: 100 }, signal),
+  });
+  const groups: GroupResponse[] = groupsQuery.data?.items ?? [];
+
+  const vehiclesQuery = useQuery({
+    queryKey: ["training", "vehicles"],
+    queryFn: ({ signal }) =>
+      getVehicles({ activity: "active", page: 1, pageSize: 100 }, signal),
+  });
+  const vehicles: VehicleResponse[] = vehiclesQuery.data?.items ?? [];
+
   // Branş kataloğu DB'den geliyor (Ayarlar > Tanımlar > Branşlar). Renk,
   // toplam saat limiti ve label hepsi burada — popover/calendar/summary
   // bu listeyi kullanır, hardcoded sabit kullanılmaz.
-  const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>(
-    []
-  );
+  const branchesQuery = useQuery({
+    queryKey: ["training", "branches"],
+    queryFn: ({ signal }) =>
+      getTrainingBranchDefinitions({ activity: "active", pageSize: 100 }, signal),
+  });
+  const branches: TrainingBranchDefinitionResponse[] = branchesQuery.data?.items ?? [];
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
   const [isMebbisTransferLoading, setIsMebbisTransferLoading] = useState(false);
@@ -267,50 +322,23 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const now = new Date();
-    const from = new Date(now);
-    from.setDate(now.getDate() - 90);
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(now);
-    to.setDate(now.getDate() + 180);
-    to.setHours(23, 59, 59, 999);
 
     setLoading(true);
     Promise.all([
       getTrainingLessons(
         {
           kind: type,
-          fromUtc: from.toISOString(),
-          toUtc: to.toISOString(),
+          fromUtc: overlayWindow.fromUtc,
+          toUtc: overlayWindow.toUtc,
         },
         controller.signal
       ),
-      getInstructors({ activity: "active", page: 1, pageSize: 100 }, controller.signal),
-      getGroups({ page: 1, pageSize: 100 }, controller.signal),
       getCandidates({ page: 1, pageSize: 100 }, controller.signal),
-      getVehicles({ activity: "active", page: 1, pageSize: 100 }, controller.signal),
-      getTrainingBranchDefinitions(
-        { activity: "active", pageSize: 100 },
-        controller.signal
-      ),
     ])
-      .then(
-        ([
-          lessonResult,
-          instructorResult,
-          groupResult,
-          candidateResult,
-          vehicleResult,
-          branchResult,
-        ]) => {
-          setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
-          setInstructors(instructorResult.items);
-          setGroups(groupResult.items);
-          setCandidates(candidateResult.items);
-          setVehicles(vehicleResult.items);
-          setBranches(branchResult.items);
-        }
-      )
+      .then(([lessonResult, candidateResult]) => {
+        setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
+        setCandidates(candidateResult.items);
+      })
       .catch((error) => {
         if (controller.signal.aborted) return;
         console.error(error);
@@ -322,80 +350,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
       });
 
     return () => controller.abort();
-  }, [showToast, type]);
+  }, [overlayWindow, showToast, t, type]);
 
   // Uygulama sayfasında, çakışma görünürlüğü için ek olarak teorik
   // dersleri de çek (overlay havuzu). `quickSettings.candidateId` set
   // edildiğinde, o adayın grubuna ait teorik dersler dimmed event
   // olarak takvimde gösterilir.
-  useEffect(() => {
-    if (type !== "uygulama") {
-      setTheoryEventsForOverlay([]);
-      return;
-    }
-    const controller = new AbortController();
-    const now = new Date();
-    const from = new Date(now);
-    from.setDate(now.getDate() - 90);
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(now);
-    to.setDate(now.getDate() + 180);
-    to.setHours(23, 59, 59, 999);
-    getTrainingLessons(
-      {
-        kind: "teorik",
-        fromUtc: from.toISOString(),
-        toUtc: to.toISOString(),
-      },
-      controller.signal
-    )
-      .then((result) => {
-        setTheoryEventsForOverlay(
-          result.items.map(trainingLessonToCalendarEvent)
-        );
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        console.error(error);
-      });
-    return () => controller.abort();
-  }, [type]);
-
-  // Simetrik: teorik sayfasında, çakışma görünürlüğü için uygulama
-  // dersleri de çek. Grup seçilince o grubun adaylarının uygulama
-  // dersleri dimmed gösterilir.
-  useEffect(() => {
-    if (type !== "teorik") {
-      setPracticeEventsForOverlay([]);
-      return;
-    }
-    const controller = new AbortController();
-    const now = new Date();
-    const from = new Date(now);
-    from.setDate(now.getDate() - 90);
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(now);
-    to.setDate(now.getDate() + 180);
-    to.setHours(23, 59, 59, 999);
-    getTrainingLessons(
-      {
-        kind: "uygulama",
-        fromUtc: from.toISOString(),
-        toUtc: to.toISOString(),
-      },
-      controller.signal
-    )
-      .then((result) => {
-        setPracticeEventsForOverlay(
-          result.items.map(trainingLessonToCalendarEvent)
-        );
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        console.error(error);
-      });
-    return () => controller.abort();
-  }, [type]);
 
   // Filtreler boş başlar — kullanıcı görmek istediği grup/eğitmeni
   // sidebar'dan açar. Yeni eklenen grup/eğitmen otomatik visible
@@ -537,7 +497,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     if (isBranchPickerOpen && newLessonSlot) {
       filtered.push({
         id: "__preview__",
-        title: "Yeni ders",
+        title: t("training.preview.newLesson"),
         start: newLessonSlot.start,
         end: newLessonSlot.end,
         kind: type,
@@ -1248,8 +1208,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const refreshGroupAfterMebbisTransfer = async (groupId: string) => {
     const updatedGroup = await getGroupById(groupId);
-    setGroups((prev) =>
-      prev.map((group) => (group.id === groupId ? updatedGroup : group))
+    queryClient.setQueryData<typeof groupsQuery.data>(
+      ["training", "groups"],
+      (current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((group) =>
+                group.id === groupId ? updatedGroup : group
+              ),
+            }
+          : current
     );
   };
 
@@ -1746,7 +1715,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
             newLessonSlot
               ? (() => {
                   const fmt = (d: Date) =>
-                    d.toLocaleTimeString("tr-TR", {
+                    d.toLocaleTimeString(currentLocale(), {
                       hour: "2-digit",
                       minute: "2-digit",
                     });
@@ -1788,7 +1757,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
             newLessonSlot
               ? (() => {
                   const fmt = (d: Date) =>
-                    d.toLocaleTimeString("tr-TR", {
+                    d.toLocaleTimeString(currentLocale(), {
                       hour: "2-digit",
                       minute: "2-digit",
                     });

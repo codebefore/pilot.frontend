@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createClassroom, updateClassroom } from "../../lib/classrooms-api";
 import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type {
   ClassroomResponse,
   ClassroomUpsertRequest,
@@ -12,6 +15,14 @@ import type {
 } from "../../lib/types";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+
+const classroomFormSchema = z.object({
+  name: z.string().min(1, "classroom.validation.required"),
+  capacity: z.string().min(1, "classroom.validation.required"),
+  isActive: z.boolean(),
+  notes: z.string(),
+  branchIds: z.array(z.string()).min(1, "classroom.validation.branchRequired"),
+});
 
 type ClassroomFormValues = {
   name: string;
@@ -70,47 +81,6 @@ function hasConcurrencyError(
   );
 }
 
-function applyServerFieldErrors(
-  error: ApiError,
-  setError: (field: keyof ClassroomFormValues, error: { message: string }) => void,
-  t: (key: TranslationKey, params?: Record<string, string | number>) => string
-): { appliedFieldError: boolean; unmappedMessage: string | null } {
-  const codes = error.validationErrorCodes;
-  const fallback = error.validationErrors;
-  let appliedFieldError = false;
-  let unmappedMessage: string | null = null;
-
-  if (codes) {
-    for (const [serverField, fieldErrors] of Object.entries(codes)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      const first = fieldErrors[0];
-      if (!first) continue;
-      if (!formField) {
-        unmappedMessage ??= t(first.code as TranslationKey, first.params);
-        continue;
-      }
-      setError(formField, { message: t(first.code as TranslationKey, first.params) });
-      appliedFieldError = true;
-    }
-  }
-
-  if (fallback) {
-    for (const [serverField, messages] of Object.entries(fallback)) {
-      const formField = VALIDATION_FIELD_MAP[serverField];
-      if (!messages?.[0]) continue;
-      if (!formField) {
-        unmappedMessage ??= messages[0];
-        continue;
-      }
-      if (codes && codes[serverField]?.length) continue;
-      setError(formField, { message: messages[0] });
-      appliedFieldError = true;
-    }
-  }
-
-  return { appliedFieldError, unmappedMessage };
-}
-
 export function ClassroomFormModal({
   open,
   editing,
@@ -121,7 +91,7 @@ export function ClassroomFormModal({
 }: ClassroomFormModalProps) {
   const { showToast } = useToast();
   const t = useT();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
@@ -136,6 +106,7 @@ export function ClassroomFormModal({
     watch,
   } = useForm<ClassroomFormValues>({
     defaultValues: getEmptyValues(editing),
+    resolver: zodResolver(classroomFormSchema),
   });
 
   useEffect(() => {
@@ -188,10 +159,13 @@ export function ClassroomFormModal({
           onConcurrencyConflict?.();
           return;
         }
-        const { appliedFieldError, unmappedMessage } = applyServerFieldErrors(error, setError, t);
-        if (unmappedMessage) {
-          showToast(unmappedMessage, "error");
-        } else if (!appliedFieldError) {
+        const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+          translateCode: (code, params) => t(code as TranslationKey, params),
+          fieldMap: VALIDATION_FIELD_MAP,
+        });
+        if (unmappedMessages[0]) {
+          showToast(unmappedMessages[0], "error");
+        } else if (!applied) {
           showToast(t("classroom.validation.generic"), "error");
         }
       } else {
@@ -234,9 +208,9 @@ export function ClassroomFormModal({
               className={fieldClass(errors.name?.message)}
               placeholder={t("settings.classrooms.form.namePlaceholder")}
               readOnly={editing !== null}
-              {...register("name", { required: t("classroom.validation.required") })}
+              {...register("name")}
             />
-            {errors.name && <div className="form-error">{errors.name.message}</div>}
+            {errors.name && <div className="form-error">{t((errors.name.message ?? "") as TranslationKey)}</div>}
           </div>
 
           <div className="form-group">
@@ -247,9 +221,9 @@ export function ClassroomFormModal({
               min={1}
               placeholder="20"
               type="number"
-              {...register("capacity", { required: t("classroom.validation.required") })}
+              {...register("capacity")}
             />
-            {errors.capacity && <div className="form-error">{errors.capacity.message}</div>}
+            {errors.capacity && <div className="form-error">{t((errors.capacity.message ?? "") as TranslationKey)}</div>}
           </div>
         </div>
 
@@ -296,12 +270,8 @@ export function ClassroomFormModal({
                   )}
                 </div>
               )}
-              rules={{
-                validate: (value) =>
-                  value.length > 0 || t("classroom.validation.branchRequired"),
-              }}
             />
-            {errors.branchIds && <div className="form-error">{errors.branchIds.message}</div>}
+            {errors.branchIds && <div className="form-error">{t((errors.branchIds.message ?? "") as TranslationKey)}</div>}
           </div>
         </div>
 

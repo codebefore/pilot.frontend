@@ -1,0 +1,638 @@
+/* ─── EXAM DATE SIDEBAR (exam candidate pages) ─── */
+.candidates-layout {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 0 var(--page-shell-gutter);
+}
+.candidates-main {
+  min-width: 0;
+}
+.candidates-main .tabs-search-row {
+  padding-left: 0;
+  padding-right: 0;
+}
+.candidates-main .tag-filter-bar,
+.candidates-main .table-wrap,
+.candidates-main .pagination {
+  padding-left: 0;
+  padding-right: 0;
+}
+.exam-date-sidebar-list {
+  position: sticky;
+  top: calc(var(--header-h) + 12px);
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 8px;
+}
+.exam-date-sidebar-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 8px;
+}
+.exam-date-sidebar-action {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+}
+.exam-date-sidebar-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--gray-50);
+}
+.exam-date-sidebar-tab {
+  min-width: 0;
+  min-height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-600);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.exam-date-sidebar-tab.active {
+  background: var(--white);
+  color: var(--brand-dark);
+  box-shadow: var(--shadow-sm);
+}
+.exam-date-option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.exam-date-option-shell {
+  position: relative;
+}
+.exam-date-option-shell .exam-date-option {
+  width: 100%;
+  padding-right: 30px;
+}
+.exam-date-option-actions {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.exam-date-option-actions.visible,
+.exam-date-option-shell:hover .exam-date-option-actions,
+.exam-date-option-shell:focus-within .exam-date-option-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.exam-date-option-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  transition: color .15s, background .15s, opacity .15s;
+}
+.exam-date-option-action:hover:not(:disabled) {
+  color: var(--brand-dark);
+  background: var(--gray-100);
+}
+.exam-date-option-action.danger:hover:not(:disabled) {
+  color: var(--danger-700, #b91c1c);
+  background: color-mix(in srgb, var(--danger-700, #b91c1c) 10%, transparent);
+}
+.exam-date-option-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.exam-date-option-confirm {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  box-shadow: var(--shadow-lg, 0 6px 16px rgba(15, 23, 42, 0.12));
+}
+.exam-date-option-confirm-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+.exam-date-option-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.exam-date-option-confirm-actions .btn {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.exam-date-divider {
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: #16a34a;
+}
+.exam-date-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 42px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-800);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: normal;
+  text-align: left;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.exam-code-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 42px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-800);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.exam-date-option-edit {
+  cursor: default;
+}
+.exam-code-option.exam-date-option-edit {
+  gap: 4px;
+  padding-right: 56px;
+}
+.exam-date-option-edit-input {
+  width: calc(100% - 52px);
+  min-width: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: var(--gray-900);
+  font-size: 12px;
+  font-weight: 700;
+}
+.exam-code-option .exam-date-option-edit-input {
+  width: 100%;
+}
+.exam-date-option-edit-input[aria-invalid="true"] {
+  border-color: var(--danger-700, #b91c1c);
+}
+.exam-date-option-edit-error {
+  color: var(--danger-700, #b91c1c);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.exam-code-option:hover,
+.exam-code-option.active {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+}
+.cand-row--blocked-latest-code {
+  opacity: 0.45;
+}
+.cand-row--blocked-latest-code .cand-row-cell {
+  background: var(--gray-50);
+}
+.cand-date-with-remaining {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+.cand-date-with-remaining small {
+  color: var(--gray-500);
+  font-size: 11px;
+  font-weight: 700;
+}
+.cand-date-with-remaining.warning small {
+  color: #92400e;
+}
+.cand-date-with-remaining.danger small {
+  color: #991b1b;
+}
+.exam-date-option-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.exam-date-option:hover {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+}
+.exam-date-option.active {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+}
+.exam-date-option-time {
+  color: var(--gray-500);
+  font-weight: 500;
+}
+.exam-date-option-meta {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 980px) {
+  .candidates-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .exam-date-sidebar-list {
+    position: static;
+  }
+}
+
+/* ─── TAG FILTER BAR (candidates page) ─── */
+.tag-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* Match the shared page gutter used by .page-toolbar / .tabs-search-row /
+     .table-wrap so the row lines up with the tabs above and the table below.
+     Bottom padding is left to 0 so .table-wrap.spaced's own top gap provides
+     the single gap between this row and the table. */
+  padding: 12px var(--page-shell-gutter) 0;
+}
+.tag-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--brand-light);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.12s ease;
+}
+.tag-filter-chip:hover {
+  transform: translateY(-1px);
+}
+.tag-filter-chip.active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
+}
+.tag-filter-chip.color-0 { background: var(--brand-light);  color: var(--brand-dark); }
+.tag-filter-chip.color-1 { background: var(--blue-light);   color: var(--blue); }
+.tag-filter-chip.color-2 { background: var(--orange-light); color: #b45309; }
+.tag-filter-chip.color-3 { background: var(--purple-light); color: var(--purple); }
+.tag-filter-chip.color-4 { background: #fce7f3;             color: #be185d; }
+.tag-filter-chip.color-5 { background: #ecfeff;             color: #0e7490; }
+.tag-filter-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gray-200);
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.tag-filter-license-summary {
+  margin-left: auto;
+  gap: 10px;
+}
+.tag-filter-license-summary-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.tag-filter-license-summary-class {
+  color: var(--gray-700);
+  font-weight: 700;
+}
+.tag-filter-license-summary-count {
+  color: var(--gray-500);
+  font-size: 10px;
+  font-weight: 600;
+}
+button.tag-filter-summary-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--brand);
+}
+button.tag-filter-summary-chip.active {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.04);
+}
+.tag-filter-add {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--gray-300);
+  background: transparent;
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.tag-filter-add:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: var(--brand-subtle);
+}
+.tag-filter-manage {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.tag-filter-manage:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: var(--brand-subtle);
+}
+.tag-filter-new-input {
+  min-width: 140px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--brand);
+  background: var(--white);
+  color: var(--gray-900);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.12);
+}
+.tag-filter-new-input::placeholder {
+  color: var(--gray-400);
+  font-weight: 500;
+}
+.tag-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tag-manager-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+.tag-manager-row:last-child {
+  border-bottom: none;
+}
+.tag-manager-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.tag-manager-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+.tag-manager-usage {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.tag-manager-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.tag-manager-empty {
+  font-size: 14px;
+  color: var(--gray-500);
+}
+/* ─── CANDIDATE FILTER PANEL ─── */
+.cand-filters-switch {
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--gray-700);
+  box-shadow: var(--shadow-xs);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.cand-filters-switch:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  color: var(--gray-900);
+}
+.cand-filters-switch:has(input[type="checkbox"]:checked) {
+  background: var(--brand-light);
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+.cand-filters-switch:has(input[type="checkbox"]:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
+}
+.cand-filters-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+/*
+ * Filter "sidebar": Filtreler toggle açıkken sol nav'ın TAM aynı slot'unda
+ * (aynı width, aynı top/bottom) onun üstüne yapışır — ana nav'ı gizler, main
+ * content hiç kaymadığı için tablo daralmaz.
+ */
+.cand-filters-panel {
+  position: fixed;
+  top: var(--header-h);
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-w);
+  z-index: 160; /* .sidebar (150) üstünde */
+  background: var(--white);
+  border-right: 1px solid var(--gray-200);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
+  overflow-y: auto;
+  padding: 16px 16px 24px;
+  animation: filtersSidebarIn 0.18s ease-out;
+}
+@keyframes filtersSidebarIn {
+  from { transform: translateX(-8px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.cand-filters-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.cand-filters-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.cand-filters-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cand-filters-panel-close:hover {
+  background: var(--gray-200);
+  color: var(--gray-900);
+}
+.cand-filters-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.cand-filters-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cand-filters-grid .form-group {
+  min-width: 0;
+  margin-bottom: 0;
+}
+.cand-filters-grid .form-label {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+/* Filter sidebar is narrower than the date popover's default 296px width,
+   so shrink it to the inner width of the panel (260px sidebar - 32px padding).
+   The day grid uses `minmax(0, 1fr)` columns and shrinks gracefully. */
+.cand-filters-panel .localized-date-popover {
+  width: 100%;
+  left: 0;
+  right: 0;
+  padding: 10px;
+}
+.cand-filters-panel .localized-date-day {
+  height: 30px;
+  font-size: 11px;
+}
+.cand-filters-backdrop {
+  /* Desktop'ta görünmez — sol nav her zaman görünür kalır, ikisinden hangisi
+     üstte ise o etkileşir. Mobile'da (sol nav zaten drawer olduğu için) filter
+     sidebar'ın dışına tıklamayı yakalar. */
+  display: none;
+}
+@media (max-width: 860px) {
+  /* Mobile: sol nav drawer olduğunda filter sidebar da sabit sol yapışık
+     overlay olarak kalsın. Genişlik biraz daha rahat. */
+  .cand-filters-panel {
+    width: min(320px, 100%);
+  }
+  .cand-filters-backdrop {
+    display: block;
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(1px);
+    z-index: 159; /* .cand-filters-panel (160) hemen altında */
+  }
+}
+.localized-date-footer-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+}
+.localized-date-footer-btn:hover {
+  color: var(--brand-dark);
+}
+
+@media (max-width: 640px) {
+  .form-subsection-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+

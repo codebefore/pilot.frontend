@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import {
   createCandidate,
@@ -12,12 +14,12 @@ import {
 import { getCertificatePrograms } from "../../lib/certificate-programs-api";
 import { ApiError } from "../../lib/http";
 import { useT } from "../../lib/i18n";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { isPhoneStartingWith5 } from "../../lib/phone";
 import { toTurkishUpperCase } from "../../lib/text-format";
 import type {
   CandidateReuseSourceResponse,
   CertificateProgramResponse,
-  LicenseClass,
 } from "../../lib/types";
 import {
   getActiveInitialLicenseClassOptions,
@@ -31,20 +33,42 @@ import { Modal } from "../ui/Modal";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { useToast } from "../ui/Toast";
 
-type NewCandidateForm = {
-  tc: string;
-  referenceName: string;
-  className: LicenseClass;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  hasExistingLicense: boolean;
-  existingLicenseType: string;
-  existingLicenseIssuedAt: string;
-  tags: string[];
-  reuseFromCandidateId: string;
-  documentIdsToCopy: string[];
-};
+function isValidTurkishNationalId(value: string) {
+  const nationalId = value.trim();
+  if (!/^[1-9]\d{10}$/.test(nationalId)) return false;
+
+  const digits = [...nationalId].map(Number);
+  const oddSum = digits[0] + digits[2] + digits[4] + digits[6] + digits[8];
+  const evenSum = digits[1] + digits[3] + digits[5] + digits[7];
+  const tenthDigit = ((oddSum * 7 - evenSum) % 10 + 10) % 10;
+  const eleventhDigit = digits.slice(0, 10).reduce((sum, digit) => sum + digit, 0) % 10;
+
+  return digits[9] === tenthDigit && digits[10] === eleventhDigit;
+}
+
+const newCandidateSchema = z.object({
+  tc: z
+    .string()
+    .min(1, "Zorunlu alan")
+    .regex(/^\d{11}$/, "11 haneli rakam olmalı")
+    .refine((v) => isValidTurkishNationalId(v), "Geçerli bir TC kimlik no girin"),
+  referenceName: z.string(),
+  className: z.string().min(1, "Zorunlu alan"),
+  firstName: z.string().min(1, "Zorunlu alan").min(2, "En az 2 karakter"),
+  lastName: z.string().min(1, "Zorunlu alan").min(2, "En az 2 karakter"),
+  phone: z
+    .string()
+    .min(1, "Zorunlu alan")
+    .refine((v) => isPhoneStartingWith5(v), "5 ile başlamalı"),
+  hasExistingLicense: z.boolean(),
+  existingLicenseType: z.string(),
+  existingLicenseIssuedAt: z.string(),
+  tags: z.array(z.string()),
+  reuseFromCandidateId: z.string(),
+  documentIdsToCopy: z.array(z.string()),
+});
+
+type NewCandidateForm = z.infer<typeof newCandidateSchema>;
 
 type NewCandidateModalProps = {
   open: boolean;
@@ -154,23 +178,10 @@ const defaultValues = (): NewCandidateForm => ({
   documentIdsToCopy: [],
 });
 
-function isValidTurkishNationalId(value: string) {
-  const nationalId = value.trim();
-  if (!/^[1-9]\d{10}$/.test(nationalId)) return false;
-
-  const digits = [...nationalId].map(Number);
-  const oddSum = digits[0] + digits[2] + digits[4] + digits[6] + digits[8];
-  const evenSum = digits[1] + digits[3] + digits[5] + digits[7];
-  const tenthDigit = ((oddSum * 7 - evenSum) % 10 + 10) % 10;
-  const eleventhDigit = digits.slice(0, 10).reduce((sum, digit) => sum + digit, 0) % 10;
-
-  return digits[9] === tenthDigit && digits[10] === eleventhDigit;
-}
-
 export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }: NewCandidateModalProps) {
   const { showToast } = useToast();
   const t = useT();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const [reuseSources, setReuseSources] = useState<CandidateReuseSourceResponse[]>([]);
   const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
@@ -187,7 +198,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewCandidateForm>({ defaultValues: defaultValues() });
+  } = useForm<NewCandidateForm>({ defaultValues: defaultValues(), resolver: zodResolver(newCandidateSchema) });
 
   const selectedClass = watch("className");
   const tc = watch("tc");
@@ -199,11 +210,8 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const selectedReuseSource =
     reuseSources.find((source) => source.id === reuseFromCandidateId) ?? null;
-  const classRegistration = register("className", { required: true });
-  const phoneRegistration = register("phone", {
-    required: "Zorunlu alan",
-    validate: (value) => isPhoneStartingWith5(value) || "5 ile başlamalı",
-  });
+  const classRegistration = register("className");
+  const phoneRegistration = register("phone");
   // The license-class dropdown is derived from the active certificate
   // programs catalog so only valid registration targets show up; this list
   // is independent from the now-removed program/group selectors.
@@ -374,7 +382,12 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
           message: "Bu TC kimlik numarası ve ehliyet sınıfı için açık başvuru mevcut",
         });
       } else {
-        showToast("Aday kaydedilemedi. Lütfen tekrar deneyin.", "error");
+        const { applied, unmappedMessages } = applyApiErrorsToForm(err, setError);
+        if (unmappedMessages[0]) {
+          showToast(unmappedMessages[0], "error");
+        } else if (!applied) {
+          showToast("Aday kaydedilemedi. Lütfen tekrar deneyin.", "error");
+        }
       }
     } finally {
       setSubmitting(false);
@@ -405,7 +418,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} type="button" disabled={submitting}>
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -414,13 +427,13 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             disabled={submitting || !canManage}
             title={!canManage ? noPermissionTitle : undefined}
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title="Yeni Aday Kaydı"
+      title={t("newCandidate.modalTitle")}
     >
       <form onSubmit={submit}>
         {reuseSourcesLoading || reuseSources.length > 0 ? (
@@ -487,7 +500,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                 {selectedReuseSource ? (
                   <div className="form-row full">
                     <div className="form-group">
-                      <label className="form-label">Kopyalanacak Evraklar</label>
+                      <label className="form-label">{t("newCandidate.field.documentsToCopy")}</label>
                       {selectedReuseSource.documents.length === 0 ? (
                         <div className="form-subsection-note">Bu kayıtta evrak bulunmuyor.</div>
                       ) : (
@@ -528,18 +541,13 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">TC Kimlik No</label>
+            <label className="form-label">{t("common.field.nationalId")}</label>
             <input
               className={fieldClass(!!errors.tc, "form-input")}
               inputMode="numeric"
               maxLength={11}
               placeholder="11 haneli TC"
-              {...register("tc", {
-                required: "Zorunlu alan",
-                pattern: { value: /^\d{11}$/, message: "11 haneli rakam olmalı" },
-                validate: (value) =>
-                  isValidTurkishNationalId(value) || "Geçerli bir TC kimlik no girin",
-              })}
+              {...register("tc")}
             />
             {errors.tc && <div className="form-error">{errors.tc.message}</div>}
             {!errors.tc && normalizedTc.length === 11 && reuseSourcesLoading ? (
@@ -549,7 +557,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">Referans</label>
+            <label className="form-label">{t("newCandidate.field.reference")}</label>
             <Controller
               control={control}
               name="referenceName"
@@ -580,8 +588,6 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
               className={fieldClass(!!errors.firstName, "form-input")}
               placeholder="Adı"
               {...register("firstName", {
-                required: "Zorunlu alan",
-                minLength: { value: 2, message: "En az 2 karakter" },
                 onChange: (event) => {
                   event.target.value = toTurkishUpperCase(event.target.value);
                 },
@@ -590,13 +596,11 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             {errors.firstName && <div className="form-error">{errors.firstName.message}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">Soyad</label>
+            <label className="form-label">{t("common.field.lastName")}</label>
             <input
               className={fieldClass(!!errors.lastName, "form-input")}
               placeholder="Soyadı"
               {...register("lastName", {
-                required: "Zorunlu alan",
-                minLength: { value: 2, message: "En az 2 karakter" },
                 onChange: (event) => {
                   event.target.value = toTurkishUpperCase(event.target.value);
                 },
@@ -608,11 +612,11 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Telefon</label>
+            <label className="form-label">{t("common.field.phone")}</label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
               maxLength={32}
-              placeholder="Telefon"
+              placeholder="5XX XXX XX XX"
               {...phoneRegistration}
             />
             {errors.phone && <div className="form-error">{errors.phone.message}</div>}
@@ -631,7 +635,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Ehliyet Tipi</label>
+            <label className="form-label">{t("common.field.licenseClass")}</label>
             <CustomSelect
               className={fieldClass(!!errors.className, "form-select")}
               value={selectedClass}
@@ -658,7 +662,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Mevcut Ehliyet</label>
+            <label className="form-label">{t("newCandidate.field.existingLicense")}</label>
             <CustomSelect
               className="form-select"
               {...register("existingLicenseType", {
@@ -680,14 +684,13 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">Veriliş Tarihi</label>
+            <label className="form-label">{t("newCandidate.field.issuedAt")}</label>
             <LocalizedDateInput
               ariaLabel="Veriliş Tarihi"
               lang="tr-TR"
               onChange={(next) =>
                 setValue("existingLicenseIssuedAt", next, { shouldDirty: true })
               }
-              placeholder="gg.aa.yyyy"
               value={existingLicenseIssuedAt}
             />
           </div>

@@ -115,7 +115,7 @@ export function CashRegistersSettingsSection() {
   const t = useT();
   const { user, permissions } = useAuth();
   const canManagePayments = canManageArea(user, permissions, "payments");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "settings.cashRegisters.columns.v1",
     CASH_REGISTER_COLUMN_IDS

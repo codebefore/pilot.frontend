@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
@@ -23,6 +24,7 @@ import { canManageArea } from "../lib/permissions";
 import { formatDateTR } from "../lib/status-maps";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useToast } from "../components/ui/Toast";
+import { useT } from "../lib/i18n";
 import type {
   CandidateAccountingType,
   PaymentCandidateSummaryResponse,
@@ -30,7 +32,6 @@ import type {
   PaymentInstallmentOverviewResponse,
   PaymentMovementResponse,
   PaymentRefundMovementResponse,
-  PaymentsOverviewResponse,
 } from "../lib/types";
 
 type DetailGroup = "movements" | "invoices" | "cashSummary" | "cashMovements";
@@ -1167,19 +1168,15 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManagePayments = canManageArea(user, permissions, "payments");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const isBalancesPage = mode === "balances";
   const isCollectionsPage = mode === "collections";
   const isInvoicesPage = mode === "invoices";
   const isCashPage = mode === "cash";
   const isStatisticsPage = mode === "statistics";
   const { options: licenseClassOptions } = useLicenseClassOptions();
-  const [overview, setOverview] = useState<PaymentsOverviewResponse | null>(
-    null,
-  );
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
   const [cashActionMode, setCashActionMode] = useState<CashActionMode | null>(null);
   const [cashActionSaving, setCashActionSaving] = useState(false);
   const [invoiceView, setInvoiceView] = useState<InvoiceView>("movements");
@@ -1307,26 +1304,19 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     );
   }, [isBalancesPage, isCashPage, isCollectionsPage, isInvoicesPage]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setLoadError(false);
-    const hasDateFilter = !isStatisticsPage && Boolean(fromDate || toDate);
-    getPaymentsOverview(
-      hasDateFilter ? { fromDate, statsMonth: overviewStatsMonth, toDate } : undefined,
-      controller.signal,
-    )
-      .then(setOverview)
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError")
-          return;
-        setLoadError(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [fromDate, isStatisticsPage, overviewStatsMonth, reloadKey, toDate]);
+  const hasDateFilter = !isStatisticsPage && Boolean(fromDate || toDate);
+  const overviewQueryParams = hasDateFilter
+    ? { fromDate, statsMonth: overviewStatsMonth, toDate }
+    : undefined;
+  const {
+    data: overview = null,
+    isFetching: loading,
+    isError: loadError,
+  } = useQuery({
+    queryKey: ["payments", "overview", overviewQueryParams],
+    queryFn: ({ signal }) => getPaymentsOverview(overviewQueryParams, signal),
+    staleTime: 0,
+  });
 
   const filteredPayments = useMemo(() => {
     if (!overview) return [];
@@ -2423,7 +2413,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         });
       }
       setCashActionMode(null);
-      setReloadKey((value) => value + 1);
+      void queryClient.invalidateQueries({ queryKey: ["payments"] });
       showToast("Kasa hareketi kaydedildi");
     } catch {
       showToast("Kasa hareketi kaydedilemedi", "error");
@@ -2871,7 +2861,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   };
 
   if (loadError) {
-    return <PageLoadError onRetry={() => setReloadKey((value) => value + 1)} />;
+    return <PageLoadError onRetry={() => void queryClient.invalidateQueries({ queryKey: ["payments"] })} />;
   }
 
   return (

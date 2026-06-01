@@ -1,11 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
-  loginWithPassword,
   logoutSession,
+  requestLoginCode as requestLoginCodeApi,
   selectInstitution as selectInstitutionApi,
   type LoginResponse,
+  type LoginCodeResponse,
+  verifyLoginCode,
 } from "./auth-api";
 import {
   clearStoredAuthSession,
@@ -25,7 +28,8 @@ export type AuthContextValue = {
   permissions: Record<string, "view" | "full">;
   hasInstitution: boolean;
   institutionRequired: boolean;
-  login: (phone: string, password: string) => Promise<void>;
+  requestLoginCode: (phone: string) => Promise<LoginCodeResponse>;
+  login: (phone: string, code: string) => Promise<void>;
   selectInstitution: (institutionId: string) => Promise<void>;
   logout: () => void;
 };
@@ -35,6 +39,7 @@ export type AuthContextValue = {
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<AuthSession | null>(() => readStoredAuthSession());
   const [institutionRequired, setInstitutionRequired] = useState(
     () => !!session && !session.activeInstitution
@@ -47,23 +52,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onUnauthorized = () => {
+      queryClient.clear();
       setInstitutionRequired(false);
       setSession(null);
     };
     window.addEventListener("pilot:unauthorized", onUnauthorized);
     return () => window.removeEventListener("pilot:unauthorized", onUnauthorized);
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const onInstitutionRequired = () => setInstitutionRequired(true);
     window.addEventListener("pilot:institution-required", onInstitutionRequired);
     return () => window.removeEventListener("pilot:institution-required", onInstitutionRequired);
-  }, []);
+  }, [queryClient, session]);
 
   useEffect(() => {
     const onSessionRefreshed = (event: Event) => {
       const refreshedSession = (event as CustomEvent<AuthSession>).detail;
       if (refreshedSession) {
+        clearQueryCacheForSessionChange(queryClient, session, refreshedSession);
         setSession(refreshedSession);
         setInstitutionRequired(!refreshedSession.activeInstitution);
       }
@@ -72,17 +79,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("pilot:session-refreshed", onSessionRefreshed);
   }, []);
 
-  const login = async (phone: string, password: string) => {
-    if (!phone || !password) throw new Error("Telefon ve şifre gerekli");
-    const response = await loginWithPassword({ phone, password });
-    setSession(mapLoginResponse(response));
+  const requestLoginCode = async (phone: string) => {
+    if (!phone) throw new Error("Telefon gerekli");
+    return requestLoginCodeApi({ phone });
+  };
+
+  const login = async (phone: string, code: string) => {
+    if (!phone || !code) throw new Error("Telefon ve doğrulama kodu gerekli");
+    const response = await verifyLoginCode({ phone, code });
+    const nextSession = mapLoginResponse(response);
+    queryClient.clear();
+    setSession(nextSession);
     setInstitutionRequired(!response.activeInstitution);
   };
 
   const selectInstitution = async (institutionId: string) => {
     if (!institutionId) return;
     const response = await selectInstitutionApi(institutionId);
-    setSession(mapLoginResponse(response));
+    const nextSession = mapLoginResponse(response);
+    clearQueryCacheForSessionChange(queryClient, session, nextSession);
+    setSession(nextSession);
     setInstitutionRequired(!response.activeInstitution);
   };
 
@@ -91,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (refreshToken) {
       void logoutSession({ refreshToken }).catch(() => undefined);
     }
+    queryClient.clear();
     setInstitutionRequired(false);
     setSession(null);
   };
@@ -105,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         permissions: session?.activeInstitution?.permissions ?? {},
         hasInstitution: (session?.institutions.length ?? 0) > 0,
         institutionRequired,
+        requestLoginCode,
         login,
         selectInstitution,
         logout,
@@ -113,6 +131,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+function clearQueryCacheForSessionChange(
+  queryClient: ReturnType<typeof useQueryClient>,
+  currentSession: AuthSession | null,
+  nextSession: AuthSession
+) {
+  if (
+    currentSession?.user.id !== nextSession.user.id ||
+    currentSession?.activeInstitution?.id !== nextSession.activeInstitution?.id
+  ) {
+    queryClient.clear();
+  }
 }
 
 export function useAuth(): AuthContextValue {

@@ -1,14 +1,21 @@
 import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import { createExamCode } from "../../lib/exam-codes-api";
-import { ApiError } from "../../lib/http";
+import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+import { useT } from "../../lib/i18n";
 
-type NewExamCodeForm = {
-  code: string;
-};
+const examCodeSchema = z.object({
+  code: z
+    .string()
+    .min(1, "Sınav kodu zorunlu")
+    .regex(/^\d{9}$/, "Sınav kodu 9 haneli olmalı."),
+});
+type NewExamCodeForm = z.infer<typeof examCodeSchema>;
 
 type NewExamCodeModalProps = {
   open: boolean;
@@ -24,7 +31,8 @@ export function NewExamCodeModal({
   onSaved,
 }: NewExamCodeModalProps) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const inputId = useId();
   const {
@@ -35,7 +43,10 @@ export function NewExamCodeModal({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewExamCodeForm>({ defaultValues: { code: "" } });
+  } = useForm<NewExamCodeForm>({
+    defaultValues: { code: "" },
+    resolver: zodResolver(examCodeSchema),
+  });
   const code = watch("code");
 
   useEffect(() => {
@@ -44,23 +55,18 @@ export function NewExamCodeModal({
 
   const submit = handleSubmit(async (data) => {
     if (!canManage) return;
-    const cleaned = data.code.replace(/\D/g, "");
-    if (cleaned.length !== 9) {
-      setError("code", { message: "Sınav kodu 9 haneli olmalı." });
-      return;
-    }
-
     setSubmitting(true);
     try {
-      await createExamCode({ examType: "uygulama", code: cleaned });
+      await createExamCode({ examType: "uygulama", code: data.code });
       showToast("Sınav kodu eklendi");
       onSaved();
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        const codeError = error.validationErrors.code?.[0] ?? error.validationErrors.Code?.[0];
-        if (codeError) setError("code", { message: codeError });
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError);
+      if (unmappedMessages[0]) {
+        showToast(unmappedMessages[0], "error");
+      } else if (!applied) {
+        showToast("Sınav kodu eklenemedi", "error");
       }
-      showToast("Sınav kodu eklenemedi", "error");
     } finally {
       setSubmitting(false);
     }
@@ -71,7 +77,7 @@ export function NewExamCodeModal({
       footer={
         <>
           <button className="btn btn-secondary" disabled={submitting} onClick={onClose} type="button">
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -80,13 +86,13 @@ export function NewExamCodeModal({
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
           >
-            {submitting ? "Kaydediliyor..." : "Kaydet"}
+            {submitting ? t("common.saving") : t("common.save")}
           </button>
         </>
       }
       onClose={onClose}
       open={open}
-      title="Yeni Sınav Kodu"
+      title={t("newExamCode.modalTitle")}
     >
       <form onSubmit={submit}>
         <div className="form-row full">
@@ -101,10 +107,7 @@ export function NewExamCodeModal({
               inputMode="numeric"
               maxLength={9}
               value={code}
-              {...register("code", {
-                required: "Sınav kodu zorunlu",
-                minLength: { value: 9, message: "Sınav kodu 9 haneli olmalı." },
-              })}
+              {...register("code")}
               onChange={(event) =>
                 setValue("code", event.target.value.replace(/\D/g, "").slice(0, 9), {
                   shouldDirty: true,

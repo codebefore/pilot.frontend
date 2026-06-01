@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { GroupDrawer } from "../components/drawers/GroupDrawer";
 import { GridIcon, ListIcon, PlusIcon } from "../components/icons";
@@ -17,6 +18,7 @@ import { getGroups } from "../lib/groups-api";
 import { ApiError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
+import { groupKeys } from "../lib/queries/use-groups";
 import { normalizeTextQuery } from "../lib/search";
 import {
   formatDateTR,
@@ -205,8 +207,9 @@ export function GroupsPage() {
   const t = useT();
   const { user, permissions } = useAuth();
   const { lang } = useLanguage();
+  const queryClient = useQueryClient();
   const canManageGroups = canManageArea(user, permissions, "groups");
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
     "groups.columns.v2",
     GROUP_COLUMN_IDS,
@@ -224,10 +227,6 @@ export function GroupsPage() {
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
   const [search, setSearch] = useState("");
   const [selectedMebStatus, setSelectedMebStatus] = useState("");
-
-  const [groups, setGroups] = useState<GroupResponse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -270,16 +269,22 @@ export function GroupsPage() {
     [sortedTerms, selectedTermId]
   );
 
+  const invalidateGroups = () => {
+    void queryClient.invalidateQueries({ queryKey: groupKeys.all });
+  };
+
   const handleTermCreated = (term: TermResponse) => {
     setTermModalState(null);
     setSelectedTermId(term.id);
     setTermRefreshKey((k) => k + 1);
+    invalidateGroups();
   };
 
   const handleTermSaved = (term: TermResponse) => {
     setTermModalState(null);
     setSelectedTermId(term.id);
     setTermRefreshKey((k) => k + 1);
+    invalidateGroups();
   };
 
   const handleTermRename = (term: TermResponse) => {
@@ -295,6 +300,7 @@ export function GroupsPage() {
       showToast(t("terms.deleted"));
       if (selectedTermId === term.id) setSelectedTermId("");
       setTermRefreshKey((k) => k + 1);
+      invalidateGroups();
       setConfirmDeleteTermId(null);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors?.term?.length) {
@@ -309,51 +315,44 @@ export function GroupsPage() {
 
   /* ── Groups ───────────────────────────────────────────── */
 
+  const groupsQuery = useQuery<GroupResponse[]>({
+    queryKey: [
+      ...groupKeys.lists(),
+      "all-pages",
+      { termId: selectedTermId || undefined, search: effectiveSearch, mebStatus: selectedMebStatus || undefined },
+    ],
+    queryFn: ({ signal }) =>
+      loadAllGroups(
+        selectedTermId || undefined,
+        effectiveSearch,
+        selectedMebStatus || undefined,
+        signal
+      ),
+  });
+  const groups = useMemo<GroupResponse[]>(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const loading = groupsQuery.isLoading;
+
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-
-    loadAllGroups(
-      selectedTermId || undefined,
-      effectiveSearch,
-      selectedMebStatus || undefined,
-      controller.signal)
-      .then((items) => {
-        setGroups(items);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        showToast(t("groups.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [
-    effectiveSearch,
-    selectedMebStatus,
-    selectedTermId,
-    refreshKey,
-    showToast,
-    t,
-  ]);
+    if (groupsQuery.isError) {
+      showToast(t("groups.loadFailed"), "error");
+    }
+  }, [groupsQuery.isError, showToast, t]);
 
   const handleGroupCreated = () => {
     setModalOpen(false);
     showToast(t("groups.created"));
-    setRefreshKey((k) => k + 1);
+    invalidateGroups();
     setTermRefreshKey((k) => k + 1);
   };
 
   const handleGroupUpdated = () => {
-    setRefreshKey((k) => k + 1);
+    invalidateGroups();
     setTermRefreshKey((k) => k + 1);
   };
 
   const handleGroupDeleted = () => {
     setSelectedGroupId(null);
-    setRefreshKey((k) => k + 1);
+    invalidateGroups();
     setTermRefreshKey((k) => k + 1);
   };
 

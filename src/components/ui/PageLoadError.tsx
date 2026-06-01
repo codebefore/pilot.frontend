@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
+import { useT } from "../../lib/i18n";
+
 type PageLoadErrorProps = {
   title?: string;
   description?: ReactNode;
@@ -10,12 +12,16 @@ type PageLoadErrorProps = {
 };
 
 export function PageLoadError({
-  title = "Bilgiler yüklenemedi",
-  description = "Bağlantı veya sunucu tarafında bir sorun oluştu. Lütfen tekrar deneyin.",
+  title,
+  description,
   onRetry,
-  retryLabel = "Tekrar Dene",
+  retryLabel,
   variant = "page",
 }: PageLoadErrorProps) {
+  const t = useT();
+  const resolvedTitle = title ?? t("pageLoadError.title");
+  const resolvedDescription = description ?? t("pageLoadError.description");
+  const resolvedRetryLabel = retryLabel ?? t("pageLoadError.retry");
   const [pending, setPending] = useState(false);
 
   const handleRetry = () => {
@@ -35,8 +41,10 @@ export function PageLoadError({
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
       </div>
-      <h3 className="page-load-error__title">{title}</h3>
-      {description ? <p className="page-load-error__description">{description}</p> : null}
+      <h3 className="page-load-error__title">{resolvedTitle}</h3>
+      {resolvedDescription ? (
+        <p className="page-load-error__description">{resolvedDescription}</p>
+      ) : null}
       {onRetry ? (
         <button
           type="button"
@@ -44,7 +52,7 @@ export function PageLoadError({
           onClick={handleRetry}
           disabled={pending}
         >
-          {pending ? "Yükleniyor..." : retryLabel}
+          {pending ? t("common.loading") : resolvedRetryLabel}
         </button>
       ) : null}
     </div>

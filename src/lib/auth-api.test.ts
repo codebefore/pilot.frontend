@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearStoredAuthSession } from "./auth-storage";
-import { changePassword, loginWithPassword, logoutSession, refreshSession, selectInstitution } from "./auth-api";
+import { logoutSession, refreshSession, requestLoginCode, selectInstitution, verifyLoginCode } from "./auth-api";
 
 describe("auth api", () => {
   beforeEach(() => {
@@ -32,13 +32,22 @@ describe("auth api", () => {
     );
   });
 
-  it("posts login requests to the auth login endpoint", async () => {
-    await loginWithPassword({ phone: "5551112233", password: "secret" });
+  it("posts login code requests to the auth request endpoint", async () => {
+    await requestLoginCode({ phone: "5551112233" });
 
     const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/login");
+    expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/login/request-code");
     expect(init?.method).toBe("POST");
-    expect(init?.body).toBe(JSON.stringify({ phone: "5551112233", password: "secret" }));
+    expect(init?.body).toBe(JSON.stringify({ phone: "5551112233" }));
+  });
+
+  it("posts login code verification to the auth verify endpoint", async () => {
+    await verifyLoginCode({ phone: "5551112233", code: "123456" });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/login/verify-code");
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ phone: "5551112233", code: "123456" }));
   });
 
   it("posts institution selection requests to the auth select endpoint", async () => {
@@ -47,17 +56,6 @@ describe("auth api", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/institutions/institution-1/select");
     expect(init?.method).toBe("POST");
-  });
-
-  it("posts password changes to the auth password endpoint", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
-
-    await changePassword({ currentPassword: "old-secret", newPassword: "new-secret" });
-
-    const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe("http://127.0.0.1:5080/api/auth/password");
-    expect(init?.method).toBe("POST");
-    expect(init?.body).toBe(JSON.stringify({ currentPassword: "old-secret", newPassword: "new-secret" }));
   });
 
   it("posts refresh requests to the auth refresh endpoint", async () => {

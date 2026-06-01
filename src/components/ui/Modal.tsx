@@ -1,6 +1,8 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { useT } from "../../lib/i18n";
+
 type ModalProps = {
   open: boolean;
   title: string;
@@ -20,6 +22,7 @@ export function Modal({
   children,
   footer
 }: ModalProps) {
+  const t = useT();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -45,7 +48,7 @@ export function Modal({
             {titleExtra}
           </div>
           <button
-            aria-label="Kapat"
+            aria-label={t("common.close")}
             className="modal-close"
             onClick={onClose}
             type="button"

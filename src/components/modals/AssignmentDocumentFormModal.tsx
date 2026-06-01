@@ -25,7 +25,7 @@ export function AssignmentDocumentFormModal({
 }: Props) {
   const t = useT();
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);

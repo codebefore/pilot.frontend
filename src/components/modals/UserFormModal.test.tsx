@@ -24,7 +24,6 @@ describe("UserFormModal", () => {
       id: "user-2",
       fullName: "Kemal Can",
       phone: "5551234567",
-      hasPassword: false,
       mebbisUsername: null,
       hasMebbisPassword: false,
       roleId: null,
@@ -43,7 +42,6 @@ describe("UserFormModal", () => {
           id: "user-1",
           fullName: "Ada Yilmaz",
           phone: "5551234567",
-          hasPassword: true,
           mebbisUsername: "ada.mebbis",
           hasMebbisPassword: true,
           roleId: "role-2",
@@ -96,7 +94,7 @@ describe("UserFormModal", () => {
     fireEvent.change(screen.getByPlaceholderText("Ad Soyad"), {
       target: { value: "Kemal Can" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Telefon"), {
+    fireEvent.change(screen.getByPlaceholderText("5XX XXX XX XX"), {
       target: { value: "5551234567" },
     });
 
@@ -106,7 +104,6 @@ describe("UserFormModal", () => {
       expect(createUserMock).toHaveBeenCalledWith({
         fullName: "Kemal Can",
         phone: "5551234567",
-        password: null,
         mebbisUsername: null,
         mebbisPassword: null,
         roleId: null,
@@ -151,7 +148,7 @@ describe("UserFormModal", () => {
     fireEvent.change(screen.getByPlaceholderText("Ad Soyad"), {
       target: { value: "Kemal Can" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Telefon"), {
+    fireEvent.change(screen.getByPlaceholderText("5XX XXX XX XX"), {
       target: { value: "5551234567" },
     });
 
