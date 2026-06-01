@@ -19,6 +19,7 @@ import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 type VehicleFormValues = {
@@ -309,7 +310,7 @@ export function VehicleFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.plate")}</label>
+            <label className="form-label">{t("vehicleForm.field.plate")}<RequiredMark /></label>
             <Controller
               control={control}
               name="plateNumber"
@@ -330,7 +331,7 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.brand")}</label>
+            <label className="form-label">{t("vehicleForm.field.brand")}<RequiredMark /></label>
             <Controller
               control={control}
               name="brand"
@@ -413,7 +414,7 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("common.field.licenseClasses")}</label>
+            <label className="form-label">{t("common.field.licenseClasses")}<RequiredMark /></label>
             <Controller
               control={control}
               name="licenseClasses"

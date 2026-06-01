@@ -13,6 +13,7 @@ import {
 } from "../../lib/group-code";
 import { ApiError } from "../../lib/http";
 import { useLanguage, useT } from "../../lib/i18n";
+import { formatNationalId } from "../../lib/national-id";
 import { normalizeTextQuery } from "../../lib/search";
 import {
   formatDateTR,
@@ -364,7 +365,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                 <div key={c.candidateId} className="drawer-row candidate-list-row">
                   <span className="value" style={{ flex: 1 }}>
                     {c.firstName} {c.lastName}
-                    <span className="candidate-tc">{c.nationalId}</span>
+                    <span className="candidate-tc">{formatNationalId(c.nationalId)}</span>
                   </span>
                   <button
                     className="icon-btn"
@@ -431,7 +432,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                             type="button"
                           >
                             <span className="candidate-name">{c.firstName} {c.lastName}</span>
-                            <span className="candidate-tc">{c.nationalId}</span>
+                            <span className="candidate-tc">{formatNationalId(c.nationalId)}</span>
                           </button>
                         </li>
                       ))}

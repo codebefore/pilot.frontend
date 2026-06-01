@@ -1,4 +1,10 @@
+import { getCandidateApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
+
+const candidateRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getCandidateApiBaseUrl(),
+  signal,
+});
 
 export interface CandidateNoteResponse {
   id: string;
@@ -26,7 +32,11 @@ export function getCandidateNotes(
   candidateId: string,
   signal?: AbortSignal
 ): Promise<CandidateNoteListResponse> {
-  return httpGet<CandidateNoteListResponse>(`/api/candidates/${candidateId}/notes`, undefined, { signal });
+  return httpGet<CandidateNoteListResponse>(
+    `/api/candidates/${candidateId}/notes`,
+    undefined,
+    candidateRequestOptions(signal)
+  );
 }
 
 export function createCandidateNote(
@@ -34,7 +44,11 @@ export function createCandidateNote(
   input: CandidateNoteUpsertInput,
   signal?: AbortSignal
 ): Promise<CandidateNoteResponse> {
-  return httpPost<CandidateNoteResponse>(`/api/candidates/${candidateId}/notes`, input, { signal });
+  return httpPost<CandidateNoteResponse>(
+    `/api/candidates/${candidateId}/notes`,
+    input,
+    candidateRequestOptions(signal)
+  );
 }
 
 export function updateCandidateNote(
@@ -43,7 +57,11 @@ export function updateCandidateNote(
   input: CandidateNoteUpsertInput,
   signal?: AbortSignal
 ): Promise<CandidateNoteResponse> {
-  return httpPut<CandidateNoteResponse>(`/api/candidates/${candidateId}/notes/${noteId}`, input, { signal });
+  return httpPut<CandidateNoteResponse>(
+    `/api/candidates/${candidateId}/notes/${noteId}`,
+    input,
+    candidateRequestOptions(signal)
+  );
 }
 
 export function setCandidateNoteCompletion(
@@ -55,7 +73,7 @@ export function setCandidateNoteCompletion(
   return httpPost<CandidateNoteResponse>(
     `/api/candidates/${candidateId}/notes/${noteId}/completion`,
     { completed },
-    { signal }
+    candidateRequestOptions(signal)
   );
 }
 
@@ -64,5 +82,9 @@ export function deleteCandidateNote(
   noteId: string,
   signal?: AbortSignal
 ): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/notes/${noteId}`, undefined, { signal });
+  return httpDelete(
+    `/api/candidates/${candidateId}/notes/${noteId}`,
+    undefined,
+    candidateRequestOptions(signal)
+  );
 }

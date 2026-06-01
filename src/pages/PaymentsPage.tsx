@@ -24,7 +24,7 @@ import { canManageArea } from "../lib/permissions";
 import { formatDateTR } from "../lib/status-maps";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useToast } from "../components/ui/Toast";
-import { useT } from "../lib/i18n";
+import { useT, type TranslationKey } from "../lib/i18n";
 import type {
   CandidateAccountingType,
   PaymentCandidateSummaryResponse,
@@ -199,49 +199,56 @@ const PAYMENT_TYPE_ROWS: { key: CandidateAccountingType; label: string }[] = [
   { key: "diger", label: "Diğer Ücret" },
 ];
 
-const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
-  { value: "all", label: "Tümü" },
-  { value: "today", label: "Bugün" },
-  { value: "yesterday", label: "Dün" },
-  { value: "this_week", label: "Bu Hafta" },
-  { value: "this_month", label: "Bu Ay" },
-  { value: "last_month", label: "Geçen Ay" },
-  { value: "this_year", label: "Bu Yıl" },
-  { value: "last_7_days", label: "Son 7 Gün" },
-  { value: "last_30_days", label: "Son 30 Gün" },
-  { value: "custom", label: "Özel Aralık" },
+const PAYMENT_TYPE_KEY: Record<CandidateAccountingType, TranslationKey> = {
+  kurs: "payments.type.kurs",
+  teorik_sinav: "payments.type.teorikSinav",
+  direksiyon_sinav: "payments.type.direksiyonSinav",
+  diger: "payments.type.diger",
+};
+
+const DATE_PRESET_OPTIONS: { value: DatePreset; labelKey: TranslationKey }[] = [
+  { value: "all", labelKey: "payments.datePreset.all" },
+  { value: "today", labelKey: "payments.datePreset.today" },
+  { value: "yesterday", labelKey: "payments.datePreset.yesterday" },
+  { value: "this_week", labelKey: "payments.datePreset.thisWeek" },
+  { value: "this_month", labelKey: "payments.datePreset.thisMonth" },
+  { value: "last_month", labelKey: "payments.datePreset.lastMonth" },
+  { value: "this_year", labelKey: "payments.datePreset.thisYear" },
+  { value: "last_7_days", labelKey: "payments.datePreset.last7Days" },
+  { value: "last_30_days", labelKey: "payments.datePreset.last30Days" },
+  { value: "custom", labelKey: "payments.datePreset.custom" },
 ];
 
-const COLLECTION_DETAIL_TABS: { key: DetailTab; label: string }[] = [
-  { key: "all", label: "Tümü" },
-  { key: "payment", label: "Tahsilat" },
-  { key: "refund", label: "İade" },
-  { key: "cancelled", label: "İptal" },
+const COLLECTION_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
+  { key: "all", labelKey: "payments.detailTab.all" },
+  { key: "payment", labelKey: "payments.detailTab.payment" },
+  { key: "refund", labelKey: "payments.detailTab.refund" },
+  { key: "cancelled", labelKey: "payments.detailTab.cancelled" },
 ];
 
-const FINANCE_DETAIL_TABS: { key: DetailTab; label: string }[] = [
-  { key: "installment", label: "Vadeler" },
-  { key: "debt", label: "Bakiyeler" },
+const FINANCE_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
+  { key: "installment", labelKey: "payments.detailTab.installment" },
+  { key: "debt", labelKey: "payments.detailTab.debt" },
 ];
 
 const DETAIL_COLUMNS: {
   id: DetailColumnId;
   filterable?: boolean;
-  label: string;
+  labelKey: TranslationKey;
   sortable?: boolean;
   numeric?: boolean;
 }[] = [
-  { id: "photo", label: "Resim" },
-  { id: "candidate", label: "Ad Soyad", sortable: true },
-  { id: "group", label: "Dönem / Sınıf", sortable: true, filterable: true },
-  { id: "type", label: "Ödeme Türü", sortable: true, filterable: true },
-  { id: "cancelKind", label: "İptal Türü", sortable: true, filterable: true },
-  { id: "date", label: "Tarih", sortable: true },
-  { id: "amount", label: "Tutar", sortable: true, numeric: true },
-  { id: "receiptNumber", label: "Makbuz No", sortable: true },
-  { id: "method", label: "Yöntem", sortable: true, filterable: true },
-  { id: "cashRegister", label: "Kasa", sortable: true, filterable: true },
-  { id: "description", label: "Açıklama", sortable: true },
+  { id: "photo", labelKey: "payments.col.photo" },
+  { id: "candidate", labelKey: "common.field.fullName", sortable: true },
+  { id: "group", labelKey: "payments.col.groupClass", sortable: true, filterable: true },
+  { id: "type", labelKey: "payments.col.paymentType", sortable: true, filterable: true },
+  { id: "cancelKind", labelKey: "payments.col.cancelKind", sortable: true, filterable: true },
+  { id: "date", labelKey: "common.field.date", sortable: true },
+  { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
+  { id: "receiptNumber", labelKey: "payments.col.receiptNumber", sortable: true },
+  { id: "method", labelKey: "payments.col.method", sortable: true, filterable: true },
+  { id: "cashRegister", labelKey: "payments.col.cashRegister", sortable: true, filterable: true },
+  { id: "description", labelKey: "payments.col.description", sortable: true },
 ];
 
 const DEFAULT_DETAIL_COLUMNS = DETAIL_COLUMNS.map((column) => column.id);
@@ -249,25 +256,25 @@ const DEFAULT_DETAIL_COLUMNS = DETAIL_COLUMNS.map((column) => column.id);
 const INVOICE_COLUMNS: {
   id: InvoiceColumnId;
   filterable?: boolean;
-  label: string;
+  labelKey: TranslationKey;
   sortable?: boolean;
   numeric?: boolean;
 }[] = [
-  { id: "photo", label: "Resim" },
-  { id: "candidate", label: "Ad Soyad", sortable: true },
-  { id: "group", label: "Dönem", sortable: true, filterable: true },
-  { id: "licenseClass", label: "Ehliyet Tipi", sortable: true, filterable: true },
-  { id: "date", label: "Tarih", sortable: true },
-  { id: "service", label: "Hizmet", sortable: true, filterable: true },
-  { id: "quantity", label: "Miktar", sortable: true, numeric: true },
-  { id: "unitPrice", label: "Birim Fiyat", sortable: true, numeric: true },
-  { id: "subtotal", label: "Ara Toplam", sortable: true, numeric: true },
-  { id: "vatRate", label: "KDV Oranı", sortable: true, numeric: true },
-  { id: "vatAmount", label: "KDV Tutarı", sortable: true, numeric: true },
-  { id: "total", label: "Toplam", sortable: true, numeric: true },
-  { id: "notes", label: "Açıklama", sortable: true },
-  { id: "invoiceType", label: "Fatura Tipi", sortable: true, filterable: true },
-  { id: "invoiceNo", label: "Fatura No", sortable: true },
+  { id: "photo", labelKey: "payments.col.photo" },
+  { id: "candidate", labelKey: "common.field.fullName", sortable: true },
+  { id: "group", labelKey: "payments.col.term", sortable: true, filterable: true },
+  { id: "licenseClass", labelKey: "common.field.licenseClass", sortable: true, filterable: true },
+  { id: "date", labelKey: "common.field.date", sortable: true },
+  { id: "service", labelKey: "payments.col.service", sortable: true, filterable: true },
+  { id: "quantity", labelKey: "payments.col.quantity", sortable: true, numeric: true },
+  { id: "unitPrice", labelKey: "payments.col.unitPrice", sortable: true, numeric: true },
+  { id: "subtotal", labelKey: "payments.col.subtotal", sortable: true, numeric: true },
+  { id: "vatRate", labelKey: "payments.col.vatRate", sortable: true, numeric: true },
+  { id: "vatAmount", labelKey: "payments.col.vatAmount", sortable: true, numeric: true },
+  { id: "total", labelKey: "payments.col.total", sortable: true, numeric: true },
+  { id: "notes", labelKey: "payments.col.notes", sortable: true },
+  { id: "invoiceType", labelKey: "payments.col.invoiceType", sortable: true, filterable: true },
+  { id: "invoiceNo", labelKey: "payments.col.invoiceNo", sortable: true },
 ];
 
 const DEFAULT_INVOICE_COLUMNS = INVOICE_COLUMNS
@@ -278,29 +285,29 @@ const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
 
 const INVOICE_ANALYSIS_COLUMNS: {
   id: InvoiceAnalysisColumnId;
-  label: string;
+  labelKey: TranslationKey;
   numeric?: boolean;
   sortable?: boolean;
 }[] = [
-  { id: "photo", label: "Resim" },
-  { id: "candidate", label: "Ad Soyad", sortable: true },
-  { id: "group", label: "Dönem", sortable: true },
-  { id: "licenseClass", label: "Ehliyet Tipi", sortable: true },
+  { id: "photo", labelKey: "payments.col.photo" },
+  { id: "candidate", labelKey: "common.field.fullName", sortable: true },
+  { id: "group", labelKey: "payments.col.term", sortable: true },
+  { id: "licenseClass", labelKey: "common.field.licenseClass", sortable: true },
   {
     id: "courseBase",
-    label: "Matrah (Kurs Ücreti)",
+    labelKey: "payments.col.courseBase",
     sortable: true,
     numeric: true,
   },
   {
     id: "invoicedTotal",
-    label: "Kesilen Fatura Toplamı",
+    labelKey: "payments.col.invoicedTotal",
     sortable: true,
     numeric: true,
   },
   {
     id: "remainingTotal",
-    label: "Kalan Fatura Toplamı",
+    labelKey: "payments.col.remainingTotal",
     sortable: true,
     numeric: true,
   },
@@ -313,22 +320,22 @@ const DEFAULT_INVOICE_ANALYSIS_COLUMNS = INVOICE_ANALYSIS_COLUMNS.map(
 const CASH_SUMMARY_COLUMNS: {
   id: CashSummaryColumnId;
   filterable?: boolean;
-  label: string;
+  labelKey: TranslationKey;
   numeric?: boolean;
   sortable?: boolean;
 }[] = [
-  { id: "name", label: "Kasa Adı", sortable: true, filterable: true },
-  { id: "balance", label: "Bakiye", sortable: true, numeric: true },
-  { id: "lastMovementDate", label: "Son Hareket Tarihi", sortable: true },
+  { id: "name", labelKey: "payments.col.cashRegisterName", sortable: true, filterable: true },
+  { id: "balance", labelKey: "payments.col.balance", sortable: true, numeric: true },
+  { id: "lastMovementDate", labelKey: "payments.col.lastMovementDate", sortable: true },
   {
     id: "selectedInflow",
-    label: "Seçili Tarihte Giriş",
+    labelKey: "payments.col.selectedInflow",
     sortable: true,
     numeric: true,
   },
   {
     id: "selectedOutflow",
-    label: "Seçili Tarihte Çıkış",
+    labelKey: "payments.col.selectedOutflow",
     sortable: true,
     numeric: true,
   },
@@ -1681,7 +1688,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           description:
             payment.note?.trim() ||
             payment.installmentDescription ||
-            paymentTypeLabel(payment.type),
+            t(PAYMENT_TYPE_KEY[payment.type]),
           amount: payment.amount,
         });
       });
@@ -1906,8 +1913,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           return false;
         }
         return visibleDetailColumns.includes(column.id);
-      }),
-    [detailTab, visibleDetailColumns],
+      }).map((column) => ({
+        ...column,
+        label: t(column.labelKey),
+      })),
+    [detailTab, t, visibleDetailColumns],
   );
   const detailColumnOptions = useMemo<ColumnOption[]>(
     () =>
@@ -1915,39 +1925,45 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         .filter((column) => column.id !== "cancelKind" || detailTab === "cancelled")
         .map((column) => ({
           id: column.id,
-          label: column.label,
+          label: t(column.labelKey),
         })),
-    [detailTab],
+    [detailTab, t],
   );
   const invoiceColumns = useMemo(
     () =>
       INVOICE_COLUMNS.filter((column) =>
         visibleInvoiceColumns.includes(column.id),
-      ),
-    [visibleInvoiceColumns],
+      ).map((column) => ({
+        ...column,
+        label: t(column.labelKey),
+      })),
+    [t, visibleInvoiceColumns],
   );
   const invoiceColumnOptions = useMemo<ColumnOption[]>(
     () =>
       INVOICE_COLUMNS.map((column) => ({
         id: column.id,
-        label: column.label,
+        label: t(column.labelKey),
       })),
-    [],
+    [t],
   );
   const invoiceAnalysisColumns = useMemo(
     () =>
       INVOICE_ANALYSIS_COLUMNS.filter((column) =>
         visibleInvoiceAnalysisColumns.includes(column.id),
-      ),
-    [visibleInvoiceAnalysisColumns],
+      ).map((column) => ({
+        ...column,
+        label: t(column.labelKey),
+      })),
+    [t, visibleInvoiceAnalysisColumns],
   );
   const invoiceAnalysisColumnOptions = useMemo<ColumnOption[]>(
     () =>
       INVOICE_ANALYSIS_COLUMNS.map((column) => ({
         id: column.id,
-        label: column.label,
+        label: t(column.labelKey),
       })),
-    [],
+    [t],
   );
 
   const cashRegisters = useMemo(() => {
@@ -2707,7 +2723,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       );
     }
     if (columnId === "group") return rowGroupLabel(row);
-    if (columnId === "type") return paymentTypeLabel(rowType(row));
+    if (columnId === "type") return t(PAYMENT_TYPE_KEY[rowType(row)]);
     if (columnId === "cancelKind") return rowCancelKindLabel(row);
     if (columnId === "date") return renderFinanceDateTime(row.date);
     if (columnId === "amount") {
@@ -2833,7 +2849,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         licenseClassLabelByCode,
       );
     }
-    if (columnId === "type") return paymentTypeLabel(installment.type);
+    if (columnId === "type") return t(PAYMENT_TYPE_KEY[installment.type]);
     if (columnId === "dueDate") return formatDateTR(installment.dueDate);
     if (columnId === "amount") return money(installment.amount);
     return installmentDescription(installment);
@@ -2920,7 +2936,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
               >
                 {DATE_PRESET_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </option>
                 ))}
               </CustomSelect>
@@ -3045,7 +3061,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   {PAYMENT_TYPE_ROWS.map((row) => (
                     <tr key={row.key}>
                       <th className="finance-matrix-type" scope="row">
-                        {row.label}
+                        {t(PAYMENT_TYPE_KEY[row.key])}
                       </th>
                       {cashRegisters.map((register) => {
                         const value =
@@ -3165,7 +3181,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                       role="tab"
                       type="button"
                     >
-                      {tab.label}
+                      {t(tab.labelKey)}
                     </button>
                     ))}
                   </div>
@@ -3940,7 +3956,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 onClick={() => toggleCashSummarySort(column.id)}
                                 type="button"
                               >
-                                <span>{column.label}</span>
+                                <span>{t(column.labelKey)}</span>
                                 <span
                                   className="sortable-th-indicator"
                                   aria-hidden="true"
@@ -3965,7 +3981,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                         column.id,
                                       ) ?? [{ value: "all", label: "Tümü" }]
                                     }
-                                    title={`${column.label} filtresi`}
+                                    title={`${t(column.labelKey)} filtresi`}
                                     value={
                                       cashSummaryColumnFilters[column.id] ??
                                       "all"

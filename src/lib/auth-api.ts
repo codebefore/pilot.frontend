@@ -1,5 +1,6 @@
 import { httpPost } from "./http";
 import type { AuthInstitution } from "./auth-storage";
+import { getAuthApiBaseUrl } from "./api";
 
 type LoginRequest = {
   phone: string;
@@ -39,22 +40,30 @@ export type LoginResponse = {
   activeInstitution: AuthInstitution | null;
 };
 
+function authRequestOptions() {
+  return { baseUrl: getAuthApiBaseUrl() };
+}
+
 export function requestLoginCode(body: LoginRequest): Promise<LoginCodeResponse> {
-  return httpPost<LoginCodeResponse>("/api/auth/login/request-code", body);
+  return httpPost<LoginCodeResponse>("/api/auth/login/request-code", body, authRequestOptions());
 }
 
 export function verifyLoginCode(body: VerifyLoginCodeRequest): Promise<LoginResponse> {
-  return httpPost<LoginResponse>("/api/auth/login/verify-code", body);
+  return httpPost<LoginResponse>("/api/auth/login/verify-code", body, authRequestOptions());
 }
 
 export function selectInstitution(institutionId: string): Promise<LoginResponse> {
-  return httpPost<LoginResponse>(`/api/auth/institutions/${institutionId}/select`, {});
+  return httpPost<LoginResponse>(
+    `/api/auth/institutions/${institutionId}/select`,
+    {},
+    authRequestOptions()
+  );
 }
 
 export function refreshSession(body: RefreshTokenRequest): Promise<LoginResponse> {
-  return httpPost<LoginResponse>("/api/auth/refresh", body);
+  return httpPost<LoginResponse>("/api/auth/refresh", body, authRequestOptions());
 }
 
 export function logoutSession(body: LogoutRequest): Promise<void> {
-  return httpPost<void>("/api/auth/logout", body);
+  return httpPost<void>("/api/auth/logout", body, authRequestOptions());
 }

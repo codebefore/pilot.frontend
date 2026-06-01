@@ -1,9 +1,15 @@
+import { getFinanceApiBaseUrl } from "./api";
 import { httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   CertificateProgramFeeBulkApplyRequest,
   CertificateProgramFeeMatrixResponse,
   CertificateProgramFeeMatrixUpsertRequest,
 } from "./types";
+
+const financeRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getFinanceApiBaseUrl(),
+  signal,
+});
 
 interface GetCertificateProgramFeeMatrixOptions {
   targetLicenseClass?: string;
@@ -21,7 +27,7 @@ export function getCertificateProgramFeeMatrix(
   return httpGet<CertificateProgramFeeMatrixResponse>(
     `/api/certificate-program-fee-matrix/${year}`,
     params,
-    { signal }
+    financeRequestOptions(signal)
   );
 }
 
@@ -31,7 +37,8 @@ export function updateCertificateProgramFeeMatrix(
 ): Promise<CertificateProgramFeeMatrixResponse> {
   return httpPut<CertificateProgramFeeMatrixResponse>(
     `/api/certificate-program-fee-matrix/${year}`,
-    body
+    body,
+    financeRequestOptions()
   );
 }
 
@@ -41,6 +48,7 @@ export function bulkApplyCertificateProgramFeeMatrix(
 ): Promise<CertificateProgramFeeMatrixResponse> {
   return httpPost<CertificateProgramFeeMatrixResponse>(
     `/api/certificate-program-fee-matrix/${year}/bulk-apply`,
-    body
+    body,
+    financeRequestOptions()
   );
 }

@@ -8,10 +8,12 @@ import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import {
+  getDomainEventStreamStatus,
   getInboxMessages,
   getOutboxMessages,
   retryInboxMessage,
   retryOutboxMessage,
+  type DomainEventStreamStatusResponse,
   type InboxMessageResponse,
   type InboxMessageStatus,
   type OutboxMessageResponse,
@@ -19,7 +21,7 @@ import {
 } from "../lib/outbox-api";
 import type { JobStatus } from "../types";
 
-type QueueTab = "outbox" | "inbox";
+type QueueTab = "outbox" | "inbox" | "stream";
 
 const OUTBOX_STATUS_OPTIONS: { value: "all" | OutboxMessageStatus; label: string }[] = [
   { value: "all", label: "Tümü" },
@@ -58,6 +60,12 @@ export function OutboxPage() {
     enabled: activeTab === "inbox",
   });
 
+  const streamStatusQuery = useQuery({
+    queryKey: ["domain-events", "stream-status"],
+    queryFn: ({ signal }) => getDomainEventStreamStatus(signal),
+    enabled: activeTab === "stream",
+  });
+
   const retryOutboxMutation = useMutation({
     mutationFn: retryOutboxMessage,
     onSuccess: async () => {
@@ -78,7 +86,8 @@ export function OutboxPage() {
     onError: () => showToast("Inbox mesajı tekrar işlenebilir duruma alınamadı", "error"),
   });
 
-  const activeQuery = activeTab === "outbox" ? outboxQuery : inboxQuery;
+  const activeQuery =
+    activeTab === "outbox" ? outboxQuery : activeTab === "inbox" ? inboxQuery : streamStatusQuery;
 
   return (
     <>
@@ -114,29 +123,38 @@ export function OutboxPage() {
             >
               Inbox
             </button>
+            <button
+              className={activeTab === "stream" ? "filter-chip active" : "filter-chip"}
+              onClick={() => setActiveTab("stream")}
+              type="button"
+            >
+              Stream
+            </button>
           </div>
-          <div className="filter-row">
-            {(activeTab === "outbox" ? OUTBOX_STATUS_OPTIONS : INBOX_STATUS_OPTIONS).map((option) => (
-              <button
-                className={
-                  (activeTab === "outbox" ? outboxStatus : inboxStatus) === option.value
-                    ? "filter-chip active"
-                    : "filter-chip"
-                }
-                key={option.value}
-                onClick={() => {
-                  if (activeTab === "outbox") {
-                    setOutboxStatus(option.value as "all" | OutboxMessageStatus);
-                  } else {
-                    setInboxStatus(option.value as "all" | InboxMessageStatus);
+          {activeTab === "stream" ? null : (
+            <div className="filter-row">
+              {(activeTab === "outbox" ? OUTBOX_STATUS_OPTIONS : INBOX_STATUS_OPTIONS).map((option) => (
+                <button
+                  className={
+                    (activeTab === "outbox" ? outboxStatus : inboxStatus) === option.value
+                      ? "filter-chip active"
+                      : "filter-chip"
                   }
-                }}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+                  key={option.value}
+                  onClick={() => {
+                    if (activeTab === "outbox") {
+                      setOutboxStatus(option.value as "all" | OutboxMessageStatus);
+                    } else {
+                      setInboxStatus(option.value as "all" | InboxMessageStatus);
+                    }
+                  }}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {activeTab === "outbox" ? (
@@ -146,16 +164,69 @@ export function OutboxPage() {
             query={outboxQuery}
             retryingId={retryOutboxMutation.isPending ? retryOutboxMutation.variables : undefined}
           />
-        ) : (
+        ) : activeTab === "inbox" ? (
           <InboxTable
             messages={inboxQuery.data?.items ?? []}
             onRetry={(id) => retryInboxMutation.mutate(id)}
             query={inboxQuery}
             retryingId={retryInboxMutation.isPending ? retryInboxMutation.variables : undefined}
           />
+        ) : (
+          <DomainEventStreamStatus query={streamStatusQuery} />
         )}
       </Panel>
     </>
+  );
+}
+
+function DomainEventStreamStatus({
+  query,
+}: {
+  query: ReturnType<typeof useQuery<DomainEventStreamStatusResponse>>;
+}) {
+  if (query.isError) {
+    return (
+      <PageLoadError
+        description="Domain event stream durumu yüklenemedi."
+        onRetry={() => void query.refetch()}
+        variant="card"
+      />
+    );
+  }
+
+  if (query.isLoading) {
+    return <div className="data-table-empty">Yükleniyor...</div>;
+  }
+
+  if (!query.data) {
+    return <div className="data-table-empty">Stream durumu bulunamadı.</div>;
+  }
+
+  const status = query.data;
+  const tone = streamHealthTone(status.status);
+  return (
+    <div className={`queue-health-band ${tone}`}>
+      <div className="queue-health-main">
+        <div className="queue-health-title">Domain Event Stream</div>
+        <div className="queue-health-meta">
+          {status.streamName} / {status.consumerGroupName}
+        </div>
+        <div className="queue-health-message">{status.message}</div>
+        {status.redisError ? (
+          <div className="queue-health-error" title={status.redisError}>
+            {status.redisError}
+          </div>
+        ) : null}
+      </div>
+      <div className="queue-health-metrics">
+        <span>Durum: {status.enabled ? "Aktif" : "Kapalı"}</span>
+        <span>Stream: {status.streamCount}</span>
+        <span>Pending: {formatNullableNumber(status.pendingMessageCount)}</span>
+        <span>Consumer: {formatNullableNumber(status.consumerCount)}</span>
+        <span>Lowest: {status.lowestPendingMessageId ?? "-"}</span>
+        <span>Highest: {status.highestPendingMessageId ?? "-"}</span>
+      </div>
+    </div>
   );
 }
 
@@ -363,6 +434,21 @@ function statusTone(status: OutboxMessageStatus | InboxMessageStatus): JobStatus
     case "dead_letter":
       return "failed";
   }
+}
+
+function streamHealthTone(status: DomainEventStreamStatusResponse["status"]) {
+  switch (status) {
+    case "healthy":
+      return "success";
+    case "warning":
+      return "warning";
+    case "danger":
+      return "danger";
+  }
+}
+
+function formatNullableNumber(value: number | null) {
+  return value === null ? "-" : value.toLocaleString("tr-TR");
 }
 
 function formatDateTime(value: string) {

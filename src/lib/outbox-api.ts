@@ -55,6 +55,22 @@ export interface InboxMessageRetryResponse {
   retriedAtUtc: string;
 }
 
+export interface DomainEventStreamStatusResponse {
+  service: string;
+  component: "domain-events";
+  status: "healthy" | "warning" | "danger";
+  message: string;
+  enabled: boolean;
+  streamName: string;
+  consumerGroupName: string;
+  streamCount: number;
+  pendingMessageCount: number | null;
+  consumerCount: number | null;
+  lowestPendingMessageId: string | null;
+  highestPendingMessageId: string | null;
+  redisError: string | null;
+}
+
 export function getOutboxMessages(
   params: { status?: OutboxMessageStatus; limit?: number },
   signal?: AbortSignal
@@ -75,4 +91,8 @@ export function getInboxMessages(
 
 export function retryInboxMessage(id: string): Promise<InboxMessageRetryResponse> {
   return httpPost<InboxMessageRetryResponse>(`/api/inbox/${id}/retry`, {});
+}
+
+export function getDomainEventStreamStatus(signal?: AbortSignal): Promise<DomainEventStreamStatusResponse> {
+  return httpGet<DomainEventStreamStatusResponse>("/health/domain-events", undefined, { signal });
 }

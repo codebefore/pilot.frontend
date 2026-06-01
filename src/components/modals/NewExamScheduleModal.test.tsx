@@ -70,9 +70,9 @@ describe("NewExamScheduleModal", () => {
       />
     );
 
-    expect(screen.queryByLabelText("Saat")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Saat/)).not.toBeInTheDocument();
 
-    const capacityInput = screen.getByLabelText("Kontenjan");
+    const capacityInput = screen.getByLabelText(/^Kontenjan/);
     fireEvent.change(capacityInput, { target: { value: "24" } });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
@@ -113,7 +113,7 @@ describe("NewExamScheduleModal", () => {
       />
     );
 
-    expect(screen.getByLabelText("Saat")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Saat/)).toBeInTheDocument();
     expect(onSaved).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,7 @@ import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 import type { ExamCodeOption } from "../../lib/types";
 
@@ -148,7 +149,7 @@ export function NewExamScheduleModal({
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("newExamSchedule.field.examDate")}</label>
+            <label className="form-label">{t("newExamSchedule.field.examDate")}<RequiredMark /></label>
             <LocalizedDateInput
               ariaLabel="Sinav Tarihi"
               className={fieldClass(!!errors.date, "form-input")}
@@ -170,7 +171,7 @@ export function NewExamScheduleModal({
 
           {showTimeField ? (
             <div className="form-group">
-              <label className="form-label">{t("common.field.time")}</label>
+              <label className="form-label">{t("common.field.time")}<RequiredMark /></label>
               <LocalizedTimeInput
                 ariaLabel="Saat"
                 className={fieldClass(!!errors.time, "form-input")}
@@ -192,7 +193,7 @@ export function NewExamScheduleModal({
 
           {showExamCodeField ? (
             <div className="form-group">
-              <label className="form-label">{t("newExamSchedule.field.examCode")}</label>
+              <label className="form-label">{t("newExamSchedule.field.examCode")}<RequiredMark /></label>
               <select
                 className={fieldClass(!!errors.examCodeId, "form-select")}
                 disabled={!canManage}
@@ -215,7 +216,7 @@ export function NewExamScheduleModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label" htmlFor={capacityInputId}>Kontenjan</label>
+            <label className="form-label" htmlFor={capacityInputId}>Kontenjan<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.capacity, "form-input")}
               disabled={!canManage}

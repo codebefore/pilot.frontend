@@ -81,6 +81,7 @@ import {
 } from "../lib/driving-exam-time-slots";
 import { buildTermLabel } from "../lib/term-label";
 import { ApiError } from "../lib/http";
+import { formatNationalId } from "../lib/national-id";
 import {
   createAuthorizedObjectUrl,
   downloadAuthorizedFile,
@@ -818,7 +819,7 @@ function CandidateHero({
       <div className="candidate-detail-hero-body">
         <h2 className="candidate-detail-hero-name">{fullName}</h2>
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--identity">
-          <span>{candidate.nationalId}</span>
+          <span>{formatNationalId(candidate.nationalId)}</span>
           <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
           {age != null ? (
             <>
@@ -5241,7 +5242,7 @@ function AccountingReceiptModal({
         <dl className="candidate-payment-receipt-grid">
           <div><dt>Makbuz No</dt><dd>{receiptNumber}</dd></div>
           <div><dt>Aday</dt><dd>{candidate.firstName} {candidate.lastName}</dd></div>
-          <div><dt>TC Kimlik No</dt><dd>{candidate.nationalId}</dd></div>
+          <div><dt>TC Kimlik No</dt><dd>{formatNationalId(candidate.nationalId)}</dd></div>
           <div><dt>Tür</dt><dd>{accountingTypeLabel(payment.type)}</dd></div>
           <div><dt>Ödeme Tarihi</dt><dd>{renderFinanceDateTime(payment.paidAtUtc)}</dd></div>
           <div><dt>Ödeme Yöntemi</dt><dd>{paymentMethodLabel(payment.paymentMethod)}</dd></div>

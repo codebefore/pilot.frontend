@@ -9,6 +9,7 @@ import { useLanguage, useT, currentLocale } from "../../lib/i18n";
 import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { RequiredMark } from "../ui/RequiredMark";
 
 const newPaymentSchema = z.object({
   candidateId: z.string().min(1, "Aday seçin"),
@@ -117,7 +118,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.candidate")}</label>
+            <label className="form-label">{t("common.field.candidate")}<RequiredMark /></label>
             <CustomSelect
               className={fieldClass(!!errors.candidateId, "form-select")}
               disabled={!canManage}
@@ -135,7 +136,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("newPayment.field.amount")}</label>
+            <label className="form-label">{t("newPayment.field.amount")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.amount, "form-input")}
               disabled={!canManage}
@@ -168,7 +169,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.date")}</label>
+            <label className="form-label">{t("common.field.date")}<RequiredMark /></label>
             <LocalizedDateInput
               ariaLabel="Tarih"
               className={fieldClass(!!errors.date, "form-input")}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { getCandidates } from "../../lib/candidates-api";
 import { useT } from "../../lib/i18n";
+import { formatNationalId } from "../../lib/national-id";
 import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
@@ -167,7 +168,7 @@ export function NewMebJobModal({
                     {selected.firstName} {selected.lastName}
                   </span>
                   <span className="meb-modal-selected-meta">
-                    {selected.nationalId}
+                    {formatNationalId(selected.nationalId)}
                     {selected.licenseClass ? ` · ${selected.licenseClass}` : ""}
                   </span>
                 </div>
@@ -213,7 +214,7 @@ export function NewMebJobModal({
                           {c.firstName} {c.lastName}
                         </span>
                         <span className="meb-modal-candidate-meta">
-                          {c.nationalId}
+                          {formatNationalId(c.nationalId)}
                           {c.licenseClass ? ` · ${c.licenseClass}` : ""}
                         </span>
                       </button>

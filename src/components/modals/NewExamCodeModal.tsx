@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createExamCode } from "../../lib/exam-codes-api";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 import { useT } from "../../lib/i18n";
 
@@ -98,7 +99,7 @@ export function NewExamCodeModal({
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label" htmlFor={inputId}>
-              Sınav Kodu
+              Sınav Kodu<RequiredMark />
             </label>
             <input
               className={errors.code ? "form-input error" : "form-input"}

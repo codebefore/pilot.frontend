@@ -1,3 +1,4 @@
+import { getFinanceApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   CashRegisterListResponse,
@@ -5,6 +6,11 @@ import type {
   CashRegisterType,
   CashRegisterUpsertRequest,
 } from "./types";
+
+const financeRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getFinanceApiBaseUrl(),
+  signal,
+});
 
 export type CashRegisterSortField = "name" | "type" | "isActive";
 export type CashRegisterSortDirection = "asc" | "desc";
@@ -34,20 +40,32 @@ export function getCashRegisters(
     sortDir: options?.sortDir,
   };
 
-  return httpGet<CashRegisterListResponse>("/api/cash-registers", params, { signal });
+  return httpGet<CashRegisterListResponse>(
+    "/api/cash-registers",
+    params,
+    financeRequestOptions(signal)
+  );
 }
 
 export function createCashRegister(body: CashRegisterUpsertRequest): Promise<CashRegisterResponse> {
-  return httpPost<CashRegisterResponse>("/api/cash-registers", body);
+  return httpPost<CashRegisterResponse>(
+    "/api/cash-registers",
+    body,
+    financeRequestOptions()
+  );
 }
 
 export function updateCashRegister(
   id: string,
   body: CashRegisterUpsertRequest
 ): Promise<CashRegisterResponse> {
-  return httpPut<CashRegisterResponse>(`/api/cash-registers/${id}`, body);
+  return httpPut<CashRegisterResponse>(
+    `/api/cash-registers/${id}`,
+    body,
+    financeRequestOptions()
+  );
 }
 
 export function deleteCashRegister(id: string): Promise<void> {
-  return httpDelete(`/api/cash-registers/${id}`);
+  return httpDelete(`/api/cash-registers/${id}`, undefined, financeRequestOptions());
 }

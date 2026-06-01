@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { getApiBaseUrl } from "../../lib/api";
+import { getDocumentApiBaseUrl } from "../../lib/api";
 import { createAuthorizedObjectUrl } from "../../lib/authorized-files";
 import { normalizeCandidateGender } from "../../lib/status-maps";
 import type { CandidateResponse } from "../../lib/types";
@@ -24,7 +24,7 @@ function buildCandidatePhotoUrl(
 ): string | null {
   if (!candidate.photo?.documentId) return null;
 
-  const base = getApiBaseUrl().replace(/\/+$/, "");
+  const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
   const path = `/api/candidates/${candidate.id}/documents/${candidate.photo.documentId}/download`;
   const dedupedPath =
     base.endsWith("/api") && path.startsWith("/api/")

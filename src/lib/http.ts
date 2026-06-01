@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "./api";
+import { getApiBaseUrl, getAuthApiBaseUrl } from "./api";
 import {
   getStoredAccessToken,
   getStoredRefreshToken,
@@ -75,11 +75,12 @@ type QueryParamValue = QueryParamPrimitive | readonly QueryParamPrimitive[];
 export type QueryParams = Record<string, QueryParamValue>;
 
 type RequestOptions = {
+  baseUrl?: string;
   signal?: AbortSignal;
 };
 
-function buildUrl(path: string, params?: QueryParams): string {
-  const base = getApiBaseUrl().replace(/\/+$/, "");
+function buildUrl(path: string, params?: QueryParams, baseUrl?: string): string {
+  const base = (baseUrl ?? getApiBaseUrl()).replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const dedupedPath =
     base.endsWith("/api") && normalizedPath.startsWith("/api/")
@@ -143,7 +144,7 @@ export async function httpGet<T>(
   params?: QueryParams,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetchWithAuthRetry(buildUrl(path, params), {
+  const response = await fetchWithAuthRetry(buildUrl(path, params, options?.baseUrl), {
     headers: buildHeaders(),
     signal: options?.signal,
   });
@@ -155,7 +156,7 @@ export async function httpPost<T>(
   body: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetchWithAuthRetry(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
     method: "POST",
     headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -174,7 +175,7 @@ export async function httpPostForm<T>(
   form: FormData,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetchWithAuthRetry(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
     method: "POST",
     headers: buildHeaders(),
     body: form,
@@ -188,7 +189,7 @@ export async function httpPut<T>(
   body: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetchWithAuthRetry(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
     method: "PUT",
     headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -202,7 +203,7 @@ export async function httpPatch<T>(
   body: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetchWithAuthRetry(buildUrl(path), {
+  const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
     method: "PATCH",
     headers: buildHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
@@ -216,7 +217,7 @@ export async function httpDelete<T = void>(
   params?: QueryParams,
   options?: RequestOptions
 ): Promise<T> {
-  const response = await fetchWithAuthRetry(buildUrl(path, params), {
+  const response = await fetchWithAuthRetry(buildUrl(path, params, options?.baseUrl), {
     method: "DELETE",
     headers: buildHeaders(),
     signal: options?.signal,
@@ -298,7 +299,7 @@ async function refreshStoredSessionOnce(): Promise<boolean> {
     return false;
   }
 
-  const response = await fetch(buildUrl("/api/auth/refresh"), {
+  const response = await fetch(buildUrl("/api/auth/refresh", undefined, getAuthApiBaseUrl()), {
     method: "POST",
     headers: new Headers({ "Content-Type": "application/json" }),
     body: JSON.stringify({ refreshToken }),

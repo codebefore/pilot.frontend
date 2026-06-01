@@ -15,6 +15,7 @@ import type {
 } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 const DOCUMENT_TYPE_MODULE = "candidate";
@@ -332,7 +333,7 @@ export function DocumentTypeFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("documentTypeForm.key")}</label>
+            <label className="form-label">{t("documentTypeForm.key")}<RequiredMark /></label>
             <input
               autoComplete="off"
               className={fieldClass(!!errors.key, "form-input")}
@@ -347,7 +348,7 @@ export function DocumentTypeFormModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("documentTypeForm.sortOrder")}</label>
+            <label className="form-label">{t("documentTypeForm.sortOrder")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.sortOrder, "form-input")}
               inputMode="numeric"
@@ -362,7 +363,7 @@ export function DocumentTypeFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("documentTypeForm.name")}</label>
+            <label className="form-label">{t("documentTypeForm.name")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.name, "form-input")}
               placeholder={t("documentTypeForm.namePlaceholder")}

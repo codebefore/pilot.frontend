@@ -1,3 +1,4 @@
+import { getMebbisApiBaseUrl } from "./api";
 import { httpGet, httpPost } from "./http";
 import type { JobStatus } from "../types";
 
@@ -87,61 +88,89 @@ export type MebbisJobQueueRetryResponse = {
   retriedAtUtc: string;
 };
 
+const mebbisRequestOptions = () => ({
+  baseUrl: getMebbisApiBaseUrl(),
+});
+
 export async function listMebbisJobs(limit = 100): Promise<MebbisJobResponse[]> {
   const response = await httpGet<MebbisJobListResponse>("/api/mebbis/jobs", {
     limit,
-  });
+  }, mebbisRequestOptions());
   return response.items;
 }
 
 export async function getMebbisJob(jobId: string): Promise<MebbisJobResponse> {
-  return httpGet<MebbisJobResponse>(`/api/mebbis/jobs/${jobId}`);
+  return httpGet<MebbisJobResponse>(
+    `/api/mebbis/jobs/${jobId}`,
+    undefined,
+    mebbisRequestOptions()
+  );
 }
 
 export async function listMebbisJobSteps(jobId: string): Promise<MebbisJobStepResponse[]> {
-  const response = await httpGet<MebbisJobStepListResponse>(`/api/mebbis/jobs/${jobId}/steps`);
+  const response = await httpGet<MebbisJobStepListResponse>(
+    `/api/mebbis/jobs/${jobId}/steps`,
+    undefined,
+    mebbisRequestOptions()
+  );
   return response.items;
 }
 
 export async function getMebbisJobQueueStatus(): Promise<MebbisJobQueueStatusResponse> {
-  return httpGet<MebbisJobQueueStatusResponse>("/api/mebbis/jobs/queue/status");
+  return httpGet<MebbisJobQueueStatusResponse>(
+    "/api/mebbis/jobs/queue/status",
+    undefined,
+    mebbisRequestOptions()
+  );
 }
 
 export async function retryMebbisJobQueuePublishes(
   limit = 100
 ): Promise<MebbisJobQueueRetryResponse> {
-  return httpPost<MebbisJobQueueRetryResponse>("/api/mebbis/jobs/queue/retry", { limit });
+  return httpPost<MebbisJobQueueRetryResponse>(
+    "/api/mebbis/jobs/queue/retry",
+    { limit },
+    mebbisRequestOptions()
+  );
 }
 
 export async function cancelMebbisJob(jobId: string): Promise<MebbisJobResponse> {
-  return httpPost<MebbisJobResponse>(`/api/mebbis/jobs/${jobId}/cancel`, {});
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/${jobId}/cancel`,
+    {},
+    mebbisRequestOptions()
+  );
 }
 
 export async function createCandidateLookupJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/lookup`,
-    {}
+    {},
+    mebbisRequestOptions()
   );
 }
 
 export async function createCandidateSyncJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/sync`,
-    {}
+    {},
+    mebbisRequestOptions()
   );
 }
 
 export async function createTheoryScheduleSyncJob(groupId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/groups/${groupId}/theory-schedule-sync`,
-    {}
+    {},
+    mebbisRequestOptions()
   );
 }
 
 export async function createTheoryScheduleImportJob(groupId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/groups/${groupId}/theory-schedule-import`,
-    {}
+    {},
+    mebbisRequestOptions()
   );
 }
 

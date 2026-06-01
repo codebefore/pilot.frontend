@@ -16,6 +16,7 @@ import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 
 type PlanType = TrainingLessonKind;
 
@@ -256,7 +257,7 @@ export function NewTrainingPlanModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.date")}</label>
+            <label className="form-label">{t("training.modal.field.date")}<RequiredMark /></label>
             <LocalizedDateInput
               className={fieldClass("date", !!errors.date, "form-input")}
               disabled={!canManage}
@@ -274,7 +275,7 @@ export function NewTrainingPlanModal({
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.startTime")}</label>
+            <label className="form-label">{t("training.modal.field.startTime")}<RequiredMark /></label>
             <LocalizedTimeInput
               className={fieldClass("startTime", !!errors.startTime, "form-input")}
               disabled={!canManage}
@@ -294,7 +295,7 @@ export function NewTrainingPlanModal({
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.duration")}</label>
+            <label className="form-label">{t("training.modal.field.duration")}<RequiredMark /></label>
             <CustomSelect
               className={fieldClass("durationMinutes", false, "form-select")}
               disabled={!canManage}
@@ -315,7 +316,7 @@ export function NewTrainingPlanModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.instructor")}</label>
+            <label className="form-label">{t("training.modal.field.instructor")}<RequiredMark /></label>
             <CustomSelect
               className={fieldClass("instructorId", !!errors.instructorId, "form-select")}
               disabled={!canManage}
@@ -345,7 +346,7 @@ export function NewTrainingPlanModal({
           </div>
 	          {type === "teorik" ? (
 	            <div className="form-group">
-              <label className="form-label">{t("training.modal.field.group")}</label>
+              <label className="form-label">{t("training.modal.field.group")}<RequiredMark /></label>
               <CustomSelect
                 className={fieldClass("groupId", !!errors.groupId, "form-select")}
                 disabled={!canManage}
@@ -371,7 +372,7 @@ export function NewTrainingPlanModal({
 	            </div>
 	          ) : (
             <div className="form-group">
-              <label className="form-label">{t("training.modal.field.candidate")}</label>
+              <label className="form-label">{t("training.modal.field.candidate")}<RequiredMark /></label>
               <CustomSelect
                 className={fieldClass("candidateId", !!errors.candidateId, "form-select")}
                 disabled={!canManage}
@@ -397,7 +398,7 @@ export function NewTrainingPlanModal({
 	        {type === "teorik" ? (
 	          <div className="form-row">
 	            <div className="form-group">
-	              <label className="form-label">{t("training.modal.field.branch")}</label>
+	              <label className="form-label">{t("training.modal.field.branch")}<RequiredMark /></label>
 	              <CustomSelect
 	                className={fieldClass("branchCode", !!errors.branchCode, "form-select")}
 	                disabled={!canManage}
@@ -425,7 +426,7 @@ export function NewTrainingPlanModal({
         {needsPracticeFields ? (
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">{t("training.modal.field.vehicle")}</label>
+              <label className="form-label">{t("training.modal.field.vehicle")}<RequiredMark /></label>
               <CustomSelect
                 className={fieldClass("vehicleId", !!errors.vehicleId, "form-select")}
                 disabled={!canManage}

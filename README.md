@@ -21,10 +21,16 @@ Initial frontend scaffold for the pilot product.
 ## Runtime Configuration
 - `PILOT_FRONTEND_PUBLIC_URL`
 - `VITE_API_BASE_URL`
+- `VITE_AUTH_API_BASE_URL`
+- `VITE_CANDIDATE_API_BASE_URL`
+- `VITE_DOCUMENT_API_BASE_URL`
+- `VITE_FINANCE_API_BASE_URL`
+- `VITE_MEBBIS_API_BASE_URL`
+- `VITE_TRAINING_API_BASE_URL`
 
 The production image serves static files with Nginx on container port `8080`.
 Runtime configuration is exposed through `/env-config.json`, so the container can be reused across environments without rebuilding for every URL change.
-In production, `PILOT_FRONTEND_PUBLIC_URL=https://pilot.codebefore.com` and `VITE_API_BASE_URL=/api` are the expected runtime values.
+In production, `PILOT_FRONTEND_PUBLIC_URL=https://pilot.codebefore.com` and `VITE_API_BASE_URL=/api` are the expected monolith runtime values. Service-specific API URLs default to `VITE_API_BASE_URL`; set them only when a service is deployed separately.
 Real production values stay in the server-side `.env.runtime` file; they are not committed to this repo.
 The production frontend is intentionally not indexable: `index.html` includes a `robots` meta tag, `/robots.txt` disallows all crawlers, and the Nginx runtime adds `X-Robots-Tag: noindex, nofollow`.
 

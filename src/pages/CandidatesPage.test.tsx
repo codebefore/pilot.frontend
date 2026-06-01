@@ -2004,8 +2004,18 @@ describe("CandidatesPage sorting", () => {
   beforeEach(() => {
     localStorage.clear();
     getCandidatesMock.mockReset();
+    getGroupsMock.mockReset();
+    getExamCodesMock.mockReset();
     searchCandidateTagsMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
+    getGroupsMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 200,
+      totalCount: 0,
+      totalPages: 0,
+    });
+    getExamCodesMock.mockResolvedValue([]);
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
@@ -2105,7 +2115,7 @@ describe("CandidatesPage sorting", () => {
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     // Navigate to page 2.
-    fireEvent.click(screen.getByRole("button", { name: /Sonraki/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Sonraki/ }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2 }),
@@ -2131,8 +2141,18 @@ describe("CandidatesPage filter panel", () => {
   beforeEach(() => {
     localStorage.clear();
     getCandidatesMock.mockReset();
+    getGroupsMock.mockReset();
+    getExamCodesMock.mockReset();
     searchCandidateTagsMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
+    getGroupsMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 200,
+      totalCount: 0,
+      totalPages: 0,
+    });
+    getExamCodesMock.mockResolvedValue([]);
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
@@ -2241,7 +2261,7 @@ describe("CandidatesPage filter panel", () => {
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     // Navigate to page 2 via the pager.
-    fireEvent.click(screen.getByRole("button", { name: /Sonraki/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Sonraki/ }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2 }),

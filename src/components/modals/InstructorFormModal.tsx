@@ -22,6 +22,7 @@ import type {
 import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { InstructorAvatar } from "../ui/InstructorAvatar";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 type InstructorFormValues = {
@@ -326,7 +327,7 @@ export function InstructorFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Ad</label>
+            <label className="form-label">Ad<RequiredMark /></label>
             <Controller
               control={control}
               name="firstName"
@@ -345,7 +346,7 @@ export function InstructorFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("common.field.lastName")}</label>
+            <label className="form-label">{t("common.field.lastName")}<RequiredMark /></label>
             <Controller
               control={control}
               name="lastName"

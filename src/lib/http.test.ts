@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, httpGet } from "./http";
 import { clearStoredAuthSession, writeStoredAuthSession } from "./auth-storage";
+import { applyRuntimeConfig } from "./api";
 
 describe("http client", () => {
   beforeEach(() => {
+    applyRuntimeConfig(undefined);
     clearStoredAuthSession();
     vi.restoreAllMocks();
   });
@@ -230,5 +232,55 @@ describe("http client", () => {
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe("http://127.0.0.1:5080/api/auth/refresh");
     expect(unauthorized).toHaveBeenCalledTimes(1);
     window.removeEventListener("pilot:unauthorized", unauthorized);
+  });
+
+  it("routes automatic refresh to the configured auth base url", async () => {
+    applyRuntimeConfig({
+      apiBaseUrl: "http://127.0.0.1:5080",
+      authApiBaseUrl: "http://127.0.0.1:5091",
+    });
+    writeStoredAuthSession({
+      accessToken: "old-token",
+      expiresAtUtc: new Date(Date.now() - 60_000).toISOString(),
+      refreshToken: "refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "Test User",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [],
+      activeInstitution: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({
+          accessToken: "new-token",
+          expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+          refreshToken: "new-refresh-token",
+          refreshTokenExpiresAtUtc: new Date(Date.now() + 120_000).toISOString(),
+          user: {
+            id: "user-1",
+            fullName: "Test User",
+            phone: "5551112233",
+            roleName: "Operator",
+            isSuperAdmin: false,
+          },
+          institutions: [],
+          activeInstitution: null,
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+    );
+
+    await expect(httpGet<{ ok: boolean }>("/api/test")).resolves.toEqual({ ok: true });
+
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe("http://127.0.0.1:5091/api/auth/refresh");
   });
 });

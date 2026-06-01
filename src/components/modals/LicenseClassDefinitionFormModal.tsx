@@ -19,6 +19,7 @@ import type {
 } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 const optionalNonNegInt = (max: number, message: string) =>
@@ -290,7 +291,7 @@ export function LicenseClassDefinitionFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row license-rule-basics-row">
           <div className="form-group">
-            <label className="form-label">{t("licenseClassDef.field.targetCode")}</label>
+            <label className="form-label">{t("licenseClassDef.field.targetCode")}<RequiredMark /></label>
             <Controller
               control={control}
               name="code"

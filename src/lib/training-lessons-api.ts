@@ -1,3 +1,4 @@
+import { getTrainingApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   TrainingLessonKind,
@@ -6,6 +7,11 @@ import type {
   TrainingLessonResponse,
   TrainingLessonUpsertRequest,
 } from "./types";
+
+const trainingRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getTrainingApiBaseUrl(),
+  signal,
+});
 
 interface GetTrainingLessonsOptions {
   kind?: TrainingLessonKind;
@@ -27,24 +33,36 @@ export function getTrainingLessons(
     groupId: options?.groupId,
   };
 
-  return httpGet<TrainingLessonListResponse>("/api/training-lessons", params, { signal });
+  return httpGet<TrainingLessonListResponse>(
+    "/api/training-lessons",
+    params,
+    trainingRequestOptions(signal)
+  );
 }
 
 export function createTrainingLesson(
   body: TrainingLessonUpsertRequest
 ): Promise<TrainingLessonResponse> {
-  return httpPost<TrainingLessonResponse>("/api/training-lessons", body);
+  return httpPost<TrainingLessonResponse>(
+    "/api/training-lessons",
+    body,
+    trainingRequestOptions()
+  );
 }
 
 export function updateTrainingLesson(
   id: string,
   body: TrainingLessonUpsertRequest
 ): Promise<TrainingLessonResponse> {
-  return httpPut<TrainingLessonResponse>(`/api/training-lessons/${id}`, body);
+  return httpPut<TrainingLessonResponse>(
+    `/api/training-lessons/${id}`,
+    body,
+    trainingRequestOptions()
+  );
 }
 
 export function deleteTrainingLesson(id: string): Promise<void> {
-  return httpDelete(`/api/training-lessons/${id}`);
+  return httpDelete(`/api/training-lessons/${id}`, undefined, trainingRequestOptions());
 }
 
 export function deleteTrainingLessonsByGroup(
@@ -52,7 +70,7 @@ export function deleteTrainingLessonsByGroup(
 ): Promise<TrainingLessonBulkDeleteResponse> {
   return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training-lessons/bulk", {
     groupId,
-  });
+  }, trainingRequestOptions());
 }
 
 export function deleteTrainingLessonsByCandidate(
@@ -60,5 +78,5 @@ export function deleteTrainingLessonsByCandidate(
 ): Promise<TrainingLessonBulkDeleteResponse> {
   return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training-lessons/bulk", {
     candidateId,
-  });
+  }, trainingRequestOptions());
 }

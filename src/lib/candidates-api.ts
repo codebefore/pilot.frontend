@@ -1,3 +1,4 @@
+import { getCandidateApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPatch, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   CandidateExistingLicenseRequest,
@@ -11,6 +12,11 @@ import type {
   LicenseClass,
   PagedResponse,
 } from "./types";
+
+const candidateRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getCandidateApiBaseUrl(),
+  signal,
+});
 
 /** Backend-supported sort fields for GET /api/candidates. */
 export type CandidateSortField =
@@ -83,7 +89,11 @@ export function getCandidates(
   params?: GetCandidatesParams,
   signal?: AbortSignal
 ): Promise<PagedResponse<CandidateResponse>> {
-  return httpGet<PagedResponse<CandidateResponse>>("/api/candidates", params, { signal });
+  return httpGet<PagedResponse<CandidateResponse>>(
+    "/api/candidates",
+    params,
+    candidateRequestOptions(signal)
+  );
 }
 
 export function getExamScheduleOptions(
@@ -91,7 +101,7 @@ export function getExamScheduleOptions(
   signal?: AbortSignal
 ): Promise<ExamScheduleOption[]> {
   return httpGet<ExamScheduleOption[]>("/api/candidates/exam-date-options", params, {
-    signal,
+    ...candidateRequestOptions(signal),
   });
 }
 
@@ -99,7 +109,11 @@ export function getCandidateById(
   id: string,
   signal?: AbortSignal
 ): Promise<CandidateResponse> {
-  return httpGet<CandidateResponse>(`/api/candidates/${id}`, undefined, { signal });
+  return httpGet<CandidateResponse>(
+    `/api/candidates/${id}`,
+    undefined,
+    candidateRequestOptions(signal)
+  );
 }
 
 export function getCandidateReuseSources(
@@ -109,30 +123,36 @@ export function getCandidateReuseSources(
   return httpGet<CandidateReuseSourceResponse[]>(
     "/api/candidates/reuse-sources",
     { nationalId },
-    { signal }
+    candidateRequestOptions(signal)
   );
 }
 
 export function createCandidate(
   body: CandidateUpsertRequest
 ): Promise<CandidateResponse> {
-  return httpPost<CandidateResponse>("/api/candidates", body);
+  return httpPost<CandidateResponse>("/api/candidates", body, candidateRequestOptions());
 }
 
 export function updateCandidate(
   id: string,
   body: CandidateUpsertRequest
 ): Promise<CandidateResponse> {
-  return httpPut<CandidateResponse>(`/api/candidates/${id}`, body);
+  return httpPut<CandidateResponse>(
+    `/api/candidates/${id}`,
+    body,
+    candidateRequestOptions()
+  );
 }
 
 export function setCandidateTheoryExemption(
   id: string,
   isTheoryExempt: boolean
 ): Promise<void> {
-  return httpPatch<void>(`/api/candidates/${id}/theory-exemption`, {
-    isTheoryExempt,
-  });
+  return httpPatch<void>(
+    `/api/candidates/${id}/theory-exemption`,
+    { isTheoryExempt },
+    candidateRequestOptions()
+  );
 }
 
 export function setCandidateRegistrationNumber(
@@ -140,10 +160,11 @@ export function setCandidateRegistrationNumber(
   registrationNumber: string,
   rowVersion: number
 ): Promise<void> {
-  return httpPatch<void>(`/api/candidates/${id}/registration-number`, {
-    registrationNumber,
-    rowVersion,
-  });
+  return httpPatch<void>(
+    `/api/candidates/${id}/registration-number`,
+    { registrationNumber, rowVersion },
+    candidateRequestOptions()
+  );
 }
 
 export function setCandidateRegistrationDate(
@@ -151,17 +172,22 @@ export function setCandidateRegistrationDate(
   registrationDate: string,
   rowVersion: number
 ): Promise<void> {
-  return httpPatch<void>(`/api/candidates/${id}/registration-date`, {
-    registrationDate,
-    rowVersion,
-  });
+  return httpPatch<void>(
+    `/api/candidates/${id}/registration-date`,
+    { registrationDate, rowVersion },
+    candidateRequestOptions()
+  );
 }
 
 export function updateCandidateExistingLicense(
   id: string,
   body: CandidateExistingLicenseRequest
 ): Promise<CandidateResponse> {
-  return httpPut<CandidateResponse>(`/api/candidates/${id}/existing-license`, body);
+  return httpPut<CandidateResponse>(
+    `/api/candidates/${id}/existing-license`,
+    body,
+    candidateRequestOptions()
+  );
 }
 
 export function setCandidateSecondPracticeRound(
@@ -169,18 +195,23 @@ export function setCandidateSecondPracticeRound(
   enabled: boolean,
   rowVersion: number
 ): Promise<CandidateResponse> {
-  return httpPatch<CandidateResponse>(`/api/candidates/${id}/second-practice-round`, {
-    enabled,
-    rowVersion,
-  });
+  return httpPatch<CandidateResponse>(
+    `/api/candidates/${id}/second-practice-round`,
+    { enabled, rowVersion },
+    candidateRequestOptions()
+  );
 }
 
 export function deleteCandidate(id: string): Promise<void> {
-  return httpDelete(`/api/candidates/${id}`);
+  return httpDelete(`/api/candidates/${id}`, undefined, candidateRequestOptions());
 }
 
 export function removeActiveGroupAssignment(candidateId: string): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/group-assignments/active`);
+  return httpDelete(
+    `/api/candidates/${candidateId}/group-assignments/active`,
+    undefined,
+    candidateRequestOptions()
+  );
 }
 
 export function searchCandidateTags(
@@ -191,20 +222,28 @@ export function searchCandidateTags(
   return httpGet<CandidateTag[]>(
     "/api/candidates/tags",
     { search: search?.trim() || undefined, limit },
-    { signal }
+    candidateRequestOptions(signal)
   );
 }
 
 export function createCandidateTag(name: string): Promise<CandidateTag> {
-  return httpPost<CandidateTag>("/api/candidates/tags", { name });
+  return httpPost<CandidateTag>(
+    "/api/candidates/tags",
+    { name },
+    candidateRequestOptions()
+  );
 }
 
 export function updateCandidateTag(id: string, name: string): Promise<CandidateTag> {
-  return httpPut<CandidateTag>(`/api/candidates/tags/${id}`, { name });
+  return httpPut<CandidateTag>(
+    `/api/candidates/tags/${id}`,
+    { name },
+    candidateRequestOptions()
+  );
 }
 
 export function deleteCandidateTag(id: string): Promise<void> {
-  return httpDelete(`/api/candidates/tags/${id}`);
+  return httpDelete(`/api/candidates/tags/${id}`, undefined, candidateRequestOptions());
 }
 
 export function assignCandidateGroup(
@@ -213,6 +252,7 @@ export function assignCandidateGroup(
 ): Promise<CandidateGroupAssignmentResponse> {
   return httpPost<CandidateGroupAssignmentResponse>(
     `/api/candidates/${candidateId}/group-assignments`,
-    { groupId }
+    { groupId },
+    candidateRequestOptions()
   );
 }

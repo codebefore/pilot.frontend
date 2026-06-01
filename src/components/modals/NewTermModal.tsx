@@ -9,6 +9,7 @@ import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type { TermResponse } from "../../lib/types";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 import { Modal } from "../ui/Modal";
 
@@ -161,7 +162,7 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
       <form onSubmit={submit}>
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("terms.form.month")}</label>
+            <label className="form-label">{t("terms.form.month")}<RequiredMark /></label>
             <LocalizedDateInput
               ariaLabel={t("terms.form.month")}
               className={fieldClass(!!errors.monthDate, "form-input")}

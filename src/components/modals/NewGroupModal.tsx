@@ -20,6 +20,7 @@ import type { TermResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 const newGroupFormSchema = z.object({
@@ -243,7 +244,7 @@ export function NewGroupModal({
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("terms.selector.label")}</label>
+            <label className="form-label">{t("terms.selector.label")}<RequiredMark /></label>
             <CustomSelect
               className={fieldClass(!!errors.termId, "form-select")}
               value={selectedTermId}
@@ -264,7 +265,7 @@ export function NewGroupModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("newGroup.field.groupNumber")}</label>
+            <label className="form-label">{t("newGroup.field.groupNumber")}<RequiredMark /></label>
             <CustomSelect
               className={fieldClass(!!errors.groupNumber, "form-select")}
               value={groupNumber}
@@ -281,7 +282,7 @@ export function NewGroupModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("newGroup.field.branch")}</label>
+            <label className="form-label">{t("newGroup.field.branch")}<RequiredMark /></label>
             <CustomSelect
               className={fieldClass(!!errors.groupBranch, "form-select")}
               value={groupBranch}
@@ -312,7 +313,7 @@ export function NewGroupModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.capacity")}</label>
+            <label className="form-label">{t("common.field.capacity")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.capacity, "form-input")}
               inputMode="numeric"
@@ -322,7 +323,7 @@ export function NewGroupModal({
             {errors.capacity && <div className="form-error">{errors.capacity.message}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.startDate")}</label>
+            <label className="form-label">{t("common.field.startDate")}<RequiredMark /></label>
             <LocalizedDateInput
               ariaLabel="Başlangıç"
               className={fieldClass(!!errors.startDate, "form-input")}

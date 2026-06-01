@@ -13,6 +13,7 @@ import type {
   CashRegisterUpsertRequest,
 } from "../../lib/types";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 const cashRegisterFormSchema = z.object({
@@ -183,7 +184,7 @@ export function CashRegisterFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("settings.cashRegisters.form.name")}</label>
+            <label className="form-label">{t("settings.cashRegisters.form.name")}<RequiredMark /></label>
             <input
               className={fieldClass(errors.name?.message)}
               disabled={!canManage}

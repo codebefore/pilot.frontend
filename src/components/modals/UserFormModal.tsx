@@ -13,6 +13,7 @@ import type {
 } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 import { useT } from "../../lib/i18n";
 
@@ -170,7 +171,7 @@ export function UserFormModal({
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.fullName")}</label>
+            <label className="form-label">{t("common.field.fullName")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.fullName, "form-input")}
               disabled={!canManage}
@@ -202,7 +203,7 @@ export function UserFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.phone")}</label>
+            <label className="form-label">{t("common.field.phone")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
               disabled={!canManage}

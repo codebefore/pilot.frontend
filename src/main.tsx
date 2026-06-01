@@ -12,7 +12,13 @@ async function bootstrap() {
     if (response.ok) {
       const config = (await response.json()) as {
         apiBaseUrl?: string;
+        authApiBaseUrl?: string;
+        candidateApiBaseUrl?: string;
+        documentApiBaseUrl?: string;
+        financeApiBaseUrl?: string;
+        mebbisApiBaseUrl?: string;
         publicUrl?: string;
+        trainingApiBaseUrl?: string;
       };
 
       applyRuntimeConfig(config);

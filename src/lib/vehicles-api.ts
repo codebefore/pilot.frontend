@@ -1,3 +1,4 @@
+import { getTrainingApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   LicenseClass,
@@ -7,6 +8,11 @@ import type {
   VehicleTransmissionType,
   VehicleUpsertRequest,
 } from "./types";
+
+const trainingRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getTrainingApiBaseUrl(),
+  signal,
+});
 
 export type VehicleSortField =
   | "plateNumber"
@@ -49,7 +55,11 @@ export function getVehicles(
     sortDir: options?.sortDir,
   };
 
-  return httpGet<VehicleListResponse>("/api/vehicles", params, { signal });
+  return httpGet<VehicleListResponse>(
+    "/api/vehicles",
+    params,
+    trainingRequestOptions(signal)
+  );
 }
 
 export async function getVehicle(
@@ -61,7 +71,7 @@ export async function getVehicle(
   const response = await httpGet<VehicleListResponse>(
     "/api/vehicles",
     { activity: "all", page: 1, pageSize: 500 },
-    { signal }
+    trainingRequestOptions(signal)
   );
   const found = response.items.find((item) => item.id === id);
   if (!found) {
@@ -71,16 +81,16 @@ export async function getVehicle(
 }
 
 export function createVehicle(body: VehicleUpsertRequest): Promise<VehicleResponse> {
-  return httpPost<VehicleResponse>("/api/vehicles", body);
+  return httpPost<VehicleResponse>("/api/vehicles", body, trainingRequestOptions());
 }
 
 export function updateVehicle(
   id: string,
   body: VehicleUpsertRequest
 ): Promise<VehicleResponse> {
-  return httpPut<VehicleResponse>(`/api/vehicles/${id}`, body);
+  return httpPut<VehicleResponse>(`/api/vehicles/${id}`, body, trainingRequestOptions());
 }
 
 export function deleteVehicle(id: string): Promise<void> {
-  return httpDelete(`/api/vehicles/${id}`);
+  return httpDelete(`/api/vehicles/${id}`, undefined, trainingRequestOptions());
 }

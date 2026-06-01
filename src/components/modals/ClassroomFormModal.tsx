@@ -14,6 +14,7 @@ import type {
   TrainingBranchDefinitionResponse,
 } from "../../lib/types";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 const classroomFormSchema = z.object({
@@ -203,7 +204,7 @@ export function ClassroomFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("settings.classrooms.form.name")}</label>
+            <label className="form-label">{t("settings.classrooms.form.name")}<RequiredMark /></label>
             <input
               className={fieldClass(errors.name?.message)}
               placeholder={t("settings.classrooms.form.namePlaceholder")}
@@ -214,7 +215,7 @@ export function ClassroomFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("settings.classrooms.form.capacity")}</label>
+            <label className="form-label">{t("settings.classrooms.form.capacity")}<RequiredMark /></label>
             <input
               className={fieldClass(errors.capacity?.message)}
               inputMode="numeric"
@@ -229,7 +230,7 @@ export function ClassroomFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("settings.classrooms.form.branches")}</label>
+            <label className="form-label">{t("settings.classrooms.form.branches")}<RequiredMark /></label>
             <div className="form-subsection-note">{t("settings.classrooms.form.branchesHint")}</div>
             <Controller
               control={control}

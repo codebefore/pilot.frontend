@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "./api";
+import { getDocumentApiBaseUrl, getTrainingApiBaseUrl } from "./api";
 import {
   ApiError,
   httpDelete,
@@ -39,6 +39,23 @@ function isDateOverlapError(error: unknown): boolean {
   return false;
 }
 
+function documentRequestOptions(signal?: AbortSignal) {
+  return { baseUrl: getDocumentApiBaseUrl(), signal };
+}
+
+function trainingRequestOptions(signal?: AbortSignal) {
+  return { baseUrl: getTrainingApiBaseUrl(), signal };
+}
+
+function buildDocumentUrl(path: string): URL {
+  const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
+  const dedupedPath =
+    base.endsWith("/api") && path.startsWith("/api/")
+      ? path.slice("/api".length)
+      : path;
+  return new URL(`${base}${dedupedPath}`, window.location.origin);
+}
+
 async function unwrapDateOverlap<T>(promise: Promise<T>): Promise<T> {
   try {
     return await promise;
@@ -57,7 +74,7 @@ export function listAssignments(
   return httpGet<InstructorAssignment[]>(
     `/api/instructors/${instructorId}/assignments`,
     undefined,
-    { signal }
+    trainingRequestOptions(signal)
   );
 }
 
@@ -68,7 +85,8 @@ export function createAssignment(
   return unwrapDateOverlap(
     httpPost<InstructorAssignment>(
       `/api/instructors/${instructorId}/assignments`,
-      body
+      body,
+      trainingRequestOptions()
     )
   );
 }
@@ -81,7 +99,8 @@ export function updateAssignment(
   return unwrapDateOverlap(
     httpPut<InstructorAssignment>(
       `/api/instructors/${instructorId}/assignments/${assignmentId}`,
-      body
+      body,
+      trainingRequestOptions()
     )
   );
 }
@@ -93,7 +112,8 @@ export function deleteAssignment(
 ): Promise<void> {
   return httpDelete<void>(
     `/api/instructors/${instructorId}/assignments/${assignmentId}`,
-    { rowVersion }
+    { rowVersion },
+    trainingRequestOptions()
   );
 }
 
@@ -109,7 +129,8 @@ export function addAssignmentDocument(
 
   return httpPostForm<InstructorAssignmentDocument>(
     `/api/instructors/${instructorId}/assignments/${assignmentId}/documents`,
-    form
+    form,
+    documentRequestOptions()
   );
 }
 
@@ -119,7 +140,9 @@ export function deleteAssignmentDocument(
   documentId: string
 ): Promise<void> {
   return httpDelete<void>(
-    `/api/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}`
+    `/api/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}`,
+    undefined,
+    documentRequestOptions()
   );
 }
 
@@ -129,11 +152,6 @@ export function getAssignmentDocumentDownloadUrl(
   assignmentId: string,
   documentId: string
 ): string {
-  const base = getApiBaseUrl().replace(/\/+$/, "");
   const path = `/api/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}/file`;
-  const dedupedPath =
-    base.endsWith("/api") && path.startsWith("/api/")
-      ? path.slice("/api".length)
-      : path;
-  return new URL(`${base}${dedupedPath}`, window.location.origin).toString();
+  return buildDocumentUrl(path).toString();
 }

@@ -1,5 +1,11 @@
+import { getTrainingApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type { ExamCodeOption } from "./types";
+
+const trainingRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getTrainingApiBaseUrl(),
+  signal,
+});
 
 interface CreateExamCodeRequest {
   examType: "uygulama";
@@ -10,17 +16,25 @@ export function getExamCodes(
   examType: "uygulama",
   signal?: AbortSignal
 ): Promise<ExamCodeOption[]> {
-  return httpGet<ExamCodeOption[]>("/api/exam-codes", { examType }, { signal });
+  return httpGet<ExamCodeOption[]>(
+    "/api/exam-codes",
+    { examType },
+    trainingRequestOptions(signal)
+  );
 }
 
 export function createExamCode(body: CreateExamCodeRequest): Promise<ExamCodeOption> {
-  return httpPost<ExamCodeOption>("/api/exam-codes", body);
+  return httpPost<ExamCodeOption>("/api/exam-codes", body, trainingRequestOptions());
 }
 
 export function deleteExamCode(id: string): Promise<void> {
-  return httpDelete(`/api/exam-codes/${id}`);
+  return httpDelete(`/api/exam-codes/${id}`, undefined, trainingRequestOptions());
 }
 
 export function updateExamCode(id: string, code: string): Promise<ExamCodeOption> {
-  return httpPut<ExamCodeOption>(`/api/exam-codes/${id}`, { code });
+  return httpPut<ExamCodeOption>(
+    `/api/exam-codes/${id}`,
+    { code },
+    trainingRequestOptions()
+  );
 }

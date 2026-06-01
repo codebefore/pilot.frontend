@@ -12,6 +12,7 @@ import type {
   TrainingBranchDefinitionUpsertRequest,
 } from "../../lib/types";
 import { Modal } from "../ui/Modal";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 import { useT } from "../../lib/i18n";
 
@@ -144,7 +145,7 @@ export function TrainingBranchFormModal({
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Ad</label>
+            <label className="form-label">Ad<RequiredMark /></label>
             <input
               className={fieldClass(errors.name?.message)}
               placeholder="Trafik ve Çevre"

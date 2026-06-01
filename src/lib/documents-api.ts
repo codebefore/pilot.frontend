@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "./api";
+import { getDocumentApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
 import type {
   CandidateDocumentOcrSuggestionResponse,
@@ -36,6 +36,19 @@ function normalizeDocumentType(documentType: DocumentTypeResponse): DocumentType
     ...documentType,
     metadataFields: documentType.metadataFields.map(normalizeMetadataField),
   };
+}
+
+function documentRequestOptions(signal?: AbortSignal) {
+  return { baseUrl: getDocumentApiBaseUrl(), signal };
+}
+
+function buildDocumentUrl(path: string): URL {
+  const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
+  const dedupedPath =
+    base.endsWith("/api") && path.startsWith("/api/")
+      ? path.slice("/api".length)
+      : path;
+  return new URL(`${base}${dedupedPath}`, window.location.origin);
 }
 
 interface GetDocumentTypesOptions {
@@ -108,7 +121,7 @@ export function getDocumentChecklist(
   return httpGet<PagedResponse<DocumentChecklistEntry>>(
     "/api/documents/candidate-checklist",
     params,
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -147,7 +160,7 @@ export function uploadDocument(
   return httpPostForm<DocumentResponse>(
     `/api/candidates/${input.candidateId}/documents`,
     form,
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -175,7 +188,7 @@ export function updateCandidateDocument(
       isPhysicallyAvailable: input.isPhysicallyAvailable,
       uploadedAtUtc: input.uploadedAtUtc,
     },
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -188,7 +201,7 @@ export function updateCandidateDocumentMebbisTransfer(
   return httpPut<DocumentResponse>(
     `/api/candidates/${candidateId}/documents/types/${documentTypeId}/mebbis`,
     { isMebbisTransferred },
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -200,7 +213,7 @@ export function analyzeCandidateDocumentOcr(
   return httpPost<CandidateDocumentOcrSuggestionResponse>(
     `/api/candidates/${candidateId}/documents/${documentId}/ocr`,
     {},
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -211,7 +224,7 @@ export function getCandidateDocuments(
   return httpGet<DocumentResponse[]>(
     `/api/candidates/${candidateId}/documents`,
     undefined,
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -223,7 +236,7 @@ export function deleteCandidateDocument(
   return httpDelete(
     `/api/candidates/${candidateId}/documents/${documentId}`,
     undefined,
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -233,13 +246,8 @@ export function getCandidateDocumentDownloadUrl(
   documentId: string,
   options?: { inline?: boolean }
 ): string {
-  const base = getApiBaseUrl().replace(/\/+$/, "");
   const path = `/api/candidates/${candidateId}/documents/${documentId}/download`;
-  const dedupedPath =
-    base.endsWith("/api") && path.startsWith("/api/")
-      ? path.slice("/api".length)
-      : path;
-  const url = new URL(`${base}${dedupedPath}`, window.location.origin);
+  const url = buildDocumentUrl(path);
   if (options?.inline) {
     url.searchParams.set("inline", "true");
   }

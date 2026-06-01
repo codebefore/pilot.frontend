@@ -1,4 +1,10 @@
+import { getCandidateApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
+
+const candidateRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getCandidateApiBaseUrl(),
+  signal,
+});
 
 export interface CandidateReferenceResponse {
   id: string;
@@ -30,23 +36,35 @@ export async function getCandidateReferences(
   }
   const query = params.toString();
   const url = query ? `/api/candidate-references?${query}` : "/api/candidate-references";
-  const response = await httpGet<CandidateReferenceListResponse>(url);
+  const response = await httpGet<CandidateReferenceListResponse>(
+    url,
+    undefined,
+    candidateRequestOptions()
+  );
   return response.items;
 }
 
 export function createCandidateReference(
   body: CandidateReferenceUpsertRequest
 ): Promise<CandidateReferenceResponse> {
-  return httpPost<CandidateReferenceResponse>("/api/candidate-references", body);
+  return httpPost<CandidateReferenceResponse>(
+    "/api/candidate-references",
+    body,
+    candidateRequestOptions()
+  );
 }
 
 export function updateCandidateReference(
   id: string,
   body: CandidateReferenceUpsertRequest
 ): Promise<CandidateReferenceResponse> {
-  return httpPut<CandidateReferenceResponse>(`/api/candidate-references/${id}`, body);
+  return httpPut<CandidateReferenceResponse>(
+    `/api/candidate-references/${id}`,
+    body,
+    candidateRequestOptions()
+  );
 }
 
 export function deleteCandidateReference(id: string): Promise<void> {
-  return httpDelete(`/api/candidate-references/${id}`);
+  return httpDelete(`/api/candidate-references/${id}`, undefined, candidateRequestOptions());
 }

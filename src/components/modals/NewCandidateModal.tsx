@@ -31,6 +31,7 @@ import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
+import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 
 function isValidTurkishNationalId(value: string) {
@@ -541,7 +542,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.nationalId")}</label>
+            <label className="form-label">{t("common.field.nationalId")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.tc, "form-input")}
               inputMode="numeric"
@@ -583,7 +584,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Ad</label>
+            <label className="form-label">Ad<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.firstName, "form-input")}
               placeholder="Adı"
@@ -596,7 +597,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             {errors.firstName && <div className="form-error">{errors.firstName.message}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.lastName")}</label>
+            <label className="form-label">{t("common.field.lastName")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.lastName, "form-input")}
               placeholder="Soyadı"
@@ -612,7 +613,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.phone")}</label>
+            <label className="form-label">{t("common.field.phone")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.phone, "form-input")}
               maxLength={32}
@@ -635,7 +636,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.licenseClass")}</label>
+            <label className="form-label">{t("common.field.licenseClass")}<RequiredMark /></label>
             <CustomSelect
               className={fieldClass(!!errors.className, "form-select")}
               value={selectedClass}

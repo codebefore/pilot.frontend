@@ -1,8 +1,14 @@
+import { getCandidateApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost } from "./http";
 import type {
   CandidateKCertificateCreateRequest,
   CandidateKCertificateResponse,
 } from "./types";
+
+const candidateRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getCandidateApiBaseUrl(),
+  signal,
+});
 
 export function listCandidateKCertificates(
   candidateId: string,
@@ -11,7 +17,7 @@ export function listCandidateKCertificates(
   return httpGet<CandidateKCertificateResponse[]>(
     `/api/candidates/${candidateId}/k-certificates`,
     undefined,
-    { signal }
+    candidateRequestOptions(signal)
   );
 }
 
@@ -21,7 +27,8 @@ export function createCandidateKCertificate(
 ): Promise<CandidateKCertificateResponse> {
   return httpPost<CandidateKCertificateResponse>(
     `/api/candidates/${candidateId}/k-certificates`,
-    body
+    body,
+    candidateRequestOptions()
   );
 }
 
@@ -29,5 +36,9 @@ export function deleteCandidateKCertificate(
   candidateId: string,
   id: string
 ): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/k-certificates/${id}`);
+  return httpDelete(
+    `/api/candidates/${candidateId}/k-certificates/${id}`,
+    undefined,
+    candidateRequestOptions()
+  );
 }

@@ -1,4 +1,9 @@
+import { getAuthApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
+
+function authOptions(signal?: AbortSignal) {
+  return { baseUrl: getAuthApiBaseUrl(), signal };
+}
 
 export interface UserNoteResponse {
   id: string;
@@ -20,14 +25,14 @@ interface UserNoteUpsertInput {
 }
 
 export function getUserNotes(signal?: AbortSignal): Promise<UserNoteListResponse> {
-  return httpGet<UserNoteListResponse>("/api/user-notes", undefined, { signal });
+  return httpGet<UserNoteListResponse>("/api/user-notes", undefined, authOptions(signal));
 }
 
 export function createUserNote(
   input: UserNoteUpsertInput,
   signal?: AbortSignal
 ): Promise<UserNoteResponse> {
-  return httpPost<UserNoteResponse>("/api/user-notes", input, { signal });
+  return httpPost<UserNoteResponse>("/api/user-notes", input, authOptions(signal));
 }
 
 export function updateUserNote(
@@ -35,7 +40,7 @@ export function updateUserNote(
   input: UserNoteUpsertInput,
   signal?: AbortSignal
 ): Promise<UserNoteResponse> {
-  return httpPut<UserNoteResponse>(`/api/user-notes/${noteId}`, input, { signal });
+  return httpPut<UserNoteResponse>(`/api/user-notes/${noteId}`, input, authOptions(signal));
 }
 
 export function setUserNoteCompletion(
@@ -46,10 +51,10 @@ export function setUserNoteCompletion(
   return httpPost<UserNoteResponse>(
     `/api/user-notes/${noteId}/completion`,
     { completed },
-    { signal }
+    authOptions(signal)
   );
 }
 
 export function deleteUserNote(noteId: string, signal?: AbortSignal): Promise<void> {
-  return httpDelete(`/api/user-notes/${noteId}`, undefined, { signal });
+  return httpDelete(`/api/user-notes/${noteId}`, undefined, authOptions(signal));
 }

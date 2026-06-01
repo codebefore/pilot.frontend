@@ -1,3 +1,4 @@
+import { getTrainingApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
 import type {
   InstructorBranch,
@@ -9,6 +10,11 @@ import type {
   InstructorUpsertRequest,
   LicenseClass,
 } from "./types";
+
+const trainingRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getTrainingApiBaseUrl(),
+  signal,
+});
 
 export type InstructorSortField =
   | "fullName"
@@ -53,29 +59,41 @@ export function getInstructors(
     sortDir: options?.sortDir,
   };
 
-  return httpGet<InstructorListResponse>("/api/instructors", params, { signal });
+  return httpGet<InstructorListResponse>(
+    "/api/instructors",
+    params,
+    trainingRequestOptions(signal)
+  );
 }
 
 export function getInstructor(
   id: string,
   signal?: AbortSignal
 ): Promise<InstructorResponse> {
-  return httpGet<InstructorResponse>(`/api/instructors/${id}`, undefined, { signal });
+  return httpGet<InstructorResponse>(
+    `/api/instructors/${id}`,
+    undefined,
+    trainingRequestOptions(signal)
+  );
 }
 
 export function createInstructor(body: InstructorCreateRequest): Promise<InstructorResponse> {
-  return httpPost<InstructorResponse>("/api/instructors", body);
+  return httpPost<InstructorResponse>("/api/instructors", body, trainingRequestOptions());
 }
 
 export function updateInstructor(
   id: string,
   body: InstructorUpsertRequest
 ): Promise<InstructorResponse> {
-  return httpPut<InstructorResponse>(`/api/instructors/${id}`, body);
+  return httpPut<InstructorResponse>(
+    `/api/instructors/${id}`,
+    body,
+    trainingRequestOptions()
+  );
 }
 
 export function deleteInstructor(id: string): Promise<void> {
-  return httpDelete(`/api/instructors/${id}`);
+  return httpDelete(`/api/instructors/${id}`, undefined, trainingRequestOptions());
 }
 
 export function uploadInstructorPhoto(
@@ -84,11 +102,19 @@ export function uploadInstructorPhoto(
 ): Promise<InstructorResponse> {
   const form = new FormData();
   form.append("file", file);
-  return httpPostForm<InstructorResponse>(`/api/instructors/${id}/photo`, form);
+  return httpPostForm<InstructorResponse>(
+    `/api/instructors/${id}/photo`,
+    form,
+    trainingRequestOptions()
+  );
 }
 
 export function deleteInstructorPhoto(id: string): Promise<InstructorResponse> {
-  return httpDelete<InstructorResponse>(`/api/instructors/${id}/photo`);
+  return httpDelete<InstructorResponse>(
+    `/api/instructors/${id}/photo`,
+    undefined,
+    trainingRequestOptions()
+  );
 }
 
 interface InstructorLeaveRequest {
@@ -101,9 +127,17 @@ export function markInstructorLeft(
   id: string,
   body: InstructorLeaveRequest
 ): Promise<InstructorResponse> {
-  return httpPost<InstructorResponse>(`/api/instructors/${id}/leave`, body);
+  return httpPost<InstructorResponse>(
+    `/api/instructors/${id}/leave`,
+    body,
+    trainingRequestOptions()
+  );
 }
 
 export function clearInstructorLeft(id: string): Promise<InstructorResponse> {
-  return httpDelete<InstructorResponse>(`/api/instructors/${id}/leave`);
+  return httpDelete<InstructorResponse>(
+    `/api/instructors/${id}/leave`,
+    undefined,
+    trainingRequestOptions()
+  );
 }

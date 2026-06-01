@@ -248,7 +248,7 @@ export function InstructorDetailPage() {
                   <span
                     className={`instructor-detail-status${instructor.isActive ? " active" : " inactive"}`}
                   >
-                    {instructor.isActive ? "Aktif" : "Pasif"}
+                    {instructor.isActive ? t("common.statusActive") : t("common.statusInactive")}
                   </span>
                   {instructor.leftAtDate ? (
                     <span className="instructor-detail-leave-pill" title={instructor.leaveReason ?? undefined}>
@@ -287,7 +287,7 @@ export function InstructorDetailPage() {
             <div className="instructor-detail-summary-grid">
               <Field label="TC Kimlik No" value={instructor.nationalId ?? "—"} />
               <Field
-                label="Statü"
+                label={t("instructor.detail.field.status")}
                 value={INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType] ?? "—"}
               />
               <Field
@@ -295,7 +295,7 @@ export function InstructorDetailPage() {
                 value={INSTRUCTOR_ROLE_LABELS[instructor.role] ?? "—"}
               />
               <Field
-                label="Branş"
+                label={t("instructor.detail.field.branch")}
                 value={
                   instructor.branches.length > 0
                     ? instructor.branches
@@ -305,7 +305,7 @@ export function InstructorDetailPage() {
                 }
               />
               <Field
-                label="Haftalık Ders Saati"
+                label={t("instructor.detail.field.weeklyHours")}
                 value={
                   instructor.weeklyLessonHours != null
                     ? String(instructor.weeklyLessonHours)
@@ -317,11 +317,11 @@ export function InstructorDetailPage() {
                 value={instructor.mebbisPermitNo ?? "—"}
               />
               <Field
-                label="Toplam Atama"
+                label={t("instructor.detail.field.totalAssignments")}
                 value={String(assignments.length)}
               />
               <Field
-                label="Kayıt Tarihi"
+                label={t("instructor.detail.field.registrationDate")}
                 value={formatDate(instructor.createdAtUtc.slice(0, 10))}
               />
             </div>
@@ -600,19 +600,19 @@ export function InstructorDetailPage() {
               title={!canManageTraining ? noPermissionTitle : undefined}
               type="button"
             >
-              {leaveBusy ? "Kaydediliyor..." : "Kaydet"}
+              {leaveBusy ? t("common.saving") : t("common.save")}
             </button>
           </>
         }
         onClose={() => setLeaveModalOpen(false)}
         open={leaveModalOpen}
-        title="İşten Ayrılma"
+        title={t("instructor.detail.leaveModalTitle")}
       >
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Ayrılış Tarihi</label>
             <LocalizedDateInput
-              ariaLabel="Ayrılış tarihi"
+              ariaLabel={t("instructor.detail.leaveDateAria")}
               className="form-input"
               lang="tr"
               onChange={(value) => setLeaveDate(value)}
@@ -627,7 +627,7 @@ export function InstructorDetailPage() {
               className="form-input"
               maxLength={500}
               onChange={(event) => setLeaveReason(event.target.value)}
-              placeholder="Opsiyonel — neden, açıklama vb."
+              placeholder={t("instructor.detail.leaveReasonPlaceholder")}
               rows={4}
               value={leaveReason}
             />

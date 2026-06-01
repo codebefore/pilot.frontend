@@ -1,8 +1,13 @@
+import { getTrainingApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type {
   CandidateExamAttemptResponse,
   CandidateExamAttemptUpsertRequest,
 } from "./types";
+
+function trainingOptions(signal?: AbortSignal) {
+  return { baseUrl: getTrainingApiBaseUrl(), signal };
+}
 
 export function listCandidateExamAttempts(
   candidateId: string,
@@ -11,7 +16,7 @@ export function listCandidateExamAttempts(
   return httpGet<CandidateExamAttemptResponse[]>(
     `/api/candidates/${candidateId}/exam-attempts`,
     undefined,
-    { signal }
+    trainingOptions(signal)
   );
 }
 
@@ -21,7 +26,8 @@ export function createCandidateExamAttempt(
 ): Promise<CandidateExamAttemptResponse> {
   return httpPost<CandidateExamAttemptResponse>(
     `/api/candidates/${candidateId}/exam-attempts`,
-    body
+    body,
+    trainingOptions()
   );
 }
 
@@ -32,12 +38,13 @@ export function updateCandidateExamAttempt(
 ): Promise<CandidateExamAttemptResponse> {
   return httpPut<CandidateExamAttemptResponse>(
     `/api/candidates/${candidateId}/exam-attempts/${id}`,
-    body
+    body,
+    trainingOptions()
   );
 }
 
 export function deleteCandidateExamAttempt(candidateId: string, id: string): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/exam-attempts/${id}`);
+  return httpDelete(`/api/candidates/${candidateId}/exam-attempts/${id}`, undefined, trainingOptions());
 }
 
 export function chargeCandidateExamAttempt(
@@ -46,7 +53,8 @@ export function chargeCandidateExamAttempt(
 ): Promise<CandidateExamAttemptResponse> {
   return httpPost<CandidateExamAttemptResponse>(
     `/api/candidates/${candidateId}/exam-attempts/${id}/charge`,
-    {}
+    {},
+    trainingOptions()
   );
 }
 
@@ -56,6 +64,7 @@ export function markCandidateExamAttemptSelfPaid(
 ): Promise<CandidateExamAttemptResponse> {
   return httpPost<CandidateExamAttemptResponse>(
     `/api/candidates/${candidateId}/exam-attempts/${id}/mark-self-paid`,
-    {}
+    {},
+    trainingOptions()
   );
 }

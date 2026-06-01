@@ -86,6 +86,7 @@ import {
   type CandidateStatusValue,
 } from "../lib/status-maps";
 import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../lib/term-label";
+import { formatNationalId } from "../lib/national-id";
 import { normalizeTextQuery } from "../lib/search";
 import type { JobStatus } from "../types";
 import type {
@@ -646,7 +647,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "nationalId",
     labelKey: "candidates.col.nationalId",
     sortField: "nationalId",
-    renderCell: (c) => <span className="cand-tc">{c.nationalId}</span>,
+    renderCell: (c) => <span className="cand-tc">{formatNationalId(c.nationalId)}</span>,
     skeletonWidth: 96,
   },
   {

@@ -138,12 +138,12 @@ export function RoleEditorPage() {
               Listeye Dön
             </button>
           }
-          title="Rol Bilgisi Yüklenemedi"
+          title={t("roleEditor.loadFailedTitle")}
         />
 
         <div className="role-editor-page spaced">
           <PageLoadError
-            title="Rol bilgisi yüklenemedi"
+            title={t("roleEditor.loadFailedShort")}
             description="Rol detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
             onRetry={() => void rolesQuery.refetch()}
           />
@@ -165,7 +165,7 @@ export function RoleEditorPage() {
               Listeye Dön
             </button>
           }
-          title="Rol Bulunamadı"
+          title={t("roleEditor.notFoundTitle")}
         />
 
         <div className="role-editor-page spaced">
@@ -199,11 +199,11 @@ export function RoleEditorPage() {
               title={!canManagePermissions ? noPermissionTitle : undefined}
               type="button"
             >
-              {submitting ? "Kaydediliyor..." : "Kaydet"}
+              {submitting ? t("common.saving") : t("common.save")}
             </button>
           </>
         }
-        title={editingRole ? "Rolü Düzenle" : "Yeni Rol"}
+        title={editingRole ? t("roleEditor.modalTitleEdit") : t("roleEditor.modalTitleNew")}
       />
 
       <div className="role-editor-page spaced">
@@ -211,7 +211,7 @@ export function RoleEditorPage() {
           <form className="role-editor-form" onSubmit={submit}>
             <div className="role-editor-copy">
               <h3 className="role-editor-title">
-                {editingRole ? editingRole.name : "Yeni rol bilgileri"}
+                {editingRole ? editingRole.name : t("roleEditor.newRoleHint")}
               </h3>
               <p className="role-editor-text">
                 Rolü kaydettikten sonra yetkilerini yetki yönetimi ekranından düzenleyebilirsin.
@@ -231,10 +231,10 @@ export function RoleEditorPage() {
                     <input
                       className={errors.name ? "form-input error" : "form-input"}
                       disabled={!canManagePermissions}
-                      placeholder="Örn. Eğitim Koordinatörü"
+                      placeholder={t("roleEditor.namePlaceholder")}
                       {...register("name", {
-                        required: "Zorunlu alan",
-                        minLength: { value: 2, message: "En az 2 karakter" },
+                        required: t("roleEditor.validation.required"),
+                        minLength: { value: 2, message: t("roleEditor.validation.minLength") },
                       })}
                     />
                     {errors.name && <div className="form-error">{errors.name.message}</div>}
@@ -249,7 +249,7 @@ export function RoleEditorPage() {
                       {...register("isActive")}
                     />
                     <span className="switch-toggle-control" aria-hidden="true" />
-                    <span>{watch("isActive") ? "Aktif" : "Pasif"}</span>
+                    <span>{watch("isActive") ? t("common.statusActive") : t("common.statusInactive")}</span>
                   </label>
                 </div>
               </>

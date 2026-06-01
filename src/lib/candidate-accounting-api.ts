@@ -1,3 +1,4 @@
+import { getFinanceApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type {
   CandidateAccountingInvoiceResponse,
@@ -12,6 +13,11 @@ import type {
   CandidateAccountingSummaryResponse,
 } from "./types";
 
+const financeRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getFinanceApiBaseUrl(),
+  signal,
+});
+
 export function getCandidateAccounting(
   candidateId: string,
   signal?: AbortSignal
@@ -19,7 +25,7 @@ export function getCandidateAccounting(
   return httpGet<CandidateAccountingSummaryResponse>(
     `/api/candidates/${candidateId}/accounting`,
     undefined,
-    { signal }
+    financeRequestOptions(signal)
   );
 }
 
@@ -29,7 +35,8 @@ export function createCandidateAccountingMovement(
 ): Promise<CandidateAccountingMovementResponse> {
   return httpPost<CandidateAccountingMovementResponse>(
     `/api/candidates/${candidateId}/accounting/debts`,
-    body
+    body,
+    financeRequestOptions()
   );
 }
 
@@ -39,7 +46,8 @@ export function createCandidateAccountingMovements(
 ): Promise<CandidateAccountingMovementResponse[]> {
   return httpPost<CandidateAccountingMovementResponse[]>(
     `/api/candidates/${candidateId}/accounting/debts/bulk`,
-    body
+    body,
+    financeRequestOptions()
   );
 }
 
@@ -48,9 +56,11 @@ export function cancelCandidateAccountingMovement(
   movementId: string,
   cancellationReason?: string
 ): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/accounting/debts/${movementId}`, {
-    cancellationReason,
-  });
+  return httpDelete(
+    `/api/candidates/${candidateId}/accounting/debts/${movementId}`,
+    { cancellationReason },
+    financeRequestOptions()
+  );
 }
 
 export function createCandidateAccountingPayment(
@@ -59,7 +69,8 @@ export function createCandidateAccountingPayment(
 ): Promise<CandidateAccountingPaymentResponse> {
   return httpPost<CandidateAccountingPaymentResponse>(
     `/api/candidates/${candidateId}/accounting/payments`,
-    body
+    body,
+    financeRequestOptions()
   );
 }
 
@@ -68,9 +79,11 @@ export function cancelCandidateAccountingPayment(
   paymentId: string,
   cancellationReason: string
 ): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/accounting/payments/${paymentId}`, {
-    cancellationReason,
-  });
+  return httpDelete(
+    `/api/candidates/${candidateId}/accounting/payments/${paymentId}`,
+    { cancellationReason },
+    financeRequestOptions()
+  );
 }
 
 export function createCandidateAccountingRefund(
@@ -80,7 +93,8 @@ export function createCandidateAccountingRefund(
 ): Promise<CandidateAccountingRefundResponse> {
   return httpPost<CandidateAccountingRefundResponse>(
     `/api/candidates/${candidateId}/accounting/payments/${paymentId}/refunds`,
-    body
+    body,
+    financeRequestOptions()
   );
 }
 
@@ -90,7 +104,8 @@ export function createCandidateAccountingInvoice(
 ): Promise<CandidateAccountingInvoiceResponse> {
   return httpPost<CandidateAccountingInvoiceResponse>(
     `/api/candidates/${candidateId}/accounting/invoices`,
-    body
+    body,
+    financeRequestOptions()
   );
 }
 
@@ -101,7 +116,8 @@ export function updateCandidateAccountingInvoice(
 ): Promise<CandidateAccountingInvoiceResponse> {
   return httpPut<CandidateAccountingInvoiceResponse>(
     `/api/candidates/${candidateId}/accounting/invoices/${invoiceId}`,
-    body
+    body,
+    financeRequestOptions()
   );
 }
 
@@ -109,5 +125,9 @@ export function deleteCandidateAccountingInvoice(
   candidateId: string,
   invoiceId: string
 ): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/accounting/invoices/${invoiceId}`);
+  return httpDelete(
+    `/api/candidates/${candidateId}/accounting/invoices/${invoiceId}`,
+    undefined,
+    financeRequestOptions()
+  );
 }

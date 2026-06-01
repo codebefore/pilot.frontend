@@ -1,8 +1,13 @@
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
+import { getDocumentApiBaseUrl } from "./api";
 import type {
   VehicleDocumentResponse,
   VehicleDocumentUpsertRequest,
 } from "./types";
+
+function documentRequestOptions(signal?: AbortSignal) {
+  return { baseUrl: getDocumentApiBaseUrl(), signal };
+}
 
 export function listVehicleDocuments(
   vehicleId: string,
@@ -11,7 +16,7 @@ export function listVehicleDocuments(
   return httpGet<VehicleDocumentResponse[]>(
     `/api/vehicles/${vehicleId}/documents`,
     undefined,
-    { signal }
+    documentRequestOptions(signal)
   );
 }
 
@@ -21,7 +26,8 @@ export function createVehicleDocument(
 ): Promise<VehicleDocumentResponse> {
   return httpPost<VehicleDocumentResponse>(
     `/api/vehicles/${vehicleId}/documents`,
-    body
+    body,
+    documentRequestOptions()
   );
 }
 
@@ -32,7 +38,8 @@ export function updateVehicleDocument(
 ): Promise<VehicleDocumentResponse> {
   return httpPut<VehicleDocumentResponse>(
     `/api/vehicles/${vehicleId}/documents/${documentId}`,
-    body
+    body,
+    documentRequestOptions()
   );
 }
 
@@ -42,6 +49,8 @@ export function deleteVehicleDocument(
   rowVersion: number
 ): Promise<void> {
   return httpDelete(
-    `/api/vehicles/${vehicleId}/documents/${documentId}?rowVersion=${rowVersion}`
+    `/api/vehicles/${vehicleId}/documents/${documentId}?rowVersion=${rowVersion}`,
+    undefined,
+    documentRequestOptions()
   );
 }

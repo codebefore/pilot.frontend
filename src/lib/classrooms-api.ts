@@ -1,9 +1,15 @@
+import { getTrainingApiBaseUrl } from "./api";
 import { httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   ClassroomListResponse,
   ClassroomResponse,
   ClassroomUpsertRequest,
 } from "./types";
+
+const trainingRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getTrainingApiBaseUrl(),
+  signal,
+});
 
 export type ClassroomSortField = "name" | "capacity" | "isActive";
 export type ClassroomSortDirection = "asc" | "desc";
@@ -33,16 +39,24 @@ export function getClassrooms(
     sortDir: options?.sortDir,
   };
 
-  return httpGet<ClassroomListResponse>("/api/classrooms", params, { signal });
+  return httpGet<ClassroomListResponse>(
+    "/api/classrooms",
+    params,
+    trainingRequestOptions(signal)
+  );
 }
 
 export function createClassroom(body: ClassroomUpsertRequest): Promise<ClassroomResponse> {
-  return httpPost<ClassroomResponse>("/api/classrooms", body);
+  return httpPost<ClassroomResponse>("/api/classrooms", body, trainingRequestOptions());
 }
 
 export function updateClassroom(
   id: string,
   body: ClassroomUpsertRequest
 ): Promise<ClassroomResponse> {
-  return httpPut<ClassroomResponse>(`/api/classrooms/${id}`, body);
+  return httpPut<ClassroomResponse>(
+    `/api/classrooms/${id}`,
+    body,
+    trainingRequestOptions()
+  );
 }

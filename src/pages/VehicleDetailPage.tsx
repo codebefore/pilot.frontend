@@ -9,7 +9,7 @@ import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { canManageArea } from "../lib/permissions";
 import { getVehicle } from "../lib/vehicles-api";
-import { useT, currentLocale } from "../lib/i18n";
+import { useT, currentLocale, type TranslationKey } from "../lib/i18n";
 import {
   createVehicleDocument,
   deleteVehicleDocument,
@@ -41,10 +41,10 @@ function formatOdometer(value: number | null, unit: "km" | "hour"): string {
   return unit === "hour" ? `${formatted} sa` : `${formatted} km`;
 }
 
-const DOCUMENT_TYPE_LABELS: Record<VehicleDocumentType, string> = {
-  insurance: "Sigorta",
-  inspection: "Muayene",
-  casco: "Kasko",
+const DOCUMENT_TYPE_LABEL_KEY: Record<VehicleDocumentType, TranslationKey> = {
+  insurance: "vehicle.document.insurance",
+  inspection: "vehicle.document.inspection",
+  casco: "vehicle.document.casco",
 };
 
 const DOCUMENT_TYPES: VehicleDocumentType[] = ["insurance", "inspection", "casco"];
@@ -75,7 +75,7 @@ export function VehicleDetailPage() {
   const loading = vehicleQuery.isLoading || documentsQuery.isLoading;
   const error =
     vehicleQuery.isError || documentsQuery.isError
-      ? "Araç bilgileri yüklenemedi"
+      ? t("vehicle.detail.loadFailed")
       : null;
 
   const [modalType, setModalType] = useState<VehicleDocumentType | null>(null);
@@ -134,7 +134,7 @@ export function VehicleDetailPage() {
     if (!canManageDocuments) return;
     if (!vehicleId || !modalType || !modalStart || !modalEnd) return;
     if (modalEnd < modalStart) {
-      showToast("Bitiş tarihi başlangıçtan önce olamaz", "error");
+      showToast(t("vehicle.detail.toast.endBeforeStart"), "error");
       return;
     }
     setModalBusy(true);
@@ -155,11 +155,11 @@ export function VehicleDetailPage() {
           notes: modalNotes.trim() || null,
         });
       }
-      showToast(modalEditing ? "Belge güncellendi" : "Belge eklendi");
+      showToast(modalEditing ? t("vehicle.detail.toast.docUpdated") : t("vehicle.detail.toast.docCreated"));
       closeModal();
       await refreshDocuments();
     } catch {
-      showToast("Belge kaydedilemedi", "error");
+      showToast(t("vehicle.detail.toast.docSaveFailed"), "error");
     } finally {
       setModalBusy(false);
     }
@@ -172,10 +172,10 @@ export function VehicleDetailPage() {
     try {
       await deleteVehicleDocument(vehicleId, doc.id, doc.rowVersion);
       setConfirmDeleteId(null);
-      showToast("Belge silindi");
+      showToast(t("vehicle.detail.toast.docDeleted"));
       await refreshDocuments();
     } catch {
-      showToast("Belge silinemedi", "error");
+      showToast(t("vehicle.detail.toast.docDeleteFailed"), "error");
     } finally {
       setDeletingId(null);
     }
@@ -189,7 +189,7 @@ export function VehicleDetailPage() {
           onClick={() => navigate("/settings/definitions/vehicles")}
           type="button"
         >
-          ← Araç listesine dön
+          {t("vehicle.detail.backToList")}
         </button>
       </div>
 
@@ -201,8 +201,8 @@ export function VehicleDetailPage() {
 
       {!loading && error && (
         <PageLoadError
-          title="Araç bilgileri yüklenemedi"
-          description="Araç detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          title={t("vehicle.detail.loadFailed")}
+          description={t("vehicle.detail.loadFailedDescription")}
           onRetry={() => {
             void vehicleQuery.refetch();
             void documentsQuery.refetch();
@@ -224,7 +224,7 @@ export function VehicleDetailPage() {
                 <span
                   className={`instructor-detail-status${vehicle.isActive ? " active" : " inactive"}`}
                 >
-                  {vehicle.isActive ? "Aktif" : "Pasif"}
+                  {vehicle.isActive ? t("common.statusActive") : t("common.statusInactive")}
                 </span>
                 <span>{VEHICLE_STATUS_LABELS[vehicle.status]}</span>
                 {vehicle.color ? <span>{vehicle.color}</span> : null}
@@ -232,26 +232,26 @@ export function VehicleDetailPage() {
             </div>
 
             <div className="instructor-detail-summary-grid">
-              <Field label="Tür" value={VEHICLE_TYPE_LABELS[vehicle.vehicleType] ?? "—"} />
-              <Field label="Ehliyet Tipleri" value={vehicle.licenseClasses.join(", ") || "—"} />
+              <Field label={t("vehicle.detail.field.type")} value={VEHICLE_TYPE_LABELS[vehicle.vehicleType] ?? "—"} />
+              <Field label={t("common.field.licenseClasses")} value={vehicle.licenseClasses.join(", ") || "—"} />
               <Field
-                label="Vites"
+                label={t("vehicleForm.field.transmission")}
                 value={VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType] ?? "—"}
               />
               <Field
-                label="Mülkiyet"
+                label={t("vehicle.detail.field.ownership")}
                 value={VEHICLE_OWNERSHIP_LABELS[vehicle.ownershipType] ?? "—"}
               />
               <Field
-                label="Yakıt"
+                label={t("vehicleForm.field.fuel")}
                 value={vehicle.fuelType ? VEHICLE_FUEL_LABELS[vehicle.fuelType] : "—"}
               />
               <Field
-                label="Kilometre"
+                label={t("vehicle.detail.field.mileage")}
                 value={formatOdometer(vehicle.odometerValue, vehicle.odometerUnit)}
               />
-              <Field label="Tescil Tarihi" value={formatDate(vehicle.registrationDate)} />
-              <Field label="Hizmete Giriş" value={formatDate(vehicle.serviceStartDate)} />
+              <Field label={t("vehicleForm.field.registrationDate")} value={formatDate(vehicle.registrationDate)} />
+              <Field label={t("vehicle.detail.field.serviceStart")} value={formatDate(vehicle.serviceStartDate)} />
             </div>
 
             {vehicle.accidentNotes ? (
@@ -282,7 +282,7 @@ export function VehicleDetailPage() {
             return (
               <section className="instructor-detail-card" key={type}>
                 <div className="assignment-list-header">
-                  <h3>{DOCUMENT_TYPE_LABELS[type]}</h3>
+                  <h3>{t(DOCUMENT_TYPE_LABEL_KEY[type])}</h3>
                   <button
                     className="btn btn-primary btn-sm"
                     disabled={!canManageDocuments}
@@ -290,13 +290,13 @@ export function VehicleDetailPage() {
                     title={!canManageDocuments ? noPermissionTitle : undefined}
                     type="button"
                   >
-                    Yeni {DOCUMENT_TYPE_LABELS[type]} Kaydı
+                    {t("vehicle.detail.newCardTitle", { type: t(DOCUMENT_TYPE_LABEL_KEY[type]) })}
                   </button>
                 </div>
 
                 {docs.length === 0 ? (
                   <div className="instructor-detail-empty">
-                    Henüz {DOCUMENT_TYPE_LABELS[type].toLowerCase()} kaydı eklenmedi.
+                    {t("vehicle.detail.emptyDocs", { type: t(DOCUMENT_TYPE_LABEL_KEY[type]).toLowerCase() })}
                   </div>
                 ) : (
                   <ul className="assignment-list">
@@ -337,7 +337,7 @@ export function VehicleDetailPage() {
                                     title={!canManageDocuments ? noPermissionTitle : undefined}
                                     type="button"
                                   >
-                                    {deletingId === doc.id ? "Siliniyor..." : "Sil"}
+                                    {deletingId === doc.id ? t("common.deleting") : t("common.delete")}
                                   </button>
                                 </>
                               ) : (
@@ -399,7 +399,7 @@ export function VehicleDetailPage() {
               title={!canManageDocuments ? noPermissionTitle : undefined}
               type="button"
             >
-              {modalBusy ? "Kaydediliyor..." : "Kaydet"}
+              {modalBusy ? t("common.saving") : t("common.save")}
             </button>
           </>
         }
@@ -407,7 +407,7 @@ export function VehicleDetailPage() {
         open={modalType !== null}
         title={
           modalType
-            ? `${modalEditing ? "Düzenle" : "Yeni"} — ${DOCUMENT_TYPE_LABELS[modalType]}`
+            ? `${modalEditing ? t("common.edit") : t("common.new")} — ${t(DOCUMENT_TYPE_LABEL_KEY[modalType])}`
             : ""
         }
       >
@@ -415,7 +415,7 @@ export function VehicleDetailPage() {
           <div className="form-group">
             <label className="form-label">Başlangıç</label>
             <LocalizedDateInput
-              ariaLabel="Başlangıç tarihi"
+              ariaLabel={t("vehicle.detail.startDate")}
               className="form-input"
               lang="tr"
               onChange={(value) => setModalStart(value)}
@@ -423,9 +423,9 @@ export function VehicleDetailPage() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Bitiş</label>
+            <label className="form-label">{t("vehicle.detail.endDateLabel")}</label>
             <LocalizedDateInput
-              ariaLabel="Bitiş tarihi"
+              ariaLabel={t("vehicle.detail.endDate")}
               className="form-input"
               lang="tr"
               onChange={(value) => setModalEnd(value)}
@@ -440,7 +440,7 @@ export function VehicleDetailPage() {
               className="form-input"
               maxLength={500}
               onChange={(event) => setModalNotes(event.target.value)}
-              placeholder="Poliçe no, sigorta şirketi vb."
+              placeholder={t("vehicle.detail.notePlaceholder")}
               rows={3}
               value={modalNotes}
             />

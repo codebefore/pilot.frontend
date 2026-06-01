@@ -1,4 +1,10 @@
 {
   "apiBaseUrl": "${VITE_API_BASE_URL}",
+  "authApiBaseUrl": "${VITE_AUTH_API_BASE_URL}",
+  "candidateApiBaseUrl": "${VITE_CANDIDATE_API_BASE_URL}",
+  "documentApiBaseUrl": "${VITE_DOCUMENT_API_BASE_URL}",
+  "financeApiBaseUrl": "${VITE_FINANCE_API_BASE_URL}",
+  "mebbisApiBaseUrl": "${VITE_MEBBIS_API_BASE_URL}",
+  "trainingApiBaseUrl": "${VITE_TRAINING_API_BASE_URL}",
   "publicUrl": "${PILOT_FRONTEND_PUBLIC_URL}"
 }
