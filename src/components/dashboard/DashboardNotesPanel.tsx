@@ -32,7 +32,7 @@ export function DashboardNotesPanel() {
       const response = await getUserNotes();
       setNotes(response.items);
     } catch {
-      showToast("Notlar yüklenemedi", "error");
+      showToast(t("notesPanel.toast.loadFailed"), "error");
     }
   }, [showToast]);
 
@@ -64,7 +64,7 @@ export function DashboardNotesPanel() {
     try {
       if (editing) {
         await updateUserNote(editing.id, { body, reminderAtUtc });
-        showToast("Not güncellendi");
+        showToast(t("notesPanel.toast.noteUpdated"));
       } else {
         await createUserNote({ body, reminderAtUtc });
         showToast("Not eklendi");
@@ -72,7 +72,7 @@ export function DashboardNotesPanel() {
       closeComposer();
       await load();
     } catch {
-      showToast(editing ? "Not güncellenemedi" : "Not eklenemedi", "error");
+      showToast(t(editing ? "notesPanel.toast.noteUpdateFailed" : "notesPanel.toast.noteAddFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -85,7 +85,7 @@ export function DashboardNotesPanel() {
       await setUserNoteCompletion(note.id, note.completedAtUtc === null);
       await load();
     } catch {
-      showToast("Not güncellenemedi", "error");
+      showToast(t("notesPanel.toast.noteUpdateFailed"), "error");
     }
   };
 
@@ -122,9 +122,9 @@ export function DashboardNotesPanel() {
         title="Notlar"
       >
         {notes === null ? (
-          <div className="user-notes-empty">Yükleniyor...</div>
+          <div className="user-notes-empty">{t("notesPanel.loading")}</div>
         ) : notes.length === 0 ? (
-          <div className="user-notes-empty">Henüz not yok. Yeni not ekleyebilirsin.</div>
+          <div className="user-notes-empty">{t("notesPanel.empty")}</div>
         ) : (
           <ul className="user-notes-list">
             {notes.map((note) => {
@@ -140,7 +140,7 @@ export function DashboardNotesPanel() {
                   key={note.id}
                 >
                   <button
-                    aria-label={completed ? "Tamamlandı işaretini kaldır" : "Tamamlandı olarak işaretle"}
+                    aria-label={completed ? t("notesPanel.aria.uncomplete") : t("notesPanel.aria.complete")}
                     className="user-notes-item-toggle"
                     disabled={!canManageDashboard}
                     onClick={() => void handleToggle(note)}
@@ -161,7 +161,7 @@ export function DashboardNotesPanel() {
                   </div>
                   <div className="user-notes-item-actions">
                     <button
-                      aria-label="Düzenle"
+                      aria-label={t("common.edit")}
                       className="user-notes-item-action"
                       disabled={!canManageDashboard}
                       onClick={() => beginEdit(note)}

@@ -1370,7 +1370,7 @@ export function CandidatesPage({
   ) => {
     if (!canManageCandidates) return;
     if (!candidate.drivingExamAttemptId || !candidate.drivingExamAttemptRowVersion) {
-      showToast("Direksiyon randevusu bulunamadı.", "error");
+      showToast(t("candidates.toast.appointmentNotFound"), "error");
       return;
     }
 
@@ -1384,7 +1384,7 @@ export function CandidatesPage({
       ? drivingExamDateTimeIso(candidate.drivingExamDate, patch.time)
       : candidate.drivingExamScheduledAt;
     if (!scheduledAt) {
-      showToast("Sınav saati güncellenemedi.", "error");
+      showToast(t("candidates.toast.examTimeUpdateFailed"), "error");
       return;
     }
 
@@ -1438,11 +1438,11 @@ export function CandidatesPage({
             : current
       );
       setEditingPracticeCell(null);
-      showToast("Direksiyon randevusu güncellendi");
+      showToast(t("candidates.toast.appointmentUpdated"));
     } catch (error) {
       const message = error instanceof ApiError && error.status === 409
-        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
-        : "Direksiyon randevusu güncellenemedi.";
+        ? t("candidates.toast.conflictRefresh")
+        : t("candidates.toast.appointmentUpdateFailed");
       showToast(message, "error");
     } finally {
       setSavingPracticeCandidateId(null);
@@ -1509,7 +1509,7 @@ export function CandidatesPage({
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "vehicle"}
                 disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
                 disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
-                ariaLabel="Plaka seç"
+                ariaLabel={t("candidates.aria.plate")}
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "vehicle" })}
                 onCancel={() => setEditingPracticeCell(null)}
                 onSave={(vehicleId) => savePracticeAttemptField(candidate, { vehicleId })}
@@ -1531,7 +1531,7 @@ export function CandidatesPage({
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "instructor"}
                 disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
                 disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
-                ariaLabel="Usta öğretici seç"
+                ariaLabel={t("candidates.aria.instructor")}
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "instructor" })}
                 onCancel={() => setEditingPracticeCell(null)}
                 onSave={(instructorId) => savePracticeAttemptField(candidate, { instructorId })}
@@ -1863,9 +1863,9 @@ export function CandidatesPage({
         setSelectedExamDate(date);
       }
       refreshAll();
-      showToast("Sınav tarihi güncellendi");
+      showToast(t("candidates.toast.examDateUpdated"));
     } catch (error) {
-      showToast(examScheduleMutationErrorMessage(error, "Sınav tarihi güncellenemedi"), "error");
+      showToast(examScheduleMutationErrorMessage(error, t("candidates.toast.examDateUpdateFailed")), "error");
     } finally {
       setEditingExamScheduleId(null);
     }
@@ -1884,13 +1884,13 @@ export function CandidatesPage({
         setSelectedDrivingExamCode("");
       }
       refreshAll();
-      showToast("Sınav kodu silindi");
+      showToast(t("candidates.toast.examCodeDeleted"));
     } catch (error) {
       const errorCode = error instanceof ApiError ? error.errorCode : undefined;
       showToast(
         errorCode === "examCodeHasSchedules" || errorCode === "examCodeHasCandidates"
-          ? "Bu sınav kodu bağlı kayıt olduğu için silinemez."
-          : "Sınav kodu silinemedi",
+          ? t("candidates.toast.examCodeInUse")
+          : t("candidates.toast.examCodeDeleteFailed"),
         "error"
       );
     } finally {
@@ -1911,13 +1911,13 @@ export function CandidatesPage({
         setSelectedDrivingExamCode(code);
       }
       refreshAll();
-      showToast("Sınav kodu güncellendi");
+      showToast(t("candidates.toast.examCodeUpdated"));
     } catch (error) {
       const errorCode = error instanceof ApiError ? error.errorCode : undefined;
       showToast(
         errorCode === "examCodeHasSchedules" || errorCode === "examCodeHasCandidates"
-          ? "Sınav kodu güncellenemedi."
-          : "Sınav kodu güncellenemedi",
+          ? t("candidates.toast.examCodeUpdateFailed")
+          : t("candidates.toast.examCodeUpdateFailed"),
         "error"
       );
     } finally {
@@ -2590,7 +2590,7 @@ export function CandidatesPage({
                   menuTitle={`${currentTabLabel} kolonları`}
                   onReset={resetColumns}
                   onToggle={toggleColumn}
-                  resetLabel="Varsayılana dön"
+                  resetLabel={t("candidates.resetLabel")}
                   triggerTitle={t("candidates.columns.button")}
                 />
               </th>
@@ -2662,7 +2662,7 @@ export function CandidatesPage({
                         onClick={() =>
                           opensDrawer ? openDrawer(c.id) : navigate(`/candidates/${c.id}`)
                         }
-                        title={opensDrawer ? "Hızlı önizleme" : "Detay sayfasına git"}
+                        title={opensDrawer ? t("candidates.title.quickPreview") : t("candidates.title.goToDetail")}
                       >
                         {col.renderCell(c, columnPageScope)}
                       </td>
@@ -2713,7 +2713,7 @@ export function CandidatesPage({
           bulkSelectEnabled ? (
             <div className="candidate-bulk-toolbar">
               {selectedCount > 0 ? (
-                <span className="candidate-bulk-count">{selectedCount} seçili</span>
+                <span className="candidate-bulk-count">{t("candidates.selectedCount", { count: selectedCount })}</span>
               ) : null}
               {bulkActionMode === "status" ? (
                 <>

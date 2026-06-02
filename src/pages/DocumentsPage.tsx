@@ -415,7 +415,7 @@ export function DocumentsPage() {
       setIsAddingTag(false);
       setNewTagDraft("");
     } catch {
-      showToast("Etiket oluşturulamadı", "error");
+      showToast(t("documentsPage.toast.tagCreateFailed"), "error");
     } finally {
       setIsCreatingTag(false);
     }
@@ -603,8 +603,8 @@ export function DocumentsPage() {
   const documentColumnOptions: ColumnOption[] = [
     { id: "candidate", label: t("documents.col.candidate"), locked: true },
     { id: "licenseClass", label: "Ehliyet Tipi", locked: true },
-    { id: "term", label: "Dönem", locked: true },
-    { id: "advancePayment", label: "Peşinat", locked: true },
+    { id: "term", label: t("documentsPage.col.term"), locked: true },
+    { id: "advancePayment", label: t("documentsPage.col.advancePayment"), locked: true },
     ...requiredDocumentTypes.map((documentType) => ({
       id: documentType.id,
       label: documentType.name,
@@ -654,7 +654,7 @@ export function DocumentsPage() {
     return left.fullName.localeCompare(right.fullName, "tr", { sensitivity: "base" }) * multiplier;
   });
   const tabs: { key: DocumentsTab; label: string }[] = [
-    { key: "all", label: `Tümü (${tabCounts.all})` },
+    { key: "all", label: t("documentsPage.tab.allWithCount", { count: tabCounts.all }) },
     { key: "missing", label: `Eksik Evrak (${tabCounts.missing})` },
     { key: "complete", label: `Tam Evrak (${tabCounts.complete})` },
   ];
@@ -666,7 +666,7 @@ export function DocumentsPage() {
           bulkSelectEnabled ? (
             <div className="candidate-bulk-toolbar">
               {selectedCount > 0 ? (
-                <span className="candidate-bulk-count">{selectedCount} seçili</span>
+                <span className="candidate-bulk-count">{t("documentsPage.selectedCount", { count: selectedCount })}</span>
               ) : null}
               {bulkActionMode === "tags" ? (
                 <>
@@ -874,7 +874,7 @@ export function DocumentsPage() {
                   <th className="cand-select-th">
                     <span className="cand-select-control">
                       <input
-                        aria-label="Bu sayfadaki tüm adayları seç"
+                        aria-label={t("documentsPage.aria.selectAll")}
                         checked={allVisibleSelected}
                         onChange={toggleVisibleCandidateSelection}
                         type="checkbox"
@@ -929,11 +929,11 @@ export function DocumentsPage() {
                           label: buildGroupHeading(group.title, group.term, [group.term], lang),
                         })),
                       ]}
-                      title="Dönem"
+                      title={t("documentsPage.filter.term")}
                       value={candidateFilters.groupIds[0] ?? ""}
                     />
                   }
-                  label="Dönem"
+                  label={t("documentsPage.filter.term")}
                   onToggle={handleSortToggle}
                   sort={sort}
                 />
@@ -961,7 +961,7 @@ export function DocumentsPage() {
                         active={tab !== "all"}
                         onChange={(value) => handleTabChange(value as DocumentsTab)}
                         options={[
-                          { value: "all", label: "Tümü" },
+                          { value: "all", label: t("payments.datePreset.all") },
                           { value: "missing", label: "Eksik Evrak" },
                           { value: "complete", label: "Tam Evrak" },
                         ]}
@@ -1059,7 +1059,7 @@ export function DocumentsPage() {
                       <td>{renderDocumentTerm(entry, lang)}</td>
                       <td>
                         <button
-                          aria-label={entry.hasAdvancePayment ? "Peşinat var" : "Peşinat yok"}
+                          aria-label={entry.hasAdvancePayment ? t("documentsPage.advancePayment.has") : t("documentsPage.advancePayment.none")}
                           className="documents-doc-icon-btn"
                           onClick={(event) => {
                             event.stopPropagation();
@@ -1069,8 +1069,8 @@ export function DocumentsPage() {
                           }}
                           title={
                             entry.hasAdvancePayment
-                              ? "Ödeme var"
-                              : "Ödeme yok - Finans sekmesini aç"
+                              ? t("documentsPage.payment.has")
+                              : t("documentsPage.payment.none")
                           }
                           type="button"
                         >

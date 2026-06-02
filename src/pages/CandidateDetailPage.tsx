@@ -144,6 +144,23 @@ import type {
   TrainingLessonResponse,
   VehicleResponse,
 } from "../lib/types";
+import { useT, type TranslationKey } from "../lib/i18n";
+import {
+  actorAvatarTone,
+  addDays,
+  addHours,
+  buildFutureStages,
+  calculateAge,
+  dateOnlyAt,
+  formatTimelineDate,
+  hasExistingLicenseValue,
+  isExistingLicenseCopyType,
+  mapToneToAvatar,
+  normalizeLicenseOptionKey,
+  nowDateTimeLocal,
+  todayIsoDate,
+  vehicleTypeForLicenseClass,
+} from "./CandidateDetailPage.helpers";
 
 const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
 
@@ -154,31 +171,16 @@ type TabKey =
   | "documents"
   | "payments";
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "general", label: "Genel" },
-  { key: "license", label: "Kayıt Bilgileri" },
-  { key: "training", label: "Eğitim ve Sınavlar" },
-  { key: "documents", label: "Evraklar" },
-  { key: "payments", label: "Finans" },
+const TABS: { key: TabKey; labelKey: TranslationKey }[] = [
+  { key: "general", labelKey: "candidateDetail.tab.general" },
+  { key: "license", labelKey: "candidateDetail.tab.license" },
+  { key: "training", labelKey: "candidateDetail.tab.training" },
+  { key: "documents", labelKey: "candidateDetail.tab.documents" },
+  { key: "payments", labelKey: "candidateDetail.tab.payments" },
 ];
 
 const HERO_DOCUMENT_KEYS = ["application_form", "identity_card", "existing_license_copy"] as const;
 type HeroDocumentKey = (typeof HERO_DOCUMENT_KEYS)[number];
-
-function hasExistingLicenseValue(value: string | null | undefined): boolean {
-  const normalized = value?.trim().toLocaleLowerCase("tr-TR") ?? "";
-  return normalized !== "" && normalized !== "-" && normalized !== "yok" && normalized !== "none" && normalized !== "exempt";
-}
-
-function isExistingLicenseCopyType(type: DocumentTypeResponse): boolean {
-  const normalizedName = type.name.trim().toLocaleLowerCase("tr-TR");
-  return (
-    type.key === "existing_license_copy" ||
-    (normalizedName.includes("mevcut") &&
-      normalizedName.includes("ehliyet") &&
-      normalizedName.includes("fotokopi"))
-  );
-}
 
 function notifyMebbisJobQueued(jobId: string, jobType: string): void {
   const delays = [0, 250, 1000, 2500];
@@ -194,19 +196,6 @@ function notifyMebbisJobQueued(jobId: string, jobType: string): void {
       );
     }, delay);
   }
-}
-
-function calculateAge(birthDateIso: string | null): number | null {
-  if (!birthDateIso) return null;
-  const birthDate = new Date(birthDateIso);
-  if (Number.isNaN(birthDate.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - birthDate.getFullYear();
-  const monthDelta = now.getMonth() - birthDate.getMonth();
-  if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < birthDate.getDate())) {
-    age -= 1;
-  }
-  return age;
 }
 
 function buildCandidateUpdatePayload(
@@ -316,6 +305,7 @@ async function updateCandidateField(
 
 export function CandidateDetailPage() {
   const navigate = useNavigate();
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
@@ -343,7 +333,7 @@ export function CandidateDetailPage() {
     queryFn: ({ signal }) => getCandidateById(candidateId as string, signal),
     enabled: Boolean(candidateId),
   });
-  const error = isErrorCandidate ? "Aday bilgileri yüklenemedi" : null;
+  const error = isErrorCandidate ? t("candidateDetail.error.candidateLoad") : null;
   // setCandidate is used in handlers that mutate and get back a fresh object;
   // bridge to queryClient.setQueryData so the RQ cache stays in sync.
   const setCandidate = (
@@ -378,7 +368,7 @@ export function CandidateDetailPage() {
     queryFn: ({ signal }) => getDocumentTypes({ module: "candidate", includeInactive: false }, signal),
     enabled: activeTab === "documents",
   });
-  const documentsError = (isErrorDocuments || isErrorDocumentTypes) ? "Evraklar yüklenemedi" : null;
+  const documentsError = (isErrorDocuments || isErrorDocumentTypes) ? t("candidateDetail.error.documentsLoad") : null;
   const combinedDocumentsLoading = documentsLoading || documentTypesLoading;
 
   // ── Fetch 3: candidate accounting ───────────────────────────────────────
@@ -391,7 +381,7 @@ export function CandidateDetailPage() {
     queryFn: ({ signal }) => getCandidateAccounting(candidateId as string, signal),
     enabled: Boolean(candidateId),
   });
-  const accountingError = isErrorAccounting ? "Finans bilgileri yüklenemedi" : null;
+  const accountingError = isErrorAccounting ? t("candidateDetail.error.accountingLoad") : null;
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -430,7 +420,7 @@ export function CandidateDetailPage() {
       movementId,
     });
     void refreshAccounting().catch(() => {
-      showToast("Finans bilgileri yüklenemedi", "error");
+      showToast(t("candidateDetail.error.accountingLoad"), "error");
     });
   };
 
@@ -451,9 +441,9 @@ export function CandidateDetailPage() {
     try {
       await createCandidateAccountingMovement(candidate.id, { type, dueDate, amount, description });
       await refreshAccounting();
-      showToast("Borçlandırma eklendi");
+      showToast(t("candidateDetail.accounting.toast.movementAdded"));
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Borçlandırma eklenemedi"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.movementAddFailed"), t), "error");
     } finally {
       setMovementSaving(false);
     }
@@ -473,9 +463,9 @@ export function CandidateDetailPage() {
     try {
       await createCandidateAccountingMovements(candidate.id, { movements });
       await refreshAccounting();
-      showToast("Ödeme planı oluşturuldu");
+      showToast(t("candidateDetail.accounting.toast.installmentPlanCreated"));
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Ödeme planı oluşturulamadı"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.installmentPlanFailed"), t), "error");
     } finally {
       setMovementSaving(false);
     }
@@ -504,9 +494,9 @@ export function CandidateDetailPage() {
         note,
       });
       await refreshAccounting();
-      showToast("Ödeme kaydedildi");
+      showToast(t("candidateDetail.accounting.toast.paymentRecorded"));
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Ödeme kaydedilemedi"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.paymentRecordFailed"), t), "error");
     } finally {
       setPaymentSaving(false);
     }
@@ -518,9 +508,9 @@ export function CandidateDetailPage() {
     try {
       await cancelCandidateAccountingMovement(candidate.id, movementId, cancellationReason);
       await refreshAccounting();
-      showToast("Borçlandırma iptal edildi");
+      showToast(t("candidateDetail.accounting.toast.movementCancelled"));
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Borçlandırma iptal edilemedi"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.movementCancelFailed"), t), "error");
     }
   };
 
@@ -530,9 +520,9 @@ export function CandidateDetailPage() {
     try {
       await cancelCandidateAccountingPayment(candidate.id, paymentId, cancellationReason);
       await refreshAccounting();
-      showToast("Ödeme iptal edildi");
+      showToast(t("candidateDetail.accounting.toast.paymentCancelled"));
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Ödeme iptal edilemedi"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.paymentCancelFailed"), t), "error");
     }
   };
 
@@ -542,9 +532,9 @@ export function CandidateDetailPage() {
     try {
       await createCandidateAccountingRefund(candidate.id, paymentId, { amount, note });
       await refreshAccounting();
-      showToast("İade kaydedildi");
+      showToast(t("candidateDetail.accounting.toast.refundRecorded"));
     } catch (error) {
-      showToast(accountingErrorMessage(error, "İade kaydedilemedi"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.refundFailed"), t), "error");
     }
   };
 
@@ -572,9 +562,9 @@ export function CandidateDetailPage() {
         await createCandidateAccountingInvoice(candidate.id, payload);
       }
       await refreshAccounting();
-      showToast(invoice ? "Fatura güncellendi" : "Fatura eklendi");
+      showToast(t(invoice ? "candidateDetail.accounting.toast.invoiceUpdated" : "candidateDetail.accounting.toast.invoiceAdded"));
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Fatura kaydedilemedi"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.invoiceSaveFailed"), t), "error");
     } finally {
       setInvoiceSaving(false);
     }
@@ -588,7 +578,7 @@ export function CandidateDetailPage() {
       await refreshAccounting();
       showToast("Fatura silindi");
     } catch (error) {
-      showToast(accountingErrorMessage(error, "Fatura silinemedi"), "error");
+      showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.invoiceDeleteFailed"), t), "error");
     }
   };
 
@@ -612,8 +602,8 @@ export function CandidateDetailPage() {
 
       {!loading && error && (
         <PageLoadError
-          title="Aday bilgileri yüklenemedi"
-          description="Aday detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          title={t("candidateDetail.error.candidateLoad")}
+          description={t("candidateDetail.error.candidateLoadDescription")}
           onRetry={() => void refetchCandidate()}
         />
       )}
@@ -645,7 +635,7 @@ export function CandidateDetailPage() {
                   role="tab"
                   type="button"
                 >
-                  {tab.label}
+                  {t(tab.labelKey)}
                   {docInfo}
                 </button>
               );
@@ -750,22 +740,6 @@ export function CandidateDetailPage() {
 
 // Map the target license class code to a coarse vehicle category label so the
 // hero can show e.g. "B'den A2 (Otomobil)" without an extra API lookup.
-function vehicleTypeForLicenseClass(licenseClass: string): string | null {
-  const key = licenseClass.trim().toUpperCase().replace(/[\s_-]/g, "");
-  if (!key) return null;
-  if (key === "M" || key.startsWith("A") || key.startsWith("B1")) return "Motosiklet";
-  if (key.startsWith("BENGELLI")) return "Engelli Otomobil";
-  if (key.startsWith("BE")) return "Römorklu Otomobil";
-  if (key.startsWith("B")) return "Otomobil";
-  if (key.startsWith("CE") || key.startsWith("C1E")) return "Römorklu Kamyon";
-  if (key.startsWith("C")) return "Kamyon";
-  if (key.startsWith("DE") || key.startsWith("D1E")) return "Römorklu Otobüs";
-  if (key.startsWith("D")) return "Otobüs";
-  if (key.startsWith("F")) return "Traktör";
-  if (key === "G") return "İş Makinesi";
-  return null;
-}
-
 function CandidateHero({
   candidate,
   age,
@@ -775,6 +749,7 @@ function CandidateHero({
   age: number | null;
   accounting: CandidateAccountingSummaryResponse | null;
 }) {
+  const t = useT();
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
@@ -823,7 +798,7 @@ function CandidateHero({
           <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
           {age != null ? (
             <>
-              <span>{age} yaş</span>
+              <span>{t("candidateDetail.hero.ageSuffix", { age })}</span>
               <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
             </>
           ) : null}
@@ -859,7 +834,7 @@ function CandidateHero({
         </div>
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--accounting">
           <span className={`candidate-detail-hero-accounting-pill tone-${accountingStatus.tone}`}>
-            {accountingStatus.label}
+            {t(accountingStatus.labelKey)}
           </span>
         </div>
       </div>
@@ -868,7 +843,7 @@ function CandidateHero({
 }
 
 type AccountingStatus = {
-  label: string;
+  labelKey: TranslationKey;
   tone: "neutral" | "info" | "success" | "danger";
 };
 
@@ -877,7 +852,7 @@ function computeAccountingStatus(
   accounting: CandidateAccountingSummaryResponse | null,
 ): AccountingStatus {
   if (candidate.totalFee <= 0 && (!accounting || accounting.movements.length === 0)) {
-    return { label: "Finans kaydı yok", tone: "neutral" };
+    return { labelKey: "candidateDetail.hero.accounting.noRecord", tone: "neutral" };
   }
   if (accounting) {
     const today = new Date();
@@ -888,12 +863,12 @@ function computeAccountingStatus(
       const due = new Date(m.dueDate);
       return !Number.isNaN(due.getTime()) && due < today;
     });
-    if (hasOverdue) return { label: "Gecikmiş ödemesi var", tone: "danger" };
+    if (hasOverdue) return { labelKey: "candidateDetail.hero.accounting.overdue", tone: "danger" };
   }
   if (candidate.totalDebt <= 0 && candidate.totalFee > 0) {
-    return { label: "Ödeme tamamlandı", tone: "success" };
+    return { labelKey: "candidateDetail.hero.accounting.completed", tone: "success" };
   }
-  return { label: "Ödeme süreci devam ediyor", tone: "info" };
+  return { labelKey: "candidateDetail.hero.accounting.inProgress", tone: "info" };
 }
 
 type PillTone = "neutral" | "info" | "success" | "warning" | "danger";
@@ -927,6 +902,7 @@ function appointmentPillTone(label: string | null): PillTone {
 }
 
 function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
+  const t = useT();
   // Compact filigran rozetleri — adayın iş kuralı bypass'larını ve aktif
   // round'unu görsel olarak işaretler. Senaryo diyagramında "Direk Geçiş
   // Filigran" notuna karşılık gelir.
@@ -935,18 +911,18 @@ function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
   // tespit (Mevcut Ehliyet). E-Sınav puanı resolver tarafından
   // MebExamResult üzerinden değerlendirilir, hero'da ayrı rozet yok.
   if (candidate.isTheoryExempt) {
-    badges.push({ key: "exempt", label: "Muaf", tone: "info" });
+    badges.push({ key: "exempt", label: t("candidateDetail.hero.badge.exempt"), tone: "info" });
   } else if (candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)) {
     badges.push({
       key: "existing-license",
       label: candidate.existingLicenseType
-        ? `Mevcut Ehliyet (${candidate.existingLicenseType})`
-        : "Mevcut Ehliyet",
+        ? t("candidateDetail.hero.badge.existingLicenseWithType", { type: candidate.existingLicenseType })
+        : t("candidateDetail.hero.badge.existingLicense"),
       tone: "info",
     });
   }
   if (candidate.secondPracticeRoundEnabled) {
-    badges.push({ key: "second-round", label: "2. Aşama", tone: "primary" });
+    badges.push({ key: "second-round", label: t("candidateDetail.hero.badge.secondRound"), tone: "primary" });
   }
   if (badges.length === 0) return null;
   return (
@@ -973,11 +949,12 @@ function SecondPracticeRoundBanner({
   onCandidateUpdated: (next: CandidateResponse) => void;
 }) {
   const { showToast } = useToast();
+  const t = useT();
   const [saving, setSaving] = useState(false);
   const [confirmingDrop, setConfirmingDrop] = useState(false);
   const enabled = candidate.secondPracticeRoundEnabled === true;
   const canToggle = candidate.canToggleSecondPracticeRound === true;
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   if (!enabled && !canToggle) {
     return null;
@@ -993,9 +970,9 @@ function SecondPracticeRoundBanner({
         candidate.rowVersion
       );
       onCandidateUpdated(updated);
-      showToast(next ? "2. Direksiyon Aşaması açıldı" : "2. Direksiyon Aşaması kapatıldı");
+      showToast(t(next ? "candidateDetail.secondRound.toast.opened" : "candidateDetail.secondRound.toast.closed"));
     } catch (error) {
-      showToast(secondPracticeRoundErrorMessage(error), "error");
+      showToast(secondPracticeRoundErrorMessage(error, t), "error");
     } finally {
       setSaving(false);
       setConfirmingDrop(false);
@@ -1012,9 +989,9 @@ function SecondPracticeRoundBanner({
         terminationDate: today,
       });
       onCandidateUpdated(updated);
-      showToast("Aday dosyası yakıldı olarak işaretlendi");
+      showToast(t("candidateDetail.secondRound.toast.markedBurned"));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Dosya yakıldı işaretlenemedi";
+      const message = error instanceof Error ? error.message : t("candidateDetail.secondRound.error.burnFailed");
       showToast(message, "error");
     } finally {
       setSaving(false);
@@ -1025,11 +1002,11 @@ function SecondPracticeRoundBanner({
   return (
     <div className={`candidate-second-round-banner${enabled ? " is-on" : ""}`}>
       <div className="candidate-second-round-banner-body">
-        <strong>2. Direksiyon Aşaması</strong>
+        <strong>{t("candidateDetail.secondRound.title")}</strong>
         <span>
           {enabled
-            ? "Aday ek 4 sınav hakkı ile devam ediyor."
-            : "Aday 1. round'daki 4 hakkı tamamladı ve başarısız oldu. 2. Aşamayı açın veya dosyayı yakın."}
+            ? t("candidateDetail.secondRound.activeText")
+            : t("candidateDetail.secondRound.inactiveText")}
         </span>
       </div>
       {enabled ? (
@@ -1042,15 +1019,15 @@ function SecondPracticeRoundBanner({
             !canManageCandidates
               ? noPermissionTitle
               : !canToggle
-                ? "2. aşamada sınav kaydı mevcut, kapatılamaz."
+                ? t("candidateDetail.secondRound.cannotCloseTitle")
                 : undefined
           }
         >
-          Kapat
+          {t("candidateDetail.secondRound.close")}
         </button>
       ) : confirmingDrop ? (
         <div className="candidate-second-round-banner-confirm" role="group">
-          <span>Adayın dosyasını yakmak istediğinize emin misiniz?</span>
+          <span>{t("candidateDetail.secondRound.confirmBurn")}</span>
           <button
             className="btn btn-danger"
             disabled={saving || !canManageCandidates}
@@ -1058,7 +1035,7 @@ function SecondPracticeRoundBanner({
             title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
-            Evet, yak
+            {t("candidateDetail.secondRound.yesBurn")}
           </button>
           <button
             className="btn btn-tertiary"
@@ -1066,7 +1043,7 @@ function SecondPracticeRoundBanner({
             onClick={() => setConfirmingDrop(false)}
             type="button"
           >
-            Vazgeç
+            {t("common.cancel")}
           </button>
         </div>
       ) : (
@@ -1078,7 +1055,7 @@ function SecondPracticeRoundBanner({
             title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
-            Dosya Yakıldı
+            {t("candidateDetail.secondRound.burnFile")}
           </button>
           <button
             className="btn btn-primary"
@@ -1087,7 +1064,7 @@ function SecondPracticeRoundBanner({
             title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
-            2. Aşamayı Aç
+            {t("candidateDetail.secondRound.openRound")}
           </button>
         </div>
       )}
@@ -1102,12 +1079,13 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
   onSaved: (updated: CandidateResponse) => void;
 }) {
   const { showToast } = useToast();
+  const t = useT();
   const [tagsSaving, setTagsSaving] = useState(false);
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const saveGeneralField = async (
     patch: Partial<CandidateUpsertRequest>,
-    message = "Aday bilgileri güncellendi"
+    message = t("candidateDetail.general.toast.candidateUpdated")
   ) => {
     if (!canManageCandidates) return;
     try {
@@ -1115,7 +1093,7 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
       onSaved(updated);
       showToast(message);
     } catch {
-      showToast("Aday bilgileri kaydedilemedi", "error");
+      showToast(t("candidateDetail.general.toast.candidateUpdateFailed"), "error");
       throw new Error("save failed");
     }
   };
@@ -1134,7 +1112,7 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
             terminationDate: null,
             terminationReason: null,
           },
-      "Aday durumu güncellendi"
+      t("candidateDetail.general.toast.statusUpdated")
     );
   };
 
@@ -1144,9 +1122,9 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
     try {
       const updated = await updateCandidateField(candidate, { tags: names });
       onSaved(updated);
-      showToast("Etiketler güncellendi");
+      showToast(t("candidateDetail.general.toast.tagsUpdated"));
     } catch {
-      showToast("Etiketler kaydedilemedi", "error");
+      showToast(t("candidateDetail.general.toast.tagsUpdateFailed"), "error");
     } finally {
       setTagsSaving(false);
     }
@@ -1163,14 +1141,14 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
         </div>
         <div className="candidate-general-grid-col">
           <section className="instructor-detail-card">
-            <h3 className="candidate-detail-section-title">Aday Durumu</h3>
+            <h3 className="candidate-detail-section-title">{t("candidateDetail.general.section.status")}</h3>
             <div className="candidate-detail-edit-list">
               <EditableRow
                 disabled={!canManageCandidates}
                 disabledTitle={noPermissionTitle}
                 displayValue={candidateStatusLabel(candidate.status)}
                 inputValue={candidate.status}
-                label="Durum"
+                label={t("candidateDetail.general.field.status")}
                 options={CANDIDATE_STATUS_OPTIONS}
                 onSave={saveCandidateStatus}
               />
@@ -1180,11 +1158,11 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
                   disabledTitle={noPermissionTitle}
                   displayValue={candidate.terminationReason ?? ""}
                   inputValue={candidate.terminationReason ?? ""}
-                  label="Yakma Nedeni"
+                  label={t("candidateDetail.general.field.dropReason")}
                   onSave={(value) =>
                     saveGeneralField(
                       { terminationReason: value.trim() || null },
-                      "Yakma nedeni güncellendi"
+                      t("candidateDetail.general.toast.dropReasonUpdated")
                     )
                   }
                 />
@@ -1193,9 +1171,9 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
           </section>
 
           <section className="instructor-detail-card">
-            <h3 className="candidate-detail-section-title">Etiketler</h3>
+            <h3 className="candidate-detail-section-title">{t("candidateDetail.general.section.tags")}</h3>
             <CandidateTagsInput
-              ariaLabel="Aday etiketleri"
+              ariaLabel={t("candidateDetail.general.tagsAriaLabel")}
               disabled={tagsSaving || !canManageCandidates}
               disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
               onChange={(names) => {
@@ -1208,10 +1186,10 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
           <section className="instructor-detail-card candidate-whatsapp-card">
             <div className="candidate-whatsapp-card-head">
               <div>
-                <h3 className="candidate-detail-section-title">WhatsApp</h3>
-                <p>Mesajlar ve hatırlatmalar yakında burada.</p>
+                <h3 className="candidate-detail-section-title">{t("candidateDetail.general.section.whatsapp")}</h3>
+                <p>{t("candidateDetail.general.whatsappTeaser")}</p>
               </div>
-              <span className="candidate-whatsapp-badge">Coming soon</span>
+              <span className="candidate-whatsapp-badge">{t("common.comingSoon")}</span>
             </div>
             <div className="candidate-whatsapp-preview" aria-hidden="true">
               <span className="candidate-whatsapp-avatar skeleton" />
@@ -1235,6 +1213,7 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
 }
 
 function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
+  const t = useT();
   const [view, setView] = useState<"timeline" | "feed">("feed");
   const events = candidate.timeline ?? [];
   const futureSteps = buildFutureStages(candidate);
@@ -1261,7 +1240,7 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
           key: "current",
           kind: "current" as const,
           tone: "current" as const,
-          dateLabel: "Şu an",
+          dateLabel: t("candidateDetail.timeline.now"),
           title: candidate.examStageLabel,
           detail: candidate.appointmentStatusLabel ?? null,
           actorName: null,
@@ -1281,14 +1260,14 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
   const header = (
     <div className="candidate-timeline-card-header">
       <h3 className="candidate-timeline-card-title">
-        {view === "feed" ? "Aday Hareketleri" : "Aday Yolculuğu"}
+        {view === "feed" ? t("candidateDetail.timeline.titleFeed") : t("candidateDetail.timeline.titleTimeline")}
       </h3>
-      <div className="candidate-timeline-view-toggle" role="group" aria-label="Görünüm">
+      <div className="candidate-timeline-view-toggle" role="group" aria-label={t("candidateDetail.timeline.viewAria")}>
         <button
           type="button"
           className={`candidate-timeline-view-btn${view === "timeline" ? " is-active" : ""}`}
           onClick={() => setView("timeline")}
-          aria-label="Zaman çizgisi görünümü"
+          aria-label={t("candidateDetail.timeline.timelineViewAria")}
           aria-pressed={view === "timeline"}
         >
           <GridIcon size={14} />
@@ -1297,7 +1276,7 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
           type="button"
           className={`candidate-timeline-view-btn${view === "feed" ? " is-active" : ""}`}
           onClick={() => setView("feed")}
-          aria-label="Akış görünümü"
+          aria-label={t("candidateDetail.timeline.feedViewAria")}
           aria-pressed={view === "feed"}
         >
           <ListIcon size={14} />
@@ -1311,7 +1290,7 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
       <div className="instructor-detail-card">
         {header}
         <div className="instructor-detail-empty">
-          Bu aday için henüz olay kaydı yok.
+          {t("candidateDetail.timeline.empty")}
         </div>
       </div>
     );
@@ -1389,49 +1368,6 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
   );
 }
 
-function actorAvatarTone(name: string): "brand" | "blue" | "purple" | "amber" {
-  const palette = ["brand", "blue", "purple", "amber"] as const;
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return palette[Math.abs(hash) % palette.length];
-}
-
-function mapToneToAvatar(tone: string): "brand" | "blue" | "purple" | "amber" {
-  switch (tone) {
-    case "current":
-      return "brand";
-    case "future":
-      return "purple";
-    case "warning":
-    case "danger":
-    case "amber":
-      return "amber";
-    case "info":
-    case "blue":
-      return "blue";
-    default:
-      return "brand";
-  }
-}
-
-function buildFutureStages(candidate: CandidateResponse): string[] {
-  const stage = candidate.examStageLabel;
-  if (!stage || stage === "Mezun" || stage === "Dosya Yakıldı") return [];
-  if (stage === "E-Sınav Aşamasında") return ["Direksiyon Aşaması", "Mezun"];
-  if (stage === "Direksiyon Aşamasında" || stage === "2. Direksiyon Aşaması") return ["Mezun"];
-  return [];
-}
-
-function formatTimelineDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("tr-TR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
-}
-
 function CandidateContactsEditor({
   canManageCandidates,
   candidate,
@@ -1441,9 +1377,10 @@ function CandidateContactsEditor({
   candidate: CandidateResponse;
   onSave: (patch: Partial<CandidateUpsertRequest>, message: string) => Promise<void>;
 }) {
+  const t = useT();
   const [drafts, setDrafts] = useState<Array<{ id: string; type: CandidateContactType }>>([]);
   const contacts = buildCandidateContacts(candidate);
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const saveContacts = async (
     nextContacts: CandidateContactUpsertRequest[],
@@ -1490,7 +1427,7 @@ function CandidateContactsEditor({
             ownerName: item.ownerName,
         }
     );
-    await saveContacts(nextContacts, "İletişim bilgisi güncellendi");
+    await saveContacts(nextContacts, t("candidateDetail.contacts.toast.updated"));
   };
 
   const deleteContact = async (contact: CandidateContactResponse) => {
@@ -1504,7 +1441,7 @@ function CandidateContactsEditor({
         isPrimary: item.isPrimary,
         ownerName: item.ownerName,
       }));
-    await saveContacts(nextContacts, "İletişim bilgisi silindi");
+    await saveContacts(nextContacts, t("candidateDetail.contacts.toast.deleted"));
   };
 
   const createContact = async (
@@ -1535,7 +1472,7 @@ function CandidateContactsEditor({
       },
     ];
 
-    await saveContacts(nextContacts, "İletişim bilgisi eklendi");
+    await saveContacts(nextContacts, t("candidateDetail.contacts.toast.added"));
     setDrafts((current) => current.filter((draft) => draft.id !== draftId));
   };
 
@@ -1560,13 +1497,13 @@ function CandidateContactsEditor({
             title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
-            Yeni {kind.singular}
+            {t("candidateDetail.contacts.newKind", { singular: t(kind.singularKey) })}
           </button>
         ))}
       </div>
       <div className="candidate-contact-list">
         {contacts.length === 0 && drafts.length === 0 ? (
-          <div className="instructor-detail-empty">İletişim bilgisi yok.</div>
+          <div className="instructor-detail-empty">{t("candidateDetail.contacts.empty")}</div>
         ) : null}
         {contacts.map((contact, index) => {
           contactLabelCounts[contact.type] = (contactLabelCounts[contact.type] ?? 0) + 1;
@@ -1590,7 +1527,7 @@ function CandidateContactsEditor({
             isPhone={draft.type === "phone"}
             canManageCandidates={canManageCandidates}
             key={draft.id}
-            label={`Yeni ${contactTypeLabel(draft.type)}`}
+            label={t("candidateDetail.contacts.newKind", { singular: contactTypeLabel(draft.type) })}
             onCancel={(draftId) =>
               setDrafts((current) => current.filter((item) => item.id !== draftId))
             }
@@ -1604,11 +1541,11 @@ function CandidateContactsEditor({
 
 const CONTACT_KINDS: Array<{
   type: CandidateContactType;
-  singular: string;
+  singularKey: TranslationKey;
   inputType: "text" | "tel" | "textarea";
 }> = [
-  { type: "phone", singular: "Telefon", inputType: "tel" },
-  { type: "address", singular: "Adres", inputType: "textarea" },
+  { type: "phone", singularKey: "candidateDetail.contacts.type.phone", inputType: "tel" },
+  { type: "address", singularKey: "candidateDetail.contacts.type.address", inputType: "textarea" },
 ];
 
 function contactInputType(type: CandidateContactType): "text" | "tel" | "textarea" {
@@ -1628,13 +1565,14 @@ function CandidateContactRow({
   onSave: (value: string, ownerName: string | null) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  const t = useT();
   const [value, setValue] = useState(contact.value);
   const [ownerName, setOwnerName] = useState(contact.ownerName ?? "");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
   const isPhone = contact.type === "phone";
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
   const unchanged =
     trimmedValue === contact.value &&
     (!isPhone || ownerName.trim() === (contact.ownerName ?? ""));
@@ -1659,13 +1597,13 @@ function CandidateContactRow({
     <div className={`candidate-contact-row ${isPhone ? "is-phone" : "is-address"}`}>
       {isPhone ? (
         <div className="candidate-contact-field candidate-contact-owner-field">
-          <span className="candidate-contact-field-label">Sahibi</span>
+          <span className="candidate-contact-field-label">{t("candidateDetail.contacts.ownerLabel")}</span>
           {editing ? (
             <input
               className="form-input-sm"
               disabled={saving}
               onChange={(event) => setOwnerName(event.target.value)}
-              placeholder="Sahibi"
+              placeholder={t("candidateDetail.contacts.ownerLabel")}
               type="text"
               value={ownerName}
             />
@@ -1708,7 +1646,7 @@ function CandidateContactRow({
               title={!canManageCandidates ? noPermissionTitle : undefined}
               type="button"
             >
-              {saving ? "Kaydediliyor..." : "Kaydet"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
             <button
               className="btn btn-secondary btn-sm"
@@ -1720,7 +1658,7 @@ function CandidateContactRow({
               }}
               type="button"
             >
-              Vazgeç
+              {t("common.cancel")}
             </button>
           </>
         ) : (
@@ -1731,7 +1669,7 @@ function CandidateContactRow({
             title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
-            Düzenle
+            {t("common.edit")}
           </button>
         )}
         <button
@@ -1741,7 +1679,7 @@ function CandidateContactRow({
           title={!canManageCandidates ? noPermissionTitle : undefined}
           type="button"
         >
-          Sil
+          {t("common.delete")}
         </button>
       </div>
     </div>
@@ -1765,12 +1703,13 @@ function CandidateContactDraftRow({
   onCreate: (value: string, ownerName: string | null) => Promise<void>;
   onCancel: (draftId: string) => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   const save = async () => {
     if (!canManageCandidates || !trimmedValue || saving) return;
@@ -1788,13 +1727,13 @@ function CandidateContactDraftRow({
     <div className={`candidate-contact-draft-row ${isPhone ? "is-phone" : "is-address"}`}>
       {isPhone ? (
         <label className="candidate-contact-field candidate-contact-owner-field">
-          <span className="candidate-contact-field-label">Sahibi</span>
+          <span className="candidate-contact-field-label">{t("candidateDetail.contacts.ownerLabel")}</span>
           <input
-            aria-label="Telefon sahibi"
+            aria-label={t("candidateDetail.contacts.ownerAriaPhone")}
             className="form-input-sm"
             disabled={saving}
             onChange={(event) => setOwnerName(event.target.value)}
-            placeholder="Sahibi (Anne, Baba...)"
+            placeholder={t("candidateDetail.contacts.ownerPlaceholder")}
             type="text"
             value={ownerName}
           />
@@ -1834,7 +1773,7 @@ function CandidateContactDraftRow({
           title={!canManageCandidates ? noPermissionTitle : undefined}
           type="button"
         >
-          {saving ? "Kaydediliyor..." : "Kaydet"}
+          {saving ? t("common.saving") : t("common.save")}
         </button>
         <button
           className="btn btn-secondary btn-sm"
@@ -1842,7 +1781,7 @@ function CandidateContactDraftRow({
           onClick={() => onCancel(draftId)}
           type="button"
         >
-          Vazgeç
+          {t("common.cancel")}
         </button>
       </div>
       {error ? <span className="candidate-contact-validation">{error}</span> : null}
@@ -1859,51 +1798,16 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function todayIsoDate(): string {
-  const date = new Date();
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function nowDateTimeLocal(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Europe/Istanbul",
-  }).formatToParts(new Date());
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function addHours(date: Date, hours: number): Date {
-  const next = new Date(date);
-  next.setHours(next.getHours() + hours);
-  return next;
-}
-
-function dateOnlyAt(dateIso: string, hour: number): Date {
-  const [year, month, day] = dateIso.split("-").map((part) => parseInt(part, 10));
-  return new Date(year, month - 1, day, hour, 0, 0, 0);
-}
-
-function buildCandidateExamEvents(candidate: CandidateResponse): TrainingCalendarEvent[] {
+function buildCandidateExamEvents(
+  candidate: CandidateResponse,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): TrainingCalendarEvent[] {
   const candidateName = `${candidate.firstName} ${candidate.lastName}`.trim();
+  const theoryLabel = t("candidateDetail.exam.event.theory");
+  const practiceLabel = t("candidateDetail.exam.event.practice");
   const base = {
     instructorId: "exam",
-    instructorName: "Sınav",
+    instructorName: t("candidateDetail.exam.event.instructorName"),
     groupId: candidate.currentGroup?.groupId ?? null,
     termName: candidate.currentGroup?.term?.name ?? "-",
     licenseClass: candidate.licenseClass,
@@ -1919,12 +1823,12 @@ function buildCandidateExamEvents(candidate: CandidateResponse): TrainingCalenda
     events.push({
       ...base,
       id: `candidate-${candidate.id}-meb-exam`,
-      title: "E-Sınav",
+      title: theoryLabel,
       start,
       end: addHours(start, 1),
       kind: "teorik",
-      groupName: "E-Sınav",
-      notes: "E-Sınav",
+      groupName: theoryLabel,
+      notes: theoryLabel,
     });
   }
 
@@ -1933,32 +1837,16 @@ function buildCandidateExamEvents(candidate: CandidateResponse): TrainingCalenda
     events.push({
       ...base,
       id: `candidate-${candidate.id}-driving-exam`,
-      title: "Direksiyon Sınavı",
+      title: practiceLabel,
       start,
       end: addHours(start, 1),
       kind: "uygulama",
-      groupName: "Direksiyon Sınavı",
-      notes: "Direksiyon Sınavı",
+      groupName: practiceLabel,
+      notes: practiceLabel,
     });
   }
 
   return events;
-}
-
-function normalizeLicenseOptionKey(value: string): string {
-  return value
-    .trim()
-    .toLocaleUpperCase("tr-TR")
-    .replace(/Ç/g, "C")
-    .replace(/Ğ/g, "G")
-    .replace(/İ/g, "I")
-    .replace(/Ö/g, "O")
-    .replace(/Ş/g, "S")
-    .replace(/Ü/g, "U")
-    .replace(/OTOMATIK/g, "AUTO")
-    .replace(/YENI\s*NESIL/g, "NEWGEN")
-    .replace(/ENGELLI/g, "DISABLED")
-    .replace(/[^A-Z0-9]/g, "");
 }
 
 type ExistingLicenseRuleOption = SelectOption & {
@@ -2082,7 +1970,8 @@ function LicenseInfoTab({
   onTheoryExemptChanged?: (value: boolean) => void;
 }) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const { options: licenseClassOptions } = useInitialLicenseClassOptions();
   const licenseClassLabel = useMemo(
     () =>
@@ -2099,7 +1988,7 @@ function LicenseInfoTab({
   const loadGroupOptions = async (): Promise<SelectOption[]> => {
     const response = await getGroups({ pageSize: 200 });
     return [
-      { value: "", label: "— Atanmamış —" },
+      { value: "", label: t("candidateDetail.license.unassignedOption") },
       ...response.items.map((group) => ({
         value: group.id,
         label: `${group.title}${group.startDate ? ` · ${formatDateTR(group.startDate)}` : ""}`,
@@ -2118,9 +2007,9 @@ function LicenseInfoTab({
 
       const updated = await getCandidateById(candidate.id);
       onSaved(updated);
-      showToast(groupId ? "Grup atandı" : "Aktif grup ataması kapatıldı");
+      showToast(t(groupId ? "candidateDetail.license.toast.groupAssigned" : "candidateDetail.license.toast.groupRemoved"));
     } catch {
-      showToast("Grup ataması kaydedilemedi", "error");
+      showToast(t("candidateDetail.license.toast.groupSaveFailed"), "error");
       throw new Error("save failed");
     }
   };
@@ -2199,7 +2088,7 @@ function LicenseInfoTab({
 
   const saveApplicationField = async (
     patch: Partial<CandidateUpsertRequest>,
-    message = "Başvuru bilgileri güncellendi"
+    message = t("candidateDetail.license.toast.applicationUpdated")
   ) => {
     if (!canManageCandidates) return;
     try {
@@ -2207,7 +2096,7 @@ function LicenseInfoTab({
       onSaved(updated);
       showToast(message);
     } catch {
-      showToast("Başvuru bilgileri kaydedilemedi", "error");
+      showToast(t("candidateDetail.license.toast.applicationUpdateFailed"), "error");
       throw new Error("save failed");
     }
   };
@@ -2216,16 +2105,16 @@ function LicenseInfoTab({
     if (!canManageCandidates) return;
     const trimmed = value.trim();
     if (!trimmed) {
-      showToast("Aday numarası boş olamaz", "error");
+      showToast(t("candidateDetail.license.toast.registrationNumberEmpty"), "error");
       throw new Error("registration number empty");
     }
     try {
       await setCandidateRegistrationNumber(candidate.id, trimmed, candidate.rowVersion);
       const refreshed = await getCandidateById(candidate.id);
       onSaved(refreshed);
-      showToast("Aday numarası güncellendi");
+      showToast(t("candidateDetail.license.toast.registrationNumberUpdated"));
     } catch {
-      showToast("Aday numarası güncellenemedi", "error");
+      showToast(t("candidateDetail.license.toast.registrationNumberFailed"), "error");
       throw new Error("save failed");
     }
   };
@@ -2233,16 +2122,16 @@ function LicenseInfoTab({
   const saveRegistrationDate = async (value: string) => {
     if (!canManageCandidates) return;
     if (!value) {
-      showToast("Kayıt tarihi boş olamaz", "error");
+      showToast(t("candidateDetail.license.toast.registrationDateEmpty"), "error");
       throw new Error("registration date empty");
     }
     try {
       await setCandidateRegistrationDate(candidate.id, value, candidate.rowVersion);
       const refreshed = await getCandidateById(candidate.id);
       onSaved(refreshed);
-      showToast("Kayıt tarihi güncellendi");
+      showToast(t("candidateDetail.license.toast.registrationDateUpdated"));
     } catch {
-      showToast("Kayıt tarihi güncellenemedi", "error");
+      showToast(t("candidateDetail.license.toast.registrationDateFailed"), "error");
       throw new Error("save failed");
     }
   };
@@ -2260,7 +2149,7 @@ function LicenseInfoTab({
       await setCandidateTheoryExemption(candidate.id, next);
       onTheoryExemptChanged?.(next);
     } catch {
-      showToast("Muafiyet durumu güncellenemedi.", "error");
+      showToast(t("candidateDetail.license.toast.exemptionFailed"), "error");
     } finally {
       setExemptSaving(false);
     }
@@ -2323,7 +2212,7 @@ function LicenseInfoTab({
 
   const saveExistingLicenseField = async (
     patch: Partial<CandidateUpsertRequest>,
-    message = "Ehliyet bilgileri güncellendi"
+    message = t("candidateDetail.license.toast.existingLicenseUpdated")
   ) => {
     if (!canManageCandidates) return;
     try {
@@ -2334,7 +2223,7 @@ function LicenseInfoTab({
       onSaved(updated);
       showToast(message);
     } catch {
-      showToast("Ehliyet bilgileri kaydedilemedi", "error");
+      showToast(t("candidateDetail.license.toast.existingLicenseFailed"), "error");
       throw new Error("save failed");
     }
   };
@@ -2357,7 +2246,7 @@ function LicenseInfoTab({
       try {
         await saveExistingLicenseField(
           { hasExistingLicense: true },
-          "Mevcut sürücü belgesi var olarak işaretlendi"
+          t("candidateDetail.license.toast.existingLicenseMarked")
         );
       } catch {
         setLicenseFieldsOpen(false);
@@ -2382,7 +2271,7 @@ function LicenseInfoTab({
             existingLicensePre2016: false,
             hasExistingLicense: false,
           },
-          "Mevcut sürücü belgesi kaldırıldı"
+          t("candidateDetail.license.toast.existingLicenseCleared")
         );
       } catch {
         setLicenseFieldsOpen(true);
@@ -2406,14 +2295,14 @@ function LicenseInfoTab({
   return (
     <div className="candidate-detail-tab-content candidate-detail-license-grid">
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Başvuru Bilgileri</h3>
+        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.application")}</h3>
         <div className="candidate-detail-edit-list">
           <EditableRow
             disabled={!canManageCandidates}
             disabledTitle={noPermissionTitle}
             displayValue={licenseClassLabel}
             inputValue={candidate.licenseClass}
-            label="Ehliyet Tipi"
+            label={t("common.field.licenseClass")}
             options={licenseClassOptions}
             onSave={(value) =>
               saveApplicationField(
@@ -2426,7 +2315,7 @@ function LicenseInfoTab({
                   existingLicenseIssuedProvince: null,
                   existingLicensePre2016: false,
                 },
-                "Ehliyet tipi güncellendi"
+                t("candidateDetail.license.toast.licenseTypeUpdated")
               )
             }
           />
@@ -2434,13 +2323,13 @@ function LicenseInfoTab({
 
         <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
           <span className="form-label" style={{ margin: 0 }}>
-            Teori Muafiyeti
+            {t("candidateDetail.license.theoryExemption")}
           </span>
           <label
             className="switch-toggle switch-toggle-knob-right"
             title={hasExistingLicenseDraft
-              ? "Mevcut ehliyet sahibi olduğu için otomatik muaf."
-              : "Aday teori sınavından muaf"}
+              ? t("candidateDetail.license.autoExemptByLicense")
+              : t("candidateDetail.license.exemptText")}
           >
             <input
               checked={isTheoryExempt}
@@ -2449,14 +2338,14 @@ function LicenseInfoTab({
               title={!canManageCandidates ? noPermissionTitle : undefined}
               type="checkbox"
             />
-            <span>{isTheoryExempt ? "Muaf" : "Değil"}</span>
+            <span>{isTheoryExempt ? t("candidateDetail.license.exempt") : t("candidateDetail.license.notExempt")}</span>
             <span aria-hidden="true" className="switch-toggle-control" />
           </label>
         </div>
 
         <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
           <span className="form-label" style={{ margin: 0 }}>
-            Mevcut Sürücü Belgesi
+            {t("candidateDetail.license.existingLicense")}
           </span>
           <label className="switch-toggle switch-toggle-knob-right">
             <input
@@ -2466,7 +2355,7 @@ function LicenseInfoTab({
               title={!canManageCandidates ? noPermissionTitle : undefined}
               type="checkbox"
             />
-            <span>{licenseFieldsOpen ? "Var" : "Yok"}</span>
+            <span>{licenseFieldsOpen ? t("candidateDetail.license.hasIt") : t("candidateDetail.license.noneIt")}</span>
             <span aria-hidden="true" className="switch-toggle-control" />
           </label>
         </div>
@@ -2492,15 +2381,15 @@ function LicenseInfoTab({
                     )
                   : licenseType
               }
-              label="Mevcut Belge"
+              label={t("candidateDetail.license.existingLicenseField")}
               options={[
-                { value: "", label: "— Belge Yok —" },
+                { value: "", label: t("candidateDetail.license.noLicenseOption") },
                 ...existingLicenseOptions,
               ]}
               onSave={(value) =>
                 saveExistingLicenseField(
                   { existingLicenseType: value || null },
-                  value ? "Mevcut sürücü belgesi güncellendi" : "Mevcut sürücü belgesi kaldırıldı"
+                  value ? t("candidateDetail.license.toast.existingLicenseToggled") : t("candidateDetail.license.toast.existingLicenseCleared")
                 )
               }
             />
@@ -2511,7 +2400,7 @@ function LicenseInfoTab({
               inputType="date"
               inputValue={hasLicense ? candidate.existingLicenseIssuedAt ?? "" : issuedAt}
               inputLang="tr-TR"
-              label="Belge Tarihi"
+              label={t("candidateDetail.license.field.documentDate")}
               onSave={(value) =>
                 saveExistingLicenseField({ existingLicenseIssuedAt: value || null })
               }
@@ -2521,7 +2410,7 @@ function LicenseInfoTab({
               disabledTitle={noPermissionTitle}
               displayValue={hasLicense ? candidate.existingLicenseNumber ?? "" : licenseNumber}
               inputValue={hasLicense ? candidate.existingLicenseNumber ?? "" : licenseNumber}
-              label="Belge No"
+              label={t("candidateDetail.license.field.documentNumber")}
               onSave={(value) =>
                 saveExistingLicenseField({ existingLicenseNumber: value || null })
               }
@@ -2531,7 +2420,7 @@ function LicenseInfoTab({
               disabledTitle={noPermissionTitle}
               displayValue={hasLicense ? candidate.existingLicenseIssuedProvince ?? "" : issuedProvince}
               inputValue={hasLicense ? candidate.existingLicenseIssuedProvince ?? "" : issuedProvince}
-              label="Belge Veriliş İli"
+              label={t("candidateDetail.license.field.documentIssueProvince")}
               options={TURKEY_PROVINCE_OPTIONS}
               onSave={(value) =>
                 saveExistingLicenseField({ existingLicenseIssuedProvince: value || null })
@@ -2539,7 +2428,7 @@ function LicenseInfoTab({
             />
             {!existingLicenseOptionsLoading && existingLicenseOptions.length === 0 ? (
               <div className="form-subsection-note" style={{ marginTop: 8 }}>
-                Bu ehliyet tipi için mevcut sürücü belgesi gerektiren tanım yok.
+                {t("candidateDetail.license.noExistingLicenseDefinition")}
               </div>
             ) : null}
           </div>
@@ -2547,14 +2436,14 @@ function LicenseInfoTab({
 
       <div className="candidate-detail-registration-stack">
         <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">Kayıt Bilgileri</h3>
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.registration")}</h3>
           <div className="candidate-detail-edit-list">
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={noPermissionTitle}
               displayValue={candidate.registrationNumber}
               inputValue={candidate.registrationNumber}
-              label="Aday No"
+              label={t("candidateDetail.license.field.candidateNumber")}
               onSave={saveRegistrationNumber}
             />
             <EditableRow
@@ -2563,26 +2452,26 @@ function LicenseInfoTab({
               displayValue={formatDateTR(candidate.createdAtUtc)}
               inputType="date"
               inputValue={candidate.createdAtUtc.slice(0, 10)}
-              label="Kayıt Tarihi"
+              label={t("candidateDetail.license.field.registrationDate")}
               onSave={saveRegistrationDate}
             />
           </div>
         </section>
 
         <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">Referans</h3>
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.reference")}</h3>
           <div className="candidate-detail-edit-list">
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={noPermissionTitle}
               displayValue={candidate.referenceName ?? ""}
               inputValue={candidate.referenceName ?? ""}
-              label="Referans"
+              label={t("candidateDetail.license.field.reference")}
               loadOptions={() => loadReferenceOptions(candidate.referenceName)}
               onSave={(value) =>
                 saveApplicationField(
                   { referenceName: value.trim() || null },
-                  "Referans güncellendi",
+                  t("candidateDetail.license.toast.referenceUpdated"),
                 )
               }
             />
@@ -2591,19 +2480,19 @@ function LicenseInfoTab({
       </div>
 
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Grup / Dönem Bilgileri</h3>
+        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.group")}</h3>
         <div className="candidate-detail-edit-list">
           <EditableRow
             disabled={!canManageCandidates}
             disabledTitle={noPermissionTitle}
-            displayValue={candidate.currentGroup?.title ?? "Atanmamış"}
+            displayValue={candidate.currentGroup?.title ?? t("candidateDetail.license.unassigned")}
             inputValue={candidate.currentGroup?.groupId ?? ""}
-            label="Aktif Grup"
+            label={t("candidateDetail.license.field.activeGroup")}
             loadOptions={loadGroupOptions}
             onSave={saveGroup}
           />
           <Field
-            label="Dönem"
+            label={t("candidateDetail.license.field.term")}
             value={
               candidate.currentGroup?.term
                 ? buildTermLabel(candidate.currentGroup.term, [])
@@ -2611,7 +2500,7 @@ function LicenseInfoTab({
             }
           />
           <Field
-            label="Grup Başlangıcı"
+            label={t("candidateDetail.license.field.groupStart")}
             value={formatDateTR(candidate.currentGroup?.startDate ?? null)}
           />
           <Field
@@ -2629,25 +2518,25 @@ function LicenseInfoTab({
       </section>
 
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Kimlik Bilgileri</h3>
+        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.identity")}</h3>
         <div className="candidate-detail-edit-list">
           <EditableRow
             disabled={!canManageCandidates}
             disabledTitle={noPermissionTitle}
             displayValue={candidate.firstName}
             inputValue={candidate.firstName}
-            label="Ad"
+            label={t("common.field.firstName")}
             transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ firstName: value.trim() }, "Ad güncellendi")}
+            onSave={(value) => saveApplicationField({ firstName: value.trim() }, t("candidateDetail.license.toast.firstNameUpdated"))}
           />
           <EditableRow
             disabled={!canManageCandidates}
             disabledTitle={noPermissionTitle}
             displayValue={candidate.lastName}
             inputValue={candidate.lastName}
-            label="Soyad"
+            label={t("common.field.lastName")}
             transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ lastName: value.trim() }, "Soyad güncellendi")}
+            onSave={(value) => saveApplicationField({ lastName: value.trim() }, t("candidateDetail.license.toast.lastNameUpdated"))}
           />
           <EditableRow
             disabled={!canManageCandidates}
@@ -2655,17 +2544,17 @@ function LicenseInfoTab({
             displayValue={candidate.nationalId}
             inputType="tel"
             inputValue={candidate.nationalId}
-            label="TC Kimlik No"
-            onSave={(value) => saveApplicationField({ nationalId: value.trim() }, "TC kimlik güncellendi")}
+            label={t("common.field.nationalId")}
+            onSave={(value) => saveApplicationField({ nationalId: value.trim() }, t("candidateDetail.license.toast.nationalIdUpdated"))}
           />
           <EditableRow
             disabled={!canManageCandidates}
             disabledTitle={noPermissionTitle}
             displayValue={candidate.identitySerialNumber ?? ""}
             inputValue={candidate.identitySerialNumber ?? ""}
-            label="Kimlik Seri No"
+            label={t("common.field.identitySerialNumber")}
             onSave={(value) =>
-              saveApplicationField({ identitySerialNumber: value.trim() || null }, "Kimlik seri no güncellendi")
+              saveApplicationField({ identitySerialNumber: value.trim() || null }, t("candidateDetail.license.toast.identitySerialUpdated"))
             }
           />
           <EditableRow
@@ -2673,28 +2562,28 @@ function LicenseInfoTab({
             disabledTitle={noPermissionTitle}
             displayValue={candidate.motherName ?? ""}
             inputValue={candidate.motherName ?? ""}
-            label="Anne Adı"
+            label={t("common.field.motherName")}
             transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ motherName: value.trim() || null }, "Anne adı güncellendi")}
+            onSave={(value) => saveApplicationField({ motherName: value.trim() || null }, t("candidateDetail.license.toast.motherNameUpdated"))}
           />
           <EditableRow
             disabled={!canManageCandidates}
             disabledTitle={noPermissionTitle}
             displayValue={candidate.fatherName ?? ""}
             inputValue={candidate.fatherName ?? ""}
-            label="Baba Adı"
+            label={t("common.field.fatherName")}
             transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ fatherName: value.trim() || null }, "Baba adı güncellendi")}
+            onSave={(value) => saveApplicationField({ fatherName: value.trim() || null }, t("candidateDetail.license.toast.fatherNameUpdated"))}
           />
           <EditableRow
             disabled={!canManageCandidates}
             disabledTitle={noPermissionTitle}
             displayValue={candidateGenderLabel(candidate.gender)}
             inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
-            label="Cinsiyet"
+            label={t("common.field.gender")}
             options={CANDIDATE_GENDER_OPTIONS}
             onSave={(value) =>
-              saveApplicationField({ gender: normalizeCandidateGender(value) }, "Cinsiyet güncellendi")
+              saveApplicationField({ gender: normalizeCandidateGender(value) }, t("candidateDetail.license.toast.genderUpdated"))
             }
           />
           <EditableRow
@@ -2703,15 +2592,15 @@ function LicenseInfoTab({
             displayValue={formatDateTR(candidate.birthDate)}
             inputType="date"
             inputValue={candidate.birthDate ?? ""}
-            label="Doğum Tarihi"
-            onSave={(value) => saveApplicationField({ birthDate: value || null }, "Doğum tarihi güncellendi")}
+            label={t("common.field.birthDate")}
+            onSave={(value) => saveApplicationField({ birthDate: value || null }, t("candidateDetail.license.toast.birthDateUpdated"))}
           />
-          <Field label="Yaş" value={age != null ? String(age) : "—"} />
+          <Field label={t("common.field.age")} value={age != null ? String(age) : "—"} />
         </div>
       </section>
 
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">İletişim</h3>
+        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.contacts")}</h3>
         <CandidateContactsEditor
           canManageCandidates={canManageCandidates}
           candidate={candidate}
@@ -2979,54 +2868,72 @@ function parseMoneyInput(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function secondPracticeRoundErrorMessage(error: unknown): string {
+function secondPracticeRoundErrorMessage(
+  error: unknown,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
   if (error instanceof ApiError) {
     const codes = Object.values(error.validationErrorCodes ?? {}).flat();
     for (const entry of codes) {
       if (entry.code === "candidate.validation.secondPracticeRoundNotEligible") {
-        return "Aday henüz 2. Direksiyon Aşamasına uygun değil (1. round 4/4 ve başarısız olmalı).";
+        return t("candidateDetail.secondRound.error.notEligible");
       }
       if (entry.code === "candidate.validation.secondPracticeRoundHasAttempts") {
-        return "2. aşamada sınav kaydı mevcut, kapatılamaz.";
+        return t("candidateDetail.secondRound.cannotCloseTitle");
       }
       if (entry.code === "candidate.validation.concurrencyConflict") {
-        return "Bilgiler başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.";
+        return t("candidateDetail.exam.toast.conflictRefresh");
       }
     }
   }
-  return "2. Direksiyon Aşaması güncellenemedi.";
+  return t("candidateDetail.secondRound.error.updateFailed");
 }
 
-function examAttemptCreateErrorMessage(error: unknown): string {
+function examAttemptCreateErrorMessage(
+  error: unknown,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
   if (error instanceof ApiError) {
     const codes = Object.values(error.validationErrorCodes ?? {}).flat();
     for (const entry of codes) {
       if (entry.code === "candidateExamAttemptFailedCandidateNeedsTraining") {
-        return "Aday geçen sınavda başarısız oldu. Yeni randevudan önce en az 2 saat direksiyon eğitimi planlanmalı.";
+        return t("candidateDetail.exam.error.needsTraining");
       }
       if (entry.code === "candidateExamAttemptAttemptLimitReached") {
-        return "Aday bu round için 4 sınav hakkını tamamladı.";
+        return t("candidateDetail.exam.error.attemptLimitReached");
       }
     }
   }
-  return "Sınav denemesi eklenemedi.";
+  return t("candidateDetail.exam.error.attemptCreateFailed");
 }
 
-function accountingErrorMessage(error: unknown, fallback: string): string {
+function accountingErrorMessage(
+  error: unknown,
+  fallback: string,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
   if (!(error instanceof ApiError)) return fallback;
   const messages = Object.values(error.validationErrors ?? {}).flat();
   const firstMessage = messages[0];
   if (!firstMessage) return fallback;
 
-  if (firstMessage.includes("open balance")) return "Ödeme seçilen türdeki açık bakiyeyi aşamaz.";
-  if (firstMessage.includes("Cash register is required")) return "Bu ödeme yöntemi için kasa seçilmeli.";
-  if (firstMessage.includes("Cash register type")) return "Seçilen kasa ödeme yöntemiyle uyumlu değil.";
+  if (firstMessage.includes("open balance")) return t("candidateDetail.accounting.error.openBalanceExceeded");
+  if (firstMessage.includes("Cash register is required")) return t("candidateDetail.accounting.error.cashRegisterRequired");
+  if (firstMessage.includes("Cash register type")) return t("candidateDetail.accounting.error.cashRegisterMismatch");
   if (firstMessage.includes("Paid movement") || firstMessage.includes("Paid debt")) {
-    return "Ödeme alınmış borçlandırma silinemez. Önce iade/iptal işlemi yapın.";
+    return t("candidateDetail.accounting.error.paidCannotDelete");
   }
-  if (firstMessage.includes("Refund amount")) return "İade tutarı iade edilebilir tutarı aşamaz.";
-  if (firstMessage.includes("Cancellation reason")) return "İptal sebebi zorunlu.";
+  if (firstMessage.includes("Refund amount")) return t("candidateDetail.accounting.error.refundExceeded");
+  if (firstMessage.includes("Cancellation reason")) return t("candidateDetail.accounting.error.cancellationReasonRequired");
   return firstMessage;
+}
+
+function paymentMethodLabelKey(method: CandidatePaymentMethod): TranslationKey {
+  if (method === "cash") return "candidateDetail.accounting.method.cash";
+  if (method === "credit_card") return "candidateDetail.accounting.method.creditCard";
+  if (method === "bank_transfer") return "candidateDetail.accounting.method.bankTransfer";
+  if (method === "mail_order") return "candidateDetail.accounting.method.mailOrder";
+  return "candidateDetail.accounting.method.other";
 }
 
 function paymentMethodLabel(method: CandidatePaymentMethod): string {
@@ -3035,6 +2942,13 @@ function paymentMethodLabel(method: CandidatePaymentMethod): string {
   if (method === "bank_transfer") return "Havale/EFT";
   if (method === "mail_order") return "Mail Order";
   return "Diğer";
+}
+
+function accountingTypeLabelKey(type: CandidateAccountingType): TranslationKey {
+  if (type === "kurs") return "candidateDetail.accounting.type.course";
+  if (type === "teorik_sinav") return "candidateDetail.accounting.type.theoryExam";
+  if (type === "direksiyon_sinav") return "candidateDetail.accounting.type.practiceExam";
+  return "candidateDetail.accounting.type.other";
 }
 
 function accountingTypeLabel(type: CandidateAccountingType): string {
@@ -3046,12 +2960,18 @@ function accountingTypeLabel(type: CandidateAccountingType): string {
 
 function accountingMovementStatus(
   movement: CandidateAccountingSummaryResponse["movements"][number]
-): { className: string; label: string } {
-  if (movement.status === "cancelled") {
-    return { className: "status-cancelled", label: "Silinen borçlandırma" };
-  }
+): { className: string } {
+  return {
+    className: movement.status === "cancelled" ? "status-cancelled" : "status-open",
+  };
+}
 
-  return { className: "status-open", label: "Borç" };
+function accountingMovementStatusLabelKey(
+  movement: CandidateAccountingSummaryResponse["movements"][number]
+): TranslationKey {
+  return movement.status === "cancelled"
+    ? "candidateDetail.accounting.movement.cancelled"
+    : "candidateDetail.accounting.movement.debt";
 }
 
 function refundShareForMovement(
@@ -3085,26 +3005,26 @@ const ACCOUNTING_TYPES: CandidateAccountingType[] = [
 
 const ACCOUNTING_SECTION_DEFINITIONS: Array<{
   id: "course" | "exam" | "other";
-  title: string;
-  detail: string;
+  titleKey: TranslationKey;
+  detailKey: TranslationKey;
   types: CandidateAccountingType[];
 }> = [
   {
     id: "course",
-    title: "Kurs Ödemesi",
-    detail: "Kurs borçlandırmaları",
+    titleKey: "candidateDetail.accounting.section.coursePayment",
+    detailKey: "candidateDetail.accounting.section.coursePaymentDetail",
     types: ["kurs"],
   },
   {
     id: "exam",
-    title: "Sınav Ücretleri",
-    detail: "Teorik + direksiyon",
+    titleKey: "candidateDetail.accounting.section.examFees",
+    detailKey: "candidateDetail.accounting.section.examFeesDetail",
     types: ["teorik_sinav", "direksiyon_sinav"],
   },
   {
     id: "other",
-    title: "Diğer Ödemeler",
-    detail: "Diğer borçlandırmalar",
+    titleKey: "candidateDetail.accounting.section.otherPayments",
+    detailKey: "candidateDetail.accounting.section.otherPaymentsDetail",
     types: ["diger"],
   },
 ];
@@ -3147,30 +3067,24 @@ type AccountingLedgerFilters = Record<AccountingLedgerFilterKey, string>;
 
 const ACCOUNTING_LEDGER_COLUMNS: Array<{
   id: AccountingLedgerColumnId;
-  label: string;
+  labelKey: TranslationKey;
   sortField?: AccountingLedgerSortField;
   locked?: boolean;
 }> = [
-  { id: "type", label: "Tür", sortField: "type", locked: true },
-  { id: "dueDate", label: "Vade Tarihi", sortField: "dueDate" },
-  { id: "amount", label: "Tutar", sortField: "amount" },
-  { id: "paidAmount", label: "Ödenen", sortField: "paidAmount" },
-  { id: "remainingAmount", label: "Kalan", sortField: "remainingAmount" },
-  { id: "paidAt", label: "Ödeme Tarihi", sortField: "paidAt" },
-  { id: "receiptNumber", label: "Makbuz No", sortField: "receiptNumber" },
-  { id: "method", label: "Yöntem", sortField: "method" },
-  { id: "cashRegister", label: "Kasa", sortField: "cashRegister" },
-  { id: "description", label: "Açıklama", sortField: "description" },
-  { id: "actions", label: "İşlemler", locked: true },
-  { id: "refundedAmount", label: "İade", sortField: "refundedAmount" },
-  { id: "number", label: "Borç No", sortField: "number" },
+  { id: "type", labelKey: "candidateDetail.accounting.col.type", sortField: "type", locked: true },
+  { id: "dueDate", labelKey: "candidateDetail.accounting.col.dueDate", sortField: "dueDate" },
+  { id: "amount", labelKey: "candidateDetail.accounting.col.amount", sortField: "amount" },
+  { id: "paidAmount", labelKey: "candidateDetail.accounting.col.paid", sortField: "paidAmount" },
+  { id: "remainingAmount", labelKey: "candidateDetail.accounting.col.remaining", sortField: "remainingAmount" },
+  { id: "paidAt", labelKey: "candidateDetail.accounting.col.paymentDate", sortField: "paidAt" },
+  { id: "receiptNumber", labelKey: "candidateDetail.accounting.col.receiptNumber", sortField: "receiptNumber" },
+  { id: "method", labelKey: "candidateDetail.accounting.col.method", sortField: "method" },
+  { id: "cashRegister", labelKey: "candidateDetail.accounting.col.cashRegister", sortField: "cashRegister" },
+  { id: "description", labelKey: "candidateDetail.accounting.col.description", sortField: "description" },
+  { id: "actions", labelKey: "candidateDetail.accounting.col.actions", locked: true },
+  { id: "refundedAmount", labelKey: "candidateDetail.accounting.col.refund", sortField: "refundedAmount" },
+  { id: "number", labelKey: "candidateDetail.accounting.col.number", sortField: "number" },
 ];
-
-const ACCOUNTING_LEDGER_COLUMN_OPTIONS: ColumnOption[] = ACCOUNTING_LEDGER_COLUMNS.map((column) => ({
-  id: column.id,
-  label: column.label,
-  locked: column.locked,
-}));
 
 const DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS: AccountingLedgerColumnId[] = [
   "type",
@@ -3256,6 +3170,7 @@ function AccountingTab({
   ) => void;
   onDeleteInvoice: (invoiceId: string) => void;
 }) {
+  const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const handledAccountingQueryRef = useRef("");
   const [cashRegisters, setCashRegisters] = useState<CashRegisterResponse[]>([]);
@@ -3572,23 +3487,23 @@ function AccountingTab({
   return (
     <div className="candidate-detail-tab-content">
       <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">Cari Özet</h3>
+        <h3 className="candidate-detail-section-title">{t("candidateDetail.accounting.section.summary")}</h3>
         {accountingLoading ? (
-          <div className="instructor-detail-empty">Finans bilgileri yükleniyor...</div>
+          <div className="instructor-detail-empty">{t("candidateDetail.accounting.loading")}</div>
         ) : accountingError ? (
           <div className="instructor-detail-error">{accountingError}</div>
         ) : accounting ? (
           <>
             <div className="candidate-fee-summary-shell">
               <div className="candidate-fee-summary-group">
-                <h4 className="candidate-fee-summary-title">Kurs Ücreti</h4>
+                <h4 className="candidate-fee-summary-title">{t("candidateDetail.accounting.summary.courseFee")}</h4>
                 <div className="candidate-finance-summary-grid candidate-course-fee-summary-cards">
                   <div className="candidate-finance-summary-card">
-                    <span className="candidate-detail-stat-label">Ücret</span>
+                    <span className="candidate-detail-stat-label">{t("candidateDetail.accounting.summary.fee")}</span>
                     <strong>{formatCurrencyTRY(courseFeeSummary.totalAmount)}</strong>
                   </div>
                   <div className="candidate-finance-summary-card">
-                    <span className="candidate-detail-stat-label">Ödenen</span>
+                    <span className="candidate-detail-stat-label">{t("candidateDetail.accounting.summary.paid")}</span>
                     <strong>{formatCurrencyTRY(courseFeeSummary.paidAmount)}</strong>
                   </div>
                   <div className="candidate-finance-summary-card is-balance">
@@ -3599,27 +3514,27 @@ function AccountingTab({
               </div>
               <div className="candidate-fee-summary-column candidate-fee-summary-debt-column">
                 <div className="candidate-fee-summary-group">
-                  <h4 className="candidate-fee-summary-title">Sınav Borçları</h4>
+                  <h4 className="candidate-fee-summary-title">{t("candidateDetail.accounting.summary.examDebts")}</h4>
                   <div className="candidate-finance-summary-grid candidate-exam-debt-summary-cards">
                     <div className="candidate-finance-summary-card">
-                      <span className="candidate-detail-stat-label">Teorik Sınav Borcu</span>
+                      <span className="candidate-detail-stat-label">{t("candidateDetail.accounting.summary.theoryDebt")}</span>
                       <strong>{formatCurrencyTRY(theoryExamDebtAmount)}</strong>
                     </div>
                     <div className="candidate-finance-summary-card">
-                      <span className="candidate-detail-stat-label">Direksiyon Sınav Borcu</span>
+                      <span className="candidate-detail-stat-label">{t("candidateDetail.accounting.summary.drivingDebt")}</span>
                       <strong>{formatCurrencyTRY(practiceExamDebtAmount)}</strong>
                     </div>
                   </div>
                 </div>
                 <div className="candidate-finance-summary-grid candidate-fee-summary-single-card">
                   <div className="candidate-finance-summary-card">
-                    <span className="candidate-detail-stat-label">Diğer Ücret Borcu</span>
+                    <span className="candidate-detail-stat-label">{t("candidateDetail.accounting.summary.otherDebt")}</span>
                     <strong>{formatCurrencyTRY(otherFeeDebtAmount)}</strong>
                   </div>
                 </div>
                 <div className="candidate-finance-summary-grid candidate-fee-summary-single-card">
                   <div className="candidate-finance-summary-card is-balance">
-                    <span className="candidate-detail-stat-label">Toplam Borç</span>
+                    <span className="candidate-detail-stat-label">{t("candidateDetail.accounting.summary.totalDebt")}</span>
                     <strong>{formatCurrencyTRY(totalDebtAmount)}</strong>
                   </div>
                 </div>
@@ -3636,16 +3551,16 @@ function AccountingTab({
                   <strong>Detaylı özet</strong>
                   <em>Kurs, sınav, diğer ve fatura kırılımı</em>
                 </span>
-                <span aria-hidden="true">{sectionSummaryOpen ? "Kapat" : "Aç"}</span>
+                <span aria-hidden="true">{sectionSummaryOpen ? t("candidateDetail.accounting.summary.collapse") : t("candidateDetail.accounting.summary.expand")}</span>
               </button>
               {sectionSummaryOpen ? (
-                <div className="candidate-accounting-section-summary" aria-label="Bölüm bazlı finans özeti">
+                <div className="candidate-accounting-section-summary" aria-label={t("candidateDetail.accounting.summary.sectionAria")}>
                   {sectionSummaries.map((section) => (
                     <div className="candidate-accounting-section-summary-row" key={section.id}>
                       <div className="candidate-accounting-section-summary-title">
-                        <strong>{section.title}</strong>
+                        <strong>{t(section.titleKey)}</strong>
                         <span>
-                          {section.detail} · {section.movementCount} borçlandırma
+                          {t(section.detailKey)} · {t("candidateDetail.accounting.section.movementCount", { count: section.movementCount })}
                         </span>
                       </div>
                       <div className="candidate-accounting-section-summary-metrics">
@@ -3729,7 +3644,7 @@ function AccountingTab({
               title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
-              {feeSuggestionsOpen ? "Önerileri Gizle" : "Ücret Önerileri"}
+              {feeSuggestionsOpen ? t("candidateDetail.accounting.feeSuggestionsHide") : t("candidateDetail.accounting.feeSuggestionsShow")}
             </button>
           ) : null}
           <button
@@ -3793,7 +3708,7 @@ function AccountingTab({
         canManagePayments={canManagePayments}
         payments={payments}
         refunds={accounting?.refunds ?? []}
-        title="Kurs Ödemesi"
+        title={t("candidateDetail.accounting.section.coursePayment")}
       />
       <AccountingMovementSection
         movements={sectionMovements(["teorik_sinav", "direksiyon_sinav"])}
@@ -3810,7 +3725,7 @@ function AccountingTab({
         canManagePayments={canManagePayments}
         payments={payments}
         refunds={accounting?.refunds ?? []}
-        title="Sınav Ücretleri"
+        title={t("candidateDetail.accounting.section.examFees")}
       />
       <AccountingMovementSection
         movements={sectionMovements(["diger"])}
@@ -3827,11 +3742,11 @@ function AccountingTab({
         canManagePayments={canManagePayments}
         payments={payments}
         refunds={accounting?.refunds ?? []}
-        title="Diğer Ödemeler"
+        title={t("candidateDetail.accounting.section.otherPayments")}
       />
 
       <section className="instructor-detail-card candidate-finance-workspace-card">
-        <h3 className="candidate-detail-section-title">Faturalar</h3>
+        <h3 className="candidate-detail-section-title">{t("candidateDetail.accounting.section.invoices")}</h3>
         {accounting?.invoices.length ? (
           <table className="data-table candidate-detail-fee-table candidate-accounting-invoice-table">
             <thead>
@@ -3879,7 +3794,7 @@ function AccountingTab({
             </tbody>
           </table>
         ) : (
-          <div className="instructor-detail-empty">Fatura kaydı yok.</div>
+          <div className="instructor-detail-empty">{t("candidateDetail.accounting.invoicesEmpty")}</div>
         )}
       </section>
 
@@ -3907,17 +3822,17 @@ function AccountingTab({
               }}
               type="button"
             >
-              {movementSaving ? "Kaydediliyor..." : "Oluştur"}
+              {movementSaving ? t("common.saving") : t("candidateDetail.accounting.create")}
             </button>
           </>
         }
         onClose={() => setPaymentPlanModal((current) => ({ ...current, open: false }))}
         open={paymentPlanModal.open}
-        title="Ödeme Planı Oluştur"
+        title={t("candidateDetail.accounting.modal.installmentPlan")}
       >
         <div className="candidate-accounting-modal-form candidate-payment-plan-modal-form">
           <label className="form-group">
-            <span className="form-label">Kurs Ücreti</span>
+            <span className="form-label">{t("candidateDetail.accounting.summary.courseFee")}</span>
             <input
               className="form-input"
               disabled={!canManagePayments}
@@ -3930,7 +3845,7 @@ function AccountingTab({
             />
           </label>
           <label className="form-group">
-            <span className="form-label">Taksit Sayısı</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.installmentCount")}</span>
             <input
               className="form-input"
               disabled={!canManagePayments}
@@ -3949,7 +3864,7 @@ function AccountingTab({
             />
           </label>
           <label className="form-group">
-            <span className="form-label">İlk Vade Tarihi</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.firstDueDate")}</span>
             <LocalizedDateInput
               className="form-input"
               disabled={!canManagePayments}
@@ -3985,7 +3900,7 @@ function AccountingTab({
               </table>
             </div>
           ) : (
-            <div className="instructor-detail-error">Önizleme için geçerli tutar, taksit sayısı ve tarih girin.</div>
+            <div className="instructor-detail-error">{t("candidateDetail.accounting.previewHint")}</div>
           )
         ) : null}
       </Modal>
@@ -4013,7 +3928,7 @@ function AccountingTab({
         }
         onClose={() => setDebtModal((current) => ({ ...current, open: false }))}
         open={debtModal.open}
-        title="Borç Ekle"
+        title={t("candidateDetail.accounting.modal.addDebt")}
       >
         <AccountingTypePicker
           disabled={!canManagePayments}
@@ -4030,8 +3945,8 @@ function AccountingTab({
             <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setDebtModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={debtModal.amount} />
           </label>
           <label className="form-group">
-            <span className="form-label">Açıklama</span>
-            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setDebtModal((current) => ({ ...current, description: event.target.value }))} placeholder="1. taksit, ilk ödeme..." value={debtModal.description} />
+            <span className="form-label">{t("candidateDetail.accounting.field.description")}</span>
+            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setDebtModal((current) => ({ ...current, description: event.target.value }))} placeholder={t("candidateDetail.accounting.placeholder.installmentExample")} value={debtModal.description} />
           </label>
         </div>
       </Modal>
@@ -4061,13 +3976,13 @@ function AccountingTab({
               title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
-              {paymentSaving ? "Kaydediliyor..." : "Ödeme Kaydet"}
+              {paymentSaving ? t("common.saving") : t("candidateDetail.accounting.savePayment")}
             </button>
           </>
         }
         onClose={() => setPaymentModal((current) => ({ ...current, open: false }))}
         open={paymentModal.open}
-        title="Ödeme Al"
+        title={t("candidateDetail.accounting.modal.collectPayment")}
       >
         <AccountingTypePicker
           disabled={!canManagePayments}
@@ -4076,7 +3991,7 @@ function AccountingTab({
         />
         <div className="candidate-accounting-modal-form">
           <div className="form-group">
-            <span className="form-label">Yöntem</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.method")}</span>
             <PaymentMethodPicker
               onChange={selectPaymentMethod}
               disabled={!canManagePayments}
@@ -4097,7 +4012,7 @@ function AccountingTab({
             <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setPaymentModal((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" value={paymentModal.amount} />
           </label>
           <label className="form-group">
-            <span className="form-label">Ödeme Tarihi</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.paymentDate")}</span>
             <LocalizedDateInput
               className="form-input"
               disabled={!canManagePayments}
@@ -4111,9 +4026,9 @@ function AccountingTab({
             />
           </label>
           <label className="form-group">
-            <span className="form-label">Ödeme Saati</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.paymentTime")}</span>
             <LocalizedTimeInput
-              ariaLabel="Ödeme saati"
+              ariaLabel={t("candidateDetail.accounting.aria.paymentTime")}
               className="form-input"
               disabled={!canManagePayments}
               onChange={(time) =>
@@ -4126,8 +4041,8 @@ function AccountingTab({
             />
           </label>
           <label className="form-group">
-            <span className="form-label">Açıklama</span>
-            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setPaymentModal((current) => ({ ...current, note: event.target.value }))} placeholder="Ödeme açıklaması" value={paymentModal.note} />
+            <span className="form-label">{t("candidateDetail.accounting.field.description")}</span>
+            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setPaymentModal((current) => ({ ...current, note: event.target.value }))} placeholder={t("candidateDetail.accounting.placeholder.paymentNote")} value={paymentModal.note} />
           </label>
         </div>
       </Modal>
@@ -4162,7 +4077,7 @@ function AccountingTab({
         }
         onClose={() => setInvoiceModal((current) => ({ ...current, open: false }))}
         open={invoiceModal.open}
-        title={invoiceModal.invoice ? "Fatura Düzenle" : "Fatura Ekle"}
+        title={invoiceModal.invoice ? t("candidateDetail.accounting.modal.editInvoice") : t("candidateDetail.accounting.modal.addInvoice")}
       >
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
@@ -4193,7 +4108,7 @@ function AccountingTab({
             <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setInvoiceModal((current) => ({ ...current, subtotal: event.target.value }))} placeholder="0,00" value={invoiceModal.subtotal} />
           </label>
           <label className="form-group">
-            <span className="form-label">KDV Oranı</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.vatRate")}</span>
 	            <CustomSelect className="form-select" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, vatRate: event.target.value }))} value={invoiceModal.vatRate}>
 	              <option value="0">%0</option>
 	              <option value="1">%1</option>
@@ -4221,7 +4136,7 @@ function AccountingTab({
       <Modal
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setCancelMovement(null)} type="button">Vazgeç</button>
+            <button className="btn btn-secondary" onClick={() => setCancelMovement(null)} type="button">{t("common.cancel")}</button>
             <button
               className="btn btn-primary"
               disabled={!canManagePayments || movementCancelReason.trim().length < 3}
@@ -4240,16 +4155,16 @@ function AccountingTab({
         }
         onClose={() => setCancelMovement(null)}
         open={Boolean(cancelMovement)}
-        title="Borçlandırmayı Sil"
+        title={t("candidateDetail.accounting.modal.deleteDebt")}
       >
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
-            <span className="form-label">Silme Açıklaması</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.deleteDescription")}</span>
             <textarea
               className="form-input"
               disabled={!canManagePayments}
               onChange={(event) => setMovementCancelReason(event.target.value)}
-              placeholder="Silme açıklaması"
+              placeholder={t("candidateDetail.accounting.placeholder.deleteReason")}
               rows={3}
               value={movementCancelReason}
             />
@@ -4260,7 +4175,7 @@ function AccountingTab({
       <Modal
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setCancelPayment(null)} type="button">Vazgeç</button>
+            <button className="btn btn-secondary" onClick={() => setCancelPayment(null)} type="button">{t("common.cancel")}</button>
             <button
               className="btn btn-primary"
               disabled={!canManagePayments || paymentCancelReason.trim().length < 3}
@@ -4279,12 +4194,12 @@ function AccountingTab({
         }
         onClose={() => setCancelPayment(null)}
         open={Boolean(cancelPayment)}
-        title="Ödemeyi İptal Et"
+        title={t("candidateDetail.accounting.modal.cancelPayment")}
       >
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
-            <span className="form-label">İptal Sebebi</span>
-            <textarea className="form-input" disabled={!canManagePayments} onChange={(event) => setPaymentCancelReason(event.target.value)} placeholder="İptal sebebi" rows={3} value={paymentCancelReason} />
+            <span className="form-label">{t("candidateDetail.accounting.field.cancelReason")}</span>
+            <textarea className="form-input" disabled={!canManagePayments} onChange={(event) => setPaymentCancelReason(event.target.value)} placeholder={t("candidateDetail.accounting.placeholder.cancelReason")} rows={3} value={paymentCancelReason} />
           </label>
         </div>
       </Modal>
@@ -4292,7 +4207,7 @@ function AccountingTab({
       <Modal
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setRefundPayment(null)} type="button">Vazgeç</button>
+            <button className="btn btn-secondary" onClick={() => setRefundPayment(null)} type="button">{t("common.cancel")}</button>
             <button
               className="btn btn-primary"
               disabled={!canManagePayments || (parseMoneyInput(refundAmount) ?? 0) <= 0 || refundNote.trim().length < 3}
@@ -4311,16 +4226,16 @@ function AccountingTab({
         }
         onClose={() => setRefundPayment(null)}
         open={Boolean(refundPayment)}
-        title="İade Kaydet"
+        title={t("candidateDetail.accounting.modal.refund")}
       >
         <div className="candidate-accounting-modal-form">
           <label className="form-group">
-            <span className="form-label">İade Tutarı</span>
+            <span className="form-label">{t("candidateDetail.accounting.field.refundAmount")}</span>
             <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setRefundAmount(event.target.value)} placeholder="0,00" value={refundAmount} />
           </label>
           <label className="form-group">
-            <span className="form-label">Açıklama</span>
-            <textarea className="form-input" disabled={!canManagePayments} onChange={(event) => setRefundNote(event.target.value)} placeholder="İade açıklaması" rows={3} value={refundNote} />
+            <span className="form-label">{t("candidateDetail.accounting.field.description")}</span>
+            <textarea className="form-input" disabled={!canManagePayments} onChange={(event) => setRefundNote(event.target.value)} placeholder={t("candidateDetail.accounting.placeholder.refundNote")} rows={3} value={refundNote} />
           </label>
         </div>
       </Modal>
@@ -4337,6 +4252,7 @@ function AccountingTypePicker({
   value: CandidateAccountingType;
   onChange: (value: CandidateAccountingType) => void;
 }) {
+  const t = useT();
   return (
     <div className="candidate-accounting-type-picker">
       {ACCOUNTING_TYPES.map((type) => (
@@ -4347,7 +4263,7 @@ function AccountingTypePicker({
           onClick={() => onChange(type)}
           type="button"
         >
-          {accountingTypeLabel(type)}
+          {t(accountingTypeLabelKey(type))}
         </button>
       ))}
     </div>
@@ -4363,6 +4279,7 @@ function PaymentMethodPicker({
   value: CandidatePaymentMethod;
   onChange: (value: CandidatePaymentMethod) => void;
 }) {
+  const t = useT();
   return (
     <div className="candidate-accounting-type-picker candidate-accounting-method-picker">
       {PAYMENT_METHODS.map((method) => (
@@ -4373,7 +4290,7 @@ function PaymentMethodPicker({
           onClick={() => onChange(method)}
           type="button"
         >
-          {paymentMethodLabel(method)}
+          {t(paymentMethodLabelKey(method))}
         </button>
       ))}
     </div>
@@ -4452,6 +4369,16 @@ function AccountingMovementSection({
   onOpenReceipt: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
   onOpenRefund: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
 }) {
+  const t = useT();
+  const columnPickerOptions = useMemo<ColumnOption[]>(
+    () =>
+      ACCOUNTING_LEDGER_COLUMNS.map((column) => ({
+        id: column.id,
+        label: t(column.labelKey),
+        locked: column.locked,
+      })),
+    [t],
+  );
   const [openActionMenu, setOpenActionMenu] = useState<{
     movementId: string;
     top: number;
@@ -4548,13 +4475,13 @@ function AccountingMovementSection({
     }
 
     return [
-      { value: "all", label: "Tümü" },
+      { value: "all", label: t("candidateDetail.accounting.filterAll") },
       ...[...names].sort((a, b) => a.localeCompare(b, "tr")).map((name) => ({
         value: name,
         label: name,
       })),
     ];
-  }, [payments, refunds]);
+  }, [payments, refunds, t]);
 
   const sortedMovements = useMemo(() => {
     if (!sort) return movements;
@@ -4576,7 +4503,7 @@ function AccountingMovementSection({
     <section className="instructor-detail-card candidate-finance-workspace-card">
       <h3 className="candidate-detail-section-title">{title}</h3>
       {movements.length === 0 ? (
-        <div className="instructor-detail-empty">Borçlandırma kaydı yok.</div>
+        <div className="instructor-detail-empty">{t("candidateDetail.accounting.movementsEmpty")}</div>
       ) : (
         <table className="data-table candidate-detail-fee-table candidate-accounting-ledger-table">
           <thead>
@@ -4586,7 +4513,8 @@ function AccountingMovementSection({
                   column.id,
                   filters,
                   setFilter,
-                  cashRegisterFilterOptions
+                  cashRegisterFilterOptions,
+                  t
                 );
                 return column.sortField ? (
                   <AccountingSortableTh
@@ -4594,14 +4522,14 @@ function AccountingMovementSection({
                     field={column.sortField}
                     filterControl={filterControl}
                     key={column.id}
-                    label={column.label}
+                    label={t(column.labelKey)}
                     onToggle={handleSortToggle}
                     sort={sort}
                   />
                 ) : (
                   <th className={`candidate-accounting-col-${column.id}`} key={column.id}>
                     <div className="sortable-th-shell">
-                      <span>{column.label}</span>
+                      <span>{t(column.labelKey)}</span>
                       {filterControl ? <div className="sortable-th-filter">{filterControl}</div> : null}
                     </div>
                   </th>
@@ -4609,10 +4537,10 @@ function AccountingMovementSection({
               })}
               <th className="col-picker-th">
                 <ColumnPicker
-                  columns={ACCOUNTING_LEDGER_COLUMN_OPTIONS}
+                  columns={columnPickerOptions}
                   isVisible={isVisible}
                   onToggle={toggleColumn}
-                  triggerTitle="Sütunlar"
+                  triggerTitle={t("candidateDetail.accounting.columnsTriggerTitle")}
                 />
               </th>
             </tr>
@@ -4690,6 +4618,7 @@ function AccountingMovementSection({
                             onPay,
                             onCreateInvoice,
                             onCancelMovement,
+                            t,
                           })}
                         </td>
                       ))}
@@ -4719,6 +4648,7 @@ function AccountingMovementSection({
                                 onOpenReceipt,
                                 onOpenRefund,
                                 onCancelPayment,
+                                t,
                               })}
                             </td>
                           ))}
@@ -4737,6 +4667,7 @@ function AccountingMovementSection({
                               payment: row.item,
                               refund: row.refund,
                               amount: row.amount,
+                              t,
                             })}
                           </td>
                         ))}
@@ -4809,7 +4740,8 @@ function buildAccountingLedgerFilterControl(
   columnId: AccountingLedgerColumnId,
   filters: AccountingLedgerFilters,
   setFilter: (key: AccountingLedgerFilterKey, value: string) => void,
-  cashRegisterOptions: Array<{ value: string; label: string }>
+  cashRegisterOptions: Array<{ value: string; label: string }>,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
 ) {
   if (columnId === "type") {
     return (
@@ -4817,10 +4749,10 @@ function buildAccountingLedgerFilterControl(
         active={filters.kind !== DEFAULT_ACCOUNTING_LEDGER_FILTERS.kind}
         onChange={(value) => setFilter("kind", value)}
         options={[
-          { value: "all", label: "Tümü" },
-          { value: "hideCancelled", label: "Silinenleri gösterme" },
+          { value: "all", label: t("candidateDetail.accounting.filterAll") },
+          { value: "hideCancelled", label: t("candidateDetail.accounting.filter.hideCancelled") },
         ]}
-        title="Satır tipi"
+        title={t("candidateDetail.accounting.filter.rowType")}
         value={filters.kind}
       />
     );
@@ -4832,13 +4764,13 @@ function buildAccountingLedgerFilterControl(
         active={filters.method !== DEFAULT_ACCOUNTING_LEDGER_FILTERS.method}
         onChange={(value) => setFilter("method", value)}
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("candidateDetail.accounting.filterAll") },
           ...PAYMENT_METHODS.map((method) => ({
             value: method,
-            label: paymentMethodLabel(method),
+            label: t(paymentMethodLabelKey(method)),
           })),
         ]}
-        title="Ödeme yöntemi"
+        title={t("candidateDetail.accounting.filter.paymentMethod")}
         value={filters.method}
       />
     );
@@ -4995,11 +4927,12 @@ function renderAccountingMovementCell({
   onPay,
   onCreateInvoice,
   onCancelMovement,
+  t,
 }: {
   columnId: AccountingLedgerColumnId;
   movement: CandidateAccountingSummaryResponse["movements"][number];
   displayDebtAmount: number;
-  status: { className: string; label: string };
+  status: { className: string };
   canPay: boolean;
   canCancelMovement: boolean;
   canCreateInvoice: boolean;
@@ -5010,13 +4943,14 @@ function renderAccountingMovementCell({
   onPay: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
   onCreateInvoice: (amount: number) => void;
   onCancelMovement: (movement: CandidateAccountingSummaryResponse["movements"][number]) => void;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }) {
   if (columnId === "type") {
     return (
       <div className="candidate-accounting-type-cell">
-        <span>{accountingTypeLabel(movement.type)}</span>
+        <span>{t(accountingTypeLabelKey(movement.type))}</span>
         <span className={`candidate-finance-installment-status ${status.className}`}>
-          {status.label}
+          {t(accountingMovementStatusLabelKey(movement))}
         </span>
       </div>
     );
@@ -5061,13 +4995,13 @@ function renderAccountingMovementCell({
           style={{ left: openActionMenu.left, top: openActionMenu.top }}
         >
           {canPay ? (
-            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onPay(movement); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">Öde</button>
+            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onPay(movement); }} title={!canManagePayments ? t("common.noPermission") : undefined} type="button">{t("candidateDetail.accounting.action.pay")}</button>
           ) : null}
           {canCreateInvoice ? (
-            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCreateInvoice(displayDebtAmount); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">Fatura</button>
+            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCreateInvoice(displayDebtAmount); }} title={!canManagePayments ? t("common.noPermission") : undefined} type="button">{t("candidateDetail.accounting.action.invoice")}</button>
           ) : null}
           {canCancelMovement ? (
-            <button className="candidate-accounting-action is-danger" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCancelMovement(movement); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">Sil</button>
+            <button className="candidate-accounting-action is-danger" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCancelMovement(movement); }} title={!canManagePayments ? t("common.noPermission") : undefined} type="button">{t("common.delete")}</button>
           ) : null}
         </div>
       ) : null}
@@ -5087,6 +5021,7 @@ function renderAccountingPaymentCell({
   onOpenReceipt,
   onOpenRefund,
   onCancelPayment,
+  t,
 }: {
   columnId: AccountingLedgerColumnId;
   movement: CandidateAccountingSummaryResponse["movements"][number];
@@ -5099,27 +5034,28 @@ function renderAccountingPaymentCell({
   onOpenReceipt: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
   onOpenRefund: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
   onCancelPayment: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }) {
   if (columnId === "type") {
     if (payment.status === "cancelled") {
       return (
         <div className="candidate-accounting-type-cell">
-          <span>İptal</span>
-          <span className="candidate-finance-installment-status status-cancelled">Tahsilat iptali</span>
+          <span>{t("candidateDetail.accounting.payment.status.cancelled")}</span>
+          <span className="candidate-finance-installment-status status-cancelled">{t("candidateDetail.accounting.payment.status.paymentCancellation")}</span>
         </div>
       );
     }
 
     return (
       <div className="candidate-accounting-type-cell">
-        <span>Ödendi</span>
-        <span className="candidate-finance-installment-status status-paid">Tahsilat</span>
+        <span>{t("candidateDetail.accounting.payment.status.paid")}</span>
+        <span className="candidate-finance-installment-status status-paid">{t("candidateDetail.accounting.payment.status.collection")}</span>
       </div>
     );
   }
   if (columnId === "description") return payment.status === "cancelled"
-    ? payment.cancellationReason || "Ödeme iptali"
-    : payment.note || "Ödeme";
+    ? payment.cancellationReason || t("candidateDetail.accounting.paymentCancellation")
+    : payment.note || t("candidateDetail.accounting.payment");
   if (columnId === "dueDate") return formatDateTR(movement.dueDate);
   if (columnId === "amount") return formatCurrencyTRY(allocation.amount);
   if (columnId === "paidAmount") return payment.status === "cancelled" ? "—" : formatCurrencyTRY(allocation.amount);
@@ -5128,7 +5064,7 @@ function renderAccountingPaymentCell({
   }
   if (columnId === "number") return movement.number;
   if (columnId === "receiptNumber") return payment.number ?? "—";
-  if (columnId === "method") return payment.status === "cancelled" ? "İptal" : paymentMethodLabel(payment.paymentMethod);
+  if (columnId === "method") return payment.status === "cancelled" ? t("candidateDetail.accounting.payment.status.cancelled") : t(paymentMethodLabelKey(payment.paymentMethod));
   if (columnId === "cashRegister") return payment.cashRegister?.name ?? "—";
   if (columnId === "refundedAmount") {
     return payment.status === "active" && payment.refundedAmount > 0
@@ -5149,19 +5085,19 @@ function renderAccountingPaymentCell({
         onClick={(event) => toggleActionMenu(rowKey, event)}
         type="button"
       >
-        İşlemler
+        {t("candidateDetail.accounting.col.actions")}
       </button>
       {openActionMenu?.movementId === rowKey ? (
         <div
           className="candidate-accounting-actions-menu"
           style={{ left: openActionMenu.left, top: openActionMenu.top }}
         >
-          <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onOpenReceipt(payment); }} type="button">Makbuz</button>
+          <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onOpenReceipt(payment); }} type="button">{t("candidateDetail.accounting.action.receipt")}</button>
           {refundableAmount > 0 ? (
-            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onOpenRefund(payment); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">İade</button>
+            <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onOpenRefund(payment); }} title={!canManagePayments ? t("common.noPermission") : undefined} type="button">{t("candidateDetail.accounting.action.refund")}</button>
           ) : null}
           {isCancellable ? (
-            <button className="candidate-accounting-action is-danger" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCancelPayment(payment); }} title={!canManagePayments ? "Yetkiniz yok." : undefined} type="button">İptal</button>
+            <button className="candidate-accounting-action is-danger" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCancelPayment(payment); }} title={!canManagePayments ? t("common.noPermission") : undefined} type="button">{t("candidateDetail.accounting.action.cancel")}</button>
           ) : null}
         </div>
       ) : null}
@@ -5175,29 +5111,31 @@ function renderAccountingRefundCell({
   payment,
   refund,
   amount,
+  t,
 }: {
   columnId: AccountingLedgerColumnId;
   movement: CandidateAccountingSummaryResponse["movements"][number];
   payment: CandidateAccountingSummaryResponse["payments"][number];
   refund: CandidateAccountingSummaryResponse["refunds"][number];
   amount: number;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }) {
   if (columnId === "type") {
     return (
       <div className="candidate-accounting-type-cell">
-        <span>İade</span>
-        <span className="candidate-finance-installment-status status-refunded">Kasa çıkışı</span>
+        <span>{t("candidateDetail.accounting.action.refund")}</span>
+        <span className="candidate-finance-installment-status status-refunded">{t("candidateDetail.accounting.action.cashOut")}</span>
       </div>
     );
   }
-  if (columnId === "description") return refund.note || "İade";
+  if (columnId === "description") return refund.note || t("candidateDetail.accounting.action.refund");
   if (columnId === "dueDate") return formatDateTR(movement.dueDate);
   if (columnId === "amount") return formatCurrencyTRY(amount);
   if (columnId === "paidAmount") return "—";
   if (columnId === "remainingAmount") return formatCurrencyTRY(amount);
   if (columnId === "number") return movement.number;
   if (columnId === "receiptNumber") return payment.number ?? "—";
-  if (columnId === "method") return "İade";
+  if (columnId === "method") return t("candidateDetail.accounting.action.refund");
   if (columnId === "cashRegister") return refund.cashRegister?.name ?? payment.cashRegister?.name ?? "—";
   if (columnId === "refundedAmount") return formatCurrencyTRY(amount);
   if (columnId === "paidAt") return renderFinanceDateTime(refund.refundedAtUtc);
@@ -5213,6 +5151,7 @@ function AccountingReceiptModal({
   payment: CandidateAccountingSummaryResponse["payments"][number] | null;
   onClose: () => void;
 }) {
+  const t = useT();
   if (!payment) return null;
   const receiptNumber = payment.number?.trim() || payment.id.slice(0, 8).toLocaleUpperCase("tr-TR");
 
@@ -5220,19 +5159,19 @@ function AccountingReceiptModal({
     <Modal
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose} type="button">Kapat</button>
-          <button className="btn btn-primary" onClick={() => window.print()} type="button">Yazdır</button>
+          <button className="btn btn-secondary" onClick={onClose} type="button">{t("common.close")}</button>
+          <button className="btn btn-primary" onClick={() => window.print()} type="button">{t("candidateDetail.accounting.action.print")}</button>
         </>
       }
       onClose={onClose}
       open={Boolean(payment)}
-      title="Ödeme Makbuzu"
+      title={t("candidateDetail.accounting.receipt.title")}
     >
       <div className="candidate-payment-receipt">
         <div className="candidate-payment-receipt-head">
           <div>
-            <strong>Pilot Sürücü Kursu</strong>
-            <span>Ödeme Makbuzu</span>
+            <strong>{t("candidateDetail.accounting.receipt.brand")}</strong>
+            <span>{t("candidateDetail.accounting.receipt.title")}</span>
           </div>
           <div className="candidate-payment-receipt-no">
             #{receiptNumber}
@@ -5240,18 +5179,18 @@ function AccountingReceiptModal({
         </div>
         <div className="candidate-payment-receipt-amount">{formatCurrencyTRY(payment.amount)}</div>
         <dl className="candidate-payment-receipt-grid">
-          <div><dt>Makbuz No</dt><dd>{receiptNumber}</dd></div>
-          <div><dt>Aday</dt><dd>{candidate.firstName} {candidate.lastName}</dd></div>
-          <div><dt>TC Kimlik No</dt><dd>{formatNationalId(candidate.nationalId)}</dd></div>
-          <div><dt>Tür</dt><dd>{accountingTypeLabel(payment.type)}</dd></div>
-          <div><dt>Ödeme Tarihi</dt><dd>{renderFinanceDateTime(payment.paidAtUtc)}</dd></div>
-          <div><dt>Ödeme Yöntemi</dt><dd>{paymentMethodLabel(payment.paymentMethod)}</dd></div>
-          <div><dt>Kasa</dt><dd>{payment.cashRegister?.name ?? "—"}</dd></div>
-          <div><dt>Açıklama</dt><dd>{payment.note ?? "—"}</dd></div>
+          <div><dt>{t("payments.col.receiptNumber")}</dt><dd>{receiptNumber}</dd></div>
+          <div><dt>{t("common.field.candidate")}</dt><dd>{candidate.firstName} {candidate.lastName}</dd></div>
+          <div><dt>{t("common.field.nationalId")}</dt><dd>{formatNationalId(candidate.nationalId)}</dd></div>
+          <div><dt>{t("candidateDetail.accounting.col.type")}</dt><dd>{t(accountingTypeLabelKey(payment.type))}</dd></div>
+          <div><dt>{t("candidateDetail.accounting.field.paymentDate")}</dt><dd>{renderFinanceDateTime(payment.paidAtUtc)}</dd></div>
+          <div><dt>{t("candidateDetail.accounting.field.method")}</dt><dd>{t(paymentMethodLabelKey(payment.paymentMethod))}</dd></div>
+          <div><dt>{t("candidateDetail.accounting.col.cashRegister")}</dt><dd>{payment.cashRegister?.name ?? "—"}</dd></div>
+          <div><dt>{t("candidateDetail.accounting.field.description")}</dt><dd>{payment.note ?? "—"}</dd></div>
         </dl>
         <div className="candidate-payment-receipt-footer">
-          <span>Tahsil eden</span>
-          <span>İmza</span>
+          <span>{t("candidateDetail.accounting.receipt.collector")}</span>
+          <span>{t("candidateDetail.accounting.receipt.signature")}</span>
         </div>
       </div>
     </Modal>
@@ -5298,7 +5237,8 @@ function CandidateExamAttemptsSection({
   onTheoryExemptChanged?: (value: boolean) => void;
 }) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [exemptSaving, setExemptSaving] = useState(false);
   const isTheoryExempt = candidate.isTheoryExempt ?? false;
   const hasExistingLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
@@ -5311,7 +5251,7 @@ function CandidateExamAttemptsSection({
       await setCandidateTheoryExemption(candidate.id, next);
       onTheoryExemptChanged?.(next);
     } catch {
-      showToast("Muafiyet durumu güncellenemedi.", "error");
+      showToast(t("candidateDetail.license.toast.exemptionFailed"), "error");
     } finally {
       setExemptSaving(false);
     }
@@ -5365,7 +5305,7 @@ function CandidateExamAttemptsSection({
       setAttempts(response);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setError("E-sınav denemeleri yüklenemedi.");
+      setError(t("candidateDetail.exam.toast.attemptsLoadFailed"));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -5529,27 +5469,27 @@ function CandidateExamAttemptsSection({
       return;
     }
     if (!form.scheduledAt) {
-      showToast("Sınav tarih-saati zorunlu.", "error");
+      showToast(t("candidateDetail.exam.toast.examDateTimeRequired"), "error");
       return;
     }
     if (form.examType === "practice" && !form.examScheduleId) {
-      showToast("Direksiyon sınavı için sınav tarihi seçilmeli.", "error");
+      showToast(t("candidateDetail.exam.toast.practiceDateRequired"), "error");
       return;
     }
     if (form.examType === "practice" && form.examAttendanceStatus !== "attended" && form.examResultStatus) {
-      showToast("Sınav sonucu sadece aday sınava girdiyse seçilebilir.", "error");
+      showToast(t("candidateDetail.exam.toast.resultOnlyWhenAttempted"), "error");
       return;
     }
     const trimmedScore = form.score.trim();
     let scoreValue: number | null = null;
     if (form.examType === "theory" && trimmedScore !== "") {
       if (!/^\d{1,3}$/.test(trimmedScore)) {
-        showToast("Puan sadece 0-100 arası tam sayı olmalı.", "error");
+        showToast(t("candidateDetail.exam.toast.scoreInteger"), "error");
         return;
       }
       const parsedScore = Number.parseInt(trimmedScore, 10);
       if (parsedScore > 100) {
-        showToast("Puan 0-100 arası olmalı.", "error");
+        showToast(t("candidateDetail.exam.toast.scoreRange"), "error");
         return;
       }
       scoreValue = parsedScore;
@@ -5590,19 +5530,19 @@ function CandidateExamAttemptsSection({
         try {
           await onAccountingChanged?.();
         } catch {
-          showToast("Finans bilgileri güncellenemedi.", "error");
+          showToast(t("candidateDetail.exam.toast.financeUpdateFailed"), "error");
         }
       }
       closeAttemptForm();
       showToast(editingAttempt
-        ? "Sınav bilgileri güncellendi"
-        : isPractice ? "Yeni direksiyon sınavı eklendi" : "Yeni e-sınav denemesi eklendi");
+        ? t("candidateDetail.exam.toast.examInfoUpdated")
+        : isPractice ? t("candidateDetail.exam.toast.newPracticeAdded") : t("candidateDetail.exam.toast.newTheoryAdded"));
     } catch (error) {
       const message = error instanceof ApiError && error.status === 409
-        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
+        ? t("candidateDetail.exam.toast.conflictRefresh")
         : editingAttempt
-          ? "Sınav bilgileri güncellenemedi."
-          : examAttemptCreateErrorMessage(error);
+          ? t("candidateDetail.exam.toast.examInfoUpdateFailed")
+          : examAttemptCreateErrorMessage(error, t);
       showToast(message, "error");
     } finally {
       setSaving(false);
@@ -5617,11 +5557,11 @@ function CandidateExamAttemptsSection({
       try {
         await onAccountingChanged?.();
       } catch {
-        showToast("Finans bilgileri güncellenemedi.", "error");
+        showToast(t("candidateDetail.exam.toast.financeUpdateFailed"), "error");
       }
-      showToast("E-sınav ücreti borçlandırıldı");
+      showToast(t("candidateDetail.exam.toast.theoryFeeBilled"));
     } catch {
-      showToast("Borçlandırma yapılamadı.", "error");
+      showToast(t("candidateDetail.exam.toast.billingFailed"), "error");
     } finally {
       setRowSavingId(null);
     }
@@ -5657,7 +5597,7 @@ function CandidateExamAttemptsSection({
       return true;
     } catch (error) {
       const message = error instanceof ApiError && error.status === 409
-        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
+        ? t("candidateDetail.exam.toast.conflictRefresh")
         : "Puan kaydedilemedi.";
       showToast(message, "error");
       return false;
@@ -5692,12 +5632,12 @@ function CandidateExamAttemptsSection({
         rowVersion: attempt.rowVersion,
       });
       setAttempts((items) => items.map((item) => (item.id === updated.id ? updated : item)));
-      showToast("Direksiyon sınav durumu güncellendi");
+      showToast(t("candidateDetail.exam.toast.practiceStatusUpdated"));
       return true;
     } catch (error) {
       const message = error instanceof ApiError && error.status === 409
-        ? "Bilgiler başka biri tarafından güncellendi. Sayfayı yenileyin."
-        : "Direksiyon sınav durumu güncellenemedi.";
+        ? t("candidateDetail.exam.toast.conflictRefresh")
+        : t("candidateDetail.exam.toast.practiceStatusUpdateFailed");
       showToast(message, "error");
       return false;
     } finally {
@@ -5710,9 +5650,9 @@ function CandidateExamAttemptsSection({
     try {
       const updated = await markCandidateExamAttemptSelfPaid(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
-      showToast("Sınav ücreti kendi ödedi olarak işaretlendi");
+      showToast(t("candidateDetail.exam.toast.selfPaidMarked"));
     } catch {
-      showToast("Kendi ödedi işaretlenemedi.", "error");
+      showToast(t("candidateDetail.exam.toast.selfPaidFailed"), "error");
     } finally {
       setRowSavingId(null);
     }
@@ -5729,13 +5669,13 @@ function CandidateExamAttemptsSection({
       const updated = await chargeCandidateExamAttempt(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
       if (!updated.accountingMovementId) {
-        showToast("Ödenecek finans borcu bulunamadı.", "error");
+        showToast(t("candidateDetail.exam.toast.noOpenBalance"), "error");
         return;
       }
 
       onOpenAccountingPayment?.(updated.accountingMovementId);
     } catch {
-      showToast("Finans borcu oluşturulamadı.", "error");
+      showToast(t("candidateDetail.exam.toast.debtCreateFailed"), "error");
     } finally {
       setRowSavingId(null);
     }
@@ -5749,13 +5689,13 @@ function CandidateExamAttemptsSection({
       await deleteCandidateExamAttempt(candidate.id, attempt.id);
       setAttempts((items) => items.filter((item) => item.id !== attempt.id));
       setDeleteConfirmId(null);
-      showToast("E-sınav denemesi silindi");
+      showToast(t("candidateDetail.exam.toast.attemptDeleted"));
     } catch (error) {
       if (error instanceof ApiError && error.errorCode === "candidateExamAttemptHasAccountingMovement") {
         setDeleteConfirmId(null);
-        showToast("Bu sınav için ödeme/borç kaydı bulunuyor. Önce ödemeyi iade edin veya borcu iptal edin.", "error");
+        showToast(t("candidateDetail.exam.toast.hasFinanceRecord"), "error");
       } else {
-        showToast("E-sınav denemesi silinemedi.", "error");
+        showToast(t("candidateDetail.exam.toast.attemptDeleteFailed"), "error");
       }
     } finally {
       setRowSavingId(null);
@@ -5770,7 +5710,7 @@ function CandidateExamAttemptsSection({
       >
         <div className="candidate-exam-attempts-head">
           <div className="candidate-exam-attempts-title-group">
-            <h3 className="candidate-detail-section-title">E-Sınav</h3>
+            <h3 className="candidate-detail-section-title">{t("candidateDetail.exam.section.theory")}</h3>
             {!loading && !hasPassedTheoryExam && theoryRightsExpiryDate && theoryRightsRemainingDays !== null ? (
               <span
                 className={`candidate-exam-rights-expiry ${theoryRightsExpiryBadgeKind}`}
@@ -5787,8 +5727,8 @@ function CandidateExamAttemptsSection({
               <label
                 className="switch-toggle candidate-exam-attempts-muaf-toggle"
                 title={hasExistingLicense
-                  ? "Mevcut ehliyet sahibi olduğu için otomatik muaf."
-                  : "Aday teori sınavından muaf"}
+                  ? t("candidateDetail.license.autoExemptByLicense")
+                  : t("candidateDetail.license.exemptText")}
               >
                 <input
                   type="checkbox"
@@ -5812,7 +5752,7 @@ function CandidateExamAttemptsSection({
           ) : null}
         </div>
         {loading ? (
-          <div className="instructor-detail-empty">Yükleniyor...</div>
+          <div className="instructor-detail-empty">{t("candidateDetail.exam.loading")}</div>
         ) : error ? (
           <div className="instructor-detail-error">{error}</div>
         ) : (
@@ -5831,7 +5771,7 @@ function CandidateExamAttemptsSection({
               <tbody>
                 {theoryAttempts.length === 0 ? (
                   <tr>
-                    <td className="data-table-empty" colSpan={6}>Henüz e-sınav denemesi yok.</td>
+                    <td className="data-table-empty" colSpan={6}>{t("candidateDetail.exam.emptyTheory")}</td>
                   </tr>
                 ) : theoryAttempts.map((attempt) => (
                   <CandidateExamAttemptRow
@@ -5859,7 +5799,7 @@ function CandidateExamAttemptsSection({
 
       <section className="instructor-detail-card candidate-exam-attempts-section">
         <div className="candidate-exam-attempts-head">
-          <h3 className="candidate-detail-section-title">Direksiyon</h3>
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.exam.section.practice")}</h3>
           {!loading && !error ? (
             <button
               className="btn btn-primary btn-sm candidate-exam-add-button"
@@ -5873,7 +5813,7 @@ function CandidateExamAttemptsSection({
           ) : null}
         </div>
         {loading ? (
-          <div className="instructor-detail-empty">Yükleniyor...</div>
+          <div className="instructor-detail-empty">{t("candidateDetail.exam.loading")}</div>
         ) : error ? (
           <div className="instructor-detail-error">{error}</div>
         ) : (
@@ -5895,7 +5835,7 @@ function CandidateExamAttemptsSection({
               <tbody>
                 {practiceAttempts.length === 0 ? (
                   <tr>
-                    <td className="data-table-empty" colSpan={9}>Henüz direksiyon sınavı yok.</td>
+                    <td className="data-table-empty" colSpan={9}>{t("candidateDetail.exam.emptyPractice")}</td>
                   </tr>
                 ) : practiceAttempts.map((attempt) => (
                   <CandidatePracticeExamAttemptRow
@@ -5943,8 +5883,8 @@ function CandidateExamAttemptsSection({
         onClose={closeAttemptForm}
         open={addOpen}
         title={editingAttempt
-          ? form.examType === "practice" ? "Direksiyon sınavını düzenle" : "E-sınavı düzenle"
-          : form.examType === "practice" ? "Yeni direksiyon sınavı" : "Yeni e-sınav"}
+          ? form.examType === "practice" ? t("candidateDetail.exam.editPractice") : t("candidateDetail.exam.editTheory")
+          : form.examType === "practice" ? t("candidateDetail.exam.newPractice") : t("candidateDetail.exam.newTheory")}
       >
         <div className="candidate-exam-attempt-form">
           <label>
@@ -6025,7 +5965,7 @@ function CandidateExamAttemptsSection({
               <label>
                 <span>Saat</span>
                 <LocalizedTimeInput
-                  ariaLabel="Direksiyon sınav saati"
+                  ariaLabel={t("candidateDetail.exam.aria.practiceTime")}
                   className="form-input"
                   onChange={(time) =>
                     setForm((current) => ({
@@ -6155,8 +6095,8 @@ function CandidateExamAttemptsSection({
                   value={form.examResultStatus}
                 >
                   <option value="">—</option>
-                  <option value="passed">Başarılı</option>
-                  <option value="failed">Başarısız</option>
+                  <option value="passed">{t("candidateDetail.exam.passed")}</option>
+                  <option value="failed">{t("candidateDetail.exam.failed")}</option>
                 </CustomSelect>
               </label>
             </>
@@ -6232,6 +6172,7 @@ function CandidateExamAttemptRow({
   onScoreSave: (nextScore: number | null) => Promise<boolean>;
   suggestedFee: number | null;
 }) {
+  const t = useT();
   return (
     <tr>
       <td>{formatDateTimeTR(attempt.scheduledAt)}</td>
@@ -6268,7 +6209,7 @@ function CandidateExamAttemptRow({
       <td>
         <div className="candidate-exam-row-actions">
           <button
-            aria-label="Sınavı düzenle"
+            aria-label={t("candidateDetail.exam.aria.editExam")}
             className="candidate-exam-row-action"
             disabled={disabled}
             onClick={onEdit}
@@ -6304,13 +6245,14 @@ function ExamFeeStatusCell({
   onSelfPaid: () => void;
   showSelfPaid?: boolean;
 }) {
-  const statusLabel = feeStatusLabel(attempt.feeStatus);
+  const t = useT();
+  const statusLabelKey = feeStatusLabelKey(attempt.feeStatus);
   const hasFee = attempt.fee > 0;
   return (
     <div className="candidate-exam-fee-status">
-      {statusLabel ? (
+      {statusLabelKey ? (
         <span className={`candidate-exam-pill ${feeStatusKind(attempt.feeStatus)}`}>
-          {statusLabel}
+          {t(statusLabelKey)}
         </span>
       ) : null}
       {attempt.feeStatus === "pending" ? (
@@ -6374,6 +6316,7 @@ function CandidatePracticeExamAttemptRow({
   ) => Promise<boolean>;
   suggestedFee: number | null;
 }) {
+  const t = useT();
   const attendanceStatus = attempt.examAttendanceStatus ?? "";
   const resultStatus = attempt.examResultStatus ?? "";
   return (
@@ -6384,7 +6327,7 @@ function CandidatePracticeExamAttemptRow({
       <td>{attempt.attemptNumber}/{attemptLimit}</td>
       <td>
         <CustomSelect
-          aria-label="Sınav durumu"
+          aria-label={t("candidateDetail.exam.aria.examStatus")}
           className="candidate-exam-inline-select"
           disabled={disabled}
           onChange={(event) => {
@@ -6402,7 +6345,7 @@ function CandidatePracticeExamAttemptRow({
       </td>
       <td>
         <CustomSelect
-          aria-label="Sınav sonucu"
+          aria-label={t("candidateDetail.exam.aria.examResult")}
           className="candidate-exam-inline-select"
           disabled={disabled || attempt.examAttendanceStatus !== "attended"}
           onChange={(event) => {
@@ -6412,8 +6355,8 @@ function CandidatePracticeExamAttemptRow({
           value={resultStatus}
         >
           <option value="">—</option>
-          <option value="passed">Başarılı</option>
-          <option value="failed">Başarısız</option>
+          <option value="passed">{t("candidateDetail.exam.passed")}</option>
+          <option value="failed">{t("candidateDetail.exam.failed")}</option>
         </CustomSelect>
       </td>
       <td>
@@ -6440,7 +6383,7 @@ function CandidatePracticeExamAttemptRow({
       <td>
         <div className="candidate-exam-row-actions">
           <button
-            aria-label="Sınavı düzenle"
+            aria-label={t("candidateDetail.exam.aria.editExam")}
             className="candidate-exam-row-action"
             disabled={disabled}
             onClick={onEdit}
@@ -6470,6 +6413,7 @@ function EditableScoreCell({
   disabled: boolean;
   onSave: (nextScore: number | null) => Promise<boolean>;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>(score != null ? String(score) : "");
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -6495,14 +6439,14 @@ function EditableScoreCell({
     if (raw === "") {
       nextScore = null;
     } else if (!/^\d{1,3}$/.test(raw)) {
-      showToast("Puan sadece 0-100 arası tam sayı olmalı", "error");
+      showToast(t("candidateDetail.exam.toast.scoreInteger"), "error");
       setDraft(score != null ? String(score) : "");
       setEditing(false);
       return;
     } else {
       const parsed = Number.parseInt(raw, 10);
       if (parsed > 100) {
-        showToast("Puan 0-100 arası olmalı", "error");
+        showToast(t("candidateDetail.exam.toast.scoreRange"), "error");
         setDraft(score != null ? String(score) : "");
         setEditing(false);
         return;
@@ -6530,11 +6474,11 @@ function EditableScoreCell({
         className="candidate-exam-score-cell candidate-exam-score-cell--button"
         disabled={disabled}
         onClick={() => setEditing(true)}
-        title="Puanı düzenlemek için tıkla"
+        title={t("candidateDetail.exam.scoreEditTooltip")}
       >
         <span>{score ?? "—"}</span>
         {scoreStatus ? (
-          <span className={`candidate-exam-pill ${scoreStatus.kind}`}>{scoreStatus.label}</span>
+          <span className={`candidate-exam-pill ${scoreStatus.kind}`}>{t(scoreStatus.labelKey)}</span>
         ) : null}
       </button>
     );
@@ -6603,19 +6547,21 @@ function compareExamAttempts(a: CandidateExamAttemptResponse, b: CandidateExamAt
   return a.examType.localeCompare(b.examType) || a.attemptNumber - b.attemptNumber;
 }
 
-function getScoreStatus(score: number | null): { label: string; kind: "success" | "danger" } | null {
+function getScoreStatus(score: number | null): { labelKey: TranslationKey; kind: "success" | "danger" } | null {
   if (score == null) return null;
-  return score >= 70 ? { label: "Geçti", kind: "success" } : { label: "Kaldı", kind: "danger" };
+  return score >= 70
+    ? { labelKey: "candidateDetail.exam.result.pass", kind: "success" }
+    : { labelKey: "candidateDetail.exam.result.fail", kind: "danger" };
 }
 
-function feeStatusLabel(status: CandidateExamFeeStatus): string {
-  if (status === "paid") return "Yatırıldı";
-  if (status === "partially_paid") return "Kısmi ödendi";
-  if (status === "partially_refunded") return "Kısmi iade";
-  if (status === "refunded") return "İade edildi";
-  if (status === "cancelled") return "Borçlandırma silindi";
-  if (status === "charged") return "Borçlandırıldı";
-  return "";
+function feeStatusLabelKey(status: CandidateExamFeeStatus): TranslationKey | null {
+  if (status === "paid") return "candidateDetail.exam.feeStatus.paid";
+  if (status === "partially_paid") return "candidateDetail.exam.feeStatus.partiallyPaid";
+  if (status === "partially_refunded") return "candidateDetail.exam.feeStatus.partiallyRefunded";
+  if (status === "refunded") return "candidateDetail.exam.feeStatus.refunded";
+  if (status === "cancelled") return "candidateDetail.exam.feeStatus.cancelled";
+  if (status === "charged") return "candidateDetail.exam.feeStatus.charged";
+  return null;
 }
 
 function feeStatusKind(status: CandidateExamFeeStatus): "success" | "warning" | "danger" {
@@ -6714,6 +6660,7 @@ function CandidateKCertificateSection({
   canManageCandidates: boolean;
   candidate: CandidateResponse;
 }) {
+  const t = useT();
   const [lessons, setLessons] = useState<TrainingLessonResponse[]>([]);
   const renewSavingRef = useRef(false);
   const [hiddenRowIds, setHiddenRowIds] = useState<string[]>([]);
@@ -6721,7 +6668,7 @@ function CandidateKCertificateSection({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const noPermissionTitle = "Yetkiniz yok.";
+  const noPermissionTitle = t("common.noPermission");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -6750,7 +6697,7 @@ function CandidateKCertificateSection({
       .catch(() => {
         if (controller.signal.aborted) return;
         setLessons([]);
-        setError("K belgesi bilgileri yüklenemedi.");
+        setError(t("candidateDetail.kCertificate.loadError"));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -6828,7 +6775,7 @@ function CandidateKCertificateSection({
   return (
     <section className="instructor-detail-card candidate-k-certificate-section">
       <div className="candidate-k-certificate-head">
-        <h3 className="candidate-detail-section-title">K Belgesi</h3>
+        <h3 className="candidate-detail-section-title">{t("candidateDetail.exam.section.kCertificate")}</h3>
         <div className="candidate-k-certificate-actions">
           <button
             className="btn btn-secondary btn-sm"
@@ -6851,7 +6798,7 @@ function CandidateKCertificateSection({
       </div>
 
       {error ? <div className="instructor-detail-error">{error}</div> : null}
-      {loading ? <div className="instructor-detail-empty">K belgesi bilgileri yükleniyor...</div> : null}
+      {loading ? <div className="instructor-detail-empty">{t("candidateDetail.kCertificate.loading")}</div> : null}
 
       <div className="table-wrap candidate-k-certificate-table-wrap">
         <table className="data-table candidate-k-certificate-table">
@@ -6881,9 +6828,9 @@ function CandidateKCertificateSection({
                   <td>{formatDateTR(row.lastLessonEndDate)}</td>
                   <td>
                     {kCertificateStatus(row, candidate.drivingExamDate) === "valid" ? (
-                      <span className="candidate-exam-pill success">Geçerli</span>
+                      <span className="candidate-exam-pill success">{t("candidateDetail.kCertificate.valid")}</span>
                     ) : (
-                      <span className="candidate-exam-pill danger">Geçersiz</span>
+                      <span className="candidate-exam-pill danger">{t("candidateDetail.kCertificate.invalid")}</span>
                     )}
                   </td>
                   <td>
@@ -6941,31 +6888,25 @@ const PRINTABLE_DOCUMENT_TYPE_KEYS = [
   "application_form",
 ] as const;
 
-const HEALTH_REPORT_FOREIGN_LANGUAGES: Array<{ value: string; label: string }> = [
-  { value: "arabic", label: "Arapça" },
-  { value: "chinese", label: "Çince" },
-  { value: "english", label: "İngilizce" },
-  { value: "german", label: "Almanca" },
-  { value: "french", label: "Fransızca" },
-  { value: "persian", label: "Farsça" },
-  { value: "russian", label: "Rusça" },
-  { value: "spanish", label: "İspanyolca" },
+const HEALTH_REPORT_FOREIGN_LANGUAGES: Array<{ value: string; labelKey: TranslationKey }> = [
+  { value: "arabic", labelKey: "candidateDetail.documents.healthReport.language.arabic" },
+  { value: "chinese", labelKey: "candidateDetail.documents.healthReport.language.chinese" },
+  { value: "english", labelKey: "candidateDetail.documents.healthReport.language.english" },
+  { value: "german", labelKey: "candidateDetail.documents.healthReport.language.german" },
+  { value: "french", labelKey: "candidateDetail.documents.healthReport.language.french" },
+  { value: "persian", labelKey: "candidateDetail.documents.healthReport.language.persian" },
+  { value: "russian", labelKey: "candidateDetail.documents.healthReport.language.russian" },
+  { value: "spanish", labelKey: "candidateDetail.documents.healthReport.language.spanish" },
 ];
 
-const HEALTH_REPORT_DISABILITY_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "none", label: "Engeli Yok" },
-  {
-    value: "orthopedic_hands",
-    label: "Ortopedik Engelli (Ellerini ve/veya Kollarını Kullanamıyor)",
-  },
-  {
-    value: "orthopedic_legs",
-    label: "Ortopedik Engelli (Yürüyemiyor ve/veya Ayaklarında Problem Var)",
-  },
-  { value: "hearing_speech", label: "İşitme, Dil veya Konuşma Engelli" },
-  { value: "vision_one_eye", label: "Görme Engelli (Bir Gözü Görmüyor)" },
-  { value: "vision_low", label: "Görme Engelli (Büyüteç Yardımı İle Görebiliyor)" },
-  { value: "chronic_illness", label: "Süreğen Hastalığı Var" },
+const HEALTH_REPORT_DISABILITY_OPTIONS: Array<{ value: string; labelKey: TranslationKey }> = [
+  { value: "none", labelKey: "candidateDetail.documents.healthReport.disability.none" },
+  { value: "orthopedic_hands", labelKey: "candidateDetail.documents.healthReport.disability.orthopedicHands" },
+  { value: "orthopedic_legs", labelKey: "candidateDetail.documents.healthReport.disability.orthopedicLegs" },
+  { value: "hearing_speech", labelKey: "candidateDetail.documents.healthReport.disability.hearingSpeech" },
+  { value: "vision_one_eye", labelKey: "candidateDetail.documents.healthReport.disability.visionOneEye" },
+  { value: "vision_low", labelKey: "candidateDetail.documents.healthReport.disability.visionLow" },
+  { value: "chronic_illness", labelKey: "candidateDetail.documents.healthReport.disability.chronicIllness" },
 ];
 
 const HEALTH_REPORT_META_KEYS = {
@@ -7050,10 +6991,12 @@ function getDocumentMetadataDisplayValue(
 function buildCandidateDocumentChecklistItems({
   candidate,
   documentTypes,
+  t,
   uploadsByKey,
 }: {
   candidate: CandidateResponse;
   documentTypes: DocumentTypeResponse[];
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   uploadsByKey: Map<string, DocumentResponse>;
 }): CandidateDocumentChecklistItem[] {
   const hasExistingLicense =
@@ -7069,7 +7012,7 @@ function buildCandidateDocumentChecklistItems({
     options?: { notApplicable?: boolean; value?: string | null }
   ): CandidateDocumentChecklistItem => {
     if (options?.notApplicable) {
-      return { label, status: "not_applicable", value: options.value ?? "Gerekli değil" };
+      return { label, status: "not_applicable", value: options.value ?? t("candidateDetail.documents.checklistItem.notRequired") };
     }
     const upload = uploadsByKey.get(key);
     return {
@@ -7094,61 +7037,62 @@ function buildCandidateDocumentChecklistItems({
   const contractFrontAvailable = isDocumentAvailableForChecklist(uploadsByKey.get("contract_front"));
   const contractBackAvailable = isDocumentAvailableForChecklist(uploadsByKey.get("contract_back"));
 
+  const noExistingLicenseValue = t("candidateDetail.documents.checklistItem.noExistingLicense");
   return [
-    valueItem("T.C. Kimlik No", candidate.nationalId),
-    valueItem("T.C. Kimlik Seri No", candidate.identitySerialNumber),
-    valueItem("Doğum Tarihi", candidate.birthDate ? formatDateTR(candidate.birthDate) : null),
-    valueItem("Baba Adı", candidate.fatherName),
-    documentItem("Kimlik Fotokopisi", "identity_card"),
-    valueItem("İstenilen Ehliyet Tipi", candidate.licenseClass),
+    valueItem(t("candidateDetail.documents.checklistItem.nationalId"), candidate.nationalId),
+    valueItem(t("candidateDetail.documents.checklistItem.identitySerialNumber"), candidate.identitySerialNumber),
+    valueItem(t("candidateDetail.documents.checklistItem.birthDate"), candidate.birthDate ? formatDateTR(candidate.birthDate) : null),
+    valueItem(t("candidateDetail.documents.checklistItem.fatherName"), candidate.fatherName),
+    documentItem(t("candidateDetail.documents.checklistItem.identityCopy"), "identity_card"),
+    valueItem(t("candidateDetail.documents.checklistItem.requestedLicenseType"), candidate.licenseClass),
     hasExistingLicense
       ? valueItem(
-          "Mevcut Ehliyet Tipi",
+          t("candidateDetail.documents.checklistItem.existingLicenseType"),
           candidate.existingLicenseType
             ? existingLicenseTypeLabel(candidate.existingLicenseType)
             : null
         )
-      : { label: "Mevcut Ehliyet Tipi", status: "not_applicable", value: "Mevcut ehliyet yok" },
+      : { label: t("candidateDetail.documents.checklistItem.existingLicenseType"), status: "not_applicable", value: noExistingLicenseValue },
     hasExistingLicense
-      ? valueItem("Mevcut Ehliyet Numarası", candidate.existingLicenseNumber)
-      : { label: "Mevcut Ehliyet Numarası", status: "not_applicable", value: "Mevcut ehliyet yok" },
-    documentItem("Mevcut Ehliyet Fotokopisi", "existing_license_copy", {
+      ? valueItem(t("candidateDetail.documents.checklistItem.existingLicenseNumber"), candidate.existingLicenseNumber)
+      : { label: t("candidateDetail.documents.checklistItem.existingLicenseNumber"), status: "not_applicable", value: noExistingLicenseValue },
+    documentItem(t("candidateDetail.documents.checklistItem.existingLicenseCopy"), "existing_license_copy", {
       notApplicable: !hasExistingLicense,
-      value: "Mevcut ehliyet yok",
+      value: noExistingLicenseValue,
     }),
     {
-      label: "Sözleşme Ücreti",
+      label: t("candidateDetail.documents.checklistItem.contractFee"),
       status: candidate.totalFee > 0 ? "done" : "missing",
       value: candidate.totalFee > 0 ? formatCurrencyTRY(candidate.totalFee) : undefined,
     },
     {
-      label: "Sözleşme",
+      label: t("candidateDetail.documents.checklistItem.contract"),
       status: contractFrontAvailable && contractBackAvailable ? "done" : "missing",
       value:
         contractFrontAvailable && contractBackAvailable
-          ? "Ön ve arka yüz var"
+          ? t("candidateDetail.documents.checklistItem.contractBothSides")
           : contractFrontAvailable || contractBackAvailable
-            ? "Eksik yüz var"
+            ? t("candidateDetail.documents.checklistItem.contractMissingSide")
             : undefined,
     },
-    metadataItem("Sözleşme Tarihi", "contract_back", "contract_date"),
-    documentItem("İmza Örneği", "signature_sample"),
-    documentItem("Başvuru Formu", "application_form"),
-    documentItem("Biyometrik Fotoğraf", "biometric_photo"),
-    documentItem("Webcam Fotoğraf", "webcam_photo"),
-    documentItem("Öğrenim Belgesi", "education_certificate"),
-    metadataItem("Öğrenim Belgesi Veren Kurum", "education_certificate", "issuing_institution"),
-    metadataItem("Öğrenim Belgesi Belge Türü", "education_certificate", "certificate_type"),
-    metadataItem("Öğrenim Belgesi Belge Tarihi", "education_certificate", "issued_on"),
-    metadataItem("Öğrenim Belgesi Belge No", "education_certificate", "document_number"),
-    documentItem("Sağlık Raporu", "health_report"),
-    metadataItem("Sağlık Raporu Veren Kurum", "health_report", "issuing_institution"),
-    metadataItem("Sağlık Raporu Belge Tarihi", "health_report", "issued_on"),
-    metadataItem("Sağlık Raporu Belge No", "health_report", "document_number"),
-    documentItem("Adli Sicil Kaydı", "criminal_record"),
-    metadataItem("Adli Sicil Kaydı Veren Kurum", "criminal_record", "issuing_institution"),
-    metadataItem("Adli Sicil Kaydı Belge Tarihi", "criminal_record", "issued_on"),
-    metadataItem("Adli Sicil Kaydı Belge No", "criminal_record", "document_number"),
+    metadataItem(t("candidateDetail.documents.checklistItem.contractDate"), "contract_back", "contract_date"),
+    documentItem(t("candidateDetail.documents.checklistItem.signatureSample"), "signature_sample"),
+    documentItem(t("candidateDetail.documents.checklistItem.applicationForm"), "application_form"),
+    documentItem(t("candidateDetail.documents.checklistItem.biometricPhoto"), "biometric_photo"),
+    documentItem(t("candidateDetail.documents.checklistItem.webcamPhoto"), "webcam_photo"),
+    documentItem(t("candidateDetail.documents.checklistItem.educationCertificate"), "education_certificate"),
+    metadataItem(t("candidateDetail.documents.checklistItem.educationInstitution"), "education_certificate", "issuing_institution"),
+    metadataItem(t("candidateDetail.documents.checklistItem.educationType"), "education_certificate", "certificate_type"),
+    metadataItem(t("candidateDetail.documents.checklistItem.educationDate"), "education_certificate", "issued_on"),
+    metadataItem(t("candidateDetail.documents.checklistItem.educationNumber"), "education_certificate", "document_number"),
+    documentItem(t("candidateDetail.documents.checklistItem.healthReport"), "health_report"),
+    metadataItem(t("candidateDetail.documents.checklistItem.healthInstitution"), "health_report", "issuing_institution"),
+    metadataItem(t("candidateDetail.documents.checklistItem.healthDate"), "health_report", "issued_on"),
+    metadataItem(t("candidateDetail.documents.checklistItem.healthNumber"), "health_report", "document_number"),
+    documentItem(t("candidateDetail.documents.checklistItem.criminalRecord"), "criminal_record"),
+    metadataItem(t("candidateDetail.documents.checklistItem.criminalInstitution"), "criminal_record", "issuing_institution"),
+    metadataItem(t("candidateDetail.documents.checklistItem.criminalDate"), "criminal_record", "issued_on"),
+    metadataItem(t("candidateDetail.documents.checklistItem.criminalNumber"), "criminal_record", "document_number"),
   ];
 }
 
@@ -7241,6 +7185,7 @@ function DocumentsTab({
 }) {
   const { showToast } = useToast();
   const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
   const [statusFilter, setStatusFilter] = useState<CandidateDocumentFilter>("all");
   const [bulkMebbisLoading, setBulkMebbisLoading] = useState(false);
   const [candidateSyncQueuing, setCandidateSyncQueuing] = useState(false);
@@ -7304,7 +7249,7 @@ function DocumentsTab({
   };
 
   if (loading) {
-    return <div className="instructor-detail-card instructor-detail-empty">Yükleniyor...</div>;
+    return <div className="instructor-detail-card instructor-detail-empty">{t("candidateDetail.documents.loading")}</div>;
   }
   if (error) {
     return <div className="instructor-detail-card instructor-detail-error">{error}</div>;
@@ -7370,10 +7315,10 @@ function DocumentsTab({
     { available: 0, mebbis: 0, missing: 0 }
   );
   const filterOptions: { key: CandidateDocumentFilter; label: string; count: number }[] = [
-    { key: "all", label: "Tümü", count: sortedTypes.length },
-    { key: "missing", label: "Eksik", count: statusCounts.missing },
-    { key: "available", label: "Yüklü", count: statusCounts.available },
-    { key: "mebbis", label: "Mebbis", count: statusCounts.mebbis },
+    { key: "all", label: t("candidateDetail.documents.filter.all"), count: sortedTypes.length },
+    { key: "missing", label: t("candidateDetail.documents.filter.missing"), count: statusCounts.missing },
+    { key: "available", label: t("candidateDetail.documents.filter.available"), count: statusCounts.available },
+    { key: "mebbis", label: t("candidateDetail.documents.filter.mebbis"), count: statusCounts.mebbis },
   ];
   const matchesFilter = (type: DocumentTypeResponse) => {
     if (isNotApplicable(type)) return statusFilter === "all";
@@ -7395,6 +7340,7 @@ function DocumentsTab({
   const documentChecklistItems = buildCandidateDocumentChecklistItems({
     candidate,
     documentTypes,
+    t,
     uploadsByKey,
   });
   const completedChecklistCount = documentChecklistItems.filter((item) => item.status === "done").length;
@@ -7415,12 +7361,12 @@ function DocumentsTab({
       if (failureCount > 0 && successCount > 0) {
         showToast(`${successCount} evrak Mebbis işaretlendi, ${failureCount} evrak işaretlenemedi`, "error");
       } else if (failureCount > 0) {
-        showToast("Evraklar Mebbis işaretlenemedi", "error");
+        showToast(t("candidateDetail.documents.toast.mebbisMarkFailed"), "error");
       } else {
         showToast(`${successCount} evrak Mebbis işaretlendi`);
       }
     } catch {
-      showToast("Evraklar Mebbis işaretlenemedi", "error");
+      showToast(t("candidateDetail.documents.toast.mebbisMarkFailed"), "error");
     } finally {
       setBulkMebbisLoading(false);
     }
@@ -7433,9 +7379,9 @@ function DocumentsTab({
     try {
       const job = await createCandidateSyncJob(candidateId);
       notifyMebbisJobQueued(job.id, job.jobType);
-      showToast("Aday dönem kaydı kuyruğa alındı");
+      showToast(t("candidateDetail.documents.toast.termSyncQueued"));
     } catch {
-      showToast("Aday dönem kaydı kuyruğa alınamadı", "error");
+      showToast(t("candidateDetail.documents.toast.termSyncFailed"), "error");
     } finally {
       setCandidateSyncQueuing(false);
     }
@@ -7477,7 +7423,7 @@ function DocumentsTab({
 
         <section className="instructor-detail-card candidate-detail-doc-actions-card">
           <div className="candidate-detail-doc-actions-column">
-            <h3 className="candidate-detail-section-title">İşlemler</h3>
+            <h3 className="candidate-detail-section-title">{t("candidateDetail.documents.section.actions")}</h3>
             {confirmDelete ? (
               <div className="candidate-detail-doc-actions-bar">
                 <span className="candidate-detail-doc-actions-confirm">
@@ -7511,7 +7457,7 @@ function DocumentsTab({
                     title={!canManageDocuments ? noPermissionTitle : undefined}
                     type="button"
                   >
-                    {bulkMebbisLoading ? "İşaretleniyor..." : "Mebbis İşaretle"}
+                    {bulkMebbisLoading ? t("candidateDetail.documents.button.marking") : t("candidateDetail.documents.button.markMebbis")}
                   </button>
                   <button
                     className="btn btn-primary btn-sm"
@@ -7520,13 +7466,13 @@ function DocumentsTab({
                     title={!canManageMebJobs ? noPermissionTitle : undefined}
                     type="button"
                   >
-                    {candidateSyncQueuing ? "Kuyruğa alınıyor..." : "Döneme Kaydet"}
+                    {candidateSyncQueuing ? t("candidateDetail.documents.button.queuing") : t("candidateDetail.documents.button.enrollTerm")}
                   </button>
                   <button
                     className="btn btn-primary btn-sm"
                     disabled
                     type="button"
-                    title="Yakında"
+                    title={t("common.comingSoon")}
                   >
                     Döneme Kaydet ve Aktar
                   </button>
@@ -7600,7 +7546,7 @@ function DocumentsTab({
       )}
 
       {requiredTypes.length === 0 ? (
-        <div className="instructor-detail-empty">Tanımlı zorunlu evrak yok.</div>
+        <div className="instructor-detail-empty">{t("candidateDetail.documents.emptyRequired")}</div>
       ) : filteredRequiredTypes.length === 0 ? (
         <div className="instructor-detail-empty">Bu filtrede zorunlu evrak yok.</div>
       ) : (
@@ -7620,9 +7566,9 @@ function DocumentsTab({
 
       {optionalTypes.length > 0 && (
         <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">Diğer Evraklar</h3>
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.documents.section.other")}</h3>
           {filteredOptionalTypes.length === 0 ? (
-            <div className="instructor-detail-empty">Bu filtrede diğer evrak yok.</div>
+            <div className="instructor-detail-empty">{t("candidateDetail.documents.emptyOtherFilter")}</div>
           ) : (
             <ul className="candidate-detail-doc-list">
               {filteredOptionalTypes.map((type) => (
@@ -7652,6 +7598,7 @@ function CandidateDocumentChecklistModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const completedCount = items.filter((item) => item.status === "done").length;
   const missingCount = items.filter((item) => item.status === "missing").length;
   const notApplicableCount = items.filter((item) => item.status === "not_applicable").length;
@@ -7660,20 +7607,20 @@ function CandidateDocumentChecklistModal({
     <Modal
       footer={
         <button className="btn btn-secondary" onClick={onClose} type="button">
-          Kapat
+          {t("common.close")}
         </button>
       }
       onClose={onClose}
       open={open}
-      title="Evraklar Checklist"
+      title={t("candidateDetail.documents.checklist.title")}
     >
       <div className="candidate-detail-doc-checklist-modal">
-        <div className="candidate-detail-doc-checklist-stats" aria-label="Checklist özeti">
-          <span className="candidate-detail-doc-checklist-stat done">{completedCount} tamam</span>
-          <span className="candidate-detail-doc-checklist-stat missing">{missingCount} eksik</span>
+        <div className="candidate-detail-doc-checklist-stats" aria-label={t("candidateDetail.documents.checklist.summaryAria")}>
+          <span className="candidate-detail-doc-checklist-stat done">{t("candidateDetail.documents.checklist.doneCount", { count: completedCount })}</span>
+          <span className="candidate-detail-doc-checklist-stat missing">{t("candidateDetail.documents.checklist.missingCount", { count: missingCount })}</span>
           {notApplicableCount > 0 ? (
             <span className="candidate-detail-doc-checklist-stat not-applicable">
-              {notApplicableCount} gerekli değil
+              {t("candidateDetail.documents.checklist.notApplicableCount", { count: notApplicableCount })}
             </span>
           ) : null}
         </div>
@@ -7714,7 +7661,8 @@ function HeroDocumentCard({
   onRefresh: () => Promise<void>;
 }) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const isAvailable = !notApplicable && upload !== null && (upload.hasFile || upload.isPhysicallyAvailable);
   const [saving, setSaving] = useState(false);
 
@@ -7774,17 +7722,17 @@ function HeroDocumentCard({
     <div
       className={itemClass}
       tabIndex={notApplicable ? 0 : undefined}
-      title={notApplicable ? "Mevcut ehliyet bilgisi ekleyin" : undefined}
+      title={notApplicable ? t("candidateDetail.documents.hero.existingLicenseHint") : undefined}
     >
       {notApplicable ? (
         <span className="candidate-detail-doc-hero-tooltip" role="tooltip">
-          Mevcut ehliyet bilgisi ekleyin
+          {t("candidateDetail.documents.hero.existingLicenseHint")}
         </span>
       ) : null}
       <div className="candidate-detail-doc-hero-head">
         <div className="candidate-detail-doc-hero-title">{type.name}</div>
         <div className="candidate-detail-doc-hero-date">
-          <span>Teslim Tarihi</span>
+          <span>{t("candidateDetail.documents.hero.deliveryDate")}</span>
           <strong>{deliveredAt}</strong>
         </div>
       </div>
@@ -7793,19 +7741,19 @@ function HeroDocumentCard({
         className={`candidate-detail-doc-hero-switch${isAvailable ? " on" : " off"}`}
         role="switch"
         aria-checked={isAvailable}
-        aria-label={notApplicable ? `${type.name} gerekli değil` : `${type.name} durumu`}
+        aria-label={notApplicable ? t("candidateDetail.documents.hero.notApplicableAria", { type: type.name }) : t("candidateDetail.documents.hero.statusAria", { type: type.name })}
         disabled={saving || notApplicable || !canManageDocuments}
         onClick={isAvailable ? setUnavailable : setAvailable}
         title={
           !canManageDocuments
             ? noPermissionTitle
             : notApplicable
-              ? "Mevcut ehliyet bilgisi ekleyin"
+              ? t("candidateDetail.documents.hero.existingLicenseHint")
               : undefined
         }
       >
         <span className="candidate-detail-doc-hero-switch-track-label">
-          {isAvailable ? "Var" : "Yok"}
+          {isAvailable ? t("candidateDetail.license.hasIt") : t("candidateDetail.license.noneIt")}
         </span>
         <span className="candidate-detail-doc-hero-switch-thumb" aria-hidden="true" />
       </button>
@@ -7827,7 +7775,8 @@ function HealthReportExtraFields({
   onRefresh: () => Promise<void>;
 }) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [saving, setSaving] = useState(false);
 
   const meta = upload?.metadata ?? {};
@@ -7865,7 +7814,7 @@ function HealthReportExtraFields({
       }
       await onRefresh();
     } catch {
-      showToast("Sağlık raporu bilgileri kaydedilemedi", "error");
+      showToast(t("candidateDetail.documents.healthReport.toast.saveFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -7882,9 +7831,9 @@ function HealthReportExtraFields({
     <div className="candidate-detail-doc-health-extras">
       <div className="candidate-detail-doc-health-extras-grid">
         <label className="candidate-detail-doc-metadata-field">
-          <span>E-Sınav Yabancı Dil Seçimi</span>
+          <span>{t("candidateDetail.documents.healthReport.languageLabel")}</span>
           <CustomSelect
-            aria-label="E-Sınav Yabancı Dil Seçimi"
+            aria-label={t("candidateDetail.documents.healthReport.languageLabel")}
             className="form-select"
             disabled={saving || !canManageDocuments}
             onChange={(event) =>
@@ -7893,18 +7842,18 @@ function HealthReportExtraFields({
             title={!canManageDocuments ? noPermissionTitle : undefined}
             value={foreignLanguage}
           >
-            <option value="">Seçin...</option>
+            <option value="">{t("candidateDetail.documents.healthReport.selectPlaceholder")}</option>
             {HEALTH_REPORT_FOREIGN_LANGUAGES.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.labelKey)}
               </option>
             ))}
           </CustomSelect>
         </label>
         <label className="candidate-detail-doc-metadata-field">
-          <span>Özür Durumu</span>
+          <span>{t("candidateDetail.documents.healthReport.disabilityLabel")}</span>
           <CustomSelect
-            aria-label="Özür Durumu"
+            aria-label={t("candidateDetail.documents.healthReport.disabilityLabel")}
             className="form-select"
             disabled={saving || !canManageDocuments}
             onChange={(event) =>
@@ -7913,17 +7862,17 @@ function HealthReportExtraFields({
             title={!canManageDocuments ? noPermissionTitle : undefined}
             value={disability}
           >
-            <option value="">Seçin...</option>
+            <option value="">{t("candidateDetail.documents.healthReport.selectPlaceholder")}</option>
             {HEALTH_REPORT_DISABILITY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.labelKey)}
               </option>
             ))}
           </CustomSelect>
         </label>
       </div>
       <label className="candidate-detail-doc-health-toggle">
-        <span>Okutman ve/veya yazman (Tercüman) ihtiyacı</span>
+        <span>{t("candidateDetail.documents.healthReport.translatorNeed")}</span>
         <span className="switch-toggle">
           <input
             checked={needsTranslator}
@@ -7939,7 +7888,7 @@ function HealthReportExtraFields({
         </span>
       </label>
       <label className="candidate-detail-doc-health-toggle">
-        <span>İşaret dilini bilen tercüman ihtiyacı</span>
+        <span>{t("candidateDetail.documents.healthReport.signLanguageNeed")}</span>
         <span className="switch-toggle">
           <input
             checked={needsSignLanguageTranslator}
@@ -8159,6 +8108,7 @@ function CandidateDocumentUploadPopover({
   open: boolean;
   uploading: boolean;
 }) {
+  const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cropViewportRef = useRef<HTMLDivElement>(null);
@@ -8233,7 +8183,7 @@ function CandidateDocumentUploadPopover({
       }
     } catch {
       stopCamera();
-      setCameraError("Kamera açılamadı. İzinleri kontrol edin veya dosya seçerek yükleyin.");
+      setCameraError(t("candidateDetail.documents.upload.cameraError"));
     } finally {
       setCameraLoading(false);
     }
@@ -8331,7 +8281,7 @@ function CandidateDocumentUploadPopover({
       setCrop(defaultCropRect());
       setMode("crop");
     } catch {
-      setCameraError("Fotoğraf çekilemedi. Kamerayı tekrar deneyin.");
+      setCameraError(t("candidateDetail.documents.upload.photoError"));
     }
   };
 
@@ -8417,7 +8367,7 @@ function CandidateDocumentUploadPopover({
       className={`candidate-doc-upload-popover mode-${mode}`}
       ref={rootRef}
       role="dialog"
-      aria-label="Evrak yükle"
+      aria-label={t("candidateDetail.documents.upload.triggerAria")}
       style={{ left: position.left, top: position.top, width: position.width }}
     >
       <input
@@ -8454,8 +8404,8 @@ function CandidateDocumentUploadPopover({
         <>
           <div className="candidate-doc-upload-popover-head">
             <div>
-              <div className="candidate-doc-upload-popover-title">Evrak yükle</div>
-              <div className="candidate-doc-upload-popover-subtitle">Görsel dosyalar önce kırpma ekranına gelir; PDF doğrudan yüklenir.</div>
+              <div className="candidate-doc-upload-popover-title">{t("candidateDetail.documents.upload.title")}</div>
+              <div className="candidate-doc-upload-popover-subtitle">{t("candidateDetail.documents.upload.subtitle")}</div>
             </div>
             <button aria-label="Kapat" className="candidate-doc-upload-popover-close" onClick={closeAll} type="button">
               ×
@@ -8472,8 +8422,8 @@ function CandidateDocumentUploadPopover({
                 <UploadCloudIcon size={15} />
               </span>
               <span>
-                <strong>Dosya Seç</strong>
-                <small>PDF, JPG veya PNG</small>
+                <strong>{t("candidateDetail.documents.upload.fileSelect")}</strong>
+                <small>{t("candidateDetail.documents.upload.fileTypes")}</small>
               </span>
             </button>
             <button
@@ -8486,8 +8436,8 @@ function CandidateDocumentUploadPopover({
                 <ScannerIcon size={15} />
               </span>
               <span>
-                <strong>Tarayıcı</strong>
-                <small>Görsel seçilirse kırp</small>
+                <strong>{t("candidateDetail.documents.upload.scanner")}</strong>
+                <small>{t("candidateDetail.documents.upload.scannerHint")}</small>
               </span>
             </button>
             <button
@@ -8500,8 +8450,8 @@ function CandidateDocumentUploadPopover({
                 <CameraIcon size={15} />
               </span>
               <span>
-                <strong>Kamera</strong>
-                <small>Çek, kırp ve yükle</small>
+                <strong>{t("candidateDetail.documents.upload.camera")}</strong>
+                <small>{t("candidateDetail.documents.upload.cameraHint")}</small>
               </span>
             </button>
           </div>
@@ -8511,13 +8461,13 @@ function CandidateDocumentUploadPopover({
       {mode === "camera" ? (
         <div className="candidate-doc-camera-panel">
           <div className="candidate-doc-upload-popover-head">
-            <div className="candidate-doc-upload-popover-title">Kamera</div>
+            <div className="candidate-doc-upload-popover-title">{t("candidateDetail.documents.upload.camera")}</div>
             <button aria-label="Kapat" className="candidate-doc-upload-popover-close" onClick={closeAll} type="button">
               ×
             </button>
           </div>
           <div className="candidate-doc-camera-frame">
-            {cameraLoading ? <span>Kamera açılıyor...</span> : null}
+            {cameraLoading ? <span>{t("candidateDetail.documents.upload.cameraLoading")}</span> : null}
             {cameraError ? <span>{cameraError}</span> : null}
             <video
               autoPlay
@@ -8550,8 +8500,8 @@ function CandidateDocumentUploadPopover({
         <div className="candidate-doc-crop-panel">
           <div className="candidate-doc-upload-popover-head">
             <div>
-              <div className="candidate-doc-upload-popover-title">Kırp</div>
-              <div className="candidate-doc-upload-popover-subtitle">Alanı sürükle, köşelerden boyutlandır.</div>
+              <div className="candidate-doc-upload-popover-title">{t("candidateDetail.documents.upload.cropTitle")}</div>
+              <div className="candidate-doc-upload-popover-subtitle">{t("candidateDetail.documents.upload.cropSubtitle")}</div>
             </div>
             <button aria-label="Kapat" className="candidate-doc-upload-popover-close" onClick={closeAll} type="button">
               ×
@@ -8564,7 +8514,7 @@ function CandidateDocumentUploadPopover({
             onPointerCancel={handleCropPointerUp}
           >
             <div className="candidate-doc-crop-viewport" ref={cropViewportRef}>
-              <img alt="Çekilen evrak" ref={cropImageRef} src={capturedUrl} />
+              <img alt={t("candidateDetail.documents.upload.capturedAlt")} ref={cropImageRef} src={capturedUrl} />
               <div
                 className="candidate-doc-crop-box"
                 onPointerDown={(event) => handleCropPointerDown(event, "move")}
@@ -8595,7 +8545,7 @@ function CandidateDocumentUploadPopover({
               onClick={() => void uploadCropped()}
               type="button"
             >
-              {cropSaving || uploading ? "Yükleniyor..." : "Kırp ve Yükle"}
+              {cropSaving || uploading ? t("candidateDetail.documents.loading") : t("candidateDetail.documents.upload.cropAndUpload")}
             </button>
             <button className="btn btn-secondary btn-sm" onClick={closeAll} type="button">
               İptal
@@ -8625,6 +8575,7 @@ function CandidateDocumentOcrReviewModal({
   typeName: string;
   values: Record<string, string>;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -8642,7 +8593,7 @@ function CandidateDocumentOcrReviewModal({
   };
 
   const confidenceLabel =
-    suggestion.confidence != null ? `%${Math.round(suggestion.confidence * 100)}` : "Belirsiz";
+    suggestion.confidence != null ? `%${Math.round(suggestion.confidence * 100)}` : t("candidateDetail.documents.ocr.confidenceUnknown");
   const hasSuggestions = Object.values(suggestion.metadata ?? {}).some(
     (value) => value != null && String(value).trim() !== ""
   );
@@ -8652,7 +8603,7 @@ function CandidateDocumentOcrReviewModal({
       footer={
         <>
           <button className="btn btn-secondary" disabled={saving} onClick={onClose} type="button">
-            İptal
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -8660,7 +8611,7 @@ function CandidateDocumentOcrReviewModal({
             onClick={() => void onApply(draft)}
             type="button"
           >
-            {saving ? "Uygulanıyor..." : "Uygula"}
+            {saving ? t("candidateDetail.documents.ocr.applying") : t("candidateDetail.documents.ocr.apply")}
           </button>
         </>
       }
@@ -8670,12 +8621,12 @@ function CandidateDocumentOcrReviewModal({
     >
       <div className="candidate-doc-ocr-review">
         <div className="candidate-doc-ocr-summary">
-          <span>Güven</span>
+          <span>{t("candidateDetail.documents.ocr.confidence")}</span>
           <strong>{confidenceLabel}</strong>
         </div>
         {!hasSuggestions ? (
           <div className="candidate-doc-ocr-empty">
-            OCR okunabilir bir kurum/belge bilgisi bulamadı. Alanları manuel düzenleyebilirsiniz.
+            {t("candidateDetail.documents.ocr.empty")}
           </div>
         ) : null}
         {suggestion.warnings.length > 0 ? (
@@ -8712,7 +8663,7 @@ function CandidateDocumentOcrReviewModal({
                     onChange={(event) => setDraftValue(field.key, event.target.value)}
                     value={value}
                   >
-                    <option value="">{field.placeholder ?? "Seçin..."}</option>
+                    <option value="">{field.placeholder ?? t("candidateDetail.documents.healthReport.selectPlaceholder")}</option>
                     {field.options.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -8754,7 +8705,8 @@ function DocRow({
   onRefresh: () => Promise<void>;
 }) {
   const { showToast } = useToast();
-  const noPermissionTitle = "Yetkiniz yok.";
+  const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [markingPhysical, setMarkingPhysical] = useState(false);
@@ -8865,10 +8817,10 @@ function DocRow({
         metadata: buildMetadataPayload(),
       });
       await onRefresh();
-      showToast(`"${type.name}" yüklendi`);
+      showToast(t("candidateDetail.documents.row.toast.uploaded", { name: type.name }));
       return true;
     } catch {
-      showToast(`"${type.name}" yüklenemedi`, "error");
+      showToast(t("candidateDetail.documents.row.toast.uploadFailed", { name: type.name }), "error");
       return false;
     } finally {
       setUploading(false);
@@ -8888,9 +8840,9 @@ function DocRow({
         metadata: buildMetadataPayload(),
       });
       await onRefresh();
-      showToast(`"${type.name}" fiziksel olarak işaretlendi`);
+      showToast(t("candidateDetail.documents.row.toast.physicalMarked", { name: type.name }));
     } catch {
-      showToast(`"${type.name}" işaretlenemedi`, "error");
+      showToast(t("candidateDetail.documents.row.toast.markFailed", { name: type.name }), "error");
     } finally {
       setMarkingPhysical(false);
     }
@@ -8903,10 +8855,10 @@ function DocRow({
     try {
       await deleteCandidateDocument(candidateId, upload.id);
       await onRefresh();
-      showToast(`"${type.name}" yok olarak işaretlendi`);
+      showToast(t("candidateDetail.documents.row.toast.markedMissing", { name: type.name }));
       setConfirmingDelete(false);
     } catch {
-      showToast(`"${type.name}" güncellenemedi`, "error");
+      showToast(t("candidateDetail.documents.row.toast.updateFailed", { name: type.name }), "error");
     } finally {
       setDeleting(false);
     }
@@ -8935,7 +8887,7 @@ function DocRow({
     try {
       await updateCandidateDocumentMebbisTransfer(candidateId, type.id, checked);
       await onRefresh();
-      showToast(checked ? `"${type.name}" Mebbis işaretlendi` : `"${type.name}" Mebbis kaldırıldı`);
+      showToast(checked ? t("candidateDetail.documents.row.toast.mebbisMarked", { name: type.name }) : t("candidateDetail.documents.row.toast.mebbisRemoved", { name: type.name }));
     } catch {
       showToast(`"${type.name}" Mebbis durumu kaydedilemedi`, "error");
     } finally {
@@ -8957,7 +8909,7 @@ function DocRow({
     try {
       await printAuthorizedFile(inlineFileUrl, type.name);
     } catch {
-      showToast(`"${type.name}" yazdırılamadı`, "error");
+      showToast(t("candidateDetail.documents.row.toast.printFailed", { name: type.name }), "error");
     }
   };
 
@@ -9000,7 +8952,7 @@ function DocRow({
       const suggestion = await analyzeCandidateDocumentOcr(candidateId, upload.id);
       setOcrSuggestion(suggestion);
     } catch {
-      showToast(`"${type.name}" OCR okunamadı`, "error");
+      showToast(t("candidateDetail.documents.row.toast.ocrReadFailed", { name: type.name }), "error");
     } finally {
       setOcrLoading(false);
     }
@@ -9013,7 +8965,7 @@ function DocRow({
     if (!saved) return;
     setMetadataValues(nextValues);
     setOcrSuggestion(null);
-    showToast(`"${type.name}" OCR bilgileri uygulandı`);
+    showToast(t("candidateDetail.documents.row.toast.ocrApplied", { name: type.name }));
   };
 
   const inputId = `doc-upload-${type.id}`;
@@ -9046,21 +8998,21 @@ function DocRow({
             ) : status === "missing" ? (
               <span>
                 {isPhotoType
-                  ? "Henüz fotoğraf yok."
+                  ? t("candidateDetail.documents.row.emptyPhoto")
                   : isSignatureType
-                  ? "Henüz imza yok."
-                  : "Henüz yüklenmedi."}
+                  ? t("candidateDetail.documents.row.emptySignature")
+                  : t("candidateDetail.documents.row.notUploaded")}
               </span>
             ) : status === "physical" ? (
               <span>
                 {isPhotoType
-                  ? "Fotoğraf elde var."
+                  ? t("candidateDetail.documents.row.photoOnHand")
                   : isSignatureType
-                  ? "İmza elde var."
-                  : "Evrak elde var."}
+                  ? t("candidateDetail.documents.row.signatureOnHand")
+                  : t("candidateDetail.documents.row.documentOnHand")}
               </span>
             ) : (
-              <span>Önizleme desteklenmiyor.</span>
+              <span>{t("candidateDetail.documents.row.previewNotSupported")}</span>
             )}
           </div>
         ) : null}
@@ -9069,16 +9021,16 @@ function DocRow({
           <div className="candidate-detail-doc-name">{type.name}</div>
           <div className="candidate-detail-doc-state-chips">
             <StateChip on={hasDocumentAvailable} onLabel="Var" offLabel="Yok" />
-            <StateChip on={!!upload?.hasFile} onLabel="Yüklendi" offLabel="Yüklenmedi" />
+            <StateChip on={!!upload?.hasFile} onLabel={t("candidateDetail.documents.row.state.uploaded")} offLabel={t("candidateDetail.documents.row.state.notUploaded")} />
             <StateChip
               on={isMebbisTransferred}
-              onLabel="Mebbis Aktarıldı"
-              offLabel="Mebbis Aktarılmadı"
+              onLabel={t("candidateDetail.documents.row.state.mebbisTransferred")}
+              offLabel={t("candidateDetail.documents.row.state.mebbisNotTransferred")}
             />
           </div>
           {uploadedDate ? (
             <div className="candidate-detail-doc-delivered-date">
-              <span>Teslim Tarihi</span>
+              <span>{t("candidateDetail.documents.hero.deliveryDate")}</span>
               <strong>{uploadedDate}</strong>
             </div>
           ) : null}
@@ -9089,7 +9041,7 @@ function DocRow({
         {!showsImagePreview ? (
           <div className="candidate-detail-doc-file">
             {status === "missing"
-              ? "Evrak yok olarak işaretli."
+              ? t("candidateDetail.documents.row.markedMissing")
               : upload?.originalFileName ?? "Evrak elde var."}
           </div>
         ) : null}
@@ -9138,7 +9090,7 @@ function DocRow({
                       }}
                       value={value}
                     >
-                      <option value="">{field.placeholder ?? "Seçin..."}</option>
+                      <option value="">{field.placeholder ?? t("candidateDetail.documents.healthReport.selectPlaceholder")}</option>
                       {field.options.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -9259,7 +9211,7 @@ function DocRow({
               title={!canManageDocuments ? noPermissionTitle : undefined}
               type="button"
             >
-              {uploading ? "Yükleniyor..." : "Yükle"}
+              {uploading ? t("candidateDetail.documents.loading") : t("candidateDetail.documents.row.upload")}
             </button>
             <CandidateDocumentUploadPopover
               anchorRef={uploadTriggerRef}
@@ -9296,7 +9248,7 @@ function DocRow({
         {canDeleteFile ? (
           confirmingDelete ? (
             <div className="candidate-detail-doc-confirm">
-              <span>Silinsin mi?</span>
+              <span>{t("candidateDetail.documents.row.deleteConfirm")}</span>
               <button
                 className="btn btn-danger btn-sm"
                 disabled={busy || !canManageDocuments}
@@ -9359,6 +9311,7 @@ function TrainingTab({
   candidate: CandidateResponse;
 }) {
   const navigate = useNavigate();
+  const t = useT();
   const [calendarEvents, setCalendarEvents] = useState<TrainingCalendarEvent[]>([]);
   const [calendarBranches, setCalendarBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -9420,13 +9373,13 @@ function TrainingTab({
         ].map(trainingLessonToCalendarEvent);
         setCalendarEvents([
           ...lessonEvents,
-          ...buildCandidateExamEvents(candidate),
+          ...buildCandidateExamEvents(candidate, t),
         ]);
         setCalendarBranches(branchResult.items);
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        setCalendarError("Aday takvimi yüklenemedi.");
+        setCalendarError(t("candidateDetail.training.loadError"));
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -9450,13 +9403,13 @@ function TrainingTab({
     <div className="candidate-detail-tab-content candidate-detail-training-layout">
       <section className="instructor-detail-card candidate-detail-calendar-card">
         <div className="instructor-detail-section-header">
-          <h3 className="candidate-detail-section-title">Aday Takvimi</h3>
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.training.title")}</h3>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => navigate(`/training/uygulama?candidateId=${encodeURIComponent(candidate.id)}`)}
             type="button"
           >
-            Direksiyon Programı Yap
+            {t("candidateDetail.training.scheduleDriving")}
           </button>
         </div>
         {calendarError ? (
@@ -9464,10 +9417,10 @@ function TrainingTab({
         ) : (
           <>
             <div className="form-subsection-note" style={{ marginBottom: 10 }}>
-              Adayın direksiyon dersleri, aktif grubundaki teorik dersleri ve sınav tarihleri birlikte gösterilir.
+              {t("candidateDetail.training.hint")}
             </div>
             {calendarLoading ? (
-              <div className="instructor-detail-empty">Takvim yükleniyor...</div>
+              <div className="instructor-detail-empty">{t("candidateDetail.training.loading")}</div>
             ) : null}
             <div className="candidate-detail-calendar-wrap">
               <TrainingCalendar

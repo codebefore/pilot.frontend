@@ -30,7 +30,7 @@ import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 import { PermissionsPage } from "./PermissionsPage";
-import { useT } from "../lib/i18n";
+import { useT, type TranslationKey } from "../lib/i18n";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -79,25 +79,27 @@ const DEFAULT_VISIBLE_USER_COLUMN_IDS: UserColumnId[] = [
   "isActive",
 ];
 
-function buildColumns(): UserColumnDef[] {
+function buildColumns(
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): UserColumnDef[] {
   return [
     {
       id: "fullName",
-      label: "Ad Soyad",
+      label: t("common.field.fullName"),
       sortField: "fullName",
       renderCell: (user) => <strong>{user.fullName}</strong>,
       skeletonWidth: 140,
     },
     {
       id: "mebbisUsername",
-      label: "MEBBİS",
+      label: t("users.role.mebbis"),
       sortField: "mebbisUsername",
       renderCell: (user) =>
         user.mebbisUsername ? (
           <>
             <span>{user.mebbisUsername}</span>
             {user.hasMebbisPassword ? (
-              <div className="settings-table-secondary">Şifre kayıtlı</div>
+              <div className="settings-table-secondary">{t("users.passwordSet")}</div>
             ) : null}
           </>
         ) : (
@@ -107,26 +109,26 @@ function buildColumns(): UserColumnDef[] {
     },
     {
       id: "phone",
-      label: "Telefon",
+      label: t("common.field.phone"),
       sortField: "phone",
       renderCell: (user) => user.phone || "—",
       skeletonWidth: 110,
     },
     {
       id: "roleName",
-      label: "Rol",
+      label: t("common.field.role"),
       sortField: "roleName",
       renderCell: (user) =>
         user.roleName ? (
           <span className="cand-class-badge">{user.roleName}</span>
         ) : (
-          <span className="form-subsection-note">Rol atanmamış</span>
+          <span className="form-subsection-note">{t("users.noRoleAssigned")}</span>
         ),
       skeletonWidth: 80,
     },
     {
       id: "isActive",
-      label: "Durum",
+      label: t("common.field.status"),
       sortField: "isActive",
       renderCell: (user) => (
         <StatusPill
@@ -145,9 +147,9 @@ type UsersPageProps = {
 };
 type UsersPageTab = "users" | "permissions";
 
-const USER_PAGE_TABS: { key: UsersPageTab; label: string }[] = [
-  { key: "users", label: "Kullanıcılar" },
-  { key: "permissions", label: "Yetki Yönetimi" },
+const USER_PAGE_TABS: { key: UsersPageTab; labelKey: TranslationKey }[] = [
+  { key: "users", labelKey: "users.subtab.users" },
+  { key: "permissions", labelKey: "users.subtab.permissions" },
 ];
 
 export function UsersPage({ embedded = false }: UsersPageProps) {
@@ -198,8 +200,8 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     () =>
       USER_PAGE_TABS.filter((tab) =>
         tab.key === "permissions" ? canViewPermissions : true
-      ),
-    [canViewPermissions]
+      ).map((tab) => ({ key: tab.key, label: t(tab.labelKey) })),
+    [canViewPermissions, t]
   );
 
   const handleTabChange = (tab: UsersPageTab) => {
@@ -216,7 +218,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
 
   const roleFilterOptions = useMemo(
     () => [
-      { value: "all", label: "Tüm Roller" },
+      { value: "all", label: t("users.filter.allRoles") },
       ...roles.map((role) => ({ value: role.id, label: role.name })),
     ],
     [roles]
@@ -286,7 +288,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   }, [filteredUsers, sort]);
 
   const totalPages = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
-  const visibleColumns = useMemo(() => buildColumns().filter((column) => isVisible(column.id)), [isVisible]);
+  const visibleColumns = useMemo(() => buildColumns(t).filter((column) => isVisible(column.id)), [isVisible, t]);
   const pagedUsers = useMemo(() => {
     const safePage = Math.min(page, totalPages);
     const start = (safePage - 1) * pageSize;
@@ -334,7 +336,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
 
   const handleSaved = (saved: AppUserResponse) => {
     setFormOpen(false);
-    showToast(editing ? "Kullanıcı güncellendi" : "Kullanıcı eklendi");
+    showToast(t(editing ? "users.toast.userUpdated" : "users.toast.userAdded"));
     setEditing(null);
     // Optimistic update: merge saved user into cache immediately
     queryClient.setQueryData<AppUserResponse[]>(["users", "list"], (prev) => {
@@ -357,10 +359,10 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
         prev ? prev.filter((u) => u.id !== user.id) : []
       );
       setConfirmDeleteUserId(null);
-      showToast("Kullanıcı silindi");
+      showToast(t("users.toast.userDeleted"));
     } catch (error) {
       const message =
-        error instanceof ApiError ? error.message : "Kullanıcı silinemedi";
+        error instanceof ApiError ? error.message : t("users.toast.userDeleteFailed");
       showToast(message, "error");
     } finally {
       setDeletingUserId(null);
@@ -400,7 +402,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
             setSearch(value);
             setPage(1);
           }}
-          placeholder="Kullanıcı ara"
+          placeholder={t("users.search.placeholder")}
           resetSignal={searchResetKey}
           value={search}
         />
@@ -429,8 +431,8 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
 
   const table = loadError && users.length === 0 ? (
     <PageLoadError
-      title="Kullanıcılar yüklenemedi"
-      description="Kullanıcı listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+      title={t("users.error.loadTitle")}
+      description={t("users.error.loadDescription")}
       onRetry={() => {
         void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
         void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
@@ -463,7 +465,8 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
                   column.id,
                   filters,
                   setFilter,
-                  roleFilterOptions
+                  roleFilterOptions,
+                  t,
                 )}
                 key={column.id}
                 label={column.label}
@@ -473,13 +476,13 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
             ))}
             <th className="col-picker-th">
               <ColumnPicker
-                columns={buildColumns().map((column) => ({
+                columns={buildColumns(t).map((column) => ({
                   id: column.id,
                   label: column.label,
                 }))}
                 isVisible={isVisible}
                 onToggle={handleColumnToggle}
-                triggerTitle="Sütunlar"
+                triggerTitle={t("users.columns")}
               />
             </th>
           </tr>
@@ -546,11 +549,11 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
                     ) : (
                       <>
                         <button
-                          aria-label="Düzenle"
+                          aria-label={t("common.edit")}
                           className="icon-btn"
                           disabled={!canManageUsers}
                           onClick={() => openEdit(user)}
-                          title={!canManageUsers ? noPermissionTitle : "Düzenle"}
+                          title={!canManageUsers ? noPermissionTitle : t("common.edit")}
                           type="button"
                         >
                           <PencilIcon size={14} />
@@ -609,7 +612,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
             <>
               <div className="settings-summary-grid">
                 <div className="settings-summary-card">
-                  <span className="settings-summary-label">Toplam Kullanıcı</span>
+                  <span className="settings-summary-label">{t("users.summary.totalUsers")}</span>
                   <strong className="settings-summary-value">{counts.total}</strong>
                 </div>
                 <div className="settings-summary-card">
@@ -621,14 +624,14 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
                   <strong className="settings-summary-value">{counts.inactive}</strong>
                 </div>
                 <div className="settings-summary-card">
-                  <span className="settings-summary-label">MEBBİS Tanımlı</span>
+                  <span className="settings-summary-label">{t("users.summary.mebbisDefined")}</span>
                   <strong className="settings-summary-value">{counts.mebbis}</strong>
                 </div>
               </div>
 
               <section className="settings-surface">
                 <div className="settings-surface-header">
-                  <div className="settings-surface-title">Kullanıcılar</div>
+                  <div className="settings-surface-title">{t("users.list.title")}</div>
                   <div className="settings-module-actions">{actions}</div>
                 </div>
                 <div className="settings-surface-body">
@@ -642,7 +645,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
         </div>
       ) : (
         <>
-          <PageToolbar actions={actions} title="Kullanıcılar" />
+          <PageToolbar actions={actions} title={t("users.list.title")} />
           <div className="table-wrap spaced">{table}</div>
         </>
       )}
@@ -698,7 +701,8 @@ function buildColumnFilterControl(
   columnId: UserColumnId,
   filters: UserFilters,
   setFilter: <K extends keyof UserFilters>(field: K, value: UserFilters[K]) => void,
-  roleFilterOptions: { value: string; label: string }[]
+  roleFilterOptions: { value: string; label: string }[],
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
 ) {
   if (columnId === "fullName") {
     return (
@@ -719,8 +723,8 @@ function buildColumnFilterControl(
         active={filters.mebbisUsername.trim().length > 0}
         onApply={(value) => setFilter("mebbisUsername", value)}
         onClear={() => setFilter("mebbisUsername", "")}
-        placeholder="MEBBİS kullanıcı ara"
-        title="MEBBİS filtresi"
+        placeholder={t("users.mebbisSearch.placeholder")}
+        title={t("users.mebbisFilter.title")}
         value={filters.mebbisUsername}
       />
     );
@@ -757,7 +761,7 @@ function buildColumnFilterControl(
         active={filters.activity !== DEFAULT_FILTERS.activity}
         onChange={(value) => setFilter("activity", value as UserFilters["activity"])}
         options={[
-          { value: "all", label: "Tüm Durumlar" },
+          { value: "all", label: t("users.filter.allStatuses") },
           { value: "active", label: "Aktif" },
           { value: "inactive", label: "Pasif" },
         ]}

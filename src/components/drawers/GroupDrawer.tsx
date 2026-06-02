@@ -187,7 +187,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
           throw new Error("save failed");
         }
       }
-      showToast("Değişiklik kaydedilemedi", "error");
+      showToast(t("groupDrawer.toast.saveFailed"), "error");
       throw new Error("save failed");
     }
   };
@@ -200,7 +200,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       await removeActiveGroupAssignment(candidateId);
       await refreshGroup();
     } catch {
-      showToast("Aday kaldırılamadı", "error");
+      showToast(t("groupDrawer.toast.removeCandidateFailed"), "error");
     } finally {
       setRemoving(null);
     }
@@ -216,7 +216,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       setSearchResults([]);
       await refreshGroup();
     } catch {
-      showToast("Aday eklenemedi", "error");
+      showToast(t("groupDrawer.toast.addCandidateFailed"), "error");
     } finally {
       setAdding(null);
     }
@@ -228,7 +228,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     setDeleting(true);
     try {
       await deleteGroup(groupId);
-      showToast("Grup silindi");
+      showToast(t("groupDrawer.toast.groupDeleted"));
       onDeleted?.();
     } catch (error) {
       if (error instanceof ApiError) {
@@ -238,7 +238,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
         if (message) {
           showToast(message, "error");
         } else {
-          showToast("Grup silinemedi", "error");
+          showToast(t("groupDrawer.toast.groupDeleteFailed"), "error");
         }
       } else {
         showToast("Grup silinemedi", "error");
@@ -255,22 +255,22 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   const noPermissionTitle = t("common.noPermission");
 
   const title = loading
-    ? "Grup Detayı"
+    ? t("groupDrawer.title")
     : group
     ? buildGroupHeading(group.title, group.term, sortedTerms, lang)
-    : "Grup Detayı";
+    : t("groupDrawer.title");
   const effectiveSearchQuery = normalizeTextQuery(searchQuery);
 
   const actions = confirmDelete ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
-      <span style={{ fontSize: 13, color: "var(--gray-600)", flex: 1 }}>Emin misiniz?</span>
+      <span style={{ fontSize: 13, color: "var(--gray-600)", flex: 1 }}>{t("groupDrawer.confirm.areYouSure")}</span>
       <button
         className="btn btn-secondary btn-sm"
         disabled={deleting}
         onClick={() => setConfirmDelete(false)}
         type="button"
       >
-        Vazgeç
+        {t("common.cancel")}
       </button>
       <button
         className="btn btn-danger btn-sm"
@@ -279,7 +279,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
         title={!canManageGroups ? noPermissionTitle : undefined}
         type="button"
       >
-        {deleting ? "Siliniyor..." : "Evet, Sil"}
+        {deleting ? t("groupDrawer.confirm.deleting") : t("groupDrawer.confirm.yesDelete")}
       </button>
     </div>
   ) : (
@@ -293,7 +293,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       title={!canManageGroups ? noPermissionTitle : undefined}
       type="button"
     >
-      Grup Sil
+      {t("groupDrawer.action.deleteGroup")}
     </button>
   );
 
@@ -305,7 +305,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
         </div>
       ) : group ? (
         <>
-          <DrawerSection title="Grup Bilgileri">
+          <DrawerSection title={t("groupDrawer.section.info")}>
             <GroupCodeEditableRow
               title={group.title}
               disabled={!canManageGroups}
@@ -320,7 +320,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
             <EditableRow
               displayValue={buildTermLabel(group.term, sortedTerms, lang)}
               inputValue={group.term.id}
-              label="Dönem"
+              label={t("groupDrawer.field.term")}
               disabled={!canManageGroups}
               disabledTitle={noPermissionTitle}
               options={termOptions}
@@ -330,7 +330,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
               displayValue={String(group.capacity)}
               inputType="number"
               inputValue={String(group.capacity)}
-              label="Kapasite"
+              label={t("groupDrawer.field.capacity")}
               disabled={!canManageGroups}
               disabledTitle={noPermissionTitle}
               onSave={(v) => saveField({ capacity: Number(v) })}
@@ -340,7 +340,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
               inputLang={dateInputLang}
               inputType="date"
               inputValue={group.startDate ?? ""}
-              label="Başlangıç"
+              label={t("groupDrawer.field.startDate")}
               disabled={!canManageGroups}
               disabledTitle={noPermissionTitle}
               onSave={(v) => saveField({ startDate: v })}
@@ -354,12 +354,12 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
               options={GROUP_MEB_STATUS_OPTIONS}
               onSave={(v) => saveField({ mebStatus: v })}
             />
-            <DrawerRow label="Kayıt Tarihi">{formatDateTR(group.createdAtUtc)}</DrawerRow>
+            <DrawerRow label={t("groupDrawer.field.registeredAt")}>{formatDateTR(group.createdAtUtc)}</DrawerRow>
           </DrawerSection>
 
           <DrawerSection title={`Adaylar (${group.activeCandidates.length} / ${group.capacity})`}>
             {group.activeCandidates.length === 0 ? (
-              <div className="drawer-empty-hint">Henüz aday atanmamış.</div>
+              <div className="drawer-empty-hint">{t("groupDrawer.empty.noCandidates")}</div>
             ) : (
               group.activeCandidates.map((c) => (
                 <div key={c.candidateId} className="drawer-row candidate-list-row">
@@ -371,7 +371,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                     className="icon-btn"
                     disabled={removing === c.candidateId || !canEdit}
                     onClick={() => handleRemoveCandidate(c.candidateId)}
-                    title={!canEdit ? noPermissionTitle : "Gruptan Çıkar"}
+                    title={!canEdit ? noPermissionTitle : t("groupDrawer.action.removeFromGroup")}
                     type="button"
                   >
                     <XIcon size={13} />
@@ -402,7 +402,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                       autoFocus
                       className="form-input-sm"
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="İsim veya TC ara..."
+                      placeholder={t("groupDrawer.search.placeholder")}
                       type="text"
                       value={searchQuery}
                     />
@@ -419,7 +419,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                     </button>
                   </div>
                   {searchLoading && (
-                    <div className="candidate-search-hint">Aranıyor...</div>
+                    <div className="candidate-search-hint">{t("groupDrawer.search.searching")}</div>
                   )}
                   {!searchLoading && searchResults.length > 0 && (
                     <ul className="candidate-search-results">
@@ -439,7 +439,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                     </ul>
                   )}
                   {!searchLoading && effectiveSearchQuery && searchResults.length === 0 && (
-                    <div className="candidate-search-hint">Sonuç bulunamadı.</div>
+                    <div className="candidate-search-hint">{t("groupDrawer.search.noResult")}</div>
                   )}
                 </div>
               )}
@@ -449,8 +449,8 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       ) : loadError ? (
         <PageLoadError
           variant="card"
-          title="Grup bilgisi yüklenemedi"
-          description="Grup detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          title={t("groupDrawer.error.loadTitle")}
+          description={t("groupDrawer.error.loadDescription")}
           onRetry={() => setReloadKey((k) => k + 1)}
         />
       ) : null}
@@ -530,7 +530,7 @@ function GroupCodeEditableRow({ title, disabled = false, disabledTitle, onSave }
 
   return (
     <div className="drawer-row editable-row">
-      {!editing && <span className="label">Başlık</span>}
+      {!editing && <span className="label">{t("groupDrawer.field.label")}</span>}
       {editing ? (
         <span className="editable-row-edit">
           <CustomSelect
@@ -561,7 +561,7 @@ function GroupCodeEditableRow({ title, disabled = false, disabledTitle, onSave }
             className="icon-btn icon-btn-confirm"
             disabled={saving}
             onClick={save}
-            title="Kaydet"
+            title={t("groupDrawer.action.saveTitle")}
             type="button"
           >
             <CheckIcon size={13} />
@@ -584,7 +584,7 @@ function GroupCodeEditableRow({ title, disabled = false, disabledTitle, onSave }
               className="icon-btn edit-trigger"
               disabled={disabled}
               onClick={startEdit}
-              title={disabled ? disabledTitle : "Düzenle"}
+              title={disabled ? disabledTitle : t("common.edit")}
               type="button"
             >
               <PencilIcon size={12} />

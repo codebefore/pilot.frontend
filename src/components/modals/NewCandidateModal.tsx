@@ -13,7 +13,7 @@ import {
 } from "../../lib/candidate-references-api";
 import { getCertificatePrograms } from "../../lib/certificate-programs-api";
 import { ApiError } from "../../lib/http";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { isPhoneStartingWith5 } from "../../lib/phone";
 import { toTurkishUpperCase } from "../../lib/text-format";
@@ -50,17 +50,17 @@ function isValidTurkishNationalId(value: string) {
 const newCandidateSchema = z.object({
   tc: z
     .string()
-    .min(1, "Zorunlu alan")
-    .regex(/^\d{11}$/, "11 haneli rakam olmalı")
-    .refine((v) => isValidTurkishNationalId(v), "Geçerli bir TC kimlik no girin"),
+    .min(1, "common.required")
+    .regex(/^\d{11}$/, "newCandidate.error.tcDigits")
+    .refine((v) => isValidTurkishNationalId(v), "newCandidate.error.tcInvalid"),
   referenceName: z.string(),
-  className: z.string().min(1, "Zorunlu alan"),
-  firstName: z.string().min(1, "Zorunlu alan").min(2, "En az 2 karakter"),
-  lastName: z.string().min(1, "Zorunlu alan").min(2, "En az 2 karakter"),
+  className: z.string().min(1, "common.required"),
+  firstName: z.string().min(1, "common.required").min(2, "common.minChars2"),
+  lastName: z.string().min(1, "common.required").min(2, "common.minChars2"),
   phone: z
     .string()
-    .min(1, "Zorunlu alan")
-    .refine((v) => isPhoneStartingWith5(v), "5 ile başlamalı"),
+    .min(1, "common.required")
+    .refine((v) => isPhoneStartingWith5(v), "newCandidate.error.phoneStartWith5"),
   hasExistingLicense: z.boolean(),
   existingLicenseType: z.string(),
   existingLicenseIssuedAt: z.string(),
@@ -375,19 +375,19 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
         documentIdsToCopy: data.documentIdsToCopy,
       });
 
-      showToast("Aday başarıyla kaydedildi");
+      showToast(t("newCandidate.toast.success"));
       onSubmit();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError("tc", {
-          message: "Bu TC kimlik numarası ve ehliyet sınıfı için açık başvuru mevcut",
+          message: "newCandidate.toast.conflict",
         });
       } else {
         const { applied, unmappedMessages } = applyApiErrorsToForm(err, setError);
         if (unmappedMessages[0]) {
           showToast(unmappedMessages[0], "error");
         } else if (!applied) {
-          showToast("Aday kaydedilemedi. Lütfen tekrar deneyin.", "error");
+          showToast(t("newCandidate.toast.failed"), "error");
         }
       }
     } finally {
@@ -397,6 +397,12 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
     hasError ? `${base} error` : base;
+
+  const translateError = (message: string | undefined): string => {
+    if (!message) return "";
+    if (message.includes(".")) return t(message as TranslationKey);
+    return message;
+  };
 
   const toggleDocumentToCopy = (documentId: string) => {
     const next = documentIdsToCopy.includes(documentId)
@@ -440,17 +446,16 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
         {reuseSourcesLoading || reuseSources.length > 0 ? (
           <section className="form-subsection">
             {reuseSourcesLoading ? (
-              <div className="form-subsection-note">Eski kayıtlar aranıyor...</div>
+              <div className="form-subsection-note">{t("newCandidate.reuse.loading")}</div>
             ) : (
               <>
                 <div className="form-row full">
                   <div className="form-group">
                     <label className="form-label">
-                      Eski Başvuru{" "}
+                      {t("newCandidate.reuse.label")}{" "}
                       {!errors.tc && reuseSources.length > 0 ? (
                         <span className="candidate-reuse-label-hint">
-                          (Bu kişi direksiyonda zaten kayıtlı. İstersen eski bilgileri
-                          otomatik doldurabilirim.)
+                          {t("newCandidate.reuse.hint")}
                         </span>
                       ) : null}
                     </label>
@@ -483,13 +488,13 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                             </span>
                             <span className="candidate-reuse-source-toggle">
                               <input
-                                aria-label={`${source.firstName} ${source.lastName} eski başvuru`}
+                                aria-label={t("newCandidate.reuse.aria", { name: `${source.firstName} ${source.lastName}` })}
                                 checked={checked}
                                 onChange={() => toggleReuseSource(source.id)}
                                 type="checkbox"
                               />
                               <span className="switch-toggle-control" aria-hidden="true" />
-                              <span>{checked ? "Evet" : "Hayır"}</span>
+                              <span>{checked ? t("common.yes") : t("common.no")}</span>
                             </span>
                           </label>
                         );
@@ -503,7 +508,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                     <div className="form-group">
                       <label className="form-label">{t("newCandidate.field.documentsToCopy")}</label>
                       {selectedReuseSource.documents.length === 0 ? (
-                        <div className="form-subsection-note">Bu kayıtta evrak bulunmuyor.</div>
+                        <div className="form-subsection-note">{t("newCandidate.reuse.emptyDocuments")}</div>
                       ) : (
                         <div className="candidate-reuse-document-list">
                           {selectedReuseSource.documents.map((document) => (
@@ -513,8 +518,8 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                                 <span>
                                   {document.originalFileName ??
                                     (document.isPhysicallyAvailable
-                                      ? "Fiziksel evrak"
-                                      : "Dosya yok")}
+                                      ? t("newCandidate.reuse.physicalDocument")
+                                      : t("newCandidate.reuse.noFile"))}
                                 </span>
                               </span>
                               <span className="candidate-reuse-document-toggle">
@@ -525,7 +530,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                                 />
                                 <span className="switch-toggle-control" aria-hidden="true" />
                                 <span>
-                                  {documentIdsToCopy.includes(document.id) ? "Evet" : "Hayır"}
+                                  {documentIdsToCopy.includes(document.id) ? t("common.yes") : t("common.no")}
                                 </span>
                               </span>
                             </label>
@@ -547,13 +552,13 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
               className={fieldClass(!!errors.tc, "form-input")}
               inputMode="numeric"
               maxLength={11}
-              placeholder="11 haneli TC"
+              placeholder={t("newCandidate.placeholder.tc")}
               {...register("tc")}
             />
-            {errors.tc && <div className="form-error">{errors.tc.message}</div>}
+            {errors.tc && <div className="form-error">{translateError(errors.tc.message)}</div>}
             {!errors.tc && normalizedTc.length === 11 && reuseSourcesLoading ? (
               <div className="candidate-reuse-hint candidate-reuse-hint-muted">
-                Eski kayıtlar kontrol ediliyor...
+                {t("newCandidate.tcLoading")}
               </div>
             ) : null}
           </div>
@@ -570,7 +575,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                   onChange={(event) => field.onChange(event.target.value)}
                   value={field.value ?? ""}
                 >
-                  <option value="">Seçiniz</option>
+                  <option value="">{t("common.select")}</option>
                   {references.map((option) => (
                     <option key={option.id} value={option.name}>
                       {option.name}
@@ -584,30 +589,30 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Ad<RequiredMark /></label>
+            <label className="form-label">{t("newCandidate.field.firstName")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.firstName, "form-input")}
-              placeholder="Adı"
+              placeholder={t("newCandidate.placeholder.firstName")}
               {...register("firstName", {
                 onChange: (event) => {
                   event.target.value = toTurkishUpperCase(event.target.value);
                 },
               })}
             />
-            {errors.firstName && <div className="form-error">{errors.firstName.message}</div>}
+            {errors.firstName && <div className="form-error">{translateError(errors.firstName.message)}</div>}
           </div>
           <div className="form-group">
             <label className="form-label">{t("common.field.lastName")}<RequiredMark /></label>
             <input
               className={fieldClass(!!errors.lastName, "form-input")}
-              placeholder="Soyadı"
+              placeholder={t("newCandidate.placeholder.lastName")}
               {...register("lastName", {
                 onChange: (event) => {
                   event.target.value = toTurkishUpperCase(event.target.value);
                 },
               })}
             />
-            {errors.lastName && <div className="form-error">{errors.lastName.message}</div>}
+            {errors.lastName && <div className="form-error">{translateError(errors.lastName.message)}</div>}
           </div>
         </div>
 
@@ -617,10 +622,10 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             <input
               className={fieldClass(!!errors.phone, "form-input")}
               maxLength={32}
-              placeholder="5XX XXX XX XX"
+              placeholder={t("newCandidate.placeholder.phone")}
               {...phoneRegistration}
             />
-            {errors.phone && <div className="form-error">{errors.phone.message}</div>}
+            {errors.phone && <div className="form-error">{translateError(errors.phone.message)}</div>}
           </div>
           <div className="form-group">
             <label className="form-label">{t("candidates.tags.label")}</label>
@@ -654,7 +659,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
               className="switch-toggle"
               style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 28 }}
             >
-              <span className="form-label" style={{ margin: 0 }}>Mevcut Ehliyet</span>
+              <span className="form-label" style={{ margin: 0 }}>{t("newCandidate.field.hasExistingLicense")}</span>
               <input type="checkbox" {...register("hasExistingLicense")} />
               <span className="switch-toggle-control" aria-hidden="true" />
             </label>
@@ -676,7 +681,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                 },
               })}
             >
-              <option value="">Mevcut ehliyet tipi seçin</option>
+              <option value="">{t("newCandidate.placeholder.existingLicenseType")}</option>
               {existingLicenseTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -687,7 +692,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
           <div className="form-group">
             <label className="form-label">{t("newCandidate.field.issuedAt")}</label>
             <LocalizedDateInput
-              ariaLabel="Veriliş Tarihi"
+              ariaLabel={t("newCandidate.aria.issuedAt")}
               lang="tr-TR"
               onChange={(next) =>
                 setValue("existingLicenseIssuedAt", next, { shouldDirty: true })

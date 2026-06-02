@@ -2,11 +2,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageLoadError } from "../components/ui/PageLoadError";
+import { useT, type TranslationKey } from "../lib/i18n";
 import { LICENSE_CLASS_DEFINITION_CATEGORY_LABELS } from "../lib/license-class-definition-catalog";
 import { getLicenseClassDefinition } from "../lib/license-class-definitions-api";
 
-function formatBool(value: boolean): string {
-  return value ? "Evet" : "Hayır";
+function formatBool(value: boolean, t: (key: TranslationKey) => string): string {
+  return value ? t("common.yes") : t("common.no");
 }
 
 function formatHours(value: number | null): string {
@@ -15,6 +16,7 @@ function formatHours(value: number | null): string {
 
 export function LicenseClassDefinitionDetailPage() {
   const navigate = useNavigate();
+  const t = useT();
   const { definitionId } = useParams<{ definitionId: string }>();
 
   const definitionQuery = useQuery({
@@ -24,7 +26,7 @@ export function LicenseClassDefinitionDetailPage() {
   });
   const definition = definitionQuery.data ?? null;
   const loading = definitionQuery.isLoading;
-  const error = definitionQuery.isError ? "Ehliyet tipi bilgileri yüklenemedi" : null;
+  const error = definitionQuery.isError ? t("licenseClassDefinitionDetail.error.loadTitle") : null;
 
   return (
     <div className="instructor-detail">
@@ -46,8 +48,8 @@ export function LicenseClassDefinitionDetailPage() {
 
       {!loading && error && (
         <PageLoadError
-          title="Ehliyet tipi bilgileri yüklenemedi"
-          description="Tanım detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+          title={t("licenseClassDefinitionDetail.error.loadTitle")}
+          description={t("licenseClassDefinitionDetail.error.loadDescription")}
           onRetry={() => void definitionQuery.refetch()}
         />
       )}
@@ -71,24 +73,24 @@ export function LicenseClassDefinitionDetailPage() {
 
           <div className="instructor-detail-summary-grid">
             <Field
-              label="Minimum Yaş"
+              label={t("licenseClassDefinitionDetail.field.minimumAge")}
               value={definition.minimumAge != null ? String(definition.minimumAge) : "—"}
             />
-            <Field label="Görüntü Sırası" value={String(definition.displayOrder)} />
-            <Field label="Mevcut Ehliyet Şartı" value={formatBool(definition.hasExistingLicense)} />
+            <Field label={t("licenseClassDefinitionDetail.field.displayOrder")} value={String(definition.displayOrder)} />
+            <Field label={t("licenseClassDefinitionDetail.field.existingLicenseRequired")} value={formatBool(definition.hasExistingLicense, t)} />
             <Field label="Mevcut Ehliyet Tipi" value={definition.existingLicenseType ?? "—"} />
             <Field
-              label="2016 Öncesi Ehliyet"
-              value={formatBool(definition.existingLicensePre2016)}
+              label={t("licenseClassDefinitionDetail.field.pre2016License")}
+              value={formatBool(definition.existingLicensePre2016, t)}
             />
           </div>
 
           <div className="instructor-detail-summary-grid">
-            <Field label="Teorik Sınav" value={formatBool(definition.requiresTheoryExam)} />
-            <Field label="Direksiyon Sınavı" value={formatBool(definition.requiresPracticeExam)} />
+            <Field label={t("licenseClassDefinitionDetail.field.theoryExam")} value={formatBool(definition.requiresTheoryExam, t)} />
+            <Field label={t("licenseClassDefinitionDetail.field.practiceExam")} value={formatBool(definition.requiresPracticeExam, t)} />
             <Field label="Teorik Ders Saati" value={formatHours(definition.theoryLessonHours)} />
             <Field
-              label="Simülatör Ders Saati"
+              label={t("licenseClassDefinitionDetail.field.simulatorHours")}
               value={formatHours(definition.simulatorLessonHours)}
             />
             <Field

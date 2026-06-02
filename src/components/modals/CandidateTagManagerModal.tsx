@@ -5,7 +5,7 @@ import { ApiError } from "../../lib/http";
 import type { CandidateTag } from "../../lib/types";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 
 type CandidateTagManagerModalProps = {
   open: boolean;
@@ -20,8 +20,8 @@ function normalizeTagName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
-function usageLabel(count: number): string {
-  return count === 1 ? "1 aday" : `${count} aday`;
+function usageLabel(count: number, t: (key: TranslationKey, params?: Record<string, string | number>) => string): string {
+  return count === 1 ? t("tagManager.usage.singular") : t("tagManager.usage.plural", { count });
 }
 
 export function CandidateTagManagerModal({
@@ -71,7 +71,7 @@ export function CandidateTagManagerModal({
     if (!canManage) return;
     const nextName = normalizeTagName(draftName);
     if (!nextName) {
-      showToast("Etiket adı boş olamaz", "error");
+      showToast(t("tagManager.toast.nameEmpty"), "error");
       return;
     }
 
@@ -80,7 +80,7 @@ export function CandidateTagManagerModal({
     try {
       const saved = await updateCandidateTag(tag.id, nextName);
       onRenamed(tag, saved);
-      showToast(saved.id === tag.id ? "Etiket güncellendi" : "Etiket birleştirildi");
+      showToast(t(saved.id === tag.id ? "tagManager.toast.updated" : "tagManager.toast.merged"));
       cancelEditing();
     } catch (error) {
       if (error instanceof ApiError) {
@@ -88,10 +88,10 @@ export function CandidateTagManagerModal({
         if (firstMessage) {
           showToast(firstMessage, "error");
         } else {
-          showToast("Etiket güncellenemedi", "error");
+          showToast(t("tagManager.toast.updateFailed"), "error");
         }
       } else {
-        showToast("Etiket güncellenemedi", "error");
+        showToast(t("tagManager.toast.updateFailed"), "error");
       }
     } finally {
       setSavingId(null);
@@ -105,13 +105,13 @@ export function CandidateTagManagerModal({
     try {
       await deleteCandidateTag(tag.id);
       onDeleted(tag);
-      showToast("Etiket silindi");
+      showToast(t("tagManager.toast.deleted"));
       setConfirmDeleteId(null);
       if (editingId === tag.id) {
         cancelEditing();
       }
     } catch {
-      showToast("Etiket silinemedi", "error");
+      showToast(t("tagManager.toast.deleteFailed"), "error");
     } finally {
       setSavingId(null);
     }
@@ -129,7 +129,7 @@ export function CandidateTagManagerModal({
       title={t("candidateTagManager.modalTitle")}
     >
       {sortedTags.length === 0 ? (
-        <div className="tag-manager-empty">Henüz etiket yok.</div>
+        <div className="tag-manager-empty">{t("tagManager.empty")}</div>
       ) : (
         <div className="tag-manager-list">
           {sortedTags.map((tag) => {
@@ -143,7 +143,7 @@ export function CandidateTagManagerModal({
                 <div className="tag-manager-meta">
                   {isEditing ? (
                     <input
-                      aria-label={`${tag.name} etiket adı`}
+                      aria-label={t("tagManager.aria.tagName", { name: tag.name })}
                       className="form-input"
                       disabled={isSaving || !canManage}
                       onChange={(event) => setDraftName(event.target.value)}
@@ -155,8 +155,8 @@ export function CandidateTagManagerModal({
                     <div className="tag-manager-name">{tag.name}</div>
                   )}
                   <div className="tag-manager-usage">
-                    {usageLabel(count)}
-                    {isConfirmingDelete ? " sistem genelinde kaldırılacak." : " kullanıyor."}
+                    {usageLabel(count, t)}
+                    {isConfirmingDelete ? t("tagManager.deleteConfirm") : t("tagManager.inUse")}
                   </div>
                 </div>
                 <div className="tag-manager-actions">
@@ -197,7 +197,7 @@ export function CandidateTagManagerModal({
                         title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
-                        {isSaving ? "Siliniyor..." : "Evet, Sil"}
+                        {isSaving ? t("tagManager.confirm.deleting") : t("tagManager.confirm.yesDelete")}
                       </button>
                     </>
                   ) : (
@@ -209,7 +209,7 @@ export function CandidateTagManagerModal({
                         title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
-                        Düzenle
+                        {t("common.edit")}
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
@@ -222,7 +222,7 @@ export function CandidateTagManagerModal({
                         title={!canManage ? noPermissionTitle : undefined}
                         type="button"
                       >
-                        Sil
+                        {t("common.delete")}
                       </button>
                     </>
                   )}

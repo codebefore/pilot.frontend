@@ -44,17 +44,11 @@ const AREA_LABEL_KEY: Record<string, TranslationKey> = {
   settings: "nav.settings",
 };
 
-const LEVEL_LABEL: Record<MatrixValue, string> = {
-  none: "Yok",
-  view: "Görüntüle",
-  full: "Tam Yetki",
+const LEVEL_LABEL_KEY: Record<MatrixValue, TranslationKey> = {
+  none: "permissions.level.none",
+  view: "permissions.level.view",
+  full: "permissions.level.full",
 };
-
-const PERMISSION_OPTIONS: { value: MatrixValue; label: string }[] = [
-  { value: "none", label: LEVEL_LABEL.none },
-  { value: "view", label: LEVEL_LABEL.view },
-  { value: "full", label: LEVEL_LABEL.full },
-];
 
 export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const t = useT();
@@ -152,7 +146,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   // does not double-fire the toast.
   useEffect(() => {
     if (rolePermissionsQuery.isError && selectedRoleId) {
-      showToast("Yetkiler yüklenemedi", "error");
+      showToast(t("permissions.toast.loadFailed"), "error");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolePermissionsQuery.isError, selectedRoleId]);
@@ -301,8 +295,8 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const content = loadError ? (
     <div className={embedded ? undefined : "spaced"}>
       <PageLoadError
-        title="Roller yüklenemedi"
-        description="Rol listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+        title={t("permissions.error.loadTitle")}
+        description={t("permissions.error.loadDescription")}
         onRetry={() => {
           void queryClient.invalidateQueries({ queryKey: ["roles", "list", { includeInactive: false }] });
           void queryClient.invalidateQueries({ queryKey: ["permissionAreas", "list"] });
@@ -403,7 +397,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                     <>
                       <span className="permissions-delete-hint">
                         {selectedRole.userCount > 0
-                          ? `"${selectedRole.name}" silinsin mi? ${selectedRole.userCount} kullanıcı rolsüz kalacak.`
+                          ? t("permissions.confirmDeleteRole", { role: selectedRole.name, count: selectedRole.userCount })
                           : `"${selectedRole.name}" silinsin mi?`}
                       </span>
                       <button
@@ -480,26 +474,26 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                         <div className="permissions-row-copy">
                           <div className="permissions-row-title">{label}</div>
                           <div className="permissions-row-value">
-                            {LEVEL_LABEL[value]}
+                            {t(LEVEL_LABEL_KEY[value])}
                           </div>
                         </div>
 
                         <div className="permissions-level-group" role="group" aria-label={label}>
-                          {PERMISSION_OPTIONS.map((option) => (
+                          {(["none", "view", "full"] as MatrixValue[]).map((optionValue) => (
                             <button
-                              aria-pressed={value === option.value}
+                              aria-pressed={value === optionValue}
                               className={
-                                value === option.value
-                                  ? `permissions-level-btn active ${option.value}`
+                                value === optionValue
+                                  ? `permissions-level-btn active ${optionValue}`
                                   : "permissions-level-btn"
                               }
-                              key={option.value}
+                              key={optionValue}
                               disabled={!canManagePermissions}
-                              onClick={() => handleLevelChange(area, option.value)}
+                              onClick={() => handleLevelChange(area, optionValue)}
                               title={!canManagePermissions ? noPermissionTitle : undefined}
                               type="button"
                             >
-                              {option.label}
+                              {t(LEVEL_LABEL_KEY[optionValue])}
                             </button>
                           ))}
                         </div>
@@ -520,7 +514,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
         <div className="settings-section-stack">
           <section className="settings-surface">
             <div className="settings-surface-header">
-              <div className="settings-surface-title">Yetki Yönetimi</div>
+              <div className="settings-surface-title">{t("permissions.title")}</div>
               <div className="settings-module-actions">{actions}</div>
             </div>
             <div className="settings-surface-body">{content}</div>
@@ -528,7 +522,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
         </div>
       ) : (
         <>
-          <PageToolbar actions={actions} title="Yetki Yönetimi" />
+          <PageToolbar actions={actions} title={t("permissions.title")} />
           {content}
         </>
       )}
@@ -545,7 +539,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
         }
         onClose={cancelDiscardChanges}
         open={discardAction !== null}
-        title="Kaydedilmemiş Değişiklikler"
+        title={t("permissions.unsavedChanges")}
       >
         <p className="form-subsection-note">
           Kaydedilmemiş yetki değişiklikleri silinecek. Devam etmek istiyor musun?

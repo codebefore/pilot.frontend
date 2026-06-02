@@ -5,11 +5,13 @@ import { TrainingBranchFormModal } from "../modals/TrainingBranchFormModal";
 import { StatusPill } from "../ui/StatusPill";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
+import { useT } from "../../lib/i18n";
 import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import type { TrainingBranchDefinitionResponse } from "../../lib/types";
 
 export function TrainingBranchesSettingsSection() {
   const { showToast } = useToast();
+  const t = useT();
   const { user } = useAuth();
   const canManage = user?.isSuperAdmin ?? false;
   const [items, setItems] = useState<TrainingBranchDefinitionResponse[]>([]);
@@ -28,7 +30,7 @@ export function TrainingBranchesSettingsSection() {
       .then((response) => setItems(response.items))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Branş listesi yüklenemedi", "error");
+        showToast(t("trainingBranchSettings.toast.loadFailed"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -53,7 +55,7 @@ export function TrainingBranchesSettingsSection() {
   };
 
   const handleSaved = () => {
-    showToast("Branş güncellendi");
+    showToast(t("trainingBranchSettings.toast.updated"));
     closeForm();
     setRefreshKey((value) => value + 1);
   };
@@ -63,7 +65,7 @@ export function TrainingBranchesSettingsSection() {
       <div className="settings-section-stack">
         <div className="settings-summary-grid">
           <div className="settings-summary-card">
-            <span className="settings-summary-label">Toplam Branş</span>
+            <span className="settings-summary-label">{t("trainingBranchSettings.summary.total")}</span>
             <strong className="settings-summary-value">{summary.total}</strong>
           </div>
           <div className="settings-summary-card">
@@ -78,7 +80,7 @@ export function TrainingBranchesSettingsSection() {
 
         <section className="settings-surface">
           <div className="settings-surface-header">
-            <div className="settings-surface-title">Branş Listesi</div>
+            <div className="settings-surface-title">{t("trainingBranchSettings.list.title")}</div>
           </div>
 
           <div className="settings-panel-note">
@@ -128,7 +130,7 @@ export function TrainingBranchesSettingsSection() {
                     </td>
                     <td className="settings-table-actions">
                       <button
-                        aria-label="Düzenle"
+                        aria-label={t("common.edit")}
                         className="icon-button"
                         disabled={!canManage}
                         onClick={() => {
@@ -136,7 +138,7 @@ export function TrainingBranchesSettingsSection() {
                           setEditing(item);
                           setFormOpen(true);
                         }}
-                        title={!canManage ? "Yetkiniz yok." : "Düzenle"}
+                        title={!canManage ? t("common.noPermission") : t("common.edit")}
                         type="button"
                       >
                         <PencilIcon size={16} />

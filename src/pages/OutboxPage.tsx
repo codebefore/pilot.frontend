@@ -7,6 +7,7 @@ import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
+import { useT } from "../lib/i18n";
 import {
   getDomainEventStreamStatus,
   getInboxMessages,
@@ -24,7 +25,7 @@ import type { JobStatus } from "../types";
 type QueueTab = "outbox" | "inbox" | "stream";
 
 const OUTBOX_STATUS_OPTIONS: { value: "all" | OutboxMessageStatus; label: string }[] = [
-  { value: "all", label: "Tümü" },
+  { value: "all", label: "All" /* fallback, render uses t() */ },
   { value: "pending", label: "Pending" },
   { value: "failed", label: "Failed" },
   { value: "dead_letter", label: "Dead-letter" },
@@ -32,7 +33,7 @@ const OUTBOX_STATUS_OPTIONS: { value: "all" | OutboxMessageStatus; label: string
 ];
 
 const INBOX_STATUS_OPTIONS: { value: "all" | InboxMessageStatus; label: string }[] = [
-  { value: "all", label: "Tümü" },
+  { value: "all", label: "All" /* fallback, render uses t() */ },
   { value: "processing", label: "Processing" },
   { value: "failed", label: "Failed" },
   { value: "dead_letter", label: "Dead-letter" },
@@ -40,6 +41,7 @@ const INBOX_STATUS_OPTIONS: { value: "all" | InboxMessageStatus; label: string }
 ];
 
 export function OutboxPage() {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<QueueTab>("outbox");
   const [outboxStatus, setOutboxStatus] = useState<"all" | OutboxMessageStatus>("dead_letter");
   const [inboxStatus, setInboxStatus] = useState<"all" | InboxMessageStatus>("dead_letter");
@@ -69,21 +71,21 @@ export function OutboxPage() {
   const retryOutboxMutation = useMutation({
     mutationFn: retryOutboxMessage,
     onSuccess: async () => {
-      showToast("Outbox mesajı tekrar kuyruğa alındı");
+      showToast(t("outbox.toast.outboxRequeued"));
       await queryClient.invalidateQueries({ queryKey: ["outbox", "messages"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     },
-    onError: () => showToast("Outbox mesajı tekrar kuyruğa alınamadı", "error"),
+    onError: () => showToast(t("outbox.toast.outboxRequeueFailed"), "error"),
   });
 
   const retryInboxMutation = useMutation({
     mutationFn: retryInboxMessage,
     onSuccess: async () => {
-      showToast("Inbox mesajı tekrar işlenebilir duruma alındı");
+      showToast(t("outbox.toast.inboxRequeued"));
       await queryClient.invalidateQueries({ queryKey: ["inbox", "messages"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     },
-    onError: () => showToast("Inbox mesajı tekrar işlenebilir duruma alınamadı", "error"),
+    onError: () => showToast(t("outbox.toast.inboxRequeueFailed"), "error"),
   });
 
   const activeQuery =
@@ -184,10 +186,11 @@ function DomainEventStreamStatus({
 }: {
   query: ReturnType<typeof useQuery<DomainEventStreamStatusResponse>>;
 }) {
+  const t = useT();
   if (query.isError) {
     return (
       <PageLoadError
-        description="Domain event stream durumu yüklenemedi."
+        description={t("outbox.streamStatusError")}
         onRetry={() => void query.refetch()}
         variant="card"
       />
@@ -195,11 +198,11 @@ function DomainEventStreamStatus({
   }
 
   if (query.isLoading) {
-    return <div className="data-table-empty">Yükleniyor...</div>;
+    return <div className="data-table-empty">{t("outbox.loading")}</div>;
   }
 
   if (!query.data) {
-    return <div className="data-table-empty">Stream durumu bulunamadı.</div>;
+    return <div className="data-table-empty">{t("outbox.streamNotFound")}</div>;
   }
 
   const status = query.data;
@@ -219,7 +222,7 @@ function DomainEventStreamStatus({
         ) : null}
       </div>
       <div className="queue-health-metrics">
-        <span>Durum: {status.enabled ? "Aktif" : "Kapalı"}</span>
+        <span>{t("outbox.status.label")}: {status.enabled ? t("outbox.status.active") : t("outbox.status.disabled")}</span>
         <span>Stream: {status.streamCount}</span>
         <span>Pending: {formatNullableNumber(status.pendingMessageCount)}</span>
         <span>Consumer: {formatNullableNumber(status.consumerCount)}</span>
@@ -241,16 +244,17 @@ function OutboxTable({
   query: ReturnType<typeof useQuery<{ items: OutboxMessageResponse[] }>>;
   retryingId?: string;
 }) {
+  const t = useT();
   return query.isError ? (
     <PageLoadError
-      description="Outbox mesajları yüklenemedi."
+      description={t("outbox.outboxError")}
       onRetry={() => void query.refetch()}
       variant="card"
     />
   ) : query.isLoading ? (
-    <div className="data-table-empty">Yükleniyor...</div>
+    <div className="data-table-empty">{t("outbox.loading")}</div>
   ) : messages.length === 0 ? (
-    <div className="data-table-empty">Outbox mesajı yok.</div>
+    <div className="data-table-empty">{t("outbox.outboxEmpty")}</div>
   ) : (
     <div className="data-table-wrap">
       <table className="data-table">
@@ -292,16 +296,17 @@ function InboxTable({
   query: ReturnType<typeof useQuery<{ items: InboxMessageResponse[] }>>;
   retryingId?: string;
 }) {
+  const t = useT();
   return query.isError ? (
           <PageLoadError
-      description="Inbox mesajları yüklenemedi."
+      description={t("outbox.inboxError")}
       onRetry={() => void query.refetch()}
             variant="card"
           />
   ) : query.isLoading ? (
-    <div className="data-table-empty">Yükleniyor...</div>
+    <div className="data-table-empty">{t("outbox.loading")}</div>
   ) : messages.length === 0 ? (
-    <div className="data-table-empty">Inbox mesajı yok.</div>
+    <div className="data-table-empty">{t("outbox.inboxEmpty")}</div>
   ) : (
     <div className="data-table-wrap">
       <table className="data-table">
@@ -341,6 +346,7 @@ function OutboxRow({
   onRetry: (id: string) => void;
   retrying: boolean;
 }) {
+  const t = useT();
   const canRetry = message.status === "dead_letter" || message.status === "failed";
 
   return (
@@ -370,7 +376,7 @@ function OutboxRow({
             onClick={() => onRetry(message.id)}
             type="button"
           >
-            {retrying ? "Alınıyor..." : "Retry"}
+            {retrying ? t("outbox.retrying") : "Retry"}
           </button>
         ) : null}
       </td>
@@ -387,6 +393,7 @@ function InboxRow({
   onRetry: (id: string) => void;
   retrying: boolean;
 }) {
+  const t = useT();
   const canRetry = message.status === "dead_letter" || message.status === "failed";
 
   return (
@@ -413,7 +420,7 @@ function InboxRow({
             onClick={() => onRetry(message.id)}
             type="button"
           >
-            {retrying ? "Alınıyor..." : "Retry"}
+            {retrying ? t("outbox.retrying") : "Retry"}
           </button>
         ) : null}
       </td>

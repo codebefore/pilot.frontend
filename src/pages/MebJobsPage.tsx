@@ -337,10 +337,10 @@ export function MebJobsPage() {
     setActionPendingId(job.id);
     try {
       await cancelMebbisJob(job.id);
-      showToast("İş iptal edildi");
+      showToast(t("mebJobs.toast.cancelled"));
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
     } catch {
-      showToast("İş iptal edilemedi", "error");
+      showToast(t("mebJobs.toast.cancelFailed"), "error");
     } finally {
       setActionPendingId(null);
     }
@@ -355,7 +355,7 @@ export function MebJobsPage() {
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
     } catch {
-      showToast("Kuyruk işleri yeniden denenemedi", "error");
+      showToast(t("mebJobs.toast.retryFailed"), "error");
     } finally {
       setQueueRetrying(false);
     }
@@ -440,8 +440,8 @@ export function MebJobsPage() {
       <div className="table-wrap">
         {loadError ? (
           <PageLoadError
-            title="MEB işleri yüklenemedi"
-            description="MEB iş listesi şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+            title={t("mebJobs.error.loadTitle")}
+            description={t("mebJobs.error.loadDescription")}
             onRetry={() => void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] })}
           />
         ) : (
@@ -456,11 +456,11 @@ export function MebJobsPage() {
                       active={jobTypeFilter !== "all"}
                       onChange={setJobTypeFilter}
                       options={jobTypeOptions}
-                      title="İş Tipi"
+                      title={t("mebJobs.filter.jobType")}
                       value={jobTypeFilter}
                     />
                   }
-                  label="İş Tipi"
+                  label={t("mebJobs.filter.jobType")}
                   onToggle={toggleSort}
                   sort={sort}
                 />
@@ -486,11 +486,11 @@ export function MebJobsPage() {
                       active={stepFilter !== "all"}
                       onChange={setStepFilter}
                       options={stepFilterOptions}
-                      title="Adım"
+                      title={t("mebJobs.filter.step")}
                       value={stepFilter}
                     />
                   }
-                  label="Adım"
+                  label={t("mebJobs.filter.step")}
                   onToggle={toggleSort}
                   sort={sort}
                 />
@@ -522,11 +522,11 @@ export function MebJobsPage() {
                       active={startedAtFilter !== "all"}
                       onChange={setStartedAtFilter}
                       options={startedAtFilterOptions}
-                      title="Başlangıç"
+                      title={t("mebJobs.filter.startTime")}
                       value={startedAtFilter}
                     />
                   }
-                  label="Başlangıç"
+                  label={t("mebJobs.filter.startTime")}
                   onToggle={toggleSort}
                   sort={sort}
                 />
@@ -537,11 +537,11 @@ export function MebJobsPage() {
                       active={durationFilter !== "all"}
                       onChange={setDurationFilter}
                       options={durationFilterOptions}
-                      title="Süre"
+                      title={t("mebJobs.filter.duration")}
                       value={durationFilter}
                     />
                   }
-                  label="Süre"
+                  label={t("mebJobs.filter.duration")}
                   onToggle={toggleSort}
                   sort={sort}
                 />
@@ -630,7 +630,7 @@ export function MebJobsPage() {
           if (!canManageMebJobs) return;
           await createCandidateLookupJob(values.candidateId);
           setModalOpen(false);
-          showToast("MEB işi kuyruğa alındı");
+          showToast(t("mebJobs.toast.queued"));
           void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
         }}
         open={modalOpen}
@@ -734,6 +734,7 @@ function QueueHealthBand({
   retrying: boolean;
   status?: Awaited<ReturnType<typeof getMebbisJobQueueStatus>>;
 }) {
+  const t = useT();
   const hasUnpublished = (status?.unpublishedPendingCount ?? 0) > 0;
   const tone =
     status?.healthStatus === "danger"
@@ -749,7 +750,7 @@ function QueueHealthBand({
         <span className="queue-health-title">Kuyruk</span>
         <span className="queue-health-meta">
           {loading
-            ? "Durum alınıyor"
+            ? t("mebJobs.statusUnknown")
             : `${status?.streamsEnabled ? "Redis Stream" : "DB fallback"} · ${status?.streamName ?? "-"} · ${status?.consumerGroupName ?? "-"}`}
         </span>
         {status?.healthMessage && <span className="queue-health-message">{status.healthMessage}</span>}

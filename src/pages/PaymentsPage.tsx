@@ -1761,7 +1761,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         return a[1].localeCompare(b[1], "tr-TR", { numeric: true });
       });
       options.set(column.id as DetailSortField, [
-        { value: "all", label: "Tümü" },
+        { value: "all", label: t("payments.datePreset.all") },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
@@ -1808,7 +1808,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         }
       }
       options.set(column.id as InvoiceSortField, [
-        { value: "all", label: "Tümü" },
+        { value: "all", label: t("payments.datePreset.all") },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
@@ -1841,7 +1841,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         return a[1].localeCompare(b[1], "tr-TR", { numeric: true });
       });
       options.set(column.id as InstallmentSortField, [
-        { value: "all", label: "Tümü" },
+        { value: "all", label: t("payments.datePreset.all") },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
@@ -1877,7 +1877,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         return a[1].localeCompare(b[1], "tr-TR", { numeric: true });
       });
       options.set(column.id as DebtSortField, [
-        { value: "all", label: "Tümü" },
+        { value: "all", label: t("payments.datePreset.all") },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
@@ -1899,7 +1899,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         return a[1].localeCompare(b[1], "tr-TR", { numeric: true });
       });
       options.set(column.id, [
-        { value: "all", label: "Tümü" },
+        { value: "all", label: t("payments.datePreset.all") },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
@@ -2126,7 +2126,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         return a[1].localeCompare(b[1], "tr-TR", { numeric: true });
       });
       options.set(column.id, [
-        { value: "all", label: "Tümü" },
+        { value: "all", label: t("payments.datePreset.all") },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
@@ -2295,7 +2295,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         return a[1].localeCompare(b[1], "tr-TR", { numeric: true });
       });
       options.set(column.id, [
-        { value: "all", label: "Tümü" },
+        { value: "all", label: t("payments.datePreset.all") },
         ...sortedValues.map(([value, label]) => ({ value, label })),
       ]);
     }
@@ -2885,21 +2885,21 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       <PageToolbar
         title={
           isBalancesPage
-            ? "Bakiyeler"
+            ? t("payments.page.title.balances")
             : isCollectionsPage
-            ? "Tahsilatlar"
+            ? t("payments.page.title.collections")
             : isInvoicesPage
-              ? "Faturalar"
+              ? t("payments.page.title.invoices")
             : isCashPage
-              ? "Kasalar"
+              ? t("payments.page.title.cash")
               : isStatisticsPage
-              ? "İstatistik"
-              : "Finans"
+              ? t("payments.page.title.statistics")
+              : t("payments.page.title.finance")
         }
       />
 
       {loading && !overview ? (
-        <div className="page-loading">Yükleniyor...</div>
+        <div className="page-loading">{t("payments.loading")}</div>
       ) : (
         <>
           {!isStatisticsPage ? (
@@ -2912,12 +2912,12 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                 Dönem
               </label>
               <LocalizedDateInput
-                ariaLabel="Dönem"
+                ariaLabel={t("common.field.term")}
                 className="form-input"
                 mode="month"
                 name="payments-period-month"
                 onChange={applyPeriodMonth}
-                placeholder="Dönem"
+                placeholder={t("common.field.term")}
                 value={periodMonth}
               />
             </div>
@@ -2946,7 +2946,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                 Başlangıç
               </label>
               <LocalizedDateInput
-                ariaLabel="Başlangıç"
+                ariaLabel={t("common.field.startDate")}
                 className="form-input"
                 name="payments-from-date"
                 onChange={(value) => {
@@ -2954,7 +2954,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   setPeriodMonth("");
                   setFromDate(value);
                 }}
-                placeholder="Başlangıç"
+                placeholder={t("common.field.startDate")}
                 value={fromDate}
               />
             </div>
@@ -2963,7 +2963,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                 Bitiş
               </label>
               <LocalizedDateInput
-                ariaLabel="Bitiş"
+                ariaLabel={t("common.field.endDate")}
                 className="form-input"
                 name="payments-to-date"
                 onChange={(value) => {
@@ -2971,7 +2971,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   setPeriodMonth("");
                   setToDate(value);
                 }}
-                placeholder="Bitiş"
+                placeholder={t("common.field.endDate")}
                 value={toDate}
               />
             </div>
@@ -2989,32 +2989,32 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           <div className="payments-filters payments-filters--statistics">
             <div className="payments-filter-field">
               <LocalizedDateInput
-                ariaLabel="Dönem"
+                ariaLabel={t("common.field.term")}
                 className="form-input"
                 mode="month"
                 name="payments-stats-month"
                 onChange={applyStatsMonth}
-                placeholder="Dönem"
+                placeholder={t("common.field.term")}
                 value={statsMonth}
               />
             </div>
             <div className="payments-filter-field">
               <LocalizedDateInput
-                ariaLabel="Başlangıç"
+                ariaLabel={t("common.field.startDate")}
                 className="form-input"
                 name="payments-stats-from-date"
                 onChange={applyStatsFromDate}
-                placeholder="Başlangıç"
+                placeholder={t("common.field.startDate")}
                 value={statsFromDate}
               />
             </div>
             <div className="payments-filter-field">
               <LocalizedDateInput
-                ariaLabel="Bitiş"
+                ariaLabel={t("common.field.endDate")}
                 className="form-input"
                 name="payments-stats-to-date"
                 onChange={applyStatsToDate}
-                placeholder="Bitiş"
+                placeholder={t("common.field.endDate")}
                 value={statsToDate}
               />
             </div>
@@ -3113,7 +3113,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             {isCashPage ? (
             <div className="finance-matrix-card-head">
               <div>
-                <h3 className="candidate-detail-section-title">Kasa Özeti</h3>
+                <h3 className="candidate-detail-section-title">{t("payments.cashSummary.title")}</h3>
               </div>
             </div>
             ) : isInvoicesPage ? null : (
@@ -3121,25 +3121,25 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
               <div>
                 <h3 className="candidate-detail-section-title">
                   {isCollectionsPage
-                    ? "Tahsilatlar"
+                    ? t("payments.page.title.collections")
                     : isBalancesPage
-                      ? "Bakiyeler"
+                      ? t("payments.page.title.balances")
                     : isInvoicesPage
-                      ? "Faturalar"
+                      ? t("payments.page.title.invoices")
                     : isCashPage
-                      ? "Kasa"
-                      : "Finans Detayı"}
+                      ? t("payments.page.title.cash")
+                      : t("payments.financeDetail.title")}
                 </h3>
                 <div className="finance-matrix-card-subtitle">
                   {isCollectionsPage
-                    ? "Seçili tarih aralığındaki tahsilat, iade ve iptal hareketleri."
+                    ? t("payments.description.collections")
                     : isBalancesPage
-                      ? "Seçili tarih aralığındaki bakiye vadeleri ve bakiyeler."
+                      ? t("payments.description.installments")
                     : isInvoicesPage
-                      ? "Seçili tarih aralığındaki faturalar."
+                      ? t("payments.description.invoices")
                     : isCashPage
-                      ? "Seçili tarih aralığındaki kasa özeti ve kasa hareketleri."
-                      : "Seçili tarih aralığındaki bakiye vadeleri ve bakiyeler."}
+                      ? t("payments.description.cashSummary")
+                      : t("payments.description.installments")}
                 </div>
               </div>
             </div>
@@ -3152,7 +3152,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   <div
                     className="finance-detail-tabs"
                     role="tablist"
-                    aria-label="Finans hareket türü"
+                    aria-label={t("payments.aria.movementType")}
                   >
                     {isInvoicesPage ? (
                     <button
@@ -3187,7 +3187,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   </div>
                 ) : null}
                 {isCashPage ? (
-                  <div className="finance-cash-actions" aria-label="Kasa aksiyonları">
+                  <div className="finance-cash-actions" aria-label={t("payments.aria.cashActions")}>
                     <button
                       className="finance-cash-action finance-cash-action--inflow"
                       disabled={!canManagePayments}
@@ -3230,14 +3230,14 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   <div
                     className="finance-detail-tabs"
                     role="tablist"
-                    aria-label="Finans diğer detayları"
+                    aria-label={t("payments.aria.otherDetails")}
                   >
                   </div>
                 ) : null}
               </div>
               {detailGroup === "cashSummary" || detailGroup === "cashMovements" ? null : (
                 <input
-                  aria-label="Aday adı filtresi"
+                  aria-label={t("payments.aria.candidateNameFilter")}
                   className="form-input finance-detail-search"
                   onChange={(event) =>
                     setDetailColumnFilter("candidate", event.target.value)
@@ -3255,7 +3255,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   <div
                     className="finance-detail-tabs"
                     role="tablist"
-                    aria-label="Fatura görünümü"
+                    aria-label={t("payments.aria.invoiceView")}
                   >
                     <button
                       aria-selected={invoiceView === "movements"}
@@ -3348,7 +3348,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                         options={
                                           installmentFilterOptions.get(
                                             column.id as InstallmentSortField,
-                                          ) ?? [{ value: "all", label: "Tümü" }]
+                                          ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                         }
                                         title={`${column.label} filtresi`}
                                         value={
@@ -3470,7 +3470,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                         options={
                                           debtFilterOptions.get(
                                             column.id as DebtSortField,
-                                          ) ?? [{ value: "all", label: "Tümü" }]
+                                          ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                         }
                                         title={`${column.label} filtresi`}
                                         value={
@@ -3591,7 +3591,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                       options={
                                         detailFilterOptions.get(
                                           column.id as DetailSortField,
-                                        ) ?? [{ value: "all", label: "Tümü" }]
+                                        ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                       }
                                       title={`${column.label} filtresi`}
                                       value={
@@ -3613,12 +3613,12 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                         <ColumnPicker
                           columns={detailColumnOptions}
                           isVisible={isDetailColumnVisible}
-                          menuTitle="Finans kolonları"
+                          menuTitle={t("payments.menu.financeColumns")}
                           onReset={resetDetailColumns}
                           onToggle={(columnId) =>
                             toggleDetailColumn(columnId as DetailColumnId)
                           }
-                          resetLabel="Varsayılana dön"
+                          resetLabel={t("payments.menu.resetDefault")}
                           triggerTitle="Kolonlar"
                         />
                       </th>
@@ -3737,7 +3737,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                         options={
                                           invoiceFilterOptions.get(
                                             column.id as InvoiceSortField,
-                                          ) ?? [{ value: "all", label: "Tümü" }]
+                                          ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                         }
                                         title={`${column.label} filtresi`}
                                         value={
@@ -3759,12 +3759,12 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                           <ColumnPicker
                             columns={invoiceColumnOptions}
                             isVisible={isInvoiceColumnVisible}
-                            menuTitle="Fatura kolonları"
+                            menuTitle={t("payments.menu.invoiceColumns")}
                             onReset={resetInvoiceColumns}
                             onToggle={(columnId) =>
                               toggleInvoiceColumn(columnId as InvoiceColumnId)
                             }
-                            resetLabel="Varsayılana dön"
+                            resetLabel={t("payments.menu.resetDefault")}
                             triggerTitle="Kolonlar"
                           />
                         </th>
@@ -3870,14 +3870,14 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                           <ColumnPicker
                             columns={invoiceAnalysisColumnOptions}
                             isVisible={isInvoiceAnalysisColumnVisible}
-                            menuTitle="Fatura analiz kolonları"
+                            menuTitle={t("payments.menu.invoiceAnalysisColumns")}
                             onReset={resetInvoiceAnalysisColumns}
                             onToggle={(columnId) =>
                               toggleInvoiceAnalysisColumn(
                                 columnId as InvoiceAnalysisColumnId,
                               )
                             }
-                            resetLabel="Varsayılana dön"
+                            resetLabel={t("payments.menu.resetDefault")}
                             triggerTitle="Kolonlar"
                           />
                         </th>
@@ -3979,7 +3979,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                     options={
                                       cashSummaryFilterOptions.get(
                                         column.id,
-                                      ) ?? [{ value: "all", label: "Tümü" }]
+                                      ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                     }
                                     title={`${t(column.labelKey)} filtresi`}
                                     value={
@@ -4092,7 +4092,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                     options={
                                       cashMovementFilterOptions.get(
                                         column.id,
-                                      ) ?? [{ value: "all", label: "Tümü" }]
+                                      ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                     }
                                     title={`${column.label} filtresi`}
                                     value={
@@ -4212,7 +4212,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   options={
                                     cashMovementFilterOptions.get(
                                       column.id,
-                                    ) ?? [{ value: "all", label: "Tümü" }]
+                                    ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                   }
                                   title={`${column.label} filtresi`}
                                   value={
@@ -4325,7 +4325,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   }
                                   options={
                                     periodStatsFilterOptions.get(column.id) ?? [
-                                      { value: "all", label: "Tümü" },
+                                      { value: "all", label: t("payments.datePreset.all") },
                                     ]
                                   }
                                   title={`${column.label} filtresi`}

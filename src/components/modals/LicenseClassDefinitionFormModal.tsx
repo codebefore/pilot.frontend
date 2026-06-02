@@ -32,15 +32,15 @@ const optionalNonNegInt = (max: number, message: string) =>
 const licenseClassDefinitionSchema = z.object({
   code: z.string().min(1, "Hedef kod zorunlu"),
   category: z.string(),
-  minimumAge: optionalNonNegInt(100, "Yaş şartı 0 ile 100 arasında olmalı"),
+  minimumAge: optionalNonNegInt(100, "licenseClassDefForm.error.ageRange"),
   hasExistingLicense: z.boolean(),
   existingLicenseType: z.string(),
   existingLicensePre2016: z.boolean(),
   requiresTheoryExam: z.boolean(),
   requiresPracticeExam: z.boolean(),
-  theoryLessonHours: optionalNonNegInt(999, "Ders saati 0 ile 999 arasında olmalı"),
-  simulatorLessonHours: optionalNonNegInt(999, "Ders saati 0 ile 999 arasında olmalı"),
-  directPracticeLessonHours: optionalNonNegInt(999, "Ders saati 0 ile 999 arasında olmalı"),
+  theoryLessonHours: optionalNonNegInt(999, "licenseClassDefForm.error.lessonHoursRange"),
+  simulatorLessonHours: optionalNonNegInt(999, "licenseClassDefForm.error.lessonHoursRange"),
+  directPracticeLessonHours: optionalNonNegInt(999, "licenseClassDefForm.error.lessonHoursRange"),
   isActive: z.boolean(),
   notes: z.string(),
 });
@@ -344,12 +344,12 @@ export function LicenseClassDefinitionFormModal({
 
         <div className="settings-checkbox-list">
           <SwitchField
-            label="Teorik sınav gerekli"
+            label={t("licenseClassDefForm.field.theoryExamRequired")}
             switchValue={watch("requiresTheoryExam")}
             {...register("requiresTheoryExam")}
           />
           <SwitchField
-            label="Direksiyon sınavı gerekli"
+            label={t("licenseClassDefForm.field.practiceExamRequired")}
             switchValue={watch("requiresPracticeExam")}
             {...register("requiresPracticeExam")}
           />
@@ -365,7 +365,7 @@ export function LicenseClassDefinitionFormModal({
 
           <div className="settings-checkbox-list">
             <SwitchField label="Mevcut ehliyet var" switchValue={watch("hasExistingLicense")} {...register("hasExistingLicense")} />
-            <SwitchField label="2016 öncesi" switchValue={watch("existingLicensePre2016")} {...register("existingLicensePre2016")} />
+            <SwitchField label={t("licenseClassDefForm.field.pre2016")} switchValue={watch("existingLicensePre2016")} {...register("existingLicensePre2016")} />
           </div>
 
           <div className="form-row">
@@ -384,7 +384,7 @@ export function LicenseClassDefinitionFormModal({
                     disabled={!watch("hasExistingLicense")}
                     value={field.value ?? ""}
                   >
-                    <option value="">Mevcut tipi seçin</option>
+                    <option value="">{t("licenseClassDefForm.placeholder.selectExistingType")}</option>
                     {existingLicenseSelectOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -414,7 +414,7 @@ export function LicenseClassDefinitionFormModal({
             />
             <NumberField
               error={errors.simulatorLessonHours?.message}
-              label="Simülatör Saati"
+              label={t("licenseClassDefForm.field.simulatorHours")}
               placeholder="2"
               registerProps={register("simulatorLessonHours")}
             />

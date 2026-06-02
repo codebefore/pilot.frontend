@@ -15,14 +15,14 @@ import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 
 const userFormSchema = z.object({
-  fullName: z.string().min(1, "Zorunlu alan").min(3, "En az 3 karakter"),
+  fullName: z.string().min(1, "common.required").min(3, "common.minChars3"),
   phone: z
     .string()
-    .min(1, "Zorunlu alan")
-    .refine((v) => isPhoneStartingWith5(v), "5 ile başlamalı"),
+    .min(1, "common.required")
+    .refine((v) => isPhoneStartingWith5(v), "userForm.phone.startWith5"),
   mebbisUsername: z.string(),
   mebbisPassword: z.string(),
   roleId: z.string(),
@@ -108,6 +108,12 @@ export function UserFormModal({
   const fieldClass = (hasError: boolean, base: "form-input" | "form-select") =>
     hasError ? `${base} error` : base;
 
+  const translateError = (message: string | undefined): string => {
+    if (!message) return "";
+    if (message.includes(".")) return t(message as TranslationKey);
+    return message;
+  };
+
   const submit = handleSubmit(async (values) => {
     if (!canManage) return;
     setSubmitting(true);
@@ -132,7 +138,7 @@ export function UserFormModal({
       if (unmappedMessages[0]) {
         showToast(unmappedMessages[0], "error");
       } else if (!applied) {
-        showToast(editing ? "Kullanıcı güncellenemedi" : "Kullanıcı eklenemedi", "error");
+        showToast(t(editing ? "userForm.toast.updateFailed" : "userForm.toast.addFailed"), "error");
       }
     } finally {
       setSubmitting(false);
@@ -175,11 +181,11 @@ export function UserFormModal({
             <input
               className={fieldClass(!!errors.fullName, "form-input")}
               disabled={!canManage}
-              placeholder="Ad Soyad"
+              placeholder={t("userForm.placeholder.fullName")}
               {...register("fullName")}
             />
             {errors.fullName && (
-              <div className="form-error">{errors.fullName.message}</div>
+              <div className="form-error">{translateError(errors.fullName.message)}</div>
             )}
           </div>
           <div className="form-group">
@@ -190,14 +196,14 @@ export function UserFormModal({
               value={selectedRoleId ?? ""}
               {...register("roleId")}
             >
-              <option value="">— Rol atanmamış —</option>
+              <option value="">{t("userForm.role.unassigned")}</option>
               {activeRoles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
                 </option>
               ))}
             </CustomSelect>
-            {errors.roleId && <div className="form-error">{errors.roleId.message}</div>}
+            {errors.roleId && <div className="form-error">{translateError(errors.roleId.message)}</div>}
           </div>
         </div>
 
@@ -211,7 +217,7 @@ export function UserFormModal({
               placeholder="5XX XXX XX XX"
               {...phoneRegistration}
             />
-            {errors.phone && <div className="form-error">{errors.phone.message}</div>}
+            {errors.phone && <div className="form-error">{translateError(errors.phone.message)}</div>}
           </div>
         </div>
 
@@ -221,11 +227,11 @@ export function UserFormModal({
             <input
               className={fieldClass(!!errors.mebbisUsername, "form-input")}
               disabled={!canManage}
-              placeholder="MEBBİS kullanıcı adı"
+              placeholder={t("userForm.placeholder.mebbisUsername")}
               {...register("mebbisUsername")}
             />
             {errors.mebbisUsername && (
-              <div className="form-error">{errors.mebbisUsername.message}</div>
+              <div className="form-error">{translateError(errors.mebbisUsername.message)}</div>
             )}
           </div>
           <div className="form-group">
@@ -234,15 +240,15 @@ export function UserFormModal({
               autoComplete="new-password"
               className={fieldClass(!!errors.mebbisPassword, "form-input")}
               disabled={!canManage}
-              placeholder={editing?.hasMebbisPassword ? "Değiştirmek için yeni şifre gir" : "MEBBİS şifresi"}
+              placeholder={t(editing?.hasMebbisPassword ? "userForm.placeholder.mebbisPasswordNew" : "userForm.placeholder.mebbisPassword")}
               type="password"
               {...register("mebbisPassword")}
             />
             {editing?.hasMebbisPassword ? (
-              <div className="form-hint">Mevcut şifre kayıtlı; boş bırakırsan değişmez.</div>
+              <div className="form-hint">{t("userForm.hint.passwordSet")}</div>
             ) : null}
             {errors.mebbisPassword && (
-              <div className="form-error">{errors.mebbisPassword.message}</div>
+              <div className="form-error">{translateError(errors.mebbisPassword.message)}</div>
             )}
           </div>
         </div>
@@ -251,7 +257,7 @@ export function UserFormModal({
           <label className="switch-toggle">
             <input disabled={!canManage} type="checkbox" {...register("isActive")} />
             <span className="switch-toggle-control" aria-hidden="true" />
-            <span>{watch("isActive") ? "Aktif" : "Pasif"}</span>
+            <span>{watch("isActive") ? t("common.active") : t("common.inactive")}</span>
           </label>
         </div>
       </form>

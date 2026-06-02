@@ -1496,7 +1496,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       />
 
       <div className="training-layout-wrap">
-        {loading ? <div className="empty-state">Dersler yükleniyor...</div> : null}
+        {loading ? <div className="empty-state">{t("training.page.loadingLessons")}</div> : null}
         <div className="training-layout">
           <aside className="training-filters-sidebar">
           {type === "teorik" ? (

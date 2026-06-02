@@ -36,7 +36,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
       const response = await getCandidateNotes(candidateId);
       setNotes(response.items);
     } catch {
-      showToast("Notlar yüklenemedi", "error");
+      showToast(t("notesPanel.toast.loadFailed"), "error");
     }
   }, [candidateId, showToast]);
 
@@ -68,7 +68,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
     try {
       if (editing) {
         await updateCandidateNote(candidateId, editing.id, { body, reminderAtUtc });
-        showToast("Not güncellendi");
+        showToast(t("notesPanel.toast.noteUpdated"));
       } else {
         await createCandidateNote(candidateId, { body, reminderAtUtc });
         showToast("Not eklendi");
@@ -76,7 +76,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
       closeComposer();
       await load();
     } catch {
-      showToast(editing ? "Not güncellenemedi" : "Not eklenemedi", "error");
+      showToast(t(editing ? "notesPanel.toast.noteUpdateFailed" : "notesPanel.toast.noteAddFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -89,7 +89,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
       await setCandidateNoteCompletion(candidateId, note.id, note.completedAtUtc === null);
       await load();
     } catch {
-      showToast("Not güncellenemedi", "error");
+      showToast(t("notesPanel.toast.noteUpdateFailed"), "error");
     }
   };
 
@@ -126,9 +126,9 @@ export function CandidateNotesPanel({ candidateId }: Props) {
         title="Notlar"
       >
         {notes === null ? (
-          <div className="user-notes-empty">Yükleniyor...</div>
+          <div className="user-notes-empty">{t("notesPanel.loading")}</div>
         ) : notes.length === 0 ? (
-          <div className="user-notes-empty">Bu aday için henüz not yok.</div>
+          <div className="user-notes-empty">{t("notesPanel.emptyCandidate")}</div>
         ) : (
           <ul className="user-notes-list">
             {notes.map((note) => {
@@ -148,7 +148,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                   key={note.id}
                 >
                     <button
-                      aria-label={completed ? "Tamamlandı işaretini kaldır" : "Tamamlandı olarak işaretle"}
+                      aria-label={completed ? t("notesPanel.aria.uncomplete") : t("notesPanel.aria.complete")}
                       className="user-notes-item-toggle"
                       disabled={!canManageCandidates}
                       onClick={() => void handleToggle(note)}
@@ -170,7 +170,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                   </div>
                   <div className="user-notes-item-actions">
                     <button
-                      aria-label="Düzenle"
+                      aria-label={t("common.edit")}
                       className="user-notes-item-action"
                       disabled={!canManageCandidates}
                       onClick={() => beginEdit(note)}
