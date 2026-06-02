@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pilot-frontend.fullname" . }}
+  labels:
+    {{- include "pilot-frontend.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pilot-frontend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+      labels:
+        {{- include "pilot-frontend.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "pilot-frontend.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "pilot-frontend.name" . }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: PILOT_FRONTEND_PUBLIC_URL
+              value: {{ .Values.runtimeConfig.publicUrl | quote }}
+            - name: VITE_API_BASE_URL
+              value: {{ .Values.runtimeConfig.apiBaseUrl | quote }}
+            - name: VITE_AUTH_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.authApiBaseUrl | quote }}
+            - name: VITE_CANDIDATE_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.candidateApiBaseUrl | quote }}
+            - name: VITE_DOCUMENT_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.documentApiBaseUrl | quote }}
+            - name: VITE_FINANCE_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.financeApiBaseUrl | quote }}
+            - name: VITE_MEBBIS_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.mebbisApiBaseUrl | quote }}
+            - name: VITE_TRAINING_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.trainingApiBaseUrl | quote }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}

@@ -1,0 +1,30 @@
+# Example production values. Do not put secret values in this file.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/codebefore/pilot-frontend
+  tag: prod
+  pullPolicy: IfNotPresent
+
+runtimeConfig:
+  publicUrl: https://pilot.virabyte.tr
+  apiBaseUrl: https://apipilot.virabyte.tr
+  authApiBaseUrl: https://apipilot.virabyte.tr
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  host: pilot.virabyte.tr
+  tls:
+    - secretName: pilot-frontend-prod-tls
+      hosts:
+        - pilot.virabyte.tr

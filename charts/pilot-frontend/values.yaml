@@ -1,0 +1,56 @@
+replicaCount: 1
+
+image:
+  repository: pilot-frontend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+serviceAccount:
+  create: true
+  name: ""
+  automountServiceAccountToken: false
+  annotations: {}
+
+runtimeConfig:
+  publicUrl: ""
+  apiBaseUrl: /api
+  authApiBaseUrl: ""
+  candidateApiBaseUrl: ""
+  documentApiBaseUrl: ""
+  financeApiBaseUrl: ""
+  mebbisApiBaseUrl: ""
+  trainingApiBaseUrl: ""
+
+resources: {}
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  path: /
+  pathType: Prefix
+  tls: []
