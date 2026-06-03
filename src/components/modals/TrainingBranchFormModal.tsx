@@ -102,7 +102,7 @@ export function TrainingBranchFormModal({
       if (unmappedMessages[0]) {
         showToast(unmappedMessages[0], "error");
       } else if (!applied) {
-        showToast("Branş kaydedilemedi", "error");
+        showToast(t("trainingBranchForm.toast.saveFailed"), "error");
       }
     } finally {
       setSubmitting(false);
@@ -145,10 +145,10 @@ export function TrainingBranchFormModal({
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Ad<RequiredMark /></label>
+            <label className="form-label">{t("trainingBranchForm.field.name")}<RequiredMark /></label>
             <input
               className={fieldClass(errors.name?.message)}
-              placeholder="Trafik ve Çevre"
+              placeholder={t("trainingBranchForm.placeholder.example")}
               {...register("name")}
             />
             {errors.name ? <div className="form-error">{errors.name.message}</div> : null}

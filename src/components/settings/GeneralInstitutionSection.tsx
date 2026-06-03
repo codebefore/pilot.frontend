@@ -270,10 +270,10 @@ export function GeneralInstitutionSection() {
       nextErrors.institutionEmail = t("settings.general.validation.email");
     }
     if (values.institutionPhone.trim() && !isPhoneStartingWith5(values.institutionPhone)) {
-      nextErrors.institutionPhone = "5 ile başlamalı";
+      nextErrors.institutionPhone = t("generalInstitution.error.phoneStartWith5");
     }
     if (values.founderPhone.trim() && !isPhoneStartingWith5(values.founderPhone)) {
-      nextErrors.founderPhone = "5 ile başlamalı";
+      nextErrors.founderPhone = t("generalInstitution.error.phoneStartWith5");
     }
     if (values.city && !values.district) {
       nextErrors.district = t("settings.general.validation.districtRequired");

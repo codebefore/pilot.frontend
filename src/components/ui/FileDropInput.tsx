@@ -1,6 +1,7 @@
 import { forwardRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 import { FileIcon, UploadCloudIcon, XIcon } from "../icons";
+import { useT } from "../../lib/i18n";
 
 type FileDropInputProps = {
   name: string;
@@ -25,6 +26,7 @@ export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
     { name, accept, hint, error, disabled, file, onChange, onClear, onBlur },
     ref
   ) {
+    const t = useT();
     const [dragging, setDragging] = useState(false);
 
     const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -52,7 +54,7 @@ export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
             <div className="file-selected-meta">{formatBytes(file.size)}</div>
           </div>
           <button
-            aria-label="Dosyayı kaldır"
+            aria-label={t("fileDropInput.aria.removeFile")}
             className="file-selected-remove"
             onClick={onClear}
             type="button"

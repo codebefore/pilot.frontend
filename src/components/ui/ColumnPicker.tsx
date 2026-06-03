@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ListIcon } from "../icons";
+import { useT } from "../../lib/i18n";
 
 export type ColumnOption = {
   id: string;
@@ -36,9 +37,12 @@ export function ColumnPicker({
   onReset,
   label,
   menuTitle,
-  resetLabel = "Varsayılana dön",
-  triggerTitle = "Sütunlar",
+  resetLabel,
+  triggerTitle,
 }: ColumnPickerProps) {
+  const t = useT();
+  const effectiveResetLabel = resetLabel ?? t("columnPicker.resetLabel");
+  const effectiveTriggerTitle = triggerTitle ?? t("columnPicker.triggerTitle");
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -121,11 +125,11 @@ export function ColumnPicker({
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={triggerTitle}
+        aria-label={effectiveTriggerTitle}
         className="btn btn-secondary btn-sm column-picker-trigger"
         onClick={() => setOpen((v) => !v)}
         ref={triggerRef}
-        title={triggerTitle}
+        title={effectiveTriggerTitle}
         type="button"
       >
         <ListIcon size={14} />
@@ -141,14 +145,14 @@ export function ColumnPicker({
             style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
           >
             <div className="column-picker-header">
-              <div className="column-picker-title">{menuTitle ?? triggerTitle}</div>
+              <div className="column-picker-title">{menuTitle ?? effectiveTriggerTitle}</div>
               {onReset ? (
                 <button
                   className="column-picker-reset"
                   onClick={onReset}
                   type="button"
                 >
-                  {resetLabel}
+                  {effectiveResetLabel}
                 </button>
               ) : null}
             </div>

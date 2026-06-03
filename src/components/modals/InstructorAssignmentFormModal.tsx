@@ -125,10 +125,10 @@ export function InstructorAssignmentFormModal({
 	      }
 	    }
 	    if (values.branches.length === 0) {
-	      next.branches = "En az bir branş seçilmeli";
+	      next.branches = t("instructorAssignment.error.branchMin");
 	    }
 	    if (values.branches.includes("practice") && values.licenseClassCodes.length === 0) {
-	      next.licenseClassCodes = "Direksiyon branşı için en az bir ehliyet sınıfı seçilmeli";
+	      next.licenseClassCodes = t("instructorAssignment.error.licenseClassMin");
 	    }
 	    setErrors(next);
     return Object.keys(next).length === 0;

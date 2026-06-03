@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { createExamSchedule } from "../../lib/exam-schedules-api";
-import { useLanguage, useT } from "../../lib/i18n";
+import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
@@ -14,10 +14,10 @@ import { useToast } from "../ui/Toast";
 import type { ExamCodeOption } from "../../lib/types";
 
 const newExamScheduleSchema = z.object({
-  date: z.string().min(1, "Zorunlu alan"),
-  examCodeId: z.string().min(1, "Sınav kodu zorunlu"),
-  time: z.string().min(1, "Zorunlu alan"),
-  capacity: z.number().min(1, "Kontenjan 1 veya daha buyuk olmali."),
+  date: z.string().min(1, "common.required"),
+  examCodeId: z.string().min(1, "newExamSchedule.error.examCodeRequired"),
+  time: z.string().min(1, "common.required"),
+  capacity: z.number().min(1, "newExamSchedule.error.capacityMin"),
 });
 
 type NewExamScheduleForm = z.infer<typeof newExamScheduleSchema>;
@@ -44,10 +44,6 @@ function defaultValues(): NewExamScheduleForm {
   };
 }
 
-function modalTitle(examType: "e_sinav" | "uygulama"): string {
-  return examType === "e_sinav" ? "Yeni E-Sınav Tarihi" : "Yeni Direksiyon Tarihi";
-}
-
 export function NewExamScheduleModal({
   canManage = true,
   examType,
@@ -61,6 +57,8 @@ export function NewExamScheduleModal({
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
+  const translateError = (message: string | undefined): string =>
+    !message ? "" : message.includes(".") ? t(message as TranslationKey) : message;
   const [submitting, setSubmitting] = useState(false);
   const capacityInputId = useId();
 
@@ -144,7 +142,7 @@ export function NewExamScheduleModal({
       }
       onClose={onClose}
       open={open}
-      title={modalTitle(examType)}
+      title={t(examType === "e_sinav" ? "newExamSchedule.title.eSinav" : "newExamSchedule.title.driving")}
     >
       <form onSubmit={submit}>
         <div className="form-row">
@@ -166,7 +164,7 @@ export function NewExamScheduleModal({
               }
               value={date}
             />
-            {errors.date ? <div className="form-error">{errors.date.message}</div> : null}
+            {errors.date ? <div className="form-error">{translateError(errors.date.message)}</div> : null}
           </div>
 
           {showTimeField ? (
@@ -187,7 +185,7 @@ export function NewExamScheduleModal({
                 }
                 value={time}
               />
-              {errors.time ? <div className="form-error">{errors.time.message}</div> : null}
+              {errors.time ? <div className="form-error">{translateError(errors.time.message)}</div> : null}
             </div>
           ) : null}
 
@@ -208,7 +206,7 @@ export function NewExamScheduleModal({
                 ))}
               </select>
               {errors.examCodeId ? (
-                <div className="form-error">{errors.examCodeId.message}</div>
+                <div className="form-error">{translateError(errors.examCodeId.message)}</div>
               ) : null}
             </div>
           ) : null}
@@ -226,7 +224,7 @@ export function NewExamScheduleModal({
               {...register("capacity", { valueAsNumber: true })}
             />
             {errors.capacity ? (
-              <div className="form-error">{errors.capacity.message}</div>
+              <div className="form-error">{translateError(errors.capacity.message)}</div>
             ) : null}
             <div className="form-hint">Ayni sinav tipi icin ayni gunde tek oturum kaydi tutulur.</div>
           </div>

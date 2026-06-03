@@ -162,7 +162,7 @@ export function EditableRow({
             className="icon-btn edit-trigger"
             disabled={disabled}
             onClick={startEdit}
-            title={disabled ? (disabledTitle ?? "Düzenlenemez") : "Düzenle"}
+            title={disabled ? (disabledTitle ?? t("editableRow.title.cannotEdit")) : t("common.edit")}
             type="button"
           >
             <PencilIcon size={12} />

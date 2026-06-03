@@ -268,7 +268,7 @@ export function TrainingFilters({
                     "training-filters-item switch-toggle switch-toggle-sm" +
                     (instructor.expired ? " training-filters-item--expired" : "")
                   }
-                  title={instructor.expired ? "Sözleşmesi sona ermiş" : undefined}
+                  title={instructor.expired ? t("trainingFilters.title.expired") : undefined}
                 >
                   <input
                     checked={checked}
