@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 
 import {
   getInstitutionIntegrations,
@@ -20,6 +20,8 @@ export function IntegrationsSettingsSection() {
   const t = useT();
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
+  const templateNameId = useId();
+  const templateLanguageId = useId();
   const canManageSettings = canManageArea(user, permissions, "settings");
   const noPermissionTitle = t("common.noPermission");
 
@@ -258,16 +260,16 @@ export function IntegrationsSettingsSection() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">
+                  <label className="form-label" htmlFor={templateNameId}>
                     {t("settings.integrations.whatsApp.templateNameLabel")}
                   </label>
-                  <input className="form-input" disabled readOnly value={whatsAppStatus.templateName} />
+                  <input id={templateNameId} className="form-input" disabled readOnly value={whatsAppStatus.templateName} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">
+                  <label className="form-label" htmlFor={templateLanguageId}>
                     {t("settings.integrations.whatsApp.templateLanguageLabel")}
                   </label>
-                  <input className="form-input" disabled readOnly value={whatsAppStatus.templateLanguage} />
+                  <input id={templateLanguageId} className="form-input" disabled readOnly value={whatsAppStatus.templateLanguage} />
                 </div>
                 <div className="form-group" />
               </div>

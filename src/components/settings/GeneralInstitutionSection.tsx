@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 import {
   deleteInstitutionLogo,
@@ -137,6 +137,21 @@ export function GeneralInstitutionSection() {
   const t = useT();
   const { showToast } = useToast();
   const { options: themeOptions, setTheme, theme } = useTheme();
+  const institutionNameId = useId();
+  const institutionOfficialNameId = useId();
+  const institutionCodeId = useId();
+  const institutionPhoneId = useId();
+  const institutionEmailId = useId();
+  const cityId = useId();
+  const districtId = useId();
+  const addressId = useId();
+  const logoInputId = useId();
+  const founderTypeId = useId();
+  const founderNameId = useId();
+  const founderTaxIdId = useId();
+  const founderTaxOfficeId = useId();
+  const founderPhoneId = useId();
+  const founderAddressId = useId();
   const { user, permissions } = useAuth();
   const canManageSettings = canManageArea(user, permissions, "settings");
   const noPermissionTitle = t("common.noPermission");
@@ -465,10 +480,11 @@ export function GeneralInstitutionSection() {
           <div className="settings-form">
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">
+                <label className="form-label" htmlFor={institutionNameId}>
                   {t("settings.general.field.institutionName")}
                 </label>
                 <input
+                  id={institutionNameId}
                   className={errors.institutionName ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("institutionName")}
@@ -478,10 +494,11 @@ export function GeneralInstitutionSection() {
                 {errors.institutionName ? <div className="form-error">{errors.institutionName}</div> : null}
               </div>
               <div className="form-group">
-                <label className="form-label">
+                <label className="form-label" htmlFor={institutionOfficialNameId}>
                   {t("settings.general.field.institutionOfficialName")}
                 </label>
                 <input
+                  id={institutionOfficialNameId}
                   className={errors.institutionOfficialName ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("institutionOfficialName")}
@@ -494,10 +511,11 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">
+                <label className="form-label" htmlFor={institutionCodeId}>
                   {t("settings.general.field.institutionCode")}
                 </label>
                 <input
+                  id={institutionCodeId}
                   className={errors.institutionCode ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("institutionCode")}
@@ -507,8 +525,9 @@ export function GeneralInstitutionSection() {
                 {errors.institutionCode ? <div className="form-error">{errors.institutionCode}</div> : null}
               </div>
               <div className="form-group">
-                <label className="form-label">{t("settings.general.field.phone")}</label>
+                <label className="form-label" htmlFor={institutionPhoneId}>{t("settings.general.field.phone")}</label>
                 <input
+                  id={institutionPhoneId}
                   className={errors.institutionPhone ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   inputMode="numeric"
@@ -522,8 +541,9 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">{t("settings.general.field.email")}</label>
+                <label className="form-label" htmlFor={institutionEmailId}>{t("settings.general.field.email")}</label>
                 <input
+                  id={institutionEmailId}
                   className={errors.institutionEmail ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("institutionEmail")}
@@ -534,8 +554,9 @@ export function GeneralInstitutionSection() {
                 {errors.institutionEmail ? <div className="form-error">{errors.institutionEmail}</div> : null}
               </div>
               <div className="form-group">
-                <label className="form-label">{t("settings.general.field.city")}</label>
+                <label className="form-label" htmlFor={cityId}>{t("settings.general.field.city")}</label>
                 <CustomSelect
+                  id={cityId}
                   aria-label={t("settings.general.field.city")}
                   className={errors.city ? "form-select error" : "form-select"}
                   disabled={!canManageSettings}
@@ -555,8 +576,9 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">{t("settings.general.field.district")}</label>
+                <label className="form-label" htmlFor={districtId}>{t("settings.general.field.district")}</label>
                 <CustomSelect
+                  id={districtId}
                   aria-label={t("settings.general.field.district")}
                   className={errors.district ? "form-select error" : "form-select"}
                   disabled={!canManageSettings || !values.city}
@@ -577,10 +599,11 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row full">
               <div className="form-group">
-                <label className="form-label">
+                <label className="form-label" htmlFor={addressId}>
                   {t("settings.general.field.institutionAddress")}
                 </label>
                 <textarea
+                  id={addressId}
                   className={errors.institutionAddress ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("institutionAddress")}
@@ -594,7 +617,7 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row full">
               <div className="form-group">
-                <label className="form-label">{t("settings.general.field.logo")}</label>
+                <label className="form-label" htmlFor={logoInputId}>{t("settings.general.field.logo")}</label>
                 <div className="settings-logo-row">
                   <div className="settings-logo-preview">
                     {logoPreviewUrl ? (
@@ -607,6 +630,7 @@ export function GeneralInstitutionSection() {
                   </div>
                   <div className="settings-logo-actions">
                     <input
+                      id={logoInputId}
                       accept="image/png,image/jpeg,image/webp,image/svg+xml"
                       disabled={!canManageSettings}
                       hidden
@@ -712,8 +736,9 @@ export function GeneralInstitutionSection() {
           <div className="settings-form">
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">{t("settings.general.founder.type")}</label>
+                <label className="form-label" htmlFor={founderTypeId}>{t("settings.general.founder.type")}</label>
                 <CustomSelect
+                  id={founderTypeId}
                   aria-label={t("settings.general.founder.type")}
                   className="form-select"
                   disabled={!canManageSettings}
@@ -725,8 +750,9 @@ export function GeneralInstitutionSection() {
                 </CustomSelect>
               </div>
               <div className="form-group">
-                <label className="form-label">{t(founderNameLabelKey)}</label>
+                <label className="form-label" htmlFor={founderNameId}>{t(founderNameLabelKey)}</label>
                 <input
+                  id={founderNameId}
                   className={errors.founderName ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("founderName")}
@@ -739,8 +765,9 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">{t(founderTaxIdLabelKey)}</label>
+                <label className="form-label" htmlFor={founderTaxIdId}>{t(founderTaxIdLabelKey)}</label>
                 <input
+                  id={founderTaxIdId}
                   className={errors.founderTaxId ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("founderTaxId")}
@@ -754,10 +781,11 @@ export function GeneralInstitutionSection() {
                 {errors.founderTaxId ? <div className="form-error">{errors.founderTaxId}</div> : null}
               </div>
               <div className="form-group">
-                <label className="form-label">
+                <label className="form-label" htmlFor={founderTaxOfficeId}>
                   {t("settings.general.founder.taxOffice")}
                 </label>
                 <input
+                  id={founderTaxOfficeId}
                   className={errors.founderTaxOffice ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("founderTaxOffice")}
@@ -770,8 +798,9 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">{t("settings.general.founder.phone")}</label>
+                <label className="form-label" htmlFor={founderPhoneId}>{t("settings.general.founder.phone")}</label>
                 <input
+                  id={founderPhoneId}
                   className={errors.founderPhone ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   inputMode="numeric"
@@ -786,8 +815,9 @@ export function GeneralInstitutionSection() {
 
             <div className="form-row full">
               <div className="form-group">
-                <label className="form-label">{t("settings.general.founder.address")}</label>
+                <label className="form-label" htmlFor={founderAddressId}>{t("settings.general.founder.address")}</label>
                 <textarea
+                  id={founderAddressId}
                   className={errors.founderAddress ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   onChange={handleInput("founderAddress")}
