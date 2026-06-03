@@ -852,7 +852,7 @@ describe("CandidateDrawer", () => {
     const image = await screen.findByRole("img", { name: "Ada Yilmaz" });
     expect(image).toHaveAttribute(
       "src",
-      "http://127.0.0.1:5080/api/candidates/candidate-1/documents/doc-1/download"
+      "http://127.0.0.1:5080/api/document/candidates/candidate-1/documents/doc-1/download"
     );
   });
 

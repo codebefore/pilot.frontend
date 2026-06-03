@@ -14,7 +14,7 @@ export function listVehicleDocuments(
   signal?: AbortSignal
 ): Promise<VehicleDocumentResponse[]> {
   return httpGet<VehicleDocumentResponse[]>(
-    `/api/vehicles/${vehicleId}/documents`,
+    `/api/document/vehicles/${vehicleId}/documents`,
     undefined,
     documentRequestOptions(signal)
   );
@@ -25,7 +25,7 @@ export function createVehicleDocument(
   body: VehicleDocumentUpsertRequest
 ): Promise<VehicleDocumentResponse> {
   return httpPost<VehicleDocumentResponse>(
-    `/api/vehicles/${vehicleId}/documents`,
+    `/api/document/vehicles/${vehicleId}/documents`,
     body,
     documentRequestOptions()
   );
@@ -37,7 +37,7 @@ export function updateVehicleDocument(
   body: VehicleDocumentUpsertRequest
 ): Promise<VehicleDocumentResponse> {
   return httpPut<VehicleDocumentResponse>(
-    `/api/vehicles/${vehicleId}/documents/${documentId}`,
+    `/api/document/vehicles/${vehicleId}/documents/${documentId}`,
     body,
     documentRequestOptions()
   );
@@ -49,7 +49,7 @@ export function deleteVehicleDocument(
   rowVersion: number
 ): Promise<void> {
   return httpDelete(
-    `/api/vehicles/${vehicleId}/documents/${documentId}?rowVersion=${rowVersion}`,
+    `/api/document/vehicles/${vehicleId}/documents/${documentId}?rowVersion=${rowVersion}`,
     undefined,
     documentRequestOptions()
   );

@@ -14,9 +14,11 @@ async function bootstrap() {
         apiBaseUrl?: string;
         authApiBaseUrl?: string;
         candidateApiBaseUrl?: string;
+        catalogApiBaseUrl?: string;
         documentApiBaseUrl?: string;
         financeApiBaseUrl?: string;
         mebbisApiBaseUrl?: string;
+        platformApiBaseUrl?: string;
         publicUrl?: string;
         trainingApiBaseUrl?: string;
       };

@@ -25,7 +25,7 @@ function buildCandidatePhotoUrl(
   if (!candidate.photo?.documentId) return null;
 
   const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
-  const path = `/api/candidates/${candidate.id}/documents/${candidate.photo.documentId}/download`;
+  const path = `/api/document/candidates/${candidate.id}/documents/${candidate.photo.documentId}/download`;
   const dedupedPath =
     base.endsWith("/api") && path.startsWith("/api/")
       ? path.slice("/api".length)

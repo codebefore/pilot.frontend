@@ -181,7 +181,7 @@ export function getDocumentChecklist(
   signal?: AbortSignal
 ): Promise<PagedResponse<DocumentChecklistEntry>> {
   return httpGet<PagedResponse<DocumentChecklistEntry>>(
-    "/api/documents/candidate-checklist",
+    "/api/document/documents/candidate-checklist",
     params,
     documentRequestOptions(signal)
   );
@@ -220,7 +220,7 @@ export function uploadDocument(
     form.append("metadataJson", JSON.stringify(input.metadata));
   }
   return httpPostForm<DocumentResponse>(
-    `/api/candidates/${input.candidateId}/documents`,
+    `/api/document/candidates/${input.candidateId}/documents`,
     form,
     documentRequestOptions(signal)
   );
@@ -241,7 +241,7 @@ export function updateCandidateDocument(
   signal?: AbortSignal
 ): Promise<DocumentResponse> {
   return httpPut<DocumentResponse>(
-    `/api/candidates/${candidateId}/documents/${documentId}`,
+    `/api/document/candidates/${candidateId}/documents/${documentId}`,
     {
       note: input.note ?? null,
       metadataJson:
@@ -261,7 +261,7 @@ export function updateCandidateDocumentMebbisTransfer(
   signal?: AbortSignal
 ): Promise<DocumentResponse> {
   return httpPut<DocumentResponse>(
-    `/api/candidates/${candidateId}/documents/types/${documentTypeId}/mebbis`,
+    `/api/document/candidates/${candidateId}/documents/types/${documentTypeId}/mebbis`,
     { isMebbisTransferred },
     documentRequestOptions(signal)
   );
@@ -273,7 +273,7 @@ export function analyzeCandidateDocumentOcr(
   signal?: AbortSignal
 ): Promise<CandidateDocumentOcrSuggestionResponse> {
   return httpPost<CandidateDocumentOcrSuggestionResponse>(
-    `/api/candidates/${candidateId}/documents/${documentId}/ocr`,
+    `/api/document/candidates/${candidateId}/documents/${documentId}/ocr/read`,
     {},
     documentRequestOptions(signal)
   );
@@ -284,7 +284,7 @@ export function getCandidateDocuments(
   signal?: AbortSignal
 ): Promise<DocumentResponse[]> {
   return httpGet<DocumentResponse[]>(
-    `/api/candidates/${candidateId}/documents`,
+    `/api/document/candidates/${candidateId}/documents`,
     undefined,
     documentRequestOptions(signal)
   );
@@ -296,7 +296,7 @@ export function deleteCandidateDocument(
   signal?: AbortSignal
 ): Promise<void> {
   return httpDelete(
-    `/api/candidates/${candidateId}/documents/${documentId}`,
+    `/api/document/candidates/${candidateId}/documents/${documentId}`,
     undefined,
     documentRequestOptions(signal)
   );
@@ -308,7 +308,7 @@ export function getCandidateDocumentDownloadUrl(
   documentId: string,
   options?: { inline?: boolean }
 ): string {
-  const path = `/api/candidates/${candidateId}/documents/${documentId}/download`;
+  const path = `/api/document/candidates/${candidateId}/documents/${documentId}/download`;
   const url = buildDocumentUrl(path);
   if (options?.inline) {
     url.searchParams.set("inline", "true");

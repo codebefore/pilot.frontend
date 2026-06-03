@@ -128,7 +128,7 @@ export function addAssignmentDocument(
   if (body.file) form.append("file", body.file);
 
   return httpPostForm<InstructorAssignmentDocument>(
-    `/api/instructors/${instructorId}/assignments/${assignmentId}/documents`,
+    `/api/document/instructors/${instructorId}/assignments/${assignmentId}/documents`,
     form,
     documentRequestOptions()
   );
@@ -140,7 +140,7 @@ export function deleteAssignmentDocument(
   documentId: string
 ): Promise<void> {
   return httpDelete<void>(
-    `/api/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}`,
+    `/api/document/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}`,
     undefined,
     documentRequestOptions()
   );
@@ -152,6 +152,6 @@ export function getAssignmentDocumentDownloadUrl(
   assignmentId: string,
   documentId: string
 ): string {
-  const path = `/api/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}/file`;
+  const path = `/api/document/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}/file`;
   return buildDocumentUrl(path).toString();
 }

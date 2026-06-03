@@ -1269,7 +1269,7 @@ describe("CandidatesPage tabs", () => {
     const image = await screen.findByRole("img", { name: "Ayse Demir" });
     expect(image).toHaveAttribute(
       "src",
-      "http://127.0.0.1:5080/api/candidates/cand-1/documents/doc-1/download"
+      "http://127.0.0.1:5080/api/document/candidates/cand-1/documents/doc-1/download"
     );
     expect(screen.getByText("MK")).toBeInTheDocument();
   });

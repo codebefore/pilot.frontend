@@ -33,13 +33,13 @@ describe("vehicle documents api", () => {
     await deleteVehicleDocument("vehicle-1", "doc-1", 3);
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5092/api/vehicles/vehicle-1/documents"
+      "http://127.0.0.1:5092/api/document/vehicles/vehicle-1/documents"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5092/api/vehicles/vehicle-1/documents"
+      "http://127.0.0.1:5092/api/document/vehicles/vehicle-1/documents"
     );
     expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
-      "http://127.0.0.1:5092/api/vehicles/vehicle-1/documents/doc-1?rowVersion=3"
+      "http://127.0.0.1:5092/api/document/vehicles/vehicle-1/documents/doc-1?rowVersion=3"
     );
   });
 });

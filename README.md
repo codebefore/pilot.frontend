@@ -23,15 +23,18 @@ Initial frontend scaffold for the pilot product.
 - `VITE_API_BASE_URL`
 - `VITE_AUTH_API_BASE_URL`
 - `VITE_CANDIDATE_API_BASE_URL`
+- `VITE_CATALOG_API_BASE_URL`
 - `VITE_DOCUMENT_API_BASE_URL`
 - `VITE_FINANCE_API_BASE_URL`
 - `VITE_MEBBIS_API_BASE_URL`
+- `VITE_PLATFORM_API_BASE_URL`
 - `VITE_TRAINING_API_BASE_URL`
 
 The production image serves static files with Nginx on container port `8080`.
 Runtime configuration is exposed through `/env-config.json`, so the container can be reused across environments without rebuilding for every URL change.
-In production, `PILOT_FRONTEND_PUBLIC_URL=https://pilot.codebefore.com` and `VITE_API_BASE_URL=/api` are the expected monolith runtime values. Service-specific API URLs default to `VITE_API_BASE_URL`; set them only when a service is deployed separately.
-Real production values stay in the server-side `.env.runtime` file; they are not committed to this repo.
+In production, `PILOT_FRONTEND_PUBLIC_URL=https://pilot.virabyte.tr` and every service-specific API URL points to `https://apipilot.virabyte.tr`.
+Service-specific API URLs default to `VITE_API_BASE_URL` for local/simple deployments, but production must set them explicitly so the app does not depend on the retired monolith backend.
+Real production values stay in Helm values or the server-side runtime environment; secrets are not committed to this repo.
 The production frontend is intentionally not indexable: `index.html` includes a `robots` meta tag, `/robots.txt` disallows all crawlers, and the Nginx runtime adds `X-Robots-Tag: noindex, nofollow`.
 
 ## Health Endpoint

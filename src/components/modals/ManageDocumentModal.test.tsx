@@ -125,7 +125,7 @@ describe("ManageDocumentModal", () => {
     expect(screen.getByLabelText("Not")).toHaveValue("Mevcut not");
     fireEvent.click(screen.getByRole("button", { name: "Belgeyi Aç" }));
     expect(openAuthorizedFileMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:5080/api/candidates/cand-1/documents/doc-1/download"
+      "http://127.0.0.1:5080/api/document/candidates/cand-1/documents/doc-1/download"
     );
     expect(screen.getByRole("button", { name: "Belgeyi Değiştir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "İndir" })).toBeInTheDocument();
@@ -241,7 +241,7 @@ describe("ManageDocumentModal", () => {
 
     await waitFor(() => {
       expect(downloadAuthorizedFileMock).toHaveBeenCalledWith(
-        "http://127.0.0.1:5080/api/candidates/cand-1/documents/doc-1/download",
+        "http://127.0.0.1:5080/api/document/candidates/cand-1/documents/doc-1/download",
         "rapor.pdf"
       );
     });
