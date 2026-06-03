@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -188,6 +188,21 @@ export function VehicleFormModal({
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const plateId = useId();
+  const brandId = useId();
+  const modelId = useId();
+  const modelYearId = useId();
+  const vehicleTypeId = useId();
+  const transmissionId = useId();
+  const statusId = useId();
+  const ownershipId = useId();
+  const fuelId = useId();
+  const colorId = useId();
+  const registrationDateId = useId();
+  const serviceStartDateId = useId();
+  const crashCountId = useId();
+  const otherId = useId();
+  const noteId = useId();
 
   const {
     control,
@@ -310,13 +325,14 @@ export function VehicleFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.plate")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={plateId}>{t("vehicleForm.field.plate")}<RequiredMark /></label>
             <Controller
               control={control}
               name="plateNumber"
               render={({ field }) => (
                 <input
                   {...field}
+                  id={plateId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.plateNumber?.message)}
                   placeholder="34 ABC 123"
@@ -331,13 +347,14 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.brand")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={brandId}>{t("vehicleForm.field.brand")}<RequiredMark /></label>
             <Controller
               control={control}
               name="brand"
               render={({ field }) => (
                 <input
                   {...field}
+                  id={brandId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.brand?.message)}
                   placeholder="FIAT"
@@ -354,13 +371,14 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.model")}</label>
+            <label className="form-label" htmlFor={modelId}>{t("vehicleForm.field.model")}</label>
             <Controller
               control={control}
               name="model"
               render={({ field }) => (
                 <input
                   {...field}
+                  id={modelId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.model?.message)}
                   placeholder="EGEA"
@@ -375,7 +393,7 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.modelYear")}</label>
+            <label className="form-label" htmlFor={modelYearId}>{t("vehicleForm.field.modelYear")}</label>
             <Controller
               control={control}
               name="modelYear"
@@ -383,6 +401,7 @@ export function VehicleFormModal({
                 <LocalizedDateInput
                   ariaLabel={t("vehicleForm.aria.modelYear")}
                   className={fieldClass(errors.modelYear?.message)}
+                  id={modelYearId}
                   mode="year"
                   onChange={(nextValue) => field.onChange(nextValue ? nextValue.slice(0, 4) : "")}
                   placeholder="yyyy"
@@ -396,12 +415,12 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.vehicleType")}</label>
+            <label className="form-label" htmlFor={vehicleTypeId}>{t("common.field.vehicleType")}</label>
             <Controller
               control={control}
               name="vehicleType"
               render={({ field }) => (
-                <CustomSelect className={selectClass(errors.vehicleType?.message)} {...field}>
+                <CustomSelect id={vehicleTypeId} className={selectClass(errors.vehicleType?.message)} {...field}>
                   {VEHICLE_TYPE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {t(option.labelKey)}
@@ -452,12 +471,13 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.transmission")}</label>
+            <label className="form-label" htmlFor={transmissionId}>{t("vehicleForm.field.transmission")}</label>
             <Controller
               control={control}
               name="transmissionType"
               render={({ field }) => (
                 <CustomSelect
+                  id={transmissionId}
                   className={selectClass(errors.transmissionType?.message)}
                   {...field}
                 >
@@ -472,12 +492,12 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.activity")}</label>
+            <label className="form-label" htmlFor={statusId}>{t("vehicleForm.field.activity")}</label>
             <Controller
               control={control}
               name="status"
               render={({ field }) => (
-                <CustomSelect className={selectClass(errors.status?.message)} {...field}>
+                <CustomSelect id={statusId} className={selectClass(errors.status?.message)} {...field}>
                   {VEHICLE_STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {t(option.labelKey)}
@@ -491,12 +511,12 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.ownership")}</label>
+            <label className="form-label" htmlFor={ownershipId}>{t("vehicleForm.field.ownership")}</label>
             <Controller
               control={control}
               name="ownershipType"
               render={({ field }) => (
-                <CustomSelect className={selectClass(errors.ownershipType?.message)} {...field}>
+                <CustomSelect id={ownershipId} className={selectClass(errors.ownershipType?.message)} {...field}>
                   {VEHICLE_OWNERSHIP_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {t(option.labelKey)}
@@ -508,12 +528,13 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("vehicleForm.field.fuel")}</label>
+            <label className="form-label" htmlFor={fuelId}>{t("vehicleForm.field.fuel")}</label>
             <Controller
               control={control}
               name="fuelType"
               render={({ field }) => (
                 <CustomSelect
+                  id={fuelId}
                   className={selectClass(errors.fuelType?.message)}
                   {...field}
                   value={field.value ?? ""}
@@ -532,8 +553,8 @@ export function VehicleFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.color")}</label>
-            <input className={fieldClass(errors.color?.message)} placeholder="Beyaz" {...register("color")} />
+            <label className="form-label" htmlFor={colorId}>{t("common.field.color")}</label>
+            <input id={colorId} className={fieldClass(errors.color?.message)} placeholder={t("vehicleForm.placeholder.color")} {...register("color")} />
           </div>
 
           <div className="form-group">
@@ -541,23 +562,24 @@ export function VehicleFormModal({
             <label className="switch-toggle">
               <input type="checkbox" {...register("isActive")} />
               <span className="switch-toggle-control" aria-hidden="true" />
-              <span>{watch("isActive") ? "Aktif" : "Pasif"}</span>
+              <span>{watch("isActive") ? t("common.active") : t("common.inactive")}</span>
             </label>
           </div>
         </div>
 
         <details className="settings-form-details">
-          <summary>Detaylar</summary>
+          <summary>{t("vehicleForm.detailsSummary")}</summary>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">{t("vehicleForm.field.registrationDate")}</label>
+              <label className="form-label" htmlFor={registrationDateId}>{t("vehicleForm.field.registrationDate")}</label>
               <Controller
                 control={control}
                 name="registrationDate"
                 render={({ field }) => (
                   <LocalizedDateInput
-                    ariaLabel="Tescil Tarihi"
+                    ariaLabel={t("vehicleForm.aria.registrationDate")}
                     className={fieldClass(errors.registrationDate?.message)}
+                    id={registrationDateId}
                     onChange={(nextValue) => field.onChange(nextValue ?? "")}
                     value={field.value}
                   />
@@ -566,7 +588,7 @@ export function VehicleFormModal({
             </div>
 
             <div className="form-group">
-              <label className="form-label">{t("vehicleForm.field.serviceStartDate")}</label>
+              <label className="form-label" htmlFor={serviceStartDateId}>{t("vehicleForm.field.serviceStartDate")}</label>
               <Controller
                 control={control}
                 name="serviceStartDate"
@@ -574,6 +596,7 @@ export function VehicleFormModal({
                   <LocalizedDateInput
                     ariaLabel={t("vehicleForm.aria.serviceStartDate")}
                     className={fieldClass(errors.serviceStartDate?.message)}
+                    id={serviceStartDateId}
                     onChange={(nextValue) => field.onChange(nextValue ?? "")}
                     value={field.value}
                   />
@@ -584,21 +607,21 @@ export function VehicleFormModal({
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">{t("vehicleForm.field.crashCount")}</label>
-              <textarea className="form-input" rows={3} {...register("accidentNotes")} />
+              <label className="form-label" htmlFor={crashCountId}>{t("vehicleForm.field.crashCount")}</label>
+              <textarea id={crashCountId} className="form-input" rows={3} {...register("accidentNotes")} />
             </div>
 
             <div className="form-group">
-              <label className="form-label">{t("vehicleForm.field.other")}</label>
-              <textarea className="form-input" rows={3} {...register("otherDetails")} />
+              <label className="form-label" htmlFor={otherId}>{t("vehicleForm.field.other")}</label>
+              <textarea id={otherId} className="form-input" rows={3} {...register("otherDetails")} />
             </div>
           </div>
         </details>
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("common.field.note")}</label>
-            <textarea className="form-input" rows={4} {...register("notes")} />
+            <label className="form-label" htmlFor={noteId}>{t("common.field.note")}</label>
+            <textarea id={noteId} className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>
       </form>
