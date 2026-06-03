@@ -1,37 +1,39 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import type { TranslationKey } from "./i18n";
+
 export type AppTheme = "pilot" | "emerald" | "blueDark" | "midnight";
 
 export type ThemeOption = {
   key: AppTheme;
-  label: string;
-  description: string;
+  labelKey: TranslationKey;
+  descriptionKey: TranslationKey;
   swatches: string[];
 };
 
 export const THEME_OPTIONS: ThemeOption[] = [
   {
     key: "pilot",
-    label: "Pilot",
-    description: "Mevcut turkuaz kurumsal tema",
+    labelKey: "theme.pilot.label",
+    descriptionKey: "theme.pilot.description",
     swatches: ["#22B094", "#f9fafb", "#ffffff", "#1a1a2e"],
   },
   {
     key: "emerald",
-    label: "Mavi",
-    description: "Canlı mavi vurgu ve ferah açık yüzeyler",
+    labelKey: "theme.emerald.label",
+    descriptionKey: "theme.emerald.description",
     swatches: ["#38b6ff", "#f6fbff", "#ffffff", "#0f172a"],
   },
   {
     key: "blueDark",
-    label: "Mavi Koyu",
-    description: "Mavi vurgu ile koyu çalışma yüzeyi",
+    labelKey: "theme.blueDark.label",
+    descriptionKey: "theme.blueDark.description",
     swatches: ["#38b6ff", "#0b1220", "#162033", "#f8fafc"],
   },
   {
     key: "midnight",
-    label: "Gece",
-    description: "Koyu yüzeyler ve yüksek kontrast",
+    labelKey: "theme.midnight.label",
+    descriptionKey: "theme.midnight.description",
     swatches: ["#38c7aa", "#111827", "#1f2937", "#f9fafb"],
   },
 ];

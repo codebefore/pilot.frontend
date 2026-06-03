@@ -682,8 +682,8 @@ export function GeneralInstitutionSection() {
                   </span>
                 </span>
                 <span className="settings-theme-copy">
-                  <strong>{option.label}</strong>
-                  <span>{option.description}</span>
+                  <strong>{t(option.labelKey)}</strong>
+                  <span>{t(option.descriptionKey)}</span>
                 </span>
                 <span className="settings-theme-swatches">
                   {option.swatches.map((swatch) => (

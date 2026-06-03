@@ -7,7 +7,7 @@ import { Header } from "./components/layout/Header";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
-import { LanguageProvider } from "./lib/i18n";
+import { LanguageProvider, useT } from "./lib/i18n";
 import { canViewAnyArea, firstAllowedTenantPath, settingsPermissionAreas } from "./lib/permissions";
 import { createQueryClient } from "./lib/query-client";
 import { SidebarStatsProvider } from "./lib/sidebar-stats";
@@ -310,14 +310,15 @@ function NoActiveInstitutionState({
 }) {
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const { showToast } = useToast();
+  const t = useT();
 
   const handleSelect = async (institutionId: string, institutionName: string) => {
     setSelectingId(institutionId);
     try {
       await onSelect(institutionId);
-      showToast(`${institutionName} seçildi`);
+      showToast(t("app.toast.institutionSelected", { name: institutionName }));
     } catch {
-      showToast("Kurum değiştirilemedi", "error");
+      showToast(t("app.toast.institutionSwitchFailed"), "error");
     } finally {
       setSelectingId(null);
     }
@@ -325,8 +326,8 @@ function NoActiveInstitutionState({
 
   return (
     <div className="empty-state tenant-empty-state">
-      <h3>Aktif kurum bulunamadı</h3>
-      <p>Devam etmek için erişimin olan kurumlardan birini seç.</p>
+      <h3>{t("app.empty.noActiveInstitution")}</h3>
+      <p>{t("app.empty.selectInstitution")}</p>
       {institutions.length > 0 ? (
         <div className="tenant-empty-actions">
           {institutions.map((institution) => (
@@ -337,7 +338,7 @@ function NoActiveInstitutionState({
               onClick={() => void handleSelect(institution.id, institution.name)}
               type="button"
             >
-              {selectingId === institution.id ? "Seçiliyor..." : institution.name}
+              {selectingId === institution.id ? t("app.label.selecting") : institution.name}
             </button>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import { getMebbisApiBaseUrl } from "./api";
 import { httpGet, httpPost } from "./http";
+import type { TranslationKey, useT } from "./i18n";
 import type { JobStatus } from "../types";
 
 type MebbisJobStatus =
@@ -194,25 +195,18 @@ export function mapMebbisStatusToJobStatus(status: string): JobStatus {
   }
 }
 
-export function mebbisJobTypeLabel(jobType: string): string {
-  switch (jobType) {
-    case "session_check":
-      return "Oturum Kontrolü";
-    case "candidate_lookup":
-      return "Aday Durum Görüntüleme";
-    case "candidate_sync":
-      return "Aday Senkronizasyonu";
-    case "candidate_exam_result_sync":
-      return "Aday Sınav Sonucu";
-    case "instructor_permit_create":
-      return "Eğitmen İzin Oluşturma";
-    case "theory_schedule_sync":
-      return "Teorik Ders Programı Aktarımı";
-    case "theory_schedule_import":
-      return "Teorik Ders Programı Çekme";
-    default:
-      return jobType;
-  }
+export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>): string {
+  const keyMap: Record<string, TranslationKey> = {
+    session_check: "mebbisJobType.sessionCheck",
+    candidate_lookup: "mebbisJobType.candidateLookup",
+    candidate_sync: "mebbisJobType.candidateSync",
+    candidate_exam_result_sync: "mebbisJobType.candidateExamResultSync",
+    instructor_permit_create: "mebbisJobType.instructorPermitCreate",
+    theory_schedule_sync: "mebbisJobType.theoryScheduleSync",
+    theory_schedule_import: "mebbisJobType.theoryScheduleImport",
+  };
+  const key = keyMap[jobType];
+  return key ? t(key) : jobType;
 }
 
 export function parseJobPayload(job: MebbisJobResponse): Record<string, unknown> {

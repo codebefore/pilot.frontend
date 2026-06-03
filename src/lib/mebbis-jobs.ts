@@ -1,4 +1,5 @@
 import type { JobStatus } from "../types";
+import type { TranslationKey } from "./i18n";
 
 export type MebJob = {
   id: string;
@@ -25,18 +26,18 @@ export type JobsSummaryTone = "brand" | "blue" | "gray" | "orange" | "purple" | 
 
 type JobsSummary = {
   status: JobStatus;
-  label: string;
+  labelKey: TranslationKey;
   tone: JobsSummaryTone;
 };
 
 type JobsSummaryRow = JobsSummary & { count: number };
 
 const SUMMARY_DEFS: JobsSummary[] = [
-  { status: "success", label: "Başarılı", tone: "brand" },
-  { status: "running", label: "Çalışıyor", tone: "blue" },
-  { status: "queued", label: "Kuyrukta", tone: "gray" },
-  { status: "manual", label: "Manuel", tone: "purple" },
-  { status: "failed", label: "Hata", tone: "red" },
+  { status: "success", labelKey: "jobStatus.success", tone: "brand" },
+  { status: "running", labelKey: "jobStatus.running", tone: "blue" },
+  { status: "queued", labelKey: "jobStatus.queued", tone: "gray" },
+  { status: "manual", labelKey: "jobStatus.manual", tone: "purple" },
+  { status: "failed", labelKey: "jobStatus.failed", tone: "red" },
 ];
 
 export function buildJobsSummary(jobs: MebJob[]): JobsSummaryRow[] {

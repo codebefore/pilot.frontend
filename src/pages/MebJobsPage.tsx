@@ -397,7 +397,7 @@ export function MebJobsPage() {
           <JobsSummaryCard
             count={s.count}
             key={s.status}
-            label={s.label}
+            label={t(s.labelKey)}
             tone={s.tone}
           />
         ))}
@@ -693,7 +693,7 @@ function mapBackendJob(
   return {
     id: job.id,
     jobNo: `#${job.id.slice(0, 8)}`,
-    jobType: mebbisJobTypeLabel(job.jobType),
+    jobType: mebbisJobTypeLabel(job.jobType, t),
     candidateName,
     targetSecondary,
     step: buildStepText(job, t),
