@@ -18,6 +18,7 @@ type LocalizedDateInputProps = {
   className?: string;
   defaultOnOpen?: string;
   disabled?: boolean;
+  id?: string;
   lang?: string;
   /** "day" shows a day grid, "month" shows a 12-month grid, "year" shows a year grid and snaps value to Jan 1 of the selected year. */
   mode?: "day" | "month" | "year";
@@ -162,6 +163,7 @@ export function LocalizedDateInput({
   className,
   defaultOnOpen,
   disabled = false,
+  id,
   lang,
   mode = "day",
   name,
@@ -466,6 +468,7 @@ export function LocalizedDateInput({
           aria-label={ariaLabel}
           className="localized-date-trigger-input"
           disabled={disabled}
+          id={id}
           onChange={handleTriggerInputChange}
           onClick={(event) => {
             event.stopPropagation();

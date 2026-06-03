@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -80,6 +80,11 @@ export function UserFormModal({
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
+  const fullNameId = useId();
+  const roleSelectId = useId();
+  const phoneId = useId();
+  const mebbisUsernameId = useId();
+  const mebbisPasswordId = useId();
 
   const {
     formState: { errors },
@@ -177,8 +182,9 @@ export function UserFormModal({
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.fullName")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={fullNameId}>{t("common.field.fullName")}<RequiredMark /></label>
             <input
+              id={fullNameId}
               className={fieldClass(!!errors.fullName, "form-input")}
               disabled={!canManage}
               placeholder={t("userForm.placeholder.fullName")}
@@ -189,8 +195,9 @@ export function UserFormModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.role")}</label>
+            <label className="form-label" htmlFor={roleSelectId}>{t("common.field.role")}</label>
             <CustomSelect
+              id={roleSelectId}
               className={fieldClass(!!errors.roleId, "form-select")}
               disabled={!canManage}
               value={selectedRoleId ?? ""}
@@ -209,8 +216,9 @@ export function UserFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.phone")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={phoneId}>{t("common.field.phone")}<RequiredMark /></label>
             <input
+              id={phoneId}
               className={fieldClass(!!errors.phone, "form-input")}
               disabled={!canManage}
               maxLength={32}
@@ -223,8 +231,9 @@ export function UserFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.mebbisUsername")}</label>
+            <label className="form-label" htmlFor={mebbisUsernameId}>{t("common.field.mebbisUsername")}</label>
             <input
+              id={mebbisUsernameId}
               className={fieldClass(!!errors.mebbisUsername, "form-input")}
               disabled={!canManage}
               placeholder={t("userForm.placeholder.mebbisUsername")}
@@ -235,8 +244,9 @@ export function UserFormModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.mebbisPassword")}</label>
+            <label className="form-label" htmlFor={mebbisPasswordId}>{t("common.field.mebbisPassword")}</label>
             <input
+              id={mebbisPasswordId}
               autoComplete="new-password"
               className={fieldClass(!!errors.mebbisPassword, "form-input")}
               disabled={!canManage}

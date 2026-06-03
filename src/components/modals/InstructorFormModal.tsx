@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -132,6 +132,12 @@ export function InstructorFormModal({
   const [submitting, setSubmitting] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoInstructor, setPhotoInstructor] = useState<InstructorResponse | null>(editing);
+  const nationalIdInputId = useId();
+  const firstNameId = useId();
+  const lastNameInputId = useId();
+  const phoneInputId = useId();
+  const emailId = useId();
+  const notesId = useId();
   const { options: licenseClassOptions } = useLicenseClassOptions();
 
   const {
@@ -315,8 +321,9 @@ export function InstructorFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.nationalId")}</label>
+            <label className="form-label" htmlFor={nationalIdInputId}>{t("common.field.nationalId")}</label>
             <input
+              id={nationalIdInputId}
               className={fieldClass(errors.nationalId?.message)}
               inputMode="numeric"
               maxLength={11}
@@ -329,13 +336,14 @@ export function InstructorFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Ad<RequiredMark /></label>
+            <label className="form-label" htmlFor={firstNameId}>{t("common.field.firstName")}<RequiredMark /></label>
             <Controller
               control={control}
               name="firstName"
               render={({ field }) => (
                 <input
                   {...field}
+                  id={firstNameId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.firstName?.message)}
                   placeholder="HASAN"
@@ -348,13 +356,14 @@ export function InstructorFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("common.field.lastName")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={lastNameInputId}>{t("common.field.lastName")}<RequiredMark /></label>
             <Controller
               control={control}
               name="lastName"
               render={({ field }) => (
                 <input
                   {...field}
+                  id={lastNameInputId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.lastName?.message)}
                   placeholder="KORKMAZ"
@@ -369,8 +378,9 @@ export function InstructorFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.phone")}</label>
+            <label className="form-label" htmlFor={phoneInputId}>{t("common.field.phone")}</label>
             <input
+              id={phoneInputId}
               className={fieldClass(errors.phoneNumber?.message)}
               inputMode="numeric"
               maxLength={32}
@@ -380,8 +390,9 @@ export function InstructorFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("common.field.email")}</label>
+            <label className="form-label" htmlFor={emailId}>{t("common.field.email")}</label>
             <input
+              id={emailId}
               className={fieldClass(errors.email?.message)}
               placeholder="egitmen@kurum.com"
               type="email"
@@ -396,15 +407,15 @@ export function InstructorFormModal({
             <label className="switch-toggle">
               <input type="checkbox" {...register("isActive")} />
               <span className="switch-toggle-control" aria-hidden="true" />
-              <span>{watch("isActive") ? "Aktif" : "Pasif"}</span>
+              <span>{watch("isActive") ? t("common.active") : t("common.inactive")}</span>
             </label>
           </div>
         </div>
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("common.field.note")}</label>
-            <textarea className="form-input" rows={4} {...register("notes")} />
+            <label className="form-label" htmlFor={notesId}>{t("common.field.note")}</label>
+            <textarea id={notesId} className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>
 

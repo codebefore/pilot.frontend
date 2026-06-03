@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -52,6 +52,11 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
   const translateError = (message: string | undefined): string =>
     !message ? "" : message.includes(".") ? t(message as TranslationKey) : message;
   const [debtors, setDebtors] = useState<CandidateResponse[]>([]);
+  const candidateSelectId = useId();
+  const amountId = useId();
+  const methodId = useId();
+  const dateId = useId();
+  const noteId = useId();
   const {
     control,
     register,
@@ -120,8 +125,9 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.candidate")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={candidateSelectId}>{t("common.field.candidate")}<RequiredMark /></label>
             <CustomSelect
+              id={candidateSelectId}
               className={fieldClass(!!errors.candidateId, "form-select")}
               disabled={!canManage}
               {...register("candidateId")}
@@ -138,8 +144,9 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("newPayment.field.amount")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={amountId}>{t("newPayment.field.amount")}<RequiredMark /></label>
             <input
+              id={amountId}
               className={fieldClass(!!errors.amount, "form-input")}
               disabled={!canManage}
               type="number"
@@ -150,12 +157,13 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("newPayment.field.method")}</label>
+            <label className="form-label" htmlFor={methodId}>{t("newPayment.field.method")}</label>
             <Controller
               control={control}
               name="method"
               render={({ field }) => (
                 <CustomSelect
+                  id={methodId}
                   className="form-select"
                   disabled={!canManage}
                   name={field.name}
@@ -171,11 +179,12 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.date")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={dateId}>{t("common.field.date")}<RequiredMark /></label>
             <LocalizedDateInput
-              ariaLabel="Tarih"
+              ariaLabel={t("common.field.date")}
               className={fieldClass(!!errors.date, "form-input")}
               disabled={!canManage}
+              id={dateId}
               inputRef={dateRegistration.ref}
               lang={dateInputLang}
               name={dateRegistration.name}
@@ -190,8 +199,9 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
         </div>
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("common.field.note")}</label>
+            <label className="form-label" htmlFor={noteId}>{t("common.field.note")}</label>
             <textarea
+              id={noteId}
               className="form-input"
               disabled={!canManage}
               placeholder={t("newPayment.placeholder.note")}
