@@ -19,7 +19,7 @@ export function createExamSchedule(
   body: CreateExamScheduleRequest
 ): Promise<ExamScheduleOption> {
   return httpPost<ExamScheduleOption>(
-    "/api/exam-schedules",
+    "/api/training/exam-schedules",
     body,
     trainingRequestOptions()
   );
@@ -29,14 +29,14 @@ export function syncExamSchedules(
   examType: "e_sinav" | "uygulama"
 ): Promise<ExamScheduleSyncResponse> {
   return httpPost<ExamScheduleSyncResponse>(
-    "/api/exam-schedules/sync",
+    "/api/training/exam-schedules/sync",
     { examType },
     trainingRequestOptions()
   );
 }
 
 export function deleteExamSchedule(id: string): Promise<void> {
-  return httpDelete(`/api/exam-schedules/${id}`, undefined, trainingRequestOptions());
+  return httpDelete(`/api/training/exam-schedules/${id}`, undefined, trainingRequestOptions());
 }
 
 export function updateExamSchedule(
@@ -44,7 +44,7 @@ export function updateExamSchedule(
   body: CreateExamScheduleRequest
 ): Promise<ExamScheduleOption> {
   return httpPut<ExamScheduleOption>(
-    `/api/exam-schedules/${id}`,
+    `/api/training/exam-schedules/${id}`,
     body,
     trainingRequestOptions()
   );

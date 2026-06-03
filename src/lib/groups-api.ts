@@ -26,7 +26,7 @@ export function getGroups(
   signal?: AbortSignal
 ): Promise<PagedResponse<GroupResponse>> {
   return httpGet<PagedResponse<GroupResponse>>(
-    "/api/groups",
+    "/api/training/groups",
     params,
     trainingRequestOptions(signal)
   );
@@ -34,20 +34,20 @@ export function getGroups(
 
 export function getGroupById(id: string, signal?: AbortSignal): Promise<GroupDetailResponse> {
   return httpGet<GroupDetailResponse>(
-    `/api/groups/${id}`,
+    `/api/training/groups/${id}`,
     undefined,
     trainingRequestOptions(signal)
   );
 }
 
 export function createGroup(body: GroupCreateRequest): Promise<GroupResponse> {
-  return httpPost<GroupResponse>("/api/groups", body, trainingRequestOptions());
+  return httpPost<GroupResponse>("/api/training/groups", body, trainingRequestOptions());
 }
 
 export function updateGroup(id: string, body: GroupUpdateRequest): Promise<GroupResponse> {
-  return httpPut<GroupResponse>(`/api/groups/${id}`, body, trainingRequestOptions());
+  return httpPut<GroupResponse>(`/api/training/groups/${id}`, body, trainingRequestOptions());
 }
 
 export function deleteGroup(id: string): Promise<void> {
-  return httpDelete(`/api/groups/${id}`, undefined, trainingRequestOptions());
+  return httpDelete(`/api/training/groups/${id}`, undefined, trainingRequestOptions());
 }

@@ -40,14 +40,14 @@ export function getClassrooms(
   };
 
   return httpGet<ClassroomListResponse>(
-    "/api/classrooms",
+    "/api/training/classrooms",
     params,
     trainingRequestOptions(signal)
   );
 }
 
 export function createClassroom(body: ClassroomUpsertRequest): Promise<ClassroomResponse> {
-  return httpPost<ClassroomResponse>("/api/classrooms", body, trainingRequestOptions());
+  return httpPost<ClassroomResponse>("/api/training/classrooms", body, trainingRequestOptions());
 }
 
 export function updateClassroom(
@@ -55,7 +55,7 @@ export function updateClassroom(
   body: ClassroomUpsertRequest
 ): Promise<ClassroomResponse> {
   return httpPut<ClassroomResponse>(
-    `/api/classrooms/${id}`,
+    `/api/training/classrooms/${id}`,
     body,
     trainingRequestOptions()
   );

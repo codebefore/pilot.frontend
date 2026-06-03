@@ -72,7 +72,7 @@ export function listAssignments(
   signal?: AbortSignal
 ): Promise<InstructorAssignment[]> {
   return httpGet<InstructorAssignment[]>(
-    `/api/instructors/${instructorId}/assignments`,
+    `/api/training/instructors/${instructorId}/assignments`,
     undefined,
     trainingRequestOptions(signal)
   );
@@ -84,7 +84,7 @@ export function createAssignment(
 ): Promise<InstructorAssignment> {
   return unwrapDateOverlap(
     httpPost<InstructorAssignment>(
-      `/api/instructors/${instructorId}/assignments`,
+      `/api/training/instructors/${instructorId}/assignments`,
       body,
       trainingRequestOptions()
     )
@@ -98,7 +98,7 @@ export function updateAssignment(
 ): Promise<InstructorAssignment> {
   return unwrapDateOverlap(
     httpPut<InstructorAssignment>(
-      `/api/instructors/${instructorId}/assignments/${assignmentId}`,
+      `/api/training/instructors/${instructorId}/assignments/${assignmentId}`,
       body,
       trainingRequestOptions()
     )
@@ -111,7 +111,7 @@ export function deleteAssignment(
   rowVersion: number
 ): Promise<void> {
   return httpDelete<void>(
-    `/api/instructors/${instructorId}/assignments/${assignmentId}`,
+    `/api/training/instructors/${instructorId}/assignments/${assignmentId}`,
     { rowVersion },
     trainingRequestOptions()
   );

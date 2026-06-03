@@ -12,6 +12,7 @@ import {
   getDocumentApiBaseUrl,
   getFinanceApiBaseUrl,
   getMebbisApiBaseUrl,
+  getPlatformApiBaseUrl,
   getTrainingApiBaseUrl,
 } from "./api";
 
@@ -29,6 +30,7 @@ describe("service api base urls", () => {
     expect(getDocumentApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getFinanceApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getMebbisApiBaseUrl()).toBe("http://127.0.0.1:5080");
+    expect(getPlatformApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getTrainingApiBaseUrl()).toBe("http://127.0.0.1:5080");
   });
 
@@ -42,6 +44,7 @@ describe("service api base urls", () => {
       candidateApiBaseUrl: "http://127.0.0.1:5094",
       trainingApiBaseUrl: "http://127.0.0.1:5095",
       mebbisApiBaseUrl: "http://127.0.0.1:5096",
+      platformApiBaseUrl: "http://127.0.0.1:5097",
     });
 
     expect(getAuthApiBaseUrl()).toBe("http://127.0.0.1:5091");
@@ -51,6 +54,7 @@ describe("service api base urls", () => {
     expect(getCandidateApiBaseUrl()).toBe("http://127.0.0.1:5094");
     expect(getTrainingApiBaseUrl()).toBe("http://127.0.0.1:5095");
     expect(getMebbisApiBaseUrl()).toBe("http://127.0.0.1:5096");
+    expect(getPlatformApiBaseUrl()).toBe("http://127.0.0.1:5097");
   });
 
   it("keeps container runtime config template aligned with service-specific env vars", () => {
@@ -61,6 +65,7 @@ describe("service api base urls", () => {
       ["documentApiBaseUrl", "VITE_DOCUMENT_API_BASE_URL"],
       ["financeApiBaseUrl", "VITE_FINANCE_API_BASE_URL"],
       ["mebbisApiBaseUrl", "VITE_MEBBIS_API_BASE_URL"],
+      ["platformApiBaseUrl", "VITE_PLATFORM_API_BASE_URL"],
       ["trainingApiBaseUrl", "VITE_TRAINING_API_BASE_URL"],
     ];
 
@@ -80,6 +85,7 @@ describe("service api base urls", () => {
       "VITE_DOCUMENT_API_BASE_URL",
       "VITE_FINANCE_API_BASE_URL",
       "VITE_MEBBIS_API_BASE_URL",
+      "VITE_PLATFORM_API_BASE_URL",
       "VITE_TRAINING_API_BASE_URL",
     ];
 

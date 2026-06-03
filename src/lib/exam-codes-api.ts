@@ -17,23 +17,23 @@ export function getExamCodes(
   signal?: AbortSignal
 ): Promise<ExamCodeOption[]> {
   return httpGet<ExamCodeOption[]>(
-    "/api/exam-codes",
+    "/api/training/exam-codes",
     { examType },
     trainingRequestOptions(signal)
   );
 }
 
 export function createExamCode(body: CreateExamCodeRequest): Promise<ExamCodeOption> {
-  return httpPost<ExamCodeOption>("/api/exam-codes", body, trainingRequestOptions());
+  return httpPost<ExamCodeOption>("/api/training/exam-codes", body, trainingRequestOptions());
 }
 
 export function deleteExamCode(id: string): Promise<void> {
-  return httpDelete(`/api/exam-codes/${id}`, undefined, trainingRequestOptions());
+  return httpDelete(`/api/training/exam-codes/${id}`, undefined, trainingRequestOptions());
 }
 
 export function updateExamCode(id: string, code: string): Promise<ExamCodeOption> {
   return httpPut<ExamCodeOption>(
-    `/api/exam-codes/${id}`,
+    `/api/training/exam-codes/${id}`,
     { code },
     trainingRequestOptions()
   );

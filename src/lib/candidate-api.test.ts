@@ -11,6 +11,7 @@ import {
   getCandidateReuseSources,
   getCandidates,
   getExamScheduleOptions,
+  removeActiveGroupAssignment,
   searchCandidateTags,
 } from "./candidates-api";
 
@@ -53,12 +54,11 @@ describe("candidate api routing", () => {
     );
   });
 
-  it("routes candidate tag and group assignment commands to the runtime candidate base url", async () => {
+  it("routes candidate tag commands to the runtime candidate base url", async () => {
     applyRuntimeConfig({ candidateApiBaseUrl: "http://127.0.0.1:5094" });
 
     await searchCandidateTags("vip");
     await createCandidateTag("VIP");
-    await assignCandidateGroup("candidate-1", "group-1");
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
       "http://127.0.0.1:5094/api/candidates/tags?search=vip&limit=20"
@@ -66,8 +66,19 @@ describe("candidate api routing", () => {
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
       "http://127.0.0.1:5094/api/candidates/tags"
     );
-    expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
-      "http://127.0.0.1:5094/api/candidates/candidate-1/group-assignments"
+  });
+
+  it("routes candidate group assignment commands to the runtime training base url", async () => {
+    applyRuntimeConfig({ trainingApiBaseUrl: "http://127.0.0.1:5097" });
+
+    await assignCandidateGroup("candidate-1", "group-1");
+    await removeActiveGroupAssignment("candidate-1");
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
+      "http://127.0.0.1:5097/api/training/candidates/candidate-1/group-assignments"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
+      "http://127.0.0.1:5097/api/training/candidates/candidate-1/group-assignments/active"
     );
   });
 

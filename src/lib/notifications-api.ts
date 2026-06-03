@@ -1,3 +1,4 @@
+import { getPlatformApiBaseUrl } from "./api";
 import { httpGet } from "./http";
 
 type NotificationSeverity = "expired" | "warning" | "info";
@@ -20,7 +21,10 @@ interface NotificationListResponse {
 export function getNotifications(
   signal?: AbortSignal
 ): Promise<NotificationListResponse> {
-  return httpGet<NotificationListResponse>("/api/notifications", undefined, { signal });
+  return httpGet<NotificationListResponse>("/api/notifications", undefined, {
+    baseUrl: getPlatformApiBaseUrl(),
+    signal,
+  });
 }
 
 export function notificationTone(severity: NotificationSeverity): "danger" | "warn" | "info" {

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthInstitution } from "../../lib/auth-storage";
+import { LanguageProvider } from "../../lib/i18n";
 import { ToastProvider } from "../ui/Toast";
 import { InstitutionSelector } from "./InstitutionSelector";
 
@@ -27,9 +28,11 @@ const institutions: AuthInstitution[] = [
 function renderSelector(activeId = "") {
   const onSelect = vi.fn().mockResolvedValue(undefined);
   render(
-    <ToastProvider>
-      <InstitutionSelector activeId={activeId} institutions={institutions} onSelect={onSelect} />
-    </ToastProvider>
+    <LanguageProvider>
+      <ToastProvider>
+        <InstitutionSelector activeId={activeId} institutions={institutions} onSelect={onSelect} />
+      </ToastProvider>
+    </LanguageProvider>
   );
   return { onSelect };
 }

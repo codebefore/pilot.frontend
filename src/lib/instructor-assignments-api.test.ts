@@ -22,16 +22,16 @@ describe("instructor assignments api", () => {
     );
   });
 
-  it("keeps assignment reads on the default api base url", async () => {
+  it("routes assignment reads to the training base url", async () => {
     applyRuntimeConfig({
-      apiBaseUrl: "http://127.0.0.1:5080",
+      trainingApiBaseUrl: "http://127.0.0.1:5095",
       documentApiBaseUrl: "http://127.0.0.1:5092",
     });
 
     await listAssignments("instructor-1");
 
     const [url] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe("http://127.0.0.1:5080/api/instructors/instructor-1/assignments");
+    expect(String(url)).toBe("http://127.0.0.1:5095/api/training/instructors/instructor-1/assignments");
   });
 
   it("routes assignment document upload and download urls to the document base url", async () => {

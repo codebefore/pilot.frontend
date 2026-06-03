@@ -1,3 +1,4 @@
+import { getPlatformApiBaseUrl } from "./api";
 import { httpGet, httpPost } from "./http";
 
 export type OutboxMessageStatus = "pending" | "published" | "failed" | "dead_letter";
@@ -75,24 +76,37 @@ export function getOutboxMessages(
   params: { status?: OutboxMessageStatus; limit?: number },
   signal?: AbortSignal
 ): Promise<OutboxMessageListResponse> {
-  return httpGet<OutboxMessageListResponse>("/api/outbox", params, { signal });
+  return httpGet<OutboxMessageListResponse>("/api/outbox", params, {
+    baseUrl: getPlatformApiBaseUrl(),
+    signal,
+  });
 }
 
 export function retryOutboxMessage(id: string): Promise<OutboxMessageRetryResponse> {
-  return httpPost<OutboxMessageRetryResponse>(`/api/outbox/${id}/retry`, {});
+  return httpPost<OutboxMessageRetryResponse>(`/api/outbox/${id}/retry`, {}, {
+    baseUrl: getPlatformApiBaseUrl(),
+  });
 }
 
 export function getInboxMessages(
   params: { status?: InboxMessageStatus; limit?: number },
   signal?: AbortSignal
 ): Promise<InboxMessageListResponse> {
-  return httpGet<InboxMessageListResponse>("/api/inbox", params, { signal });
+  return httpGet<InboxMessageListResponse>("/api/inbox", params, {
+    baseUrl: getPlatformApiBaseUrl(),
+    signal,
+  });
 }
 
 export function retryInboxMessage(id: string): Promise<InboxMessageRetryResponse> {
-  return httpPost<InboxMessageRetryResponse>(`/api/inbox/${id}/retry`, {});
+  return httpPost<InboxMessageRetryResponse>(`/api/inbox/${id}/retry`, {}, {
+    baseUrl: getPlatformApiBaseUrl(),
+  });
 }
 
 export function getDomainEventStreamStatus(signal?: AbortSignal): Promise<DomainEventStreamStatusResponse> {
-  return httpGet<DomainEventStreamStatusResponse>("/health/domain-events", undefined, { signal });
+  return httpGet<DomainEventStreamStatusResponse>("/health/domain-events", undefined, {
+    baseUrl: getPlatformApiBaseUrl(),
+    signal,
+  });
 }

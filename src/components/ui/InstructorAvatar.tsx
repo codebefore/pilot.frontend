@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { getApiBaseUrl } from "../../lib/api";
+import { getTrainingApiBaseUrl } from "../../lib/api";
 import { createAuthorizedObjectUrl } from "../../lib/authorized-files";
 import type { InstructorResponse } from "../../lib/types";
 
@@ -21,8 +21,8 @@ function buildInstructorPhotoUrl(
 ): string | null {
   if (!instructor.hasPhoto) return null;
 
-  const base = getApiBaseUrl().replace(/\/+$/, "");
-  const path = `/api/instructors/${instructor.id}/photo`;
+  const base = getTrainingApiBaseUrl().replace(/\/+$/, "");
+  const path = `/api/training/instructors/${instructor.id}/photo`;
   const dedupedPath =
     base.endsWith("/api") && path.startsWith("/api/")
       ? path.slice("/api".length)

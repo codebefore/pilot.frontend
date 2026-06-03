@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "./api";
+import { getPlatformApiBaseUrl } from "./api";
 import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
 import { httpDelete, httpGet, httpPost, httpPostForm, httpPut } from "./http";
 
@@ -95,7 +95,7 @@ export async function getInstitutionSettings(
     return await httpGet<InstitutionSettingsResponse>(
       "/api/institution-settings",
       undefined,
-      { signal }
+      { baseUrl: getPlatformApiBaseUrl(), signal }
     );
   } catch (error) {
     if ((error as { status?: number }).status === 404) {
@@ -108,7 +108,9 @@ export async function getInstitutionSettings(
 export function upsertInstitutionSettings(
   body: InstitutionSettingsUpsertRequest
 ): Promise<InstitutionSettingsResponse> {
-  return httpPut<InstitutionSettingsResponse>("/api/institution-settings", body);
+  return httpPut<InstitutionSettingsResponse>("/api/institution-settings", body, {
+    baseUrl: getPlatformApiBaseUrl(),
+  });
 }
 
 export function getInstitutionIntegrations(
@@ -117,7 +119,7 @@ export function getInstitutionIntegrations(
   return httpGet<InstitutionIntegrationsResponse>(
     "/api/institution-settings/integrations",
     undefined,
-    { signal }
+    { baseUrl: getPlatformApiBaseUrl(), signal }
   );
 }
 
@@ -126,7 +128,8 @@ export function upsertInstitutionIntegrations(
 ): Promise<InstitutionIntegrationsResponse> {
   return httpPut<InstitutionIntegrationsResponse>(
     "/api/institution-settings/integrations",
-    body
+    body,
+    { baseUrl: getPlatformApiBaseUrl() }
   );
 }
 
@@ -150,14 +153,15 @@ export function getWhatsAppStatus(
   return httpGet<WhatsAppStatusResponse>(
     "/api/institution-settings/integrations/whatsapp",
     undefined,
-    { signal }
+    { baseUrl: getPlatformApiBaseUrl(), signal }
   );
 }
 
 export function testSendWhatsApp(phone: string): Promise<WhatsAppTestSendResponse> {
   return httpPost<WhatsAppTestSendResponse>(
     "/api/institution-settings/integrations/whatsapp/test-send",
-    { phone }
+    { phone },
+    { baseUrl: getPlatformApiBaseUrl() }
   );
 }
 
@@ -172,7 +176,8 @@ export function uploadInstitutionLogo(
   }
   return httpPostForm<InstitutionSettingsResponse>(
     "/api/institution-settings/logo",
-    form
+    form,
+    { baseUrl: getPlatformApiBaseUrl() }
   );
 }
 
@@ -181,7 +186,8 @@ export function deleteInstitutionLogo(
 ): Promise<InstitutionSettingsResponse> {
   return httpDelete<InstitutionSettingsResponse>(
     "/api/institution-settings/logo",
-    { rowVersion: rowVersion ?? undefined }
+    { rowVersion: rowVersion ?? undefined },
+    { baseUrl: getPlatformApiBaseUrl() }
   );
 }
 
@@ -189,7 +195,7 @@ function getInstitutionLogoUrl(
   logo: InstitutionLogoResponse,
   cacheKey?: string
 ): string {
-  const base = getApiBaseUrl().replace(/\/+$/, "");
+  const base = getPlatformApiBaseUrl().replace(/\/+$/, "");
   const path = logo.url.startsWith("/") ? logo.url : `/${logo.url}`;
   const dedupedPath =
     base.endsWith("/api") && path.startsWith("/api/")

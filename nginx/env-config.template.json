@@ -6,6 +6,7 @@
   "documentApiBaseUrl": "${VITE_DOCUMENT_API_BASE_URL}",
   "financeApiBaseUrl": "${VITE_FINANCE_API_BASE_URL}",
   "mebbisApiBaseUrl": "${VITE_MEBBIS_API_BASE_URL}",
+  "platformApiBaseUrl": "${VITE_PLATFORM_API_BASE_URL}",
   "trainingApiBaseUrl": "${VITE_TRAINING_API_BASE_URL}",
   "publicUrl": "${PILOT_FRONTEND_PUBLIC_URL}"
 }

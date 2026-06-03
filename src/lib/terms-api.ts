@@ -22,20 +22,20 @@ export function getTerms(
   signal?: AbortSignal
 ): Promise<PagedResponse<TermResponse>> {
   return httpGet<PagedResponse<TermResponse>>(
-    "/api/terms",
+    "/api/training/terms",
     params,
     trainingRequestOptions(signal)
   );
 }
 
 export function createTerm(body: CreateTermRequest): Promise<TermResponse> {
-  return httpPost<TermResponse>("/api/terms", body, trainingRequestOptions());
+  return httpPost<TermResponse>("/api/training/terms", body, trainingRequestOptions());
 }
 
 export function updateTerm(id: string, body: UpdateTermRequest): Promise<TermResponse> {
-  return httpPut<TermResponse>(`/api/terms/${id}`, body, trainingRequestOptions());
+  return httpPut<TermResponse>(`/api/training/terms/${id}`, body, trainingRequestOptions());
 }
 
 export function deleteTerm(id: string): Promise<void> {
-  return httpDelete(`/api/terms/${id}`, undefined, trainingRequestOptions());
+  return httpDelete(`/api/training/terms/${id}`, undefined, trainingRequestOptions());
 }

@@ -56,7 +56,7 @@ export function getVehicles(
   };
 
   return httpGet<VehicleListResponse>(
-    "/api/vehicles",
+    "/api/training/vehicles",
     params,
     trainingRequestOptions(signal)
   );
@@ -69,7 +69,7 @@ export async function getVehicle(
   // Backend has no GET-by-id endpoint yet; pull from the list and find.
   // Replace with `/api/vehicles/${id}` once backend exposes it.
   const response = await httpGet<VehicleListResponse>(
-    "/api/vehicles",
+    "/api/training/vehicles",
     { activity: "all", page: 1, pageSize: 500 },
     trainingRequestOptions(signal)
   );
@@ -81,16 +81,16 @@ export async function getVehicle(
 }
 
 export function createVehicle(body: VehicleUpsertRequest): Promise<VehicleResponse> {
-  return httpPost<VehicleResponse>("/api/vehicles", body, trainingRequestOptions());
+  return httpPost<VehicleResponse>("/api/training/vehicles", body, trainingRequestOptions());
 }
 
 export function updateVehicle(
   id: string,
   body: VehicleUpsertRequest
 ): Promise<VehicleResponse> {
-  return httpPut<VehicleResponse>(`/api/vehicles/${id}`, body, trainingRequestOptions());
+  return httpPut<VehicleResponse>(`/api/training/vehicles/${id}`, body, trainingRequestOptions());
 }
 
 export function deleteVehicle(id: string): Promise<void> {
-  return httpDelete(`/api/vehicles/${id}`, undefined, trainingRequestOptions());
+  return httpDelete(`/api/training/vehicles/${id}`, undefined, trainingRequestOptions());
 }

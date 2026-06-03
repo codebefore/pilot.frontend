@@ -47,6 +47,8 @@ spec:
               value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.financeApiBaseUrl | quote }}
             - name: VITE_MEBBIS_API_BASE_URL
               value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.mebbisApiBaseUrl | quote }}
+            - name: VITE_PLATFORM_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.platformApiBaseUrl | quote }}
             - name: VITE_TRAINING_API_BASE_URL
               value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.trainingApiBaseUrl | quote }}
           livenessProbe:

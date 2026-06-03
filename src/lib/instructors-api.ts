@@ -60,7 +60,7 @@ export function getInstructors(
   };
 
   return httpGet<InstructorListResponse>(
-    "/api/instructors",
+    "/api/training/instructors",
     params,
     trainingRequestOptions(signal)
   );
@@ -71,14 +71,14 @@ export function getInstructor(
   signal?: AbortSignal
 ): Promise<InstructorResponse> {
   return httpGet<InstructorResponse>(
-    `/api/instructors/${id}`,
+    `/api/training/instructors/${id}`,
     undefined,
     trainingRequestOptions(signal)
   );
 }
 
 export function createInstructor(body: InstructorCreateRequest): Promise<InstructorResponse> {
-  return httpPost<InstructorResponse>("/api/instructors", body, trainingRequestOptions());
+  return httpPost<InstructorResponse>("/api/training/instructors", body, trainingRequestOptions());
 }
 
 export function updateInstructor(
@@ -86,14 +86,14 @@ export function updateInstructor(
   body: InstructorUpsertRequest
 ): Promise<InstructorResponse> {
   return httpPut<InstructorResponse>(
-    `/api/instructors/${id}`,
+    `/api/training/instructors/${id}`,
     body,
     trainingRequestOptions()
   );
 }
 
 export function deleteInstructor(id: string): Promise<void> {
-  return httpDelete(`/api/instructors/${id}`, undefined, trainingRequestOptions());
+  return httpDelete(`/api/training/instructors/${id}`, undefined, trainingRequestOptions());
 }
 
 export function uploadInstructorPhoto(
@@ -103,7 +103,7 @@ export function uploadInstructorPhoto(
   const form = new FormData();
   form.append("file", file);
   return httpPostForm<InstructorResponse>(
-    `/api/instructors/${id}/photo`,
+    `/api/training/instructors/${id}/photo`,
     form,
     trainingRequestOptions()
   );
@@ -111,7 +111,7 @@ export function uploadInstructorPhoto(
 
 export function deleteInstructorPhoto(id: string): Promise<InstructorResponse> {
   return httpDelete<InstructorResponse>(
-    `/api/instructors/${id}/photo`,
+    `/api/training/instructors/${id}/photo`,
     undefined,
     trainingRequestOptions()
   );
@@ -128,7 +128,7 @@ export function markInstructorLeft(
   body: InstructorLeaveRequest
 ): Promise<InstructorResponse> {
   return httpPost<InstructorResponse>(
-    `/api/instructors/${id}/leave`,
+    `/api/training/instructors/${id}/leave`,
     body,
     trainingRequestOptions()
   );
@@ -136,7 +136,7 @@ export function markInstructorLeft(
 
 export function clearInstructorLeft(id: string): Promise<InstructorResponse> {
   return httpDelete<InstructorResponse>(
-    `/api/instructors/${id}/leave`,
+    `/api/training/instructors/${id}/leave`,
     undefined,
     trainingRequestOptions()
   );

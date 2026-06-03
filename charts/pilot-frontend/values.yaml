@@ -25,6 +25,7 @@ runtimeConfig:
   documentApiBaseUrl: ""
   financeApiBaseUrl: ""
   mebbisApiBaseUrl: ""
+  platformApiBaseUrl: ""
   trainingApiBaseUrl: ""
 
 resources: {}

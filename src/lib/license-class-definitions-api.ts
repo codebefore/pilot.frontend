@@ -156,29 +156,35 @@ function toLicensePagedResponse(
 export function createLicenseClassDefinition(
   body: LicenseClassDefinitionUpsertRequest
 ): Promise<LicenseClassDefinitionResponse> {
-  return httpPost<LicenseClassDefinitionResponse>("/api/license-class-definitions", body);
+  return httpPost<LicenseClassSnapshot>(
+    "/api/catalog/license-classes",
+    body,
+    catalogRequestOptions()
+  ).then(mapLicenseClass);
 }
 
 export function updateLicenseClassDefinition(
   id: string,
   body: LicenseClassDefinitionUpsertRequest
 ): Promise<LicenseClassDefinitionResponse> {
-  return httpPut<LicenseClassDefinitionResponse>(
-    `/api/license-class-definitions/${id}`,
-    body
-  );
+  return httpPut<LicenseClassSnapshot>(
+    `/api/catalog/license-classes/${id}`,
+    body,
+    catalogRequestOptions()
+  ).then(mapLicenseClass);
 }
 
 export function updateLicenseClassDefinitionActivity(
   id: string,
   body: LicenseClassDefinitionActivityRequest
 ): Promise<LicenseClassDefinitionResponse> {
-  return httpPut<LicenseClassDefinitionResponse>(
-    `/api/license-class-definitions/${id}/activity`,
-    body
-  );
+  return httpPut<LicenseClassSnapshot>(
+    `/api/catalog/license-classes/${id}/activity`,
+    body,
+    catalogRequestOptions()
+  ).then(mapLicenseClass);
 }
 
 export function deleteLicenseClassDefinition(id: string): Promise<void> {
-  return httpDelete(`/api/license-class-definitions/${id}`);
+  return httpDelete(`/api/catalog/license-classes/${id}`, undefined, catalogRequestOptions());
 }

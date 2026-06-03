@@ -14,7 +14,7 @@ export function listCandidateExamAttempts(
   signal?: AbortSignal
 ): Promise<CandidateExamAttemptResponse[]> {
   return httpGet<CandidateExamAttemptResponse[]>(
-    `/api/candidates/${candidateId}/exam-attempts`,
+    `/api/training/candidates/${candidateId}/exam-attempts`,
     undefined,
     trainingOptions(signal)
   );
@@ -25,7 +25,7 @@ export function createCandidateExamAttempt(
   body: CandidateExamAttemptUpsertRequest
 ): Promise<CandidateExamAttemptResponse> {
   return httpPost<CandidateExamAttemptResponse>(
-    `/api/candidates/${candidateId}/exam-attempts`,
+    `/api/training/candidates/${candidateId}/exam-attempts`,
     body,
     trainingOptions()
   );
@@ -37,14 +37,14 @@ export function updateCandidateExamAttempt(
   body: CandidateExamAttemptUpsertRequest
 ): Promise<CandidateExamAttemptResponse> {
   return httpPut<CandidateExamAttemptResponse>(
-    `/api/candidates/${candidateId}/exam-attempts/${id}`,
+    `/api/training/candidates/${candidateId}/exam-attempts/${id}`,
     body,
     trainingOptions()
   );
 }
 
 export function deleteCandidateExamAttempt(candidateId: string, id: string): Promise<void> {
-  return httpDelete(`/api/candidates/${candidateId}/exam-attempts/${id}`, undefined, trainingOptions());
+  return httpDelete(`/api/training/candidates/${candidateId}/exam-attempts/${id}`, undefined, trainingOptions());
 }
 
 export function chargeCandidateExamAttempt(
@@ -52,7 +52,7 @@ export function chargeCandidateExamAttempt(
   id: string
 ): Promise<CandidateExamAttemptResponse> {
   return httpPost<CandidateExamAttemptResponse>(
-    `/api/candidates/${candidateId}/exam-attempts/${id}/charge`,
+    `/api/training/candidates/${candidateId}/exam-attempts/${id}/charge`,
     {},
     trainingOptions()
   );
@@ -63,7 +63,7 @@ export function markCandidateExamAttemptSelfPaid(
   id: string
 ): Promise<CandidateExamAttemptResponse> {
   return httpPost<CandidateExamAttemptResponse>(
-    `/api/candidates/${candidateId}/exam-attempts/${id}/mark-self-paid`,
+    `/api/training/candidates/${candidateId}/exam-attempts/${id}/mark-self-paid`,
     {},
     trainingOptions()
   );

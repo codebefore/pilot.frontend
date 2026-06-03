@@ -41,6 +41,11 @@ describe("service api routing ownership", () => {
       ["documents-api.ts", "getCatalogApiBaseUrl"],
 
       ["mebbis-jobs-api.ts", "getMebbisApiBaseUrl"],
+
+      ["institution-settings-api.ts", "getPlatformApiBaseUrl"],
+      ["notifications-api.ts", "getPlatformApiBaseUrl"],
+      ["outbox-api.ts", "getPlatformApiBaseUrl"],
+      ["stats-api.ts", "getPlatformApiBaseUrl"],
     ];
 
     for (const [fileName, helperName] of expectedImports) {
@@ -49,11 +54,18 @@ describe("service api routing ownership", () => {
     }
   });
 
-  it("keeps catalog write calls on the default API base while reads use catalog service", () => {
+  it("keeps catalog document type calls on the catalog service base", () => {
     const source = readFileSync(resolve("src/lib/documents-api.ts"), "utf8");
 
     expect(source).toContain('"/api/catalog/document-types"');
-    expect(source).toContain('httpPost<DocumentTypeResponse>("/api/document-types", body)');
-    expect(source).toContain('httpPut<DocumentTypeResponse>(`/api/document-types/${id}`, body)');
+    expect(source).toContain('httpPost<DocumentTypeSnapshot>(');
+    expect(source).toContain('httpPut<DocumentTypeSnapshot>(');
+  });
+
+  it("keeps instructor photo rendering on the training service base", () => {
+    const source = readFileSync(resolve("src/components/ui/InstructorAvatar.tsx"), "utf8");
+
+    expect(source).toContain("getTrainingApiBaseUrl");
+    expect(source).toContain("/api/training/instructors/");
   });
 });

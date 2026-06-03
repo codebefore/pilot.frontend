@@ -154,16 +154,26 @@ function parseMetadataFields(metadataSchemaJson: string | null): DocumentMetadat
 export function createDocumentType(
   body: DocumentTypeUpsertRequest
 ): Promise<DocumentTypeResponse> {
-  return httpPost<DocumentTypeResponse>("/api/document-types", body).then(normalizeDocumentType);
+  return httpPost<DocumentTypeSnapshot>(
+    "/api/catalog/document-types",
+    body,
+    catalogRequestOptions()
+  )
+    .then(mapDocumentTypeSnapshot)
+    .then(normalizeDocumentType);
 }
 
 export function updateDocumentType(
   id: string,
   body: DocumentTypeUpsertRequest
 ): Promise<DocumentTypeResponse> {
-  return httpPut<DocumentTypeResponse>(`/api/document-types/${id}`, body).then(
-    normalizeDocumentType
-  );
+  return httpPut<DocumentTypeSnapshot>(
+    `/api/catalog/document-types/${id}`,
+    body,
+    catalogRequestOptions()
+  )
+    .then(mapDocumentTypeSnapshot)
+    .then(normalizeDocumentType);
 }
 
 export function getDocumentChecklist(

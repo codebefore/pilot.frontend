@@ -34,7 +34,7 @@ export function getTrainingLessons(
   };
 
   return httpGet<TrainingLessonListResponse>(
-    "/api/training-lessons",
+    "/api/training/lessons",
     params,
     trainingRequestOptions(signal)
   );
@@ -44,7 +44,7 @@ export function createTrainingLesson(
   body: TrainingLessonUpsertRequest
 ): Promise<TrainingLessonResponse> {
   return httpPost<TrainingLessonResponse>(
-    "/api/training-lessons",
+    "/api/training/lessons",
     body,
     trainingRequestOptions()
   );
@@ -55,20 +55,20 @@ export function updateTrainingLesson(
   body: TrainingLessonUpsertRequest
 ): Promise<TrainingLessonResponse> {
   return httpPut<TrainingLessonResponse>(
-    `/api/training-lessons/${id}`,
+    `/api/training/lessons/${id}`,
     body,
     trainingRequestOptions()
   );
 }
 
 export function deleteTrainingLesson(id: string): Promise<void> {
-  return httpDelete(`/api/training-lessons/${id}`, undefined, trainingRequestOptions());
+  return httpDelete(`/api/training/lessons/${id}`, undefined, trainingRequestOptions());
 }
 
 export function deleteTrainingLessonsByGroup(
   groupId: string
 ): Promise<TrainingLessonBulkDeleteResponse> {
-  return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training-lessons/bulk", {
+  return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training/lessons/bulk", {
     groupId,
   }, trainingRequestOptions());
 }
@@ -76,7 +76,7 @@ export function deleteTrainingLessonsByGroup(
 export function deleteTrainingLessonsByCandidate(
   candidateId: string
 ): Promise<TrainingLessonBulkDeleteResponse> {
-  return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training-lessons/bulk", {
+  return httpDelete<TrainingLessonBulkDeleteResponse>("/api/training/lessons/bulk", {
     candidateId,
   }, trainingRequestOptions());
 }

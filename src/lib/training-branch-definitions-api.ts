@@ -43,10 +43,11 @@ export function updateTrainingBranchDefinition(
   id: string,
   body: TrainingBranchDefinitionUpsertRequest
 ): Promise<TrainingBranchDefinitionResponse> {
-  return httpPut<TrainingBranchDefinitionResponse>(
-    `/api/training-branch-definitions/${id}`,
-    body
-  );
+  return httpPut<TrainingBranchSnapshot>(
+    `/api/catalog/training-branches/${id}`,
+    body,
+    catalogRequestOptions()
+  ).then(mapTrainingBranch);
 }
 
 function mapTrainingBranchList(

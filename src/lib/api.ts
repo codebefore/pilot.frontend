@@ -8,6 +8,7 @@ declare global {
       documentApiBaseUrl?: string;
       financeApiBaseUrl?: string;
       mebbisApiBaseUrl?: string;
+      platformApiBaseUrl?: string;
       publicUrl?: string;
       trainingApiBaseUrl?: string;
     };
@@ -32,6 +33,14 @@ export function getMebbisApiBaseUrl(): string {
   return (
     window.__APP_CONFIG__?.mebbisApiBaseUrl ??
     import.meta.env.VITE_MEBBIS_API_BASE_URL ??
+    getApiBaseUrl()
+  );
+}
+
+export function getPlatformApiBaseUrl(): string {
+  return (
+    window.__APP_CONFIG__?.platformApiBaseUrl ??
+    import.meta.env.VITE_PLATFORM_API_BASE_URL ??
     getApiBaseUrl()
   );
 }

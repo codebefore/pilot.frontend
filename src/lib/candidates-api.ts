@@ -1,4 +1,4 @@
-import { getCandidateApiBaseUrl } from "./api";
+import { getCandidateApiBaseUrl, getTrainingApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPatch, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   CandidateExistingLicenseRequest,
@@ -15,6 +15,11 @@ import type {
 
 const candidateRequestOptions = (signal?: AbortSignal) => ({
   baseUrl: getCandidateApiBaseUrl(),
+  signal,
+});
+
+const trainingRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getTrainingApiBaseUrl(),
   signal,
 });
 
@@ -208,9 +213,9 @@ export function deleteCandidate(id: string): Promise<void> {
 
 export function removeActiveGroupAssignment(candidateId: string): Promise<void> {
   return httpDelete(
-    `/api/candidates/${candidateId}/group-assignments/active`,
+    `/api/training/candidates/${candidateId}/group-assignments/active`,
     undefined,
-    candidateRequestOptions()
+    trainingRequestOptions()
   );
 }
 
@@ -251,8 +256,8 @@ export function assignCandidateGroup(
   groupId: string
 ): Promise<CandidateGroupAssignmentResponse> {
   return httpPost<CandidateGroupAssignmentResponse>(
-    `/api/candidates/${candidateId}/group-assignments`,
+    `/api/training/candidates/${candidateId}/group-assignments`,
     { groupId },
-    candidateRequestOptions()
+    trainingRequestOptions()
   );
 }

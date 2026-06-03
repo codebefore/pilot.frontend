@@ -47,22 +47,22 @@ describe("training api routing", () => {
     await getVehicles({ activity: "all", status: "idle" });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5095/api/terms?page=1&pageSize=20"
+      "http://127.0.0.1:5095/api/training/terms?page=1&pageSize=20"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5095/api/groups?search=A&page=2"
+      "http://127.0.0.1:5095/api/training/groups?search=A&page=2"
     );
     expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
-      "http://127.0.0.1:5095/api/exam-codes?examType=uygulama"
+      "http://127.0.0.1:5095/api/training/exam-codes?examType=uygulama"
     );
     expect(String(vi.mocked(fetch).mock.calls[3][0])).toBe(
-      "http://127.0.0.1:5095/api/classrooms?activity=active&pageSize=50"
+      "http://127.0.0.1:5095/api/training/classrooms?activity=active&pageSize=50"
     );
     expect(String(vi.mocked(fetch).mock.calls[4][0])).toBe(
-      "http://127.0.0.1:5095/api/instructors?includeInactive=false&activity=all&role=master_instructor"
+      "http://127.0.0.1:5095/api/training/instructors?includeInactive=false&activity=all&role=master_instructor"
     );
     expect(String(vi.mocked(fetch).mock.calls[5][0])).toBe(
-      "http://127.0.0.1:5095/api/vehicles?includeInactive=false&activity=all&status=idle"
+      "http://127.0.0.1:5095/api/training/vehicles?includeInactive=false&activity=all&status=idle"
     );
   });
 
@@ -96,19 +96,19 @@ describe("training api routing", () => {
     });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5095/api/exam-schedules"
+      "http://127.0.0.1:5095/api/training/exam-schedules"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5095/api/training-lessons"
+      "http://127.0.0.1:5095/api/training/lessons"
     );
     expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
-      "http://127.0.0.1:5095/api/training-lessons/bulk?groupId=group-1"
+      "http://127.0.0.1:5095/api/training/lessons/bulk?groupId=group-1"
     );
     expect(String(vi.mocked(fetch).mock.calls[3][0])).toBe(
-      "http://127.0.0.1:5095/api/instructors/instructor-1/assignments"
+      "http://127.0.0.1:5095/api/training/instructors/instructor-1/assignments"
     );
     expect(String(vi.mocked(fetch).mock.calls[4][0])).toBe(
-      "http://127.0.0.1:5095/api/instructors/instructor-1/assignments"
+      "http://127.0.0.1:5095/api/training/instructors/instructor-1/assignments"
     );
   });
 
@@ -141,22 +141,22 @@ describe("training api routing", () => {
     await deleteCandidateExamAttempt("candidate-1", "attempt-1");
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5095/api/candidates/candidate-1/exam-attempts"
+      "http://127.0.0.1:5095/api/training/candidates/candidate-1/exam-attempts"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5095/api/candidates/candidate-1/exam-attempts"
+      "http://127.0.0.1:5095/api/training/candidates/candidate-1/exam-attempts"
     );
     expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
-      "http://127.0.0.1:5095/api/candidates/candidate-1/exam-attempts/attempt-1"
+      "http://127.0.0.1:5095/api/training/candidates/candidate-1/exam-attempts/attempt-1"
     );
     expect(String(vi.mocked(fetch).mock.calls[3][0])).toBe(
-      "http://127.0.0.1:5095/api/candidates/candidate-1/exam-attempts/attempt-1/charge"
+      "http://127.0.0.1:5095/api/training/candidates/candidate-1/exam-attempts/attempt-1/charge"
     );
     expect(String(vi.mocked(fetch).mock.calls[4][0])).toBe(
-      "http://127.0.0.1:5095/api/candidates/candidate-1/exam-attempts/attempt-1/mark-self-paid"
+      "http://127.0.0.1:5095/api/training/candidates/candidate-1/exam-attempts/attempt-1/mark-self-paid"
     );
     expect(String(vi.mocked(fetch).mock.calls[5][0])).toBe(
-      "http://127.0.0.1:5095/api/candidates/candidate-1/exam-attempts/attempt-1"
+      "http://127.0.0.1:5095/api/training/candidates/candidate-1/exam-attempts/attempt-1"
     );
   });
 });
