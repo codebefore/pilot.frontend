@@ -480,12 +480,12 @@ function paymentTypeLabel(type: CandidateAccountingType): string {
   return PAYMENT_TYPE_ROWS.find((item) => item.key === type)?.label ?? type;
 }
 
-function paymentMethodLabel(method: string): string {
-  if (method === "cash") return "Nakit";
-  if (method === "bank_transfer") return "Havale/EFT";
-  if (method === "credit_card") return "Kredi Kartı";
-  if (method === "mail_order") return "Mail Order";
-  return "Diğer";
+function paymentMethodLabel(method: string, t: ReturnType<typeof useT>): string {
+  if (method === "cash") return t("payments.method.cash");
+  if (method === "bank_transfer") return t("payments.method.bankTransfer");
+  if (method === "credit_card") return t("payments.method.creditCard");
+  if (method === "mail_order") return t("payments.method.mailOrder");
+  return t("payments.helper.other");
 }
 
 function licenseClassLabel(
@@ -523,19 +523,19 @@ function rowType(row: PaymentDetailRow): CandidateAccountingType {
   return row.payment.type;
 }
 
-function rowCashRegisterLabel(row: PaymentDetailRow): string {
-  if (row.kind === "refund") return row.refund.cashRegister?.name ?? "Kasa Yok";
+function rowCashRegisterLabel(row: PaymentDetailRow, t: ReturnType<typeof useT>): string {
+  if (row.kind === "refund") return row.refund.cashRegister?.name ?? t("payments.cashRegister.empty");
   if (row.kind === "cancelledDebt") return "-";
-  return cashRegisterLabel(row.payment);
+  return cashRegisterLabel(row.payment, t);
 }
 
-function rowDescription(row: PaymentDetailRow): string {
-  if (row.kind === "refund") return row.refund.note?.trim() || "İade";
+function rowDescription(row: PaymentDetailRow, t: ReturnType<typeof useT>): string {
+  if (row.kind === "refund") return row.refund.note?.trim() || t("payments.movement.refund");
   if (row.kind === "cancelledDebt") {
-    return row.installment.cancellationReason?.trim() || "Borçlandırma silindi";
+    return row.installment.cancellationReason?.trim() || t("payments.movement.cancelledDebtFallback");
   }
   if (row.kind === "cancelled")
-    return row.payment.cancellationReason?.trim() || "İptal";
+    return row.payment.cancellationReason?.trim() || t("payments.movement.cancelledPayment");
   return row.payment.note?.trim() || row.payment.installmentDescription || "-";
 }
 
@@ -545,18 +545,18 @@ function rowReceiptNumber(row: PaymentDetailRow): string {
   return row.payment.number?.trim() || "-";
 }
 
-function rowCancelKindLabel(row: PaymentDetailRow): string {
-  if (row.kind === "cancelled") return "Tahsilat iptal";
-  if (row.kind === "cancelledDebt") return "Silinen borçlandırma";
+function rowCancelKindLabel(row: PaymentDetailRow, t: ReturnType<typeof useT>): string {
+  if (row.kind === "cancelled") return t("payments.cashCancel.collection");
+  if (row.kind === "cancelledDebt") return t("payments.movement.cancelledDebt");
   return "-";
 }
 
-function rowMethodLabel(row: PaymentDetailRow): string {
-  if (row.kind === "refund") return "İade";
+function rowMethodLabel(row: PaymentDetailRow, t: ReturnType<typeof useT>): string {
+  if (row.kind === "refund") return t("payments.movement.refund");
   if (row.kind === "cancelledDebt") return "-";
   if (row.kind === "cancelled")
-    return paymentMethodLabel(row.payment.paymentMethod);
-  return paymentMethodLabel(row.payment.paymentMethod);
+    return paymentMethodLabel(row.payment.paymentMethod, t);
+  return paymentMethodLabel(row.payment.paymentMethod, t);
 }
 
 function rowGroupLabel(row: PaymentDetailRow): string {
@@ -598,8 +598,8 @@ function invoiceNotes(invoice: PaymentInvoiceOverviewResponse): string {
   return invoice.notes?.trim() || "-";
 }
 
-function invoiceService(_invoice: PaymentInvoiceOverviewResponse): string {
-  return "Sürücü kurs hizmeti";
+function invoiceService(_invoice: PaymentInvoiceOverviewResponse, t?: ReturnType<typeof useT>): string {
+  return t ? t("payments.service.drivingCourse") : "Sürücü kurs hizmeti";
 }
 
 function invoiceQuantity(_invoice: PaymentInvoiceOverviewResponse): number {
@@ -610,14 +610,14 @@ function invoiceUnitPrice(invoice: PaymentInvoiceOverviewResponse): number {
   return invoice.subtotal;
 }
 
-function invoiceTypeLabel(invoiceType: string): string {
+function invoiceTypeLabel(invoiceType: string, t?: ReturnType<typeof useT>): string {
   const normalized = invoiceType
     .trim()
     .toLocaleLowerCase("tr-TR")
     .replace(/ı/g, "i");
-  if (normalized.includes("iade") || normalized.includes("refund")) return "İade";
-  if (normalized.includes("iptal") || normalized.includes("cancel")) return "İptal";
-  if (normalized.includes("satis") || normalized.includes("sale")) return "Satış";
+  if (normalized.includes("iade") || normalized.includes("refund")) return t ? t("payments.invoice.refund") : "İade";
+  if (normalized.includes("iptal") || normalized.includes("cancel")) return t ? t("payments.invoice.cancellation") : "İptal";
+  if (normalized.includes("satis") || normalized.includes("sale")) return t ? t("payments.invoice.sale") : "Satış";
   return invoiceType.trim() || "-";
 }
 
@@ -951,36 +951,37 @@ function compareValues(a: string | number, b: string | number): number {
 function rowSortValue(
   row: PaymentDetailRow,
   field: DetailSortField,
+  t: ReturnType<typeof useT>,
 ): string | number {
   if (field === "candidate") return rowCandidateName(row);
   if (field === "group") return rowGroupLabel(row);
   if (field === "type") return paymentTypeLabel(rowType(row));
-  if (field === "cancelKind") return rowCancelKindLabel(row);
+  if (field === "cancelKind") return rowCancelKindLabel(row, t);
   if (field === "date") return row.date;
   if (field === "amount") return row.amount;
   if (field === "receiptNumber") return rowReceiptNumber(row);
-  if (field === "method") return rowMethodLabel(row);
-  if (field === "cashRegister") return rowCashRegisterLabel(row);
-  return rowDescription(row);
+  if (field === "method") return rowMethodLabel(row, t);
+  if (field === "cashRegister") return rowCashRegisterLabel(row, t);
+  return rowDescription(row, t);
 }
 
-function rowFilterValue(row: PaymentDetailRow, field: DetailSortField): string {
+function rowFilterValue(row: PaymentDetailRow, field: DetailSortField, t: ReturnType<typeof useT>): string {
   if (field === "candidate") return rowCandidateName(row);
   if (field === "group") return rowGroupLabel(row);
   if (field === "type") return paymentTypeLabel(rowType(row));
-  if (field === "cancelKind") return rowCancelKindLabel(row);
+  if (field === "cancelKind") return rowCancelKindLabel(row, t);
   if (field === "date") return dateKey(row.date);
   if (field === "amount") return String(row.amount);
   if (field === "receiptNumber") return rowReceiptNumber(row);
-  if (field === "method") return rowMethodLabel(row);
-  if (field === "cashRegister") return rowCashRegisterLabel(row);
-  return rowDescription(row);
+  if (field === "method") return rowMethodLabel(row, t);
+  if (field === "cashRegister") return rowCashRegisterLabel(row, t);
+  return rowDescription(row, t);
 }
 
-function rowFilterLabel(row: PaymentDetailRow, field: DetailSortField): string {
+function rowFilterLabel(row: PaymentDetailRow, field: DetailSortField, t: ReturnType<typeof useT>): string {
   if (field === "date") return formatFinanceDateTimeTR(row.date);
   if (field === "amount") return money(row.amount);
-  return rowFilterValue(row, field);
+  return rowFilterValue(row, field, t);
 }
 
 function dateKey(value: string | null | undefined): string {
@@ -1143,32 +1144,32 @@ function cashRegisterKey(payment: PaymentMovementResponse): string {
   return payment.cashRegisterId ?? NO_CASH_REGISTER_KEY;
 }
 
-function cashRegisterLabel(payment: PaymentMovementResponse): string {
-  return payment.cashRegister?.name ?? "Kasa Yok";
+function cashRegisterLabel(payment: PaymentMovementResponse, t: ReturnType<typeof useT>): string {
+  return payment.cashRegister?.name ?? t("payments.cashRegister.empty");
 }
 
 function refundCashRegisterKey(refund: PaymentRefundMovementResponse): string {
   return refund.cashRegisterId ?? NO_CASH_REGISTER_KEY;
 }
 
-function refundCashRegisterLabel(refund: PaymentRefundMovementResponse): string {
-  return refund.cashRegister?.name ?? "Kasa Yok";
+function refundCashRegisterLabel(refund: PaymentRefundMovementResponse, t: ReturnType<typeof useT>): string {
+  return refund.cashRegister?.name ?? t("payments.cashRegister.empty");
 }
 
-function cashRegisterTypeLabel(type: string | null | undefined): string {
-  if (type === "cash") return "Nakit kasa";
-  if (type === "bank_transfer") return "Banka";
-  if (type === "credit_card") return "Kredi kartı";
-  if (type === "mail_order") return "Mail order";
-  return "Tanımsız";
+function cashRegisterTypeLabel(type: string | null | undefined, t: ReturnType<typeof useT>): string {
+  if (type === "cash") return t("payments.registerType.cash");
+  if (type === "bank_transfer") return t("payments.registerType.bank");
+  if (type === "credit_card") return t("payments.registerType.creditCard");
+  if (type === "mail_order") return t("payments.registerType.mailOrder");
+  return t("payments.helper.undefined");
 }
 
-function cashMovementTypeLabel(type: string): string {
-  if (type === "inflow") return "Kasa giriş";
-  if (type === "outflow") return "Kasa çıkış";
-  if (type === "transfer_in") return "Transfer giriş";
-  if (type === "transfer_out") return "Transfer çıkış";
-  return "Kasa hareketi";
+function cashMovementTypeLabel(type: string, t: ReturnType<typeof useT>): string {
+  if (type === "inflow") return t("payments.movement.inflow");
+  if (type === "outflow") return t("payments.movement.outflow");
+  if (type === "transfer_in") return t("payments.movement.transferIn");
+  if (type === "transfer_out") return t("payments.movement.transferOut");
+  return t("payments.movement.cashMovement");
 }
 
 export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
@@ -1433,7 +1434,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             .toLocaleLowerCase("tr-TR")
             .includes(value.toLocaleLowerCase("tr-TR"));
         }
-        return rowFilterValue(row, field as DetailSortField) === value;
+        return rowFilterValue(row, field as DetailSortField, t) === value;
       }),
     );
 
@@ -1441,8 +1442,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     return [...filteredRows].sort(
       (a, b) =>
         compareValues(
-          rowSortValue(a, detailSort.field),
-          rowSortValue(b, detailSort.field),
+          rowSortValue(a, detailSort.field, t),
+          rowSortValue(b, detailSort.field, t),
         ) * factor,
     );
   }, [
@@ -1683,7 +1684,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         rows.push({
           id: `payment:${payment.id}`,
           type: "Giriş",
-          cashRegister: cashRegisterLabel(payment),
+          cashRegister: cashRegisterLabel(payment, t),
           date: payment.paidAtUtc,
           description:
             payment.note?.trim() ||
@@ -1699,9 +1700,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         rows.push({
           id: `refund:${refund.id}`,
           type: "Çıkış",
-          cashRegister: refundCashRegisterLabel(refund),
+          cashRegister: refundCashRegisterLabel(refund, t),
           date: refund.refundedAtUtc,
-          description: refund.note?.trim() || "İade",
+          description: refund.note?.trim() || t("payments.movement.refund"),
           amount: refund.amount,
         });
       });
@@ -1715,7 +1716,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           type: isInflow ? "Giriş" : "Çıkış",
           cashRegister: movement.cashRegister.name,
           date: movement.occurredDate,
-          description: movement.note?.trim() || cashMovementTypeLabel(movement.type),
+          description: movement.note?.trim() || cashMovementTypeLabel(movement.type, t),
           amount: movement.amount,
         });
       });
@@ -1752,8 +1753,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       if (!column.sortable) continue;
       const values = new Map<string, string>();
       for (const row of baseDetailRows) {
-        const value = rowFilterValue(row, column.id as DetailSortField);
-        values.set(value, rowFilterLabel(row, column.id as DetailSortField));
+        const value = rowFilterValue(row, column.id as DetailSortField, t);
+        values.set(value, rowFilterLabel(row, column.id as DetailSortField, t));
       }
       const sortedValues = Array.from(values.entries()).sort((a, b) => {
         if (column.id === "amount") return Number(a[0]) - Number(b[0]);
@@ -1976,7 +1977,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       values.set(register.id, {
         key: register.id,
         label: register.name,
-        typeLabel: cashRegisterTypeLabel(register.type),
+        typeLabel: cashRegisterTypeLabel(register.type, t),
       });
     });
 
@@ -1985,8 +1986,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       if (values.has(key)) return;
       values.set(key, {
         key,
-        label: cashRegisterLabel(payment),
-        typeLabel: cashRegisterTypeLabel(payment.cashRegister?.type),
+        label: cashRegisterLabel(payment, t),
+        typeLabel: cashRegisterTypeLabel(payment.cashRegister?.type, t),
       });
     });
 
@@ -1995,8 +1996,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       if (values.has(key)) return;
       values.set(key, {
         key,
-        label: refundCashRegisterLabel(refund),
-        typeLabel: cashRegisterTypeLabel(refund.cashRegister?.type),
+        label: refundCashRegisterLabel(refund, t),
+        typeLabel: cashRegisterTypeLabel(refund.cashRegister?.type, t),
       });
     });
 
@@ -2013,7 +2014,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         .map((register) => ({
           id: register.id,
           label: register.name,
-          typeLabel: cashRegisterTypeLabel(register.type),
+          typeLabel: cashRegisterTypeLabel(register.type, t),
         }))
         .sort((a, b) => a.label.localeCompare(b.label, "tr-TR")),
     [overview?.cashRegisters],
@@ -2058,9 +2059,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       .forEach((payment) => {
         const key = cashRegisterKey(payment);
         const row = officialCashRegisterIds.has(key)
-          ? ensureRow(key, cashRegisterLabel(payment))
+          ? ensureRow(key, cashRegisterLabel(payment, t))
           : key === NO_CASH_REGISTER_KEY
-            ? ensureRow(key, cashRegisterLabel(payment))
+            ? ensureRow(key, cashRegisterLabel(payment, t))
             : null;
         if (!row) return;
         if (!officialCashRegisterIds.has(key)) {
@@ -2075,9 +2076,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     (overview.refunds ?? []).forEach((refund) => {
       const key = refundCashRegisterKey(refund);
       const row = officialCashRegisterIds.has(key)
-        ? ensureRow(key, refundCashRegisterLabel(refund))
+        ? ensureRow(key, refundCashRegisterLabel(refund, t))
         : key === NO_CASH_REGISTER_KEY
-          ? ensureRow(key, refundCashRegisterLabel(refund))
+          ? ensureRow(key, refundCashRegisterLabel(refund, t))
           : null;
       if (!row) return;
       if (!officialCashRegisterIds.has(key)) {
@@ -2724,7 +2725,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     }
     if (columnId === "group") return rowGroupLabel(row);
     if (columnId === "type") return t(PAYMENT_TYPE_KEY[rowType(row)]);
-    if (columnId === "cancelKind") return rowCancelKindLabel(row);
+    if (columnId === "cancelKind") return rowCancelKindLabel(row, t);
     if (columnId === "date") return renderFinanceDateTime(row.date);
     if (columnId === "amount") {
       return row.kind === "payment"
@@ -2732,9 +2733,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         : `-${money(row.amount)}`;
     }
     if (columnId === "receiptNumber") return rowReceiptNumber(row);
-    if (columnId === "method") return rowMethodLabel(row);
-    if (columnId === "cashRegister") return rowCashRegisterLabel(row);
-    return rowDescription(row);
+    if (columnId === "method") return rowMethodLabel(row, t);
+    if (columnId === "cashRegister") return rowCashRegisterLabel(row, t);
+    return rowDescription(row, t);
   };
 
   const renderInvoiceCell = (
@@ -2762,9 +2763,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       );
     }
     if (columnId === "invoiceNo") return invoice.invoiceNo;
-    if (columnId === "invoiceType") return invoiceTypeLabel(invoice.invoiceType);
+    if (columnId === "invoiceType") return invoiceTypeLabel(invoice.invoiceType, t);
     if (columnId === "date") return formatDateTR(invoice.invoiceDate);
-    if (columnId === "service") return invoiceService(invoice);
+    if (columnId === "service") return invoiceService(invoice, t);
     if (columnId === "quantity") return invoiceQuantity(invoice);
     if (columnId === "unitPrice") return money(invoiceUnitPrice(invoice));
     if (columnId === "subtotal") return money(invoice.subtotal);
