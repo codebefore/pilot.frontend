@@ -11,6 +11,7 @@ runtimeConfig:
   publicUrl: https://pilot.virabyte.tr
   apiBaseUrl: https://apipilot.virabyte.tr
   authApiBaseUrl: https://apipilot.virabyte.tr
+  catalogApiBaseUrl: https://apipilot.virabyte.tr
 
 resources:
   requests:

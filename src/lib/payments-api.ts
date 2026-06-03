@@ -23,7 +23,7 @@ export function getPaymentsOverview(
   signal?: AbortSignal,
 ): Promise<PaymentsOverviewResponse> {
   return httpGet<PaymentsOverviewResponse>(
-    "/api/payments/overview",
+    "/api/finance/payments/overview",
     params,
     financeRequestOptions(signal)
   );
@@ -33,8 +33,8 @@ export function createCashInflow(
   body: CashRegisterMovementCreateRequest,
 ): Promise<CashRegisterMovementResponse> {
   return httpPost<CashRegisterMovementResponse>(
-    "/api/payments/cash-movements/inflow",
-    body,
+    "/api/finance/cash-register-movements",
+    { ...body, type: "inflow" },
     financeRequestOptions()
   );
 }
@@ -43,8 +43,8 @@ export function createCashOutflow(
   body: CashRegisterMovementCreateRequest,
 ): Promise<CashRegisterMovementResponse> {
   return httpPost<CashRegisterMovementResponse>(
-    "/api/payments/cash-movements/outflow",
-    body,
+    "/api/finance/cash-register-movements",
+    { ...body, type: "outflow" },
     financeRequestOptions()
   );
 }
@@ -53,8 +53,14 @@ export function createCashTransfer(
   body: CashRegisterTransferCreateRequest,
 ): Promise<CashRegisterMovementResponse[]> {
   return httpPost<CashRegisterMovementResponse[]>(
-    "/api/payments/cash-movements/transfer",
-    body,
+    "/api/finance/cash-register-transfers",
+    {
+      fromCashRegisterId: body.sourceCashRegisterId,
+      toCashRegisterId: body.targetCashRegisterId,
+      amount: body.amount,
+      occurredDate: body.occurredDate,
+      note: body.note,
+    },
     financeRequestOptions()
   );
 }

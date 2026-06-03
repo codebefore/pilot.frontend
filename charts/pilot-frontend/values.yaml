@@ -21,6 +21,7 @@ runtimeConfig:
   apiBaseUrl: /api
   authApiBaseUrl: ""
   candidateApiBaseUrl: ""
+  catalogApiBaseUrl: ""
   documentApiBaseUrl: ""
   financeApiBaseUrl: ""
   mebbisApiBaseUrl: ""

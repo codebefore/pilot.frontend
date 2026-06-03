@@ -41,7 +41,7 @@ export function getCashRegisters(
   };
 
   return httpGet<CashRegisterListResponse>(
-    "/api/cash-registers",
+    "/api/finance/cash-registers",
     params,
     financeRequestOptions(signal)
   );
@@ -49,7 +49,7 @@ export function getCashRegisters(
 
 export function createCashRegister(body: CashRegisterUpsertRequest): Promise<CashRegisterResponse> {
   return httpPost<CashRegisterResponse>(
-    "/api/cash-registers",
+    "/api/finance/cash-registers",
     body,
     financeRequestOptions()
   );
@@ -60,12 +60,12 @@ export function updateCashRegister(
   body: CashRegisterUpsertRequest
 ): Promise<CashRegisterResponse> {
   return httpPut<CashRegisterResponse>(
-    `/api/cash-registers/${id}`,
+    `/api/finance/cash-registers/${id}`,
     body,
     financeRequestOptions()
   );
 }
 
 export function deleteCashRegister(id: string): Promise<void> {
-  return httpDelete(`/api/cash-registers/${id}`, undefined, financeRequestOptions());
+  return httpDelete(`/api/finance/cash-registers/${id}`, undefined, financeRequestOptions());
 }

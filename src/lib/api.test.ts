@@ -8,6 +8,7 @@ import {
   applyRuntimeConfig,
   getAuthApiBaseUrl,
   getCandidateApiBaseUrl,
+  getCatalogApiBaseUrl,
   getDocumentApiBaseUrl,
   getFinanceApiBaseUrl,
   getMebbisApiBaseUrl,
@@ -24,6 +25,7 @@ describe("service api base urls", () => {
 
     expect(getAuthApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getCandidateApiBaseUrl()).toBe("http://127.0.0.1:5080");
+    expect(getCatalogApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getDocumentApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getFinanceApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getMebbisApiBaseUrl()).toBe("http://127.0.0.1:5080");
@@ -34,6 +36,7 @@ describe("service api base urls", () => {
     applyRuntimeConfig({
       apiBaseUrl: "http://127.0.0.1:5080",
       authApiBaseUrl: "http://127.0.0.1:5091",
+      catalogApiBaseUrl: "http://127.0.0.1:5090",
       documentApiBaseUrl: "http://127.0.0.1:5092",
       financeApiBaseUrl: "http://127.0.0.1:5093",
       candidateApiBaseUrl: "http://127.0.0.1:5094",
@@ -42,6 +45,7 @@ describe("service api base urls", () => {
     });
 
     expect(getAuthApiBaseUrl()).toBe("http://127.0.0.1:5091");
+    expect(getCatalogApiBaseUrl()).toBe("http://127.0.0.1:5090");
     expect(getDocumentApiBaseUrl()).toBe("http://127.0.0.1:5092");
     expect(getFinanceApiBaseUrl()).toBe("http://127.0.0.1:5093");
     expect(getCandidateApiBaseUrl()).toBe("http://127.0.0.1:5094");
@@ -53,6 +57,7 @@ describe("service api base urls", () => {
     const expectedPairs = [
       ["authApiBaseUrl", "VITE_AUTH_API_BASE_URL"],
       ["candidateApiBaseUrl", "VITE_CANDIDATE_API_BASE_URL"],
+      ["catalogApiBaseUrl", "VITE_CATALOG_API_BASE_URL"],
       ["documentApiBaseUrl", "VITE_DOCUMENT_API_BASE_URL"],
       ["financeApiBaseUrl", "VITE_FINANCE_API_BASE_URL"],
       ["mebbisApiBaseUrl", "VITE_MEBBIS_API_BASE_URL"],
@@ -71,6 +76,7 @@ describe("service api base urls", () => {
     const expectedEnvVars = [
       "VITE_AUTH_API_BASE_URL",
       "VITE_CANDIDATE_API_BASE_URL",
+      "VITE_CATALOG_API_BASE_URL",
       "VITE_DOCUMENT_API_BASE_URL",
       "VITE_FINANCE_API_BASE_URL",
       "VITE_MEBBIS_API_BASE_URL",

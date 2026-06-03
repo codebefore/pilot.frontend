@@ -89,6 +89,17 @@ export function getStoredRefreshToken(): string | null {
   }
 }
 
+export function getStoredActiveInstitutionId(): string | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as Partial<AuthSession>;
+    return typeof session.activeInstitution?.id === "string" ? session.activeInstitution.id : null;
+  } catch {
+    return null;
+  }
+}
+
 export function notifyUnauthorized(): void {
   window.dispatchEvent(new Event("pilot:unauthorized"));
 }

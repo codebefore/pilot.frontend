@@ -25,18 +25,17 @@ describe("documents api", () => {
     );
   });
 
-  it("keeps document type catalog calls on the default api base url", async () => {
+  it("routes document type catalog reads to the runtime catalog base url", async () => {
     applyRuntimeConfig({
       apiBaseUrl: "http://127.0.0.1:5080",
+      catalogApiBaseUrl: "http://127.0.0.1:5090",
       documentApiBaseUrl: "http://127.0.0.1:5092",
     });
 
     await getDocumentTypes();
 
     const [url] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe(
-      "http://127.0.0.1:5080/api/document-types?module=candidate&includeInactive=false"
-    );
+    expect(String(url)).toBe("http://127.0.0.1:5090/api/catalog/document-types");
   });
 
   it("routes candidate document reads to the runtime document base url", async () => {

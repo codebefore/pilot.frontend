@@ -25,7 +25,7 @@ export function getCertificateProgramFeeMatrix(
   };
 
   return httpGet<CertificateProgramFeeMatrixResponse>(
-    `/api/certificate-program-fee-matrix/${year}`,
+    `/api/finance/certificate-program-fee-matrix/${year}`,
     params,
     financeRequestOptions(signal)
   );
@@ -36,7 +36,7 @@ export function updateCertificateProgramFeeMatrix(
   body: CertificateProgramFeeMatrixUpsertRequest
 ): Promise<CertificateProgramFeeMatrixResponse> {
   return httpPut<CertificateProgramFeeMatrixResponse>(
-    `/api/certificate-program-fee-matrix/${year}`,
+    `/api/finance/certificate-program-fee-matrix/${year}`,
     body,
     financeRequestOptions()
   );
@@ -47,7 +47,7 @@ export function bulkApplyCertificateProgramFeeMatrix(
   body: CertificateProgramFeeBulkApplyRequest
 ): Promise<CertificateProgramFeeMatrixResponse> {
   return httpPost<CertificateProgramFeeMatrixResponse>(
-    `/api/certificate-program-fee-matrix/${year}/bulk-apply`,
+    `/api/finance/certificate-program-fee-matrix/${year}/bulk-apply`,
     body,
     financeRequestOptions()
   );

@@ -39,6 +39,8 @@ spec:
               value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.authApiBaseUrl | quote }}
             - name: VITE_CANDIDATE_API_BASE_URL
               value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.candidateApiBaseUrl | quote }}
+            - name: VITE_CATALOG_API_BASE_URL
+              value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.catalogApiBaseUrl | quote }}
             - name: VITE_DOCUMENT_API_BASE_URL
               value: {{ default .Values.runtimeConfig.apiBaseUrl .Values.runtimeConfig.documentApiBaseUrl | quote }}
             - name: VITE_FINANCE_API_BASE_URL

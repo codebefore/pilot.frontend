@@ -77,6 +77,55 @@ describe("http client", () => {
     window.removeEventListener("pilot:unauthorized", unauthorized);
   });
 
+  it("sends active institution id with authenticated requests", async () => {
+    writeStoredAuthSession({
+      accessToken: "token",
+      expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      refreshToken: "refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 120_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "Test User",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [
+        {
+          id: "institution-1",
+          name: "Pilot Kurs",
+          slug: "pilot",
+          roleName: "Operator",
+          isDefault: true,
+          permissions: { payments: "full" },
+        },
+      ],
+      activeInstitution: {
+        id: "institution-1",
+        name: "Pilot Kurs",
+        slug: "pilot",
+        roleName: "Operator",
+        isDefault: true,
+        permissions: { payments: "full" },
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    await expect(httpGet<{ ok: boolean }>("/api/test")).resolves.toEqual({ ok: true });
+
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers);
+    expect(headers.get("Authorization")).toBe("Bearer token");
+    expect(headers.get("X-Institution-Id")).toBe("institution-1");
+  });
+
   it("refreshes the session and retries once on unauthorized responses", async () => {
     writeStoredAuthSession({
       accessToken: "old-token",

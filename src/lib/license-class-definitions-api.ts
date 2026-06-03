@@ -1,4 +1,5 @@
-import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { getCatalogApiBaseUrl } from "./api";
+import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type {
   LicenseClassDefinitionActivityRequest,
   LicenseClassDefinitionCategory,
@@ -29,27 +30,27 @@ interface GetLicenseClassDefinitionsOptions {
   sortDir?: LicenseClassDefinitionSortDirection;
 }
 
+type LicenseClassSnapshot = Omit<
+  LicenseClassDefinitionResponse,
+  "id" | "notes" | "createdAtUtc"
+> & {
+  licenseClassDefinitionId: string;
+};
+
+const catalogRequestOptions = (signal?: AbortSignal) => ({
+  baseUrl: getCatalogApiBaseUrl(),
+  signal,
+});
+
 export function getLicenseClassDefinitions(
   options?: GetLicenseClassDefinitionsOptions,
   signal?: AbortSignal
 ): Promise<LicenseClassDefinitionListResponse> {
-  const params: QueryParams = {
-    search: options?.search || undefined,
-    code: options?.code || undefined,
-    includeInactive: options?.includeInactive ?? false,
-    activity: options?.activity,
-    category: options?.category,
-    page: options?.page,
-    pageSize: options?.pageSize,
-    sortBy: options?.sortBy,
-    sortDir: options?.sortDir,
-  };
-
-  return httpGet<LicenseClassDefinitionListResponse>(
-    "/api/license-class-definitions",
-    params,
-    { signal }
-  );
+  return httpGet<LicenseClassSnapshot[]>(
+    "/api/catalog/license-classes",
+    undefined,
+    catalogRequestOptions(signal)
+  ).then((items) => mapLicenseClassList(items, options));
 }
 
 export async function getLicenseClassDefinition(
@@ -57,16 +58,99 @@ export async function getLicenseClassDefinition(
   signal?: AbortSignal
 ): Promise<LicenseClassDefinitionResponse> {
   // Backend has no GET-by-id endpoint yet; pull from the list and find.
-  const response = await httpGet<LicenseClassDefinitionListResponse>(
-    "/api/license-class-definitions",
-    { activity: "all", page: 1, pageSize: 500 },
-    { signal }
-  );
+  const response = await getLicenseClassDefinitions({ activity: "all", page: 1, pageSize: 500 }, signal);
   const found = response.items.find((item) => item.id === id);
   if (!found) {
     throw new Error(`License class definition not found: ${id}`);
   }
   return found;
+}
+
+function mapLicenseClassList(
+  snapshots: LicenseClassSnapshot[],
+  options?: GetLicenseClassDefinitionsOptions
+): LicenseClassDefinitionListResponse {
+  const search = options?.search?.trim().toLocaleLowerCase("tr-TR");
+  const activity = options?.activity ?? (options?.includeInactive ? "all" : "active");
+  let items = snapshots.map(mapLicenseClass);
+
+  if (activity === "active") {
+    items = items.filter((item) => item.isActive);
+  } else if (activity === "inactive") {
+    items = items.filter((item) => !item.isActive);
+  }
+  if (options?.code) {
+    items = items.filter((item) => item.code === options.code);
+  }
+  if (options?.category) {
+    items = items.filter((item) => item.category === options.category);
+  }
+  if (search) {
+    items = items.filter((item) =>
+      [item.code, item.name, item.category, item.existingLicenseType ?? ""].some((value) =>
+        value.toLocaleLowerCase("tr-TR").includes(search)
+      )
+    );
+  }
+
+  const activeCount = snapshots.filter((item) => item.isActive).length;
+  const sorted = sortLicenseClasses(items, options?.sortBy, options?.sortDir);
+  return toLicensePagedResponse(sorted, options?.page, options?.pageSize, { activeCount });
+}
+
+function mapLicenseClass(snapshot: LicenseClassSnapshot): LicenseClassDefinitionResponse {
+  return {
+    ...snapshot,
+    id: snapshot.licenseClassDefinitionId,
+    notes: null,
+    createdAtUtc: snapshot.updatedAtUtc,
+  };
+}
+
+function sortLicenseClasses(
+  items: LicenseClassDefinitionResponse[],
+  sortBy: LicenseClassDefinitionSortField = "displayOrder",
+  sortDir: LicenseClassDefinitionSortDirection = "asc"
+): LicenseClassDefinitionResponse[] {
+  const direction = sortDir === "desc" ? -1 : 1;
+  return [...items].sort((left, right) => {
+    const comparison = compareValues(left[sortBy], right[sortBy]);
+    return comparison === 0 ? compareValues(left.code, right.code) : comparison * direction;
+  });
+}
+
+function compareValues(
+  left: string | number | boolean | null,
+  right: string | number | boolean | null
+): number {
+  if (left === right) return 0;
+  if (left === null) return -1;
+  if (right === null) return 1;
+  if (typeof left === "string" && typeof right === "string") {
+    return left.localeCompare(right, "tr");
+  }
+  return left > right ? 1 : -1;
+}
+
+function toLicensePagedResponse(
+  items: LicenseClassDefinitionResponse[],
+  page = 1,
+  pageSize = items.length || 20,
+  summary: LicenseClassDefinitionListResponse["summary"]
+): LicenseClassDefinitionListResponse {
+  const currentPage = Math.max(1, page);
+  const currentPageSize = Math.max(1, pageSize);
+  const totalCount = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / currentPageSize));
+  const start = (currentPage - 1) * currentPageSize;
+  return {
+    items: items.slice(start, start + currentPageSize),
+    page: currentPage,
+    pageSize: currentPageSize,
+    totalCount,
+    totalPages,
+    summary,
+  };
 }
 
 export function createLicenseClassDefinition(

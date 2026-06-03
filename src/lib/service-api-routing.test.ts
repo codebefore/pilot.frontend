@@ -35,6 +35,11 @@ describe("service api routing ownership", () => {
       ["certificate-program-fee-matrix-api.ts", "getFinanceApiBaseUrl"],
       ["payments-api.ts", "getFinanceApiBaseUrl"],
 
+      ["certificate-programs-api.ts", "getCatalogApiBaseUrl"],
+      ["license-class-definitions-api.ts", "getCatalogApiBaseUrl"],
+      ["training-branch-definitions-api.ts", "getCatalogApiBaseUrl"],
+      ["documents-api.ts", "getCatalogApiBaseUrl"],
+
       ["mebbis-jobs-api.ts", "getMebbisApiBaseUrl"],
     ];
 
@@ -44,34 +49,10 @@ describe("service api routing ownership", () => {
     }
   });
 
-  it("keeps catalog-owned api modules on the default API base until catalog is extracted", () => {
-    const catalogApiFiles = [
-      "certificate-programs-api.ts",
-      "license-class-definitions-api.ts",
-      "training-branch-definitions-api.ts",
-    ];
-
-    const serviceHelpers = [
-      "getAuthApiBaseUrl",
-      "getCandidateApiBaseUrl",
-      "getDocumentApiBaseUrl",
-      "getFinanceApiBaseUrl",
-      "getMebbisApiBaseUrl",
-      "getTrainingApiBaseUrl",
-    ];
-
-    for (const fileName of catalogApiFiles) {
-      const source = readFileSync(resolve("src/lib", fileName), "utf8");
-      for (const helperName of serviceHelpers) {
-        expect(source, `${fileName} should not use ${helperName}`).not.toContain(helperName);
-      }
-    }
-  });
-
-  it("keeps document type catalog calls on the default API base inside documents api", () => {
+  it("keeps catalog write calls on the default API base while reads use catalog service", () => {
     const source = readFileSync(resolve("src/lib/documents-api.ts"), "utf8");
 
-    expect(source).toContain('httpGet<DocumentTypeResponse[]>("/api/document-types", params, { signal })');
+    expect(source).toContain('"/api/catalog/document-types"');
     expect(source).toContain('httpPost<DocumentTypeResponse>("/api/document-types", body)');
     expect(source).toContain('httpPut<DocumentTypeResponse>(`/api/document-types/${id}`, body)');
   });

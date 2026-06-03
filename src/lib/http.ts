@@ -1,6 +1,7 @@
 import { getApiBaseUrl, getAuthApiBaseUrl } from "./api";
 import {
   getStoredAccessToken,
+  getStoredActiveInstitutionId,
   getStoredRefreshToken,
   notifyInstitutionRequired,
   notifySessionRefreshed,
@@ -230,6 +231,10 @@ function buildHeaders(base?: HeadersInit): HeadersInit {
   const token = getStoredAccessToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
+  }
+  const activeInstitutionId = getStoredActiveInstitutionId();
+  if (activeInstitutionId) {
+    headers.set("X-Institution-Id", activeInstitutionId);
   }
   return headers;
 }

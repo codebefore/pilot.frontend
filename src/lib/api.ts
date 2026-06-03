@@ -4,6 +4,7 @@ declare global {
       apiBaseUrl?: string;
       authApiBaseUrl?: string;
       candidateApiBaseUrl?: string;
+      catalogApiBaseUrl?: string;
       documentApiBaseUrl?: string;
       financeApiBaseUrl?: string;
       mebbisApiBaseUrl?: string;
@@ -47,6 +48,14 @@ export function getCandidateApiBaseUrl(): string {
   return (
     window.__APP_CONFIG__?.candidateApiBaseUrl ??
     import.meta.env.VITE_CANDIDATE_API_BASE_URL ??
+    getApiBaseUrl()
+  );
+}
+
+export function getCatalogApiBaseUrl(): string {
+  return (
+    window.__APP_CONFIG__?.catalogApiBaseUrl ??
+    import.meta.env.VITE_CATALOG_API_BASE_URL ??
     getApiBaseUrl()
   );
 }

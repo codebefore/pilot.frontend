@@ -1,4 +1,4 @@
-import { getDocumentApiBaseUrl } from "./api";
+import { getCatalogApiBaseUrl, getDocumentApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
 import type {
   CandidateDocumentOcrSuggestionResponse,
@@ -42,6 +42,10 @@ function documentRequestOptions(signal?: AbortSignal) {
   return { baseUrl: getDocumentApiBaseUrl(), signal };
 }
 
+function catalogRequestOptions(signal?: AbortSignal) {
+  return { baseUrl: getCatalogApiBaseUrl(), signal };
+}
+
 function buildDocumentUrl(path: string): URL {
   const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
   const dedupedPath =
@@ -55,6 +59,18 @@ interface GetDocumentTypesOptions {
   module?: string;
   /** When true, also returns soft-deactivated types. Used by the admin screen. */
   includeInactive?: boolean;
+}
+
+interface DocumentTypeSnapshot {
+  documentTypeId: string;
+  module: string;
+  key: string;
+  name: string;
+  sortOrder: number;
+  isRequired: boolean;
+  isActive: boolean;
+  metadataSchemaJson: string | null;
+  updatedAtUtc: string;
 }
 
 interface GetDocumentChecklistParams extends QueryParams {
@@ -94,9 +110,45 @@ export function getDocumentTypes(
     module: options?.module ?? "candidate",
     includeInactive: options?.includeInactive ?? false,
   };
-  return httpGet<DocumentTypeResponse[]>("/api/document-types", params, { signal }).then(
-    (documentTypes) => documentTypes.map(normalizeDocumentType)
+  return httpGet<DocumentTypeSnapshot[]>(
+    "/api/catalog/document-types",
+    undefined,
+    catalogRequestOptions(signal)
+  ).then((documentTypes) =>
+    documentTypes
+      .filter((item) => item.module === params.module)
+      .filter((item) => params.includeInactive || item.isActive)
+      .map(mapDocumentTypeSnapshot)
+      .map(normalizeDocumentType)
   );
+}
+
+function mapDocumentTypeSnapshot(snapshot: DocumentTypeSnapshot): DocumentTypeResponse {
+  return {
+    id: snapshot.documentTypeId,
+    module: snapshot.module,
+    key: snapshot.key,
+    name: snapshot.name,
+    sortOrder: snapshot.sortOrder,
+    isRequired: snapshot.isRequired,
+    isActive: snapshot.isActive,
+    metadataFields: parseMetadataFields(snapshot.metadataSchemaJson),
+    createdAtUtc: snapshot.updatedAtUtc,
+    updatedAtUtc: snapshot.updatedAtUtc,
+  };
+}
+
+function parseMetadataFields(metadataSchemaJson: string | null): DocumentMetadataField[] {
+  if (!metadataSchemaJson) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(metadataSchemaJson);
+    return Array.isArray(parsed) ? (parsed as DocumentMetadataField[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function createDocumentType(

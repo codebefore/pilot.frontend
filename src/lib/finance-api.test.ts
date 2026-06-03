@@ -51,16 +51,16 @@ describe("finance api routing", () => {
     await cancelCandidateAccountingMovement("candidate-1", "movement-1", "Hatalı borç");
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5093/api/candidates/candidate-1/accounting"
+      "http://127.0.0.1:5093/api/finance/candidates/candidate-1/summary"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5093/api/candidates/candidate-1/accounting/payments"
+      "http://127.0.0.1:5093/api/finance/candidates/candidate-1/accounting/payments"
     );
     expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
-      "http://127.0.0.1:5093/api/candidates/candidate-1/accounting/invoices"
+      "http://127.0.0.1:5093/api/finance/candidates/candidate-1/accounting/invoices"
     );
     expect(String(vi.mocked(fetch).mock.calls[3][0])).toBe(
-      "http://127.0.0.1:5093/api/candidates/candidate-1/accounting/debts/movement-1?cancellationReason=Hatal%C4%B1+bor%C3%A7"
+      "http://127.0.0.1:5093/api/finance/candidates/candidate-1/accounting/debts/movement-1?cancellationReason=Hatal%C4%B1+bor%C3%A7"
     );
   });
 
@@ -76,10 +76,10 @@ describe("finance api routing", () => {
     });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5093/api/payments/overview?fromDate=2026-06-01&toDate=2026-06-30"
+      "http://127.0.0.1:5093/api/finance/payments/overview?fromDate=2026-06-01&toDate=2026-06-30"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5093/api/payments/cash-movements/inflow"
+      "http://127.0.0.1:5093/api/finance/cash-register-movements"
     );
   });
 
@@ -90,10 +90,10 @@ describe("finance api routing", () => {
     await createCashRegister({ name: "Merkez Kasa", type: "cash", isActive: true });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5093/api/cash-registers?activity=active&page=2&pageSize=20"
+      "http://127.0.0.1:5093/api/finance/cash-registers?activity=active&page=2&pageSize=20"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5093/api/cash-registers"
+      "http://127.0.0.1:5093/api/finance/cash-registers"
     );
   });
 
@@ -107,10 +107,10 @@ describe("finance api routing", () => {
     });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5093/api/certificate-program-fee-matrix/2026?targetLicenseClass=B"
+      "http://127.0.0.1:5093/api/finance/certificate-program-fee-matrix/2026?targetLicenseClass=B"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5093/api/certificate-program-fee-matrix/2026/bulk-apply"
+      "http://127.0.0.1:5093/api/finance/certificate-program-fee-matrix/2026/bulk-apply"
     );
   });
 });
