@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -68,6 +68,11 @@ export function NewGroupModal({
   const [submitting, setSubmitting] = useState(false);
   const [groupTitles, setGroupTitles] = useState<string[]>([]);
   const [terms, setTerms] = useState<TermResponse[]>([]);
+  const termSelectId = useId();
+  const groupNumberId = useId();
+  const branchSelectId = useId();
+  const capacityId = useId();
+  const startDateInputId = useId();
 
   const {
     register,
@@ -244,8 +249,9 @@ export function NewGroupModal({
       <form onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("terms.selector.label")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={termSelectId}>{t("terms.selector.label")}<RequiredMark /></label>
             <CustomSelect
+              id={termSelectId}
               className={fieldClass(!!errors.termId, "form-select")}
               value={selectedTermId}
               {...termIdRegistration}
@@ -265,8 +271,9 @@ export function NewGroupModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("newGroup.field.groupNumber")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={groupNumberId}>{t("newGroup.field.groupNumber")}<RequiredMark /></label>
             <CustomSelect
+              id={groupNumberId}
               className={fieldClass(!!errors.groupNumber, "form-select")}
               value={groupNumber}
               {...groupNumberRegistration}
@@ -282,8 +289,9 @@ export function NewGroupModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("newGroup.field.branch")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={branchSelectId}>{t("newGroup.field.branch")}<RequiredMark /></label>
             <CustomSelect
+              id={branchSelectId}
               className={fieldClass(!!errors.groupBranch, "form-select")}
               value={groupBranch}
               {...groupBranchRegistration}
@@ -298,7 +306,7 @@ export function NewGroupModal({
               <div className="form-error">{t((errors.groupBranch.message ?? "") as TranslationKey)}</div>
             )}
             <div className="form-hint">
-              Başlık:{" "}
+              {t("newGroup.hint.titlePrefix")}:{" "}
               {selectedTerm
                 ? buildGroupHeading(
                     buildGroupCode(groupNumber, groupBranch),
@@ -313,8 +321,9 @@ export function NewGroupModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.capacity")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={capacityId}>{t("common.field.capacity")}<RequiredMark /></label>
             <input
+              id={capacityId}
               className={fieldClass(!!errors.capacity, "form-input")}
               inputMode="numeric"
               type="number"
@@ -323,10 +332,11 @@ export function NewGroupModal({
             {errors.capacity && <div className="form-error">{errors.capacity.message}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.startDate")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={startDateInputId}>{t("common.field.startDate")}<RequiredMark /></label>
             <LocalizedDateInput
               ariaLabel={t("newGroup.aria.startDate")}
               className={fieldClass(!!errors.startDate, "form-input")}
+              id={startDateInputId}
               inputRef={startDateRegistration.ref}
               lang={dateInputLang}
               name={startDateRegistration.name}

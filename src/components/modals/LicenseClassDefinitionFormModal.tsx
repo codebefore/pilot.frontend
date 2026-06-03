@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Controller, type Path, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -165,6 +165,10 @@ export function LicenseClassDefinitionFormModal({
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
+  const codeInputId = useId();
+  const categorySelectId = useId();
+  const minimumAgeId = useId();
+  const notesInputId = useId();
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
 
   const {
@@ -291,13 +295,14 @@ export function LicenseClassDefinitionFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row license-rule-basics-row">
           <div className="form-group">
-            <label className="form-label">{t("licenseClassDef.field.targetCode")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={codeInputId}>{t("licenseClassDef.field.targetCode")}<RequiredMark /></label>
             <Controller
               control={control}
               name="code"
               render={({ field }) => (
                 <input
                   {...field}
+                  id={codeInputId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.code?.message)}
                   placeholder="B"
@@ -310,12 +315,12 @@ export function LicenseClassDefinitionFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("common.field.vehicleType")}</label>
+            <label className="form-label" htmlFor={categorySelectId}>{t("common.field.vehicleType")}</label>
             <Controller
               control={control}
               name="category"
               render={({ field }) => (
-                <CustomSelect className={selectClass(errors.category?.message)} {...field}>
+                <CustomSelect id={categorySelectId} className={selectClass(errors.category?.message)} {...field}>
                   {LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {t(option.labelKey)}
@@ -328,8 +333,9 @@ export function LicenseClassDefinitionFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("licenseClassDef.field.minimumAge")}</label>
+            <label className="form-label" htmlFor={minimumAgeId}>{t("licenseClassDef.field.minimumAge")}</label>
             <input
+              id={minimumAgeId}
               className={fieldClass(errors.minimumAge?.message)}
               inputMode="numeric"
               min={0}
@@ -353,18 +359,18 @@ export function LicenseClassDefinitionFormModal({
             switchValue={watch("requiresPracticeExam")}
             {...register("requiresPracticeExam")}
           />
-          <SwitchField label="Genel Durum" switchValue={watch("isActive")} {...register("isActive")} />
+          <SwitchField label={t("common.field.generalStatus")} switchValue={watch("isActive")} {...register("isActive")} />
         </div>
 
         <div className="form-subsection license-existing-section">
           <div className="form-subsection-header">
             <div>
-              <div className="form-subsection-title">Mevcut Ehliyet</div>
+              <div className="form-subsection-title">{t("newCandidate.field.hasExistingLicense")}</div>
             </div>
           </div>
 
           <div className="settings-checkbox-list">
-            <SwitchField label="Mevcut ehliyet var" switchValue={watch("hasExistingLicense")} {...register("hasExistingLicense")} />
+            <SwitchField label={t("licenseClassDefForm.switch.hasExistingLicense")} switchValue={watch("hasExistingLicense")} {...register("hasExistingLicense")} />
             <SwitchField label={t("licenseClassDefForm.field.pre2016")} switchValue={watch("existingLicensePre2016")} {...register("existingLicensePre2016")} />
           </div>
 
@@ -375,7 +381,7 @@ export function LicenseClassDefinitionFormModal({
                 name="existingLicenseType"
                 rules={{
                   validate: (value) =>
-                    !watch("hasExistingLicense") || value.trim().length > 0 || "Mevcut tipi zorunlu",
+                    !watch("hasExistingLicense") || value.trim().length > 0 || t("licenseClassDefForm.error.existingTypeRequired"),
                 }}
                 render={({ field }) => (
                   <CustomSelect
@@ -401,14 +407,14 @@ export function LicenseClassDefinitionFormModal({
         <div className="form-subsection">
           <div className="form-subsection-header">
             <div>
-              <div className="form-subsection-title">Ders Saatleri</div>
+              <div className="form-subsection-title">{t("licenseClassDefForm.section.lessonHours")}</div>
             </div>
           </div>
 
           <div className="form-row">
             <NumberField
               error={errors.theoryLessonHours?.message}
-              label="Teorik Ders Saati"
+              label={t("licenseClassDefForm.field.theoryHours")}
               placeholder="34"
               registerProps={register("theoryLessonHours")}
             />
@@ -420,7 +426,7 @@ export function LicenseClassDefinitionFormModal({
             />
             <NumberField
               error={errors.directPracticeLessonHours?.message}
-              label="Direksiyon Saati"
+              label={t("licenseClassDefForm.field.practiceHours")}
               placeholder="14"
               registerProps={register("directPracticeLessonHours")}
             />
@@ -429,8 +435,8 @@ export function LicenseClassDefinitionFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("common.field.note")}</label>
-            <textarea className="form-input" rows={4} {...register("notes")} />
+            <label className="form-label" htmlFor={notesInputId}>{t("common.field.note")}</label>
+            <textarea id={notesInputId} className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>
       </form>
@@ -461,10 +467,12 @@ type InputFieldProps = {
 };
 
 function NumberField({ error, label, placeholder, registerProps }: InputFieldProps) {
+  const inputId = useId();
   return (
     <div className="form-group">
-      <label className="form-label">{label}</label>
+      <label className="form-label" htmlFor={inputId}>{label}</label>
       <input
+        id={inputId}
         aria-label={label}
         className={error ? "form-input error" : "form-input"}
         inputMode="numeric"

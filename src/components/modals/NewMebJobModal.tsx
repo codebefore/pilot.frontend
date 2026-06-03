@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { getCandidates } from "../../lib/candidates-api";
 import { useT } from "../../lib/i18n";
@@ -32,6 +32,7 @@ export function NewMebJobModal({
 }: NewMebJobModalProps) {
   const t = useT();
   const [jobType, setJobType] = useState<string>("");
+  const jobTypeSelectId = useId();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [candidates, setCandidates] = useState<CandidateLite[]>([]);
@@ -140,8 +141,9 @@ export function NewMebJobModal({
       <form onSubmit={(e) => void handleSubmit(e)}>
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("newMebJob.jobTypeLabel")}</label>
+            <label className="form-label" htmlFor={jobTypeSelectId}>{t("newMebJob.jobTypeLabel")}</label>
             <CustomSelect
+              id={jobTypeSelectId}
               className="form-select"
               disabled={!canManage}
               onChange={(e) => setJobType(e.target.value)}

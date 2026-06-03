@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -94,6 +94,9 @@ export function CashRegisterFormModal({
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
+  const nameInputId = useId();
+  const typeSelectId = useId();
+  const notesInputId = useId();
 
   const {
     formState: { errors },
@@ -184,8 +187,9 @@ export function CashRegisterFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("settings.cashRegisters.form.name")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={nameInputId}>{t("settings.cashRegisters.form.name")}<RequiredMark /></label>
             <input
+              id={nameInputId}
               className={fieldClass(errors.name?.message)}
               disabled={!canManage}
               placeholder={t("settings.cashRegisters.form.namePlaceholder")}
@@ -195,8 +199,9 @@ export function CashRegisterFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("settings.cashRegisters.form.type")}</label>
+            <label className="form-label" htmlFor={typeSelectId}>{t("settings.cashRegisters.form.type")}</label>
             <select
+              id={typeSelectId}
               className={fieldClass(errors.type?.message)}
               disabled={!canManage}
               {...register("type")}
@@ -228,8 +233,8 @@ export function CashRegisterFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("settings.cashRegisters.form.notes")}</label>
-            <textarea className="form-input" disabled={!canManage} rows={3} {...register("notes")} />
+            <label className="form-label" htmlFor={notesInputId}>{t("settings.cashRegisters.form.notes")}</label>
+            <textarea id={notesInputId} className="form-input" disabled={!canManage} rows={3} {...register("notes")} />
           </div>
         </div>
       </form>

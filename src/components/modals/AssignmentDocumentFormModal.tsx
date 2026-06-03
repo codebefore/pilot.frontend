@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { addAssignmentDocument } from "../../lib/instructor-assignments-api";
 import { useT } from "../../lib/i18n";
@@ -27,6 +27,9 @@ export function AssignmentDocumentFormModal({
   const { showToast } = useToast();
   const noPermissionTitle = t("common.noPermission");
   const [name, setName] = useState("");
+  const nameInputId = useId();
+  const descriptionInputId = useId();
+  const fileInputId = useId();
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -95,10 +98,11 @@ export function AssignmentDocumentFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={nameInputId}>
               {t("settings.instructors.detail.assignments.documents.field.name")}
             </label>
             <input
+              id={nameInputId}
               autoFocus
               className="form-input"
               onChange={(e) => {
@@ -113,10 +117,11 @@ export function AssignmentDocumentFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={descriptionInputId}>
               {t("settings.instructors.detail.assignments.documents.field.description")}
             </label>
             <textarea
+              id={descriptionInputId}
               className="form-input"
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -127,10 +132,11 @@ export function AssignmentDocumentFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={fileInputId}>
               {t("settings.instructors.detail.assignments.documents.field.file")}
             </label>
             <input
+              id={fileInputId}
               className="form-input"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               type="file"

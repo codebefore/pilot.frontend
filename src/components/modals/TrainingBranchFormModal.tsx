@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -73,6 +73,10 @@ export function TrainingBranchFormModal({
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
+  const codeInputId = useId();
+  const nameInputId = useId();
+  const colorInputId = useId();
+  const systemLimitId = useId();
   const {
     formState: { errors },
     handleSubmit,
@@ -136,8 +140,9 @@ export function TrainingBranchFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("trainingBranchForm.field.code")}</label>
+            <label className="form-label" htmlFor={codeInputId}>{t("trainingBranchForm.field.code")}</label>
             <input
+              id={codeInputId}
               className={fieldClass(errors.code?.message)}
               disabled
               placeholder="trafik_ve_cevre"
@@ -145,8 +150,9 @@ export function TrainingBranchFormModal({
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("trainingBranchForm.field.name")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={nameInputId}>{t("trainingBranchForm.field.name")}<RequiredMark /></label>
             <input
+              id={nameInputId}
               className={fieldClass(errors.name?.message)}
               placeholder={t("trainingBranchForm.placeholder.example")}
               {...register("name")}
@@ -157,16 +163,17 @@ export function TrainingBranchFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.color")}</label>
-            <input className="branch-color-input" type="color" {...register("colorHex")} />
+            <label className="form-label" htmlFor={colorInputId}>{t("common.field.color")}</label>
+            <input id={colorInputId} className="branch-color-input" type="color" {...register("colorHex")} />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("trainingBranchForm.field.systemLimit")}</label>
+            <label className="form-label" htmlFor={systemLimitId}>{t("trainingBranchForm.field.systemLimit")}</label>
             <input
+              id={systemLimitId}
               className="form-input"
               disabled
               readOnly
-              value={editing?.totalLessonHourLimit ?? "Limitsiz"}
+              value={editing?.totalLessonHourLimit ?? t("trainingBranchForm.systemLimit.unlimited")}
             />
           </div>
         </div>

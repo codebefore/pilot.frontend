@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -96,6 +96,9 @@ export function ClassroomFormModal({
   const [submitting, setSubmitting] = useState(false);
   const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
+  const nameInputId = useId();
+  const capacityInputId = useId();
+  const notesInputId = useId();
 
   const {
     control,
@@ -204,8 +207,9 @@ export function ClassroomFormModal({
       <form className="settings-form" onSubmit={submit}>
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("settings.classrooms.form.name")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={nameInputId}>{t("settings.classrooms.form.name")}<RequiredMark /></label>
             <input
+              id={nameInputId}
               className={fieldClass(errors.name?.message)}
               placeholder={t("settings.classrooms.form.namePlaceholder")}
               readOnly={editing !== null}
@@ -215,8 +219,9 @@ export function ClassroomFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("settings.classrooms.form.capacity")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={capacityInputId}>{t("settings.classrooms.form.capacity")}<RequiredMark /></label>
             <input
+              id={capacityInputId}
               className={fieldClass(errors.capacity?.message)}
               inputMode="numeric"
               min={1}
@@ -293,8 +298,8 @@ export function ClassroomFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("settings.classrooms.form.notes")}</label>
-            <textarea className="form-input" rows={3} {...register("notes")} />
+            <label className="form-label" htmlFor={notesInputId}>{t("settings.classrooms.form.notes")}</label>
+            <textarea id={notesInputId} className="form-input" rows={3} {...register("notes")} />
           </div>
         </div>
       </form>
