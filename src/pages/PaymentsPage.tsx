@@ -4455,6 +4455,7 @@ function CashActionModal({
   registers,
   saving,
 }: CashActionModalProps) {
+  const t = useT();
   const [date, setDate] = useState(todayDateInput);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -4465,10 +4466,10 @@ function CashActionModal({
   const isTransfer = mode === "transfer";
   const title =
     mode === "inflow"
-      ? "Kasa Giriş"
+      ? t("payments.cashRegister.inflowTitle")
       : mode === "outflow"
-        ? "Kasa Çıkış"
-      : "Transfer";
+        ? t("payments.cashRegister.outflowTitle")
+      : t("payments.cashRegister.transferTitle");
   const parsedAmount = Number(amount);
   const canSubmit =
     canManagePayments &&
@@ -4622,7 +4623,7 @@ function CashActionModal({
             className="form-input"
             disabled={!canManagePayments}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Açıklama"
+            placeholder={t("payments.placeholder.description")}
             rows={3}
             value={note}
           />
