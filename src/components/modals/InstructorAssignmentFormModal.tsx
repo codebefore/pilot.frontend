@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import {
   AssignmentDateConflictError,
@@ -81,6 +81,12 @@ export function InstructorAssignmentFormModal({
   onSaved,
 }: Props) {
 	  const t = useT();
+  const roleSelectId = useId();
+  const employmentTypeId = useId();
+  const weeklyHoursId = useId();
+  const mebPermitNoId = useId();
+  const contractStartId = useId();
+  const contractEndId = useId();
 	  const { showToast } = useToast();
 	  const noPermissionTitle = t("common.noPermission");
 	  const { options: licenseClassOptions } = useLicenseClassOptions();
@@ -231,10 +237,11 @@ export function InstructorAssignmentFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={roleSelectId}>
               {t("settings.instructors.detail.assignments.field.role")}
             </label>
             <CustomSelect
+              id={roleSelectId}
               className="form-select"
               onChange={(e) => set("role", e.target.value as InstructorRole)}
               value={values.role}
@@ -247,10 +254,11 @@ export function InstructorAssignmentFormModal({
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={employmentTypeId}>
               {t("settings.instructors.detail.assignments.field.employmentType")}
             </label>
             <CustomSelect
+              id={employmentTypeId}
               className="form-select"
               onChange={(e) => set("employmentType", e.target.value as InstructorEmploymentType)}
               value={values.employmentType}
@@ -287,10 +295,11 @@ export function InstructorAssignmentFormModal({
 		            )}
 		          </div>
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={weeklyHoursId}>
               {t("settings.instructors.detail.assignments.field.weeklyLessonHours")}
             </label>
             <input
+              id={weeklyHoursId}
               className="form-input"
               inputMode="numeric"
               onChange={(e) => set("weeklyLessonHours", e.target.value)}
@@ -330,10 +339,11 @@ export function InstructorAssignmentFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={mebPermitNoId}>
               {t("settings.instructors.detail.assignments.field.mebPermitNo")}
             </label>
             <input
+              id={mebPermitNoId}
               className="form-input"
               onChange={(e) => set("mebPermitNo", e.target.value)}
               type="text"
@@ -344,12 +354,13 @@ export function InstructorAssignmentFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={contractStartId}>
               {t("settings.instructors.detail.assignments.field.contractStart")}
             </label>
             <LocalizedDateInput
               ariaLabel={t("settings.instructors.detail.assignments.field.contractStart")}
               className="form-input"
+              id={contractStartId}
               lang="tr"
               onChange={(value) => set("contractStartDate", value)}
               value={values.contractStartDate}
@@ -359,12 +370,13 @@ export function InstructorAssignmentFormModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">
+            <label className="form-label" htmlFor={contractEndId}>
               {t("settings.instructors.detail.assignments.field.contractEnd")}
             </label>
             <LocalizedDateInput
               ariaLabel={t("settings.instructors.detail.assignments.field.contractEnd")}
               className="form-input"
+              id={contractEndId}
               lang="tr"
               onChange={(value) => set("contractEndDate", value)}
               value={values.contractEndDate}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -110,6 +110,9 @@ export function DocumentTypeFormModal({
     editing?.metadataFields ?? []
   );
   const [metadataError, setMetadataError] = useState<string | null>(null);
+  const keyInputId = useId();
+  const sortOrderId = useId();
+  const nameInputId = useId();
 
   const {
     formState: { errors },
@@ -333,8 +336,9 @@ export function DocumentTypeFormModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("documentTypeForm.key")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={keyInputId}>{t("documentTypeForm.key")}<RequiredMark /></label>
             <input
+              id={keyInputId}
               autoComplete="off"
               className={fieldClass(!!errors.key, "form-input")}
               disabled={!!editing}
@@ -348,8 +352,9 @@ export function DocumentTypeFormModal({
             )}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("documentTypeForm.sortOrder")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={sortOrderId}>{t("documentTypeForm.sortOrder")}<RequiredMark /></label>
             <input
+              id={sortOrderId}
               className={fieldClass(!!errors.sortOrder, "form-input")}
               inputMode="numeric"
               type="number"
@@ -363,8 +368,9 @@ export function DocumentTypeFormModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("documentTypeForm.name")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={nameInputId}>{t("documentTypeForm.name")}<RequiredMark /></label>
             <input
+              id={nameInputId}
               className={fieldClass(!!errors.name, "form-input")}
               placeholder={t("documentTypeForm.namePlaceholder")}
               {...register("name")}
