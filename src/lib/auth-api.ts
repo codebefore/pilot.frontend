@@ -2,8 +2,11 @@ import { httpPost } from "./http";
 import type { AuthInstitution } from "./auth-storage";
 import { getAuthApiBaseUrl } from "./api";
 
+export type LoginChannel = "whatsapp" | "sms";
+
 type LoginRequest = {
   phone: string;
+  channel?: LoginChannel;
 };
 
 type VerifyLoginCodeRequest = {
@@ -45,7 +48,12 @@ function authRequestOptions() {
 }
 
 export function requestLoginCode(body: LoginRequest): Promise<LoginCodeResponse> {
-  return httpPost<LoginCodeResponse>("/api/auth/login/request-code", body, authRequestOptions());
+  // Drop `channel` when undefined so the request stays byte-for-byte compatible
+  // with backends that haven't shipped channel support yet.
+  const payload: LoginRequest = body.channel
+    ? { phone: body.phone, channel: body.channel }
+    : { phone: body.phone };
+  return httpPost<LoginCodeResponse>("/api/auth/login/request-code", payload, authRequestOptions());
 }
 
 export function verifyLoginCode(body: VerifyLoginCodeRequest): Promise<LoginResponse> {

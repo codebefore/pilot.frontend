@@ -6,10 +6,13 @@ import {
   logoutSession,
   requestLoginCode as requestLoginCodeApi,
   selectInstitution as selectInstitutionApi,
+  type LoginChannel,
   type LoginResponse,
   type LoginCodeResponse,
   verifyLoginCode,
 } from "./auth-api";
+
+export type { LoginChannel };
 import {
   clearStoredAuthSession,
   getStoredRefreshToken,
@@ -28,7 +31,7 @@ export type AuthContextValue = {
   permissions: Record<string, "view" | "full">;
   hasInstitution: boolean;
   institutionRequired: boolean;
-  requestLoginCode: (phone: string) => Promise<LoginCodeResponse>;
+  requestLoginCode: (phone: string, channel?: LoginChannel) => Promise<LoginCodeResponse>;
   login: (phone: string, code: string) => Promise<void>;
   selectInstitution: (institutionId: string) => Promise<void>;
   logout: () => void;
@@ -79,9 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("pilot:session-refreshed", onSessionRefreshed);
   }, []);
 
-  const requestLoginCode = async (phone: string) => {
+  const requestLoginCode = async (phone: string, channel?: LoginChannel) => {
     if (!phone) throw new Error("Telefon gerekli");
-    return requestLoginCodeApi({ phone });
+    return requestLoginCodeApi({ phone, channel });
   };
 
   const login = async (phone: string, code: string) => {

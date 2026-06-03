@@ -48,6 +48,20 @@ describe("auth api", () => {
     expect(init?.body).toBe(JSON.stringify({ phone: "5551112233" }));
   });
 
+  it("includes the channel field when a WhatsApp request is made", async () => {
+    await requestLoginCode({ phone: "5551112233", channel: "whatsapp" });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(init?.body).toBe(JSON.stringify({ phone: "5551112233", channel: "whatsapp" }));
+  });
+
+  it("includes the channel field when an SMS request is made", async () => {
+    await requestLoginCode({ phone: "5551112233", channel: "sms" });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(init?.body).toBe(JSON.stringify({ phone: "5551112233", channel: "sms" }));
+  });
+
   it("posts login code verification to the auth verify endpoint", async () => {
     await verifyLoginCode({ phone: "5551112233", code: "123456" });
 

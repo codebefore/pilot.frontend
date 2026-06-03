@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { applyApiErrorsToForm } from "../lib/form-errors";
 import { ApiError } from "../lib/http";
-import { useAuth } from "../lib/auth";
+import { useAuth, type LoginChannel } from "../lib/auth";
 import { useT, type TranslationKey } from "../lib/i18n";
 
 const loginSchema = z.object({
@@ -24,6 +24,12 @@ export function LoginPage() {
   const [codeRequested, setCodeRequested] = useState(false);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // Which channel ("whatsapp" | "sms") the most recent request used. Drives the
+  // resend button, code label, and "code sent" hint after the first request.
+  const [selectedChannel, setSelectedChannel] = useState<LoginChannel | null>(null);
+  // Which button is in the spinner state, so the OTHER channel button stays
+  // clickable while a request is in flight (rare race, but the UI honors it).
+  const [pendingChannel, setPendingChannel] = useState<LoginChannel | null>(null);
 
   const {
     formState: { errors },
@@ -45,7 +51,7 @@ export function LoginPage() {
     return null;
   }
 
-  const requestCode = async () => {
+  const requestCode = async (channel: LoginChannel) => {
     // Run the Zod schema for `phone` before contacting the backend; without
     // this the empty-phone path would throw inside auth.tsx and surface a
     // raw Turkish string that bypasses i18n. Surfacing the schema's i18n
@@ -54,8 +60,10 @@ export function LoginPage() {
     if (!phoneValid) return;
     setFormError(null);
     setSubmitting(true);
+    setPendingChannel(channel);
     try {
-      const response = await requestLoginCode(getValues("phone"));
+      const response = await requestLoginCode(getValues("phone"), channel);
+      setSelectedChannel(channel);
       setCodeRequested(true);
       setExpiresAt(response.expiresAtUtc);
       setFocus("code");
@@ -63,7 +71,13 @@ export function LoginPage() {
       setFormError(err instanceof Error ? err.message : t("login.errors.failed"));
     } finally {
       setSubmitting(false);
+      setPendingChannel(null);
     }
+  };
+
+  const resendCode = () => {
+    if (!selectedChannel) return;
+    void requestCode(selectedChannel);
   };
 
   const onSubmit = async (data: LoginForm) => {
@@ -110,7 +124,13 @@ export function LoginPage() {
 
           {codeRequested ? (
             <div className="login-field">
-              <label htmlFor="login-code">{t("login.code")}</label>
+              <label htmlFor="login-code">
+                {selectedChannel === "sms"
+                  ? t("login.code.sms")
+                  : selectedChannel === "whatsapp"
+                    ? t("login.code.whatsapp")
+                    : t("login.code")}
+              </label>
               <input
                 autoComplete="one-time-code"
                 id="login-code"
@@ -121,7 +141,15 @@ export function LoginPage() {
                 {...register("code")}
               />
               {errors.code && <span className="login-error">{t((errors.code.message ?? "") as TranslationKey)}</span>}
-              {expiresAt ? <span className="login-hint">{t("login.codeSent")}</span> : null}
+              {expiresAt ? (
+                <span className="login-hint">
+                  {selectedChannel === "sms"
+                    ? t("login.codeSent.sms")
+                    : selectedChannel === "whatsapp"
+                      ? t("login.codeSent.whatsapp")
+                      : t("login.codeSent")}
+                </span>
+              ) : null}
             </div>
           ) : null}
 
@@ -129,7 +157,7 @@ export function LoginPage() {
 
           {codeRequested ? (
             <div className="login-actions">
-              <button className="btn btn-secondary" disabled={submitting} onClick={requestCode} type="button">
+              <button className="btn btn-secondary" disabled={submitting} onClick={resendCode} type="button">
                 {t("login.resendCode")}
               </button>
               <button className="btn btn-primary login-submit" disabled={submitting} type="submit">
@@ -137,14 +165,31 @@ export function LoginPage() {
               </button>
             </div>
           ) : (
-            <button
-              className="btn btn-primary login-submit"
-              disabled={submitting}
-              onClick={requestCode}
-              type="button"
-            >
-              {submitting ? t("login.sendingCode") : t("login.sendCode")}
-            </button>
+            <>
+              <span className="login-hint login-channel-hint">{t("login.channelHint")}</span>
+              <div className="login-actions login-channel-actions">
+                <button
+                  className="btn btn-primary login-submit"
+                  disabled={submitting}
+                  onClick={() => void requestCode("whatsapp")}
+                  type="button"
+                >
+                  {pendingChannel === "whatsapp"
+                    ? t("login.sendingCode.whatsapp")
+                    : t("login.sendCode.whatsapp")}
+                </button>
+                <button
+                  className="btn btn-secondary login-submit"
+                  disabled={submitting}
+                  onClick={() => void requestCode("sms")}
+                  type="button"
+                >
+                  {pendingChannel === "sms"
+                    ? t("login.sendingCode.sms")
+                    : t("login.sendCode.sms")}
+                </button>
+              </div>
+            </>
           )}
         </form>
       </div>
