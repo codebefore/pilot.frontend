@@ -17,11 +17,11 @@ import {
   updateVehicleDocument,
 } from "../lib/vehicle-documents-api";
 import {
-  VEHICLE_FUEL_LABELS,
-  VEHICLE_OWNERSHIP_LABELS,
-  VEHICLE_STATUS_LABELS,
-  VEHICLE_TRANSMISSION_LABELS,
-  VEHICLE_TYPE_LABELS,
+  VEHICLE_FUEL_LABEL_KEYS,
+  VEHICLE_OWNERSHIP_LABEL_KEYS,
+  VEHICLE_STATUS_LABEL_KEYS,
+  VEHICLE_TRANSMISSION_LABEL_KEYS,
+  VEHICLE_TYPE_LABEL_KEYS,
 } from "../lib/vehicle-catalog";
 import type {
   VehicleDocumentResponse,
@@ -226,25 +226,25 @@ export function VehicleDetailPage() {
                 >
                   {vehicle.isActive ? t("common.statusActive") : t("common.statusInactive")}
                 </span>
-                <span>{VEHICLE_STATUS_LABELS[vehicle.status]}</span>
+                <span>{t(VEHICLE_STATUS_LABEL_KEYS[vehicle.status])}</span>
                 {vehicle.color ? <span>{vehicle.color}</span> : null}
               </div>
             </div>
 
             <div className="instructor-detail-summary-grid">
-              <Field label={t("vehicle.detail.field.type")} value={VEHICLE_TYPE_LABELS[vehicle.vehicleType] ?? "—"} />
+              <Field label={t("vehicle.detail.field.type")} value={VEHICLE_TYPE_LABEL_KEYS[vehicle.vehicleType] ? t(VEHICLE_TYPE_LABEL_KEYS[vehicle.vehicleType]) : "—"} />
               <Field label={t("common.field.licenseClasses")} value={vehicle.licenseClasses.join(", ") || "—"} />
               <Field
                 label={t("vehicleForm.field.transmission")}
-                value={VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType] ?? "—"}
+                value={VEHICLE_TRANSMISSION_LABEL_KEYS[vehicle.transmissionType] ? t(VEHICLE_TRANSMISSION_LABEL_KEYS[vehicle.transmissionType]) : "—"}
               />
               <Field
                 label={t("vehicle.detail.field.ownership")}
-                value={VEHICLE_OWNERSHIP_LABELS[vehicle.ownershipType] ?? "—"}
+                value={VEHICLE_OWNERSHIP_LABEL_KEYS[vehicle.ownershipType] ? t(VEHICLE_OWNERSHIP_LABEL_KEYS[vehicle.ownershipType]) : "—"}
               />
               <Field
                 label={t("vehicleForm.field.fuel")}
-                value={vehicle.fuelType ? VEHICLE_FUEL_LABELS[vehicle.fuelType] : "—"}
+                value={vehicle.fuelType && VEHICLE_FUEL_LABEL_KEYS[vehicle.fuelType] ? t(VEHICLE_FUEL_LABEL_KEYS[vehicle.fuelType]) : "—"}
               />
               <Field
                 label={t("vehicle.detail.field.mileage")}

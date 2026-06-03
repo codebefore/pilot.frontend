@@ -18,7 +18,7 @@ import {
   type LicenseClassDefinitionSortField,
 } from "../../lib/license-class-definitions-api";
 import {
-  LICENSE_CLASS_DEFINITION_CATEGORY_LABELS,
+  LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS,
   LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS,
 } from "../../lib/license-class-definition-catalog";
 import { useAuth } from "../../lib/auth";
@@ -105,7 +105,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       id: "category",
       label: t("settings.licenseClasses.columns.category"),
       sortField: "category",
-      renderCell: (item) => LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category] ?? item.category,
+      renderCell: (item) => LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[item.category] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[item.category]) : item.category,
       skeletonWidth: 100,
     },
     {
@@ -667,7 +667,10 @@ function buildColumnFilterControl(
         }
         options={[
           { value: "all", label: t("common.all") },
-          ...LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS,
+          ...LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS.map((option) => ({
+            value: option.value,
+            label: t(option.labelKey),
+          })),
         ]}
         title={t("settings.licenseClasses.filter.categoryTitle")}
         value={filters.category}

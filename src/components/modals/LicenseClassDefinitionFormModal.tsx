@@ -318,7 +318,7 @@ export function LicenseClassDefinitionFormModal({
                 <CustomSelect className={selectClass(errors.category?.message)} {...field}>
                   {LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>

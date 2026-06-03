@@ -20,8 +20,8 @@ import {
 } from "../../lib/vehicles-api";
 import {
   VEHICLE_STATUS_OPTIONS,
-  VEHICLE_STATUS_LABELS,
-  VEHICLE_TRANSMISSION_LABELS,
+  VEHICLE_STATUS_LABEL_KEYS,
+  VEHICLE_TRANSMISSION_LABEL_KEYS,
 } from "../../lib/vehicle-catalog";
 import type {
   LicenseClass,
@@ -138,7 +138,7 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
       sortField: "status",
       renderCell: (vehicle) => (
         <StatusPill
-          label={VEHICLE_STATUS_LABELS[vehicle.status]}
+          label={t(VEHICLE_STATUS_LABEL_KEYS[vehicle.status])}
           status={
             vehicle.status === "in_use"
               ? "running"
@@ -181,7 +181,7 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
     {
       id: "transmissionType",
       labelKey: "settings.vehicles.columns.transmissionType",
-      renderCell: (vehicle) => VEHICLE_TRANSMISSION_LABELS[vehicle.transmissionType] ?? "—",
+      renderCell: (vehicle) => VEHICLE_TRANSMISSION_LABEL_KEYS[vehicle.transmissionType] ? t(VEHICLE_TRANSMISSION_LABEL_KEYS[vehicle.transmissionType]) : "—",
       skeletonWidth: 80,
     },
   ];
@@ -616,7 +616,7 @@ function buildColumnFilterControl(
           { value: "all", label: t("common.all") },
           ...VEHICLE_STATUS_OPTIONS.map((option) => ({
             value: option.value,
-            label: option.label,
+            label: t(option.labelKey),
           })),
         ]}
         title={t("settings.vehicles.filter.status.title")}

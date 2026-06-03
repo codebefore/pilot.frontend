@@ -5,57 +5,58 @@ import type {
   VehicleTransmissionType,
   VehicleType,
 } from "./types";
+import type { TranslationKey } from "./i18n";
 
 type Option<T extends string> = {
   value: T;
-  label: string;
+  labelKey: TranslationKey;
 };
 
 export const VEHICLE_STATUS_OPTIONS: Option<VehicleStatus>[] = [
-  { value: "idle", label: "Boşta" },
-  { value: "in_use", label: "Kullanımda" },
-  { value: "maintenance", label: "Bakımda" },
+  { value: "idle", labelKey: "vehicle.status.idle" },
+  { value: "in_use", labelKey: "vehicle.status.inUse" },
+  { value: "maintenance", labelKey: "vehicle.status.maintenance" },
 ];
 
 export const VEHICLE_TRANSMISSION_OPTIONS: Option<VehicleTransmissionType>[] = [
-  { value: "manual", label: "Düz" },
-  { value: "automatic", label: "Otomatik" },
+  { value: "manual", labelKey: "vehicle.transmission.manual" },
+  { value: "automatic", labelKey: "vehicle.transmission.automatic" },
 ];
 
 export const VEHICLE_TYPE_OPTIONS: Option<VehicleType>[] = [
-  { value: "automobile", label: "Otomobil" },
-  { value: "motorcycle", label: "Motosiklet" },
-  { value: "minibus", label: "Minibüs" },
-  { value: "bus", label: "Otobüs" },
-  { value: "pickup", label: "Kamyonet" },
-  { value: "truck", label: "Kamyon" },
-  { value: "trailer", label: "Römork" },
-  { value: "work_machine", label: "İş Makinesi" },
-  { value: "tir", label: "Tır" },
+  { value: "automobile", labelKey: "vehicle.type.automobile" },
+  { value: "motorcycle", labelKey: "vehicle.type.motorcycle" },
+  { value: "minibus", labelKey: "vehicle.type.minibus" },
+  { value: "bus", labelKey: "vehicle.type.bus" },
+  { value: "pickup", labelKey: "vehicle.type.pickup" },
+  { value: "truck", labelKey: "vehicle.type.truck" },
+  { value: "trailer", labelKey: "vehicle.type.trailer" },
+  { value: "work_machine", labelKey: "vehicle.type.workMachine" },
+  { value: "tir", labelKey: "vehicle.type.tir" },
 ];
 
 export const VEHICLE_OWNERSHIP_OPTIONS: Option<VehicleOwnershipType>[] = [
-  { value: "owned", label: "Satın Alındı" },
-  { value: "leased", label: "Kiralandı" },
+  { value: "owned", labelKey: "vehicle.ownership.owned" },
+  { value: "leased", labelKey: "vehicle.ownership.leased" },
 ];
 
 export const VEHICLE_FUEL_OPTIONS: Option<VehicleFuelType>[] = [
-  { value: "gasoline", label: "Benzin" },
-  { value: "diesel", label: "Dizel" },
-  { value: "lpg", label: "LPG" },
-  { value: "electric", label: "Elektrik" },
-  { value: "hybrid", label: "Hibrit" },
+  { value: "gasoline", labelKey: "vehicle.fuel.gasoline" },
+  { value: "diesel", labelKey: "vehicle.fuel.diesel" },
+  { value: "lpg", labelKey: "vehicle.fuel.lpg" },
+  { value: "electric", labelKey: "vehicle.fuel.electric" },
+  { value: "hybrid", labelKey: "vehicle.fuel.hybrid" },
 ];
 
-function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string> {
+function buildLabelKeyMap<T extends string>(options: Option<T>[]): Record<T, TranslationKey> {
   return options.reduce(
-    (acc, option) => ({ ...acc, [option.value]: option.label }),
-    {} as Record<T, string>
+    (acc, option) => ({ ...acc, [option.value]: option.labelKey }),
+    {} as Record<T, TranslationKey>
   );
 }
 
-export const VEHICLE_STATUS_LABELS = buildLabelMap(VEHICLE_STATUS_OPTIONS);
-export const VEHICLE_TRANSMISSION_LABELS = buildLabelMap(VEHICLE_TRANSMISSION_OPTIONS);
-export const VEHICLE_TYPE_LABELS = buildLabelMap(VEHICLE_TYPE_OPTIONS);
-export const VEHICLE_OWNERSHIP_LABELS = buildLabelMap(VEHICLE_OWNERSHIP_OPTIONS);
-export const VEHICLE_FUEL_LABELS = buildLabelMap(VEHICLE_FUEL_OPTIONS);
+export const VEHICLE_STATUS_LABEL_KEYS = buildLabelKeyMap(VEHICLE_STATUS_OPTIONS);
+export const VEHICLE_TRANSMISSION_LABEL_KEYS = buildLabelKeyMap(VEHICLE_TRANSMISSION_OPTIONS);
+export const VEHICLE_TYPE_LABEL_KEYS = buildLabelKeyMap(VEHICLE_TYPE_OPTIONS);
+export const VEHICLE_OWNERSHIP_LABEL_KEYS = buildLabelKeyMap(VEHICLE_OWNERSHIP_OPTIONS);
+export const VEHICLE_FUEL_LABEL_KEYS = buildLabelKeyMap(VEHICLE_FUEL_OPTIONS);

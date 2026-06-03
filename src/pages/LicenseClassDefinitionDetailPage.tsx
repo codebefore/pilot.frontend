@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { useT, type TranslationKey } from "../lib/i18n";
-import { LICENSE_CLASS_DEFINITION_CATEGORY_LABELS } from "../lib/license-class-definition-catalog";
+import { LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS } from "../lib/license-class-definition-catalog";
 import { getLicenseClassDefinition } from "../lib/license-class-definitions-api";
 
 function formatBool(value: boolean, t: (key: TranslationKey) => string): string {
@@ -66,7 +66,7 @@ export function LicenseClassDefinitionDetailPage() {
                 {definition.isActive ? "Aktif" : "Pasif"}
               </span>
               <span>
-                {LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[definition.category] ?? definition.category}
+                {LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[definition.category] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[definition.category]) : definition.category}
               </span>
             </div>
           </div>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 import { getLicenseClassDefinitions } from "./license-class-definitions-api";
-import { LICENSE_CLASS_DEFINITION_CATEGORY_LABELS } from "./license-class-definition-catalog";
+import { LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS } from "./license-class-definition-catalog";
+import { useT, type TranslationKey } from "./i18n";
 import type { LicenseClassDefinitionResponse } from "./types";
 
 export type LicenseClassOption = {
@@ -15,10 +16,10 @@ function toExistingLicenseValue(code: string): string {
   return code.trim().toLowerCase();
 }
 
-function toOption(item: LicenseClassDefinitionResponse): LicenseClassOption {
+function toOption(item: LicenseClassDefinitionResponse, translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string): LicenseClassOption {
   const code = item.code.trim();
   const name = item.name.trim();
-  const fallbackName = LICENSE_CLASS_DEFINITION_CATEGORY_LABELS[item.category] ?? item.category;
+  const fallbackName = translateCategory(item.category);
   const labelName = stripCodeSuffixesFromName(name || fallbackName, code);
 
   return { value: code, label: labelName === code ? code : `${code} - ${labelName}` };
@@ -69,7 +70,10 @@ function toExistingLicenseTypeOption(option: LicenseClassOption): ExistingLicens
   };
 }
 
-function uniqueTargetOptions(items: LicenseClassDefinitionResponse[]): LicenseClassOption[] {
+function uniqueTargetOptions(
+  items: LicenseClassDefinitionResponse[],
+  translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string,
+): LicenseClassOption[] {
   const preferredByCode = new Map<string, LicenseClassDefinitionResponse>();
 
   for (const item of items) {
@@ -82,7 +86,7 @@ function uniqueTargetOptions(items: LicenseClassDefinitionResponse[]): LicenseCl
 
   return [...preferredByCode.values()]
     .sort((a, b) => a.displayOrder - b.displayOrder || a.code.localeCompare(b.code, "tr"))
-    .map(toOption);
+    .map((item) => toOption(item, translateCategory));
 }
 
 function isPreferredTargetOption(
@@ -100,7 +104,10 @@ function isPreferredTargetOption(
   );
 }
 
-async function getActiveLicenseClassOptions(signal?: AbortSignal) {
+async function getActiveLicenseClassOptions(
+  translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string,
+  signal?: AbortSignal,
+) {
   const activeResponse = await getLicenseClassDefinitions(
     {
       activity: "active",
@@ -111,11 +118,14 @@ async function getActiveLicenseClassOptions(signal?: AbortSignal) {
     },
     signal
   );
-  const activeOptions = uniqueTargetOptions(activeResponse.items);
+  const activeOptions = uniqueTargetOptions(activeResponse.items, translateCategory);
   return activeOptions;
 }
 
-export async function getActiveInitialLicenseClassOptions(signal?: AbortSignal) {
+export async function getActiveInitialLicenseClassOptions(
+  signal?: AbortSignal,
+  translateCategory?: (cat: LicenseClassDefinitionResponse["category"]) => string,
+) {
   const activeResponse = await getLicenseClassDefinitions(
     {
       activity: "active",
@@ -126,18 +136,26 @@ export async function getActiveInitialLicenseClassOptions(signal?: AbortSignal) 
     },
     signal
   );
+  const translate = translateCategory ?? ((cat) => cat);
   const activeOptions = uniqueTargetOptions(
-    activeResponse.items.filter((item) => !item.hasExistingLicense)
+    activeResponse.items.filter((item) => !item.hasExistingLicense),
+    translate,
   );
   return activeOptions;
 }
 
-async function getActiveExistingLicenseTypeOptions(signal?: AbortSignal) {
-  const options = await getActiveLicenseClassOptions(signal);
+async function getActiveExistingLicenseTypeOptions(
+  translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string,
+  signal?: AbortSignal,
+) {
+  const options = await getActiveLicenseClassOptions(translateCategory, signal);
   return options.map(toExistingLicenseTypeOption);
 }
 
 export function useLicenseClassOptions() {
+  const t = useT();
+  const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
+    LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
   const [options, setOptions] = useState<LicenseClassOption[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -145,7 +163,7 @@ export function useLicenseClassOptions() {
     const controller = new AbortController();
     setLoading(true);
 
-    getActiveLicenseClassOptions(controller.signal)
+    getActiveLicenseClassOptions(translateCategory, controller.signal)
       .then((nextOptions) => setOptions(nextOptions))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -158,12 +176,16 @@ export function useLicenseClassOptions() {
       });
 
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { options, loading };
 }
 
 export function useInitialLicenseClassOptions() {
+  const t = useT();
+  const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
+    LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
   const [options, setOptions] = useState<LicenseClassOption[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -171,7 +193,7 @@ export function useInitialLicenseClassOptions() {
     const controller = new AbortController();
     setLoading(true);
 
-    getActiveInitialLicenseClassOptions(controller.signal)
+    getActiveInitialLicenseClassOptions(controller.signal, translateCategory)
       .then((nextOptions) => setOptions(nextOptions))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -184,12 +206,16 @@ export function useInitialLicenseClassOptions() {
       });
 
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { options, loading };
 }
 
 export function useExistingLicenseTypeOptions() {
+  const t = useT();
+  const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
+    LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
   const [options, setOptions] = useState<ExistingLicenseTypeOption[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -197,7 +223,7 @@ export function useExistingLicenseTypeOptions() {
     const controller = new AbortController();
     setLoading(true);
 
-    getActiveExistingLicenseTypeOptions(controller.signal)
+    getActiveExistingLicenseTypeOptions(translateCategory, controller.signal)
       .then((nextOptions) => setOptions(nextOptions))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -210,6 +236,7 @@ export function useExistingLicenseTypeOptions() {
       });
 
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { options, loading };

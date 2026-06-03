@@ -404,7 +404,7 @@ export function VehicleFormModal({
                 <CustomSelect className={selectClass(errors.vehicleType?.message)} {...field}>
                   {VEHICLE_TYPE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>
@@ -463,7 +463,7 @@ export function VehicleFormModal({
                 >
                   {VEHICLE_TRANSMISSION_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>
@@ -480,7 +480,7 @@ export function VehicleFormModal({
                 <CustomSelect className={selectClass(errors.status?.message)} {...field}>
                   {VEHICLE_STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>
@@ -499,7 +499,7 @@ export function VehicleFormModal({
                 <CustomSelect className={selectClass(errors.ownershipType?.message)} {...field}>
                   {VEHICLE_OWNERSHIP_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>
@@ -518,10 +518,10 @@ export function VehicleFormModal({
                   {...field}
                   value={field.value ?? ""}
                 >
-                  <option value="">Seçiniz</option>
+                  <option value="">{t("common.select")}</option>
                   {VEHICLE_FUEL_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </CustomSelect>
