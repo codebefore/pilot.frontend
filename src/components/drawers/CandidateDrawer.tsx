@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import {
   assignCandidateGroup,
@@ -138,6 +138,10 @@ export function CandidateDrawer({
   const { showToast } = useToast();
   const { lang } = useLanguage();
   const t = useT();
+  const existingLicenseSelectId = useId();
+  const licenseDateInputId = useId();
+  const licenseNumberInputId = useId();
+  const issuedProvinceSelectId = useId();
   const BOOLEAN_OPTIONS: SelectOption[] = [
     { value: "true", label: t("common.yes") },
     { value: "false", label: t("common.no") },
@@ -835,8 +839,9 @@ export function CandidateDrawer({
                 {existingLicenseDraft.enabled && (
                   <>
                     <div className="form-group">
-                      <label className="form-label">{t("candidateDrawer.field.existingLicense")}</label>
+                      <label className="form-label" htmlFor={existingLicenseSelectId}>{t("candidateDrawer.field.existingLicense")}</label>
                       <CustomSelect
+                        id={existingLicenseSelectId}
                         aria-label={t("candidateDrawer.field.existingLicense")}
                         className="form-select"
                         disabled={!canManageCandidates}
@@ -858,10 +863,11 @@ export function CandidateDrawer({
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">{t("candidateDrawer.field.licenseDate")}</label>
+                      <label className="form-label" htmlFor={licenseDateInputId}>{t("candidateDrawer.field.licenseDate")}</label>
                       <LocalizedDateInput
                         ariaLabel={t("candidateDrawer.field.licenseDate")}
                         defaultOnOpen={today}
+                        id={licenseDateInputId}
                         disabled={!canManageCandidates}
                         lang={dateInputLang}
                         onChange={(value) =>
@@ -875,8 +881,9 @@ export function CandidateDrawer({
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">{t("candidateDrawer.field.licenseNumber")}</label>
+                      <label className="form-label" htmlFor={licenseNumberInputId}>{t("candidateDrawer.field.licenseNumber")}</label>
                       <input
+                        id={licenseNumberInputId}
                         aria-label={t("candidateDrawer.field.licenseNumber")}
                         className="form-input"
                         disabled={!canManageCandidates}
@@ -892,8 +899,9 @@ export function CandidateDrawer({
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">{t("candidateDrawer.field.issuedProvince")}</label>
+                      <label className="form-label" htmlFor={issuedProvinceSelectId}>{t("candidateDrawer.field.issuedProvince")}</label>
                       <CustomSelect
+                        id={issuedProvinceSelectId}
                         aria-label={t("candidateDrawer.field.issuedProvince")}
                         className="form-select"
                         disabled={!canManageCandidates}
