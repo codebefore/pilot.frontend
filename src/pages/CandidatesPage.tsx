@@ -467,10 +467,10 @@ function DrivingExamSelectCell({
   );
 }
 
-function examFeeStatusLabel(status: CandidateExamFeeStatus | null | undefined): string {
-  if (status === "paid") return "Ödendi";
-  if (status === "charged") return "Borçlandırıldı";
-  return "Bekliyor";
+function examFeeStatusLabel(status: CandidateExamFeeStatus | null | undefined, t: ReturnType<typeof useT>): string {
+  if (status === "paid") return t("candidatesPage.examFee.paid");
+  if (status === "charged") return t("candidatesPage.examFee.charged");
+  return t("candidatesPage.examFee.pending");
 }
 
 function examFeeStatusPill(status: CandidateExamFeeStatus | null | undefined): JobStatus {
@@ -480,9 +480,10 @@ function examFeeStatusPill(status: CandidateExamFeeStatus | null | undefined): J
 }
 
 function CandidateExamFeeStatusPill({ status }: { status: CandidateExamFeeStatus | null | undefined }) {
+  const t = useT();
   return (
     <StatusPill
-      label={examFeeStatusLabel(status)}
+      label={examFeeStatusLabel(status, t)}
       status={examFeeStatusPill(status)}
     />
   );
@@ -533,15 +534,15 @@ function candidateUnifiedExamStatus(candidate: CandidateResponse): {
   return { stage, status: "havuz" };
 }
 
-function examStageLabel(stage: CandidateExamStage): string {
-  return stage === "practice" ? "Direksiyon" : "E-sınav";
+function examStageLabel(stage: CandidateExamStage, t: ReturnType<typeof useT>): string {
+  return stage === "practice" ? t("candidatesPage.examStage.practice") : t("candidatesPage.examStage.eSinav");
 }
 
-function examStatusLabel(status: CandidateUnifiedExamStatus): string {
-  if (status === "randevulu") return "randevulu";
-  if (status === "basarisiz") return "başarısız";
-  if (status === "basarili") return "başarılı";
-  return "havuz";
+function examStatusLabel(status: CandidateUnifiedExamStatus, t: ReturnType<typeof useT>): string {
+  if (status === "randevulu") return t("candidatesPage.examStatus.scheduled");
+  if (status === "basarisiz") return t("candidatesPage.examStatus.failed");
+  if (status === "basarili") return t("candidatesPage.examStatus.passed");
+  return t("candidatesPage.examStatus.pool");
 }
 
 function examStatusPill(status: CandidateUnifiedExamStatus): "queued" | "running" | "failed" | "success" {
@@ -552,6 +553,7 @@ function examStatusPill(status: CandidateUnifiedExamStatus): "queued" | "running
 }
 
 function CandidateUnifiedExamAttemptPill({ candidate }: { candidate: CandidateResponse }) {
+  const t = useT();
   const stage = candidateUnifiedExamStage(candidate);
   const value = stage === "practice"
     ? candidate.drivingExamAttemptCount
@@ -560,24 +562,25 @@ function CandidateUnifiedExamAttemptPill({ candidate }: { candidate: CandidateRe
   const status = attempt >= 4 ? "failed" : attempt >= 2 ? "manual" : "success";
   return (
     <StatusPill
-      label={`${examStageLabel(stage)} ${attempt}/4`}
+      label={`${examStageLabel(stage, t)} ${attempt}/4`}
       status={status}
     />
   );
 }
 
 function CandidateUnifiedExamStatusPill({ candidate }: { candidate: CandidateResponse }) {
+  const t = useT();
   const { stage, status } = candidateUnifiedExamStatus(candidate);
-  const stageLabel = examStageLabel(stage);
-  const statusLabel = examStatusLabel(status);
+  const stageLabel = examStageLabel(stage, t);
+  const statusLabel = examStatusLabel(status, t);
   const title =
     status === "randevulu"
-      ? `${stageLabel} randevulu: sınav tarihi var`
+      ? t("candidatesPage.examTitle.scheduled", { stage: stageLabel })
       : status === "basarisiz"
-        ? `${stageLabel} başarısız: aday bu aşamada tekrar sınava girmeli`
+        ? t("candidatesPage.examTitle.failed", { stage: stageLabel })
         : status === "basarili"
-          ? `${stageLabel} başarılı: aday direksiyon sınavını tamamladı`
-          : `${stageLabel} havuz: sınav tarihi yok`;
+          ? t("candidatesPage.examTitle.passed", { stage: stageLabel })
+          : t("candidatesPage.examTitle.pool", { stage: stageLabel });
   return (
     <span title={title}>
       <StatusPill

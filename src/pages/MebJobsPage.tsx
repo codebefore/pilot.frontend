@@ -253,9 +253,9 @@ export function MebJobsPage() {
   const jobs = useMemo<MebJob[]>(
     () =>
       (jobsQuery.data ?? []).map((item) =>
-        mapBackendJob(item, candidatesById, candidatesByNationalId)
+        mapBackendJob(item, candidatesById, candidatesByNationalId, t)
       ),
-    [jobsQuery.data, candidatesById, candidatesByNationalId]
+    [jobsQuery.data, candidatesById, candidatesByNationalId, t]
   );
   const loading = jobsQuery.isPending;
   const loadError = jobsQuery.isError;
@@ -427,7 +427,7 @@ export function MebJobsPage() {
       {pollFailing && (
         <div className="meb-jobs-stale-banner" role="status">
           <span>
-            Arka plan güncellemeleri alınamıyor — {formatStaleSince(lastSyncedAt, nowTick)}.
+            {t("mebJobs.stale.banner", { since: formatStaleSince(lastSyncedAt, nowTick, t) })}
           </span>
           <button
             className="btn btn-link btn-sm"
@@ -677,7 +677,8 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
 function mapBackendJob(
   job: MebbisJobResponse,
   candidatesById: Map<string, CandidateLite>,
-  candidatesByNationalId: Map<string, CandidateLite>
+  candidatesByNationalId: Map<string, CandidateLite>,
+  t: ReturnType<typeof useT>,
 ): MebJob {
   const payload = parseJobPayload(job);
   const nationalId = typeof payload.nationalId === "string" ? payload.nationalId : null;
@@ -695,7 +696,7 @@ function mapBackendJob(
     jobType: mebbisJobTypeLabel(job.jobType),
     candidateName,
     targetSecondary,
-    step: buildStepText(job),
+    step: buildStepText(job, t),
     status: mapMebbisStatusToJobStatus(job.status),
     startedAtIso: job.startedAtUtc ?? job.createdAtUtc,
     completedAtIso: job.completedAtUtc,
@@ -708,14 +709,15 @@ function mapBackendJob(
 }
 
 function QueuePublishStatus({ job }: { job: MebJob }) {
-  const label = getQueuePublishLabel(job);
+  const t = useT();
+  const label = getQueuePublishLabel(job, t);
   const tone = job.queuePublishError
     ? "danger"
     : job.queuePublishedAtIso
       ? "success"
       : "muted";
   return (
-    <span className={`queue-publish-status ${tone}`} title={getQueuePublishTitle(job)}>
+    <span className={`queue-publish-status ${tone}`} title={getQueuePublishTitle(job, t)}>
       {label}
     </span>
   );
@@ -791,63 +793,63 @@ function QueueHealthBand({
   );
 }
 
-function getQueuePublishLabel(job: MebJob): string {
-  if (job.queuePublishError) return "Stream hata";
-  if (job.queuePublishedAtIso) return "Stream";
-  if ((job.queuePublishAttemptCount ?? 0) > 0) return "DB fallback";
-  return "DB";
+function getQueuePublishLabel(job: MebJob, t: ReturnType<typeof useT>): string {
+  if (job.queuePublishError) return t("mebJobs.publish.streamError");
+  if (job.queuePublishedAtIso) return t("mebJobs.publish.stream");
+  if ((job.queuePublishAttemptCount ?? 0) > 0) return t("mebJobs.publish.dbFallback");
+  return t("mebJobs.publish.db");
 }
 
-function getQueuePublishTitle(job: MebJob): string {
+function getQueuePublishTitle(job: MebJob, t: ReturnType<typeof useT>): string {
   if (job.queuePublishError) {
     return job.queuePublishError;
   }
 
   if (job.queuePublishedAtIso) {
-    return `Redis Stream'e yazıldı: ${formatFullDateTime(job.queuePublishedAtIso)}`;
+    return t("mebJobs.publishTitle.wrote", { time: formatFullDateTime(job.queuePublishedAtIso) });
   }
 
   if (job.queuePublishLastAttemptAtIso) {
-    return `Son deneme: ${formatFullDateTime(job.queuePublishLastAttemptAtIso)}`;
+    return t("mebJobs.publishTitle.lastAttempt", { time: formatFullDateTime(job.queuePublishLastAttemptAtIso) });
   }
 
-  return "DB kuyruğu kullanılıyor.";
+  return t("mebJobs.publishTitle.dbQueue");
 }
 
-function buildStepText(job: MebbisJobResponse): string {
+function buildStepText(job: MebbisJobResponse, t: ReturnType<typeof useT>): string {
   if (job.errorMessage) {
     return job.errorMessage;
   }
 
   switch (job.status) {
     case "pending":
-      return "Kuyrukta";
+      return t("mebJobs.step.pending");
     case "leased":
     case "running":
-      return "Extension çalışıyor";
+      return t("mebJobs.step.running");
     case "retry":
-      return "Başarısız";
+      return t("mebJobs.step.retry");
     case "succeeded":
-      return "Tamamlandı";
+      return t("mebJobs.step.succeeded");
     case "needs_manual_action":
-      return "Manuel işlem gerekli";
+      return t("mebJobs.step.needsManual");
     case "cancelled":
-      return "İptal edildi";
+      return t("mebJobs.step.cancelled");
     case "failed":
-      return "Başarısız";
+      return t("mebJobs.step.failed");
     default:
       return job.status;
   }
 }
 
-function formatStaleSince(ts: number | null, now: number): string {
-  if (ts == null) return "henüz senkronize edilmedi";
+function formatStaleSince(ts: number | null, now: number, t: ReturnType<typeof useT>): string {
+  if (ts == null) return t("mebJobs.stale.never");
   const diffSec = Math.max(0, Math.floor((now - ts) / 1000));
-  if (diffSec < 60) return `${diffSec} sn önce güncellendi`;
+  if (diffSec < 60) return t("mebJobs.stale.seconds", { count: diffSec });
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} dk önce güncellendi`;
+  if (diffMin < 60) return t("mebJobs.stale.minutes", { count: diffMin });
   const diffHr = Math.floor(diffMin / 60);
-  return `${diffHr} sa önce güncellendi`;
+  return t("mebJobs.stale.hours", { count: diffHr });
 }
 
 function formatJobTime(value: string): string {

@@ -1,4 +1,5 @@
 import type { CandidateResponse, DocumentTypeResponse } from "../lib/types";
+import type { useT } from "../lib/i18n";
 
 export function hasExistingLicenseValue(value: string | null | undefined): boolean {
   const normalized = value?.trim().toLocaleLowerCase("tr-TR") ?? "";
@@ -28,19 +29,19 @@ export function calculateAge(birthDateIso: string | null): number | null {
   return age;
 }
 
-export function vehicleTypeForLicenseClass(licenseClass: string): string | null {
+export function vehicleTypeForLicenseClass(licenseClass: string, t: ReturnType<typeof useT>): string | null {
   const key = licenseClass.trim().toUpperCase().replace(/[\s_-]/g, "");
   if (!key) return null;
-  if (key === "M" || key.startsWith("A") || key.startsWith("B1")) return "Motosiklet";
-  if (key.startsWith("BENGELLI")) return "Engelli Otomobil";
-  if (key.startsWith("BE")) return "Römorklu Otomobil";
-  if (key.startsWith("B")) return "Otomobil";
-  if (key.startsWith("CE") || key.startsWith("C1E")) return "Römorklu Kamyon";
-  if (key.startsWith("C")) return "Kamyon";
-  if (key.startsWith("DE") || key.startsWith("D1E")) return "Römorklu Otobüs";
-  if (key.startsWith("D")) return "Otobüs";
-  if (key.startsWith("F")) return "Traktör";
-  if (key === "G") return "İş Makinesi";
+  if (key === "M" || key.startsWith("A") || key.startsWith("B1")) return t("vehicleType.motorcycle");
+  if (key.startsWith("BENGELLI")) return t("vehicleType.disabledCar");
+  if (key.startsWith("BE")) return t("vehicleType.trailerCar");
+  if (key.startsWith("B")) return t("vehicleType.car");
+  if (key.startsWith("CE") || key.startsWith("C1E")) return t("vehicleType.trailerTruck");
+  if (key.startsWith("C")) return t("vehicleType.truck");
+  if (key.startsWith("DE") || key.startsWith("D1E")) return t("vehicleType.trailerBus");
+  if (key.startsWith("D")) return t("vehicleType.bus");
+  if (key.startsWith("F")) return t("vehicleType.tractor");
+  if (key === "G") return t("vehicleType.workMachine");
   return null;
 }
 
@@ -69,11 +70,11 @@ export function mapToneToAvatar(tone: string): "brand" | "blue" | "purple" | "am
   }
 }
 
-export function buildFutureStages(candidate: CandidateResponse): string[] {
+export function buildFutureStages(candidate: CandidateResponse, t: ReturnType<typeof useT>): string[] {
   const stage = candidate.examStageLabel;
   if (!stage || stage === "Mezun" || stage === "Dosya Yakıldı") return [];
-  if (stage === "E-Sınav Aşamasında") return ["Direksiyon Aşaması", "Mezun"];
-  if (stage === "Direksiyon Aşamasında" || stage === "2. Direksiyon Aşaması") return ["Mezun"];
+  if (stage === "E-Sınav Aşamasında") return [t("candidateDetail.futureStage.drivingStage"), t("candidateDetail.futureStage.graduated")];
+  if (stage === "Direksiyon Aşamasında" || stage === "2. Direksiyon Aşaması") return [t("candidateDetail.futureStage.graduated")];
   return [];
 }
 

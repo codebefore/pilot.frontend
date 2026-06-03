@@ -235,29 +235,29 @@ function buildCandidateUpdatePayload(
   };
 }
 
-const CONTACT_TYPE_OPTIONS: SelectOption[] = [
-  { value: "phone", label: "Telefon" },
-  { value: "address", label: "Adres" },
-  { value: "other", label: "Diğer" },
-];
+const CONTACT_TYPE_LABEL_KEYS: Record<CandidateContactType, TranslationKey> = {
+  phone: "candidateDetail.contactType.phone",
+  address: "candidateDetail.contactType.address",
+  other: "candidateDetail.contactType.other",
+};
 
-async function loadReferenceOptions(currentValue: string | null): Promise<SelectOption[]> {
-  // Aktif referanslar listesi. Aday detayda kayıtlı eski bir değer aktif listede
-  // yoksa (silinmiş ya da pasif yapılmış olabilir) seçimin kaybolmaması için
-  // mevcut değeri options'a ek olarak ekliyoruz.
+async function loadReferenceOptions(
+  currentValue: string | null,
+  t: ReturnType<typeof useT>,
+): Promise<SelectOption[]> {
   const items = await getCandidateReferences();
   const options: SelectOption[] = [
     { value: "", label: "—" },
     ...items.map((item) => ({ value: item.name, label: item.name })),
   ];
   if (currentValue && !items.some((item) => item.name === currentValue)) {
-    options.push({ value: currentValue, label: `${currentValue} (pasif)` });
+    options.push({ value: currentValue, label: t("candidateDetail.reference.inactive", { name: currentValue }) });
   }
   return options;
 }
 
-function contactTypeLabel(type: CandidateContactType): string {
-  return CONTACT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Diğer";
+function contactTypeLabel(type: CandidateContactType, t: ReturnType<typeof useT>): string {
+  return t(CONTACT_TYPE_LABEL_KEYS[type] ?? "candidateDetail.contactType.other");
 }
 
 
@@ -761,7 +761,7 @@ function CandidateHero({
   const licenseTransitionLabel = existingLicense
     ? `${existingLicense}'den ${candidate.licenseClass}`
     : candidate.licenseClass;
-  const vehicleTypeLabel = vehicleTypeForLicenseClass(candidate.licenseClass);
+  const vehicleTypeLabel = vehicleTypeForLicenseClass(candidate.licenseClass, t);
   const termLabel = candidate.currentGroup?.term
     ? buildTermLabel(candidate.currentGroup.term, []).toLocaleUpperCase("tr-TR")
     : null;
@@ -1216,7 +1216,7 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
   const t = useT();
   const [view, setView] = useState<"timeline" | "feed">("feed");
   const events = candidate.timeline ?? [];
-  const futureSteps = buildFutureStages(candidate);
+  const futureSteps = buildFutureStages(candidate, t);
 
   type TimelineRow =
     | { key: string; kind: "event"; tone: string; dateLabel: string; title: string; detail: string | null; actorName: string | null }
@@ -1413,7 +1413,7 @@ function CandidateContactsEditor({
         ? {
             id: item.id || null,
             type: item.type,
-            label: contactTypeLabel(item.type),
+            label: contactTypeLabel(item.type, t),
             value: normalizedValue,
             isPrimary: item.isPrimary,
             ownerName: item.type === "phone" ? normalizedOwnerName : null,
@@ -1465,7 +1465,7 @@ function CandidateContactsEditor({
       {
         id: null,
         type,
-        label: contactTypeLabel(type),
+        label: contactTypeLabel(type, t),
         value: normalizedValue,
         isPrimary: !contacts.some((item) => item.type === type),
         ownerName: type === "phone" ? ownerName : null,
@@ -1507,7 +1507,7 @@ function CandidateContactsEditor({
         ) : null}
         {contacts.map((contact, index) => {
           contactLabelCounts[contact.type] = (contactLabelCounts[contact.type] ?? 0) + 1;
-          const label = `${contactTypeLabel(contact.type)} ${contactLabelCounts[contact.type]}`;
+          const label = `${contactTypeLabel(contact.type, t)} ${contactLabelCounts[contact.type]}`;
 
           return (
             <CandidateContactRow
@@ -1527,7 +1527,7 @@ function CandidateContactsEditor({
             isPhone={draft.type === "phone"}
             canManageCandidates={canManageCandidates}
             key={draft.id}
-            label={t("candidateDetail.contacts.newKind", { singular: contactTypeLabel(draft.type) })}
+            label={t("candidateDetail.contacts.newKind", { singular: contactTypeLabel(draft.type, t) })}
             onCancel={(draftId) =>
               setDrafts((current) => current.filter((item) => item.id !== draftId))
             }
@@ -2467,7 +2467,7 @@ function LicenseInfoTab({
               displayValue={candidate.referenceName ?? ""}
               inputValue={candidate.referenceName ?? ""}
               label={t("candidateDetail.license.field.reference")}
-              loadOptions={() => loadReferenceOptions(candidate.referenceName)}
+              loadOptions={() => loadReferenceOptions(candidate.referenceName, t)}
               onSave={(value) =>
                 saveApplicationField(
                   { referenceName: value.trim() || null },
