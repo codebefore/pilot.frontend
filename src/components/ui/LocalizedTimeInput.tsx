@@ -16,6 +16,7 @@ type LocalizedTimeInputProps = {
   ariaLabel?: string;
   className?: string;
   disabled?: boolean;
+  id?: string;
   name?: string;
   onBlur?: FocusEventHandler<HTMLInputElement>;
   placeholder?: string;
@@ -59,6 +60,7 @@ export function LocalizedTimeInput({
   ariaLabel,
   className,
   disabled = false,
+  id,
   name,
   onBlur,
   placeholder = "HH:mm",
@@ -169,6 +171,7 @@ export function LocalizedTimeInput({
           aria-label={ariaLabel}
           className="localized-date-trigger-input"
           disabled={disabled}
+          id={id}
           onFocus={() => {
             if (!open) {
               openPopover();

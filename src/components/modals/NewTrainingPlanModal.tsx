@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -143,6 +143,17 @@ export function NewTrainingPlanModal({
 }: NewTrainingPlanModalProps) {
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
+  const planTypeId = useId();
+  const statusId = useId();
+  const dateId = useId();
+  const startTimeId = useId();
+  const durationId = useId();
+  const instructorId = useId();
+  const groupId = useId();
+  const candidateId = useId();
+  const branchId = useId();
+  const vehicleId = useId();
+  const notesId = useId();
   const {
     control,
     register,
@@ -214,12 +225,13 @@ export function NewTrainingPlanModal({
         ) : null}
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.planType")}</label>
+            <label className="form-label" htmlFor={planTypeId}>{t("training.modal.field.planType")}</label>
             <Controller
               control={control}
               name="type"
               render={({ field }) => (
                 <CustomSelect
+                  id={planTypeId}
                   className="form-select"
                   disabled={!canManage}
                   name={field.name}
@@ -234,12 +246,13 @@ export function NewTrainingPlanModal({
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.status")}</label>
+            <label className="form-label" htmlFor={statusId}>{t("training.modal.field.status")}</label>
             <Controller
               control={control}
               name="status"
               render={({ field }) => (
                 <CustomSelect
+                  id={statusId}
                   className="form-select"
                   disabled={!canManage}
                   name={field.name}
@@ -257,10 +270,11 @@ export function NewTrainingPlanModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.date")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={dateId}>{t("training.modal.field.date")}<RequiredMark /></label>
             <LocalizedDateInput
               className={fieldClass("date", !!errors.date, "form-input")}
               disabled={!canManage}
+              id={dateId}
               inputRef={dateRegistration.ref}
               name={dateRegistration.name}
               onBlur={dateRegistration.onBlur}
@@ -275,10 +289,11 @@ export function NewTrainingPlanModal({
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.startTime")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={startTimeId}>{t("training.modal.field.startTime")}<RequiredMark /></label>
             <LocalizedTimeInput
               className={fieldClass("startTime", !!errors.startTime, "form-input")}
               disabled={!canManage}
+              id={startTimeId}
               inputRef={startTimeRegistration.ref}
               name={startTimeRegistration.name}
               onBlur={startTimeRegistration.onBlur}
@@ -295,8 +310,9 @@ export function NewTrainingPlanModal({
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.duration")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={durationId}>{t("training.modal.field.duration")}<RequiredMark /></label>
             <CustomSelect
+              id={durationId}
               className={fieldClass("durationMinutes", false, "form-select")}
               disabled={!canManage}
               {...register("durationMinutes", { valueAsNumber: true })}
@@ -316,8 +332,9 @@ export function NewTrainingPlanModal({
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.instructor")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={instructorId}>{t("training.modal.field.instructor")}<RequiredMark /></label>
             <CustomSelect
+              id={instructorId}
               className={fieldClass("instructorId", !!errors.instructorId, "form-select")}
               disabled={!canManage}
               {...register("instructorId")}
@@ -346,8 +363,9 @@ export function NewTrainingPlanModal({
           </div>
 	          {type === "teorik" ? (
 	            <div className="form-group">
-              <label className="form-label">{t("training.modal.field.group")}<RequiredMark /></label>
+              <label className="form-label" htmlFor={groupId}>{t("training.modal.field.group")}<RequiredMark /></label>
               <CustomSelect
+                id={groupId}
                 className={fieldClass("groupId", !!errors.groupId, "form-select")}
                 disabled={!canManage}
                 {...register("groupId")}
@@ -372,8 +390,9 @@ export function NewTrainingPlanModal({
 	            </div>
 	          ) : (
             <div className="form-group">
-              <label className="form-label">{t("training.modal.field.candidate")}<RequiredMark /></label>
+              <label className="form-label" htmlFor={candidateId}>{t("training.modal.field.candidate")}<RequiredMark /></label>
               <CustomSelect
+                id={candidateId}
                 className={fieldClass("candidateId", !!errors.candidateId, "form-select")}
                 disabled={!canManage}
                 {...register("candidateId")}
@@ -398,8 +417,9 @@ export function NewTrainingPlanModal({
 	        {type === "teorik" ? (
 	          <div className="form-row">
 	            <div className="form-group">
-	              <label className="form-label">{t("training.modal.field.branch")}<RequiredMark /></label>
+	              <label className="form-label" htmlFor={branchId}>{t("training.modal.field.branch")}<RequiredMark /></label>
 	              <CustomSelect
+	                id={branchId}
 	                className={fieldClass("branchCode", !!errors.branchCode, "form-select")}
 	                disabled={!canManage}
 	                {...register("branchCode")}
@@ -426,8 +446,9 @@ export function NewTrainingPlanModal({
         {needsPracticeFields ? (
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">{t("training.modal.field.vehicle")}<RequiredMark /></label>
+              <label className="form-label" htmlFor={vehicleId}>{t("training.modal.field.vehicle")}<RequiredMark /></label>
               <CustomSelect
+                id={vehicleId}
                 className={fieldClass("vehicleId", !!errors.vehicleId, "form-select")}
                 disabled={!canManage}
                 {...register("vehicleId", {
@@ -454,8 +475,9 @@ export function NewTrainingPlanModal({
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("training.modal.field.notes")}</label>
+            <label className="form-label" htmlFor={notesId}>{t("training.modal.field.notes")}</label>
             <textarea
+              id={notesId}
               className="form-textarea"
               disabled={!canManage}
               rows={3}

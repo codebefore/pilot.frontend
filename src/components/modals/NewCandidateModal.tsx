@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -184,6 +184,14 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
+  const tcInputId = useId();
+  const referenceInputId = useId();
+  const firstNameInputId = useId();
+  const lastNameInputId = useId();
+  const phoneInputId = useId();
+  const licenseClassInputId = useId();
+  const existingLicenseInputId = useId();
+  const issuedAtInputId = useId();
   const [reuseSources, setReuseSources] = useState<CandidateReuseSourceResponse[]>([]);
   const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
   const [certificatePrograms, setCertificatePrograms] = useState<CertificateProgramResponse[]>([]);
@@ -547,8 +555,9 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.nationalId")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={tcInputId}>{t("common.field.nationalId")}<RequiredMark /></label>
             <input
+              id={tcInputId}
               className={fieldClass(!!errors.tc, "form-input")}
               inputMode="numeric"
               maxLength={11}
@@ -563,12 +572,13 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             ) : null}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("newCandidate.field.reference")}</label>
+            <label className="form-label" htmlFor={referenceInputId}>{t("newCandidate.field.reference")}</label>
             <Controller
               control={control}
               name="referenceName"
               render={({ field }) => (
                 <CustomSelect
+                  id={referenceInputId}
                   className="form-select"
                   name={field.name}
                   onBlur={field.onBlur}
@@ -589,8 +599,9 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("newCandidate.field.firstName")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={firstNameInputId}>{t("newCandidate.field.firstName")}<RequiredMark /></label>
             <input
+              id={firstNameInputId}
               className={fieldClass(!!errors.firstName, "form-input")}
               placeholder={t("newCandidate.placeholder.firstName")}
               {...register("firstName", {
@@ -602,8 +613,9 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             {errors.firstName && <div className="form-error">{translateError(errors.firstName.message)}</div>}
           </div>
           <div className="form-group">
-            <label className="form-label">{t("common.field.lastName")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={lastNameInputId}>{t("common.field.lastName")}<RequiredMark /></label>
             <input
+              id={lastNameInputId}
               className={fieldClass(!!errors.lastName, "form-input")}
               placeholder={t("newCandidate.placeholder.lastName")}
               {...register("lastName", {
@@ -618,8 +630,9 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.phone")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={phoneInputId}>{t("common.field.phone")}<RequiredMark /></label>
             <input
+              id={phoneInputId}
               className={fieldClass(!!errors.phone, "form-input")}
               maxLength={32}
               placeholder={t("newCandidate.placeholder.phone")}
@@ -641,8 +654,9 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("common.field.licenseClass")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={licenseClassInputId}>{t("common.field.licenseClass")}<RequiredMark /></label>
             <CustomSelect
+              id={licenseClassInputId}
               className={fieldClass(!!errors.className, "form-select")}
               value={selectedClass}
               {...classRegistration}
@@ -668,8 +682,9 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">{t("newCandidate.field.existingLicense")}</label>
+            <label className="form-label" htmlFor={existingLicenseInputId}>{t("newCandidate.field.existingLicense")}</label>
             <CustomSelect
+              id={existingLicenseInputId}
               className="form-select"
               {...register("existingLicenseType", {
                 onChange: (event) => {
@@ -690,9 +705,10 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             </CustomSelect>
           </div>
           <div className="form-group">
-            <label className="form-label">{t("newCandidate.field.issuedAt")}</label>
+            <label className="form-label" htmlFor={issuedAtInputId}>{t("newCandidate.field.issuedAt")}</label>
             <LocalizedDateInput
               ariaLabel={t("newCandidate.aria.issuedAt")}
+              id={issuedAtInputId}
               lang="tr-TR"
               onChange={(next) =>
                 setValue("existingLicenseIssuedAt", next, { shouldDirty: true })
