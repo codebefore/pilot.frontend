@@ -222,7 +222,7 @@ export function UploadDocumentModal({
     if (!resolvedSubmitDocumentTypeId) {
       setError("documentTypeId", {
         message: lockedDocumentTypeKey
-          ? "Biyometrik foto evrak türü bulunamadı."
+          ? t("uploadDocument.error.biometricMissing")
           : t("uploadDoc.errors.docTypeRequired"),
       });
       return;

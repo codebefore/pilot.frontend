@@ -30,7 +30,7 @@ import {
 import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
 import { canManageArea } from "../lib/permissions";
 import type { JobStatus } from "../types";
-import { useT, currentLocale } from "../lib/i18n";
+import { useT, currentLocale, type TranslationKey } from "../lib/i18n";
 
 type StatusFilter = "all" | "running" | "queued" | "manual" | "failed" | "success";
 
@@ -101,13 +101,13 @@ function queueStateOrder(job: MebJob): number {
   return 1;
 }
 
-const FILTERS: { key: StatusFilter; label: string }[] = [
-  { key: "all",     label: "Tümü" },
-  { key: "running", label: "Çalışıyor" },
-  { key: "queued",  label: "Bekliyor" },
-  { key: "manual",  label: "Manuel" },
-  { key: "failed",  label: "Hata" },
-  { key: "success", label: "Başarılı" },
+const FILTERS: { key: StatusFilter; labelKey: TranslationKey }[] = [
+  { key: "all",     labelKey: "common.all" },
+  { key: "running", labelKey: "jobStatus.running" },
+  { key: "queued",  labelKey: "jobStatus.queued" },
+  { key: "manual",  labelKey: "jobStatus.manual" },
+  { key: "failed",  labelKey: "jobStatus.failed" },
+  { key: "success", labelKey: "jobStatus.success" },
 ];
 
 const ACTIVE_STATUSES: JobStatus[] = ["running", "queued"];
@@ -115,13 +115,14 @@ const POLL_INTERVAL_MS = 5000;
 
 function buildFilterOptions(
   values: string[],
+  allLabel: string,
   formatLabel: (value: string) => string = (value) => value
 ): TableHeaderFilterOption[] {
   const distinct = Array.from(new Set(values))
     .filter((value) => value && value.trim().length > 0)
     .sort((a, b) => formatLabel(a).localeCompare(formatLabel(b), "tr", { sensitivity: "base" }));
   return [
-    { value: "all", label: "Tümü" },
+    { value: "all", label: allLabel },
     ...distinct.map((value) => ({ value, label: formatLabel(value) })),
   ];
 }
@@ -297,24 +298,25 @@ export function MebJobsPage() {
   }, [jobs]);
 
   const statusFilterOptions = useMemo<TableHeaderFilterOption[]>(
-    () => FILTERS.map((f) => ({ value: f.key, label: f.label })),
-    []
+    () => FILTERS.map((f) => ({ value: f.key, label: t(f.labelKey) })),
+    [t]
   );
+  const allLabel = t("common.all");
   const candidateFilterOptions = useMemo(
-    () => buildFilterOptions(jobs.map(getCandidateFilterValue)),
-    [jobs]
+    () => buildFilterOptions(jobs.map(getCandidateFilterValue), allLabel),
+    [jobs, allLabel]
   );
   const stepFilterOptions = useMemo(
-    () => buildFilterOptions(jobs.map((job) => job.step)),
-    [jobs]
+    () => buildFilterOptions(jobs.map((job) => job.step), allLabel),
+    [jobs, allLabel]
   );
   const startedAtFilterOptions = useMemo(
-    () => buildFilterOptions(jobs.map(getStartedAtFilterValue), formatDateFilterLabel),
-    [jobs]
+    () => buildFilterOptions(jobs.map(getStartedAtFilterValue), allLabel, formatDateFilterLabel),
+    [jobs, allLabel]
   );
   const durationFilterOptions = useMemo(
-    () => buildFilterOptions(jobs.map(getDurationFilterValue)),
-    [jobs]
+    () => buildFilterOptions(jobs.map(getDurationFilterValue), allLabel),
+    [jobs, allLabel]
   );
 
   const toggleSort = (key: SortKey) => {
@@ -417,7 +419,7 @@ export function MebJobsPage() {
             key={f.key}
             onClick={() => setFilter(f.key)}
           >
-            {f.label}
+            {t(f.labelKey)}
           </FilterChip>
         ))}
       </div>

@@ -405,7 +405,7 @@ export function VehiclesSettingsSection() {
                       <th key={column.id}>{t(column.labelKey)}</th>
                     )
                   )}
-                  <th aria-label="İşlemler" />
+                  <th aria-label={t("vehiclesSettings.aria.actions")} />
                 </tr>
               </thead>
               <tbody>

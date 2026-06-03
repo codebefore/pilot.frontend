@@ -334,7 +334,7 @@ export function InstructorsSettingsSection() {
       .then((response) => setTrainingBranches(response.items))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Branş tanımları yüklenemedi", "error");
+        showToast(t("instructorsSettings.toast.branchLoadFailed"), "error");
       });
 
     return () => controller.abort();

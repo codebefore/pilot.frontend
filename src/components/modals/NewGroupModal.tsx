@@ -325,7 +325,7 @@ export function NewGroupModal({
           <div className="form-group">
             <label className="form-label">{t("common.field.startDate")}<RequiredMark /></label>
             <LocalizedDateInput
-              ariaLabel="Başlangıç"
+              ariaLabel={t("newGroup.aria.startDate")}
               className={fieldClass(!!errors.startDate, "form-input")}
               inputRef={startDateRegistration.ref}
               lang={dateInputLang}

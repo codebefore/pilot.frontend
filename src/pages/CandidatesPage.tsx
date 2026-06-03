@@ -378,6 +378,7 @@ function DrivingExamTimeCell({
   onCancel: () => void;
   onSave: (time: string) => void;
 }) {
+  const t = useT();
   const value = drivingExamTimeValue(candidate.drivingExamScheduledAt);
   const label = value === "—" ? "—" : DRIVING_EXAM_TIME_SLOT_LABELS.get(value) ?? value;
   if (!candidate.drivingExamAttemptId) return "—";
@@ -385,7 +386,7 @@ function DrivingExamTimeCell({
     <div className="cand-inline-edit-cell" onClick={(event) => event.stopPropagation()}>
       {editing ? (
         <LocalizedTimeInput
-          ariaLabel="Sınav saati"
+          ariaLabel={t("candidatesPage.aria.examTime")}
           className="cand-inline-edit-input"
           disabled={disabled}
           onBlur={onCancel}
@@ -2949,7 +2950,7 @@ export function CandidatesPage({
           <CandidateExamDateSidebar
             actions={[
               {
-                label: "Sınav Tarihi Ekle",
+                label: t("candidatesPage.action.addExamDate"),
                 onClick: handleExamDateAddClick,
                 disabled: !canManageGroups,
                 title: !canManageGroups ? noPermissionTitle : undefined,
