@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -89,6 +89,9 @@ export function UploadDocumentModal({
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
   const noPermissionTitle = t("common.noPermission");
+  const candidateSelectId = useId();
+  const documentTypeSelectId = useId();
+  const noteInputId = useId();
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>(
     documentTypesProp ?? []
@@ -307,8 +310,9 @@ export function UploadDocumentModal({
         ) : (
           <div className="form-row full">
             <div className="form-group">
-              <label className="form-label">{t("uploadDoc.candidate")}</label>
+              <label className="form-label" htmlFor={candidateSelectId}>{t("uploadDoc.candidate")}</label>
               <CustomSelect
+                id={candidateSelectId}
                 className={fieldClass(!!errors.candidateId, "form-select")}
                 value={selectedCandidateId}
                 {...register("candidateId")}
@@ -340,8 +344,9 @@ export function UploadDocumentModal({
         ) : (
           <div className="form-row full">
             <div className="form-group">
-              <label className="form-label">{t("uploadDoc.docType")}</label>
+              <label className="form-label" htmlFor={documentTypeSelectId}>{t("uploadDoc.docType")}</label>
               <CustomSelect
+                id={documentTypeSelectId}
                 className={fieldClass(!!errors.documentTypeId, "form-select")}
                 value={selectedDocumentTypeId}
                 {...register("documentTypeId")}
@@ -395,65 +400,26 @@ export function UploadDocumentModal({
 
         {metadataFields.length > 0 && (
           <div className="upload-doc-metadata">
-            {metadataFields.map((field) => {
-              const value = metadataValues[field.key] ?? "";
-              const fieldError = metadataErrors[field.key];
-              const labelWithRequired = field.isRequired ? `${field.label} *` : field.label;
-
-              return (
-                <div className="form-row full" key={field.key}>
-                  <div className="form-group">
-                    <label className="form-label">{labelWithRequired}</label>
-                    {field.inputType === "date" ? (
-                      <LocalizedDateInput
-                        ariaLabel={field.label}
-                        lang={dateInputLang}
-                        onChange={(next) => setMetadataValue(field.key, next)}
-                        placeholder={field.placeholder ?? ""}
-                        value={value}
-                      />
-                    ) : field.inputType === "select" ? (
-                      <CustomSelect
-                        aria-label={field.label}
-                        className="form-select"
-                        onChange={(event) =>
-                          setMetadataValue(field.key, event.target.value)
-                        }
-                        value={value}
-                      >
-                        <option value="">
-                          {field.placeholder ?? t("uploadDoc.metadataSelectPlaceholder")}
-                        </option>
-                        {field.options.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </CustomSelect>
-                    ) : (
-                      <input
-                        aria-label={field.label}
-                        className={fieldClass(!!fieldError, "form-input")}
-                        onChange={(event) =>
-                          setMetadataValue(field.key, event.target.value)
-                        }
-                        placeholder={field.placeholder ?? ""}
-                        type="text"
-                        value={value}
-                      />
-                    )}
-                    {fieldError && <div className="form-error">{fieldError}</div>}
-                  </div>
-                </div>
-              );
-            })}
+            {metadataFields.map((field) => (
+              <MetadataFieldRow
+                dateInputLang={dateInputLang}
+                error={metadataErrors[field.key]}
+                field={field}
+                fieldClass={fieldClass}
+                key={field.key}
+                onChange={(next) => setMetadataValue(field.key, next)}
+                selectPlaceholderFallback={t("uploadDoc.metadataSelectPlaceholder")}
+                value={metadataValues[field.key] ?? ""}
+              />
+            ))}
           </div>
         )}
 
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("uploadDoc.note")}</label>
+            <label className="form-label" htmlFor={noteInputId}>{t("uploadDoc.note")}</label>
             <textarea
+              id={noteInputId}
               className="form-input"
               placeholder={t("uploadDoc.notePlaceholder")}
               rows={3}
@@ -463,5 +429,79 @@ export function UploadDocumentModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+export type MetadataFieldRowProps = {
+  field: DocumentMetadataField;
+  value: string;
+  error?: string;
+  disabled?: boolean;
+  dateInputLang?: string;
+  selectPlaceholderFallback: string;
+  fieldClass: (hasError: boolean, base: "form-input" | "form-select") => string;
+  onChange: (value: string) => void;
+};
+
+export function MetadataFieldRow({
+  field,
+  value,
+  error,
+  disabled = false,
+  dateInputLang,
+  selectPlaceholderFallback,
+  fieldClass,
+  onChange,
+}: MetadataFieldRowProps) {
+  const inputId = useId();
+  const labelWithRequired = field.isRequired ? `${field.label} *` : field.label;
+
+  return (
+    <div className="form-row full">
+      <div className="form-group">
+        <label className="form-label" htmlFor={inputId}>{labelWithRequired}</label>
+        {field.inputType === "date" ? (
+          <LocalizedDateInput
+            ariaLabel={field.label}
+            disabled={disabled}
+            id={inputId}
+            lang={dateInputLang}
+            onChange={onChange}
+            placeholder={field.placeholder ?? ""}
+            value={value}
+          />
+        ) : field.inputType === "select" ? (
+          <CustomSelect
+            id={inputId}
+            aria-label={field.label}
+            className="form-select"
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            value={value}
+          >
+            <option value="">
+              {field.placeholder ?? selectPlaceholderFallback}
+            </option>
+            {field.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </CustomSelect>
+        ) : (
+          <input
+            id={inputId}
+            aria-label={field.label}
+            className={fieldClass(!!error, "form-input")}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={field.placeholder ?? ""}
+            type="text"
+            value={value}
+          />
+        )}
+        {error && <div className="form-error">{error}</div>}
+      </div>
+    </div>
   );
 }
