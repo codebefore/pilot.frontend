@@ -37,7 +37,7 @@ trainingLocalizer.formats = {
   timeGutterFormat: "HH:mm",
 };
 
-export const trainingCalendarMessages: Messages = {
+export const trainingCalendarMessagesTr: Messages = {
   date: "Tarih",
   time: "Saat",
   event: "Etkinlik",
@@ -55,6 +55,32 @@ export const trainingCalendarMessages: Messages = {
   noEventsInRange: "Bu aralıkta ders yok.",
   showMore: (total) => `+${total} daha`,
 };
+
+export const trainingCalendarMessagesEn: Messages = {
+  date: "Date",
+  time: "Time",
+  event: "Event",
+  allDay: "All day",
+  week: "Week",
+  work_week: "Work week",
+  day: "Day",
+  month: "Month",
+  previous: "Previous",
+  next: "Next",
+  yesterday: "Yesterday",
+  tomorrow: "Tomorrow",
+  today: "Today",
+  agenda: "Agenda",
+  noEventsInRange: "No lessons in this range.",
+  showMore: (total) => `+${total} more`,
+};
+
+export function getTrainingCalendarMessages(lang: "tr" | "en"): Messages {
+  return lang === "en" ? trainingCalendarMessagesEn : trainingCalendarMessagesTr;
+}
+
+/** @deprecated Use getTrainingCalendarMessages(lang) instead. */
+export const trainingCalendarMessages = trainingCalendarMessagesTr;
 
 export type TrainingEventKind = "teorik" | "uygulama";
 

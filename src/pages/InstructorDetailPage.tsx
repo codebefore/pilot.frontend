@@ -18,8 +18,8 @@ import {
   listAssignments,
 } from "../lib/instructor-assignments-api";
 import {
-  INSTRUCTOR_EMPLOYMENT_LABELS,
-  INSTRUCTOR_ROLE_LABELS,
+  INSTRUCTOR_EMPLOYMENT_LABEL_KEYS,
+  INSTRUCTOR_ROLE_LABEL_KEYS,
 } from "../lib/instructor-catalog";
 import {
   clearInstructorLeft,
@@ -288,11 +288,11 @@ export function InstructorDetailPage() {
               <Field label="TC Kimlik No" value={instructor.nationalId ?? "—"} />
               <Field
                 label={t("instructor.detail.field.status")}
-                value={INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType] ?? "—"}
+                value={INSTRUCTOR_EMPLOYMENT_LABEL_KEYS[instructor.employmentType] ? t(INSTRUCTOR_EMPLOYMENT_LABEL_KEYS[instructor.employmentType]) : "—"}
               />
               <Field
                 label={t("instructorDetail.field.role")}
-                value={INSTRUCTOR_ROLE_LABELS[instructor.role] ?? "—"}
+                value={INSTRUCTOR_ROLE_LABEL_KEYS[instructor.role] ? t(INSTRUCTOR_ROLE_LABEL_KEYS[instructor.role]) : "—"}
               />
               <Field
                 label={t("instructor.detail.field.branch")}
@@ -372,7 +372,7 @@ export function InstructorDetailPage() {
                       <div className="assignment-item-head">
                         <div className="assignment-item-seq">#{a.sequenceNumber}</div>
                         <div className="assignment-item-title">
-                          {INSTRUCTOR_ROLE_LABELS[a.role]}
+                          {t(INSTRUCTOR_ROLE_LABEL_KEYS[a.role])}
                         </div>
                         {isActive ? (
                           <span className="assignment-item-badge">
@@ -444,7 +444,7 @@ export function InstructorDetailPage() {
                       <div className="assignment-item-grid">
                         <Field
                           label={t("settings.instructors.detail.assignments.field.employmentType")}
-                          value={INSTRUCTOR_EMPLOYMENT_LABELS[a.employmentType]}
+                          value={t(INSTRUCTOR_EMPLOYMENT_LABEL_KEYS[a.employmentType])}
                         />
                         <Field
                           label={t("settings.instructors.detail.assignments.field.branch")}

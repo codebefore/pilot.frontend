@@ -2,37 +2,38 @@ import type {
   InstructorEmploymentType,
   InstructorRole,
 } from "./types";
+import type { TranslationKey } from "./i18n";
 
 type Option<T extends string> = {
   value: T;
-  label: string;
+  labelKey: TranslationKey;
 };
 
 export const INSTRUCTOR_ROLE_OPTIONS: Option<InstructorRole>[] = [
-  { value: "founder", label: "Kurucu" },
-  { value: "manager", label: "Müdür" },
-  { value: "assistant_manager", label: "Müdür Yardımcısı" },
-  { value: "master_instructor", label: "Usta Öğretici" },
-  { value: "specialist_instructor", label: "Uzman Öğretici" },
-  { value: "psychologist", label: "Psikolog" },
-  { value: "office_staff", label: "Büro Personeli" },
-  { value: "track_responsible", label: "Pist Sorumlusu" },
-  { value: "accounting", label: "Finans" },
-  { value: "other", label: "Diğer" },
+  { value: "founder", labelKey: "instructor.role.founder" },
+  { value: "manager", labelKey: "instructor.role.manager" },
+  { value: "assistant_manager", labelKey: "instructor.role.assistantManager" },
+  { value: "master_instructor", labelKey: "instructor.role.masterInstructor" },
+  { value: "specialist_instructor", labelKey: "instructor.role.specialistInstructor" },
+  { value: "psychologist", labelKey: "instructor.role.psychologist" },
+  { value: "office_staff", labelKey: "instructor.role.officeStaff" },
+  { value: "track_responsible", labelKey: "instructor.role.trackResponsible" },
+  { value: "accounting", labelKey: "instructor.role.accounting" },
+  { value: "other", labelKey: "instructor.role.other" },
 ];
 
 export const INSTRUCTOR_EMPLOYMENT_OPTIONS: Option<InstructorEmploymentType>[] = [
-  { value: "salaried", label: "Kadrolu" },
-  { value: "hourly", label: "Ders Saat Ücretli" },
-  { value: "other", label: "Diğer Personel" },
+  { value: "salaried", labelKey: "instructor.employment.salaried" },
+  { value: "hourly", labelKey: "instructor.employment.hourly" },
+  { value: "other", labelKey: "instructor.employment.other" },
 ];
 
-function buildLabelMap<T extends string>(options: Option<T>[]): Record<T, string> {
+function buildLabelKeyMap<T extends string>(options: Option<T>[]): Record<T, TranslationKey> {
   return options.reduce(
-    (acc, option) => ({ ...acc, [option.value]: option.label }),
-    {} as Record<T, string>
+    (acc, option) => ({ ...acc, [option.value]: option.labelKey }),
+    {} as Record<T, TranslationKey>
   );
 }
 
-export const INSTRUCTOR_ROLE_LABELS = buildLabelMap(INSTRUCTOR_ROLE_OPTIONS);
-export const INSTRUCTOR_EMPLOYMENT_LABELS = buildLabelMap(INSTRUCTOR_EMPLOYMENT_OPTIONS);
+export const INSTRUCTOR_ROLE_LABEL_KEYS = buildLabelKeyMap(INSTRUCTOR_ROLE_OPTIONS);
+export const INSTRUCTOR_EMPLOYMENT_LABEL_KEYS = buildLabelKeyMap(INSTRUCTOR_EMPLOYMENT_OPTIONS);

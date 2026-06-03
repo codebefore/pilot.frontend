@@ -10,11 +10,12 @@ import { tr } from "date-fns/locale";
 import dragAndDropAddon from "react-big-calendar/lib/addons/dragAndDrop";
 
 import {
-  trainingCalendarMessages,
+  getTrainingCalendarMessages,
   trainingLocalizer,
   type TrainingCalendarEvent,
   type TrainingEventKind,
 } from "../../lib/training-calendar";
+import { useLanguage } from "../../lib/i18n";
 import type { BranchHelpers } from "../../lib/training-branches";
 import {
   RollingFourWeeksView,
@@ -123,14 +124,26 @@ type TrainingCalendarProps = {
 const ROLLING_2W_VIEW = "rolling2w" as View;
 
 
-const ROLLING_MESSAGES = {
-  ...trainingCalendarMessages,
-  // RBC `messages[viewName]` ile view butonu etiketini çeker.
+const ROLLING_LABELS_TR = {
   rolling: "Hafta",
   rolling2w: "2 Hafta",
   rolling3w: "3 Hafta",
   rolling4w: "4 Hafta",
 };
+
+const ROLLING_LABELS_EN = {
+  rolling: "Week",
+  rolling2w: "2 Weeks",
+  rolling3w: "3 Weeks",
+  rolling4w: "4 Weeks",
+};
+
+function getRollingMessages(lang: "tr" | "en") {
+  return {
+    ...getTrainingCalendarMessages(lang),
+    ...(lang === "en" ? ROLLING_LABELS_EN : ROLLING_LABELS_TR),
+  };
+}
 
 // 24-saat Türkçe format. RBC default `timeGutterFormat` "h:mm a" (12-saat
 // AM/PM) — TR locale'de tuhaf görünüyor. `formats` Calendar prop'u
@@ -167,6 +180,7 @@ export function TrainingCalendar({
   readOnly = false,
   initialView = ROLLING_2W_VIEW,
 }: TrainingCalendarProps) {
+  const { lang } = useLanguage();
   const [view, setView] = useState<View>(initialView);
   // Hafta görünümü açılışta 2 gün öncesinden başlasın — kullanıcı
   // yakın geçmişte olanı hızlıca görsün, gelecek de aynı pencerede.
@@ -358,7 +372,7 @@ export function TrainingCalendar({
     events,
     formats: CALENDAR_FORMATS,
     localizer: trainingLocalizer,
-    messages: ROLLING_MESSAGES,
+    messages: getRollingMessages(lang),
     onEventDrop: readOnly ? undefined : handleDrop,
     onEventResize: readOnly ? undefined : handleResize,
     onNavigate: setDate,

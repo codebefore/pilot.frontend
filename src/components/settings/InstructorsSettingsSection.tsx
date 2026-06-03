@@ -21,9 +21,9 @@ import {
 } from "../../lib/instructors-api";
 import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import {
-  INSTRUCTOR_EMPLOYMENT_LABELS,
+  INSTRUCTOR_EMPLOYMENT_LABEL_KEYS,
   INSTRUCTOR_EMPLOYMENT_OPTIONS,
-  INSTRUCTOR_ROLE_LABELS,
+  INSTRUCTOR_ROLE_LABEL_KEYS,
   INSTRUCTOR_ROLE_OPTIONS,
 } from "../../lib/instructor-catalog";
 import type {
@@ -169,14 +169,14 @@ function getInstructorColumns(
       id: "role",
       label: t("settings.instructors.table.role"),
       sortField: "role",
-      renderCell: (instructor) => INSTRUCTOR_ROLE_LABELS[instructor.role],
+      renderCell: (instructor) => t(INSTRUCTOR_ROLE_LABEL_KEYS[instructor.role]),
       skeletonWidth: 120,
     },
     {
       id: "employmentType",
       label: t("settings.instructors.table.employmentType"),
       sortField: "employmentType",
-      renderCell: (instructor) => INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType],
+      renderCell: (instructor) => t(INSTRUCTOR_EMPLOYMENT_LABEL_KEYS[instructor.employmentType]),
       skeletonWidth: 110,
     },
     {
@@ -772,7 +772,7 @@ function buildColumnFilterControl(
           { value: "all", label: t("common.all") },
           ...INSTRUCTOR_ROLE_OPTIONS.map((option) => ({
             value: option.value,
-            label: option.label,
+            label: t(option.labelKey),
           })),
         ]}
         title={t("settings.instructors.filters.roleTitle")}
@@ -792,7 +792,7 @@ function buildColumnFilterControl(
           { value: "all", label: t("common.all") },
           ...INSTRUCTOR_EMPLOYMENT_OPTIONS.map((option) => ({
             value: option.value,
-            label: option.label,
+            label: t(option.labelKey),
           })),
         ]}
         title={t("settings.instructors.filters.employmentTypeTitle")}

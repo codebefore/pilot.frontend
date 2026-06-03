@@ -241,7 +241,7 @@ export function InstructorAssignmentFormModal({
             >
               {INSTRUCTOR_ROLE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </option>
               ))}
             </CustomSelect>
@@ -257,7 +257,7 @@ export function InstructorAssignmentFormModal({
             >
               {INSTRUCTOR_EMPLOYMENT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </option>
               ))}
             </CustomSelect>
