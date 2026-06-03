@@ -40,7 +40,7 @@ export function ReferencesSettingsSection() {
         if (!controller.signal.aborted) setItems(data);
       })
       .catch(() => {
-        if (!controller.signal.aborted) showToast("Referans listesi yüklenemedi", "error");
+        if (!controller.signal.aborted) showToast(t("references.toast.loadFailed"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -101,10 +101,10 @@ export function ReferencesSettingsSection() {
         rowVersion: editing.rowVersion,
       });
       cancelEdit();
-      showToast("Referans güncellendi");
+      showToast(t("references.toast.updated"));
       refresh();
     } catch {
-      showToast("Referans güncellenemedi", "error");
+      showToast(t("references.toast.updateFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -307,7 +307,7 @@ export function ReferencesSettingsSection() {
                             className="icon-button"
                             disabled={!canManageCandidates}
                             onClick={() => startEdit(item)}
-                            title={!canManageCandidates ? noPermissionTitle : "Düzenle"}
+                            title={!canManageCandidates ? noPermissionTitle : t("common.edit")}
                             type="button"
                           >
                             <PencilIcon size={16} />

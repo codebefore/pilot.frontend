@@ -22,7 +22,7 @@ import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { getDocumentTypes } from "../lib/documents-api";
-import { useT } from "../lib/i18n";
+import { useT, type TranslationKey } from "../lib/i18n";
 import type { DocumentTypeResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
@@ -258,7 +258,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
             setSearch(value);
             setPage(1);
           }}
-          placeholder="Evrak türü ara"
+          placeholder={t("documentTypes.placeholder.search")}
           resetSignal={searchResetKey}
           value={search}
         />
@@ -290,7 +290,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
             {visibleColumns.map((column) => (
               <SortableTh
                 field={column.sortField}
-                filterControl={buildColumnFilterControl(column.id, filters, setFilter)}
+                filterControl={buildColumnFilterControl(column.id, filters, setFilter, t)}
                 key={column.id}
                 label={column.label}
                 onToggle={handleSortToggle}
@@ -305,7 +305,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
                 }))}
                 isVisible={isVisible}
                 onToggle={handleColumnToggle}
-                triggerTitle="Sütunlar"
+                triggerTitle={t("documentTypes.columns.label")}
               />
             </th>
           </tr>
@@ -467,7 +467,8 @@ function buildColumnFilterControl(
   setFilter: <K extends keyof DocumentTypeFilters>(
     field: K,
     value: DocumentTypeFilters[K]
-  ) => void
+  ) => void,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
 ) {
   if (columnId === "name") {
     return (
@@ -488,7 +489,7 @@ function buildColumnFilterControl(
         active={filters.required !== DEFAULT_FILTERS.required}
         onChange={(value) => setFilter("required", value as DocumentTypeFilters["required"])}
         options={[
-          { value: "all", label: "Tümü" },
+          { value: "all", label: t("common.all") },
           { value: "required", label: "Zorunlu" },
           { value: "optional", label: "Opsiyonel" },
         ]}
@@ -504,7 +505,7 @@ function buildColumnFilterControl(
         active={filters.activity !== DEFAULT_FILTERS.activity}
         onChange={(value) => setFilter("activity", value as DocumentTypeFilters["activity"])}
         options={[
-          { value: "all", label: "Tüm Durumlar" },
+          { value: "all", label: t("documentTypes.filter.allStatuses") },
           { value: "active", label: "Aktif" },
           { value: "inactive", label: "Pasif" },
         ]}

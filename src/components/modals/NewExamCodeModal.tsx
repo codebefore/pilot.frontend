@@ -8,13 +8,13 @@ import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { Modal } from "../ui/Modal";
 import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
-import { useT } from "../../lib/i18n";
+import { useT, type TranslationKey } from "../../lib/i18n";
 
 const examCodeSchema = z.object({
   code: z
     .string()
-    .min(1, "Sınav kodu zorunlu")
-    .regex(/^\d{9}$/, "Sınav kodu 9 haneli olmalı."),
+    .min(1, "examCode.error.required")
+    .regex(/^\d{9}$/, "examCode.error.digits9"),
 });
 type NewExamCodeForm = z.infer<typeof examCodeSchema>;
 
@@ -59,14 +59,14 @@ export function NewExamCodeModal({
     setSubmitting(true);
     try {
       await createExamCode({ examType: "uygulama", code: data.code });
-      showToast("Sınav kodu eklendi");
+      showToast(t("examCode.toast.added"));
       onSaved();
     } catch (error) {
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError);
       if (unmappedMessages[0]) {
         showToast(unmappedMessages[0], "error");
       } else if (!applied) {
-        showToast("Sınav kodu eklenemedi", "error");
+        showToast(t("examCode.toast.addFailed"), "error");
       }
     } finally {
       setSubmitting(false);
@@ -99,7 +99,7 @@ export function NewExamCodeModal({
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label" htmlFor={inputId}>
-              Sınav Kodu<RequiredMark />
+              {t("examCode.field.code")}<RequiredMark />
             </label>
             <input
               className={errors.code ? "form-input error" : "form-input"}
@@ -116,7 +116,7 @@ export function NewExamCodeModal({
                 })
               }
             />
-            {errors.code ? <div className="form-error">{errors.code.message}</div> : null}
+            {errors.code ? <div className="form-error">{errors.code.message?.includes(".") ? t(errors.code.message as TranslationKey) : errors.code.message}</div> : null}
           </div>
         </div>
       </form>

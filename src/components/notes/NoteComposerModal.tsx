@@ -4,6 +4,7 @@ import { ClockIcon } from "../icons";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { Modal } from "../ui/Modal";
+import { useT } from "../../lib/i18n";
 
 export type NoteDraft = {
   body: string;
@@ -26,11 +27,13 @@ export function NoteComposerModal({
   mode,
   initialBody = "",
   initialReminderAtUtc = null,
-  placeholder = "Not içeriği...",
+  placeholder,
   saving = false,
   onCancel,
   onSubmit,
 }: Props) {
+  const t = useT();
+  const effectivePlaceholder = placeholder ?? t("noteComposer.placeholder.default");
   const [body, setBody] = useState(initialBody);
   const [reminderDate, setReminderDate] = useState("");
   const [reminderTime, setReminderTime] = useState("");
@@ -69,7 +72,7 @@ export function NoteComposerModal({
             onClick={onCancel}
             type="button"
           >
-            Vazgeç
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -77,38 +80,38 @@ export function NoteComposerModal({
             onClick={handleSubmit}
             type="button"
           >
-            {saving ? "Kaydediliyor..." : mode === "edit" ? "Güncelle" : "Ekle"}
+            {saving ? t("common.saving") : mode === "edit" ? t("noteComposer.action.update") : t("noteComposer.action.create")}
           </button>
         </>
       }
       onClose={onCancel}
       open={open}
-      title={mode === "edit" ? "Notu Düzenle" : "Yeni Not"}
+      title={mode === "edit" ? t("noteComposer.title.edit") : t("noteComposer.title.create")}
     >
       <div className="note-composer">
         <label className="form-group">
-          <span className="form-label">Not</span>
+          <span className="form-label">{t("noteComposer.field.note")}</span>
           <textarea
-            aria-label="Not"
+            aria-label={t("noteComposer.field.note")}
             className="form-input"
             onChange={(event) => setBody(event.target.value)}
-            placeholder={placeholder}
+            placeholder={effectivePlaceholder}
             rows={5}
             value={body}
           />
         </label>
         <div className="form-group">
           <span className="form-label">
-            <ClockIcon size={14} /> Hatırlat (opsiyonel)
+            <ClockIcon size={14} /> {t("noteComposer.label.reminderOptional")}
           </span>
           <div className="note-composer-reminder-fields">
             <LocalizedDateInput
-              ariaLabel="Hatırlatma tarihi"
+              ariaLabel={t("noteComposer.aria.reminderDate")}
               onChange={setReminderDate}
               value={reminderDate}
             />
             <LocalizedTimeInput
-              ariaLabel="Hatırlatma saati"
+              ariaLabel={t("noteComposer.aria.reminderTime")}
               onChange={setReminderTime}
               value={reminderTime}
             />

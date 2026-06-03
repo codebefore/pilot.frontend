@@ -46,12 +46,12 @@ type InstructorFormModalProps = {
 };
 
 const instructorFormSchema = z.object({
-  firstName: z.string().min(1, "Ad zorunlu"),
-  lastName: z.string().min(1, "Soyad zorunlu"),
+  firstName: z.string().min(1, "instructorForm.error.firstNameRequired"),
+  lastName: z.string().min(1, "instructorForm.error.lastNameRequired"),
   nationalId: z.string(),
   phoneNumber: z.string().refine(
     (value) => !value.trim() || isPhoneStartingWith5(value),
-    "5 ile başlamalı"
+    "instructorForm.error.phoneStartWith5"
   ),
   email: z.string(),
   isActive: z.boolean(),
@@ -127,6 +127,8 @@ export function InstructorFormModal({
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
+  const translateError = (message: string | undefined): string =>
+    !message ? "" : message.includes(".") ? t(message as TranslationKey) : message;
   const [submitting, setSubmitting] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoInstructor, setPhotoInstructor] = useState<InstructorResponse | null>(editing);
@@ -232,7 +234,7 @@ export function InstructorFormModal({
       setPhotoInstructor(updated);
       onSaved(updated);
     } catch {
-      showToast("Resim yüklenemedi", "error");
+      showToast(t("instructorForm.toast.photoUploadFailed"), "error");
     } finally {
       setPhotoBusy(false);
     }
@@ -286,7 +288,7 @@ export function InstructorFormModal({
             <InstructorAvatar instructor={photoInstructor} size={72} />
             <div className="instructor-photo-actions">
               <label className="btn btn-secondary btn-sm">
-                {photoBusy ? t("common.loading") : photoInstructor.hasPhoto ? "Değiştir" : "Resim Yükle"}
+                {photoBusy ? t("common.loading") : photoInstructor.hasPhoto ? t("instructorForm.action.changePhoto") : t("instructorForm.action.uploadPhoto")}
                 <input
                   accept="image/jpeg,image/png,image/webp"
                   disabled={photoBusy || !canManage}
@@ -342,7 +344,7 @@ export function InstructorFormModal({
                 />
               )}
             />
-            {errors.firstName && <div className="form-error">{errors.firstName.message}</div>}
+            {errors.firstName && <div className="form-error">{translateError(errors.firstName.message)}</div>}
           </div>
 
           <div className="form-group">
@@ -361,7 +363,7 @@ export function InstructorFormModal({
                 />
               )}
             />
-            {errors.lastName && <div className="form-error">{errors.lastName.message}</div>}
+            {errors.lastName && <div className="form-error">{translateError(errors.lastName.message)}</div>}
           </div>
         </div>
 

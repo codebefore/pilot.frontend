@@ -5,23 +5,23 @@ import { z } from "zod";
 
 import { Modal } from "../ui/Modal";
 import { getCandidates } from "../../lib/candidates-api";
-import { useLanguage, useT, currentLocale } from "../../lib/i18n";
+import { useLanguage, useT, currentLocale, type TranslationKey } from "../../lib/i18n";
 import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { RequiredMark } from "../ui/RequiredMark";
 
 const newPaymentSchema = z.object({
-  candidateId: z.string().min(1, "Aday seçin"),
-  amount: z.number().min(1, "Pozitif bir değer girin"),
+  candidateId: z.string().min(1, "newPayment.error.candidateRequired"),
+  amount: z.number().min(1, "newPayment.error.positiveAmount"),
   method: z.enum(["Nakit", "Havale", "KrediKarti"]),
   date: z
     .string()
-    .min(1, "Zorunlu alan")
+    .min(1, "common.required")
     .refine((v) => {
       const diff = (new Date(v).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
       return diff <= 1;
-    }, "Gelecek tarih olamaz"),
+    }, "newPayment.error.futureDate"),
   note: z.string(),
 });
 
@@ -49,6 +49,8 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const noPermissionTitle = t("common.noPermission");
+  const translateError = (message: string | undefined): string =>
+    !message ? "" : message.includes(".") ? t(message as TranslationKey) : message;
   const [debtors, setDebtors] = useState<CandidateResponse[]>([]);
   const {
     control,
@@ -132,7 +134,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
               ))}
             </CustomSelect>
             {errors.candidateId && (
-              <div className="form-error">{errors.candidateId.message}</div>
+              <div className="form-error">{translateError(errors.candidateId.message)}</div>
             )}
           </div>
           <div className="form-group">
@@ -143,7 +145,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
               type="number"
               {...register("amount", { valueAsNumber: true })}
             />
-            {errors.amount && <div className="form-error">{errors.amount.message}</div>}
+            {errors.amount && <div className="form-error">{translateError(errors.amount.message)}</div>}
           </div>
         </div>
         <div className="form-row">
@@ -183,7 +185,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
               }
               value={date}
             />
-            {errors.date && <div className="form-error">{errors.date.message}</div>}
+            {errors.date && <div className="form-error">{translateError(errors.date.message)}</div>}
           </div>
         </div>
         <div className="form-row full">
@@ -192,7 +194,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
             <textarea
               className="form-input"
               disabled={!canManage}
-              placeholder="Ödeme notu (opsiyonel)"
+              placeholder={t("newPayment.placeholder.note")}
               rows={3}
               {...register("note")}
             />

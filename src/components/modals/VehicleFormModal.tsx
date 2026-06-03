@@ -70,7 +70,7 @@ const vehicleFormSchema = z.object({
   isActive: z.boolean(),
   transmissionType: z.string(),
   vehicleType: z.string(),
-  licenseClasses: z.array(z.string()).min(1, "En az bir ehliyet tipi seçilmeli"),
+  licenseClasses: z.array(z.string()).min(1, "vehicleForm.error.licenseClassesMin"),
   ownershipType: z.string(),
   fuelType: z.string().nullable().optional(),
   registrationDate: z.string(),
@@ -381,7 +381,7 @@ export function VehicleFormModal({
               name="modelYear"
               render={({ field }) => (
                 <LocalizedDateInput
-                  ariaLabel="Model Yılı"
+                  ariaLabel={t("vehicleForm.aria.modelYear")}
                   className={fieldClass(errors.modelYear?.message)}
                   mode="year"
                   onChange={(nextValue) => field.onChange(nextValue ? nextValue.slice(0, 4) : "")}
@@ -446,7 +446,7 @@ export function VehicleFormModal({
                 );
               }}
             />
-            {errors.licenseClasses && <div className="form-error">{errors.licenseClasses.message as string}</div>}
+            {errors.licenseClasses && <div className="form-error">{(() => { const m = errors.licenseClasses?.message as string | undefined; return !m ? "" : m.includes(".") ? t(m as TranslationKey) : m; })()}</div>}
           </div>
         </div>
 
@@ -572,7 +572,7 @@ export function VehicleFormModal({
                 name="serviceStartDate"
                 render={({ field }) => (
                   <LocalizedDateInput
-                    ariaLabel="Hizmete Giriş Tarihi"
+                    ariaLabel={t("vehicleForm.aria.serviceStartDate")}
                     className={fieldClass(errors.serviceStartDate?.message)}
                     onChange={(nextValue) => field.onChange(nextValue ?? "")}
                     value={field.value}

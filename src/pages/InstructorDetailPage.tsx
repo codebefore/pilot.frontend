@@ -190,9 +190,9 @@ export function InstructorDetailPage() {
       });
       queryClient.setQueryData(["instructors", "detail", instructorId], updated);
       setLeaveModalOpen(false);
-      showToast("İşten ayrılma kaydedildi");
+      showToast(t("instructorDetail.toast.leftSaved"));
     } catch {
-      showToast("İşten ayrılma kaydedilemedi", "error");
+      showToast(t("instructorDetail.toast.leftSaveFailed"), "error");
     } finally {
       setLeaveBusy(false);
     }
@@ -205,9 +205,9 @@ export function InstructorDetailPage() {
     try {
       const updated = await clearInstructorLeft(instructorId);
       queryClient.setQueryData(["instructors", "detail", instructorId], updated);
-      showToast("Eğitmen aktif duruma alındı");
+      showToast(t("instructorDetail.toast.activated"));
     } catch {
-      showToast("Aktif duruma alınamadı", "error");
+      showToast(t("instructorDetail.toast.activateFailed"), "error");
     } finally {
       setLeaveBusy(false);
     }
@@ -291,7 +291,7 @@ export function InstructorDetailPage() {
                 value={INSTRUCTOR_EMPLOYMENT_LABELS[instructor.employmentType] ?? "—"}
               />
               <Field
-                label="Görev"
+                label={t("instructorDetail.field.role")}
                 value={INSTRUCTOR_ROLE_LABELS[instructor.role] ?? "—"}
               />
               <Field
@@ -313,7 +313,7 @@ export function InstructorDetailPage() {
                 }
               />
               <Field
-                label="MEBBİS İzin No"
+                label={t("instructorDetail.field.mebbisPermitNo")}
                 value={instructor.mebbisPermitNo ?? "—"}
               />
               <Field

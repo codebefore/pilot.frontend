@@ -107,7 +107,7 @@ export function RoleEditorPage() {
         ? await updateRole(editingRole.id, payload)
         : await createRole(payload);
 
-      showToast(editingRole ? "Rol güncellendi" : "Rol eklendi");
+      showToast(t(editingRole ? "roleEditor.toast.roleUpdated" : "roleEditor.toast.roleCreated"));
       navigate(buildPermissionsPath(saved.id));
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
@@ -119,7 +119,7 @@ export function RoleEditorPage() {
         }
       }
 
-      showToast(editingRole ? "Rol güncellenemedi" : "Rol eklenemedi", "error");
+      showToast(t(editingRole ? "roleEditor.toast.updateFailed" : "roleEditor.toast.createFailed"), "error");
     } finally {
       setSubmitting(false);
     }
@@ -144,7 +144,7 @@ export function RoleEditorPage() {
         <div className="role-editor-page spaced">
           <PageLoadError
             title={t("roleEditor.loadFailedShort")}
-            description="Rol detayı şu anda yüklenemedi. Bağlantınızı kontrol edip tekrar deneyebilirsiniz."
+            description={t("roleEditor.error.loadDescription")}
             onRetry={() => void rolesQuery.refetch()}
           />
         </div>
