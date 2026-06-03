@@ -98,6 +98,7 @@ export function EditableRow({
         <span className="editable-row-edit">
           {isSelect ? (
             <CustomSelect
+              aria-label={label}
               className="form-select-sm"
               disabled={saving || loadingOptions}
               onChange={(e) => setDraft(e.target.value)}
@@ -121,6 +122,7 @@ export function EditableRow({
               />
             ) : inputType === "textarea" ? (
               <textarea
+                aria-label={label}
                 className="form-textarea form-textarea-sm"
                 disabled={saving}
                 lang={inputLang}
@@ -137,6 +139,7 @@ export function EditableRow({
               />
             ) : (
               <input
+                aria-label={label}
                 className="form-input-sm"
                 disabled={saving}
                 lang={inputLang}
@@ -148,7 +151,7 @@ export function EditableRow({
               />
             )
           )}
-          <button className="icon-btn icon-btn-confirm" disabled={saving || loadingOptions} onClick={save} title="Kaydet" type="button">
+          <button className="icon-btn icon-btn-confirm" disabled={saving || loadingOptions} onClick={save} title={t("common.save")} type="button">
             <CheckIcon size={13} />
           </button>
           <button className="icon-btn" disabled={saving} onClick={cancel} title={t("common.cancel")} type="button">

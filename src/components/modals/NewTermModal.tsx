@@ -65,6 +65,7 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
   const [submitting, setSubmitting] = useState(false);
   const isEditMode = Boolean(term);
   const nameInputId = useId();
+  const monthDateInputId = useId();
 
   const {
     register,
@@ -162,11 +163,12 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
       <form onSubmit={submit}>
         <div className="form-row full">
           <div className="form-group">
-            <label className="form-label">{t("terms.form.month")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={monthDateInputId}>{t("terms.form.month")}<RequiredMark /></label>
             <LocalizedDateInput
               ariaLabel={t("terms.form.month")}
               className={fieldClass(!!errors.monthDate, "form-input")}
               disabled={!canManage}
+              id={monthDateInputId}
               inputRef={monthDateRegistration.ref}
               lang={dateInputLang}
               mode="month"
