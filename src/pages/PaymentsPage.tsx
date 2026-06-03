@@ -362,31 +362,31 @@ type CashMovementRow = {
 const CASH_MOVEMENT_COLUMNS: {
   id: CashMovementColumnId;
   filterable?: boolean;
-  label: string;
+  labelKey: TranslationKey;
   numeric?: boolean;
   sortable?: boolean;
 }[] = [
-  { id: "cashRegister", label: "Kasa", sortable: true, filterable: true },
-  { id: "amount", label: "Tutar", sortable: true, numeric: true },
-  { id: "date", label: "İşlem Tarihi", sortable: true },
-  { id: "description", label: "Açıklama", sortable: true },
+  { id: "cashRegister", labelKey: "payments.col.cashRegister", sortable: true, filterable: true },
+  { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
+  { id: "date", labelKey: "payments.col.date", sortable: true },
+  { id: "description", labelKey: "payments.col.description", sortable: true },
 ];
 
 const INSTALLMENT_COLUMNS: {
   id: InstallmentColumnId;
   filterable?: boolean;
-  label: string;
+  labelKey: TranslationKey;
   numeric?: boolean;
   sortable?: boolean;
 }[] = [
-  { id: "photo", label: "Resim" },
-  { id: "candidate", label: "Aday", sortable: true },
-  { id: "group", label: "Dönem / Sınıf", sortable: true, filterable: true },
-  { id: "licenseClass", label: "Ehliyet Tipi", sortable: true, filterable: true },
-  { id: "type", label: "Ödeme Türü", sortable: true, filterable: true },
-  { id: "dueDate", label: "Vade", sortable: true },
-  { id: "amount", label: "Tutar", sortable: true, numeric: true },
-  { id: "description", label: "Açıklama", sortable: true },
+  { id: "photo", labelKey: "payments.col.photo" },
+  { id: "candidate", labelKey: "payments.col.candidate", sortable: true },
+  { id: "group", labelKey: "payments.col.groupClass", sortable: true, filterable: true },
+  { id: "licenseClass", labelKey: "payments.col.licenseClass", sortable: true, filterable: true },
+  { id: "type", labelKey: "payments.col.paymentType", sortable: true, filterable: true },
+  { id: "dueDate", labelKey: "payments.col.dueDate", sortable: true },
+  { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
+  { id: "description", labelKey: "payments.col.description", sortable: true },
 ];
 
 type DebtRow = {
@@ -401,34 +401,34 @@ type DebtRow = {
 const DEBT_COLUMNS: {
   id: DebtColumnId;
   filterable?: boolean;
-  label: string;
+  labelKey: TranslationKey;
   numeric?: boolean;
   sortable?: boolean;
 }[] = [
-  { id: "photo", label: "Resim" },
-  { id: "candidate", label: "Aday", sortable: true },
-  { id: "group", label: "Dönem", sortable: true, filterable: true },
-  { id: "licenseClass", label: "Ehliyet Tipi", sortable: true, filterable: true },
-  { id: "kurs", label: "Kurs Bakiyesi", sortable: true, numeric: true },
-  { id: "teorikSinav", label: "E-Sınav Bakiyesi", sortable: true, numeric: true },
-  { id: "direksiyonSinav", label: "Direksiyon Bakiyesi", sortable: true, numeric: true },
-  { id: "diger", label: "Diğer Bakiye", sortable: true, numeric: true },
-  { id: "total", label: "Toplam", sortable: true, numeric: true },
+  { id: "photo", labelKey: "payments.col.photo" },
+  { id: "candidate", labelKey: "payments.col.candidate", sortable: true },
+  { id: "group", labelKey: "payments.col.group", sortable: true, filterable: true },
+  { id: "licenseClass", labelKey: "payments.col.licenseClass", sortable: true, filterable: true },
+  { id: "kurs", labelKey: "payments.col.kursBalance", sortable: true, numeric: true },
+  { id: "teorikSinav", labelKey: "payments.col.theoryExamBalance", sortable: true, numeric: true },
+  { id: "direksiyonSinav", labelKey: "payments.col.practiceExamBalance", sortable: true, numeric: true },
+  { id: "diger", labelKey: "payments.col.otherBalance", sortable: true, numeric: true },
+  { id: "total", labelKey: "payments.col.total", sortable: true, numeric: true },
 ];
 
 const PERIOD_STATS_COLUMNS: {
   id: PeriodStatsColumnId;
   filterable?: boolean;
-  label: string;
+  labelKey: TranslationKey;
   numeric?: boolean;
   sortable?: boolean;
 }[] = [
-  { id: "licenseClass", label: "Ehliyet Tipi", sortable: true, filterable: true },
-  { id: "count", label: "Aday", sortable: true, numeric: true },
-  { id: "revenue", label: "Ciro", sortable: true, numeric: true },
-  { id: "average", label: "Ortalama", sortable: true, numeric: true },
-  { id: "collected", label: "Tahsilat", sortable: true, numeric: true },
-  { id: "collectionRate", label: "%", sortable: true, numeric: true },
+  { id: "licenseClass", labelKey: "payments.col.licenseClass", sortable: true, filterable: true },
+  { id: "count", labelKey: "payments.col.candidateCount", sortable: true, numeric: true },
+  { id: "revenue", labelKey: "payments.col.revenue", sortable: true, numeric: true },
+  { id: "average", labelKey: "payments.col.average", sortable: true, numeric: true },
+  { id: "collected", labelKey: "payments.col.collected", sortable: true, numeric: true },
+  { id: "collectionRate", labelKey: "payments.col.collectionRate", sortable: true, numeric: true },
 ];
 
 type PaymentDetailRow =
@@ -3324,7 +3324,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                     }
                                     type="button"
                                   >
-                                    <span>{column.label}</span>
+                                    <span>{t(column.labelKey)}</span>
                                     <span
                                       className="sortable-th-indicator"
                                       aria-hidden="true"
@@ -3351,7 +3351,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                             column.id as InstallmentSortField,
                                           ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                         }
-                                        title={`${column.label} filtresi`}
+                                        title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                         value={
                                           installmentColumnFilters[
                                             column.id as InstallmentSortField
@@ -3362,7 +3362,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   ) : null}
                                 </div>
                               ) : (
-                                column.label
+                                t(column.labelKey)
                               )}
                             </th>
                           );
@@ -3446,7 +3446,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                     }
                                     type="button"
                                   >
-                                    <span>{column.label}</span>
+                                    <span>{t(column.labelKey)}</span>
                                     <span
                                       className="sortable-th-indicator"
                                       aria-hidden="true"
@@ -3473,7 +3473,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                             column.id as DebtSortField,
                                           ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                         }
-                                        title={`${column.label} filtresi`}
+                                        title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                         value={
                                           debtColumnFilters[
                                             column.id as DebtSortField
@@ -3484,7 +3484,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   ) : null}
                                 </div>
                               ) : (
-                                column.label
+                                t(column.labelKey)
                               )}
                             </th>
                           );
@@ -3567,7 +3567,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   }
                                   type="button"
                                 >
-                                  <span>{column.label}</span>
+                                  <span>{t(column.labelKey)}</span>
                                   <span
                                     className="sortable-th-indicator"
                                     aria-hidden="true"
@@ -3594,7 +3594,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                           column.id as DetailSortField,
                                         ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                       }
-                                      title={`${column.label} filtresi`}
+                                      title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                       value={
                                         detailColumnFilters[
                                           column.id as DetailSortField
@@ -3713,7 +3713,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                     }
                                     type="button"
                                   >
-                                    <span>{column.label}</span>
+                                    <span>{t(column.labelKey)}</span>
                                     <span
                                       className="sortable-th-indicator"
                                       aria-hidden="true"
@@ -3740,7 +3740,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                             column.id as InvoiceSortField,
                                           ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                         }
-                                        title={`${column.label} filtresi`}
+                                        title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                         value={
                                           invoiceColumnFilters[
                                             column.id as InvoiceSortField
@@ -3751,7 +3751,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   ) : null}
                                 </div>
                               ) : (
-                                column.label
+                                t(column.labelKey)
                               )}
                             </th>
                           );
@@ -3852,7 +3852,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                     }
                                     type="button"
                                   >
-                                    <span>{column.label}</span>
+                                    <span>{t(column.labelKey)}</span>
                                     <span
                                       className="sortable-th-indicator"
                                       aria-hidden="true"
@@ -3862,7 +3862,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   </button>
                                 </div>
                               ) : (
-                                column.label
+                                t(column.labelKey)
                               )}
                             </th>
                           );
@@ -3982,7 +3982,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                         column.id,
                                       ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                     }
-                                    title={`${t(column.labelKey)} filtresi`}
+                                    title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                     value={
                                       cashSummaryColumnFilters[column.id] ??
                                       "all"
@@ -4070,7 +4070,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 onClick={() => toggleCashMovementSort(column.id)}
                                 type="button"
                               >
-                                <span>{column.label}</span>
+                                <span>{t(column.labelKey)}</span>
                                 <span
                                   className="sortable-th-indicator"
                                   aria-hidden="true"
@@ -4095,7 +4095,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                         column.id,
                                       ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                     }
-                                    title={`${column.label} filtresi`}
+                                    title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                     value={
                                       cashMovementColumnFilters[column.id] ??
                                       "all"
@@ -4190,7 +4190,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               onClick={() => toggleCashMovementSort(column.id)}
                               type="button"
                             >
-                              <span>{column.label}</span>
+                              <span>{t(column.labelKey)}</span>
                               <span
                                 className="sortable-th-indicator"
                                 aria-hidden="true"
@@ -4215,7 +4215,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                       column.id,
                                     ) ?? [{ value: "all", label: t("payments.datePreset.all") }]
                                   }
-                                  title={`${column.label} filtresi`}
+                                  title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                   value={
                                     cashMovementColumnFilters[column.id] ??
                                     "all"
@@ -4304,7 +4304,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               onClick={() => togglePeriodStatsSort(column.id)}
                               type="button"
                             >
-                              <span>{column.label}</span>
+                              <span>{t(column.labelKey)}</span>
                               <span
                                 className="sortable-th-indicator"
                                 aria-hidden="true"
@@ -4329,7 +4329,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                       { value: "all", label: t("payments.datePreset.all") },
                                     ]
                                   }
-                                  title={`${column.label} filtresi`}
+                                  title={t("payments.filter.titleSuffix", { label: t(column.labelKey) })}
                                   value={
                                     periodStatsColumnFilters[column.id] ?? "all"
                                   }
