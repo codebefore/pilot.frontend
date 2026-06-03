@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { AuthInstitution } from "../../lib/auth-storage";
 import { useToast } from "../ui/Toast";
+import { useT } from "../../lib/i18n";
 
 type InstitutionSelectorProps = {
   institutions: AuthInstitution[];
@@ -18,6 +19,7 @@ export function InstitutionSelector({
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
+  const t = useT();
   const active = activeId ? institutions.find((i) => i.id === activeId) : undefined;
   const hasInstitutions = institutions.length > 0;
   const loading = selectingId !== null;
@@ -41,14 +43,14 @@ export function InstitutionSelector({
       >
         <span className="inst-dot" />
         <span className="inst-selector-text">
-          <span>{active?.name ?? (hasInstitutions ? "Kurum seç" : "Kurum bulunamadı")}</span>
+          <span>{active?.name ?? (hasInstitutions ? t("institutionSelector.placeholder.select") : t("institutionSelector.empty"))}</span>
           {active?.slug ? <small>{active.slug}</small> : null}
         </span>
       </button>
 
       {open && hasInstitutions && (
         <div className="inst-menu">
-          <div className="inst-menu-label">Kurumlar</div>
+          <div className="inst-menu-label">{t("institutionSelector.menuLabel")}</div>
           {institutions.map((inst) => (
             <button
               className={inst.id === activeId ? "inst-menu-item active" : "inst-menu-item"}
@@ -64,9 +66,9 @@ export function InstitutionSelector({
                 try {
                   await onSelect(inst.id);
                   setOpen(false);
-                  showToast(`${inst.name} seçildi`);
+                  showToast(t("institutionSelector.toast.selected", { name: inst.name }));
                 } catch {
-                  showToast("Kurum değiştirilemedi", "error");
+                  showToast(t("institutionSelector.toast.switchFailed"), "error");
                 } finally {
                   setSelectingId(null);
                 }

@@ -124,14 +124,14 @@ const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
 type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
 
-function candidateListTabLabel(value: CandidateTab): string {
+function candidateListTabLabel(value: CandidateTab, t: ReturnType<typeof useT>): string {
   switch (value) {
     case "active_period":
-      return "Aktif Dönem";
+      return t("candidatesPage.tab.activePeriod");
     case "unassigned":
-      return "Atanmamış";
+      return t("candidatesPage.tab.unassigned");
     case "completed":
-      return "Tamamlananlar";
+      return t("candidatesPage.tab.completed");
   }
 }
 
@@ -1121,7 +1121,7 @@ export function CandidatesPage({
     () =>
       TAB_KEYS.map((key) => ({
         key,
-        label: candidateListTabLabel(key),
+        label: candidateListTabLabel(key, t),
       })),
     []
   );
@@ -1583,14 +1583,14 @@ export function CandidatesPage({
   const getColumnLabel = (col: CandidateColumnDef) =>
     (columnPageScope === "eSinav" && col.id === "eSinavDate"
       ? tab === "basarisiz"
-        ? "Son Sınav Tarihi"
+        ? t("candidatesPage.col.lastExamDate")
         : tab === "randevulu"
-          ? "Randevulu Sınav Tarihi"
+          ? t("candidatesPage.col.scheduledExamDate")
           : t(col.labelKey)
       : columnPageScope === "uygulama" && col.id === "drivingExamDate" && tab === "basarisiz"
-        ? "Son Sınav Tarihi"
+        ? t("candidatesPage.col.lastExamDate")
       : columnPageScope === "uygulama" && col.id === "drivingExamCode"
-        ? "Son Sınav Kodu"
+        ? t("candidatesPage.col.lastExamCode")
         : null) ??
     columnLabelOverrides?.[col.id] ??
     ((col.id === "group" && groupColumnMode === "term")

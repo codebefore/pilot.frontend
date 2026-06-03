@@ -292,10 +292,10 @@ export function MebJobsPage() {
       .filter((value) => value && value.trim().length > 0)
       .sort((a, b) => a.localeCompare(b, "tr", { sensitivity: "base" }));
     return [
-      { value: "all", label: "Tümü" },
+      { value: "all", label: t("common.all") },
       ...distinct.map((value) => ({ value, label: value })),
     ];
-  }, [jobs]);
+  }, [jobs, t]);
 
   const statusFilterOptions = useMemo<TableHeaderFilterOption[]>(
     () => FILTERS.map((f) => ({ value: f.key, label: t(f.labelKey) })),
