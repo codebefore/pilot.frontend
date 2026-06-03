@@ -192,11 +192,11 @@ type DatePreset =
 
 const NO_CASH_REGISTER_KEY = "__no_cash_register__";
 
-const PAYMENT_TYPE_ROWS: { key: CandidateAccountingType; label: string }[] = [
-  { key: "kurs", label: "Kurs Ücreti" },
-  { key: "teorik_sinav", label: "Teorik Sınav Ücreti" },
-  { key: "direksiyon_sinav", label: "Direksiyon Sınav Ücreti" },
-  { key: "diger", label: "Diğer Ücret" },
+const PAYMENT_TYPE_ROWS: { key: CandidateAccountingType; labelKey: TranslationKey }[] = [
+  { key: "kurs", labelKey: "payments.type.kurs" },
+  { key: "teorik_sinav", labelKey: "payments.type.teorikSinav" },
+  { key: "direksiyon_sinav", labelKey: "payments.type.direksiyonSinav" },
+  { key: "diger", labelKey: "payments.type.diger" },
 ];
 
 const PAYMENT_TYPE_KEY: Record<CandidateAccountingType, TranslationKey> = {
@@ -477,7 +477,7 @@ function percent(value: number): string {
 }
 
 function paymentTypeLabel(type: CandidateAccountingType): string {
-  return PAYMENT_TYPE_ROWS.find((item) => item.key === type)?.label ?? type;
+  return PAYMENT_TYPE_KEY[type] ?? type;
 }
 
 function paymentMethodLabel(method: string, t: ReturnType<typeof useT>): string {
@@ -598,8 +598,8 @@ function invoiceNotes(invoice: PaymentInvoiceOverviewResponse): string {
   return invoice.notes?.trim() || "-";
 }
 
-function invoiceService(_invoice: PaymentInvoiceOverviewResponse, t?: ReturnType<typeof useT>): string {
-  return t ? t("payments.service.drivingCourse") : "Sürücü kurs hizmeti";
+function invoiceService(_invoice: PaymentInvoiceOverviewResponse, t: ReturnType<typeof useT>): string {
+  return t("payments.service.drivingCourse");
 }
 
 function invoiceQuantity(_invoice: PaymentInvoiceOverviewResponse): number {
@@ -610,14 +610,14 @@ function invoiceUnitPrice(invoice: PaymentInvoiceOverviewResponse): number {
   return invoice.subtotal;
 }
 
-function invoiceTypeLabel(invoiceType: string, t?: ReturnType<typeof useT>): string {
+function invoiceTypeLabel(invoiceType: string, t: ReturnType<typeof useT>): string {
   const normalized = invoiceType
     .trim()
     .toLocaleLowerCase("tr-TR")
     .replace(/ı/g, "i");
-  if (normalized.includes("iade") || normalized.includes("refund")) return t ? t("payments.invoice.refund") : "İade";
-  if (normalized.includes("iptal") || normalized.includes("cancel")) return t ? t("payments.invoice.cancellation") : "İptal";
-  if (normalized.includes("satis") || normalized.includes("sale")) return t ? t("payments.invoice.sale") : "Satış";
+  if (normalized.includes("iade") || normalized.includes("refund")) return t("payments.invoice.refund");
+  if (normalized.includes("iptal") || normalized.includes("cancel")) return t("payments.invoice.cancellation");
+  if (normalized.includes("satis") || normalized.includes("sale")) return t("payments.invoice.sale");
   return invoiceType.trim() || "-";
 }
 
@@ -811,6 +811,7 @@ function periodStatsFilterLabel(
 function invoiceSortValue(
   invoice: PaymentInvoiceOverviewResponse,
   field: InvoiceSortField,
+  t: ReturnType<typeof useT>,
   licenseClassLabelByCode?: Map<string, string>,
 ): string | number {
   if (field === "candidate") return invoiceCandidateName(invoice);
@@ -819,9 +820,9 @@ function invoiceSortValue(
     return licenseClassLabel(invoice.candidate.licenseClass, licenseClassLabelByCode);
   }
   if (field === "invoiceNo") return invoice.invoiceNo;
-  if (field === "invoiceType") return invoiceTypeLabel(invoice.invoiceType);
+  if (field === "invoiceType") return invoiceTypeLabel(invoice.invoiceType, t);
   if (field === "date") return invoice.invoiceDate;
-  if (field === "service") return invoiceService(invoice);
+  if (field === "service") return invoiceService(invoice, t);
   if (field === "quantity") return invoiceQuantity(invoice);
   if (field === "unitPrice") return invoiceUnitPrice(invoice);
   if (field === "subtotal") return invoice.subtotal;
@@ -834,6 +835,7 @@ function invoiceSortValue(
 function invoiceFilterValue(
   invoice: PaymentInvoiceOverviewResponse,
   field: InvoiceSortField,
+  t: ReturnType<typeof useT>,
   licenseClassLabelByCode?: Map<string, string>,
 ): string {
   if (field === "candidate") return invoiceCandidateName(invoice);
@@ -842,9 +844,9 @@ function invoiceFilterValue(
     return licenseClassLabel(invoice.candidate.licenseClass, licenseClassLabelByCode);
   }
   if (field === "invoiceNo") return invoice.invoiceNo;
-  if (field === "invoiceType") return invoiceTypeLabel(invoice.invoiceType);
+  if (field === "invoiceType") return invoiceTypeLabel(invoice.invoiceType, t);
   if (field === "date") return dateKey(invoice.invoiceDate);
-  if (field === "service") return invoiceService(invoice);
+  if (field === "service") return invoiceService(invoice, t);
   if (field === "quantity") return String(invoiceQuantity(invoice));
   if (field === "unitPrice") return String(invoiceUnitPrice(invoice));
   if (field === "subtotal") return String(invoice.subtotal);
@@ -857,6 +859,7 @@ function invoiceFilterValue(
 function invoiceFilterLabel(
   invoice: PaymentInvoiceOverviewResponse,
   field: InvoiceSortField,
+  t: ReturnType<typeof useT>,
   licenseClassLabelByCode?: Map<string, string>,
 ): string {
   if (field === "date") return formatDateTR(invoice.invoiceDate);
@@ -866,7 +869,7 @@ function invoiceFilterLabel(
   if (field === "vatRate") return `%${invoice.vatRate}`;
   if (field === "vatAmount") return money(invoice.vatAmount);
   if (field === "total") return money(invoice.totalAmount);
-  return invoiceFilterValue(invoice, field, licenseClassLabelByCode);
+  return invoiceFilterValue(invoice, field, t, licenseClassLabelByCode);
 }
 
 function invoiceAnalysisSortValue(
@@ -1477,6 +1480,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             invoiceFilterValue(
               invoice,
               field as InvoiceSortField,
+              t,
               licenseClassLabelByCode,
             ) === value
           );
@@ -1487,8 +1491,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     return [...filteredRows].sort(
       (a, b) =>
         compareValues(
-          invoiceSortValue(a, invoiceSort.field, licenseClassLabelByCode),
-          invoiceSortValue(b, invoiceSort.field, licenseClassLabelByCode),
+          invoiceSortValue(a, invoiceSort.field, t, licenseClassLabelByCode),
+          invoiceSortValue(b, invoiceSort.field, t, licenseClassLabelByCode),
         ) * factor,
     );
   }, [
@@ -1778,6 +1782,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         const value = invoiceFilterValue(
           invoice,
           column.id as InvoiceSortField,
+          t,
           licenseClassLabelByCode,
         );
         values.set(
@@ -1785,6 +1790,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           invoiceFilterLabel(
             invoice,
             column.id as InvoiceSortField,
+            t,
             licenseClassLabelByCode,
           ),
         );
