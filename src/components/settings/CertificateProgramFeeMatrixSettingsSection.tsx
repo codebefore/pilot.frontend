@@ -17,7 +17,7 @@ import type {
   CertificateProgramFeeRowUpsertRequest,
 } from "../../lib/types";
 import { useToast } from "../ui/Toast";
-import { useT, currentLocale } from "../../lib/i18n";
+import { useT, currentLocale, type TranslationKey } from "../../lib/i18n";
 
 type StoredEditableField = keyof Pick<
   CertificateProgramFeeRowResponse,
@@ -69,14 +69,14 @@ function readProgramFee(
   return program[field] as number | null;
 }
 
-const EDITABLE_FIELDS: { value: EditableField; label: string }[] = [
-  { value: "vatIncludedHourlyRate", label: "Saat Ücreti (KDV'li)" },
-  { value: "contractExamFee", label: "Sözleşmeli Sınav Ücreti" },
-  { value: "institutionExamFee", label: "Kurum Sınav Ücreti" },
-  { value: "courseFee", label: "Kurs Ücreti" },
-  { value: "mebbisFee", label: "MEBBİS Eğitim Ücreti" },
-  { value: "failureRetryFee", label: "Başarısız Sınav Hak Ücreti" },
-  { value: "privateLessonFee", label: "Özel Ders Ücreti" },
+const EDITABLE_FIELDS: { value: EditableField; labelKey: TranslationKey }[] = [
+  { value: "vatIncludedHourlyRate", labelKey: "feeMatrix.editable.hourlyRate" },
+  { value: "contractExamFee", labelKey: "feeMatrix.editable.contractExamFee" },
+  { value: "institutionExamFee", labelKey: "feeMatrix.editable.institutionExamFee" },
+  { value: "courseFee", labelKey: "feeMatrix.editable.courseFee" },
+  { value: "mebbisFee", labelKey: "feeMatrix.editable.mebbisFee" },
+  { value: "failureRetryFee", labelKey: "feeMatrix.editable.failureRetry" },
+  { value: "privateLessonFee", labelKey: "feeMatrix.editable.privateLesson" },
 ];
 
 /** Stored row-level fields → EF column names that the BulkApply endpoint
@@ -104,7 +104,7 @@ function bulkValueKey(field: EditableField, lessonType?: "theory" | "practice"):
 }
 
 const ROW_EDITABLE_FIELDS = EDITABLE_FIELDS.filter(
-  (field): field is { value: Exclude<EditableField, ProgramScopedField>; label: string } =>
+  (field): field is { value: Exclude<EditableField, ProgramScopedField>; labelKey: TranslationKey } =>
     !isProgramScopedField(field.value)
 );
 
@@ -139,7 +139,7 @@ const VAT_RATE = 0.1;
 // Section key for rows whose source license is "YOK" (candidates starting from
 // scratch). Kept distinct from any real target license code.
 const FROM_SCRATCH_SECTION_KEY = "__FROM_SCRATCH__";
-const FROM_SCRATCH_SECTION_LABEL = "Sıfırdan Başlayanlar";
+const FROM_SCRATCH_SECTION_LABEL_KEY: TranslationKey = "feeMatrix.section.fromScratch";
 
 function formatMoney(value: number | null): string {
   if (value == null) return "—";
@@ -249,16 +249,17 @@ type ColumnKind = "info" | "calculated" | "editable";
 type ColumnGroup = "contract" | "institution";
 type Column = {
   key: string;
-  label: string;
+  labelKey: TranslationKey | "";
   /** Full, unabbreviated name shown as a hover tooltip when the visible label
    *  is shortened to fit the column width. */
-  fullLabel?: string;
+  fullLabelKey?: TranslationKey;
   kind: ColumnKind;
   editableField?: EditableField;
   /** The cell renderer for non-editable columns. */
   render?: (
     row: CertificateProgramFeeRowResponse,
-    rows: CertificateProgramFeeRowResponse[]
+    rows: CertificateProgramFeeRowResponse[],
+    t: ReturnType<typeof useT>,
   ) => React.ReactNode;
   /** Optional minimum cell width (px) to give the column some breathing room. */
   width?: number;
@@ -268,14 +269,18 @@ type Column = {
   group?: ColumnGroup;
 };
 
-function renderSourceLicense(row: CertificateProgramFeeRowResponse): React.ReactNode {
+function renderSourceLicense(
+  row: CertificateProgramFeeRowResponse,
+  _rows: CertificateProgramFeeRowResponse[],
+  t: ReturnType<typeof useT>,
+): React.ReactNode {
   const isNone = row.program.sourceLicenseClass.toUpperCase() === "YOK";
   const displayName = isNone ? "-" : row.program.sourceLicenseDisplayName;
   return (
     <span
       className="fee-matrix-license-cell"
       title={`${displayName}${
-        row.program.sourceLicensePre2016 ? " (2016 öncesi)" : ""
+        row.program.sourceLicensePre2016 ? ` ${t("feeMatrix.licenseBadge.pre2016")}` : ""
       } -> ${row.program.targetLicenseDisplayName}`}
     >
       <span className="fee-matrix-license-name">{displayName}</span>
@@ -330,7 +335,7 @@ const COLUMNS: Column[] = [
     // Bulk-selection checkbox; rendered manually in the table body so it can
     // hook into selection state. The render here is just a placeholder.
     key: "select",
-    label: "",
+    labelKey: "",
     kind: "info",
     sticky: true,
     width: 32,
@@ -338,15 +343,15 @@ const COLUMNS: Column[] = [
   },
   {
     key: "source",
-    label: "Mevcut",
+    labelKey: "feeMatrix.col.source",
     kind: "info",
     sticky: true,
     width: 110,
-    render: renderSourceLicense,
+    render: (row, rows, t) => renderSourceLicense(row, rows, t),
   },
   {
     key: "target",
-    label: "İstenen",
+    labelKey: "feeMatrix.col.target",
     kind: "info",
     sticky: true,
     width: 76,
@@ -356,24 +361,24 @@ const COLUMNS: Column[] = [
   },
   {
     key: "lessonType",
-    label: "Ders",
+    labelKey: "feeMatrix.col.lessonType",
     kind: "info",
     sticky: true,
     width: 70,
-    render: (row) => (row.lessonType === "theory" ? "Teorik" : "Direksiyon"),
+    render: (row, _rows, t) => (row.lessonType === "theory" ? t("feeMatrix.lessonType.theory") : t("feeMatrix.lessonType.practice")),
   },
   {
     key: "lessonHours",
-    label: "Saat",
-    fullLabel: "Ders Saati",
+    labelKey: "feeMatrix.col.lessonHours",
+    fullLabelKey: "feeMatrix.col.lessonHoursFull",
     kind: "info",
     width: 56,
     render: (row) => row.lessonHours,
   },
   {
     key: "contractExamFee",
-    label: "Söz. Sınav",
-    fullLabel: "Sözleşmeli Sınav Ücreti",
+    labelKey: "feeMatrix.col.contractExamFee",
+    fullLabelKey: "feeMatrix.col.contractExamFeeFull",
     kind: "editable",
     editableField: "contractExamFee",
     width: 88,
@@ -381,8 +386,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "vatIncludedHourlyRate",
-    label: "Saat KDV'li",
-    fullLabel: "Saat Ücreti (KDV dahil)",
+    labelKey: "feeMatrix.col.hourlyRateVat",
+    fullLabelKey: "feeMatrix.col.hourlyRateVatFull",
     kind: "editable",
     editableField: "vatIncludedHourlyRate",
     width: 92,
@@ -390,8 +395,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "vatExcludedHourlyRate",
-    label: "Saat KDV'siz",
-    fullLabel: "Saat Ücreti (KDV hariç)",
+    labelKey: "feeMatrix.col.hourlyRateNoVat",
+    fullLabelKey: "feeMatrix.col.hourlyRateNoVatFull",
     kind: "calculated",
     width: 80,
     render: (row) => formatMoney(calculateVatExcludedHourlyRate(row)),
@@ -399,8 +404,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "lessonFee",
-    label: "Ders Ücreti",
-    fullLabel: "Toplam Ders Ücreti (Saat KDV'li × Ders Saati)",
+    labelKey: "feeMatrix.col.lessonFee",
+    fullLabelKey: "feeMatrix.col.lessonFeeFull",
     kind: "calculated",
     width: 84,
     render: (row) => formatMoney(calculateLessonFee(row)),
@@ -408,8 +413,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "vatAmount",
-    label: "KDV",
-    fullLabel: "Toplam KDV Tutarı",
+    labelKey: "feeMatrix.col.vatAmount",
+    fullLabelKey: "feeMatrix.col.vatAmountFull",
     kind: "calculated",
     width: 72,
     render: (row) => formatMoney(calculateVatAmount(row)),
@@ -417,8 +422,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "contractTotalLessonFeeVatExcluded",
-    label: "Söz. Top. KDV'siz",
-    fullLabel: "Sözleşme Toplam Ders Ücreti (KDV hariç, Teorik + Direksiyon)",
+    labelKey: "feeMatrix.col.contractTotalNoVat",
+    fullLabelKey: "feeMatrix.col.contractTotalNoVatFull",
     kind: "calculated",
     width: 104,
     render: (row, rows) =>
@@ -427,8 +432,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "contractTotalVat",
-    label: "Söz. Top. KDV",
-    fullLabel: "Sözleşme Toplam KDV (Teorik + Direksiyon)",
+    labelKey: "feeMatrix.col.contractTotalVat",
+    fullLabelKey: "feeMatrix.col.contractTotalVatFull",
     kind: "calculated",
     width: 96,
     render: (row, rows) =>
@@ -437,8 +442,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "contractTotal",
-    label: "Söz. Toplam",
-    fullLabel: "Sözleşme Toplamı (KDV hariç toplam + KDV toplamı)",
+    labelKey: "feeMatrix.col.contractTotal",
+    fullLabelKey: "feeMatrix.col.contractTotalFull",
     kind: "calculated",
     width: 104,
     render: (row, rows) => formatMoney(calculateContractTotalByProgram(rows, row.program.id)),
@@ -446,8 +451,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "institutionExamFee",
-    label: "Sınav Ücreti",
-    fullLabel: "Kurum Sınav Ücreti",
+    labelKey: "feeMatrix.col.institutionExamFee",
+    fullLabelKey: "feeMatrix.col.institutionExamFeeFull",
     kind: "editable",
     editableField: "institutionExamFee",
     width: 92,
@@ -455,8 +460,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "courseFee",
-    label: "Kurs Ücreti",
-    fullLabel: "Kurs Ücreti (program bazında, ders türünden bağımsız)",
+    labelKey: "feeMatrix.col.courseFee",
+    fullLabelKey: "feeMatrix.col.courseFeeFull",
     kind: "editable",
     editableField: "courseFee",
     width: 96,
@@ -464,8 +469,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "mebbisFee",
-    label: "MEBBİS",
-    fullLabel: "MEBBİS Eğitim Ücreti (program bazında, ders türünden bağımsız)",
+    labelKey: "feeMatrix.col.mebbisFee",
+    fullLabelKey: "feeMatrix.col.mebbisFeeFull",
     kind: "editable",
     editableField: "mebbisFee",
     width: 96,
@@ -473,8 +478,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "failureRetryFee",
-    label: "Başarısız Hak",
-    fullLabel: "Başarısız Sınav Hak Ücreti (program bazında, ders türünden bağımsız)",
+    labelKey: "feeMatrix.col.failureRetryFee",
+    fullLabelKey: "feeMatrix.col.failureRetryFeeFull",
     kind: "editable",
     editableField: "failureRetryFee",
     width: 100,
@@ -482,8 +487,8 @@ const COLUMNS: Column[] = [
   },
   {
     key: "privateLessonFee",
-    label: "Özel Ders",
-    fullLabel: "Özel Ders Ücreti (program bazında, ders türünden bağımsız)",
+    labelKey: "feeMatrix.col.privateLessonFee",
+    fullLabelKey: "feeMatrix.col.privateLessonFeeFull",
     kind: "editable",
     editableField: "privateLessonFee",
     width: 96,
@@ -491,9 +496,9 @@ const COLUMNS: Column[] = [
   },
 ];
 
-const GROUP_LABELS: Record<ColumnGroup, string> = {
-  contract: "Sözleşme",
-  institution: "Kurum",
+const GROUP_LABEL_KEYS: Record<ColumnGroup, TranslationKey> = {
+  contract: "feeMatrix.group.contract",
+  institution: "feeMatrix.group.institution",
 };
 
 const GROUP_COLLAPSED_WIDTH = 132;
@@ -514,7 +519,8 @@ function countLeadingUngroupedColumns(columns: readonly Column[]): number {
 function renderGroupHeaderCells(
   collapsedGroups: Set<ColumnGroup>,
   toggleGroup: (group: ColumnGroup) => void,
-  columns: readonly Column[]
+  columns: readonly Column[],
+  t: ReturnType<typeof useT>,
 ): React.ReactNode {
   const leadingCount = countLeadingUngroupedColumns(columns);
   const cells: React.ReactNode[] = [];
@@ -547,13 +553,13 @@ function renderGroupHeaderCells(
           aria-expanded={!isCollapsed}
           className="fee-matrix-group-toggle"
           onClick={() => toggleGroup(group)}
-          title={isCollapsed ? "Grubu aç" : "Grubu kapat"}
+          title={isCollapsed ? t("feeMatrix.groupToggle.open") : t("feeMatrix.groupToggle.close")}
           type="button"
         >
           <span aria-hidden="true" className="fee-matrix-group-toggle-chevron">
             {isCollapsed ? "▸" : "▾"}
           </span>
-          <span className="fee-matrix-group-toggle-label">{GROUP_LABELS[group]}</span>
+          <span className="fee-matrix-group-toggle-label">{t(GROUP_LABEL_KEYS[group])}</span>
         </button>
       </th>
     );
@@ -727,7 +733,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast("Ücret matrisi yüklenemedi", "error");
+        showToast(t("feeMatrix.toast.loadFailed"), "error");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -876,9 +882,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
       });
       setRows(response.rows);
       baselineRef.current = snapshotEditableFields(response.rows);
-      showToast("Ücret matrisi kaydedildi");
+      showToast(t("feeMatrix.toast.saved"));
     } catch {
-      showToast("Ücret matrisi kaydedilemedi", "error");
+      showToast(t("feeMatrix.toast.saveFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -909,12 +915,12 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     const key = bulkValueKey(field, lessonType);
     const parsed = parseAmount(valueOverride ?? bulkValues[key] ?? "");
     if (parsed == null) {
-      showToast("Toplu direksiyon için geçerli bir tutar girin", "error");
+      showToast(t("feeMatrix.bulk.error.amountInvalid"), "error");
       return false;
     }
     const targetIds = Array.from(selectedProgramIds);
     if (targetIds.length === 0) {
-      showToast("Toplu direksiyon için önce program seçin", "error");
+      showToast(t("feeMatrix.bulk.error.noProgramSelected"), "error");
       return false;
     }
 
@@ -972,21 +978,21 @@ export function CertificateProgramFeeMatrixSettingsSection() {
         appliedProgramCount = Math.max(appliedProgramCount, expansionTargetIds.length);
       }
       if (!lastResponse) {
-        showToast("Seçili programlarda uygulanabilir satır yok", "error");
+        showToast(t("feeMatrix.bulk.error.noRows"), "error");
         return false;
       }
       if (lastResponse) {
         setRows(lastResponse.rows);
         baselineRef.current = snapshotEditableFields(lastResponse.rows);
       }
-      const fieldLabel = EDITABLE_FIELDS.find((f) => f.value === field)?.label ?? field;
+      const fieldLabel = (EDITABLE_FIELDS.find((f) => f.value === field) ? t(EDITABLE_FIELDS.find((f) => f.value === field)!.labelKey) : field);
       const lessonSuffix =
-        lessonType === "theory" ? " (Teorik)" : lessonType === "practice" ? " (Direksiyon)" : "";
-      showToast(`${appliedProgramCount} programa "${fieldLabel}${lessonSuffix}" uygulandı`);
+        lessonType === "theory" ? t("feeMatrix.bulk.appliedSuffix.theory") : lessonType === "practice" ? t("feeMatrix.bulk.appliedSuffix.practice") : "";
+      showToast(t("feeMatrix.bulk.applied", { count: appliedProgramCount, field: fieldLabel, suffix: lessonSuffix }));
       setBulkValueFor(field, lessonType, "");
       return true;
     } catch {
-      showToast("Toplu direksiyon başarısız", "error");
+      showToast(t("feeMatrix.bulk.error.failed"), "error");
       return false;
     } finally {
       setSaving(false);
@@ -1055,25 +1061,23 @@ export function CertificateProgramFeeMatrixSettingsSection() {
       <div className="fee-matrix-backbar">
         <button className="btn btn-secondary fee-matrix-back-button" onClick={goBack} type="button">
           <span aria-hidden="true">←</span>
-          <span>Geldiğin sayfaya dön</span>
+          <span>{t("feeMatrix.action.backToCallingPage")}</span>
         </button>
       </div>
       <section className="settings-surface fee-matrix">
         <div className="settings-surface-header">
           <div>
-            <div className="settings-surface-title">Ehliyet Ücret Matrisi</div>
-            <div className="form-subsection-note">
-              KDV oranı %10. <span className="fee-matrix-tag fee-matrix-tag--editable">Beyaz</span>{" "}
-              alanlar girilebilir,{" "}
-              <span className="fee-matrix-tag fee-matrix-tag--calculated">gri</span> alanlar
-              otomatik hesaplanır.
-            </div>
+            <div className="settings-surface-title">{t("feeMatrix.title")}</div>
+            <div className="form-subsection-note">{t("feeMatrix.hint.editableNote", {
+              editable: t("feeMatrix.hint.editableTag"),
+              calculated: t("feeMatrix.hint.calculatedTag"),
+            })}</div>
           </div>
           <div className="settings-module-actions fee-matrix-toolbar">
             {selectionMode ? null : (
               <>
                 <label className="fee-matrix-year-field">
-                  <span>Yıl</span>
+                  <span>{t("feeMatrix.action.year")}</span>
                   <input
                     className="form-input fee-matrix-year-input"
                     min={2000}
@@ -1088,7 +1092,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                   onClick={() => setRefreshKey((x) => x + 1)}
                   type="button"
                 >
-                  Yenile
+                  {t("feeMatrix.action.refresh")}
                 </button>
                 {sections.length > 0 ? (
                   <button
@@ -1096,12 +1100,12 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                     onClick={() => setAllExpanded(!allExpanded)}
                     type="button"
                   >
-                    {allExpanded ? "Tümünü daralt" : "Tümünü genişlet"}
+                    {allExpanded ? t("feeMatrix.action.collapseAll") : t("feeMatrix.action.expandAll")}
                   </button>
                 ) : null}
                 {isDirty ? (
-                  <span className="fee-matrix-dirty-badge" title="Kaydedilmemiş değişiklik var">
-                    {dirtyCount} satır kaydedilmedi
+                  <span className="fee-matrix-dirty-badge" title={t("feeMatrix.action.unsavedChanges")}>
+                    {t("feeMatrix.action.dirtyCount", { count: dirtyCount })}
                   </span>
                 ) : null}
               </>
@@ -1114,7 +1118,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                 title={!canManagePayments ? noPermissionTitle : undefined}
                 type="button"
               >
-                {selectionMode ? "Seçimi kapat" : "Toplu seçim"}
+                {selectionMode ? t("feeMatrix.action.closeSelection") : t("feeMatrix.action.bulkSelect")}
               </button>
             ) : null}
             {selectionMode ? null : (
@@ -1126,12 +1130,12 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                   !canManagePayments
                     ? noPermissionTitle
                     : isDirty
-                      ? "Kaydet (⌘/Ctrl+S)"
-                      : "Değişiklik yok"
+                      ? t("feeMatrix.action.saveShortcut")
+                      : t("feeMatrix.action.noChanges")
                 }
                 type="button"
               >
-                {saving ? "Kaydediliyor..." : "Kaydet"}
+                {saving ? t("common.saving") : t("common.save")}
               </button>
             )}
           </div>
@@ -1142,10 +1146,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
             <div className="fee-matrix-bulk-hint" role="status">
               <span>
                 {selectionCount > 0
-                  ? `${selectionCount} program seçili. `
-                  : "Satırların başındaki kutucuklardan program seçin. "}
-                Tablo başlığının altındaki satıra değer yazıp Enter'a basın —
-                seçili tüm programlarda o alan <em>üzerine yazılır</em>.
+                  ? t("feeMatrix.bulk.selected", { count: selectionCount })
+                  : t("feeMatrix.bulk.hintSelect") + " "}
+                {t("feeMatrix.bulk.hintMain")}
               </span>
               <div className="fee-matrix-bulk-hint-actions">
                 <button
@@ -1155,7 +1158,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                   title={!canManagePayments ? noPermissionTitle : undefined}
                   type="button"
                 >
-                  Seçimi temizle
+                  {t("feeMatrix.bulk.clear")}
                 </button>
                 <button
                   className="btn btn-primary btn-sm"
@@ -1169,22 +1172,21 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                   title={
                     !canManagePayments
                       ? noPermissionTitle
-                      : "Toplu satırdaki tüm dolu input'ları sırayla uygula"
+                      : t("feeMatrix.bulk.applyAllTitle")
                   }
                   type="button"
                 >
-                  Tümünü uygula
+                  {t("feeMatrix.bulk.applyAll")}
                 </button>
               </div>
             </div>
           ) : null}
 
           {loading ? (
-            <div className="instructor-detail-empty">Ücret matrisi yükleniyor...</div>
+            <div className="instructor-detail-empty">{t("feeMatrix.empty.loading")}</div>
           ) : sections.length === 0 ? (
             <div className="instructor-detail-empty">
-              Sertifika/program kaydı bulunmuyor. Önce müşteri varyasyonları programa
-              aktarılmalı.
+              {t("feeMatrix.empty.noPrograms")}
             </div>
           ) : (
             <div className="fee-matrix-sections">
@@ -1228,12 +1230,12 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                         </span>
                         <span className="fee-matrix-section-title">
                           {section.target === FROM_SCRATCH_SECTION_KEY
-                            ? FROM_SCRATCH_SECTION_LABEL
-                            : `${section.target} geçişleri`}
+                            ? t(FROM_SCRATCH_SECTION_LABEL_KEY)
+                            : t("feeMatrix.section.transitions", { target: section.target })}
                         </span>
                         <span className="fee-matrix-section-stats">
-                          <span>{programCount} program</span>
-                          <span>{visibleSectionRows.length} satır</span>
+                          <span>{t("feeMatrix.section.programs", { count: programCount })}</span>
+                          <span>{t("feeMatrix.section.rows", { count: visibleSectionRows.length })}</span>
                           <span
                             className={
                               filledRows === totalRows
@@ -1243,7 +1245,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                 : "fee-matrix-section-stat--partial"
                             }
                           >
-                            {filledRows}/{totalRows} satır dolu
+                            {t("feeMatrix.section.filledRows", { filled: filledRows, total: totalRows })}
                           </span>
                         </span>
                       </button>
@@ -1256,7 +1258,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                               {renderGroupHeaderCells(
                                 collapsedGroups,
                                 toggleGroup,
-                                visibleColumns
+                                visibleColumns,
+                                t,
                               )}
                             </tr>
                             <tr>
@@ -1264,8 +1267,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                 if (column.group && collapsedGroups.has(column.group)) {
                                   return null;
                                 }
-                                const tooltip = column.fullLabel ?? column.label;
-                                const showTooltip = tooltip !== column.label;
+                                const columnLabel = column.labelKey ? t(column.labelKey as TranslationKey) : "";
+                                const tooltip = column.fullLabelKey ? t(column.fullLabelKey) : columnLabel;
+                                const showTooltip = tooltip !== columnLabel;
                                 // Inject the collapsed-contract summary header
                                 // immediately before the first institution column
                                 // so it sits to the *left* of the Kurum group.
@@ -1283,8 +1287,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                         style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                       >
                                         <ColumnHeaderLabel
-                                          label="Söz. Toplam"
-                                          tooltip="Sözleşme Toplamı (KDV hariç toplam + KDV toplamı)"
+                                          label={t("feeMatrix.col.contractTotal")}
+                                          tooltip={t("feeMatrix.col.contractTotalFull")}
                                         />
                                       </th>
                                     ) : null}
@@ -1308,11 +1312,11 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                     >
                                       {column.key === "select" ? (
                                         <input
-                                          aria-label={`${
-                                            section.target === FROM_SCRATCH_SECTION_KEY
-                                              ? FROM_SCRATCH_SECTION_LABEL
-                                              : section.target
-                                          } bölümündeki tüm programları seç`}
+                                          aria-label={t("feeMatrix.aria.selectAllInSection", {
+                                            section: section.target === FROM_SCRATCH_SECTION_KEY
+                                              ? t(FROM_SCRATCH_SECTION_LABEL_KEY)
+                                              : section.target,
+                                          })}
                                           checked={sectionSelection.allSelected}
                                           className="fee-matrix-row-checkbox"
                                           onChange={() =>
@@ -1340,9 +1344,9 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                           type="checkbox"
                                         />
                                       ) : showTooltip ? (
-                                        <ColumnHeaderLabel label={column.label} tooltip={tooltip} />
+                                        <ColumnHeaderLabel label={columnLabel} tooltip={tooltip} />
                                       ) : (
-                                        column.label
+                                        columnLabel
                                       )}
                                     </th>
                                   </Fragment>
@@ -1359,8 +1363,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                   style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                 >
                                   <ColumnHeaderLabel
-                                    label="Söz. Toplam"
-                                    tooltip="Sözleşme Toplamı (KDV hariç toplam + KDV toplamı)"
+                                    label={t("feeMatrix.col.contractTotal")}
+                                    tooltip={t("feeMatrix.col.contractTotalFull")}
                                   />
                                 </th>
                               ) : null}
@@ -1405,7 +1409,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                         scope="row"
                                         style={{ minWidth: column.width, left: stickyLeft }}
                                       >
-                                        Toplu
+                                        {t("feeMatrix.bulk.toplu")}
                                       </th>
                                     );
                                   }
@@ -1418,8 +1422,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                         style={{ minWidth: column.width, left: stickyLeft }}
                                       >
                                         <div className="fee-matrix-bulk-split-stack">
-                                          {visibleLessonTypes.has("theory") ? <span>Teorik</span> : null}
-                                          {visibleLessonTypes.has("practice") ? <span>Direksiyon</span> : null}
+                                          {visibleLessonTypes.has("theory") ? <span>{t("feeMatrix.lessonType.theory")}</span> : null}
+                                          {visibleLessonTypes.has("practice") ? <span>{t("feeMatrix.lessonType.practice")}</span> : null}
                                         </div>
                                       </th>
                                     );
@@ -1436,7 +1440,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                   }
                                   const field = column.editableField;
                                   const fieldLabel =
-                                    EDITABLE_FIELDS.find((f) => f.value === field)?.label ?? field;
+                                    (EDITABLE_FIELDS.find((f) => f.value === field) ? t(EDITABLE_FIELDS.find((f) => f.value === field)!.labelKey) : field);
                                   if (isDualLessonBulkField(field)) {
                                     return withContractSummary(
                                       <th
@@ -1450,16 +1454,17 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                             .map((lessonType) => {
                                             const slotKey = bulkValueKey(field, lessonType);
                                             const slotLabel =
-                                              lessonType === "theory" ? "T" : "D";
+                                              lessonType === "theory" ? t("feeMatrix.bulk.theoryLabel") : t("feeMatrix.bulk.practiceLabel");
                                             const slotTitle =
                                               lessonType === "theory"
-                                                ? `${fieldLabel} (Teorik) için değer girip Enter'a basın`
-                                                : `${fieldLabel} (Direksiyon) için değer girip Enter'a basın`;
+                                                ? t("feeMatrix.bulk.theoryTooltip", { label: fieldLabel })
+                                                : t("feeMatrix.bulk.practiceTooltip", { label: fieldLabel });
                                             return (
                                               <input
-                                                aria-label={`${fieldLabel} ${
-                                                  lessonType === "theory" ? "Teorik" : "Direksiyon"
-                                                } için toplu değer`}
+                                                aria-label={t("feeMatrix.bulk.aria.value", {
+                                                  label: fieldLabel,
+                                                  lesson: lessonType === "theory" ? t("feeMatrix.lessonType.theory") : t("feeMatrix.lessonType.practice"),
+                                                })}
                                                 className="form-input fee-matrix-bulk-input fee-matrix-bulk-input--split"
                                                 disabled={!canManagePayments || saving}
                                                 inputMode="decimal"
@@ -1500,7 +1505,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                       style={{ minWidth: column.width, left: stickyLeft }}
                                     >
                                       <input
-                                        aria-label={`${fieldLabel} için toplu değer`}
+                                        aria-label={t("feeMatrix.bulk.aria.value.single", { label: fieldLabel })}
                                         className="form-input fee-matrix-bulk-input"
                                         disabled={!canManagePayments || saving}
                                         inputMode="decimal"
@@ -1605,6 +1610,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
                                           sectionRows={visibleSectionRows}
                                           selected={selectedProgramIds.has(row.program.id)}
                                           stickyOffsets={stickyOffsets}
+                                          t={t}
                                           updateRow={updateRow}
                                           canManage={canManagePayments}
                                           noPermissionTitle={noPermissionTitle}
@@ -1658,6 +1664,7 @@ function MatrixCell({
   updateRow,
   selected,
   stickyOffsets,
+  t,
   onToggleSelect,
   isBulkTarget,
   canManage,
@@ -1671,6 +1678,7 @@ function MatrixCell({
   updateRow: (key: string, field: EditableField, value: string) => void;
   selected: boolean;
   stickyOffsets: Map<string, number>;
+  t: ReturnType<typeof useT>;
   onToggleSelect: (programId: string) => void;
   isBulkTarget: boolean;
   canManage: boolean;
@@ -1710,7 +1718,7 @@ function MatrixCell({
     return (
       <td className={baseClass} rowSpan={rowSpan} style={style}>
         <EditableMoneyCell
-          ariaLabel={column.label}
+          ariaLabel={column.labelKey ? t(column.labelKey as TranslationKey) : ""}
           disabled={!canManage}
           field={field}
           title={!canManage ? noPermissionTitle : undefined}
@@ -1724,7 +1732,7 @@ function MatrixCell({
 
   return (
     <td className={baseClass} rowSpan={rowSpan} style={style}>
-      {column.render?.(row, sectionRows)}
+      {column.render?.(row, sectionRows, t)}
     </td>
   );
 }
