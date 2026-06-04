@@ -1331,7 +1331,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
   const filteredPayments = useMemo(() => {
     if (!overview) return [];
-    return overview.payments.filter((item) => {
+    return (overview.payments ?? []).filter((item) => {
       if (item.status !== "active") return false;
       return isInDateRange(item.paidAtUtc, fromDate, toDate);
     });
@@ -1350,7 +1350,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
     if (detailTab === "all" || detailTab === "payment") {
       rows.push(
-        ...overview.payments
+        ...(overview.payments ?? [])
           .filter(
             (payment) =>
               payment.status === "active" &&
@@ -1384,7 +1384,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
     if (detailTab === "all" || detailTab === "cancelled") {
       rows.push(
-        ...overview.payments
+        ...(overview.payments ?? [])
           .filter(
             (payment) =>
               payment.status === "cancelled" &&
@@ -1404,7 +1404,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           })),
       );
       rows.push(
-        ...overview.installments
+        ...(overview.installments ?? [])
           .filter(
             (installment) =>
               installment.status === "cancelled" &&
@@ -1681,7 +1681,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (!overview) return [];
     const rows: CashMovementRow[] = [];
 
-    overview.payments
+    (overview.payments ?? [])
       .filter((payment) => payment.status === "active")
       .filter((payment) => isInDateRange(payment.paidAtUtc, fromDate, toDate))
       .forEach((payment) => {
@@ -2060,7 +2060,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       row.lastMovementDate = register.lastMovementDate ?? "";
     });
 
-    overview.payments
+    (overview.payments ?? [])
       .filter((payment) => payment.status === "active")
       .forEach((payment) => {
         const key = cashRegisterKey(payment);

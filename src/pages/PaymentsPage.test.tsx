@@ -83,6 +83,26 @@ function renderCashPage() {
   );
 }
 
+function renderFinancePage() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/payments"]}>
+      <PaymentsPage />
+    </MemoryRouter>,
+    {
+      auth: {
+        user: {
+          id: "payments-viewer",
+          phone: "5073737262",
+          name: "Finans Viewer",
+          roleName: "Finans",
+          isSuperAdmin: false,
+        },
+        permissions: { payments: "view" },
+      },
+    }
+  );
+}
+
 describe("PaymentsPage permissions", () => {
   beforeEach(() => {
     getPaymentsOverviewMock.mockReset();
@@ -112,5 +132,15 @@ describe("PaymentsPage permissions", () => {
     expect(createCashInflowMock).not.toHaveBeenCalled();
     expect(createCashOutflowMock).not.toHaveBeenCalled();
     expect(createCashTransferMock).not.toHaveBeenCalled();
+  });
+
+  it("renders when overview omits optional list fields", async () => {
+    getPaymentsOverviewMock.mockResolvedValue({
+      summary: paymentsOverview.summary,
+    });
+
+    renderFinancePage();
+
+    expect(await screen.findByRole("heading", { name: "Finans" })).toBeInTheDocument();
   });
 });
