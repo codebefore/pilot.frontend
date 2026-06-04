@@ -1958,7 +1958,7 @@ export const tr = {
   "uploadDoc.docType": "Evrak Türü",
   "uploadDoc.docTypePlaceholder": "Evrak türü seç...",
   "uploadDoc.file": "Dosya",
-  "uploadDoc.fileHint": "JPEG, PNG veya PDF · maks. 10 MB",
+  "uploadDoc.fileHint": "PDF, JPEG veya PNG · maks. 10 MB · sistem JPEG'e dönüştürür",
   "uploadDoc.physicallyAvailable": "Fiziksel evrak elde var, dosya yüklemiyorum",
   "uploadDoc.physicallyAvailableHint":
     "Sistemde dosya tutulmayacak; evrak elde mevcut olarak işaretlenecek.",

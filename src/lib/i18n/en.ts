@@ -1961,7 +1961,7 @@ export const en: Record<TranslationKey, string> = {
   "uploadDoc.docType": "Document Type",
   "uploadDoc.docTypePlaceholder": "Select a document type...",
   "uploadDoc.file": "File",
-  "uploadDoc.fileHint": "JPEG, PNG or PDF · max. 10 MB",
+  "uploadDoc.fileHint": "PDF, JPEG or PNG · max. 10 MB · converted to JPEG by the system",
   "uploadDoc.physicallyAvailable":
     "Document is on file; I'm not uploading a copy",
   "uploadDoc.physicallyAvailableHint":
