@@ -116,6 +116,10 @@ export function normalizeApiPathForBaseUrl(base: string, path: string): string {
     return normalizedPath;
   }
 
+  if (basePath === "/v1/training" && normalizedPath.startsWith("/api/training/")) {
+    return normalizedPath.slice("/api/training".length);
+  }
+
   return normalizedPath.slice("/api".length);
 }
 

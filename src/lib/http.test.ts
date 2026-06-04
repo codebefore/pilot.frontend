@@ -13,9 +13,7 @@ describe("http client", () => {
 
   it("normalizes legacy api paths for v1 service base urls", () => {
     expect(normalizeApiPathForBaseUrl("https://api.test/v1/document", "/api/documents")).toBe("/documents");
-    expect(normalizeApiPathForBaseUrl("https://api.test/v1/training", "/api/training/groups")).toBe(
-      "/training/groups"
-    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/training", "/api/training/groups")).toBe("/groups");
     expect(normalizeApiPathForBaseUrl("https://api.test/v1/catalog", "/api/catalog/document-types")).toBe(
       "/catalog/document-types"
     );

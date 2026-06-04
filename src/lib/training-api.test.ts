@@ -159,4 +159,14 @@ describe("training api routing", () => {
       "http://127.0.0.1:5095/api/training/candidates/candidate-1/exam-attempts/attempt-1"
     );
   });
+
+  it("normalizes candidate exam attempt calls for the production v1 training gateway base", async () => {
+    applyRuntimeConfig({ trainingApiBaseUrl: "https://apipilot.virabyte.tr/v1/training" });
+
+    await listCandidateExamAttempts("candidate-1");
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
+      "https://apipilot.virabyte.tr/v1/training/candidates/candidate-1/exam-attempts"
+    );
+  });
 });
