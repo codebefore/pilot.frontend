@@ -23,8 +23,10 @@ import {
   listMebbisJobs,
   mapMebbisStatusToJobStatus,
   mebbisJobTypeLabel,
+  pairMebbisExtensionClient,
   parseJobPayload,
   retryMebbisJobQueuePublishes,
+  type MebbisExtensionPairResponse,
   type MebbisJobResponse,
 } from "../lib/mebbis-jobs-api";
 import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
@@ -194,6 +196,9 @@ export function MebJobsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
   const [queueRetrying, setQueueRetrying] = useState(false);
+  const [extensionDisplayName, setExtensionDisplayName] = useState("Office Chrome");
+  const [extensionPairing, setExtensionPairing] = useState(false);
+  const [extensionPairResult, setExtensionPairResult] = useState<MebbisExtensionPairResponse | null>(null);
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
@@ -363,6 +368,27 @@ export function MebJobsPage() {
     }
   };
 
+  const handleExtensionPair = async () => {
+    if (!canManageMebJobs) return;
+    setExtensionPairing(true);
+    try {
+      const result = await pairMebbisExtensionClient(extensionDisplayName.trim() || "Office Chrome");
+      setExtensionPairResult(result);
+      showToast("Extension token uretildi");
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
+    } catch {
+      showToast("Extension token uretilemedi", "error");
+    } finally {
+      setExtensionPairing(false);
+    }
+  };
+
+  const handleCopyExtensionToken = async () => {
+    if (!extensionPairResult?.apiToken) return;
+    await navigator.clipboard.writeText(extensionPairResult.apiToken);
+    showToast("Token kopyalandi");
+  };
+
   return (
     <>
       <PageToolbar
@@ -410,6 +436,17 @@ export function MebJobsPage() {
         onRetry={handleQueueRetry}
         retrying={queueRetrying}
         status={queueStatusQuery.data}
+      />
+
+      <ExtensionPairPanel
+        canManage={canManageMebJobs}
+        displayName={extensionDisplayName}
+        noPermissionTitle={noPermissionTitle}
+        onCopyToken={() => void handleCopyExtensionToken()}
+        onDisplayNameChange={setExtensionDisplayName}
+        onPair={() => void handleExtensionPair()}
+        pairing={extensionPairing}
+        pairResult={extensionPairResult}
       />
 
       <div className="jobs-toolbar">
@@ -789,6 +826,82 @@ function QueueHealthBand({
       >
         {retrying ? "Deneniyor" : "Publish retry"}
       </button>
+    </div>
+  );
+}
+
+function ExtensionPairPanel({
+  canManage,
+  displayName,
+  noPermissionTitle,
+  onCopyToken,
+  onDisplayNameChange,
+  onPair,
+  pairing,
+  pairResult,
+}: {
+  canManage: boolean;
+  displayName: string;
+  noPermissionTitle: string;
+  onCopyToken: () => void;
+  onDisplayNameChange: (value: string) => void;
+  onPair: () => void;
+  pairing: boolean;
+  pairResult: MebbisExtensionPairResponse | null;
+}) {
+  const disabled = !canManage || pairing;
+
+  return (
+    <div className="queue-health-band success">
+      <div className="queue-health-main">
+        <span className="queue-health-title">MEBBIS Extension Pair</span>
+        <span className="queue-health-meta">
+          Yetkili kullanici aktif kurum icin extension token uretir.
+        </span>
+        {pairResult && (
+          <span className="queue-health-message">
+            {pairResult.client.displayName} icin token olusturuldu. Token yalniz bir kez gosterilir.
+          </span>
+        )}
+      </div>
+      <div className="queue-health-metrics">
+        <label className="form-group" style={{ minWidth: 220 }}>
+          <span className="form-label">Extension adi</span>
+          <input
+            className="form-input"
+            disabled={pairing}
+            onChange={(event) => onDisplayNameChange(event.target.value)}
+            value={displayName}
+          />
+        </label>
+        {pairResult && (
+          <label className="form-group" style={{ minWidth: 320 }}>
+            <span className="form-label">Extension token</span>
+            <input
+              className="form-input"
+              readOnly
+              type="text"
+              value={pairResult.apiToken}
+            />
+          </label>
+        )}
+      </div>
+      <div className="job-row-actions">
+        {pairResult && (
+          <button className="btn btn-secondary btn-sm" onClick={onCopyToken} type="button">
+            Kopyala
+          </button>
+        )}
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={disabled}
+          onClick={onPair}
+          title={!canManage ? noPermissionTitle : undefined}
+          type="button"
+        >
+          {pairing ? "Uretiliyor" : "Token uret"}
+        </button>
+      </div>
     </div>
   );
 }

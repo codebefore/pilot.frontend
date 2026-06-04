@@ -89,6 +89,25 @@ export type MebbisJobQueueRetryResponse = {
   retriedAtUtc: string;
 };
 
+export type MebbisExtensionClientResponse = {
+  id: string;
+  institutionId: string;
+  displayName: string;
+  status: string;
+  lastSeenAtUtc: string | null;
+  lastKnownMebbisUrl: string | null;
+  lastKnownMebbisUser: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  revokedAtUtc: string | null;
+  rowVersion: number;
+};
+
+export type MebbisExtensionPairResponse = {
+  client: MebbisExtensionClientResponse;
+  apiToken: string;
+};
+
 const mebbisRequestOptions = () => ({
   baseUrl: getMebbisApiBaseUrl(),
 });
@@ -131,6 +150,16 @@ export async function retryMebbisJobQueuePublishes(
   return httpPost<MebbisJobQueueRetryResponse>(
     "/api/mebbis/jobs/queue/retry",
     { limit },
+    mebbisRequestOptions()
+  );
+}
+
+export async function pairMebbisExtensionClient(
+  displayName: string
+): Promise<MebbisExtensionPairResponse> {
+  return httpPost<MebbisExtensionPairResponse>(
+    "/api/mebbis/extension-clients/pair",
+    { displayName },
     mebbisRequestOptions()
   );
 }
