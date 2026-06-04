@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { getTrainingApiBaseUrl } from "../../lib/api";
 import { createAuthorizedObjectUrl } from "../../lib/authorized-files";
+import { normalizeApiPathForBaseUrl } from "../../lib/http";
 import type { InstructorResponse } from "../../lib/types";
 
 type InstructorAvatarProps = {
@@ -23,12 +24,8 @@ function buildInstructorPhotoUrl(
 
   const base = getTrainingApiBaseUrl().replace(/\/+$/, "");
   const path = `/api/training/instructors/${instructor.id}/photo`;
-  const dedupedPath =
-    base.endsWith("/api") && path.startsWith("/api/")
-      ? path.slice("/api".length)
-      : path;
 
-  return new URL(`${base}${dedupedPath}`, window.location.origin).toString();
+  return new URL(`${base}${normalizeApiPathForBaseUrl(base, path)}`, window.location.origin).toString();
 }
 
 export function InstructorAvatar({

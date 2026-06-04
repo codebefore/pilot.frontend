@@ -1,6 +1,6 @@
 import { getPlatformApiBaseUrl } from "./api";
 import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
-import { httpDelete, httpGet, httpPost, httpPostForm, httpPut } from "./http";
+import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, normalizeApiPathForBaseUrl } from "./http";
 
 export type FounderType = "real" | "legal";
 
@@ -197,11 +197,7 @@ function getInstitutionLogoUrl(
 ): string {
   const base = getPlatformApiBaseUrl().replace(/\/+$/, "");
   const path = logo.url.startsWith("/") ? logo.url : `/${logo.url}`;
-  const dedupedPath =
-    base.endsWith("/api") && path.startsWith("/api/")
-      ? path.slice("/api".length)
-      : path;
-  const url = new URL(`${base}${dedupedPath}`, window.location.origin);
+  const url = new URL(`${base}${normalizeApiPathForBaseUrl(base, path)}`, window.location.origin);
   if (cacheKey) {
     url.searchParams.set("v", cacheKey);
   }

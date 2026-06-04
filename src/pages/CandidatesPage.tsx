@@ -47,7 +47,6 @@ import {
   getCandidateById,
   createCandidateTag,
   type CandidateExamDateType,
-  type CandidateListTabValue,
   type GetCandidatesParams,
   type CandidateSortField,
   type SortDirection,
@@ -105,16 +104,19 @@ import type {
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
-type CandidateTab = CandidateListTabValue;
+type CandidateTab = "all" | CandidateStatusValue;
 type BulkActionMode = "status" | "tags" | "export" | "examDate" | "group" | null;
 type CandidateListTabKey = string;
 
 const TAB_KEYS: CandidateTab[] = [
-  "active_period",
-  "unassigned",
-  "completed",
+  "all",
+  "pre_registered",
+  "active",
+  "parked",
+  "graduated",
+  "dropped",
 ];
-const DEFAULT_TAB: CandidateTab = "active_period";
+const DEFAULT_TAB: CandidateTab = "active";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -125,14 +127,7 @@ type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
 
 function candidateListTabLabel(value: CandidateTab, t: ReturnType<typeof useT>): string {
-  switch (value) {
-    case "active_period":
-      return t("candidatesPage.tab.activePeriod");
-    case "unassigned":
-      return t("candidatesPage.tab.unassigned");
-    case "completed":
-      return t("candidatesPage.tab.completed");
-  }
+  return value === "all" ? t("common.all") : candidateStatusLabel(value);
 }
 
 export type CandidateColumnId =
@@ -934,12 +929,12 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
 ];
 
 const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, CandidateColumnId[]> = {
-  active_period: [
+  all: [
     "photo",
     "name",
     "licenseClass",
     "group",
-    "groupStartDate",
+    "status",
     "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
@@ -947,23 +942,67 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "totalDebt",
     "referenceName",
   ],
-  unassigned: [
+  pre_registered: [
     "photo",
     "name",
     "phoneNumber",
     "licenseClass",
     "documents",
+    "group",
+    "status",
+    "groupStartDate",
     "totalFee",
     "totalPaid",
     "totalDebt",
     "referenceName",
   ],
-  completed: [
+  active: [
     "photo",
     "name",
     "licenseClass",
     "group",
+    "status",
+    "eSinavAttemptCount",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  parked: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "status",
+    "eSinavAttemptCount",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  graduated: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "status",
     "graduationDate",
+    "eSinavPoolStatus",
+    "totalFee",
+    "totalPaid",
+    "totalDebt",
+    "referenceName",
+  ],
+  dropped: [
+    "photo",
+    "name",
+    "licenseClass",
+    "group",
+    "status",
+    "terminationReason",
+    "terminationDate",
     "eSinavPoolStatus",
     "totalFee",
     "totalPaid",
@@ -1134,7 +1173,7 @@ export function CandidatesPage({
         tabs: defaultTabs,
         defaultTab,
         buildParams: (tab: CandidateListTabKey): Partial<GetCandidatesParams> => ({
-          candidateTab: tab as CandidateListTabValue,
+          status: tab === "all" ? undefined : tab,
         }),
       },
     [defaultTab, defaultTabs, tabConfig]
@@ -1192,7 +1231,7 @@ export function CandidatesPage({
         }
         if (eSinavAllowedColumnIds && !eSinavAllowedColumnIds.has(column.id)) return false;
         if (drivingAllowedColumnIds && !drivingAllowedColumnIds.has(column.id)) return false;
-        if (tab === "completed" && column.id === "eSinavAttemptCount") {
+        if ((tab === "graduated" || tab === "dropped") && column.id === "eSinavAttemptCount") {
           return false;
         }
         return true;

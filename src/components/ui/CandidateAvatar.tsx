@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { getDocumentApiBaseUrl } from "../../lib/api";
 import { createAuthorizedObjectUrl } from "../../lib/authorized-files";
+import { normalizeApiPathForBaseUrl } from "../../lib/http";
 import { normalizeCandidateGender } from "../../lib/status-maps";
 import type { CandidateResponse } from "../../lib/types";
 
@@ -25,13 +26,9 @@ function buildCandidatePhotoUrl(
   if (!candidate.photo?.documentId) return null;
 
   const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
-  const path = `/api/document/candidates/${candidate.id}/documents/${candidate.photo.documentId}/download`;
-  const dedupedPath =
-    base.endsWith("/api") && path.startsWith("/api/")
-      ? path.slice("/api".length)
-      : path;
+  const path = `/api/candidates/${candidate.id}/documents/${candidate.photo.documentId}/download`;
 
-  return new URL(`${base}${dedupedPath}`, window.location.origin).toString();
+  return new URL(`${base}${normalizeApiPathForBaseUrl(base, path)}`, window.location.origin).toString();
 }
 
 export function CandidateAvatar({

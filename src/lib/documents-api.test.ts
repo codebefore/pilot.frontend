@@ -46,7 +46,7 @@ describe("documents api", () => {
     await getCandidateDocuments("candidate-1");
 
     const [url] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe("http://127.0.0.1:5092/api/document/candidates/candidate-1/documents");
+    expect(String(url)).toBe("http://127.0.0.1:5092/api/candidates/candidate-1/documents");
   });
 
   it("routes checklist and ocr calls to the runtime document base url", async () => {
@@ -71,10 +71,39 @@ describe("documents api", () => {
     await analyzeCandidateDocumentOcr("candidate-1", "doc-1");
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5092/api/document/documents/candidate-checklist?page=1"
+      "http://127.0.0.1:5092/api/documents/candidate-checklist?page=1"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5092/api/document/candidates/candidate-1/documents/doc-1/ocr/read"
+      "http://127.0.0.1:5092/api/candidates/candidate-1/documents/doc-1/ocr/read"
+    );
+  });
+
+  it("normalizes document calls to v1 document gateway paths", async () => {
+    applyRuntimeConfig({
+      documentApiBaseUrl: "https://apipilot.virabyte.tr/v1/document",
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ items: [], page: 1, pageSize: 20, totalCount: 0 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ metadata: {}, confidence: null, warnings: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+    await getDocumentChecklist({ page: 1 });
+    await analyzeCandidateDocumentOcr("candidate-1", "doc-1");
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
+      "https://apipilot.virabyte.tr/v1/document/documents/candidate-checklist?page=1"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
+      "https://apipilot.virabyte.tr/v1/document/candidates/candidate-1/documents/doc-1/ocr/read"
     );
   });
 
@@ -97,10 +126,10 @@ describe("documents api", () => {
     });
 
     const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe("http://127.0.0.1:5092/api/document/candidates/candidate-1/documents");
+    expect(String(url)).toBe("http://127.0.0.1:5092/api/candidates/candidate-1/documents");
     expect(init?.method).toBe("POST");
     expect(getCandidateDocumentDownloadUrl("candidate-1", "doc-1", { inline: true })).toBe(
-      "http://127.0.0.1:5092/api/document/candidates/candidate-1/documents/doc-1/download?inline=true"
+      "http://127.0.0.1:5092/api/candidates/candidate-1/documents/doc-1/download?inline=true"
     );
   });
 });

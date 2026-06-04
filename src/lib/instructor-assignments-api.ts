@@ -6,6 +6,7 @@ import {
   httpPost,
   httpPostForm,
   httpPut,
+  normalizeApiPathForBaseUrl,
 } from "./http";
 import type {
   InstructorAssignment,
@@ -49,11 +50,7 @@ function trainingRequestOptions(signal?: AbortSignal) {
 
 function buildDocumentUrl(path: string): URL {
   const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
-  const dedupedPath =
-    base.endsWith("/api") && path.startsWith("/api/")
-      ? path.slice("/api".length)
-      : path;
-  return new URL(`${base}${dedupedPath}`, window.location.origin);
+  return new URL(`${base}${normalizeApiPathForBaseUrl(base, path)}`, window.location.origin);
 }
 
 async function unwrapDateOverlap<T>(promise: Promise<T>): Promise<T> {
@@ -128,7 +125,7 @@ export function addAssignmentDocument(
   if (body.file) form.append("file", body.file);
 
   return httpPostForm<InstructorAssignmentDocument>(
-    `/api/document/instructors/${instructorId}/assignments/${assignmentId}/documents`,
+    `/api/instructors/${instructorId}/assignments/${assignmentId}/documents`,
     form,
     documentRequestOptions()
   );
@@ -140,7 +137,7 @@ export function deleteAssignmentDocument(
   documentId: string
 ): Promise<void> {
   return httpDelete<void>(
-    `/api/document/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}`,
+    `/api/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}`,
     undefined,
     documentRequestOptions()
   );
@@ -152,6 +149,6 @@ export function getAssignmentDocumentDownloadUrl(
   assignmentId: string,
   documentId: string
 ): string {
-  const path = `/api/document/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}/file`;
+  const path = `/api/instructors/${instructorId}/assignments/${assignmentId}/documents/${documentId}/file`;
   return buildDocumentUrl(path).toString();
 }

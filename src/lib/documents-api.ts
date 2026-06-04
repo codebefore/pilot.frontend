@@ -1,5 +1,13 @@
 import { getCatalogApiBaseUrl, getDocumentApiBaseUrl } from "./api";
-import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, type QueryParams } from "./http";
+import {
+  httpDelete,
+  httpGet,
+  httpPost,
+  httpPostForm,
+  httpPut,
+  normalizeApiPathForBaseUrl,
+  type QueryParams,
+} from "./http";
 import type {
   CandidateDocumentOcrSuggestionResponse,
   DocumentMetadataField,
@@ -48,11 +56,7 @@ function catalogRequestOptions(signal?: AbortSignal) {
 
 function buildDocumentUrl(path: string): URL {
   const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
-  const dedupedPath =
-    base.endsWith("/api") && path.startsWith("/api/")
-      ? path.slice("/api".length)
-      : path;
-  return new URL(`${base}${dedupedPath}`, window.location.origin);
+  return new URL(`${base}${normalizeApiPathForBaseUrl(base, path)}`, window.location.origin);
 }
 
 interface GetDocumentTypesOptions {
@@ -181,7 +185,7 @@ export function getDocumentChecklist(
   signal?: AbortSignal
 ): Promise<PagedResponse<DocumentChecklistEntry>> {
   return httpGet<PagedResponse<DocumentChecklistEntry>>(
-    "/api/document/documents/candidate-checklist",
+    "/api/documents/candidate-checklist",
     params,
     documentRequestOptions(signal)
   );
@@ -220,7 +224,7 @@ export function uploadDocument(
     form.append("metadataJson", JSON.stringify(input.metadata));
   }
   return httpPostForm<DocumentResponse>(
-    `/api/document/candidates/${input.candidateId}/documents`,
+    `/api/candidates/${input.candidateId}/documents`,
     form,
     documentRequestOptions(signal)
   );
@@ -241,7 +245,7 @@ export function updateCandidateDocument(
   signal?: AbortSignal
 ): Promise<DocumentResponse> {
   return httpPut<DocumentResponse>(
-    `/api/document/candidates/${candidateId}/documents/${documentId}`,
+    `/api/candidates/${candidateId}/documents/${documentId}`,
     {
       note: input.note ?? null,
       metadataJson:
@@ -261,7 +265,7 @@ export function updateCandidateDocumentMebbisTransfer(
   signal?: AbortSignal
 ): Promise<DocumentResponse> {
   return httpPut<DocumentResponse>(
-    `/api/document/candidates/${candidateId}/documents/types/${documentTypeId}/mebbis`,
+    `/api/candidates/${candidateId}/documents/types/${documentTypeId}/mebbis`,
     { isMebbisTransferred },
     documentRequestOptions(signal)
   );
@@ -273,7 +277,7 @@ export function analyzeCandidateDocumentOcr(
   signal?: AbortSignal
 ): Promise<CandidateDocumentOcrSuggestionResponse> {
   return httpPost<CandidateDocumentOcrSuggestionResponse>(
-    `/api/document/candidates/${candidateId}/documents/${documentId}/ocr/read`,
+    `/api/candidates/${candidateId}/documents/${documentId}/ocr/read`,
     {},
     documentRequestOptions(signal)
   );
@@ -284,7 +288,7 @@ export function getCandidateDocuments(
   signal?: AbortSignal
 ): Promise<DocumentResponse[]> {
   return httpGet<DocumentResponse[]>(
-    `/api/document/candidates/${candidateId}/documents`,
+    `/api/candidates/${candidateId}/documents`,
     undefined,
     documentRequestOptions(signal)
   );
@@ -296,7 +300,7 @@ export function deleteCandidateDocument(
   signal?: AbortSignal
 ): Promise<void> {
   return httpDelete(
-    `/api/document/candidates/${candidateId}/documents/${documentId}`,
+    `/api/candidates/${candidateId}/documents/${documentId}`,
     undefined,
     documentRequestOptions(signal)
   );
@@ -308,7 +312,7 @@ export function getCandidateDocumentDownloadUrl(
   documentId: string,
   options?: { inline?: boolean }
 ): string {
-  const path = `/api/document/candidates/${candidateId}/documents/${documentId}/download`;
+  const path = `/api/candidates/${candidateId}/documents/${documentId}/download`;
   const url = buildDocumentUrl(path);
   if (options?.inline) {
     url.searchParams.set("inline", "true");

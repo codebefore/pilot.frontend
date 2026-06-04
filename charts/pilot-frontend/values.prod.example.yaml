@@ -10,14 +10,14 @@ image:
 runtimeConfig:
   publicUrl: https://pilot.virabyte.tr
   apiBaseUrl: https://apipilot.virabyte.tr
-  authApiBaseUrl: https://apipilot.virabyte.tr
-  candidateApiBaseUrl: https://apipilot.virabyte.tr
-  catalogApiBaseUrl: https://apipilot.virabyte.tr
-  documentApiBaseUrl: https://apipilot.virabyte.tr
-  financeApiBaseUrl: https://apipilot.virabyte.tr
-  mebbisApiBaseUrl: https://apipilot.virabyte.tr
-  platformApiBaseUrl: https://apipilot.virabyte.tr
-  trainingApiBaseUrl: https://apipilot.virabyte.tr
+  authApiBaseUrl: https://apipilot.virabyte.tr/v1/identity
+  candidateApiBaseUrl: https://apipilot.virabyte.tr/v1/candidates
+  catalogApiBaseUrl: https://apipilot.virabyte.tr/v1/catalog
+  documentApiBaseUrl: https://apipilot.virabyte.tr/v1/document
+  financeApiBaseUrl: https://apipilot.virabyte.tr/v1/finance
+  mebbisApiBaseUrl: https://apipilot.virabyte.tr/v1/mebbis
+  platformApiBaseUrl: https://apipilot.virabyte.tr/v1/platform
+  trainingApiBaseUrl: https://apipilot.virabyte.tr/v1/training
 
 resources:
   requests:

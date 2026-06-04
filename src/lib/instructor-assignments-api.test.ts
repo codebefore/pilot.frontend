@@ -53,11 +53,11 @@ describe("instructor assignments api", () => {
 
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(String(url)).toBe(
-      "http://127.0.0.1:5092/api/document/instructors/instructor-1/assignments/assignment-1/documents"
+      "http://127.0.0.1:5092/api/instructors/instructor-1/assignments/assignment-1/documents"
     );
     expect(init?.method).toBe("POST");
     expect(getAssignmentDocumentDownloadUrl("instructor-1", "assignment-1", "doc-1")).toBe(
-      "http://127.0.0.1:5092/api/document/instructors/instructor-1/assignments/assignment-1/documents/doc-1/file"
+      "http://127.0.0.1:5092/api/instructors/instructor-1/assignments/assignment-1/documents/doc-1/file"
     );
   });
 });

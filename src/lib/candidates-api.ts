@@ -37,12 +37,10 @@ export type SortDirection = "asc" | "desc";
 export type CandidateExamTabValue = "havuz" | "basarisiz" | "randevulu";
 export type ESinavTabValue = CandidateExamTabValue;
 export type CandidateExamDateType = "e_sinav" | "uygulama";
-export type CandidateListTabValue = "active_period" | "unassigned" | "completed";
 
 export interface GetCandidatesParams extends QueryParams {
   search?: string;
   status?: string;
-  candidateTab?: CandidateListTabValue;
   eSinavTab?: ESinavTabValue;
   drivingExamTab?: CandidateExamTabValue;
   eSinavDate?: string;

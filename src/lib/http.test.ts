@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, httpGet } from "./http";
+import { ApiError, httpGet, normalizeApiPathForBaseUrl } from "./http";
 import { clearStoredAuthSession, writeStoredAuthSession } from "./auth-storage";
 import { applyRuntimeConfig } from "./api";
 
@@ -9,6 +9,20 @@ describe("http client", () => {
     applyRuntimeConfig(undefined);
     clearStoredAuthSession();
     vi.restoreAllMocks();
+  });
+
+  it("normalizes legacy api paths for v1 service base urls", () => {
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/document", "/api/documents")).toBe("/documents");
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/training", "/api/training/groups")).toBe(
+      "/training/groups"
+    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/catalog", "/api/catalog/document-types")).toBe(
+      "/catalog/document-types"
+    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/identity", "/api/auth/login/request-code")).toBe(
+      "/auth/login/request-code"
+    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/candidates", "/api/candidates")).toBe("/candidates");
   });
 
   it("exposes problem details title on ApiError", async () => {

@@ -83,10 +83,7 @@ type RequestOptions = {
 function buildUrl(path: string, params?: QueryParams, baseUrl?: string): string {
   const base = (baseUrl ?? getApiBaseUrl()).replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const dedupedPath =
-    base.endsWith("/api") && normalizedPath.startsWith("/api/")
-      ? normalizedPath.slice("/api".length)
-      : normalizedPath;
+  const dedupedPath = normalizeApiPathForBaseUrl(base, normalizedPath);
   const rawUrl = `${base}${dedupedPath}`;
   const url = new URL(rawUrl, window.location.origin);
   if (params) {
@@ -105,6 +102,21 @@ function buildUrl(path: string, params?: QueryParams, baseUrl?: string): string 
     }
   }
   return url.toString();
+}
+
+export function normalizeApiPathForBaseUrl(base: string, path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (base.endsWith("/api") && normalizedPath.startsWith("/api/")) {
+    return normalizedPath.slice("/api".length);
+  }
+
+  const basePath = new URL(base, window.location.origin).pathname.replace(/\/+$/, "");
+  if (!/^\/v1\/[^/]+$/.test(basePath) || !normalizedPath.startsWith("/api/")) {
+    return normalizedPath;
+  }
+
+  return normalizedPath.slice("/api".length);
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
