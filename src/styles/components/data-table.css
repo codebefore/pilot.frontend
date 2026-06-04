@@ -477,6 +477,93 @@
   color: var(--gray-700);
   font-size: 12px;
 }
+.outbox-page {
+  min-width: 0;
+}
+.outbox-toolbar {
+  padding: 16px var(--page-shell-gutter);
+  border-bottom: 1px solid var(--gray-100);
+}
+.outbox-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.outbox-table {
+  min-width: 980px;
+  table-layout: fixed;
+}
+.outbox-table th,
+.outbox-table td {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.outbox-col-event {
+  width: 22%;
+}
+.outbox-col-service,
+.outbox-col-consumer {
+  width: 12%;
+}
+.outbox-col-aggregate {
+  width: 16%;
+}
+.outbox-col-status {
+  width: 104px;
+}
+.outbox-col-attempt {
+  width: 72px;
+}
+.outbox-col-date {
+  width: 132px;
+}
+.outbox-col-error {
+  width: auto;
+}
+.outbox-col-actions {
+  width: 104px;
+}
+.outbox-cell-identity,
+.outbox-cell-error {
+  min-width: 0;
+}
+.outbox-cell-identity > *,
+.outbox-cell-error > span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outbox-cell-identity .cell-primary,
+.outbox-cell-nowrap,
+.outbox-cell-date {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outbox-cell-identity .cell-secondary {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.outbox-cell-error > span {
+  display: -webkit-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.outbox-cell-number,
+.outbox-table .table-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.outbox-table .table-actions {
+  padding-right: 16px;
+}
+.outbox-table .table-actions .btn {
+  width: 76px;
+  justify-content: center;
+}
 .job-row-actions {
   display: flex;
   gap: 6px;

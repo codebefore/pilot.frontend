@@ -109,73 +109,75 @@ export function OutboxPage() {
       />
 
       <Panel>
-        <div className="settings-toolbar">
-          <div className="filter-row">
-            <button
-              className={activeTab === "outbox" ? "filter-chip active" : "filter-chip"}
-              onClick={() => setActiveTab("outbox")}
-              type="button"
-            >
-              Outbox
-            </button>
-            <button
-              className={activeTab === "inbox" ? "filter-chip active" : "filter-chip"}
-              onClick={() => setActiveTab("inbox")}
-              type="button"
-            >
-              Inbox
-            </button>
-            <button
-              className={activeTab === "stream" ? "filter-chip active" : "filter-chip"}
-              onClick={() => setActiveTab("stream")}
-              type="button"
-            >
-              Stream
-            </button>
-          </div>
-          {activeTab === "stream" ? null : (
+        <div className="outbox-page">
+          <div className="settings-toolbar outbox-toolbar">
             <div className="filter-row">
-              {(activeTab === "outbox" ? OUTBOX_STATUS_OPTIONS : INBOX_STATUS_OPTIONS).map((option) => (
-                <button
-                  className={
-                    (activeTab === "outbox" ? outboxStatus : inboxStatus) === option.value
-                      ? "filter-chip active"
-                      : "filter-chip"
-                  }
-                  key={option.value}
-                  onClick={() => {
-                    if (activeTab === "outbox") {
-                      setOutboxStatus(option.value as "all" | OutboxMessageStatus);
-                    } else {
-                      setInboxStatus(option.value as "all" | InboxMessageStatus);
-                    }
-                  }}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
+              <button
+                className={activeTab === "outbox" ? "filter-chip active" : "filter-chip"}
+                onClick={() => setActiveTab("outbox")}
+                type="button"
+              >
+                Outbox
+              </button>
+              <button
+                className={activeTab === "inbox" ? "filter-chip active" : "filter-chip"}
+                onClick={() => setActiveTab("inbox")}
+                type="button"
+              >
+                Inbox
+              </button>
+              <button
+                className={activeTab === "stream" ? "filter-chip active" : "filter-chip"}
+                onClick={() => setActiveTab("stream")}
+                type="button"
+              >
+                Stream
+              </button>
             </div>
+            {activeTab === "stream" ? null : (
+              <div className="filter-row">
+                {(activeTab === "outbox" ? OUTBOX_STATUS_OPTIONS : INBOX_STATUS_OPTIONS).map((option) => (
+                  <button
+                    className={
+                      (activeTab === "outbox" ? outboxStatus : inboxStatus) === option.value
+                        ? "filter-chip active"
+                        : "filter-chip"
+                    }
+                    key={option.value}
+                    onClick={() => {
+                      if (activeTab === "outbox") {
+                        setOutboxStatus(option.value as "all" | OutboxMessageStatus);
+                      } else {
+                        setInboxStatus(option.value as "all" | InboxMessageStatus);
+                      }
+                    }}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {activeTab === "outbox" ? (
+            <OutboxTable
+              messages={outboxQuery.data?.items ?? []}
+              onRetry={(id) => retryOutboxMutation.mutate(id)}
+              query={outboxQuery}
+              retryingId={retryOutboxMutation.isPending ? retryOutboxMutation.variables : undefined}
+            />
+          ) : activeTab === "inbox" ? (
+            <InboxTable
+              messages={inboxQuery.data?.items ?? []}
+              onRetry={(id) => retryInboxMutation.mutate(id)}
+              query={inboxQuery}
+              retryingId={retryInboxMutation.isPending ? retryInboxMutation.variables : undefined}
+            />
+          ) : (
+            <DomainEventStreamStatus query={streamStatusQuery} />
           )}
         </div>
-
-        {activeTab === "outbox" ? (
-          <OutboxTable
-            messages={outboxQuery.data?.items ?? []}
-            onRetry={(id) => retryOutboxMutation.mutate(id)}
-            query={outboxQuery}
-            retryingId={retryOutboxMutation.isPending ? retryOutboxMutation.variables : undefined}
-          />
-        ) : activeTab === "inbox" ? (
-          <InboxTable
-            messages={inboxQuery.data?.items ?? []}
-            onRetry={(id) => retryInboxMutation.mutate(id)}
-            query={inboxQuery}
-            retryingId={retryInboxMutation.isPending ? retryInboxMutation.variables : undefined}
-          />
-        ) : (
-          <DomainEventStreamStatus query={streamStatusQuery} />
-        )}
       </Panel>
     </>
   );
@@ -256,8 +258,18 @@ function OutboxTable({
   ) : messages.length === 0 ? (
     <div className="data-table-empty">{t("outbox.outboxEmpty")}</div>
   ) : (
-    <div className="data-table-wrap">
-      <table className="data-table">
+    <div className="data-table-wrap outbox-table-wrap">
+      <table className="data-table outbox-table">
+        <colgroup>
+          <col className="outbox-col-event" />
+          <col className="outbox-col-service" />
+          <col className="outbox-col-aggregate" />
+          <col className="outbox-col-status" />
+          <col className="outbox-col-attempt" />
+          <col className="outbox-col-date" />
+          <col className="outbox-col-error" />
+          <col className="outbox-col-actions" />
+        </colgroup>
         <thead>
           <tr>
             <th>Event</th>
@@ -298,18 +310,28 @@ function InboxTable({
 }) {
   const t = useT();
   return query.isError ? (
-          <PageLoadError
+    <PageLoadError
       description={t("outbox.inboxError")}
       onRetry={() => void query.refetch()}
-            variant="card"
-          />
+      variant="card"
+    />
   ) : query.isLoading ? (
     <div className="data-table-empty">{t("outbox.loading")}</div>
   ) : messages.length === 0 ? (
     <div className="data-table-empty">{t("outbox.inboxEmpty")}</div>
   ) : (
-    <div className="data-table-wrap">
-      <table className="data-table">
+    <div className="data-table-wrap outbox-table-wrap">
+      <table className="data-table outbox-table">
+        <colgroup>
+          <col className="outbox-col-event" />
+          <col className="outbox-col-consumer" />
+          <col className="outbox-col-service" />
+          <col className="outbox-col-status" />
+          <col className="outbox-col-attempt" />
+          <col className="outbox-col-date" />
+          <col className="outbox-col-error" />
+          <col className="outbox-col-actions" />
+        </colgroup>
         <thead>
           <tr>
             <th>Event</th>
@@ -351,21 +373,21 @@ function OutboxRow({
 
   return (
     <tr>
-      <td>
+      <td className="outbox-cell-identity">
         <div className="cell-primary">{message.eventType}</div>
         <div className="cell-secondary">{message.id}</div>
       </td>
-      <td>{message.sourceService}</td>
-      <td>
+      <td className="outbox-cell-nowrap">{message.sourceService}</td>
+      <td className="outbox-cell-identity">
         <div>{message.aggregateType ?? "-"}</div>
         <div className="cell-secondary">{message.aggregateId ?? "-"}</div>
       </td>
       <td>
         <StatusPill label={message.status} status={statusTone(message.status)} />
       </td>
-      <td>{message.attemptCount}</td>
-      <td>{formatDateTime(message.createdAtUtc)}</td>
-      <td>
+      <td className="outbox-cell-number">{message.attemptCount}</td>
+      <td className="outbox-cell-date">{formatDateTime(message.createdAtUtc)}</td>
+      <td className="outbox-cell-error">
         <span title={message.lastError ?? undefined}>{message.lastError ?? "-"}</span>
       </td>
       <td className="table-actions">
@@ -398,18 +420,18 @@ function InboxRow({
 
   return (
     <tr>
-      <td>
+      <td className="outbox-cell-identity">
         <div className="cell-primary">{message.eventType}</div>
         <div className="cell-secondary">{message.id}</div>
       </td>
-      <td>{message.consumerName}</td>
-      <td>{message.sourceService}</td>
+      <td className="outbox-cell-nowrap">{message.consumerName}</td>
+      <td className="outbox-cell-nowrap">{message.sourceService}</td>
       <td>
         <StatusPill label={message.status} status={statusTone(message.status)} />
       </td>
-      <td>{message.attemptCount}</td>
-      <td>{formatDateTime(message.receivedAtUtc)}</td>
-      <td>
+      <td className="outbox-cell-number">{message.attemptCount}</td>
+      <td className="outbox-cell-date">{formatDateTime(message.receivedAtUtc)}</td>
+      <td className="outbox-cell-error">
         <span title={message.lastError ?? undefined}>{message.lastError ?? "-"}</span>
       </td>
       <td className="table-actions">
