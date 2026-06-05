@@ -5,6 +5,8 @@ import { InstitutionSelector } from "./InstitutionSelector";
 import { NotificationsMenu } from "./NotificationsMenu";
 import { UserMenu } from "./UserMenu";
 
+const BRAND_LOGO_SRC = "/pilot.png?v=20260605";
+
 type HeaderProps = {
   activeInstitutionId: string;
   institutions: AuthInstitution[];
@@ -46,7 +48,7 @@ export function Header({
         onClick={onSidebarToggle}
         type="button"
       >
-        <img alt="Pilot" className="logo-image" src="/pilot.png" />
+        <img alt="Pilot" className="logo-image" src={BRAND_LOGO_SRC} />
       </button>
 
       <div className="header-inst-wrap">

@@ -12,6 +12,7 @@ import { useT, type TranslationKey } from "../lib/i18n";
 // Turkish mobile: starts with 5, exactly 10 digits. Reused by the schema and to
 // gate the channel buttons so they only appear once the number is well-formed.
 const PHONE_PATTERN = /^5\d{9}$/;
+const BRAND_LOGO_SRC = "/pilot.png?v=20260605";
 
 const loginSchema = z.object({
   phone: z
@@ -114,7 +115,7 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <img alt="Pilot" className="login-brand-logo" src="/pilot.png" />
+          <img alt="Pilot" className="login-brand-logo" src={BRAND_LOGO_SRC} />
         </div>
 
         <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
