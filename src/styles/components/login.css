@@ -18,13 +18,13 @@
 }
 .login-brand {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 14px;
 }
 .login-brand-logo {
   display: inline-block;
-  width: min(180px, 70%);
+  width: min(144px, 56%);
   height: auto;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 .login-brand h1 {
   font-size: 22px;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { applyApiErrorsToForm } from "../lib/form-errors";
@@ -9,8 +9,15 @@ import { ApiError } from "../lib/http";
 import { useAuth, type LoginChannel } from "../lib/auth";
 import { useT, type TranslationKey } from "../lib/i18n";
 
+// Turkish mobile: starts with 5, exactly 10 digits. Reused by the schema and to
+// gate the channel buttons so they only appear once the number is well-formed.
+const PHONE_PATTERN = /^5\d{9}$/;
+
 const loginSchema = z.object({
-  phone: z.string().min(1, "login.errors.phoneRequired"),
+  phone: z
+    .string()
+    .min(1, "login.errors.phoneRequired")
+    .regex(PHONE_PATTERN, "login.errors.phoneInvalid"),
   code: z.string().min(1, "login.errors.codeRequired"),
 });
 type LoginForm = z.infer<typeof loginSchema>;
@@ -39,16 +46,19 @@ export function LoginPage() {
     setError,
     setFocus,
     trigger,
+    watch,
   } = useForm<LoginForm>({
     defaultValues: { phone: "", code: "" },
     resolver: zodResolver(loginSchema),
   });
 
+  const phoneValue = watch("phone");
+  const isPhoneValid = PHONE_PATTERN.test(phoneValue);
+
   const from = (location.state as { from?: Location } | null)?.from?.pathname ?? "/";
 
   if (user) {
-    navigate(from, { replace: true });
-    return null;
+    return <Navigate replace to={from} />;
   }
 
   const requestCode = async (channel: LoginChannel) => {
@@ -115,6 +125,7 @@ export function LoginPage() {
               disabled={submitting || codeRequested}
               id="login-phone"
               inputMode="tel"
+              maxLength={10}
               placeholder={t("login.phonePlaceholder")}
               type="tel"
               {...register("phone")}
@@ -153,8 +164,6 @@ export function LoginPage() {
             </div>
           ) : null}
 
-          {formError && <div className="login-form-error">{formError}</div>}
-
           {codeRequested ? (
             <div className="login-actions">
               <button className="btn btn-secondary" disabled={submitting} onClick={resendCode} type="button">
@@ -164,13 +173,12 @@ export function LoginPage() {
                 {submitting ? t("login.verifying") : t("login.submit")}
               </button>
             </div>
-          ) : (
+          ) : isPhoneValid ? (
             <>
-              <span className="login-hint login-channel-hint">{t("login.channelHint")}</span>
               <div className="login-actions login-channel-actions">
                 <button
                   className="btn btn-primary login-submit"
-                  disabled={submitting}
+                  disabled
                   onClick={() => void requestCode("whatsapp")}
                   type="button"
                 >
@@ -190,7 +198,9 @@ export function LoginPage() {
                 </button>
               </div>
             </>
-          )}
+          ) : null}
+
+          {formError && <div className="login-form-error">{formError}</div>}
         </form>
       </div>
     </div>

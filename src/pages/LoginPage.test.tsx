@@ -33,29 +33,22 @@ describe("LoginPage channel selection", () => {
     localStorage.clear();
   });
 
-  it("renders two channel buttons before any code is requested", () => {
+  it("hides channel buttons until the phone is valid", () => {
     render();
 
-    expect(screen.getByRole("button", { name: /WhatsApp ile Gönder/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /SMS ile Gönder/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /WhatsApp/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /SMS/i })).not.toBeInTheDocument();
   });
 
-  it("calls requestLoginCode with channel=whatsapp when the WhatsApp button is clicked", async () => {
-    const requestLoginCode = vi.fn().mockResolvedValue({
-      phone: "5551112233",
-      expiresAtUtc: new Date(Date.now() + 5 * 60_000).toISOString(),
-    });
-
-    render(requestLoginCode);
+  it("shows WhatsApp disabled and SMS enabled when the phone is valid", () => {
+    render();
 
     fireEvent.change(screen.getByLabelText("Telefon"), {
       target: { value: "5551112233" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /WhatsApp ile Gönder/i }));
 
-    await waitFor(() => {
-      expect(requestLoginCode).toHaveBeenCalledWith("5551112233", "whatsapp");
-    });
+    expect(screen.getByRole("button", { name: /WhatsApp/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /SMS/i })).toBeEnabled();
   });
 
   it("calls requestLoginCode with channel=sms when the SMS button is clicked", async () => {
@@ -69,30 +62,11 @@ describe("LoginPage channel selection", () => {
     fireEvent.change(screen.getByLabelText("Telefon"), {
       target: { value: "5551112233" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /SMS ile Gönder/i }));
+    fireEvent.click(screen.getByRole("button", { name: /SMS/i }));
 
     await waitFor(() => {
       expect(requestLoginCode).toHaveBeenCalledWith("5551112233", "sms");
     });
-  });
-
-  it("shows the WhatsApp-flavoured code label and hint after a WhatsApp request", async () => {
-    const requestLoginCode = vi.fn().mockResolvedValue({
-      phone: "5551112233",
-      expiresAtUtc: new Date(Date.now() + 5 * 60_000).toISOString(),
-    });
-
-    render(requestLoginCode);
-
-    fireEvent.change(screen.getByLabelText("Telefon"), {
-      target: { value: "5551112233" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /WhatsApp ile Gönder/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("WhatsApp Kodu")).toBeInTheDocument();
-    });
-    expect(screen.getByText(/WhatsApp üzerinden gönderildi/i)).toBeInTheDocument();
   });
 
   it("shows the SMS-flavoured code label and hint after an SMS request", async () => {
@@ -106,7 +80,7 @@ describe("LoginPage channel selection", () => {
     fireEvent.change(screen.getByLabelText("Telefon"), {
       target: { value: "5551112233" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /SMS ile Gönder/i }));
+    fireEvent.click(screen.getByRole("button", { name: /SMS/i }));
 
     await waitFor(() => {
       expect(screen.getByText("SMS Kodu")).toBeInTheDocument();
@@ -125,7 +99,7 @@ describe("LoginPage channel selection", () => {
     fireEvent.change(screen.getByLabelText("Telefon"), {
       target: { value: "5551112233" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /SMS ile Gönder/i }));
+    fireEvent.click(screen.getByRole("button", { name: /SMS/i }));
 
     await waitFor(() => {
       expect(screen.getByText("SMS Kodu")).toBeInTheDocument();
@@ -139,15 +113,16 @@ describe("LoginPage channel selection", () => {
     expect(requestLoginCode).toHaveBeenLastCalledWith("5551112233", "sms");
   });
 
-  it("does not call requestLoginCode when the phone field is empty", async () => {
+  it("shows validation and no channel buttons when the phone is invalid", async () => {
     const requestLoginCode = vi.fn();
     render(requestLoginCode);
 
-    fireEvent.click(screen.getByRole("button", { name: /WhatsApp ile Gönder/i }));
+    fireEvent.change(screen.getByLabelText("Telefon"), {
+      target: { value: "123" },
+    });
 
-    // Schema rejects the empty phone before the mock is called.
     await waitFor(() => {
-      expect(screen.getByText("Telefon gerekli")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /SMS/i })).not.toBeInTheDocument();
     });
     expect(requestLoginCode).not.toHaveBeenCalled();
   });
