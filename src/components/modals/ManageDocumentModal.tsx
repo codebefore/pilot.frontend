@@ -27,6 +27,7 @@ import type {
 } from "../../lib/types";
 import { FileDropInput } from "../ui/FileDropInput";
 import { Modal } from "../ui/Modal";
+import { PanelListSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 import { MetadataFieldRow } from "./UploadDocumentModal";
 
@@ -442,7 +443,7 @@ export function ManageDocumentModal({
       title={t("documents.manage.title")}
     >
       {loading ? (
-        <div className="documents-manage-empty">{t("common.loading")}</div>
+        <PanelListSkeleton rows={5} />
       ) : !document ? (
         <div className="documents-manage-empty">
           {loadState === "not_found"

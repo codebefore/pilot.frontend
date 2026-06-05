@@ -5,6 +5,7 @@ import { RefreshIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
+import { PanelListSkeleton, SettingsTableSkeleton } from "../components/ui/Skeleton";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useT } from "../lib/i18n";
@@ -200,7 +201,7 @@ function DomainEventStreamStatus({
   }
 
   if (query.isLoading) {
-    return <div className="data-table-empty">{t("outbox.loading")}</div>;
+    return <PanelListSkeleton rows={3} />;
   }
 
   if (!query.data) {
@@ -254,7 +255,13 @@ function OutboxTable({
       variant="card"
     />
   ) : query.isLoading ? (
-    <div className="data-table-empty">{t("outbox.loading")}</div>
+    <div className="data-table-wrap outbox-table-wrap">
+      <table className="data-table outbox-table">
+        <tbody>
+          <SettingsTableSkeleton columns={[180, 90, 120, 72, 60, 110, 160, 64]} rows={5} />
+        </tbody>
+      </table>
+    </div>
   ) : messages.length === 0 ? (
     <div className="data-table-empty">{t("outbox.outboxEmpty")}</div>
   ) : (
@@ -316,7 +323,13 @@ function InboxTable({
       variant="card"
     />
   ) : query.isLoading ? (
-    <div className="data-table-empty">{t("outbox.loading")}</div>
+    <div className="data-table-wrap outbox-table-wrap">
+      <table className="data-table outbox-table">
+        <tbody>
+          <SettingsTableSkeleton columns={[180, 120, 90, 72, 60, 110, 160, 64]} rows={5} />
+        </tbody>
+      </table>
+    </div>
   ) : messages.length === 0 ? (
     <div className="data-table-empty">{t("outbox.inboxEmpty")}</div>
   ) : (

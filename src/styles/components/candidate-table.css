@@ -109,9 +109,15 @@
   display: inline-block;
   height: 12px;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--gray-200) 66%, transparent) 25%,
+    color-mix(in srgb, var(--gray-300) 72%, transparent) 50%,
+    color-mix(in srgb, var(--gray-200) 66%, transparent) 75%
+  );
   background-size: 800px 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  vertical-align: middle;
 }
 .skeleton-pill {
   height: 20px;
@@ -468,4 +474,3 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
 }
 .doc-bar-fill.incomplete { background: var(--orange); }
 .doc-text { font-size: 11px; color: var(--gray-500); font-weight: 600; }
-

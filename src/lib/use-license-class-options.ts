@@ -172,13 +172,14 @@ export function useInitialLicenseClassOptions() {
   return { options, loading: query.isLoading };
 }
 
-export function useExistingLicenseTypeOptions() {
+export function useExistingLicenseTypeOptions(enabled = true) {
   const t = useT();
   const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
     LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
   const query = useQuery({
     queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
     queryFn: () => getActiveLicenseClassDefinitions(),
+    enabled,
     staleTime: 5 * 60_000,
   });
   const options = useMemo(

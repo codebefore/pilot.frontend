@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { PencilIcon } from "../icons";
 import { TrainingBranchFormModal } from "../modals/TrainingBranchFormModal";
+import { SettingsTableSkeleton } from "../ui/Skeleton";
 import { StatusPill } from "../ui/StatusPill";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
@@ -15,29 +17,28 @@ export function TrainingBranchesSettingsSection() {
   const { user } = useAuth();
   const canManage = user?.isSuperAdmin ?? false;
   const [items, setItems] = useState<TrainingBranchDefinitionResponse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editing, setEditing] = useState<TrainingBranchDefinitionResponse | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    getTrainingBranchDefinitions(
-      { activity: "all", page: 1, pageSize: 100 },
-      controller.signal
-    )
-      .then((response) => setItems(response.items))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast(t("trainingBranchSettings.toast.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+  const branchesQuery = useQuery({
+    queryKey: ["settings", "training-branches", { activity: "all", page: 1, pageSize: 100 }, refreshKey],
+    queryFn: () => getTrainingBranchDefinitions({ activity: "all", page: 1, pageSize: 100 }),
+    retry: false,
+  });
+  const loading = branchesQuery.isLoading;
 
-    return () => controller.abort();
-  }, [refreshKey, showToast]);
+  useEffect(() => {
+    if (branchesQuery.data) {
+      setItems(branchesQuery.data.items);
+    }
+  }, [branchesQuery.data]);
+
+  useEffect(() => {
+    if (branchesQuery.isError) {
+      showToast(t("trainingBranchSettings.toast.loadFailed"), "error");
+    }
+  }, [branchesQuery.isError, showToast, t]);
 
   const summary = useMemo(() => {
     return {
@@ -100,9 +101,7 @@ export function TrainingBranchesSettingsSection() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={5}>Yükleniyor...</td>
-                  </tr>
+                  <SettingsTableSkeleton columns={[170, 120, 74, 72, 42]} rows={4} />
                 ) : null}
                 {!loading && items.length === 0 ? (
                   <tr>

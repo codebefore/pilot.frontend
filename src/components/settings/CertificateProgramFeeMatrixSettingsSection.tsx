@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -671,7 +672,6 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   const noPermissionTitle = t("common.noPermission");
   const [year, setYear] = useState(CURRENT_YEAR);
   const [rows, setRows] = useState<CertificateProgramFeeRowResponse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedTargets, setExpandedTargets] = useState<Set<string>>(new Set());
@@ -718,29 +718,28 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     });
   };
 
+  const matrixQuery = useQuery({
+    queryKey: ["settings", "certificate-program-fee-matrix", year, refreshKey],
+    queryFn: () => getCertificateProgramFeeMatrix(year),
+    retry: false,
+  });
+  const loading = matrixQuery.isLoading;
+
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
+    if (!matrixQuery.data) return;
+    setRows(matrixQuery.data.rows);
+    baselineRef.current = snapshotEditableFields(matrixQuery.data.rows);
+    setExpandedTargets((current) => {
+      if (current.size > 0) return current;
+      return new Set(matrixQuery.data.rows.slice(0, 40).map((row) => row.program.targetLicenseClass));
+    });
+  }, [matrixQuery.data]);
 
-    getCertificateProgramFeeMatrix(year, undefined, controller.signal)
-      .then((response) => {
-        setRows(response.rows);
-        baselineRef.current = snapshotEditableFields(response.rows);
-        setExpandedTargets((current) => {
-          if (current.size > 0) return current;
-          return new Set(response.rows.slice(0, 40).map((row) => row.program.targetLicenseClass));
-        });
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast(t("feeMatrix.toast.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [refreshKey, showToast, year]);
+  useEffect(() => {
+    if (matrixQuery.isError) {
+      showToast(t("feeMatrix.toast.loadFailed"), "error");
+    }
+  }, [matrixQuery.isError, showToast, t]);
 
   const sections = useMemo(() => {
     // Rows whose source license is "YOK" (candidates starting from scratch) are

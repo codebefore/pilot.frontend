@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import { Header } from "./components/layout/Header";
 import { Sidebar } from "./components/layout/Sidebar";
+import { PageSkeleton } from "./components/ui/Skeleton";
 import { ToastProvider, useToast } from "./components/ui/Toast";
 import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider, useT } from "./lib/i18n";
@@ -33,7 +34,7 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ de
 const TrainingPage = lazy(() => import("./pages/TrainingPage").then((m) => ({ default: m.TrainingPage })));
 
 function RouteFallback() {
-  return <div className="page-loading">Yükleniyor...</div>;
+  return <PageSkeleton />;
 }
 
 function RequireTenantPermission({

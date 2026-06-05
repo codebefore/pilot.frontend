@@ -33,6 +33,7 @@ import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { PageLoadError } from "../ui/PageLoadError";
 import { CustomSelect } from "../ui/CustomSelect";
 import { EditableRow } from "../ui/EditableRow";
+import { PanelListSkeleton } from "../ui/Skeleton";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
@@ -300,9 +301,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   return (
     <Drawer actions={actions} onClose={onClose} open title={title}>
       {loading ? (
-        <div style={{ padding: "24px 0", textAlign: "center", color: "var(--gray-500)", fontSize: 13 }}>
-          Yükleniyor...
-        </div>
+        <PanelListSkeleton rows={5} />
       ) : group ? (
         <>
           <DrawerSection title={t("groupDrawer.section.info")}>

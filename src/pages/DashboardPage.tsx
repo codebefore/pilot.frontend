@@ -16,6 +16,7 @@ import {
   PlusIcon,
 } from "../components/icons";
 import { Panel } from "../components/ui/Panel";
+import { PanelListSkeleton, SkeletonLine } from "../components/ui/Skeleton";
 import { StatCard, type StatCardTone } from "../components/ui/StatCard";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
@@ -167,7 +168,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
             label={card.label}
             sub={card.sub}
             tone={card.tone}
-            value={statsLoading ? "—" : card.value}
+            value={statsLoading ? <SkeletonLine height={30} width={86} /> : card.value}
           />
         ))}
       </div>
@@ -180,7 +181,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
             title={t("dashboard.panel.pendingTasks")}
           >
             {dashboardLoading ? (
-              <div className="panel-empty">{t("common.loading")}</div>
+              <PanelListSkeleton rows={3} />
             ) : dashboard.pendingTasks.length > 0 ? (
               dashboard.pendingTasks.map((task) => (
                 <TaskItem
@@ -201,7 +202,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
 
           <Panel title={t("dashboard.panel.recentActivity")}>
             {dashboardLoading ? (
-              <div className="panel-empty">{t("common.loading")}</div>
+              <PanelListSkeleton rows={4} />
             ) : dashboard.recentActivity.length > 0 ? (
               dashboard.recentActivity.map((event) => (
                 <div className="activity-item" key={event.id}>

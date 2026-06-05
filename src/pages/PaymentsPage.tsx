@@ -9,6 +9,7 @@ import { CustomSelect } from "../components/ui/CustomSelect";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { Modal } from "../components/ui/Modal";
 import { PageLoadError } from "../components/ui/PageLoadError";
+import { PageSkeleton } from "../components/ui/Skeleton";
 import {
   TableHeaderFilter,
   type TableHeaderFilterOption,
@@ -2906,7 +2907,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       />
 
       {loading && !overview ? (
-        <div className="page-loading">{t("payments.loading")}</div>
+        <PageSkeleton />
       ) : (
         <>
           {!isStatisticsPage ? (

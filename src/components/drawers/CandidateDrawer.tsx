@@ -54,6 +54,7 @@ import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { PageLoadError } from "../ui/PageLoadError";
 import { EditableRow } from "../ui/EditableRow";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { PanelListSkeleton } from "../ui/Skeleton";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
@@ -583,9 +584,7 @@ export function CandidateDrawer({
   return (
     <Drawer actions={actions} onClose={onClose} open title={title}>
       {loading ? (
-        <div style={{ padding: "24px 0", textAlign: "center", color: "var(--gray-500)", fontSize: 13 }}>
-          {t("candidateDrawer.loading")}
-        </div>
+        <PanelListSkeleton rows={6} />
       ) : candidate ? (
         <>
           <div className="drawer-profile-summary">

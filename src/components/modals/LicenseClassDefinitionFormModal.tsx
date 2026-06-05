@@ -169,7 +169,7 @@ export function LicenseClassDefinitionFormModal({
   const categorySelectId = useId();
   const minimumAgeId = useId();
   const notesInputId = useId();
-  const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
+  const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions(open);
 
   const {
     control,

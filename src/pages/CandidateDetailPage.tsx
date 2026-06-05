@@ -16,6 +16,7 @@ import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
 import { Modal } from "../components/ui/Modal";
+import { PanelListSkeleton, SettingsTableSkeleton, SkeletonLine } from "../components/ui/Skeleton";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import type { SelectOption } from "../components/ui/EditableRow";
 import { useToast } from "../components/ui/Toast";
@@ -3489,7 +3490,32 @@ function AccountingTab({
       <section className="instructor-detail-card">
         <h3 className="candidate-detail-section-title">{t("candidateDetail.accounting.section.summary")}</h3>
         {accountingLoading ? (
-          <div className="instructor-detail-empty">{t("candidateDetail.accounting.loading")}</div>
+          <div aria-busy="true" className="candidate-fee-summary-shell">
+            <div className="candidate-fee-summary-group">
+              <SkeletonLine height={16} width={140} />
+              <div className="candidate-finance-summary-grid candidate-course-fee-summary-cards">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div className="candidate-finance-summary-card" key={index}>
+                    <SkeletonLine height={12} width={72} />
+                    <SkeletonLine height={24} width={96 + index * 12} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="candidate-fee-summary-column candidate-fee-summary-debt-column">
+              <div className="candidate-fee-summary-group">
+                <SkeletonLine height={16} width={132} />
+                <div className="candidate-finance-summary-grid candidate-exam-debt-summary-cards">
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <div className="candidate-finance-summary-card" key={index}>
+                      <SkeletonLine height={12} width={88} />
+                      <SkeletonLine height={24} width={104} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         ) : accountingError ? (
           <div className="instructor-detail-error">{accountingError}</div>
         ) : accounting ? (
@@ -5752,7 +5778,13 @@ function CandidateExamAttemptsSection({
           ) : null}
         </div>
         {loading ? (
-          <div className="instructor-detail-empty">{t("candidateDetail.exam.loading")}</div>
+          <div className="table-wrap spaced candidate-exam-attempts-table-wrap">
+            <table className="data-table cand-table candidate-exam-attempts-table">
+              <tbody>
+                <SettingsTableSkeleton columns={[132, 54, 64, 92, 92, 64]} rows={4} />
+              </tbody>
+            </table>
+          </div>
         ) : error ? (
           <div className="instructor-detail-error">{error}</div>
         ) : (
@@ -5813,7 +5845,13 @@ function CandidateExamAttemptsSection({
           ) : null}
         </div>
         {loading ? (
-          <div className="instructor-detail-empty">{t("candidateDetail.exam.loading")}</div>
+          <div className="table-wrap spaced candidate-exam-attempts-table-wrap">
+            <table className="data-table cand-table candidate-exam-attempts-table candidate-exam-attempts-table--practice">
+              <tbody>
+                <SettingsTableSkeleton columns={[132, 86, 138, 54, 94, 94, 92, 64]} rows={4} />
+              </tbody>
+            </table>
+          </div>
         ) : error ? (
           <div className="instructor-detail-error">{error}</div>
         ) : (
@@ -6798,8 +6836,6 @@ function CandidateKCertificateSection({
       </div>
 
       {error ? <div className="instructor-detail-error">{error}</div> : null}
-      {loading ? <div className="instructor-detail-empty">{t("candidateDetail.kCertificate.loading")}</div> : null}
-
       <div className="table-wrap candidate-k-certificate-table-wrap">
         <table className="data-table candidate-k-certificate-table">
           <thead>
@@ -6813,7 +6849,9 @@ function CandidateKCertificateSection({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.length === 0 ? (
+            {loading ? (
+              <SettingsTableSkeleton columns={[100, 132, 132, 132, 74, 64]} rows={4} />
+            ) : visibleRows.length === 0 ? (
               <tr>
                 <td className="data-table-empty" colSpan={6}>
                   Adaya yazılmış direksiyon dersi bulunmuyor.
@@ -7249,7 +7287,11 @@ function DocumentsTab({
   };
 
   if (loading) {
-    return <div className="instructor-detail-card instructor-detail-empty">{t("candidateDetail.documents.loading")}</div>;
+    return (
+      <div className="instructor-detail-card">
+        <PanelListSkeleton rows={5} />
+      </div>
+    );
   }
   if (error) {
     return <div className="instructor-detail-card instructor-detail-error">{error}</div>;
@@ -9420,7 +9462,7 @@ function TrainingTab({
               {t("candidateDetail.training.hint")}
             </div>
             {calendarLoading ? (
-              <div className="instructor-detail-empty">{t("candidateDetail.training.loading")}</div>
+              <PanelListSkeleton rows={3} />
             ) : null}
             <div className="candidate-detail-calendar-wrap">
               <TrainingCalendar

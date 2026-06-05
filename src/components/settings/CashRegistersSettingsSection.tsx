@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { CashRegisterFormModal } from "../modals/CashRegisterFormModal";
@@ -125,7 +126,6 @@ export function CashRegistersSettingsSection() {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [summary, setSummary] = useState<CashRegisterListSummaryResponse>(EMPTY_SUMMARY);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
   const [filters, setFilters] = useState<CashRegisterFilters>(DEFAULT_FILTERS);
@@ -141,37 +141,39 @@ export function CashRegistersSettingsSection() {
   const columns = buildColumns(t);
   const visibleColumns = columns.filter((column) => isVisible(column.id));
 
+  const listQueryParams = useMemo(
+    () => ({
+      activity: filters.activity,
+      type: filters.type,
+      page,
+      pageSize,
+      search: search.trim() || undefined,
+      ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
+    }),
+    [filters.activity, filters.type, page, pageSize, search, sort]
+  );
+
+  const listQuery = useQuery({
+    queryKey: ["settings", "cash-registers", listQueryParams, refreshKey],
+    queryFn: () => getCashRegisters(listQueryParams),
+    retry: false,
+  });
+
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
+    if (!listQuery.data) return;
+    setItems(listQuery.data.items);
+    setTotalCount(listQuery.data.totalCount);
+    setTotalPages(listQuery.data.totalPages);
+    setSummary(listQuery.data.summary);
+  }, [listQuery.data]);
 
-    getCashRegisters(
-      {
-        activity: filters.activity,
-        type: filters.type,
-        page,
-        pageSize,
-        search: search.trim() || undefined,
-        ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
-      },
-      controller.signal
-    )
-      .then((response) => {
-        setItems(response.items);
-        setTotalCount(response.totalCount);
-        setTotalPages(response.totalPages);
-        setSummary(response.summary);
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast(t("settings.cashRegisters.toast.loadError"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+  useEffect(() => {
+    if (listQuery.isError) {
+      showToast(t("settings.cashRegisters.toast.loadError"), "error");
+    }
+  }, [listQuery.isError, showToast, t]);
 
-    return () => controller.abort();
-  }, [filters, page, pageSize, refreshKey, search, showToast, sort, t]);
+  const loading = listQuery.isLoading;
 
   const counts = useMemo(() => {
     const visibleTypes = new Set(items.map((item) => item.type));

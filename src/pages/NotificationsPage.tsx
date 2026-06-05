@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
+import { NotificationListSkeleton } from "../components/ui/Skeleton";
 import { useT } from "../lib/i18n";
 import { getNotifications, notificationTone } from "../lib/notifications-api";
 
@@ -22,9 +23,7 @@ export function NotificationsPage() {
 
       <div className="notif-page">
         {loading ? (
-          <div className="data-table-empty" style={{ padding: "48px 0", textAlign: "center" }}>
-            {t("common.loading")}
-          </div>
+          <NotificationListSkeleton />
         ) : items.length === 0 ? (
           <div className="data-table-empty" style={{ padding: "48px 0", textAlign: "center" }}>
             {t("notifPage.empty.all")}

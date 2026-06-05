@@ -36,6 +36,8 @@ describe("IntegrationsSettingsSection", () => {
     getInstitutionIntegrationsMock.mockResolvedValue({
       hasOcrApiKey: true,
       ocrApiKey: "secret-key",
+      hasWhatsAppAccessToken: true,
+      whatsAppAccessToken: null,
       updatedAtUtc: "2026-01-01T00:00:00Z",
       rowVersion: 4,
     });
@@ -78,12 +80,12 @@ describe("IntegrationsSettingsSection", () => {
     renderWithProviders(<IntegrationsSettingsSection />);
 
     expect(await screen.findByLabelText("OCR Api key")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Test Telefon/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Erişim Token")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "WhatsApp OTP" }));
 
-    expect(await screen.findByLabelText(/Test Telefon/)).toBeInTheDocument();
+    expect(await screen.findByLabelText("Erişim Token")).toHaveValue("");
     expect(screen.queryByLabelText("OCR Api key")).not.toBeInTheDocument();
-    expect(screen.getByDisplayValue("login_code")).toBeInTheDocument();
+    expect(screen.getByText("login_code")).toBeInTheDocument();
   });
 });

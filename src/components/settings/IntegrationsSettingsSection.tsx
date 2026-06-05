@@ -1,18 +1,18 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   getInstitutionIntegrations,
   getWhatsAppStatus,
-  testSendWhatsApp,
   upsertInstitutionIntegrations,
   type InstitutionIntegrationsResponse,
   type WhatsAppStatusResponse,
-  type WhatsAppTestSendResponse,
 } from "../../lib/institution-settings-api";
 import { useAuth } from "../../lib/auth";
-import { useT, currentLocale } from "../../lib/i18n";
+import { useT } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
 import { EyeIcon, EyeOffIcon } from "../icons";
+import { SettingsFormSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 
 type IntegrationTab = "ocr" | "whatsapp";
@@ -21,12 +21,10 @@ export function IntegrationsSettingsSection() {
   const t = useT();
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
-  const templateNameId = useId();
-  const templateLanguageId = useId();
+  const whatsAppAccessTokenId = useId();
   const canManageSettings = canManageArea(user, permissions, "settings");
   const noPermissionTitle = t("common.noPermission");
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [state, setState] = useState<InstitutionIntegrationsResponse | null>(
     null,
@@ -34,89 +32,58 @@ export function IntegrationsSettingsSection() {
   const [activeTab, setActiveTab] = useState<IntegrationTab>("ocr");
   const [ocrApiKey, setOcrApiKey] = useState("");
   const [showOcrApiKey, setShowOcrApiKey] = useState(false);
+  const [whatsAppAccessToken, setWhatsAppAccessToken] = useState("");
+  const [showWhatsAppAccessToken, setShowWhatsAppAccessToken] = useState(false);
 
   const [whatsAppStatus, setWhatsAppStatus] =
     useState<WhatsAppStatusResponse | null>(null);
-  const [whatsAppTestPhone, setWhatsAppTestPhone] = useState("");
-  const [whatsAppTesting, setWhatsAppTesting] = useState(false);
-  const [whatsAppLastResult, setWhatsAppLastResult] =
-    useState<WhatsAppTestSendResponse | null>(null);
+
+  const integrationsQuery = useQuery({
+    queryKey: ["settings", "integrations"],
+    queryFn: async () => {
+      const [integrations, wa] = await Promise.all([
+        getInstitutionIntegrations(),
+        getWhatsAppStatus().catch(() => null),
+      ]);
+      return { integrations, wa };
+    },
+    retry: false,
+  });
+  const loading = integrationsQuery.isLoading;
 
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
+    if (!integrationsQuery.data) return;
+    setState(integrationsQuery.data.integrations);
+    setOcrApiKey(integrationsQuery.data.integrations.ocrApiKey ?? "");
+    setWhatsAppAccessToken(integrationsQuery.data.integrations.whatsAppAccessToken ?? "");
+    setWhatsAppStatus(integrationsQuery.data.wa);
+  }, [integrationsQuery.data]);
 
-    Promise.all([
-      getInstitutionIntegrations(controller.signal),
-      getWhatsAppStatus(controller.signal).catch(() => null),
-    ])
-      .then(([integrations, wa]) => {
-        setState(integrations);
-        setOcrApiKey(integrations.ocrApiKey ?? "");
-        if (wa) setWhatsAppStatus(wa);
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError")
-          return;
-        showToast(t("settings.integrations.toast.loadError"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [showToast, t]);
-
-  const handleWhatsAppTest = async () => {
-    if (!canManageSettings) return;
-    const phone = whatsAppTestPhone.replace(/\D/g, "");
-    if (!/^5\d{9}$/.test(phone)) {
-      showToast(
-        t("settings.integrations.whatsApp.toast.invalidPhone"),
-        "error",
-      );
-      return;
+  useEffect(() => {
+    if (integrationsQuery.isError) {
+      showToast(t("settings.integrations.toast.loadError"), "error");
     }
-    setWhatsAppTesting(true);
-    setWhatsAppLastResult(null);
-    try {
-      const result = await testSendWhatsApp(phone);
-      setWhatsAppLastResult(result);
-      if (result.status === "sent") {
-        showToast(t("settings.integrations.whatsApp.toast.sent"));
-      } else {
-        showToast(
-          result.errorMessage ??
-            t("settings.integrations.whatsApp.toast.failed"),
-          "error",
-        );
-      }
-    } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : t("settings.integrations.whatsApp.toast.failed"),
-        "error",
-      );
-    } finally {
-      setWhatsAppTesting(false);
-    }
-  };
+  }, [integrationsQuery.isError, showToast, t]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageSettings) return;
-    if (saving || !ocrApiKey.trim()) return;
+    if (saving) return;
+    if (activeTab === "ocr" && !ocrApiKey.trim()) return;
+    if (activeTab === "whatsapp" && !whatsAppAccessToken.trim()) return;
 
     setSaving(true);
     try {
       const response = await upsertInstitutionIntegrations({
-        ocrApiKey: ocrApiKey.trim(),
+        ocrApiKey: ocrApiKey.trim() || null,
         clearOcrApiKey: false,
+        whatsAppAccessToken: whatsAppAccessToken.trim() || null,
+        clearWhatsAppAccessToken: false,
         rowVersion: state?.rowVersion ?? null,
       });
       setState(response);
       setOcrApiKey(response.ocrApiKey ?? "");
+      setWhatsAppAccessToken(response.whatsAppAccessToken ?? "");
       showToast(t("settings.integrations.toast.saved"));
     } catch {
       showToast(t("settings.integrations.toast.saveError"), "error");
@@ -128,9 +95,7 @@ export function IntegrationsSettingsSection() {
   if (loading) {
     return (
       <div className="settings-section-stack">
-        <section className="settings-surface">
-          <div className="settings-surface-body">{t("common.loading")}</div>
-        </section>
+        <SettingsFormSkeleton rows={4} />
       </div>
     );
   }
@@ -298,7 +263,7 @@ export function IntegrationsSettingsSection() {
                       {t("settings.integrations.whatsApp.accessTokenLabel")}
                     </label>
                     <div>
-                      {whatsAppStatus.hasAccessToken ? (
+                      {state?.hasWhatsAppAccessToken || whatsAppStatus.hasAccessToken ? (
                         <span className="status-pill status-pill-success">
                           {t("settings.integrations.whatsApp.configured")}
                         </span>
@@ -313,122 +278,86 @@ export function IntegrationsSettingsSection() {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label" htmlFor={templateNameId}>
-                      {t("settings.integrations.whatsApp.templateNameLabel")}
+                    <label className="form-label" htmlFor={whatsAppAccessTokenId}>
+                      {t("settings.integrations.whatsApp.accessTokenLabel")}
                     </label>
-                    <input
-                      id={templateNameId}
-                      className="form-input"
-                      disabled
-                      readOnly
-                      value={whatsAppStatus.templateName}
-                    />
+                    <div className="settings-secret-input">
+                      <input
+                        autoComplete="off"
+                        className="form-input"
+                        disabled={!canManageSettings}
+                        id={whatsAppAccessTokenId}
+                        onChange={(event) => setWhatsAppAccessToken(event.target.value)}
+                        placeholder={
+                          state?.hasWhatsAppAccessToken
+                            ? t(
+                                "settings.integrations.whatsApp.accessTokenPlaceholder.replace",
+                              )
+                            : t(
+                                "settings.integrations.whatsApp.accessTokenPlaceholder.new",
+                              )
+                        }
+                        type={showWhatsAppAccessToken ? "text" : "password"}
+                        value={whatsAppAccessToken}
+                      />
+                      <button
+                        aria-label={
+                          showWhatsAppAccessToken
+                            ? t("settings.integrations.ocrApiKey.hide")
+                            : t("settings.integrations.ocrApiKey.show")
+                        }
+                        className="settings-secret-toggle"
+                        disabled={!whatsAppAccessToken}
+                        onClick={() => setShowWhatsAppAccessToken((current) => !current)}
+                        title={
+                          showWhatsAppAccessToken
+                            ? t("settings.integrations.ocrApiKey.hide")
+                            : t("settings.integrations.ocrApiKey.show")
+                        }
+                        type="button"
+                      >
+                        {showWhatsAppAccessToken ? (
+                          <EyeOffIcon size={16} />
+                        ) : (
+                          <EyeIcon size={16} />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label" htmlFor={templateLanguageId}>
+                    <label className="form-label">
+                      {t("settings.integrations.whatsApp.templateNameLabel")}
+                    </label>
+                    <div className="form-readonly-value">{whatsAppStatus.templateName}</div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">
                       {t(
                         "settings.integrations.whatsApp.templateLanguageLabel",
                       )}
                     </label>
-                    <input
-                      id={templateLanguageId}
-                      className="form-input"
-                      disabled
-                      readOnly
-                      value={whatsAppStatus.templateLanguage}
-                    />
+                    <div className="form-readonly-value">{whatsAppStatus.templateLanguage}</div>
                   </div>
-                  <div className="form-group" />
                 </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="whatsapp-test-phone">
-                      {t("settings.integrations.whatsApp.testPhoneLabel")}
-                    </label>
-                    <input
-                      autoComplete="off"
-                      className="form-input"
-                      disabled={
-                        !canManageSettings ||
-                        whatsAppTesting ||
-                        !whatsAppStatus.enabled
-                      }
-                      id="whatsapp-test-phone"
-                      inputMode="numeric"
-                      maxLength={10}
-                      onChange={(event) =>
-                        setWhatsAppTestPhone(
-                          event.target.value.replace(/\D/g, "").slice(0, 10),
-                        )
-                      }
-                      placeholder="5071234567"
-                      value={whatsAppTestPhone}
-                    />
-                  </div>
-                  <div className="form-group" style={{ alignSelf: "end" }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      disabled={
-                        !canManageSettings ||
-                        whatsAppTesting ||
-                        !whatsAppStatus.enabled ||
-                        whatsAppTestPhone.length !== 10
-                      }
-                      onClick={handleWhatsAppTest}
-                      title={
-                        !whatsAppStatus.enabled
-                          ? t("settings.integrations.whatsApp.disabledTooltip")
-                          : !canManageSettings
-                            ? noPermissionTitle
-                            : undefined
-                      }
-                      type="button"
-                    >
-                      {whatsAppTesting
-                        ? t("settings.integrations.whatsApp.testButtonSending")
-                        : t("settings.integrations.whatsApp.testButton")}
-                    </button>
-                  </div>
-                  <div className="form-group" />
-                </div>
-
-                {whatsAppLastResult ? (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">
-                        {t("settings.integrations.whatsApp.lastTestLabel")}
-                      </label>
-                      <div>
-                        <span
-                          className={
-                            whatsAppLastResult.status === "sent"
-                              ? "status-pill status-pill-success"
-                              : "status-pill status-pill-danger"
-                          }
-                        >
-                          {whatsAppLastResult.status === "sent"
-                            ? t("settings.integrations.whatsApp.resultSent")
-                            : t("settings.integrations.whatsApp.resultFailed")}
-                        </span>{" "}
-                        <small>
-                          {new Date(
-                            whatsAppLastResult.sentAtUtc,
-                          ).toLocaleString(currentLocale())}
-                        </small>
-                        {whatsAppLastResult.errorMessage ? (
-                          <div className="form-error" style={{ marginTop: 6 }}>
-                            {whatsAppLastResult.errorMessage}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             )}
           </div>
         </section>
+      ) : null}
+
+      {activeTab === "whatsapp" ? (
+        <div className="settings-form-actions">
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={!canManageSettings || saving || !whatsAppAccessToken.trim()}
+            title={!canManageSettings ? noPermissionTitle : undefined}
+            type="submit"
+          >
+            {saving
+              ? t("settings.toolbar.saving")
+              : t("settings.toolbar.save")}
+          </button>
+        </div>
       ) : null}
     </form>
   );

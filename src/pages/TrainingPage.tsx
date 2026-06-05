@@ -23,6 +23,7 @@ import { useToast } from "../components/ui/Toast";
 import { Modal } from "../components/ui/Modal";
 import { BranchPickerPopover } from "../components/training/BranchPickerPopover";
 import { PracticeEducationPopover } from "../components/training/PracticeEducationPopover";
+import { PageSkeleton } from "../components/ui/Skeleton";
 import {
   calendarEventToTrainingLessonRequest,
   trainingLessonToCalendarEvent,
@@ -1490,7 +1491,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       />
 
       <div className="training-layout-wrap">
-        {loading ? <div className="empty-state">{t("training.page.loadingLessons")}</div> : null}
+        {loading ? <PageSkeleton /> : null}
         <div className="training-layout">
           <aside className="training-filters-sidebar">
           {type === "teorik" ? (

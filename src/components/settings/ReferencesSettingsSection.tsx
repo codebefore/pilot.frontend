@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { PencilIcon, TrashIcon } from "../icons";
+import { SettingsTableSkeleton } from "../ui/Skeleton";
 import { StatusPill } from "../ui/StatusPill";
 import { useToast } from "../ui/Toast";
 import {
@@ -20,8 +22,6 @@ export function ReferencesSettingsSection() {
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
-  const [items, setItems] = useState<CandidateReferenceResponse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -32,21 +32,19 @@ export function ReferencesSettingsSection() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const referencesQuery = useQuery({
+    queryKey: ["settings", "candidate-references", { includeInactive: true }, refreshKey],
+    queryFn: () => getCandidateReferences({ includeInactive: true }),
+    retry: false,
+  });
+  const items = referencesQuery.data ?? [];
+  const loading = referencesQuery.isLoading;
+
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    getCandidateReferences({ includeInactive: true })
-      .then((data) => {
-        if (!controller.signal.aborted) setItems(data);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) showToast(t("references.toast.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [refreshKey, showToast]);
+    if (referencesQuery.isError) {
+      showToast(t("references.toast.loadFailed"), "error");
+    }
+  }, [referencesQuery.isError, showToast, t]);
 
   const refresh = () => setRefreshKey((value) => value + 1);
 
@@ -210,9 +208,7 @@ export function ReferencesSettingsSection() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={3}>Yükleniyor...</td>
-                </tr>
+                <SettingsTableSkeleton columns={[180, 72, 64]} rows={4} />
               ) : null}
               {!loading && items.length === 0 ? (
                 <tr>

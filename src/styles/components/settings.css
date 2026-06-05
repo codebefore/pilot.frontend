@@ -26,6 +26,32 @@
 .data-table-row-clickable:hover {
   background: color-mix(in srgb, var(--gray-100) 60%, transparent);
 }
+.settings-form-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings-form-skeleton-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-form-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
+}
+.settings-form-skeleton-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (max-width: 760px) {
+  .settings-form-skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .instructor-detail {
   display: flex;
   flex-direction: column;
@@ -4510,4 +4536,3 @@
 .doc-due-date { font-weight: 600; }
 .doc-due-date.urgent { color: var(--red); }
 .doc-due-date.soon   { color: var(--orange); }
-

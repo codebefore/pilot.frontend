@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   deleteInstitutionLogo,
@@ -23,6 +24,7 @@ import {
 } from "../../lib/turkey-address-options";
 import { PageTabs } from "../layout/PageToolbar";
 import { CustomSelect } from "../ui/CustomSelect";
+import { SettingsFormSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 
 type GeneralFormValues = {
@@ -154,7 +156,6 @@ export function GeneralInstitutionSection() {
   const canManageSettings = canManageArea(user, permissions, "settings");
   const noPermissionTitle = t("common.noPermission");
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removingLogo, setRemovingLogo] = useState(false);
@@ -166,33 +167,30 @@ export function GeneralInstitutionSection() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const settingsQuery = useQuery({
+    queryKey: ["settings", "institution-settings"],
+    queryFn: () => getInstitutionSettings(),
+    retry: false,
+  });
+  const loading = settingsQuery.isLoading;
+
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const response = await getInstitutionSettings();
-        if (cancelled) return;
-        if (response) {
-          setServerState(response);
-          setValues(fromResponse(response));
-        } else {
-          setServerState(null);
-          setValues(EMPTY_VALUES);
-        }
-      } catch (error) {
-        if (cancelled) return;
-        showToast(t("settings.general.toast.loadError"), "error");
-        console.error(error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    if (settingsQuery.data === undefined) return;
+    if (settingsQuery.data) {
+      setServerState(settingsQuery.data);
+      setValues(fromResponse(settingsQuery.data));
+    } else {
+      setServerState(null);
+      setValues(EMPTY_VALUES);
     }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [showToast, t]);
+  }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (settingsQuery.isError) {
+      showToast(t("settings.general.toast.loadError"), "error");
+      console.error(settingsQuery.error);
+    }
+  }, [settingsQuery.error, settingsQuery.isError, showToast, t]);
 
   useEffect(() => {
     const logo = serverState?.logo;
@@ -443,9 +441,7 @@ export function GeneralInstitutionSection() {
   if (loading) {
     return (
       <div className="settings-section-stack">
-        <section className="settings-surface">
-          <div className="settings-surface-body">{t("common.loading")}</div>
-        </section>
+        <SettingsFormSkeleton rows={10} />
       </div>
     );
   }

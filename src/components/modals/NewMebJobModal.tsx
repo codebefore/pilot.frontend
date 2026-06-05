@@ -6,6 +6,7 @@ import { formatNationalId } from "../../lib/national-id";
 import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
+import { PanelListSkeleton } from "../ui/Skeleton";
 
 type NewMebJobSubmitValues = {
   jobType: string;
@@ -197,7 +198,7 @@ export function NewMebJobModal({
                 />
                 <div className="meb-modal-candidate-list">
                   {loading ? (
-                    <div className="meb-modal-candidate-empty">{t("common.loading")}</div>
+                    <PanelListSkeleton rows={4} />
                   ) : candidates.length === 0 ? (
                     <div className="meb-modal-candidate-empty">
                       {debouncedSearch ? t("newMebJob.candidateNoMatch") : t("newMebJob.candidateEmpty")}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { PencilIcon, PlusIcon } from "../icons";
 import { ClassroomFormModal } from "../modals/ClassroomFormModal";
@@ -133,7 +134,6 @@ export function ClassroomsSettingsSection() {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [summary, setSummary] = useState<ClassroomListSummaryResponse>(EMPTY_SUMMARY);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
   const [filters, setFilters] = useState<ClassroomFilters>(DEFAULT_FILTERS);
@@ -148,48 +148,51 @@ export function ClassroomsSettingsSection() {
   const columns = buildColumns(t);
   const visibleColumns = columns.filter((column) => isVisible(column.id));
 
-  useEffect(() => {
-    const controller = new AbortController();
-    getTrainingBranchDefinitions(
-      { activity: "active", page: 1, pageSize: 200 },
-      controller.signal
-    )
-      .then((response) => setBranches(response.items))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      });
-    return () => controller.abort();
-  }, []);
+  const branchesQuery = useQuery({
+    queryKey: ["settings", "classrooms", "training-branches", { activity: "active", page: 1, pageSize: 200 }],
+    queryFn: () => getTrainingBranchDefinitions({ activity: "active", page: 1, pageSize: 200 }),
+    retry: false,
+  });
 
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    const query = {
+    if (branchesQuery.data) {
+      setBranches(branchesQuery.data.items);
+    }
+  }, [branchesQuery.data]);
+
+  const listQueryParams = useMemo(
+    () => ({
       activity: filters.activity,
       branchId: filters.branchId !== "all" ? filters.branchId : undefined,
       page,
       pageSize,
       search: search.trim() || undefined,
       ...(sort ? { sortBy: sort.field, sortDir: sort.direction } : {}),
-    };
+    }),
+    [filters.activity, filters.branchId, page, pageSize, search, sort]
+  );
 
-    getClassrooms(query, controller.signal)
-      .then((response) => {
-        setItems(response.items);
-        setTotalCount(response.totalCount);
-        setTotalPages(response.totalPages);
-        setSummary(response.summary);
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast(t("settings.classrooms.toast.loadError"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+  const listQuery = useQuery({
+    queryKey: ["settings", "classrooms", listQueryParams, refreshKey],
+    queryFn: () => getClassrooms(listQueryParams),
+    retry: false,
+  });
 
-    return () => controller.abort();
-  }, [filters, page, pageSize, refreshKey, search, showToast, sort, t]);
+  useEffect(() => {
+    if (!listQuery.data) return;
+    setItems(listQuery.data.items);
+    setTotalCount(listQuery.data.totalCount);
+    setTotalPages(listQuery.data.totalPages);
+    setSummary(listQuery.data.summary);
+  }, [listQuery.data]);
+
+  useEffect(() => {
+    if (listQuery.isError) {
+      showToast(t("settings.classrooms.toast.loadError"), "error");
+    }
+  }, [listQuery.isError, showToast, t]);
+
+  const loading = listQuery.isLoading;
 
   const counts = useMemo(() => {
     const totalCapacity = items.reduce((sum, item) => sum + item.capacity, 0);

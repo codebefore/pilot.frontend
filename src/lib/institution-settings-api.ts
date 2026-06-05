@@ -78,6 +78,8 @@ export interface InstitutionSettingsUpsertRequest {
 export interface InstitutionIntegrationsResponse {
   hasOcrApiKey: boolean;
   ocrApiKey: string | null;
+  hasWhatsAppAccessToken: boolean;
+  whatsAppAccessToken: string | null;
   updatedAtUtc: string | null;
   rowVersion: number | null;
 }
@@ -85,6 +87,8 @@ export interface InstitutionIntegrationsResponse {
 export interface InstitutionIntegrationsUpsertRequest {
   ocrApiKey: string | null;
   clearOcrApiKey: boolean;
+  whatsAppAccessToken: string | null;
+  clearWhatsAppAccessToken: boolean;
   rowVersion: number | null;
 }
 
@@ -141,12 +145,6 @@ export interface WhatsAppStatusResponse {
   templateLanguage: string;
 }
 
-export interface WhatsAppTestSendResponse {
-  status: "sent" | "failed";
-  sentAtUtc: string;
-  errorMessage: string | null;
-}
-
 export function getWhatsAppStatus(
   signal?: AbortSignal
 ): Promise<WhatsAppStatusResponse> {
@@ -154,14 +152,6 @@ export function getWhatsAppStatus(
     "/api/institution-settings/integrations/whatsapp",
     undefined,
     { baseUrl: getPlatformApiBaseUrl(), signal }
-  );
-}
-
-export function testSendWhatsApp(phone: string): Promise<WhatsAppTestSendResponse> {
-  return httpPost<WhatsAppTestSendResponse>(
-    "/api/institution-settings/integrations/whatsapp/test-send",
-    { phone },
-    { baseUrl: getPlatformApiBaseUrl() }
   );
 }
 

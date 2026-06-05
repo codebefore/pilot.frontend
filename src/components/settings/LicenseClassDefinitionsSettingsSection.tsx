@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
@@ -152,7 +153,6 @@ export function LicenseClassDefinitionsSettingsSection() {
   const [totalPages, setTotalPages] = useState(0);
   const [summary, setSummary] =
     useState<LicenseClassDefinitionListSummaryResponse>(EMPTY_SUMMARY);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
   const [filters, setFilters] = useState<LicenseClassDefinitionFilters>(DEFAULT_FILTERS);
@@ -169,10 +169,8 @@ export function LicenseClassDefinitionsSettingsSection() {
     isVisible(column.id)
   );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    const query = {
+  const listQueryParams = useMemo(
+    () => ({
       activity: filters.activity,
       code: filters.code.trim() || undefined,
       page,
@@ -181,27 +179,31 @@ export function LicenseClassDefinitionsSettingsSection() {
       category: filters.category !== "all" ? filters.category : undefined,
       sortBy: sort?.field ?? "displayOrder",
       sortDir: sort?.direction ?? "asc",
-    };
+    }),
+    [filters.activity, filters.category, filters.code, page, pageSize, search, sort]
+  );
 
-    getLicenseClassDefinitions(query, controller.signal)
-      .then((response) => {
-        setItems(response.items);
-        setTotalCount(response.totalCount);
-        setTotalPages(response.totalPages);
-        setSummary(response.summary);
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        showToast(t("settings.licenseClasses.toast.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      });
+  const listQuery = useQuery({
+    queryKey: ["settings", "license-class-definitions", listQueryParams, refreshKey],
+    queryFn: () => getLicenseClassDefinitions(listQueryParams),
+    retry: false,
+  });
 
-    return () => controller.abort();
-  }, [filters, page, pageSize, refreshKey, search, showToast, sort]);
+  useEffect(() => {
+    if (!listQuery.data) return;
+    setItems(listQuery.data.items);
+    setTotalCount(listQuery.data.totalCount);
+    setTotalPages(listQuery.data.totalPages);
+    setSummary(listQuery.data.summary);
+  }, [listQuery.data]);
+
+  useEffect(() => {
+    if (listQuery.isError) {
+      showToast(t("settings.licenseClasses.toast.loadFailed"), "error");
+    }
+  }, [listQuery.isError, showToast, t]);
+
+  const loading = listQuery.isLoading;
 
   const counts = useMemo(() => {
     return {
