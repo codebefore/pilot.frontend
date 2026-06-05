@@ -287,7 +287,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     expect(updateLicenseClassDefinitionMock).not.toHaveBeenCalled();
   });
 
-  it("disables global catalog mutations for non-super-admin users", async () => {
+  it("disables global catalog mutations but allows activity toggles for settings full users", async () => {
     renderSection({
       user: {
         id: "settings-manager",
@@ -297,6 +297,34 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
         isSuperAdmin: false,
       },
       permissions: { settings: "full", training: "full" },
+    });
+    await screen.findByText("B");
+
+    expect(screen.queryByRole("button", { name: /Yeni Kural/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Düzenle" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "B durumunu pasife al" }));
+    await waitFor(() => {
+      expect(updateLicenseClassDefinitionActivityMock).toHaveBeenCalledWith(
+        "lc1",
+        {
+          isActive: false,
+          rowVersion: 1,
+        }
+      );
+    });
+    expect(screen.queryByRole("button", { name: "Sil" })).not.toBeInTheDocument();
+  });
+
+  it("disables activity toggles for settings view users", async () => {
+    renderSection({
+      user: {
+        id: "settings-viewer",
+        phone: "5000000002",
+        name: "Settings Viewer",
+        roleName: "Ayarlar Görüntüleme",
+        isSuperAdmin: false,
+      },
+      permissions: { settings: "view" },
     });
     await screen.findByText("B");
 

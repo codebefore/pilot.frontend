@@ -23,6 +23,7 @@ import {
 } from "../../lib/license-class-definition-catalog";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
+import { canManageArea } from "../../lib/permissions";
 import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import type {
   LicenseClassDefinitionCategory,
@@ -84,8 +85,9 @@ export function LicenseClassDefinitionsSettingsSection() {
   const navigate = useNavigate();
   const t = useT();
   const { showToast } = useToast();
-  const { user } = useAuth();
-  const canManage = user?.isSuperAdmin ?? false;
+  const { permissions, user } = useAuth();
+  const canManageCatalog = user?.isSuperAdmin ?? false;
+  const canManageActivity = canManageArea(user, permissions, "settings");
 
   const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
     {
@@ -121,7 +123,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       sortField: "isActive",
       renderCell: (item) => (
         <LicenseClassStatusToggle
-          disabled={togglingId === item.id || !canManage}
+          disabled={togglingId === item.id || !canManageActivity}
           item={item}
           onToggle={handleStatusToggle}
         />
@@ -260,7 +262,7 @@ export function LicenseClassDefinitionsSettingsSection() {
   };
 
   const handleDelete = async (item: LicenseClassDefinitionResponse) => {
-    if (!canManage) return;
+    if (!canManageCatalog) return;
     setDeletingId(item.id);
     try {
       await deleteLicenseClassDefinition(item.id);
@@ -279,7 +281,7 @@ export function LicenseClassDefinitionsSettingsSection() {
   };
 
   const handleStatusToggle = async (item: LicenseClassDefinitionResponse) => {
-    if (!canManage) return;
+    if (!canManageActivity) return;
     setTogglingId(item.id);
     try {
       const saved = await updateLicenseClassDefinitionActivity(item.id, {
@@ -352,7 +354,7 @@ export function LicenseClassDefinitionsSettingsSection() {
                   {t("settings.licenseClasses.button.clearFilters")}
                 </button>
               ) : null}
-              {canManage ? (
+              {canManageCatalog ? (
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={() => {
@@ -469,18 +471,18 @@ export function LicenseClassDefinitionsSettingsSection() {
                               <button
                                 aria-label={t("common.edit")}
                                 className="icon-btn"
-                                disabled={!canManage}
+                                disabled={!canManageCatalog}
                                 onClick={() => {
-                                  if (!canManage) return;
+                                  if (!canManageCatalog) return;
                                   setEditing(item);
                                   setFormOpen(true);
                                 }}
-                                title={!canManage ? "Yetkiniz yok." : t("common.edit")}
+                                title={!canManageCatalog ? "Yetkiniz yok." : t("common.edit")}
                                 type="button"
                               >
                                 <PencilIcon size={14} />
                               </button>
-                              {canManage ? (
+                              {canManageCatalog ? (
                                 <button
                                   aria-label={t("common.delete")}
                                   className="icon-btn icon-btn-danger"
@@ -519,7 +521,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       </div>
 
       <LicenseClassDefinitionFormModal
-        canManage={canManage}
+        canManage={canManageCatalog}
         editing={editing}
         onClose={() => {
           setFormOpen(false);
