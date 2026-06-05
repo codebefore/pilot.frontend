@@ -57,6 +57,7 @@ export function Header({
           activeId={activeInstitutionId}
           institutions={institutions}
           onSelect={onInstitutionChange}
+          showActiveMeta={false}
         />
       </div>
 

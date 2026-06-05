@@ -54,7 +54,7 @@ describe("Header tenant selector", () => {
       }
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Pilot Sürücü Kursu.*pilot-surucu-kursu/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Pilot Sürücü Kursu" }));
     fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*ikinci-kurum.*Personel/i }));
 
     await waitFor(() => expect(onInstitutionChange).toHaveBeenCalledWith("i2"));

@@ -134,13 +134,6 @@ export const navSections: NavSection[] = [
     headingKey: "nav.administration",
     items: [
       {
-        key: "institutions",
-        path: "/institutions",
-        labelKey: "institutionSelector.menuLabel",
-        Icon: SettingsIcon,
-        permissionAreas: ["__superadmin"],
-      },
-      {
         key: "settings",
         path: "/settings",
         labelKey: "nav.settings",
@@ -163,6 +156,18 @@ export const navSections: NavSection[] = [
         labelKey: "nav.mebJobs",
         Icon: MebIcon,
         permissionAreas: ["mebjobs"],
+      },
+    ],
+  },
+  {
+    headingKey: "nav.superAdmin",
+    items: [
+      {
+        key: "institutions",
+        path: "/institutions",
+        labelKey: "institutionSelector.menuLabel",
+        Icon: SettingsIcon,
+        permissionAreas: ["__superadmin"],
       },
       {
         key: "outbox",

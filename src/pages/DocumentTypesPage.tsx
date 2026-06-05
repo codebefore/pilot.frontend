@@ -124,7 +124,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
 
   const documentTypesQuery = useQuery<DocumentTypeResponse[]>({
     queryKey: ["documentTypes", "list", { includeInactive }],
-    queryFn: ({ signal }) => getDocumentTypes({ includeInactive }, signal),
+    queryFn: () => getDocumentTypes({ includeInactive }),
   });
 
   const items = documentTypesQuery.data ?? [];

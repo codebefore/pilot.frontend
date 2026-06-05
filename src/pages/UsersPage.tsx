@@ -170,12 +170,12 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
 
   const usersQuery = useQuery<AppUserResponse[]>({
     queryKey: ["users", "list"],
-    queryFn: ({ signal }) => getUsers({ includeInactive: true }, signal),
+    queryFn: () => getUsers({ includeInactive: true }),
   });
 
   const rolesQuery = useQuery<RoleResponse[]>({
     queryKey: ["roles", "list"],
-    queryFn: ({ signal }) => getRoles({ includeInactive: true }, signal),
+    queryFn: () => getRoles({ includeInactive: true }),
   });
 
   const users = usersQuery.data ?? [];

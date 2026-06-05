@@ -57,7 +57,7 @@ export function DashboardPage({ activeInstitution, userName }: DashboardPageProp
     isLoading: dashboardLoading,
   } = useQuery<DashboardOverviewResponse>({
     queryKey: ["dashboard", "overview"],
-    queryFn: ({ signal }) => getDashboardOverview(signal),
+    queryFn: () => getDashboardOverview(),
   });
   const [mebSyncSort, setMebSyncSort] = useState<MebSyncSortState>({
     field: "time",

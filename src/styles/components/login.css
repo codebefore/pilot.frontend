@@ -83,6 +83,17 @@
   color: var(--gray-500);
   font-size: 12px;
 }
+.login-code-timer {
+  color: var(--gray-700);
+  font-weight: 800;
+}
+.login-code-timer-danger {
+  color: var(--red, #dc2626);
+}
+.login-hint-expired {
+  color: var(--red, #dc2626);
+  font-weight: 700;
+}
 .login-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -93,4 +104,32 @@
   font-size: 14px;
   margin-top: 4px;
   justify-content: center;
+}
+.login-channel-button {
+  gap: 8px;
+}
+.login-channel-button svg {
+  flex: 0 0 auto;
+}
+.login-channel-button-whatsapp,
+.login-channel-button-whatsapp:hover,
+.login-channel-button-whatsapp:disabled,
+.login-channel-button-whatsapp:disabled:hover {
+  background: #25d366;
+  border-color: #25d366;
+  color: #fff;
+  box-shadow: none;
+}
+.login-channel-button-whatsapp:not(:disabled):hover {
+  background: #1ebe57;
+  border-color: #1ebe57;
+  box-shadow: 0 4px 12px color-mix(in srgb, #25d366 28%, transparent);
+}
+.login-channel-button-sms {
+  color: var(--blue);
+  border-color: color-mix(in srgb, var(--blue) 34%, var(--gray-200));
+}
+.login-channel-button-sms:hover {
+  background: color-mix(in srgb, var(--blue) 8%, var(--white));
+  border-color: color-mix(in srgb, var(--blue) 48%, var(--gray-200));
 }

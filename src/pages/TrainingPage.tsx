@@ -131,8 +131,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const theoryOverlayQuery = useQuery({
     queryKey: ["training", "lessons", "overlay", "teorik", overlayWindow],
-    queryFn: ({ signal }) =>
-      getTrainingLessons({ kind: "teorik", ...overlayWindow }, signal),
+    queryFn: () => getTrainingLessons({ kind: "teorik", ...overlayWindow }),
     enabled: type === "uygulama",
   });
   const theoryEventsForOverlay = useMemo<TrainingCalendarEvent[]>(
@@ -145,8 +144,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const practiceOverlayQuery = useQuery({
     queryKey: ["training", "lessons", "overlay", "uygulama", overlayWindow],
-    queryFn: ({ signal }) =>
-      getTrainingLessons({ kind: "uygulama", ...overlayWindow }, signal),
+    queryFn: () => getTrainingLessons({ kind: "uygulama", ...overlayWindow }),
     enabled: type === "teorik",
   });
   const practiceEventsForOverlay = useMemo<TrainingCalendarEvent[]>(
@@ -162,22 +160,19 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const instructorsQuery = useQuery({
     queryKey: ["training", "instructors"],
-    queryFn: ({ signal }) =>
-      getInstructors({ activity: "active", page: 1, pageSize: 100 }, signal),
+    queryFn: () => getInstructors({ activity: "active", page: 1, pageSize: 100 }),
   });
   const instructors: InstructorResponse[] = instructorsQuery.data?.items ?? [];
 
   const groupsQuery = useQuery({
     queryKey: ["training", "groups"],
-    queryFn: ({ signal }) =>
-      getGroups({ page: 1, pageSize: 100 }, signal),
+    queryFn: () => getGroups({ page: 1, pageSize: 100 }),
   });
   const groups: GroupResponse[] = groupsQuery.data?.items ?? [];
 
   const vehiclesQuery = useQuery({
     queryKey: ["training", "vehicles"],
-    queryFn: ({ signal }) =>
-      getVehicles({ activity: "active", page: 1, pageSize: 100 }, signal),
+    queryFn: () => getVehicles({ activity: "active", page: 1, pageSize: 100 }),
   });
   const vehicles: VehicleResponse[] = vehiclesQuery.data?.items ?? [];
 
@@ -186,8 +181,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // bu listeyi kullanır, hardcoded sabit kullanılmaz.
   const branchesQuery = useQuery({
     queryKey: ["training", "branches"],
-    queryFn: ({ signal }) =>
-      getTrainingBranchDefinitions({ activity: "active", pageSize: 100 }, signal),
+    queryFn: () => getTrainingBranchDefinitions({ activity: "active", pageSize: 100 }),
   });
   const branches: TrainingBranchDefinitionResponse[] = branchesQuery.data?.items ?? [];
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);

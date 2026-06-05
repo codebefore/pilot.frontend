@@ -24,10 +24,10 @@ export const groupKeys = {
   detail: (id: string) => [...groupKeys.details(), id] as const,
 };
 
-export function useGroups(filters?: GetGroupsParams, enabled = true) {
+export function useGroups(filters?: GetGroupsParams, enabled = true, consumeSignal = true) {
   return useQuery<PagedResponse<GroupResponse>>({
     queryKey: groupKeys.list(filters),
-    queryFn: ({ signal }) => getGroups(filters, signal),
+    queryFn: ({ signal }) => (consumeSignal ? getGroups(filters, signal) : getGroups(filters)),
     enabled,
   });
 }

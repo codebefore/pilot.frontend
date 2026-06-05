@@ -58,7 +58,7 @@ import { getVehicles } from "../lib/vehicles-api";
 import { getInstructors } from "../lib/instructors-api";
 import { deleteExamSchedule, updateExamSchedule } from "../lib/exam-schedules-api";
 import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-api";
-import { ApiError } from "../lib/http";
+import { ApiError, isAbortError } from "../lib/http";
 import {
   buildLicenseClassTotalSummaryItems,
   formatLicenseClassTotalSummary,
@@ -1350,11 +1350,11 @@ export function CandidatesPage({
   // Tag catalog for the filter bar. Tag mutations from within this page do
   // optimistic queryClient.setQueryData updates; cross-page mutations
   // invalidate via candidateKeys.tags() in the use-candidates mutation hooks.
-  const allTagsQuery = useCandidateTags("", 200);
+  const allTagsQuery = useCandidateTags("", 200, true, false);
   const allTags: CandidateTag[] = allTagsQuery.data ?? [];
 
   // Group catalog for the "Grup" column header filter.
-  const headerGroupCatalogQuery = useGroups({ pageSize: 200 });
+  const headerGroupCatalogQuery = useGroups({ pageSize: 200 }, true, false);
   const headerGroupCatalog: GroupResponse[] = headerGroupCatalogQuery.data?.items ?? [];
 
   const defaultVisibleColumnIds = useMemo<CandidateColumnId[]>(() => {
@@ -1761,7 +1761,7 @@ export function CandidatesPage({
     tab,
   ]);
 
-  const candidatesQuery = useCandidates(candidatesRequestParams);
+  const candidatesQuery = useCandidates(candidatesRequestParams, true, false);
   const candidates = candidatesQuery.data?.items ?? [];
   const totalPages = candidatesQuery.data?.totalPages ?? 1;
   const loading = candidatesQuery.isLoading;
@@ -1783,10 +1783,10 @@ export function CandidatesPage({
   );
 
   useEffect(() => {
-    if (candidatesQuery.isError) {
+    if (candidatesQuery.isError && !isAbortError(candidatesQuery.error)) {
       showToast(t("candidates.toast.loadFailed"), "error");
     }
-  }, [candidatesQuery.isError, showToast, t]);
+  }, [candidatesQuery.error, candidatesQuery.isError, showToast, t]);
 
   const invalidateCandidates = () => {
     void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });

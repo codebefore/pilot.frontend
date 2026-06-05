@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Sidebar } from "./Sidebar";
 import { SidebarStatsProvider } from "../../lib/sidebar-stats";
-import type { AuthInstitution } from "../../lib/auth-storage";
+import type { AuthInstitution, AuthUser } from "../../lib/auth-storage";
 import { renderWithProviders } from "../../test/render-with-providers";
 
 const getSidebarStatsMock = vi.fn();
@@ -41,7 +41,27 @@ const institutions: AuthInstitution[] = [
   },
 ];
 
-function renderSidebar(path = "/", onInstitutionChange = async () => {}) {
+const regularUser: AuthUser = {
+  id: "regular-user",
+  phone: "5551112233",
+  name: "Regular User",
+  roleName: "Kurum Yöneticisi",
+  isSuperAdmin: false,
+};
+
+const superAdminUser: AuthUser = {
+  id: "super-admin",
+  phone: "5551112233",
+  name: "Super Admin",
+  roleName: "super_admin",
+  isSuperAdmin: true,
+};
+
+function renderSidebar(
+  path = "/",
+  onInstitutionChange = async () => {},
+  user: AuthUser = regularUser
+) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[path]}>
       <SidebarStatsProvider>
@@ -56,6 +76,7 @@ function renderSidebar(path = "/", onInstitutionChange = async () => {}) {
     </MemoryRouter>,
     {
       auth: {
+        user,
         institutions,
         activeInstitution: institutions[0],
         permissions: institutions[0].permissions,
@@ -122,6 +143,42 @@ describe("Sidebar live stats", () => {
     // On error the sidebar still renders nav items but skips all badges.
     // None of the dummy zeros should appear as badge text.
     expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("hides the super admin section for regular users", async () => {
+    getSidebarStatsMock.mockResolvedValue({
+      candidates: { total: 0, active: 0 },
+      groups: { total: 0 },
+      documents: { missingCount: 0 },
+      mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
+    });
+
+    renderSidebar("/");
+
+    await waitFor(() => expect(getSidebarStatsMock).toHaveBeenCalled());
+
+    expect(screen.queryByText("Süper Admin")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Kurumlar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Outbox" })).not.toBeInTheDocument();
+  });
+
+  it("groups super admin-only links under the super admin section", async () => {
+    getSidebarStatsMock.mockResolvedValue({
+      candidates: { total: 0, active: 0 },
+      groups: { total: 0 },
+      documents: { missingCount: 0 },
+      mebJobs: { failed: 0, manualReview: 0 },
+      payments: { dueToday: 0 },
+    });
+
+    renderSidebar("/", async () => {}, superAdminUser);
+
+    await waitFor(() => expect(getSidebarStatsMock).toHaveBeenCalled());
+
+    expect(screen.getByText("Süper Admin")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Kurumlar" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Outbox" })).toBeInTheDocument();
   });
 
   it("hides documents and meb badges when their counts are zero", async () => {

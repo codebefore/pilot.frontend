@@ -41,14 +41,14 @@ export function InstitutionsPage() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [includeInactive, setIncludeInactive] = useState(true);
+  const [includeInactive, setIncludeInactive] = useState(false);
   const [editing, setEditing] = useState<InstitutionResponse | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deletingInstitutionId, setDeletingInstitutionId] = useState<string | null>(null);
 
   const institutionsQuery = useQuery({
     queryKey: ["institutions", "list", { includeInactive }],
-    queryFn: ({ signal }) => getInstitutions({ includeInactive }, signal),
+    queryFn: () => getInstitutions({ includeInactive }),
     enabled: user?.isSuperAdmin === true,
   });
 

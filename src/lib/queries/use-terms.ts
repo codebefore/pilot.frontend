@@ -22,10 +22,10 @@ export const termKeys = {
     [...termKeys.lists(), filters ?? {}] as const,
 };
 
-export function useTerms(filters?: GetTermsParams, enabled = true) {
+export function useTerms(filters?: GetTermsParams, enabled = true, consumeSignal = true) {
   return useQuery<PagedResponse<TermResponse>>({
     queryKey: termKeys.list(filters),
-    queryFn: ({ signal }) => getTerms(filters, signal),
+    queryFn: ({ signal }) => (consumeSignal ? getTerms(filters, signal) : getTerms(filters)),
     enabled,
   });
 }

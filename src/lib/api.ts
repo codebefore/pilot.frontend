@@ -16,6 +16,7 @@ declare global {
 }
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:5080";
+const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export function applyRuntimeConfig(config: Window["__APP_CONFIG__"]): void {
   window.__APP_CONFIG__ = config;
@@ -23,72 +24,88 @@ export function applyRuntimeConfig(config: Window["__APP_CONFIG__"]): void {
 
 export function getApiBaseUrl(): string {
   return (
-    window.__APP_CONFIG__?.apiBaseUrl ??
-    import.meta.env.VITE_API_BASE_URL ??
+    firstNonEmpty(
+      window.__APP_CONFIG__?.apiBaseUrl,
+      import.meta.env.VITE_API_BASE_URL
+    ) ??
     DEFAULT_API_BASE_URL
   );
 }
 
 export function getMebbisApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.mebbisApiBaseUrl ??
-    import.meta.env.VITE_MEBBIS_API_BASE_URL ??
-    getApiBaseUrl()
-  );
+  return getServiceApiBaseUrl("mebbisApiBaseUrl", "VITE_MEBBIS_API_BASE_URL", "mebbis");
 }
 
 export function getPlatformApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.platformApiBaseUrl ??
-    import.meta.env.VITE_PLATFORM_API_BASE_URL ??
-    getApiBaseUrl()
-  );
+  return getServiceApiBaseUrl("platformApiBaseUrl", "VITE_PLATFORM_API_BASE_URL", "platform");
 }
 
 export function getAuthApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.authApiBaseUrl ??
-    import.meta.env.VITE_AUTH_API_BASE_URL ??
-    getApiBaseUrl()
-  );
+  return getServiceApiBaseUrl("authApiBaseUrl", "VITE_AUTH_API_BASE_URL", "identity");
 }
 
 export function getCandidateApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.candidateApiBaseUrl ??
-    import.meta.env.VITE_CANDIDATE_API_BASE_URL ??
-    getApiBaseUrl()
-  );
+  return getServiceApiBaseUrl("candidateApiBaseUrl", "VITE_CANDIDATE_API_BASE_URL", "candidates");
 }
 
 export function getCatalogApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.catalogApiBaseUrl ??
-    import.meta.env.VITE_CATALOG_API_BASE_URL ??
-    getApiBaseUrl()
-  );
+  return getServiceApiBaseUrl("catalogApiBaseUrl", "VITE_CATALOG_API_BASE_URL", "catalog");
 }
 
 export function getDocumentApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.documentApiBaseUrl ??
-    import.meta.env.VITE_DOCUMENT_API_BASE_URL ??
-    getApiBaseUrl()
-  );
+  return getServiceApiBaseUrl("documentApiBaseUrl", "VITE_DOCUMENT_API_BASE_URL", "document");
 }
 
 export function getFinanceApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.financeApiBaseUrl ??
-    import.meta.env.VITE_FINANCE_API_BASE_URL ??
-    getApiBaseUrl()
-  );
+  return getServiceApiBaseUrl("financeApiBaseUrl", "VITE_FINANCE_API_BASE_URL", "finance");
 }
 
 export function getTrainingApiBaseUrl(): string {
-  return (
-    window.__APP_CONFIG__?.trainingApiBaseUrl ??
-    import.meta.env.VITE_TRAINING_API_BASE_URL ??
-    getApiBaseUrl()
+  return getServiceApiBaseUrl("trainingApiBaseUrl", "VITE_TRAINING_API_BASE_URL", "training");
+}
+
+function getServiceApiBaseUrl(
+  runtimeKey: keyof NonNullable<Window["__APP_CONFIG__"]>,
+  envKey: string,
+  serviceSegment: string
+): string {
+  const apiBaseUrl = getApiBaseUrl();
+  const configured = firstNonEmpty(
+    window.__APP_CONFIG__?.[runtimeKey],
+    (import.meta.env as Record<string, string | undefined>)[envKey]
   );
+
+  if (configured && configured.replace(/\/+$/, "") !== apiBaseUrl.replace(/\/+$/, "")) {
+    return configured;
+  }
+
+  return deriveGatewayServiceBaseUrl(apiBaseUrl, serviceSegment) ?? configured ?? apiBaseUrl;
+}
+
+function deriveGatewayServiceBaseUrl(apiBaseUrl: string, serviceSegment: string): string | null {
+  const parsed = new URL(apiBaseUrl, window.location.origin);
+  const pathname = parsed.pathname.replace(/\/+$/, "");
+
+  if (/^\/v1\/[^/]+$/.test(pathname)) {
+    return parsed.toString().replace(/\/+$/, "");
+  }
+
+  if (pathname !== "" && pathname !== "/" && pathname !== "/v1") {
+    return null;
+  }
+
+  if (isLocalBase(parsed) && apiBaseUrl === DEFAULT_API_BASE_URL) {
+    return null;
+  }
+
+  parsed.pathname = `${pathname === "/v1" ? "/v1" : ""}/v1/${serviceSegment}`.replace(/^\/v1\/v1\//, "/v1/");
+  return parsed.toString().replace(/\/+$/, "");
+}
+
+function isLocalBase(url: URL): boolean {
+  return LOCAL_HOSTNAMES.has(url.hostname);
+}
+
+function firstNonEmpty(...values: Array<string | undefined>): string | undefined {
+  return values.find((value) => value !== undefined && value.trim() !== "");
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -8,11 +8,25 @@ import { applyApiErrorsToForm } from "../lib/form-errors";
 import { ApiError } from "../lib/http";
 import { useAuth, type LoginChannel } from "../lib/auth";
 import { useT, type TranslationKey } from "../lib/i18n";
+import { SmsIcon, WhatsAppIcon } from "../components/icons";
 
 // Turkish mobile: starts with 5, exactly 10 digits. Reused by the schema and to
 // gate the channel buttons so they only appear once the number is well-formed.
 const PHONE_PATTERN = /^5\d{9}$/;
 const BRAND_LOGO_SRC = "/pilot.png?v=20260605";
+
+function remainingSecondsUntil(expiresAt: string | null): number | null {
+  if (!expiresAt) return null;
+  const expiresAtMs = Date.parse(expiresAt);
+  if (Number.isNaN(expiresAtMs)) return null;
+  return Math.max(0, Math.ceil((expiresAtMs - Date.now()) / 1000));
+}
+
+function formatRemaining(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const restSeconds = seconds % 60;
+  return `${minutes}:${restSeconds.toString().padStart(2, "0")}`;
+}
 
 const loginSchema = z.object({
   phone: z
@@ -31,6 +45,7 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [codeRequested, setCodeRequested] = useState(false);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   // Which channel ("whatsapp" | "sms") the most recent request used. Drives the
   // resend button, code label, and "code sent" hint after the first request.
@@ -55,8 +70,21 @@ export function LoginPage() {
 
   const phoneValue = watch("phone");
   const isPhoneValid = PHONE_PATTERN.test(phoneValue);
+  const isCodeExpired = codeRequested && remainingSeconds === 0;
+  const isCodeExpiringSoon = remainingSeconds !== null && remainingSeconds > 0 && remainingSeconds <= 20;
 
   const from = (location.state as { from?: Location } | null)?.from?.pathname ?? "/";
+
+  useEffect(() => {
+    setRemainingSeconds(remainingSecondsUntil(expiresAt));
+    if (!expiresAt) return;
+
+    const timerId = window.setInterval(() => {
+      setRemainingSeconds(remainingSecondsUntil(expiresAt));
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [expiresAt]);
 
   if (user) {
     return <Navigate replace to={from} />;
@@ -77,6 +105,7 @@ export function LoginPage() {
       setSelectedChannel(channel);
       setCodeRequested(true);
       setExpiresAt(response.expiresAtUtc);
+      setRemainingSeconds(remainingSecondsUntil(response.expiresAtUtc));
       setFocus("code");
     } catch (err) {
       setFormError(err instanceof Error ? err.message : t("login.errors.failed"));
@@ -93,6 +122,10 @@ export function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     setFormError(null);
+    if (isCodeExpired) {
+      setFormError(t("login.errors.codeExpired"));
+      return;
+    }
     setSubmitting(true);
     try {
       await login(data.phone, data.code);
@@ -154,12 +187,22 @@ export function LoginPage() {
               />
               {errors.code && <span className="login-error">{t((errors.code.message ?? "") as TranslationKey)}</span>}
               {expiresAt ? (
-                <span className="login-hint">
-                  {selectedChannel === "sms"
-                    ? t("login.codeSent.sms")
-                    : selectedChannel === "whatsapp"
-                      ? t("login.codeSent.whatsapp")
-                      : t("login.codeSent")}
+                <span className={`login-hint${isCodeExpired ? " login-hint-expired" : ""}`}>
+                  {isCodeExpired
+                    ? t("login.codeExpired")
+                    : (
+                        <>
+                          {selectedChannel === "sms"
+                            ? t("login.codeSent.sms")
+                            : selectedChannel === "whatsapp"
+                              ? t("login.codeSent.whatsapp")
+                              : t("login.codeSent")}{" "}
+                          <span className={`login-code-timer${isCodeExpiringSoon ? " login-code-timer-danger" : ""}`}>
+                            {formatRemaining(remainingSeconds ?? 0)}
+                          </span>{" "}
+                          {t("login.codeSentTimerSuffix")}
+                        </>
+                      )}
                 </span>
               ) : null}
             </div>
@@ -170,7 +213,7 @@ export function LoginPage() {
               <button className="btn btn-secondary" disabled={submitting} onClick={resendCode} type="button">
                 {t("login.resendCode")}
               </button>
-              <button className="btn btn-primary login-submit" disabled={submitting} type="submit">
+              <button className="btn btn-primary login-submit" disabled={submitting || isCodeExpired} type="submit">
                 {submitting ? t("login.verifying") : t("login.submit")}
               </button>
             </div>
@@ -178,21 +221,23 @@ export function LoginPage() {
             <>
               <div className="login-actions login-channel-actions">
                 <button
-                  className="btn btn-primary login-submit"
+                  className="btn btn-primary login-submit login-channel-button login-channel-button-whatsapp"
                   disabled
                   onClick={() => void requestCode("whatsapp")}
                   type="button"
                 >
+                  <WhatsAppIcon size={16} />
                   {pendingChannel === "whatsapp"
                     ? t("login.sendingCode.whatsapp")
                     : t("login.sendCode.whatsapp")}
                 </button>
                 <button
-                  className="btn btn-secondary login-submit"
+                  className="btn btn-secondary login-submit login-channel-button login-channel-button-sms"
                   disabled={submitting}
                   onClick={() => void requestCode("sms")}
                   type="button"
                 >
+                  <SmsIcon size={16} />
                   {pendingChannel === "sms"
                     ? t("login.sendingCode.sms")
                     : t("login.sendCode.sms")}

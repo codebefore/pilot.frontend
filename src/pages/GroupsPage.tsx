@@ -15,7 +15,7 @@ import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { parseGroupTitle } from "../lib/group-code";
 import { getGroups } from "../lib/groups-api";
-import { ApiError } from "../lib/http";
+import { ApiError, isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
 import { groupKeys } from "../lib/queries/use-groups";
@@ -136,7 +136,7 @@ async function loadAllGroups(
   termId: string | undefined,
   search: string | undefined,
   mebStatus: string | undefined,
-  signal: AbortSignal
+  signal?: AbortSignal
 ): Promise<GroupResponse[]> {
   const baseParams = {
     pageSize: GROUP_FETCH_PAGE_SIZE,
@@ -144,13 +144,13 @@ async function loadAllGroups(
     ...(search ? { search } : {}),
     ...(mebStatus ? { mebStatus } : {}),
   };
-  const firstPage = await getGroups(
-    {
-      ...baseParams,
-      page: 1,
-    },
-    signal
-  );
+  const firstPageParams = {
+    ...baseParams,
+    page: 1,
+  };
+  const firstPage = await (signal
+    ? getGroups(firstPageParams, signal)
+    : getGroups(firstPageParams));
 
   if (firstPage.totalPages <= 1) {
     return firstPage.items;
@@ -158,13 +158,13 @@ async function loadAllGroups(
 
   const remainingPages = await Promise.all(
     Array.from({ length: firstPage.totalPages - 1 }, (_, index) =>
-      getGroups(
-        {
+      {
+        const params = {
           ...baseParams,
           page: index + 2,
-        },
-        signal
-      )
+        };
+        return signal ? getGroups(params, signal) : getGroups(params);
+      }
     )
   );
 
@@ -216,8 +216,6 @@ export function GroupsPage() {
     DEFAULT_VISIBLE_GROUP_COLUMN_IDS
   );
 
-  const [terms, setTerms] = useState<TermResponse[]>([]);
-  const [termsLoading, setTermsLoading] = useState(true);
   const [termRefreshKey, setTermRefreshKey] = useState(0);
   const [selectedTermId, setSelectedTermId] = useState<string>("");
   const [termModalState, setTermModalState] = useState<{ mode: "create" | "edit"; term: TermResponse | null } | null>(null);
@@ -242,28 +240,28 @@ export function GroupsPage() {
 
   /* ── Terms ───────────────────────────────────────────── */
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setTermsLoading(true);
-    getTerms({ pageSize: 200 }, controller.signal)
-      .then((result) => {
-        const sorted = [...result.items].sort(compareTermsDesc);
-        setTerms(sorted);
-        setSelectedTermId((prev) =>
-          prev && sorted.some((term) => term.id === prev) ? prev : ""
-        );
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        showToast(t("terms.loadFailed"), "error");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setTermsLoading(false);
-      });
-    return () => controller.abort();
-  }, [termRefreshKey, showToast, t]);
+  const termsQuery = useQuery({
+    queryKey: ["terms", "list", { pageSize: 200 }, termRefreshKey],
+    queryFn: () => getTerms({ pageSize: 200 }),
+  });
+  const sortedTerms = useMemo(
+    () => [...(termsQuery.data?.items ?? [])].sort(compareTermsDesc),
+    [termsQuery.data]
+  );
+  const termsLoading = termsQuery.isLoading;
 
-  const sortedTerms = useMemo(() => [...terms].sort(compareTermsDesc), [terms]);
+  useEffect(() => {
+    if (termsQuery.isError && !isAbortError(termsQuery.error)) {
+      showToast(t("terms.loadFailed"), "error");
+    }
+  }, [showToast, t, termsQuery.error, termsQuery.isError]);
+
+  useEffect(() => {
+    if (!termsQuery.data) return;
+    setSelectedTermId((prev) =>
+      prev && sortedTerms.some((term) => term.id === prev) ? prev : ""
+    );
+  }, [sortedTerms, termsQuery.data]);
   const selectedTerm = useMemo(
     () => sortedTerms.find((t) => t.id === selectedTermId) ?? null,
     [sortedTerms, selectedTermId]
@@ -321,22 +319,21 @@ export function GroupsPage() {
       "all-pages",
       { termId: selectedTermId || undefined, search: effectiveSearch, mebStatus: selectedMebStatus || undefined },
     ],
-    queryFn: ({ signal }) =>
+    queryFn: () =>
       loadAllGroups(
         selectedTermId || undefined,
         effectiveSearch,
-        selectedMebStatus || undefined,
-        signal
+        selectedMebStatus || undefined
       ),
   });
   const groups = useMemo<GroupResponse[]>(() => groupsQuery.data ?? [], [groupsQuery.data]);
   const loading = groupsQuery.isLoading;
 
   useEffect(() => {
-    if (groupsQuery.isError) {
+    if (groupsQuery.isError && !isAbortError(groupsQuery.error)) {
       showToast(t("groups.loadFailed"), "error");
     }
-  }, [groupsQuery.isError, showToast, t]);
+  }, [groupsQuery.error, groupsQuery.isError, showToast, t]);
 
   const handleGroupCreated = () => {
     setModalOpen(false);
@@ -485,7 +482,7 @@ export function GroupsPage() {
   };
 
   const renderTermSectionHeader = (section: GroupTermSection) => {
-    const fullTerm = terms.find((term) => term.id === section.term.id);
+    const fullTerm = sortedTerms.find((term) => term.id === section.term.id);
     const licenseClassCounts = fullTerm?.licenseClassCounts ?? [];
     return (
       <div className="group-term-section-header">

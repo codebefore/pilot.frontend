@@ -31,6 +31,7 @@ import {
   createCandidateTag,
 } from "../lib/candidates-api";
 import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
+import { isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
 import { useCandidateTags } from "../lib/queries/use-candidates";
@@ -197,19 +198,22 @@ export function DocumentsPage() {
   // --- React Query: document types ---
   const { data: documentTypes = [] } = useQuery<DocumentTypeResponse[]>({
     queryKey: ["documents", "types"],
-    queryFn: ({ signal }) =>
-      getDocumentTypes(undefined, signal).catch((err) => {
+    queryFn: () =>
+      getDocumentTypes().catch((err) => {
+        if (isAbortError(err)) {
+          throw err;
+        }
         showToast(t("uploadDoc.errors.typesLoadFailed"), "error");
         throw err;
       }),
   });
 
   // --- React Query: groups for bulk actions and Dönem filter ---
-  const { data: bulkGroupsData, isLoading: bulkGroupLoading } = useGroups({ pageSize: 200 });
+  const { data: bulkGroupsData, isLoading: bulkGroupLoading } = useGroups({ pageSize: 200 }, true, false);
   const bulkGroupOptions: GroupResponse[] = bulkGroupsData?.items ?? [];
 
   // --- React Query: candidate tags for filter chips ---
-  const { data: tagsData } = useCandidateTags("", 200);
+  const { data: tagsData } = useCandidateTags("", 200, true, false);
 
   // Sync fetched tags into local state so mutations (create/rename/delete) can
   // update the list without a full refetch.
@@ -260,8 +264,11 @@ export function DocumentsPage() {
     isFetching: loading,
   } = useQuery({
     queryKey: ["documents", "list", checklistParams],
-    queryFn: ({ signal }) =>
-      getDocumentChecklist(checklistParams, signal).catch((err) => {
+    queryFn: () =>
+      getDocumentChecklist(checklistParams).catch((err) => {
+        if (isAbortError(err)) {
+          throw err;
+        }
         showToast(t("documents.loadFailed"), "error");
         throw err;
       }),
@@ -282,15 +289,15 @@ export function DocumentsPage() {
 
   const { data: tabCountAll } = useQuery({
     queryKey: ["documents", "tabCount", "all", baseCountParams],
-    queryFn: ({ signal }) => getDocumentChecklist(baseCountParams, signal),
+    queryFn: () => getDocumentChecklist(baseCountParams),
   });
   const { data: tabCountMissing } = useQuery({
     queryKey: ["documents", "tabCount", "missing", baseCountParams],
-    queryFn: ({ signal }) => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: true }, signal),
+    queryFn: () => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: true }),
   });
   const { data: tabCountComplete } = useQuery({
     queryKey: ["documents", "tabCount", "complete", baseCountParams],
-    queryFn: ({ signal }) => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: false }, signal),
+    queryFn: () => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: false }),
   });
   const tabCounts = {
     all: tabCountAll?.totalCount ?? 0,

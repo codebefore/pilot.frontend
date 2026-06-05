@@ -1325,7 +1325,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     isError: loadError,
   } = useQuery({
     queryKey: ["payments", "overview", overviewQueryParams],
-    queryFn: ({ signal }) => getPaymentsOverview(overviewQueryParams, signal),
+    queryFn: () => getPaymentsOverview(overviewQueryParams),
     staleTime: 0,
   });
 

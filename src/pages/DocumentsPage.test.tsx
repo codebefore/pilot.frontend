@@ -102,8 +102,7 @@ describe("DocumentsPage", () => {
         expect.objectContaining({
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
     expect(checklistPageCalls()[0]?.[0]).not.toHaveProperty("candidateStatus");
@@ -126,7 +125,6 @@ describe("DocumentsPage", () => {
           search: "Ayse",
           page: 1,
         }),
-        expect.any(AbortSignal),
       ]);
     });
   });
@@ -155,7 +153,6 @@ describe("DocumentsPage", () => {
           search: "Ay",
           page: 1,
         }),
-        expect.any(AbortSignal),
       ]);
     });
   });
@@ -174,7 +171,6 @@ describe("DocumentsPage", () => {
           page: 1,
           pageSize: 10,
         }),
-        expect.any(AbortSignal),
       ]);
     });
 
@@ -187,7 +183,6 @@ describe("DocumentsPage", () => {
           page: 1,
           pageSize: 10,
         }),
-        expect.any(AbortSignal),
       ]);
     });
   });

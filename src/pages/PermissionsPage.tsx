@@ -9,7 +9,7 @@ import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
-import { ApiError } from "../lib/http";
+import { ApiError, isAbortError } from "../lib/http";
 import { useT, type TranslationKey } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
 import {
@@ -72,12 +72,12 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
 
   const rolesQuery = useQuery<RoleResponse[]>({
     queryKey: ["roles", "list", { includeInactive: false }],
-    queryFn: ({ signal }) => getRoles({ includeInactive: false }, signal),
+    queryFn: () => getRoles({ includeInactive: false }),
   });
 
   const areasQuery = useQuery<PermissionAreasResponse>({
     queryKey: ["permissionAreas", "list"],
-    queryFn: ({ signal }) => getPermissionAreas(signal),
+    queryFn: () => getPermissionAreas(),
   });
 
   const rawRoles = rolesQuery.data ?? [];
@@ -145,11 +145,11 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   // for this role so refetching adjacent queries (e.g. areas after a retry)
   // does not double-fire the toast.
   useEffect(() => {
-    if (rolePermissionsQuery.isError && selectedRoleId) {
+    if (rolePermissionsQuery.isError && selectedRoleId && !isAbortError(rolePermissionsQuery.error)) {
       showToast(t("permissions.toast.loadFailed"), "error");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rolePermissionsQuery.isError, selectedRoleId]);
+  }, [rolePermissionsQuery.error, rolePermissionsQuery.isError, selectedRoleId]);
 
   const applyLoadedMatrix = (
     areaList: string[],

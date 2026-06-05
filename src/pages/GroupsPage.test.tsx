@@ -72,6 +72,17 @@ const term2 = {
   updatedAtUtc: "2026-01-02T00:00:00Z",
 };
 
+async function selectTermOption(value: string) {
+  const select = await screen.findByLabelText("Dönem");
+  if (!(select instanceof HTMLSelectElement)) throw new Error("term select not found");
+  await waitFor(() => {
+    expect(select.querySelector(`option[value="${value}"]`)).toBeInTheDocument();
+  });
+  const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+  valueSetter?.call(select, value);
+  fireEvent.change(select, { target: { value } });
+}
+
 describe("GroupsPage", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -109,8 +120,7 @@ describe("GroupsPage", () => {
         expect.objectContaining({
           page: 1,
           pageSize: 100,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 
@@ -188,16 +198,14 @@ describe("GroupsPage", () => {
       expect.objectContaining({
         page: 1,
         pageSize: 100,
-      }),
-      expect.any(AbortSignal)
+      })
     );
     expect(getGroupsMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         page: 2,
         pageSize: 100,
-      }),
-      expect.any(AbortSignal)
+      })
     );
     expect(getGroupsMock.mock.calls[0]?.[0]).not.toHaveProperty("termId");
     expect(getGroupsMock.mock.calls[1]?.[0]).not.toHaveProperty("termId");
@@ -214,8 +222,7 @@ describe("GroupsPage", () => {
       expect.objectContaining({
         page: 1,
         pageSize: 100,
-      }),
-      expect.any(AbortSignal)
+      })
     );
     const lastParams = getGroupsMock.mock.calls[getGroupsMock.mock.calls.length - 1]?.[0];
     expect(lastParams).not.toHaveProperty("mebStatus");
@@ -236,8 +243,7 @@ describe("GroupsPage", () => {
           mebStatus: "sent",
           page: 1,
           pageSize: 100,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -263,8 +269,7 @@ describe("GroupsPage", () => {
           search: "1A",
           page: 1,
           pageSize: 100,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -305,7 +310,7 @@ describe("GroupsPage", () => {
 
     expect(await screen.findByLabelText("Dönem")).toHaveValue("");
 
-    fireEvent.change(screen.getByLabelText("Dönem"), { target: { value: "term-2" } });
+    await selectTermOption("term-2");
 
     await waitFor(() => {
       expect(getGroupsMock).toHaveBeenCalledWith(
@@ -313,8 +318,7 @@ describe("GroupsPage", () => {
           termId: "term-2",
           page: 1,
           pageSize: 100,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -324,7 +328,7 @@ describe("GroupsPage", () => {
 
     expect(screen.queryByRole("button", { name: "Düzenle" })).not.toBeInTheDocument();
 
-    fireEvent.change(await screen.findByLabelText("Dönem"), { target: { value: "term-1" } });
+    await selectTermOption("term-1");
 
     expect(await screen.findByRole("button", { name: "Düzenle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sil" })).toBeInTheDocument();
@@ -695,7 +699,7 @@ describe("GroupsPage", () => {
 
     renderWithProviders(<GroupsPage />);
 
-    fireEvent.change(await screen.findByLabelText("Dönem"), { target: { value: "term-1" } });
+    await selectTermOption("term-1");
     expect(await screen.findByRole("button", { name: "Sil" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sil" }));
     fireEvent.click(screen.getByRole("button", { name: "Sil" }));

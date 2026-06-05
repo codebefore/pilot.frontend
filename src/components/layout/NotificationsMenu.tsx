@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
@@ -15,8 +16,12 @@ export function NotificationsMenu() {
   const t = useT();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<NotificationResponse[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+  const notificationsQuery = useQuery({
+    queryKey: ["notifications", "list"],
+    queryFn: () => getNotifications(),
+    refetchInterval: REFRESH_INTERVAL_MS,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -27,27 +32,7 @@ export function NotificationsMenu() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
-    const load = () => {
-      getNotifications(controller.signal)
-        .then((response) => {
-          if (!cancelled) setItems(response.items);
-        })
-        .catch(() => {
-          /* keep last known list silently — bell isn't critical */
-        });
-    };
-    load();
-    const id = window.setInterval(load, REFRESH_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      controller.abort();
-      window.clearInterval(id);
-    };
-  }, []);
-
+  const items: NotificationResponse[] = notificationsQuery.data?.items ?? [];
   const unreadCount = items.length;
   const visibleItems = items.slice(0, 5);
 

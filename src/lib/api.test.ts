@@ -57,6 +57,30 @@ describe("service api base urls", () => {
     expect(getPlatformApiBaseUrl()).toBe("http://127.0.0.1:5097");
   });
 
+  it("derives v1 service base urls from a gateway API base URL when service-specific config is not set", () => {
+    applyRuntimeConfig({ apiBaseUrl: "https://api.pilotyanimda.com" });
+
+    expect(getAuthApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/identity");
+    expect(getCandidateApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/candidates");
+    expect(getCatalogApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/catalog");
+    expect(getDocumentApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/document");
+    expect(getFinanceApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/finance");
+    expect(getMebbisApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/mebbis");
+    expect(getPlatformApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/platform");
+    expect(getTrainingApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/training");
+  });
+
+  it("derives v1 service base urls when runtime service config falls back to the generic gateway API base URL", () => {
+    applyRuntimeConfig({
+      apiBaseUrl: "https://api.pilotyanimda.com",
+      authApiBaseUrl: "https://api.pilotyanimda.com",
+      platformApiBaseUrl: "https://api.pilotyanimda.com",
+    });
+
+    expect(getAuthApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/identity");
+    expect(getPlatformApiBaseUrl()).toBe("https://api.pilotyanimda.com/v1/platform");
+  });
+
   it("keeps container runtime config template aligned with service-specific env vars", () => {
     const expectedPairs = [
       ["authApiBaseUrl", "VITE_AUTH_API_BASE_URL"],

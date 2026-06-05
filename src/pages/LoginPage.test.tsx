@@ -54,7 +54,7 @@ describe("LoginPage channel selection", () => {
   it("calls requestLoginCode with channel=sms when the SMS button is clicked", async () => {
     const requestLoginCode = vi.fn().mockResolvedValue({
       phone: "5551112233",
-      expiresAtUtc: new Date(Date.now() + 5 * 60_000).toISOString(),
+      expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
     });
 
     render(requestLoginCode);
@@ -72,7 +72,7 @@ describe("LoginPage channel selection", () => {
   it("shows the SMS-flavoured code label and hint after an SMS request", async () => {
     const requestLoginCode = vi.fn().mockResolvedValue({
       phone: "5551112233",
-      expiresAtUtc: new Date(Date.now() + 5 * 60_000).toISOString(),
+      expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
     });
 
     render(requestLoginCode);
@@ -86,12 +86,13 @@ describe("LoginPage channel selection", () => {
       expect(screen.getByText("SMS Kodu")).toBeInTheDocument();
     });
     expect(screen.getByText(/SMS olarak gönderildi/i)).toBeInTheDocument();
+    expect(screen.getByText(/0:59|1:00/i)).toBeInTheDocument();
   });
 
   it("resend uses the channel originally selected", async () => {
     const requestLoginCode = vi.fn().mockResolvedValue({
       phone: "5551112233",
-      expiresAtUtc: new Date(Date.now() + 5 * 60_000).toISOString(),
+      expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
     });
 
     render(requestLoginCode);
@@ -111,6 +112,34 @@ describe("LoginPage channel selection", () => {
       expect(requestLoginCode).toHaveBeenCalledTimes(2);
     });
     expect(requestLoginCode).toHaveBeenLastCalledWith("5551112233", "sms");
+  });
+
+  it("disables verification when the SMS code is expired", async () => {
+    const requestLoginCode = vi.fn().mockResolvedValue({
+      phone: "5551112233",
+      expiresAtUtc: new Date(Date.now() - 1000).toISOString(),
+    });
+    const login = vi.fn();
+
+    render(requestLoginCode, login);
+
+    fireEvent.change(screen.getByLabelText("Telefon"), {
+      target: { value: "5551112233" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /SMS/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Kodun süresi doldu/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("SMS Kodu"), {
+      target: { value: "123456" },
+    });
+
+    const submit = screen.getByRole("button", { name: /Giriş Yap/i });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(login).not.toHaveBeenCalled();
   });
 
   it("shows validation and no channel buttons when the phone is invalid", async () => {

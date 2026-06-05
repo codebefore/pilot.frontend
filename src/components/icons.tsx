@@ -336,6 +336,16 @@ export const WhatsAppIcon = (p?: IconProps) => {
   );
 };
 
+export const SmsIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />,
+      <line key="2" x1="8" y1="9" x2="16" y2="9" />,
+      <line key="3" x1="8" y1="13" x2="13" y2="13" />,
+    ],
+    p
+  );
+
 export const LogoutIcon = (p?: IconProps) =>
   svg(
     [

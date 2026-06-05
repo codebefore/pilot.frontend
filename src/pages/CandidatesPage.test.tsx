@@ -269,8 +269,7 @@ describe("CandidatesPage tabs", () => {
           eSinavTab: "basarisiz",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 
@@ -283,8 +282,7 @@ describe("CandidatesPage tabs", () => {
           eSinavTab: "randevulu",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -321,8 +319,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamTab: "basarisiz",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 
@@ -335,8 +332,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamTab: "randevulu",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -369,8 +365,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamCode: "100000001",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
     const codeQuery = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
@@ -386,8 +381,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamTab: "havuz",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
     const dateQuery = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
@@ -606,8 +600,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-05-12",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -678,8 +671,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamDate: "2026-06-03",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
     expect(getExamScheduleOptionsMock).toHaveBeenCalledTimes(scheduleOptionCallCount);
@@ -839,8 +831,7 @@ describe("CandidatesPage tabs", () => {
           status: "graduated",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -884,8 +875,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           search: "Ay",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -1894,8 +1884,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-05-12",
           page: 1,
           pageSize: 10,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 
@@ -2054,8 +2043,7 @@ describe("CandidatesPage sorting", () => {
           sortBy: "name",
           sortDir: "asc",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 
@@ -2067,8 +2055,7 @@ describe("CandidatesPage sorting", () => {
           sortBy: "name",
           sortDir: "desc",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 
@@ -2089,8 +2076,7 @@ describe("CandidatesPage sorting", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mezun" }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ status: "graduated" }),
-        expect.any(AbortSignal)
+        expect.objectContaining({ status: "graduated" })
       );
     });
 
@@ -2102,8 +2088,7 @@ describe("CandidatesPage sorting", () => {
           sortBy: "groupTitle",
           sortDir: "asc",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -2124,8 +2109,7 @@ describe("CandidatesPage sorting", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Sonraki/ }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 2 }),
-        expect.any(AbortSignal)
+        expect.objectContaining({ page: 2 })
       );
     });
 
@@ -2136,8 +2120,7 @@ describe("CandidatesPage sorting", () => {
           sortBy: "name",
           sortDir: "asc",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -2198,8 +2181,7 @@ describe("CandidatesPage filter panel", () => {
         expect.objectContaining({
           firstName: "Ayse",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -2226,8 +2208,7 @@ describe("CandidatesPage filter panel", () => {
         expect.objectContaining({
           firstName: "Ay",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -2248,8 +2229,7 @@ describe("CandidatesPage filter panel", () => {
         expect.objectContaining({
           hasPhoto: true,
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -2270,8 +2250,7 @@ describe("CandidatesPage filter panel", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Sonraki/ }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 2 }),
-        expect.any(AbortSignal)
+        expect.objectContaining({ page: 2 })
       );
     });
 
@@ -2287,8 +2266,7 @@ describe("CandidatesPage filter panel", () => {
         expect.objectContaining({
           nationalId: "123",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
   });
@@ -2332,8 +2310,7 @@ describe("CandidatesPage filter panel", () => {
         expect.objectContaining({
           gender: "female",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 
@@ -2344,8 +2321,7 @@ describe("CandidatesPage filter panel", () => {
         expect.objectContaining({
           gender: "male",
           page: 1,
-        }),
-        expect.any(AbortSignal)
+        })
       );
     });
 

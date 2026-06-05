@@ -57,6 +57,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 function getApiErrorMessage(
   status: number,
   statusText: string,
@@ -116,8 +120,13 @@ export function normalizeApiPathForBaseUrl(base: string, path: string): string {
     return normalizedPath;
   }
 
-  if (basePath === "/v1/training" && normalizedPath.startsWith("/api/training/")) {
-    return normalizedPath.slice("/api/training".length);
+  const serviceSegment = basePath.split("/")[2];
+  const serviceApiPrefix = `/api/${serviceSegment}`;
+  if (normalizedPath === serviceApiPrefix) {
+    return "";
+  }
+  if (normalizedPath.startsWith(`${serviceApiPrefix}/`)) {
+    return normalizedPath.slice(serviceApiPrefix.length);
   }
 
   return normalizedPath.slice("/api".length);

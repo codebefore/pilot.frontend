@@ -1,11 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { getSidebarStats } from "./stats-api";
 import type { SidebarStatsResponse } from "./types";
@@ -33,37 +27,19 @@ const SidebarStatsContext = createContext<SidebarStatsContextValue | null>(null)
 
 export function SidebarStatsProvider({ children }: { children: ReactNode }) {
   const { user, permissions } = useAuth();
-  const [stats, setStats] = useState<SidebarStatsResponse>(ZERO_STATS);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    if (!canViewArea(user, permissions, "dashboard")) {
-      setStats(ZERO_STATS);
-      setLoading(false);
-      setError(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    setLoading(true);
-    setError(false);
-
-    getSidebarStats(controller.signal)
-      .then((data) => setStats(data))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [permissions, refreshKey, user]);
-
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const enabled = canViewArea(user, permissions, "dashboard");
+  const query = useQuery({
+    queryKey: ["sidebar", "stats"],
+    queryFn: () => getSidebarStats(),
+    enabled,
+  });
+  const { refetch } = query;
+  const refresh = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  const stats = enabled ? query.data ?? ZERO_STATS : ZERO_STATS;
+  const loading = enabled ? query.isLoading : false;
+  const error = enabled ? query.isError : false;
 
   return (
     <SidebarStatsContext.Provider value={{ stats, loading, error, refresh }}>

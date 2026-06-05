@@ -79,8 +79,7 @@ describe("PermissionsPage", () => {
 
     await waitFor(() => {
       expect(getRolesMock).toHaveBeenCalledWith(
-        { includeInactive: false },
-        expect.any(AbortSignal)
+        { includeInactive: false }
       );
       expect(getPermissionAreasMock).toHaveBeenCalled();
     });

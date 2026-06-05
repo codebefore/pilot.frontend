@@ -52,19 +52,19 @@ export function OutboxPage() {
 
   const outboxQuery = useQuery({
     queryKey: ["outbox", "messages", outboxStatusParam ?? "all"],
-    queryFn: ({ signal }) => getOutboxMessages({ status: outboxStatusParam, limit: 100 }, signal),
+    queryFn: () => getOutboxMessages({ status: outboxStatusParam, limit: 100 }),
     enabled: activeTab === "outbox",
   });
 
   const inboxQuery = useQuery({
     queryKey: ["inbox", "messages", inboxStatusParam ?? "all"],
-    queryFn: ({ signal }) => getInboxMessages({ status: inboxStatusParam, limit: 100 }, signal),
+    queryFn: () => getInboxMessages({ status: inboxStatusParam, limit: 100 }),
     enabled: activeTab === "inbox",
   });
 
   const streamStatusQuery = useQuery({
     queryKey: ["domain-events", "stream-status"],
-    queryFn: ({ signal }) => getDomainEventStreamStatus(signal),
+    queryFn: () => getDomainEventStreamStatus(),
     enabled: activeTab === "stream",
   });
 

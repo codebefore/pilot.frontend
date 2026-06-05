@@ -15,12 +15,24 @@ describe("http client", () => {
     expect(normalizeApiPathForBaseUrl("https://api.test/v1/document", "/api/documents")).toBe("/documents");
     expect(normalizeApiPathForBaseUrl("https://api.test/v1/training", "/api/training/groups")).toBe("/groups");
     expect(normalizeApiPathForBaseUrl("https://api.test/v1/catalog", "/api/catalog/document-types")).toBe(
-      "/catalog/document-types"
+      "/document-types"
+    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/finance", "/api/finance/payments/overview")).toBe(
+      "/payments/overview"
+    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/mebbis", "/api/mebbis/jobs/queue/status")).toBe(
+      "/jobs/queue/status"
+    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/platform", "/api/platform/service-info")).toBe(
+      "/service-info"
+    );
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/platform", "/api/institution-settings")).toBe(
+      "/institution-settings"
     );
     expect(normalizeApiPathForBaseUrl("https://api.test/v1/identity", "/api/auth/login/request-code")).toBe(
       "/auth/login/request-code"
     );
-    expect(normalizeApiPathForBaseUrl("https://api.test/v1/candidates", "/api/candidates")).toBe("/candidates");
+    expect(normalizeApiPathForBaseUrl("https://api.test/v1/candidates", "/api/candidates")).toBe("");
   });
 
   it("exposes problem details title on ApiError", async () => {

@@ -46,10 +46,10 @@ export const candidateKeys = {
     [...candidateKeys.all, "examScheduleOptions", params] as const,
 };
 
-export function useCandidates(filters?: GetCandidatesParams, enabled = true) {
+export function useCandidates(filters?: GetCandidatesParams, enabled = true, consumeSignal = true) {
   return useQuery<PagedResponse<CandidateResponse>>({
     queryKey: candidateKeys.list(filters),
-    queryFn: ({ signal }) => getCandidates(filters, signal),
+    queryFn: ({ signal }) => (consumeSignal ? getCandidates(filters, signal) : getCandidates(filters)),
     enabled,
   });
 }
@@ -62,10 +62,11 @@ export function useCandidate(id: string | null | undefined) {
   });
 }
 
-export function useCandidateTags(search?: string, limit = 20, enabled = true) {
+export function useCandidateTags(search?: string, limit = 20, enabled = true, consumeSignal = true) {
   return useQuery({
     queryKey: candidateKeys.tags(search),
-    queryFn: ({ signal }) => searchCandidateTags(search, limit, signal),
+    queryFn: ({ signal }) =>
+      consumeSignal ? searchCandidateTags(search, limit, signal) : searchCandidateTags(search, limit),
     enabled,
   });
 }

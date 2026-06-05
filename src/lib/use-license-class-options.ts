@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { getLicenseClassDefinitions } from "./license-class-definitions-api";
 import { LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS } from "./license-class-definition-catalog";
@@ -11,6 +12,12 @@ export type LicenseClassOption = {
 };
 
 type ExistingLicenseTypeOption = LicenseClassOption;
+
+const ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY = [
+  "licenseClassDefinitions",
+  "options",
+  "active",
+] as const;
 
 function toExistingLicenseValue(code: string): string {
   return code.trim().toLowerCase();
@@ -104,10 +111,7 @@ function isPreferredTargetOption(
   );
 }
 
-async function getActiveLicenseClassOptions(
-  translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string,
-  signal?: AbortSignal,
-) {
+async function getActiveLicenseClassDefinitions(signal?: AbortSignal) {
   const activeResponse = await getLicenseClassDefinitions(
     {
       activity: "active",
@@ -118,126 +122,69 @@ async function getActiveLicenseClassOptions(
     },
     signal
   );
-  const activeOptions = uniqueTargetOptions(activeResponse.items, translateCategory);
-  return activeOptions;
+  return activeResponse.items;
 }
 
 export async function getActiveInitialLicenseClassOptions(
   signal?: AbortSignal,
   translateCategory?: (cat: LicenseClassDefinitionResponse["category"]) => string,
 ) {
-  const activeResponse = await getLicenseClassDefinitions(
-    {
-      activity: "active",
-      page: 1,
-      pageSize: 1000,
-      sortBy: "displayOrder",
-      sortDir: "asc",
-    },
-    signal
-  );
+  const items = await getActiveLicenseClassDefinitions(signal);
   const translate = translateCategory ?? ((cat) => cat);
   const activeOptions = uniqueTargetOptions(
-    activeResponse.items.filter((item) => !item.hasExistingLicense),
+    items.filter((item) => !item.hasExistingLicense),
     translate,
   );
   return activeOptions;
-}
-
-async function getActiveExistingLicenseTypeOptions(
-  translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string,
-  signal?: AbortSignal,
-) {
-  const options = await getActiveLicenseClassOptions(translateCategory, signal);
-  return options.map(toExistingLicenseTypeOption);
 }
 
 export function useLicenseClassOptions() {
   const t = useT();
   const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
     LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
-  const [options, setOptions] = useState<LicenseClassOption[]>([]);
-  const [loading, setLoading] = useState(false);
+  const query = useQuery({
+    queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
+    queryFn: () => getActiveLicenseClassDefinitions(),
+    staleTime: 5 * 60_000,
+  });
+  const options = useMemo(
+    () => uniqueTargetOptions(query.data ?? [], translateCategory),
+    [query.data, translateCategory]
+  );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-
-    getActiveLicenseClassOptions(translateCategory, controller.signal)
-      .then((nextOptions) => setOptions(nextOptions))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setOptions([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { options, loading };
+  return { options, loading: query.isLoading };
 }
 
 export function useInitialLicenseClassOptions() {
   const t = useT();
   const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
     LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
-  const [options, setOptions] = useState<LicenseClassOption[]>([]);
-  const [loading, setLoading] = useState(false);
+  const query = useQuery({
+    queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
+    queryFn: () => getActiveLicenseClassDefinitions(),
+    staleTime: 5 * 60_000,
+  });
+  const options = useMemo(
+    () => uniqueTargetOptions((query.data ?? []).filter((item) => !item.hasExistingLicense), translateCategory),
+    [query.data, translateCategory]
+  );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-
-    getActiveInitialLicenseClassOptions(controller.signal, translateCategory)
-      .then((nextOptions) => setOptions(nextOptions))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setOptions([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { options, loading };
+  return { options, loading: query.isLoading };
 }
 
 export function useExistingLicenseTypeOptions() {
   const t = useT();
   const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
     LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
-  const [options, setOptions] = useState<ExistingLicenseTypeOption[]>([]);
-  const [loading, setLoading] = useState(false);
+  const query = useQuery({
+    queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
+    queryFn: () => getActiveLicenseClassDefinitions(),
+    staleTime: 5 * 60_000,
+  });
+  const options = useMemo(
+    () => uniqueTargetOptions(query.data ?? [], translateCategory).map(toExistingLicenseTypeOption),
+    [query.data, translateCategory]
+  );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-
-    getActiveExistingLicenseTypeOptions(translateCategory, controller.signal)
-      .then((nextOptions) => setOptions(nextOptions))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setOptions([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      });
-
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { options, loading };
+  return { options, loading: query.isLoading };
 }

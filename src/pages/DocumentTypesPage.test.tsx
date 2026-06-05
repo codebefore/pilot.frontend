@@ -61,8 +61,7 @@ describe("DocumentTypesPage", () => {
 
     await waitFor(() => {
       expect(getDocumentTypesMock).toHaveBeenCalledWith(
-        { includeInactive: true },
-        expect.any(AbortSignal)
+        { includeInactive: true }
       );
     });
 
@@ -78,8 +77,7 @@ describe("DocumentTypesPage", () => {
 
     await waitFor(() => {
       expect(getDocumentTypesMock).toHaveBeenLastCalledWith(
-        { includeInactive: false },
-        expect.any(AbortSignal)
+        { includeInactive: false }
       );
     });
   });
