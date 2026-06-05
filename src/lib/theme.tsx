@@ -16,25 +16,25 @@ export const THEME_OPTIONS: ThemeOption[] = [
     key: "pilot",
     labelKey: "theme.pilot.label",
     descriptionKey: "theme.pilot.description",
-    swatches: ["#22B094", "#f9fafb", "#ffffff", "#1a1a2e"],
+    swatches: ["#ED2AA3", "#4694F6", "#ffffff", "#1a1a2e"],
   },
   {
     key: "emerald",
     labelKey: "theme.emerald.label",
     descriptionKey: "theme.emerald.description",
-    swatches: ["#38b6ff", "#f6fbff", "#ffffff", "#0f172a"],
+    swatches: ["#4694F6", "#ED2AA3", "#ffffff", "#0f172a"],
   },
   {
     key: "blueDark",
     labelKey: "theme.blueDark.label",
     descriptionKey: "theme.blueDark.description",
-    swatches: ["#38b6ff", "#0b1220", "#162033", "#f8fafc"],
+    swatches: ["#F354B9", "#62A5F9", "#0b1220", "#f8fafc"],
   },
   {
     key: "midnight",
     labelKey: "theme.midnight.label",
     descriptionKey: "theme.midnight.description",
-    swatches: ["#38c7aa", "#111827", "#1f2937", "#f9fafb"],
+    swatches: ["#ED2AA3", "#4694F6", "#111827", "#f9fafb"],
   },
 ];
 

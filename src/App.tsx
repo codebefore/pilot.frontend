@@ -22,6 +22,7 @@ const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then((m) => ({ 
 const ExamUygulamaPage = lazy(() => import("./pages/ExamUygulamaPage").then((m) => ({ default: m.ExamUygulamaPage })));
 const ExamESinavPage = lazy(() => import("./pages/ExamESinavPage").then((m) => ({ default: m.ExamESinavPage })));
 const GroupsPage = lazy(() => import("./pages/GroupsPage").then((m) => ({ default: m.GroupsPage })));
+const InstitutionsPage = lazy(() => import("./pages/InstitutionsPage").then((m) => ({ default: m.InstitutionsPage })));
 const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const MebJobsPage = lazy(() => import("./pages/MebJobsPage").then((m) => ({ default: m.MebJobsPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
@@ -64,6 +65,23 @@ function RequireTenantPermission({
   );
 }
 
+function RequireSuperAdmin({ children }: { children: ReactElement }) {
+  const { user } = useAuth();
+
+  if (user?.isSuperAdmin) {
+    return children;
+  }
+
+  return (
+    <div className="page-shell">
+      <section className="empty-state">
+        <h2>Yetkiniz yok</h2>
+        <p>Bu ekrana yalnızca super admin kullanıcılar erişebilir.</p>
+      </section>
+    </div>
+  );
+}
+
 function isFeesRoute(pathname: string) {
   return pathname.replace(/\/+$/, "") === "/settings/definitions/fees";
 }
@@ -82,6 +100,8 @@ export function AppShell() {
   const [sidebarHoverOpen, setSidebarHoverOpen] = useState(false);
   const location = useLocation();
   const fullScreenRoute = isFeesRoute(location.pathname);
+  const globalSuperAdminRoute =
+    user?.isSuperAdmin === true && location.pathname.startsWith("/institutions");
   const sidebarVisible = !sidebarCollapsed || sidebarHoverOpen;
   const activeInstitutionId = activeInstitution?.id ?? "";
 
@@ -138,11 +158,19 @@ export function AppShell() {
           .filter(Boolean)
           .join(" ")}
       >
-        {!hasInstitution || institutionRequired || !activeInstitution ? (
+        {!globalSuperAdminRoute && (!hasInstitution || institutionRequired || !activeInstitution) ? (
           <NoActiveInstitutionState institutions={institutions} onSelect={selectInstitution} />
         ) : (
           <Suspense fallback={<RouteFallback />}>
             <Routes>
+              <Route
+                element={
+                  <RequireSuperAdmin>
+                    <InstitutionsPage />
+                  </RequireSuperAdmin>
+                }
+                path="/institutions"
+              />
               <Route
                 element={
                   <RequireTenantPermission areas={["dashboard"]}>

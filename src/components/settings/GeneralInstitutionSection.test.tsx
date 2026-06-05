@@ -31,21 +31,6 @@ vi.mock("../../lib/institution-settings-api", async () => {
   };
 });
 
-vi.mock("../../lib/theme", () => ({
-  useTheme: () => ({
-    theme: "pilot",
-    setTheme: vi.fn(),
-    options: [
-      {
-        key: "pilot",
-        label: "Pilot",
-        description: "Mevcut turkuaz kurumsal tema",
-        swatches: ["#22B094", "#f9fafb", "#ffffff"],
-      },
-    ],
-  }),
-}));
-
 const institutionSettings = {
   id: "settings-1",
   institutionName: "Pilot Kurs",

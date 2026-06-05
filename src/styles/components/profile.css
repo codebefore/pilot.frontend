@@ -3,6 +3,11 @@
   padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
 }
 
+.profile-tab-toolbar {
+  margin-bottom: var(--page-shell-gap);
+  border-bottom: 1px solid var(--gray-200);
+}
+
 /* Header banner — reuses .dash-header gradient */
 .profile-dash-header { padding-bottom: 36px; }
 .profile-dash-row {
@@ -16,24 +21,24 @@
   height: 72px;
   border-radius: 50%;
   background: var(--brand);
-  color: var(--white);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 26px;
   font-weight: 800;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent);
 }
 .profile-dash-info h1 {
   font-size: 26px;
   font-weight: 800;
-  color: var(--white);
+  color: var(--hero-fg);
   margin: 0;
 }
 .profile-dash-info p {
   font-size: 14px;
-  color: var(--gray-400);
+  color: color-mix(in srgb, var(--hero-fg) 78%, transparent);
   margin: 6px 0 0;
   display: flex;
   align-items: center;
@@ -45,9 +50,9 @@
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.03em;
-  background: rgba(34, 176, 148, 0.18);
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
   color: var(--brand);
-  border: 1px solid rgba(34, 176, 148, 0.3);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
   border-radius: 999px;
 }
 
@@ -77,6 +82,28 @@
   border-radius: var(--radius-lg);
   padding: 16px 20px;
   box-shadow: var(--shadow);
+}
+
+.profile-section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.profile-section-header h2 {
+  color: var(--gray-900);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0;
+}
+.profile-section-header p {
+  color: var(--gray-500);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+.profile-theme-section {
+  max-width: 980px;
 }
 
 .profile-pwd-form {
@@ -147,4 +174,3 @@
   background: var(--brand-light);
   color: var(--brand-dark);
 }
-

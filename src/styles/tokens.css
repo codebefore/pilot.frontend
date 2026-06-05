@@ -1,10 +1,32 @@
 /* Design tokens shared by the Pilot frontend. */
 :root,
 [data-theme="pilot"] {
-  --brand: #22B094;
-  --brand-dark: #1a9478;
-  --brand-light: #e6f7f3;
-  --brand-subtle: #f0faf7;
+  --brand: #ED2AA3;
+  --brand-dark: #C91683;
+  --brand-light: #FCE7F4;
+  --brand-subtle: #FFF4FB;
+
+  --brand-50: #FFF4FB;
+  --brand-100: #FCE7F4;
+  --brand-200: #FBC4E7;
+  --brand-300: #F78BD0;
+  --brand-400: #F354B9;
+  --brand-500: #ED2AA3;
+  --brand-600: #DB168F;
+  --brand-700: #C91683;
+  --brand-800: #A91570;
+  --brand-900: #8B165E;
+
+  --primary-50: #FFF4FB;
+  --primary-100: #FCE7F4;
+  --primary-200: #FBC4E7;
+  --primary-300: #F78BD0;
+  --primary-400: #F354B9;
+  --primary-500: #ED2AA3;
+  --primary-600: #DB168F;
+  --primary-700: #C91683;
+  --primary-800: #A91570;
+  --primary-900: #8B165E;
 
   --black: #0a0a0a;
   --white: #ffffff;
@@ -21,12 +43,62 @@
 
   --red: #ef4444;
   --red-light: #fef2f2;
-  --blue: #3b82f6;
-  --blue-light: #eff6ff;
+  --blue: #4694F6;
+  --blue-light: #EAF3FF;
+  --blue-50: #EFF7FF;
+  --blue-100: #DCEBFE;
+  --blue-200: #BBD8FD;
+  --blue-300: #8DBEFB;
+  --blue-400: #62A5F9;
+  --blue-500: #4694F6;
+  --blue-600: #2578E8;
+  --blue-700: #1D63C6;
+  --blue-800: #1D50A0;
+  --blue-900: #1C437E;
   --orange: #f59e0b;
   --orange-light: #fffbeb;
   --purple: #8b5cf6;
   --purple-light: #f5f3ff;
+
+  --success-50: #F0FDF4;
+  --success-100: #DCFCE7;
+  --success-200: #BBF7D0;
+  --success-300: #86EFAC;
+  --success-500: #22C55E;
+  --success-600: #16A34A;
+  --success-700: #15803D;
+  --success-800: #166534;
+  --green-50: #F0FDF4;
+  --green-100: #DCFCE7;
+  --green-200: #BBF7D0;
+  --green-300: #86EFAC;
+  --green-400: #4ADE80;
+  --green-500: #22C55E;
+  --green-600: #16A34A;
+  --green-700: #15803D;
+  --green-800: #166534;
+  --warning-50: #FFFBEB;
+  --warning-100: #FEF3C7;
+  --warning-200: #FDE68A;
+  --warning-300: #FCD34D;
+  --warning-500: #F59E0B;
+  --warning-700: #B45309;
+  --warning-800: #92400E;
+  --danger-50: #FEF2F2;
+  --danger-100: #FEE2E2;
+  --danger-200: #FECACA;
+  --danger-300: #FCA5A5;
+  --danger-500: #EF4444;
+  --danger-600: #DC2626;
+  --danger-700: #B91C1C;
+  --danger-800: #991B1B;
+
+  --surface: var(--white);
+  --surface-muted: var(--gray-50);
+  --surface-raised: var(--white);
+  --hero-bg-start: color-mix(in srgb, var(--gray-900) 86%, var(--brand) 14%);
+  --hero-bg-end: color-mix(in srgb, var(--gray-900) 68%, var(--blue) 32%);
+  --hero-fg: #ffffff;
 
   --sidebar-w: 260px;
   --header-h: 56px;
@@ -43,10 +115,32 @@
 }
 
 [data-theme="emerald"] {
-  --brand: #38b6ff;
-  --brand-dark: #0b82d8;
-  --brand-light: #e0f4ff;
-  --brand-subtle: #f2fbff;
+  --brand: #4694F6;
+  --brand-dark: #1D63C6;
+  --brand-light: #DCEBFE;
+  --brand-subtle: #F2F8FF;
+
+  --brand-50: #F2F8FF;
+  --brand-100: #DCEBFE;
+  --brand-200: #BBD8FD;
+  --brand-300: #8DBEFB;
+  --brand-400: #62A5F9;
+  --brand-500: #4694F6;
+  --brand-600: #2578E8;
+  --brand-700: #1D63C6;
+  --brand-800: #1D50A0;
+  --brand-900: #1C437E;
+
+  --primary-50: #F2F8FF;
+  --primary-100: #DCEBFE;
+  --primary-200: #BBD8FD;
+  --primary-300: #8DBEFB;
+  --primary-400: #62A5F9;
+  --primary-500: #4694F6;
+  --primary-600: #2578E8;
+  --primary-700: #1D63C6;
+  --primary-800: #1D50A0;
+  --primary-900: #1C437E;
 
   --black: #020617;
   --white: #ffffff;
@@ -63,22 +157,92 @@
 
   --red: #dc2626;
   --red-light: #fef2f2;
-  --blue: #2563eb;
-  --blue-light: #eff6ff;
+  --blue: #ED2AA3;
+  --blue-light: #FFF4FB;
+  --blue-50: #FFF4FB;
+  --blue-100: #FCE7F4;
+  --blue-200: #FBC4E7;
+  --blue-300: #F78BD0;
+  --blue-400: #F354B9;
+  --blue-500: #ED2AA3;
+  --blue-600: #DB168F;
+  --blue-700: #C91683;
+  --blue-800: #A91570;
+  --blue-900: #8B165E;
   --orange: #d97706;
   --orange-light: #fffbeb;
   --purple: #7c3aed;
   --purple-light: #f5f3ff;
+  --success-50: #F0FDF4;
+  --success-100: #DCFCE7;
+  --success-200: #BBF7D0;
+  --success-300: #86EFAC;
+  --success-500: #22C55E;
+  --success-600: #16A34A;
+  --success-700: #15803D;
+  --success-800: #166534;
+  --green-50: #F0FDF4;
+  --green-100: #DCFCE7;
+  --green-200: #BBF7D0;
+  --green-300: #86EFAC;
+  --green-400: #4ADE80;
+  --green-500: #22C55E;
+  --green-600: #16A34A;
+  --green-700: #15803D;
+  --green-800: #166534;
+  --warning-50: #FFFBEB;
+  --warning-100: #FEF3C7;
+  --warning-200: #FDE68A;
+  --warning-300: #FCD34D;
+  --warning-500: #F59E0B;
+  --warning-700: #B45309;
+  --warning-800: #92400E;
+  --danger-50: #FEF2F2;
+  --danger-100: #FEE2E2;
+  --danger-200: #FECACA;
+  --danger-300: #FCA5A5;
+  --danger-500: #EF4444;
+  --danger-600: #DC2626;
+  --danger-700: #B91C1C;
+  --danger-800: #991B1B;
 
   --header-bg: rgba(255,255,255,.97);
   --backdrop-bg: rgba(15,23,42,.38);
+  --surface: var(--white);
+  --surface-muted: var(--gray-50);
+  --surface-raised: var(--white);
+  --hero-bg-start: color-mix(in srgb, var(--gray-900) 86%, var(--brand) 14%);
+  --hero-bg-end: color-mix(in srgb, var(--gray-900) 68%, var(--blue) 32%);
+  --hero-fg: #ffffff;
 }
 
 [data-theme="blueDark"] {
-  --brand: #38b6ff;
-  --brand-dark: #7dd3fc;
-  --brand-light: #12344d;
-  --brand-subtle: #0f2538;
+  --brand: #F354B9;
+  --brand-dark: #F78BD0;
+  --brand-light: #451635;
+  --brand-subtle: #291627;
+
+  --brand-50: #291627;
+  --brand-100: #451635;
+  --brand-200: #6E1B52;
+  --brand-300: #A91570;
+  --brand-400: #DB168F;
+  --brand-500: #F354B9;
+  --brand-600: #F78BD0;
+  --brand-700: #FBC4E7;
+  --brand-800: #FCE7F4;
+  --brand-900: #FFF4FB;
+
+  --primary-50: #291627;
+  --primary-100: #451635;
+  --primary-200: #6E1B52;
+  --primary-300: #A91570;
+  --primary-400: #DB168F;
+  --primary-500: #F354B9;
+  --primary-600: #F78BD0;
+  --primary-700: #FBC4E7;
+  --primary-800: #FCE7F4;
+  --primary-900: #FFF4FB;
 
   --black: #f8fafc;
   --white: #162033;
@@ -95,12 +259,54 @@
 
   --red: #fb7185;
   --red-light: #3f1d2b;
-  --blue: #38b6ff;
-  --blue-light: #0f2f4a;
+  --blue: #62A5F9;
+  --blue-light: #132C52;
+  --blue-50: #132C52;
+  --blue-100: #173A6B;
+  --blue-200: #1D50A0;
+  --blue-300: #1D63C6;
+  --blue-400: #2578E8;
+  --blue-500: #62A5F9;
+  --blue-600: #8DBEFB;
+  --blue-700: #BBD8FD;
+  --blue-800: #DCEBFE;
+  --blue-900: #F2F8FF;
   --orange: #fbbf24;
   --orange-light: #3a2a0a;
   --purple: #c084fc;
   --purple-light: #30204d;
+  --success-50: #10261E;
+  --success-100: #153526;
+  --success-200: #1B5134;
+  --success-300: #25814D;
+  --success-500: #4ADE80;
+  --success-600: #86EFAC;
+  --success-700: #BBF7D0;
+  --success-800: #DCFCE7;
+  --green-50: #10261E;
+  --green-100: #153526;
+  --green-200: #1B5134;
+  --green-300: #25814D;
+  --green-400: #22C55E;
+  --green-500: #4ADE80;
+  --green-600: #86EFAC;
+  --green-700: #BBF7D0;
+  --green-800: #DCFCE7;
+  --warning-50: #2C230E;
+  --warning-100: #3B2E10;
+  --warning-200: #5A4312;
+  --warning-300: #8B640F;
+  --warning-500: #FBBF24;
+  --warning-700: #FDE68A;
+  --warning-800: #FEF3C7;
+  --danger-50: #351722;
+  --danger-100: #481B2B;
+  --danger-200: #6D2239;
+  --danger-300: #9F2D4E;
+  --danger-500: #FB7185;
+  --danger-600: #FDA4AF;
+  --danger-700: #FECDD3;
+  --danger-800: #FFE4E6;
 
   --shadow:    0 1px 3px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.35);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -4px rgba(0,0,0,.35);
@@ -108,13 +314,41 @@
 
   --header-bg: rgba(22,32,51,.94);
   --backdrop-bg: rgba(0,0,0,.58);
+  --surface: var(--white);
+  --surface-muted: var(--gray-50);
+  --surface-raised: color-mix(in srgb, var(--white) 82%, var(--gray-50));
+  --hero-bg-start: color-mix(in srgb, var(--gray-50) 86%, var(--brand) 14%);
+  --hero-bg-end: color-mix(in srgb, var(--gray-50) 72%, var(--blue) 28%);
+  --hero-fg: var(--gray-900);
 }
 
 [data-theme="midnight"] {
-  --brand: #38c7aa;
-  --brand-dark: #5eead4;
-  --brand-light: #123b37;
-  --brand-subtle: #102622;
+  --brand: #ED2AA3;
+  --brand-dark: #F78BD0;
+  --brand-light: #43162F;
+  --brand-subtle: #241324;
+
+  --brand-50: #241324;
+  --brand-100: #43162F;
+  --brand-200: #6E1B52;
+  --brand-300: #A91570;
+  --brand-400: #DB168F;
+  --brand-500: #ED2AA3;
+  --brand-600: #F354B9;
+  --brand-700: #F78BD0;
+  --brand-800: #FBC4E7;
+  --brand-900: #FFF4FB;
+
+  --primary-50: #241324;
+  --primary-100: #43162F;
+  --primary-200: #6E1B52;
+  --primary-300: #A91570;
+  --primary-400: #DB168F;
+  --primary-500: #ED2AA3;
+  --primary-600: #F354B9;
+  --primary-700: #F78BD0;
+  --primary-800: #FBC4E7;
+  --primary-900: #FFF4FB;
 
   --black: #f9fafb;
   --white: #1f2937;
@@ -131,12 +365,54 @@
 
   --red: #f87171;
   --red-light: #3f1d24;
-  --blue: #60a5fa;
+  --blue: #4694F6;
   --blue-light: #172554;
+  --blue-50: #172554;
+  --blue-100: #1E3A8A;
+  --blue-200: #1D50A0;
+  --blue-300: #1D63C6;
+  --blue-400: #2578E8;
+  --blue-500: #4694F6;
+  --blue-600: #62A5F9;
+  --blue-700: #8DBEFB;
+  --blue-800: #BBD8FD;
+  --blue-900: #EFF7FF;
   --orange: #fbbf24;
   --orange-light: #3a2a0a;
   --purple: #a78bfa;
   --purple-light: #2e244f;
+  --success-50: #10261E;
+  --success-100: #153526;
+  --success-200: #1B5134;
+  --success-300: #25814D;
+  --success-500: #4ADE80;
+  --success-600: #86EFAC;
+  --success-700: #BBF7D0;
+  --success-800: #DCFCE7;
+  --green-50: #10261E;
+  --green-100: #153526;
+  --green-200: #1B5134;
+  --green-300: #25814D;
+  --green-400: #22C55E;
+  --green-500: #4ADE80;
+  --green-600: #86EFAC;
+  --green-700: #BBF7D0;
+  --green-800: #DCFCE7;
+  --warning-50: #2C230E;
+  --warning-100: #3B2E10;
+  --warning-200: #5A4312;
+  --warning-300: #8B640F;
+  --warning-500: #FBBF24;
+  --warning-700: #FDE68A;
+  --warning-800: #FEF3C7;
+  --danger-50: #351722;
+  --danger-100: #481B2B;
+  --danger-200: #6D2239;
+  --danger-300: #9F2D4E;
+  --danger-500: #FB7185;
+  --danger-600: #FDA4AF;
+  --danger-700: #FECDD3;
+  --danger-800: #FFE4E6;
 
   --shadow:    0 1px 3px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.35);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.45), 0 4px 6px -4px rgba(0,0,0,.35);
@@ -144,4 +420,10 @@
 
   --header-bg: rgba(31,41,55,.94);
   --backdrop-bg: rgba(0,0,0,.55);
+  --surface: var(--white);
+  --surface-muted: var(--gray-50);
+  --surface-raised: color-mix(in srgb, var(--white) 82%, var(--gray-50));
+  --hero-bg-start: color-mix(in srgb, var(--gray-50) 88%, var(--brand) 12%);
+  --hero-bg-end: color-mix(in srgb, var(--gray-50) 74%, var(--blue) 26%);
+  --hero-fg: var(--gray-900);
 }

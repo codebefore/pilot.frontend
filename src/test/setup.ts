@@ -2,6 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+vi.stubEnv("VITE_API_BASE_URL", "http://127.0.0.1:5080");
+
 if (!URL.createObjectURL) {
   URL.createObjectURL = vi.fn(() => "blob:test-object-url");
 }

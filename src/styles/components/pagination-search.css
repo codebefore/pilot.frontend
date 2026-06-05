@@ -25,7 +25,7 @@
 }
 .search-input:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(34,176,148,.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 
 .filter-select,
@@ -107,10 +107,9 @@
 .pagination-page-size-select:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
 }
 .pagination-page-size-select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-

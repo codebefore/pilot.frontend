@@ -16,6 +16,7 @@ export type NavKey =
   | "examESinav"
   | "examUygulama"
   | "mebjobs"
+  | "institutions"
   | "outbox"
   | "settings";
 

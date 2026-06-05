@@ -108,7 +108,7 @@
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--gray-200) 88%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--gray-50) 55%, white);
+  background: color-mix(in srgb, var(--gray-50) 55%, var(--white));
 }
 
 .candidate-contact-draft-row {
@@ -297,12 +297,12 @@
 .localized-date-trigger[aria-expanded="true"] {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .localized-date-trigger:focus-within {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .localized-date-trigger:disabled {
   background: var(--gray-50);

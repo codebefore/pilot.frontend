@@ -64,7 +64,7 @@
 .form-input:focus,
 .form-select:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(34,176,148,.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .custom-select {
   position: relative;
@@ -84,7 +84,7 @@
 .custom-select-trigger:focus,
 .custom-select-trigger:focus-within {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(34,176,148,.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
   outline: none;
 }
 .custom-select-trigger[aria-disabled="true"] {
@@ -201,6 +201,12 @@ textarea.form-input {
   accent-color: var(--brand);
   cursor: pointer;
 }
+.toolbar-switch-toggle {
+  min-height: 32px;
+  padding: 0 8px;
+  color: var(--gray-600);
+  white-space: nowrap;
+}
 .switch-toggle {
   display: inline-flex;
   align-items: center;
@@ -245,7 +251,7 @@ textarea.form-input {
 }
 .switch-toggle input[type="checkbox"]:focus-visible + .switch-toggle-control {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .switch-toggle input[type="checkbox"]:disabled + .switch-toggle-control {
   opacity: 0.65;
@@ -263,7 +269,7 @@ textarea.form-input {
 }
 .switch-toggle-knob-right input[type="checkbox"]:focus-visible ~ .switch-toggle-control {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .switch-toggle-knob-right input[type="checkbox"]:disabled ~ .switch-toggle-control {
   opacity: 0.65;
@@ -315,12 +321,12 @@ textarea.form-input {
 .cand-doc-badge:hover { filter: brightness(0.95); }
 .cand-doc-badge:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent);
 }
 .cand-doc-badge.complete {
-  background: rgba(34, 176, 148, 0.12);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
   color: var(--brand-dark, #15806c);
-  border-color: rgba(34, 176, 148, 0.3);
+  border-color: color-mix(in srgb, var(--brand) 30%, transparent);
 }
 .cand-doc-badge.missing {
   background: #fef2f2;
@@ -548,7 +554,7 @@ textarea.form-input {
 }
 .candidate-reuse-source-toggle input[type="checkbox"]:focus-visible + .switch-toggle-control {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .candidate-reuse-document-list {
   display: flex;
@@ -610,7 +616,7 @@ textarea.form-input {
 }
 .candidate-reuse-document-toggle input[type="checkbox"]:focus-visible + .switch-toggle-control {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .form-checkbox {
   display: flex;

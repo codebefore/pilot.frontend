@@ -423,7 +423,7 @@
 }
 .tag-input-field.open {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .tag-input-field.disabled {
   background: var(--gray-50);
@@ -589,7 +589,7 @@
 }
 .page-load-error--page {
   padding: 64px 24px;
-  background: white;
+  background: var(--white);
   border: 1px solid color-mix(in srgb, var(--gray-300) 65%, transparent);
   border-radius: 8px;
 }
@@ -904,7 +904,7 @@
   position: sticky;
   top: 0;
   z-index: 5;
-  background: white;
+  background: var(--white);
   padding-top: 8px;
   margin-top: -8px;
 }
@@ -921,7 +921,7 @@
   padding: 10px 18px;
   border-color: var(--success-600, #16a34a);
   color: var(--success-700, #15803d);
-  background: color-mix(in srgb, var(--success-50, #f0fdf4) 80%, white);
+  background: color-mix(in srgb, var(--success-50, #f0fdf4) 80%, var(--white));
   cursor: pointer;
 }
 .fee-matrix-back-button > * {
@@ -959,7 +959,7 @@
   height: 22px;
   padding: 0 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--warning-100, #fef3c7) 80%, white);
+  background: color-mix(in srgb, var(--warning-100, #fef3c7) 80%, var(--white));
   color: var(--warning-700, #b45309);
   font-size: 11px;
   font-weight: 600;
@@ -1004,10 +1004,10 @@
     1px 0 0 color-mix(in srgb, var(--gray-200) 80%, transparent);
 }
 .fee-matrix-table tbody tr:nth-child(even) .fee-matrix-td {
-  background: color-mix(in srgb, var(--gray-50, #f9fafb) 55%, white);
+  background: color-mix(in srgb, var(--gray-50, #f9fafb) 55%, var(--white));
 }
 .fee-matrix-table tbody tr:nth-child(even) .fee-matrix-td--calculated {
-  background: color-mix(in srgb, var(--gray-100) 55%, white);
+  background: color-mix(in srgb, var(--gray-100) 55%, var(--white));
 }
 .fee-matrix-tag {
   display: inline-block;
@@ -1018,11 +1018,11 @@
   border: 1px solid color-mix(in srgb, var(--gray-300) 80%, transparent);
 }
 .fee-matrix-tag--editable {
-  background: white;
+  background: var(--white);
   color: var(--gray-900);
 }
 .fee-matrix-tag--calculated {
-  background: color-mix(in srgb, var(--gray-100) 70%, white);
+  background: color-mix(in srgb, var(--gray-100) 70%, var(--white));
   color: var(--gray-700);
 }
 
@@ -1034,7 +1034,7 @@
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--gray-200) 70%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--gray-50, #f9fafb) 70%, white);
+  background: color-mix(in srgb, var(--gray-50, #f9fafb) 70%, var(--white));
   font-size: 13px;
   color: var(--gray-700);
 }
@@ -1053,7 +1053,7 @@
   z-index: 6;
   border: 1px solid color-mix(in srgb, var(--gray-200) 70%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--gray-50, #f9fafb) 95%, white);
+  background: color-mix(in srgb, var(--gray-50, #f9fafb) 95%, var(--white));
   box-shadow: 0 2px 6px color-mix(in srgb, var(--gray-900) 6%, transparent);
 }
 .fee-matrix-bulk-header {
@@ -1081,7 +1081,7 @@
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand-100, #dbeafe) 70%, white);
+  background: color-mix(in srgb, var(--brand-100, #dbeafe) 70%, var(--white));
   color: var(--brand-700, #1d4ed8);
   font-size: 11px;
   font-weight: 600;
@@ -1089,7 +1089,7 @@
 }
 .fee-matrix-bulk-clear {
   border: 1px solid color-mix(in srgb, var(--gray-200) 80%, transparent);
-  background: white;
+  background: var(--white);
   color: var(--gray-700);
   border-radius: 6px;
   padding: 2px 8px;
@@ -1148,7 +1148,7 @@
   gap: 12px;
   padding: 10px 12px;
   margin-bottom: 10px;
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 60%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 60%, var(--white));
   border: 1px solid color-mix(in srgb, var(--blue-300, #93c5fd) 70%, transparent);
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
@@ -1203,7 +1203,7 @@
   gap: 12px;
   padding: 8px 12px;
   margin-bottom: 8px;
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 50%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 50%, var(--white));
   border: 1px solid color-mix(in srgb, var(--blue-300, #93c5fd) 60%, transparent);
   border-radius: 6px;
   font-size: 12px;
@@ -1222,7 +1222,7 @@
    sticky / group / kind classes as a regular <th> so it inherits offsets and
    borders, but uses a distinct background to read as an input row. */
 .fee-matrix-bulk-row .fee-matrix-bulk-cell {
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 35%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 35%, var(--white));
   --fee-matrix-bulk-slot-height: 36px;
   padding: 4px;
   border-bottom: 1px solid color-mix(in srgb, var(--blue-300, #93c5fd) 70%, transparent);
@@ -1286,18 +1286,18 @@
 /* Highlight the column matching the bulk-bar's selected field, so the user
    can see at a glance which column will receive the bulk value. */
 .fee-matrix-th.is-bulk-target {
-  background: color-mix(in srgb, var(--blue-300, #93c5fd) 60%, white);
+  background: color-mix(in srgb, var(--blue-300, #93c5fd) 60%, var(--white));
   color: var(--blue-900, #1e3a8a);
   box-shadow: inset 0 -2px 0 var(--blue-500, #3b82f6);
 }
 .fee-matrix-td.is-bulk-target {
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 50%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 50%, var(--white));
 }
 
 .fee-matrix-section {
   border: 1px solid color-mix(in srgb, var(--gray-200) 70%, transparent);
   border-radius: 8px;
-  background: white;
+  background: var(--white);
 }
 .fee-matrix-section.is-expanded {
   border-color: color-mix(in srgb, var(--brand-200, #bfdbfe) 70%, transparent);
@@ -1335,11 +1335,11 @@
   letter-spacing: 0.02em;
 }
 .fee-matrix-section-bulk-btn:hover {
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 70%, white);
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 70%, var(--white));
   color: var(--brand-700, #1d4ed8);
 }
 .fee-matrix-section-bulk-btn.is-active {
-  background: color-mix(in srgb, var(--brand-100, #dbeafe) 70%, white);
+  background: color-mix(in srgb, var(--brand-100, #dbeafe) 70%, var(--white));
   color: var(--brand-700, #1d4ed8);
 }
 
@@ -1357,7 +1357,7 @@
   text-align: left;
 }
 .fee-matrix-section-header:hover {
-  background: color-mix(in srgb, var(--gray-100) 50%, white);
+  background: color-mix(in srgb, var(--gray-100) 50%, var(--white));
 }
 .fee-matrix-section-chevron {
   font-size: 12px;
@@ -1385,25 +1385,25 @@
 .fee-matrix-section-stats > span {
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--gray-100) 80%, white);
+  background: color-mix(in srgb, var(--gray-100) 80%, var(--white));
 }
 .fee-matrix-section-stat--filled {
-  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, white) !important;
+  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, var(--white)) !important;
   color: var(--success-700, #15803d);
 }
 .fee-matrix-section-stat--empty {
-  background: color-mix(in srgb, var(--gray-200) 70%, white) !important;
+  background: color-mix(in srgb, var(--gray-200) 70%, var(--white)) !important;
   color: var(--gray-700);
 }
 .fee-matrix-section-stat--partial {
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 80%, white) !important;
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 80%, var(--white)) !important;
   color: var(--brand-700, #1d4ed8);
 }
 
 .fee-matrix-table-scroll {
   overflow-x: auto;
   border-top: 1px solid color-mix(in srgb, var(--gray-200) 70%, transparent);
-  background: color-mix(in srgb, var(--gray-50, #f9fafb) 60%, white);
+  background: color-mix(in srgb, var(--gray-50, #f9fafb) 60%, var(--white));
 }
 .fee-matrix-table {
   width: max-content;
@@ -1416,7 +1416,7 @@
 .fee-matrix-td {
   padding: 4px 6px;
   border-bottom: 1px solid color-mix(in srgb, var(--gray-200) 70%, transparent);
-  background: white;
+  background: var(--white);
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
@@ -1451,7 +1451,7 @@
 }
 .fee-matrix-th--calculated,
 .fee-matrix-td--calculated {
-  background: color-mix(in srgb, var(--gray-100) 60%, white);
+  background: color-mix(in srgb, var(--gray-100) 60%, var(--white));
   color: var(--gray-700);
   font-style: italic;
 }
@@ -1459,13 +1459,13 @@
   background: var(--gray-100);
 }
 .fee-matrix-td--editable {
-  background: white;
+  background: var(--white);
 }
 .fee-matrix-th--sticky,
 .fee-matrix-td--sticky {
   position: sticky;
   z-index: 2;
-  background: white;
+  background: var(--white);
   box-shadow: 1px 0 0 color-mix(in srgb, var(--gray-200) 80%, transparent);
 }
 .fee-matrix-th--sticky {
@@ -1487,11 +1487,11 @@
   border-bottom-color: transparent;
 }
 .fee-matrix-group-th--contract {
-  background: color-mix(in srgb, var(--blue-300, #93c5fd) 70%, white);
+  background: color-mix(in srgb, var(--blue-300, #93c5fd) 70%, var(--white));
   color: var(--blue-900, #1e3a8a);
 }
 .fee-matrix-group-th--institution {
-  background: color-mix(in srgb, var(--green-300, #86efac) 70%, white);
+  background: color-mix(in srgb, var(--green-300, #86efac) 70%, var(--white));
   color: var(--green-900, #14532d);
 }
 .fee-matrix-group-toggle {
@@ -1528,38 +1528,38 @@
   font-style: normal;
 }
 .fee-matrix-th--group-contract {
-  background: color-mix(in srgb, var(--blue-200, #bfdbfe) 75%, white);
+  background: color-mix(in srgb, var(--blue-200, #bfdbfe) 75%, var(--white));
   color: var(--blue-900, #1e3a8a);
   border-bottom: 2px solid color-mix(in srgb, var(--blue-400, #60a5fa) 70%, transparent);
 }
 .fee-matrix-td--group-contract {
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 22%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 22%, var(--white));
 }
 .fee-matrix-td--group-contract.fee-matrix-td--calculated {
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 38%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 38%, var(--white));
 }
 .fee-matrix-th--group-institution {
-  background: color-mix(in srgb, var(--green-200, #bbf7d0) 75%, white);
+  background: color-mix(in srgb, var(--green-200, #bbf7d0) 75%, var(--white));
   color: var(--green-900, #14532d);
   border-bottom: 2px solid color-mix(in srgb, var(--green-400, #4ade80) 70%, transparent);
 }
 .fee-matrix-td--group-institution {
-  background: color-mix(in srgb, var(--green-100, #dcfce7) 22%, white);
+  background: color-mix(in srgb, var(--green-100, #dcfce7) 22%, var(--white));
 }
 .fee-matrix-td--group-institution.fee-matrix-td--calculated {
-  background: color-mix(in srgb, var(--green-100, #dcfce7) 38%, white);
+  background: color-mix(in srgb, var(--green-100, #dcfce7) 38%, var(--white));
 }
 .fee-matrix-table tbody tr:nth-child(even) .fee-matrix-td--group-contract {
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 32%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 32%, var(--white));
 }
 .fee-matrix-table tbody tr:nth-child(even) .fee-matrix-td--group-contract.fee-matrix-td--calculated {
-  background: color-mix(in srgb, var(--blue-100, #dbeafe) 48%, white);
+  background: color-mix(in srgb, var(--blue-100, #dbeafe) 48%, var(--white));
 }
 .fee-matrix-table tbody tr:nth-child(even) .fee-matrix-td--group-institution {
-  background: color-mix(in srgb, var(--green-100, #dcfce7) 32%, white);
+  background: color-mix(in srgb, var(--green-100, #dcfce7) 32%, var(--white));
 }
 .fee-matrix-table tbody tr:nth-child(even) .fee-matrix-td--group-institution.fee-matrix-td--calculated {
-  background: color-mix(in srgb, var(--green-100, #dcfce7) 48%, white);
+  background: color-mix(in srgb, var(--green-100, #dcfce7) 48%, var(--white));
 }
 .fee-matrix-license-cell {
   display: inline-flex;
@@ -1581,7 +1581,7 @@
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, white);
+  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, var(--white));
   color: var(--success-700, #15803d);
   font-size: 10px;
   font-weight: 600;

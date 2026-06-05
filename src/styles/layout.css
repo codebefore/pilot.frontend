@@ -465,8 +465,8 @@
 
 /* ─── DASH HEADER ─── */
 .dash-header {
-  background: linear-gradient(135deg, var(--gray-900) 0%, #16213e 100%);
-  color: var(--white);
+  background: linear-gradient(135deg, var(--hero-bg-start) 0%, var(--hero-bg-end) 100%);
+  color: var(--hero-fg);
   padding: 36px 36px 28px;
   position: relative;
   overflow: hidden;
@@ -476,7 +476,7 @@
   position: absolute;
   top: -50%; right: -15%;
   width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(34,176,148,.15) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 18%, transparent) 0%, transparent 70%);
   border-radius: 50%;
 }
 .dash-header h1 {
@@ -485,7 +485,7 @@
 }
 .dash-header h1 span { color: var(--brand); }
 .dash-header p {
-  font-size: 14px; color: var(--gray-400);
+  font-size: 14px; color: color-mix(in srgb, var(--hero-fg) 78%, transparent);
   margin-top: 6px;
   position: relative;
 }

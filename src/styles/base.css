@@ -79,7 +79,7 @@ button {
 .btn-primary { background: var(--brand); color: white; }
 .btn-primary:hover {
   background: var(--brand-dark);
-  box-shadow: 0 4px 12px rgba(34,176,148,.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 30%, transparent);
 }
 
 .btn-secondary {

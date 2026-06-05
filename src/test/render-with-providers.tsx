@@ -6,6 +6,7 @@ import { AuthContext, type AuthContextValue } from "../lib/auth";
 import type { AuthInstitution, AuthUser } from "../lib/auth-storage";
 import { ToastProvider } from "../components/ui/Toast";
 import { LanguageProvider } from "../lib/i18n";
+import { ThemeProvider } from "../lib/theme";
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -78,11 +79,13 @@ export function renderWithProviders(ui: ReactElement, options?: { auth?: AuthOve
   const queryClient = createTestQueryClient();
   return render(
     <LanguageProvider>
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <AuthContext.Provider value={authValue}>{ui}</AuthContext.Provider>
-        </ToastProvider>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <AuthContext.Provider value={authValue}>{ui}</AuthContext.Provider>
+          </ToastProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </LanguageProvider>
   );
 }

@@ -32,7 +32,7 @@
   gap: 16px;
 }
 .instructor-detail-card {
-  background: white;
+  background: var(--white);
   border: 1px solid color-mix(in srgb, var(--gray-300) 65%, transparent);
   border-radius: 8px;
   padding: 20px;
@@ -76,11 +76,11 @@
   border-radius: 999px;
 }
 .instructor-detail-status.active {
-  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, white);
+  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, var(--white));
   color: var(--success-700, #15803d);
 }
 .instructor-detail-status.inactive {
-  background: color-mix(in srgb, var(--gray-200) 70%, white);
+  background: color-mix(in srgb, var(--gray-200) 70%, var(--white));
   color: var(--gray-700);
 }
 .instructor-detail-summary-grid {
@@ -132,7 +132,7 @@
   display: flex;
   gap: 20px;
   align-items: flex-start;
-  background: white;
+  background: var(--white);
   border: 1px solid color-mix(in srgb, var(--gray-300) 65%, transparent);
   border-radius: 12px;
   padding: 20px;
@@ -278,12 +278,12 @@
   text-transform: uppercase;
 }
 .candidate-detail-hero-badge.tone-info {
-  background: color-mix(in srgb, var(--gray-200) 80%, white);
+  background: color-mix(in srgb, var(--gray-200) 80%, var(--white));
   color: var(--gray-700);
   border: 1px solid color-mix(in srgb, var(--gray-300) 70%, transparent);
 }
 .candidate-detail-hero-badge.tone-primary {
-  background: color-mix(in srgb, var(--primary-100, #dbeafe) 70%, white);
+  background: color-mix(in srgb, var(--primary-100, #dbeafe) 70%, var(--white));
   color: var(--primary-700, #1d4ed8);
   border: 1px solid color-mix(in srgb, var(--primary-300, #93c5fd) 60%, transparent);
 }
@@ -291,14 +291,14 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  background: color-mix(in srgb, var(--warning-100, #fef3c7) 70%, white);
+  background: color-mix(in srgb, var(--warning-100, #fef3c7) 70%, var(--white));
   border: 1px solid color-mix(in srgb, var(--warning-300, #fcd34d) 60%, transparent);
   border-radius: 10px;
   padding: 12px 16px;
   margin-top: 12px;
 }
 .candidate-second-round-banner.is-on {
-  background: color-mix(in srgb, var(--primary-100, #dbeafe) 60%, white);
+  background: color-mix(in srgb, var(--primary-100, #dbeafe) 60%, var(--white));
   border-color: color-mix(in srgb, var(--primary-300, #93c5fd) 60%, transparent);
 }
 .candidate-second-round-banner-body {
@@ -380,7 +380,7 @@
   color: var(--gray-800);
 }
 .candidate-timeline-view-btn.is-active {
-  background: var(--white, #fff);
+  background: var(--white);
   color: var(--brand-dark);
 }
 .candidate-timeline-feed {
@@ -520,7 +520,7 @@
   box-shadow: 0 0 0 1px var(--primary-300, #93c5fd);
 }
 .candidate-timeline-item.is-current .candidate-timeline-marker {
-  background: white;
+  background: var(--white);
   border: 3px solid var(--primary-500, #3b82f6);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-300, #93c5fd) 40%, transparent);
   width: 16px;
@@ -535,7 +535,7 @@
   opacity: 0.55;
 }
 .candidate-timeline-item.is-future .candidate-timeline-marker {
-  background: white;
+  background: var(--white);
   border: 2px dashed var(--gray-400);
   box-shadow: none;
 }
@@ -687,7 +687,7 @@
 .candidate-whatsapp-preview.is-reply {
   justify-content: flex-end;
   margin-left: 36px;
-  background: color-mix(in srgb, #dcfce7 32%, white);
+  background: color-mix(in srgb, #dcfce7 32%, var(--white));
 }
 .candidate-whatsapp-avatar {
   width: 30px;
@@ -884,7 +884,7 @@
 }
 .candidate-exam-score-cell--button:hover:not(:disabled) {
   border-color: var(--gray-300);
-  background: color-mix(in srgb, var(--gray-100) 60%, white);
+  background: color-mix(in srgb, var(--gray-100) 60%, var(--white));
 }
 .candidate-exam-score-cell--button:disabled {
   cursor: not-allowed;
@@ -897,7 +897,7 @@
   text-align: center;
   border: 1px solid var(--primary-400, #60a5fa);
   border-radius: 6px;
-  background: white;
+  background: var(--white);
   color: var(--gray-900);
   outline: none;
 }
@@ -1313,7 +1313,7 @@
 .candidate-detail-doc-filter.active {
   border-color: var(--brand-500, #2563eb);
   color: var(--brand-700, #1d4ed8);
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 70%, white);
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 70%, var(--white));
 }
 .candidate-detail-doc-filter strong {
   min-width: 20px;
@@ -1435,7 +1435,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--white);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transition: left 0.2s ease;
 }
@@ -1735,7 +1735,7 @@
 }
 .candidate-detail-doc-row.status-missing {
   border-color: color-mix(in srgb, var(--danger-300, #fca5a5) 70%, transparent);
-  background: color-mix(in srgb, var(--danger-50, #fef2f2) 30%, white);
+  background: color-mix(in srgb, var(--danger-50, #fef2f2) 30%, var(--white));
 }
 .candidate-detail-doc-row.is-photo .candidate-detail-doc-main {
   display: flex;
@@ -1766,7 +1766,7 @@
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--gray-200) 80%, transparent);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--gray-50, #f9fafb) 80%, white);
+  background: color-mix(in srgb, var(--gray-50, #f9fafb) 80%, var(--white));
   box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
 }
 .candidate-detail-doc-photo-preview.is-a4 {
@@ -1839,7 +1839,7 @@
 .candidate-detail-doc-photo-preview.is-a4 img,
 .candidate-detail-doc-photo-preview.is-square img {
   object-fit: contain;
-  background: #fff;
+  background: var(--white);
 }
 .candidate-detail-doc-photo-preview span {
   padding: 12px;
@@ -2141,7 +2141,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--brand-light) 60%, white);
+  background: color-mix(in srgb, var(--brand-light) 60%, var(--white));
   color: var(--brand-dark);
   font-size: 14px;
   line-height: 1;
@@ -2321,7 +2321,7 @@
   margin-left: 6px;
   padding: 1px 5px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand-light) 65%, white);
+  background: color-mix(in srgb, var(--brand-light) 65%, var(--white));
   color: var(--brand-dark);
   font-size: 10px;
   font-style: normal;
@@ -2339,21 +2339,21 @@
   white-space: nowrap;
 }
 .candidate-detail-doc-badge.uploaded {
-  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, white);
+  background: color-mix(in srgb, var(--success-100, #dcfce7) 80%, var(--white));
   color: var(--success-700, #15803d);
 }
 .candidate-detail-doc-badge.physical {
-  background: color-mix(in srgb, var(--gray-100) 80%, white);
+  background: color-mix(in srgb, var(--gray-100) 80%, var(--white));
   color: var(--gray-700);
 }
 .candidate-detail-doc-badge.missing {
-  background: color-mix(in srgb, var(--danger-100, #fee2e2) 80%, white);
+  background: color-mix(in srgb, var(--danger-100, #fee2e2) 80%, var(--white));
   color: var(--danger-700, #b91c1c);
 }
 .candidate-detail-doc-required {
   font-size: 11px;
   color: var(--gray-600);
-  background: color-mix(in srgb, var(--gray-100) 80%, white);
+  background: color-mix(in srgb, var(--gray-100) 80%, var(--white));
   border: 1px solid color-mix(in srgb, var(--gray-200) 80%, transparent);
   border-radius: 999px;
   padding: 3px 8px;
@@ -2553,25 +2553,25 @@
   margin-left: 6px;
 }
 .candidate-accounting-invoice-row.status-sale td {
-  background: color-mix(in srgb, var(--success-50, #f0fdf4) 52%, white);
+  background: color-mix(in srgb, var(--success-50, #f0fdf4) 52%, var(--white));
 }
 .candidate-accounting-invoice-row.status-sale td:first-child {
   box-shadow: inset 4px 0 0 color-mix(in srgb, var(--success-500, #22c55e) 80%, transparent);
 }
 .candidate-accounting-invoice-row.status-refunded td {
-  background: color-mix(in srgb, var(--warning-50, #fffbeb) 76%, white);
+  background: color-mix(in srgb, var(--warning-50, #fffbeb) 76%, var(--white));
 }
 .candidate-accounting-invoice-row.status-refunded td:first-child {
   box-shadow: inset 4px 0 0 color-mix(in srgb, var(--warning-500, #f59e0b) 86%, transparent);
 }
 .candidate-accounting-movement-row.status-open td {
-  background: color-mix(in srgb, var(--danger-50, #fef2f2) 48%, white);
+  background: color-mix(in srgb, var(--danger-50, #fef2f2) 48%, var(--white));
 }
 .candidate-accounting-movement-row.status-open td:first-child {
   box-shadow: inset 4px 0 0 color-mix(in srgb, var(--danger-500, #ef4444) 80%, transparent);
 }
 .candidate-accounting-movement-row.status-cancelled td {
-  background: color-mix(in srgb, var(--gray-100) 70%, white);
+  background: color-mix(in srgb, var(--gray-100) 70%, var(--white));
   color: var(--gray-500);
   text-decoration: line-through;
 }
@@ -2583,7 +2583,7 @@
 }
 .candidate-accounting-transaction-row td {
   font-size: 12px;
-  background: color-mix(in srgb, var(--gray-50) 65%, white);
+  background: color-mix(in srgb, var(--gray-50) 65%, var(--white));
 }
 .candidate-accounting-ledger-table .candidate-accounting-transaction-row .candidate-accounting-col-type {
   padding-left: 32px;
@@ -2592,7 +2592,7 @@
   padding-left: 52px;
 }
 .candidate-accounting-transaction-row.status-paid td {
-  background: color-mix(in srgb, var(--success-50, #f0fdf4) 62%, white);
+  background: color-mix(in srgb, var(--success-50, #f0fdf4) 62%, var(--white));
 }
 .candidate-accounting-transaction-row.status-paid td:first-child {
   box-shadow:
@@ -2600,7 +2600,7 @@
     inset 24px 0 0 color-mix(in srgb, var(--success-500, #22c55e) 82%, transparent);
 }
 .candidate-accounting-transaction-row.status-refunded td {
-  background: color-mix(in srgb, var(--warning-50, #fffbeb) 78%, white);
+  background: color-mix(in srgb, var(--warning-50, #fffbeb) 78%, var(--white));
 }
 .candidate-accounting-transaction-row.status-refunded td:first-child {
   box-shadow:
@@ -2641,11 +2641,11 @@
   font-weight: 700;
 }
 .candidate-accounting-actions-trigger:hover {
-  background: color-mix(in srgb, var(--gray-50) 80%, white);
+  background: color-mix(in srgb, var(--gray-50) 80%, var(--white));
 }
 .candidate-accounting-actions-trigger:focus-visible {
   border-color: color-mix(in srgb, var(--brand-300, #93c5fd) 75%, transparent);
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 70%, white);
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 70%, var(--white));
   color: var(--brand-800, #1e40af);
   outline: none;
 }
@@ -2676,13 +2676,13 @@
   text-align: left;
 }
 .candidate-accounting-action:hover {
-  background: color-mix(in srgb, var(--gray-100) 70%, white);
+  background: color-mix(in srgb, var(--gray-100) 70%, var(--white));
 }
 .candidate-accounting-action.is-danger {
   color: var(--danger-700, #b91c1c);
 }
 .candidate-accounting-action.is-danger:hover {
-  background: color-mix(in srgb, var(--danger-50, #fef2f2) 80%, white);
+  background: color-mix(in srgb, var(--danger-50, #fef2f2) 80%, var(--white));
 }
 .candidate-detail-license-actions {
   display: flex;
@@ -2693,7 +2693,7 @@
 .candidate-detail-payment-note {
   margin-top: 12px;
   padding: 10px 12px;
-  background: color-mix(in srgb, var(--gray-100) 60%, white);
+  background: color-mix(in srgb, var(--gray-100) 60%, var(--white));
   border: 1px dashed color-mix(in srgb, var(--gray-300) 70%, transparent);
   border-radius: 8px;
   font-size: 12px;
@@ -2724,7 +2724,7 @@
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--gray-200) 85%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--gray-50) 65%, white);
+  background: color-mix(in srgb, var(--gray-50) 65%, var(--white));
 }
 .candidate-fee-summary-column {
   display: flex;
@@ -2769,11 +2769,11 @@
   overflow-wrap: anywhere;
 }
 .candidate-finance-summary-card.is-balance {
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 60%, white);
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 60%, var(--white));
   border-color: color-mix(in srgb, var(--brand-200, #bfdbfe) 70%, transparent);
 }
 .candidate-finance-summary-card.is-suggested {
-  background: color-mix(in srgb, var(--success-50, #f0fdf4) 65%, white);
+  background: color-mix(in srgb, var(--success-50, #f0fdf4) 65%, var(--white));
   border-color: color-mix(in srgb, var(--success-300, #86efac) 70%, transparent);
 }
 .candidate-accounting-section-summary-shell {
@@ -2795,7 +2795,7 @@
   text-align: left;
 }
 .candidate-accounting-section-summary-toggle:hover {
-  background: color-mix(in srgb, var(--gray-50) 70%, white);
+  background: color-mix(in srgb, var(--gray-50) 70%, var(--white));
 }
 .candidate-accounting-section-summary-toggle > span:first-child {
   min-width: 0;
@@ -2864,7 +2864,7 @@
   gap: 2px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--gray-50) 70%, white);
+  background: color-mix(in srgb, var(--gray-50) 70%, var(--white));
 }
 .candidate-accounting-section-summary-metrics em {
   color: var(--gray-500);
@@ -2880,14 +2880,14 @@
   overflow-wrap: anywhere;
 }
 .candidate-accounting-section-summary-metrics .is-balance {
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 65%, white);
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 65%, var(--white));
 }
 .candidate-finance-summary-note {
   grid-column: 1 / -1;
   padding: 8px 10px;
   border: 1px dashed color-mix(in srgb, var(--warning-300, #fcd34d) 75%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--warning-50, #fffbeb) 70%, white);
+  background: color-mix(in srgb, var(--warning-50, #fffbeb) 70%, var(--white));
   color: var(--gray-700);
   font-size: 12px;
 }
@@ -2941,7 +2941,7 @@
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--brand-200, #bfdbfe) 70%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 55%, white);
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 55%, var(--white));
 }
 .candidate-finance-suggestion-meta {
   margin-top: 3px;
@@ -3026,7 +3026,7 @@
 }
 .candidate-accounting-type.active {
   border-color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 10%, white);
+  background: color-mix(in srgb, var(--brand) 10%, var(--white));
   color: var(--brand);
 }
 .candidate-finance-plan-form {
@@ -3040,7 +3040,7 @@
   padding: 8px 10px;
   border: 1px dashed color-mix(in srgb, var(--warning-300, #fcd34d) 75%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--warning-50, #fffbeb) 70%, white);
+  background: color-mix(in srgb, var(--warning-50, #fffbeb) 70%, var(--white));
   color: var(--gray-700);
   font-size: 12px;
 }
@@ -3065,7 +3065,7 @@
 }
 .candidate-finance-installment-row-cancelled td {
   color: var(--gray-500);
-  background: color-mix(in srgb, var(--gray-100) 55%, white);
+  background: color-mix(in srgb, var(--gray-100) 55%, var(--white));
   text-decoration: line-through;
 }
 .candidate-finance-installment-status {
@@ -3135,7 +3135,7 @@
   padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--success-300, #86efac) 70%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--success-50, #f0fdf4) 70%, white);
+  background: color-mix(in srgb, var(--success-50, #f0fdf4) 70%, var(--white));
   color: var(--success-800, #166534);
   font-size: 28px;
   font-weight: 800;
@@ -3186,7 +3186,7 @@
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--danger-200, #fecaca) 80%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--danger-50, #fef2f2) 70%, white);
+  background: color-mix(in srgb, var(--danger-50, #fef2f2) 70%, var(--white));
   color: var(--danger-800, #991b1b);
   font-size: 13px;
   font-weight: 600;
@@ -3257,11 +3257,11 @@
   border: 1px solid color-mix(in srgb, var(--gray-300) 65%, transparent);
   border-radius: 8px;
   padding: 16px;
-  background: color-mix(in srgb, var(--gray-100) 35%, white);
+  background: color-mix(in srgb, var(--gray-100) 35%, var(--white));
 }
 .assignment-item-active {
   border-color: var(--brand-500, #2563eb);
-  background: color-mix(in srgb, var(--brand-50, #eff6ff) 90%, white);
+  background: color-mix(in srgb, var(--brand-50, #eff6ff) 90%, var(--white));
 }
 .assignment-item-head {
   display: flex;
@@ -3311,7 +3311,7 @@
   gap: 6px;
 }
 .form-error-banner {
-  background: color-mix(in srgb, var(--danger-100, #fee2e2) 70%, white);
+  background: color-mix(in srgb, var(--danger-100, #fee2e2) 70%, var(--white));
   border: 1px solid var(--danger-300, #fca5a5);
   padding: 10px 12px;
   border-radius: 6px;
@@ -3579,6 +3579,28 @@
   font-size: 12px;
   color: var(--gray-500);
 }
+.institutions-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
+}
+.institutions-summary-card {
+  min-height: 76px;
+  padding: 14px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+.institutions-summary-card .settings-summary-value {
+  font-size: 22px;
+  font-weight: 800;
+}
+@media (max-width: 720px) {
+  .institutions-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .settings-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
@@ -3824,7 +3846,7 @@
 }
 .branch-color-input:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(34,176,148,.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
   outline: none;
 }
 .branch-color-input::-webkit-color-swatch-wrapper {
@@ -4009,7 +4031,7 @@
 }
 
 .payments-tab.active .payments-tab-count {
-  background: rgba(34,176,148,.12);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
   color: var(--brand);
 }
 
@@ -4488,6 +4510,4 @@
 .doc-due-date { font-weight: 600; }
 .doc-due-date.urgent { color: var(--red); }
 .doc-due-date.soon   { color: var(--orange); }
-
-
 

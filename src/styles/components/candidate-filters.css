@@ -418,7 +418,7 @@ button.tag-filter-summary-chip.active {
   font-weight: 600;
   line-height: 1.4;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
 }
 .tag-filter-new-input::placeholder {
   color: var(--gray-400);
@@ -491,7 +491,7 @@ button.tag-filter-summary-chip.active {
   color: var(--brand-dark);
 }
 .cand-filters-switch:has(input[type="checkbox"]:focus-visible) {
-  box-shadow: 0 0 0 3px rgba(34, 176, 148, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .cand-filters-badge {
   display: inline-flex;

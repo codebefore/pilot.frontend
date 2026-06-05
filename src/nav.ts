@@ -134,6 +134,13 @@ export const navSections: NavSection[] = [
     headingKey: "nav.administration",
     items: [
       {
+        key: "institutions",
+        path: "/institutions",
+        labelKey: "institutionSelector.menuLabel",
+        Icon: SettingsIcon,
+        permissionAreas: ["__superadmin"],
+      },
+      {
         key: "settings",
         path: "/settings",
         labelKey: "nav.settings",
