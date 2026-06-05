@@ -54,6 +54,7 @@ affinity: {}
 ingress:
   enabled: false
   className: ""
+  annotations: {}
   host: ""
   path: /
   pathType: Prefix
