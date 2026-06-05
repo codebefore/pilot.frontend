@@ -80,7 +80,7 @@ describe("documents api", () => {
 
   it("normalizes document calls to v1 document gateway paths", async () => {
     applyRuntimeConfig({
-      documentApiBaseUrl: "https://apipilot.virabyte.tr/v1/document",
+      documentApiBaseUrl: "https://api.pilotyanimda.com/v1/document",
     });
     vi.mocked(fetch)
       .mockResolvedValueOnce(
@@ -100,10 +100,10 @@ describe("documents api", () => {
     await analyzeCandidateDocumentOcr("candidate-1", "doc-1");
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "https://apipilot.virabyte.tr/v1/document/documents/candidate-checklist?page=1"
+      "https://api.pilotyanimda.com/v1/document/documents/candidate-checklist?page=1"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "https://apipilot.virabyte.tr/v1/document/candidates/candidate-1/documents/doc-1/ocr/read"
+      "https://api.pilotyanimda.com/v1/document/candidates/candidate-1/documents/doc-1/ocr/read"
     );
   });
 

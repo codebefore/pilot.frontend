@@ -8,16 +8,16 @@ image:
   pullPolicy: IfNotPresent
 
 runtimeConfig:
-  publicUrl: https://pilot.virabyte.tr
-  apiBaseUrl: https://apipilot.virabyte.tr
-  authApiBaseUrl: https://apipilot.virabyte.tr/v1/identity
-  candidateApiBaseUrl: https://apipilot.virabyte.tr/v1/candidates
-  catalogApiBaseUrl: https://apipilot.virabyte.tr/v1/catalog
-  documentApiBaseUrl: https://apipilot.virabyte.tr/v1/document
-  financeApiBaseUrl: https://apipilot.virabyte.tr/v1/finance
-  mebbisApiBaseUrl: https://apipilot.virabyte.tr/v1/mebbis
-  platformApiBaseUrl: https://apipilot.virabyte.tr/v1/platform
-  trainingApiBaseUrl: https://apipilot.virabyte.tr/v1/training
+  publicUrl: https://pilotyanimda.com
+  apiBaseUrl: https://api.pilotyanimda.com
+  authApiBaseUrl: https://api.pilotyanimda.com/v1/identity
+  candidateApiBaseUrl: https://api.pilotyanimda.com/v1/candidates
+  catalogApiBaseUrl: https://api.pilotyanimda.com/v1/catalog
+  documentApiBaseUrl: https://api.pilotyanimda.com/v1/document
+  financeApiBaseUrl: https://api.pilotyanimda.com/v1/finance
+  mebbisApiBaseUrl: https://api.pilotyanimda.com/v1/mebbis
+  platformApiBaseUrl: https://api.pilotyanimda.com/v1/platform
+  trainingApiBaseUrl: https://api.pilotyanimda.com/v1/training
 
 resources:
   requests:
@@ -30,8 +30,8 @@ resources:
 ingress:
   enabled: true
   className: nginx
-  host: pilot.virabyte.tr
+  host: pilotyanimda.com
   tls:
     - secretName: pilot-frontend-prod-tls
       hosts:
-        - pilot.virabyte.tr
+        - pilotyanimda.com

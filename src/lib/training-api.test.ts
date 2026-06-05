@@ -161,12 +161,12 @@ describe("training api routing", () => {
   });
 
   it("normalizes candidate exam attempt calls for the production v1 training gateway base", async () => {
-    applyRuntimeConfig({ trainingApiBaseUrl: "https://apipilot.virabyte.tr/v1/training" });
+    applyRuntimeConfig({ trainingApiBaseUrl: "https://api.pilotyanimda.com/v1/training" });
 
     await listCandidateExamAttempts("candidate-1");
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "https://apipilot.virabyte.tr/v1/training/candidates/candidate-1/exam-attempts"
+      "https://api.pilotyanimda.com/v1/training/candidates/candidate-1/exam-attempts"
     );
   });
 });
