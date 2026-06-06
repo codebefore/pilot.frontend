@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import entrypoint from "../../nginx/docker-entrypoint.sh?raw";
 import template from "../../nginx/env-config.template.json?raw";
 
@@ -17,8 +17,20 @@ import {
 } from "./api";
 
 describe("service api base urls", () => {
+  const serviceEnvVars = [
+    "VITE_AUTH_API_BASE_URL",
+    "VITE_CANDIDATE_API_BASE_URL",
+    "VITE_CATALOG_API_BASE_URL",
+    "VITE_DOCUMENT_API_BASE_URL",
+    "VITE_FINANCE_API_BASE_URL",
+    "VITE_MEBBIS_API_BASE_URL",
+    "VITE_PLATFORM_API_BASE_URL",
+    "VITE_TRAINING_API_BASE_URL",
+  ];
+
   beforeEach(() => {
     applyRuntimeConfig(undefined);
+    serviceEnvVars.forEach((envVar) => vi.stubEnv(envVar, ""));
   });
 
   it("falls back to the default API base URL when service-specific runtime config is absent", () => {
