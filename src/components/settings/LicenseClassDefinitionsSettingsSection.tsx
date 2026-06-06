@@ -6,7 +6,6 @@ import { useNavigate } from "react-router-dom";
 import { FilterIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { LicenseClassDefinitionFormModal } from "../modals/LicenseClassDefinitionFormModal";
 import { ColumnPicker, type ColumnOption } from "../ui/ColumnPicker";
-import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
@@ -27,8 +26,6 @@ import type {
 } from "../../lib/types";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 
-const DEFAULT_PAGE_SIZE = 10;
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
 type SortState = {
   field: LicenseClassDefinitionSortField;
@@ -120,14 +117,11 @@ export function LicenseClassDefinitionsSettingsSection() {
 
   const [items, setItems] = useState<LicenseClassDefinitionResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [summary, setSummary] =
     useState<LicenseClassDefinitionListSummaryResponse>(EMPTY_SUMMARY);
   const [search, setSearch] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
   const [filters, setFilters] = useState<LicenseClassDefinitionFilters>(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
@@ -144,13 +138,11 @@ export function LicenseClassDefinitionsSettingsSection() {
       activity: filters.activity,
       baseOnly: true,
       code: filters.code.trim() || undefined,
-      page,
-      pageSize,
       search: search.trim() || undefined,
       sortBy: sort?.field ?? "displayOrder",
       sortDir: sort?.direction ?? "asc",
     }),
-    [filters.activity, filters.code, page, pageSize, search, sort]
+    [filters.activity, filters.code, search, sort]
   );
 
   const listQuery = useQuery({
@@ -163,7 +155,6 @@ export function LicenseClassDefinitionsSettingsSection() {
     if (!listQuery.data) return;
     setItems(listQuery.data.items);
     setTotalCount(listQuery.data.totalCount);
-    setTotalPages(listQuery.data.totalPages);
     setSummary(listQuery.data.summary);
   }, [listQuery.data]);
 
@@ -195,7 +186,6 @@ export function LicenseClassDefinitionsSettingsSection() {
   };
 
   const handleSortToggle = (field: LicenseClassDefinitionSortField) => {
-    setPage(1);
     setSort((current) => {
       if (!current || current.field !== field) {
         return { field, direction: "asc" };
@@ -227,7 +217,6 @@ export function LicenseClassDefinitionsSettingsSection() {
     value: LicenseClassDefinitionFilters[K]
   ) => {
     setFilters((current) => ({ ...current, [key]: value }));
-    setPage(1);
   };
 
   const handleDelete = async (item: LicenseClassDefinitionResponse) => {
@@ -237,11 +226,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       await deleteLicenseClassDefinition(item.id);
       setConfirmDeleteId(null);
       showToast(t("settings.licenseClasses.toast.deleted"));
-      if (items.length === 1 && page > 1) {
-        setPage((current) => current - 1);
-      } else {
-        setRefreshKey((current) => current + 1);
-      }
+      setRefreshKey((current) => current + 1);
     } catch {
       showToast(t("settings.licenseClasses.toast.deleteFailed"), "error");
     } finally {
@@ -302,7 +287,6 @@ export function LicenseClassDefinitionsSettingsSection() {
                   debounceMs={SEARCH_DEBOUNCE_MS}
                   onChange={(value) => {
                     setSearch(value);
-                    setPage(1);
                   }}
                   placeholder={t("settings.licenseClasses.search.placeholder")}
                   resetSignal={searchResetKey}
@@ -316,7 +300,6 @@ export function LicenseClassDefinitionsSettingsSection() {
                     setSearch("");
                     setSearchResetKey((current) => current + 1);
                     setFilters(DEFAULT_FILTERS);
-                    setPage(1);
                   }}
                   type="button"
                 >
@@ -472,19 +455,6 @@ export function LicenseClassDefinitionsSettingsSection() {
                 )}
               </tbody>
             </table>
-
-            <Pagination
-              disabled={loading}
-              onChange={setPage}
-              onPageSizeChange={(nextSize) => {
-                setPageSize(nextSize);
-                setPage(1);
-              }}
-              page={page}
-              pageSize={pageSize}
-              pageSizeOptions={PAGE_SIZE_OPTIONS}
-              totalPages={totalPages}
-            />
           </div>
         </section>
       </div>
