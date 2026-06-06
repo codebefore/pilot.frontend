@@ -10,7 +10,6 @@ import {
   getCandidateById,
   getCandidateReuseSources,
   getCandidates,
-  getExamScheduleOptions,
   removeActiveGroupAssignment,
   searchCandidateTags,
 } from "./candidates-api";
@@ -38,7 +37,6 @@ describe("candidate api routing", () => {
     await getCandidates({ page: 2, pageSize: 20, search: "Ayse" });
     await getCandidateById("candidate-1");
     await getCandidateReuseSources("12345678910");
-    await getExamScheduleOptions({ examType: "e_sinav", status: "active" });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
       "http://127.0.0.1:5094/api/candidates?page=2&pageSize=20&search=Ayse"
@@ -48,9 +46,6 @@ describe("candidate api routing", () => {
     );
     expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
       "http://127.0.0.1:5094/api/candidates/reuse-sources?nationalId=12345678910"
-    );
-    expect(String(vi.mocked(fetch).mock.calls[3][0])).toBe(
-      "http://127.0.0.1:5094/api/candidates/exam-date-options?examType=e_sinav&status=active"
     );
   });
 

@@ -34,9 +34,6 @@ vi.mock("../lib/candidates-api", async () => {
     ...actual,
     getCandidates: (...args: Parameters<typeof actual.getCandidates>) =>
       getCandidatesMock(...args),
-    getExamScheduleOptions: (
-      ...args: Parameters<typeof actual.getExamScheduleOptions>
-    ) => getExamScheduleOptionsMock(...args),
     getCandidateById: (...args: Parameters<typeof actual.getCandidateById>) =>
       getCandidateByIdMock(...args),
     createCandidate: vi.fn(),
@@ -96,6 +93,9 @@ vi.mock("../lib/exam-schedules-api", async () => {
   );
   return {
     ...actual,
+    getExamScheduleOptions: (
+      ...args: Parameters<typeof actual.getExamScheduleOptions>
+    ) => getExamScheduleOptionsMock(...args),
     createExamSchedule: vi.fn(),
   };
 });
@@ -393,9 +393,7 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => {
       const params = getExamScheduleOptionsMock.mock.calls[0]?.[0];
-      expect(params.examType).toBe("e_sinav");
-      expect(params.status).toBe("active");
-      expect(params.eSinavTab).toBeUndefined();
+      expect(params).toEqual({ examType: "e_sinav" });
     });
   });
 
@@ -404,9 +402,7 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => {
       const params = getExamScheduleOptionsMock.mock.calls[0]?.[0];
-      expect(params.examType).toBe("uygulama");
-      expect(params.status).toBe("active");
-      expect(params.drivingExamTab).toBeUndefined();
+      expect(params).toEqual({ examType: "uygulama" });
     });
   });
 
@@ -643,10 +639,7 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => {
       expect(getExamScheduleOptionsMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          examType: "uygulama",
-          status: "active",
-        }),
+        { examType: "uygulama" },
         expect.any(AbortSignal)
       );
     });

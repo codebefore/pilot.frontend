@@ -1,5 +1,5 @@
 import { getTrainingApiBaseUrl } from "./api";
-import { httpDelete, httpPost, httpPut } from "./http";
+import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type { ExamScheduleOption, ExamScheduleSyncResponse } from "./types";
 
 const trainingRequestOptions = (signal?: AbortSignal) => ({
@@ -13,6 +13,23 @@ interface CreateExamScheduleRequest {
   examCodeId?: string | null;
   time?: string;
   capacity: number;
+}
+
+export type CandidateExamDateType = "e_sinav" | "uygulama";
+
+export interface GetExamScheduleOptionsParams {
+  examType: CandidateExamDateType;
+}
+
+export function getExamScheduleOptions(
+  params: GetExamScheduleOptionsParams,
+  signal?: AbortSignal
+): Promise<ExamScheduleOption[]> {
+  return httpGet<ExamScheduleOption[]>(
+    "/api/training/exam-schedules",
+    params,
+    trainingRequestOptions(signal)
+  );
 }
 
 export function createExamSchedule(

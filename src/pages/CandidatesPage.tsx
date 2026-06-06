@@ -43,10 +43,8 @@ import {
 } from "../lib/candidate-bulk";
 import {
   assignCandidateGroup,
-  getExamScheduleOptions,
   getCandidateById,
   createCandidateTag,
-  type CandidateExamDateType,
   type GetCandidatesParams,
   type CandidateSortField,
   type SortDirection,
@@ -56,7 +54,12 @@ import { getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
 import { getVehicles } from "../lib/vehicles-api";
 import { getInstructors } from "../lib/instructors-api";
-import { deleteExamSchedule, updateExamSchedule } from "../lib/exam-schedules-api";
+import {
+  deleteExamSchedule,
+  getExamScheduleOptions,
+  updateExamSchedule,
+  type CandidateExamDateType,
+} from "../lib/exam-schedules-api";
 import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
@@ -1323,13 +1326,9 @@ export function CandidatesPage({
       examDateSidebar
         ? {
             examType: examDateSidebar.examType,
-            search: normalizeTextQuery(debouncedSearch),
-            status: "active" as const,
-            tags: activeTags.length > 0 ? activeTags : undefined,
-            ...filtersToQuery(debouncedFilters),
           }
         : null,
-    [activeTags, debouncedFilters, debouncedSearch, examDateSidebar]
+    [examDateSidebar?.examType]
   );
   const examDateOptionsQuery = useQuery({
     queryKey: ["candidates", "examScheduleOptions", examScheduleOptionsParams],

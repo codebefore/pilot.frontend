@@ -11,7 +11,7 @@ import {
 } from "./candidate-exam-attempts-api";
 import { getClassrooms } from "./classrooms-api";
 import { getExamCodes } from "./exam-codes-api";
-import { createExamSchedule } from "./exam-schedules-api";
+import { createExamSchedule, getExamScheduleOptions } from "./exam-schedules-api";
 import { getGroups } from "./groups-api";
 import { createAssignment, listAssignments } from "./instructor-assignments-api";
 import { getInstructors } from "./instructors-api";
@@ -42,6 +42,7 @@ describe("training api routing", () => {
     await getTerms({ page: 1, pageSize: 20 });
     await getGroups({ search: "A", page: 2 });
     await getExamCodes("uygulama");
+    await getExamScheduleOptions({ examType: "e_sinav" });
     await getClassrooms({ activity: "active", pageSize: 50 });
     await getInstructors({ activity: "all", role: "master_instructor" });
     await getVehicles({ activity: "all", status: "idle" });
@@ -56,12 +57,15 @@ describe("training api routing", () => {
       "http://127.0.0.1:5095/api/training/exam-codes?examType=uygulama"
     );
     expect(String(vi.mocked(fetch).mock.calls[3][0])).toBe(
-      "http://127.0.0.1:5095/api/training/classrooms?activity=active&pageSize=50"
+      "http://127.0.0.1:5095/api/training/exam-schedules?examType=e_sinav"
     );
     expect(String(vi.mocked(fetch).mock.calls[4][0])).toBe(
-      "http://127.0.0.1:5095/api/training/instructors?includeInactive=false&activity=all&role=master_instructor"
+      "http://127.0.0.1:5095/api/training/classrooms?activity=active&pageSize=50"
     );
     expect(String(vi.mocked(fetch).mock.calls[5][0])).toBe(
+      "http://127.0.0.1:5095/api/training/instructors?includeInactive=false&activity=all&role=master_instructor"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[6][0])).toBe(
       "http://127.0.0.1:5095/api/training/vehicles?includeInactive=false&activity=all&status=idle"
     );
   });

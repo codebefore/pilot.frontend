@@ -1,8 +1,5 @@
-import {
-  getCandidateById,
-  updateCandidate,
-  type CandidateExamDateType,
-} from "./candidates-api";
+import { getCandidateById, updateCandidate } from "./candidates-api";
+import type { CandidateExamDateType } from "./exam-schedules-api";
 import { normalizeCandidateGender, type CandidateStatusValue } from "./status-maps";
 import type { CandidateResponse, CandidateUpsertRequest } from "./types";
 

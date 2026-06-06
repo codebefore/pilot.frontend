@@ -8,7 +8,6 @@ import type {
   CandidateReuseSourceResponse,
   CandidateTag,
   CandidateUpsertRequest,
-  ExamScheduleOption,
   LicenseClass,
   PagedResponse,
 } from "./types";
@@ -36,7 +35,6 @@ export type CandidateSortField =
 export type SortDirection = "asc" | "desc";
 export type CandidateExamTabValue = "havuz" | "basarisiz" | "randevulu";
 export type ESinavTabValue = CandidateExamTabValue;
-export type CandidateExamDateType = "e_sinav" | "uygulama";
 
 export interface GetCandidatesParams extends QueryParams {
   search?: string;
@@ -83,11 +81,6 @@ export interface GetCandidatesParams extends QueryParams {
   pageSize?: number;
 }
 
-interface GetExamScheduleOptionsParams
-  extends Omit<GetCandidatesParams, "page" | "pageSize" | "sortBy" | "sortDir"> {
-  examType: CandidateExamDateType;
-}
-
 export function getCandidates(
   params?: GetCandidatesParams,
   signal?: AbortSignal
@@ -97,15 +90,6 @@ export function getCandidates(
     params,
     candidateRequestOptions(signal)
   );
-}
-
-export function getExamScheduleOptions(
-  params: GetExamScheduleOptionsParams,
-  signal?: AbortSignal
-): Promise<ExamScheduleOption[]> {
-  return httpGet<ExamScheduleOption[]>("/api/candidates/exam-date-options", params, {
-    ...candidateRequestOptions(signal),
-  });
 }
 
 export function getCandidateById(

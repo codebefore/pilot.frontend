@@ -25,7 +25,6 @@ import {
   assignCandidateGroup,
   deleteCandidate,
   getCandidateById,
-  getExamScheduleOptions,
   removeActiveGroupAssignment,
   setCandidateRegistrationDate,
   setCandidateRegistrationNumber,
@@ -34,6 +33,7 @@ import {
   updateCandidate,
   updateCandidateExistingLicense,
 } from "../lib/candidates-api";
+import { getExamScheduleOptions } from "../lib/exam-schedules-api";
 import {
   cancelCandidateAccountingMovement,
   cancelCandidateAccountingPayment,

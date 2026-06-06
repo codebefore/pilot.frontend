@@ -9,7 +9,6 @@ import {
   getCandidateById,
   getCandidateReuseSources,
   getCandidates,
-  getExamScheduleOptions,
   removeActiveGroupAssignment,
   searchCandidateTags,
   setCandidateRegistrationDate,
@@ -21,6 +20,7 @@ import {
   updateCandidateTag,
   type GetCandidatesParams,
 } from "../candidates-api";
+import { getExamScheduleOptions } from "../exam-schedules-api";
 import type {
   CandidateExistingLicenseRequest,
   CandidateResponse,

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createExamSchedule } from "../../lib/exam-schedules-api";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { ApiError } from "../../lib/http";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { Modal } from "../ui/Modal";
@@ -61,6 +62,7 @@ export function NewExamScheduleModal({
     !message ? "" : message.includes(".") ? t(message as TranslationKey) : message;
   const [submitting, setSubmitting] = useState(false);
   const capacityInputId = useId();
+  const firstExamCodeId = examCodes[0]?.id ?? "";
 
   const {
     register,
@@ -83,10 +85,10 @@ export function NewExamScheduleModal({
     if (open) {
       reset({
         ...defaultValues(),
-        examCodeId: examCodes[0]?.id ?? "",
+        examCodeId: firstExamCodeId,
       });
     }
-  }, [examCodes, open, reset]);
+  }, [firstExamCodeId, open, reset]);
 
   const submit = handleSubmit(async (data) => {
     if (!canManage) return;
@@ -111,6 +113,8 @@ export function NewExamScheduleModal({
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError);
       if (unmappedMessages[0]) {
         showToast(unmappedMessages[0], "error");
+      } else if (error instanceof ApiError && error.message) {
+        showToast(error.message, "error");
       } else if (!applied) {
         showToast("Sinav tarihi eklenemedi", "error");
       }
