@@ -15,7 +15,7 @@ import type { ExamCodeOption } from "../../lib/types";
 
 const newExamScheduleSchema = z.object({
   date: z.string().min(1, "common.required"),
-  examCodeId: z.string().min(1, "newExamSchedule.error.examCodeRequired"),
+  examCodeId: z.string().optional(),
   time: z.string().min(1, "common.required"),
   capacity: z.number().min(1, "newExamSchedule.error.capacityMin"),
 });
@@ -90,6 +90,11 @@ export function NewExamScheduleModal({
 
   const submit = handleSubmit(async (data) => {
     if (!canManage) return;
+    if (showExamCodeField && !data.examCodeId) {
+      setError("examCodeId", { message: "newExamSchedule.error.examCodeRequired" });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
