@@ -33,6 +33,10 @@ import {
   updateCandidate,
   updateCandidateExistingLicense,
 } from "../lib/candidates-api";
+import {
+  buildCandidateUpdatePayload,
+  type CandidatePayloadOverrides,
+} from "../lib/candidate-bulk";
 import { getExamScheduleOptions } from "../lib/exam-schedules-api";
 import {
   cancelCandidateAccountingMovement,
@@ -672,6 +676,7 @@ export function CandidateDetailPage() {
                   canManageCandidates={canManageCandidates}
                   candidate={candidate}
                   onAccountingChanged={refreshAccounting}
+                  onCandidateUpdated={setCandidate}
                   onOpenAccountingPayment={openAccountingPayment}
                   onTheoryExemptChanged={(value) =>
                     setCandidate((prev) =>
@@ -5260,16 +5265,59 @@ function formatExamScheduleOptionSecondary(schedule: ExamScheduleOption): string
   return schedule.examCode ?? undefined;
 }
 
+function buildCandidateExamSummaryOverrides(
+  attempts: CandidateExamAttemptResponse[]
+): CandidatePayloadOverrides {
+  const theoryAttempts = attempts.filter((attempt) => attempt.examType === "theory");
+  const practiceAttempts = attempts.filter((attempt) => attempt.examType === "practice");
+  const latestTheory = latestExamAttempt(theoryAttempts);
+  const latestPractice = latestExamAttempt(practiceAttempts);
+
+  return {
+    mebExamDate: latestTheory ? attemptDateOnly(latestTheory) : null,
+    mebExamResult: latestTheory ? theoryExamResult(latestTheory) : null,
+    eSinavAttemptCount: latestTheory?.attemptNumber ?? 1,
+    drivingExamDate: latestPractice ? attemptDateOnly(latestPractice) : null,
+    drivingExamScheduleId: latestPractice?.examScheduleId ?? null,
+    drivingExamAttemptCount: latestPractice?.attemptNumber ?? 0,
+  };
+}
+
+function latestExamAttempt(
+  attempts: CandidateExamAttemptResponse[]
+): CandidateExamAttemptResponse | undefined {
+  return [...attempts].sort((left, right) => {
+    if (right.attemptNumber !== left.attemptNumber) {
+      return right.attemptNumber - left.attemptNumber;
+    }
+    return Date.parse(right.scheduledAt) - Date.parse(left.scheduledAt);
+  })[0];
+}
+
+function attemptDateOnly(attempt: CandidateExamAttemptResponse): string {
+  return attempt.scheduledAt.slice(0, 10);
+}
+
+function theoryExamResult(attempt: CandidateExamAttemptResponse): "passed" | "failed" | null {
+  if (attempt.score == null) {
+    return null;
+  }
+
+  return attempt.score >= 70 ? "passed" : "failed";
+}
+
 function CandidateExamAttemptsSection({
   canManageCandidates,
   candidate,
   onAccountingChanged,
+  onCandidateUpdated,
   onOpenAccountingPayment,
   onTheoryExemptChanged,
 }: {
   canManageCandidates: boolean;
   candidate: CandidateResponse;
   onAccountingChanged?: () => Promise<void> | void;
+  onCandidateUpdated?: (candidate: CandidateResponse) => void;
   onOpenAccountingPayment?: (movementId: string) => void;
   onTheoryExemptChanged?: (value: boolean) => void;
 }) {
@@ -5497,6 +5545,18 @@ function CandidateExamAttemptsSection({
     setEditingAttempt(null);
   };
 
+  const syncCandidateExamSummary = async (nextAttempts: CandidateExamAttemptResponse[]) => {
+    try {
+      const updated = await updateCandidate(
+        candidate.id,
+        buildCandidateUpdatePayload(candidate, buildCandidateExamSummaryOverrides(nextAttempts))
+      );
+      onCandidateUpdated?.(updated);
+    } catch {
+      showToast("Aday sınav özeti güncellenemedi.", "error");
+    }
+  };
+
   const saveAttempt = async () => {
     if (!canManageCandidates) return;
     const fee = editingAttempt ? editingAttempt.fee : parseMoneyInput(form.fee) ?? 0;
@@ -5558,12 +5618,12 @@ function CandidateExamAttemptsSection({
       const saved = editingAttempt
         ? await updateCandidateExamAttempt(candidate.id, editingAttempt.id, payload)
         : await createCandidateExamAttempt(candidate.id, payload);
-      setAttempts((items) =>
-        (editingAttempt
-          ? items.map((item) => (item.id === saved.id ? saved : item))
-          : [...items, saved]
-        ).sort(compareExamAttempts)
-      );
+      const nextAttempts = (editingAttempt
+        ? attempts.map((item) => (item.id === saved.id ? saved : item))
+        : [...attempts, saved]
+      ).sort(compareExamAttempts);
+      setAttempts(nextAttempts);
+      await syncCandidateExamSummary(nextAttempts);
       if (editingAttempt && !editingFeeLocked && fee !== editingAttempt.fee) {
         try {
           await onAccountingChanged?.();
@@ -5620,6 +5680,7 @@ function CandidateExamAttemptsSection({
         attemptNumber: attempt.attemptNumber,
         score: nextScore,
         expiresAt: attempt.expiresAt ?? null,
+        examScheduleId: attempt.examScheduleId ?? null,
         vehicleId: attempt.vehicleId ?? null,
         vehiclePlate: attempt.vehiclePlate ?? null,
         instructorId: attempt.instructorId ?? null,
@@ -5630,7 +5691,9 @@ function CandidateExamAttemptsSection({
         feeStatus: attempt.feeStatus,
         rowVersion: attempt.rowVersion,
       });
-      setAttempts((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      const nextAttempts = attempts.map((item) => (item.id === updated.id ? updated : item));
+      setAttempts(nextAttempts);
+      await syncCandidateExamSummary(nextAttempts);
       showToast(nextScore == null ? "Puan silindi" : `Puan kaydedildi (${nextScore})`);
       return true;
     } catch (error) {
@@ -5669,7 +5732,9 @@ function CandidateExamAttemptsSection({
         feeStatus: attempt.feeStatus,
         rowVersion: attempt.rowVersion,
       });
-      setAttempts((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      const nextAttempts = attempts.map((item) => (item.id === updated.id ? updated : item));
+      setAttempts(nextAttempts);
+      await syncCandidateExamSummary(nextAttempts);
       showToast(t("candidateDetail.exam.toast.practiceStatusUpdated"));
       return true;
     } catch (error) {
@@ -5725,7 +5790,9 @@ function CandidateExamAttemptsSection({
     setRowSavingId(attempt.id);
     try {
       await deleteCandidateExamAttempt(candidate.id, attempt.id);
-      setAttempts((items) => items.filter((item) => item.id !== attempt.id));
+      const nextAttempts = attempts.filter((item) => item.id !== attempt.id);
+      setAttempts(nextAttempts);
+      await syncCandidateExamSummary(nextAttempts);
       setDeleteConfirmId(null);
       showToast(t("candidateDetail.exam.toast.attemptDeleted"));
     } catch (error) {

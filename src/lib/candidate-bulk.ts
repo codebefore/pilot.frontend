@@ -13,12 +13,15 @@ import type {
   CandidateUpsertRequest,
 } from "./types";
 
-type CandidatePayloadOverrides = {
+export type CandidatePayloadOverrides = {
   status?: CandidateStatusValue;
   tags?: string[];
   mebExamDate?: string | null;
+  mebExamResult?: string | null;
+  eSinavAttemptCount?: number | null;
   drivingExamDate?: string | null;
   drivingExamScheduleId?: string | null;
+  drivingExamAttemptCount?: number | null;
   graduationDate?: string | null;
 };
 
@@ -32,7 +35,7 @@ type BulkCandidateUpdateResult = {
  * overrides let callers swap a subset of fields (e.g. bulk status change)
  * while leaving the rest untouched.
  */
-function buildCandidateUpdatePayload(
+export function buildCandidateUpdatePayload(
   candidate: CandidateResponse,
   overrides?: CandidatePayloadOverrides
 ): CandidateUpsertRequest {
@@ -45,6 +48,15 @@ function buildCandidateUpdatePayload(
   const hasDrivingExamScheduleOverride =
     overrides !== undefined &&
     Object.prototype.hasOwnProperty.call(overrides, "drivingExamScheduleId");
+  const hasMebExamResultOverride =
+    overrides !== undefined &&
+    Object.prototype.hasOwnProperty.call(overrides, "mebExamResult");
+  const hasESinavAttemptCountOverride =
+    overrides !== undefined &&
+    Object.prototype.hasOwnProperty.call(overrides, "eSinavAttemptCount");
+  const hasDrivingExamAttemptCountOverride =
+    overrides !== undefined &&
+    Object.prototype.hasOwnProperty.call(overrides, "drivingExamAttemptCount");
   const hasGraduationDateOverride =
     overrides !== undefined &&
     Object.prototype.hasOwnProperty.call(overrides, "graduationDate");
@@ -74,9 +86,13 @@ function buildCandidateUpdatePayload(
     graduationDate: hasGraduationDateOverride
       ? overrides.graduationDate
       : candidate.graduationDate,
-    mebExamResult: candidate.mebExamResult,
-    eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
-    drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
+    mebExamResult: hasMebExamResultOverride ? overrides.mebExamResult : candidate.mebExamResult,
+    eSinavAttemptCount: hasESinavAttemptCountOverride
+      ? overrides.eSinavAttemptCount ?? 1
+      : candidate.eSinavAttemptCount ?? 1,
+    drivingExamAttemptCount: hasDrivingExamAttemptCountOverride
+      ? overrides.drivingExamAttemptCount ?? 0
+      : candidate.drivingExamAttemptCount ?? 1,
     status: overrides?.status ?? (candidate.status as CandidateStatusValue),
     terminationReason: candidate.terminationReason,
     terminationDate: candidate.terminationDate,
