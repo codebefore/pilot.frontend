@@ -261,7 +261,43 @@ function findScheduleAttempt(
       attempt.examType === examType &&
       !attempt.examScheduleId &&
       attempt.scheduledAt.slice(0, 10) === examDate
-    );
+    )
+    ?? latestOpenExamAttempt(attempts, examType);
+}
+
+function latestOpenExamAttempt(
+  attempts: CandidateExamAttemptResponse[],
+  examType: CandidateExamType
+): CandidateExamAttemptResponse | undefined {
+  return attempts
+    .filter((attempt) => attempt.examType === examType && !isClosedExamAttempt(attempt))
+    .sort(compareCandidateExamAttemptRecency)[0];
+}
+
+function isClosedExamAttempt(attempt: CandidateExamAttemptResponse): boolean {
+  if (attempt.examType === "theory") {
+    return attempt.score !== null && attempt.score !== undefined;
+  }
+
+  return Boolean(attempt.examResultStatus)
+    || attempt.examAttendanceStatus === "absent"
+    || attempt.examAttendanceStatus === "reported";
+}
+
+function compareCandidateExamAttemptRecency(
+  left: CandidateExamAttemptResponse,
+  right: CandidateExamAttemptResponse
+): number {
+  if (right.attemptNumber !== left.attemptNumber) {
+    return right.attemptNumber - left.attemptNumber;
+  }
+
+  const scheduledDiff = Date.parse(right.scheduledAt) - Date.parse(left.scheduledAt);
+  if (scheduledDiff !== 0) {
+    return scheduledDiff;
+  }
+
+  return Date.parse(right.createdAt) - Date.parse(left.createdAt);
 }
 
 function examDateTimeUtc(examDate: string, examTime?: string | null): string {

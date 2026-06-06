@@ -78,6 +78,63 @@ describe("UserFormModal", () => {
     expect(screen.getByRole("button", { name: "Patron" })).toBeInTheDocument();
   });
 
+  it("does not put the masked phone into the edit input and preserves it when left blank", async () => {
+    const onSaved = vi.fn();
+    updateUserMock.mockResolvedValue({
+      id: "user-1",
+      fullName: "Ada Yilmaz",
+      phone: "555***4567",
+      mebbisUsername: null,
+      hasMebbisPassword: false,
+      roleId: null,
+      roleName: null,
+      isSuperAdmin: false,
+      isActive: true,
+      createdAtUtc: "2026-04-01T00:00:00Z",
+      updatedAtUtc: "2026-04-01T00:00:00Z",
+    });
+
+    renderWithProviders(
+      <UserFormModal
+        editing={{
+          id: "user-1",
+          fullName: "Ada Yilmaz",
+          phone: "555***4567",
+          mebbisUsername: null,
+          hasMebbisPassword: false,
+          roleId: null,
+          roleName: null,
+          isSuperAdmin: false,
+          isActive: true,
+          createdAtUtc: "2026-04-01T00:00:00Z",
+          updatedAtUtc: "2026-04-01T00:00:00Z",
+        }}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+        roles={[]}
+      />
+    );
+
+    const phoneInput = screen.getByPlaceholderText("Mevcut: 555***4567") as HTMLInputElement;
+    expect(phoneInput).toHaveValue("");
+    expect(phoneInput).toHaveAttribute("placeholder", "Mevcut: 555***4567");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateUserMock).toHaveBeenCalledWith("user-1", {
+        fullName: "Ada Yilmaz",
+        phone: null,
+        mebbisUsername: null,
+        mebbisPassword: null,
+        roleId: null,
+        isActive: true,
+      });
+    });
+    expect(onSaved).toHaveBeenCalled();
+  });
+
   it("submits without email and requires phone when creating a user", async () => {
     const onSaved = vi.fn();
 

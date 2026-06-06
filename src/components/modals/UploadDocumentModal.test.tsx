@@ -125,4 +125,45 @@ describe("UploadDocumentModal", () => {
       expect(onUploaded).not.toHaveBeenCalled();
     });
   });
+
+  it("shows a file size error before uploading oversized files", async () => {
+    const onUploaded = vi.fn();
+    const documentTypes = [
+      {
+        id: "type-webcam",
+        module: "candidate",
+        key: "webcam_photo",
+        name: "Webcam Fotoğrafı",
+        sortOrder: 1,
+        isRequired: true,
+        isActive: true,
+        metadataFields: [],
+        createdAtUtc: "2026-01-01T00:00:00Z",
+        updatedAtUtc: "2026-01-01T00:00:00Z",
+      },
+    ];
+    const oversizedFile = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "webcam.jpg", {
+      type: "image/jpeg",
+    });
+
+    renderWithProviders(
+      <UploadDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypes={documentTypes}
+        initialDocumentTypeId="type-webcam"
+        onClose={() => {}}
+        onUploaded={onUploaded}
+        open
+      />
+    );
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [oversizedFile] } });
+    fireEvent.click(screen.getByRole("button", { name: "Yükle" }));
+
+    expect(await screen.findByText("Dosya 10 MB'tan büyük olamaz")).toBeInTheDocument();
+    expect(uploadDocumentMock).not.toHaveBeenCalled();
+    expect(onUploaded).not.toHaveBeenCalled();
+  });
 });

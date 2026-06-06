@@ -5,6 +5,7 @@ import {
   createAssignment,
   updateAssignment,
 } from "../../lib/instructor-assignments-api";
+import { ApiError } from "../../lib/http";
 import {
   INSTRUCTOR_EMPLOYMENT_OPTIONS,
   INSTRUCTOR_ROLE_OPTIONS,
@@ -86,6 +87,14 @@ function mergeSelectedLicenseOptions(
   return [...byValue.values()];
 }
 
+function firstValidationMessage(error: ApiError, ...fields: string[]): string | undefined {
+  for (const field of fields) {
+    const message = error.validationErrors?.[field]?.[0];
+    if (message) return message;
+  }
+  return undefined;
+}
+
 export function InstructorAssignmentFormModal({
   open,
   canManage = true,
@@ -104,7 +113,7 @@ export function InstructorAssignmentFormModal({
   const contractEndId = useId();
 	  const { showToast } = useToast();
 	  const noPermissionTitle = t("common.noPermission");
-	  const { options: licenseClassOptions } = useLicenseClassOptions();
+	  const { options: licenseClassOptions, loading: licenseClassOptionsLoading } = useLicenseClassOptions();
   const [values, setValues] = useState<FormState>(emptyState);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | "_global", string>>>({});
@@ -122,7 +131,24 @@ export function InstructorAssignmentFormModal({
 	    setValues(next);
 	  }, [branches, editing, open]);
 
+  useEffect(() => {
+    if (!open || !values.branches.includes("practice") || licenseClassOptions.length === 0) return;
+
+    const supported = new Set(licenseClassOptions.map((option) => option.value));
+    const activeSelected = values.licenseClassCodes.filter((code) => supported.has(code));
+    if (activeSelected.length === values.licenseClassCodes.length && activeSelected.length > 0) return;
+
+    setValues((prev) => ({
+      ...prev,
+      licenseClassCodes: activeSelected.length > 0 ? activeSelected : [licenseClassOptions[0].value],
+    }));
+    setErrors((prev) => ({ ...prev, licenseClassCodes: undefined, _global: undefined }));
+  }, [licenseClassOptions, open, values.branches, values.licenseClassCodes]);
+
   if (!open) return null;
+
+  const practiceBranchSelected = values.branches.includes("practice");
+  const licenseClassSelectionPending = practiceBranchSelected && licenseClassOptionsLoading;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -215,6 +241,19 @@ export function InstructorAssignmentFormModal({
         setErrors({
           _global: t("settings.instructors.detail.assignments.errors.dateOverlap"),
         });
+      } else if (err instanceof ApiError) {
+        const licenseClassMessage = firstValidationMessage(err, "licenseClassCodes", "LicenseClassCodes");
+        const branchMessage = firstValidationMessage(err, "branches", "Branches");
+        if (licenseClassMessage || branchMessage) {
+          setErrors((prev) => ({
+            ...prev,
+            ...(licenseClassMessage ? { _global: t("instructorAssignment.error.licenseClassMin") } : {}),
+            ...(licenseClassMessage ? { licenseClassCodes: t("instructorAssignment.error.licenseClassMin") } : {}),
+            ...(branchMessage ? { branches: branchMessage } : {}),
+          }));
+        } else {
+          showToast(t("settings.instructors.detail.assignments.errors.saveFailed"), "error");
+        }
       } else {
         showToast(t("settings.instructors.detail.assignments.errors.saveFailed"), "error");
       }
@@ -239,7 +278,7 @@ export function InstructorAssignmentFormModal({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting || !canManage}
+            disabled={submitting || licenseClassSelectionPending || !canManage}
             onClick={submit}
             title={!canManage ? noPermissionTitle : undefined}
             type="button"
@@ -329,7 +368,7 @@ export function InstructorAssignmentFormModal({
             )}
 	        </div>
 
-	        {values.branches.includes("practice") ? (
+	        {practiceBranchSelected ? (
 	          <div className="form-row">
 	            <div className="form-group">
 	              <label className="form-label">{t("common.field.licenseClasses")}</label>
@@ -346,6 +385,11 @@ export function InstructorAssignmentFormModal({
 	                  </label>
 	                ))}
 	              </div>
+                {licenseClassOptionsLoading ? (
+                  <div className="form-hint">{t("instructorAssignment.hint.licenseClassesLoading")}</div>
+                ) : visibleLicenseClassOptions.length === 0 ? (
+                  <div className="form-error">{t("instructorAssignment.error.noActiveLicenseClasses")}</div>
+                ) : null}
 	              {errors.licenseClassCodes && (
 	                <div className="form-error">{errors.licenseClassCodes}</div>
 	              )}

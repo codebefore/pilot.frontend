@@ -34,7 +34,7 @@ import {
   updateCandidateExistingLicense,
 } from "../lib/candidates-api";
 import {
-  buildCandidateUpdatePayload,
+  buildCandidateUpdatePayload as buildBulkCandidateUpdatePayload,
   type CandidatePayloadOverrides,
 } from "../lib/candidate-bulk";
 import { getExamScheduleOptions } from "../lib/exam-schedules-api";
@@ -5549,7 +5549,7 @@ function CandidateExamAttemptsSection({
     try {
       const updated = await updateCandidate(
         candidate.id,
-        buildCandidateUpdatePayload(candidate, buildCandidateExamSummaryOverrides(nextAttempts))
+        buildBulkCandidateUpdatePayload(candidate, buildCandidateExamSummaryOverrides(nextAttempts))
       );
       onCandidateUpdated?.(updated);
     } catch {

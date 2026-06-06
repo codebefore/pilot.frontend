@@ -192,12 +192,28 @@
   text-align: left;
   cursor: pointer;
 }
-.exam-date-option-edit {
+.exam-date-option.exam-date-option-edit {
+  min-height: 66px;
+  padding: 6px 56px 6px 6px;
   cursor: default;
+}
+.exam-code-option.exam-date-option-edit {
+  cursor: default;
+}
+.exam-date-option-edit-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
 }
 .exam-code-option.exam-date-option-edit {
   gap: 4px;
   padding-right: 56px;
+}
+.exam-date-option-edit-trigger {
+  width: 100%;
+  min-width: 0;
 }
 .exam-date-option-edit-input {
   width: calc(100% - 52px);
@@ -208,6 +224,14 @@
   color: var(--gray-900);
   font-size: 12px;
   font-weight: 700;
+}
+.exam-date-option-edit-fields .localized-date-trigger {
+  min-height: 26px;
+  height: 26px;
+  padding: 0 6px;
+}
+.exam-date-option-edit-time-trigger input {
+  min-width: 0;
 }
 .exam-code-option .exam-date-option-edit-input {
   width: 100%;
@@ -635,4 +659,3 @@ button.tag-filter-summary-chip.active {
     align-items: stretch;
   }
 }
-

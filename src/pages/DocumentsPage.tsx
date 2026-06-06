@@ -890,14 +890,15 @@ export function DocumentsPage() {
               <tr>
                 {bulkSelectEnabled && (
                   <th className="cand-select-th">
-                    <span className="cand-select-control">
+                    <label className="cand-select-control switch-toggle">
                       <input
                         aria-label={t("documentsPage.aria.selectAll")}
                         checked={allVisibleSelected}
                         onChange={toggleVisibleCandidateSelection}
                         type="checkbox"
                       />
-                    </span>
+                      <span className="switch-toggle-control" aria-hidden="true" />
+                    </label>
                   </th>
                 )}
                 <th aria-label="Resim" className="cand-photo-th" />
@@ -1051,7 +1052,7 @@ export function DocumentsPage() {
                           className="cand-select-td"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <span className="cand-select-control">
+                          <label className="cand-select-control switch-toggle">
                             <input
                               aria-label={`${entry.fullName} seç`}
                               checked={selectedCandidateIds.has(entry.candidateId)}
@@ -1059,7 +1060,8 @@ export function DocumentsPage() {
                               onClick={(event) => event.stopPropagation()}
                               type="checkbox"
                             />
-                          </span>
+                            <span className="switch-toggle-control" aria-hidden="true" />
+                          </label>
                         </td>
                       )}
                       <td className="cand-photo-td">

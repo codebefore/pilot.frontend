@@ -7,6 +7,7 @@ import { getCandidates } from "../../lib/candidates-api";
 import { getDocumentTypes, uploadDocument } from "../../lib/documents-api";
 import { useLanguage, useT } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { ApiError } from "../../lib/http";
 import type {
   CandidateResponse,
   DocumentMetadataField,
@@ -42,6 +43,7 @@ type UploadDocumentModalProps = {
 };
 
 const ACCEPT = "image/jpeg,image/png,application/pdf";
+const MAX_BYTES = 10 * 1024 * 1024;
 const HEALTH_REPORT_META_KEYS = {
   disability: "disability",
 } as const;
@@ -244,6 +246,10 @@ export function UploadDocumentModal({
       setError("file", { message: t("uploadDoc.errors.fileRequired") });
       return;
     }
+    if (data.file && !data.isPhysicallyAvailable && data.file.size > MAX_BYTES) {
+      setError("file", { message: t("uploadDoc.errors.fileTooLarge") });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -258,6 +264,12 @@ export function UploadDocumentModal({
       });
       onUploaded();
     } catch (error) {
+      if (error instanceof ApiError && error.status === 413) {
+        setError("file", { message: t("uploadDoc.errors.fileTooLarge") });
+        showToast(t("uploadDoc.errors.fileTooLarge"), "error");
+        return;
+      }
+
       const { unmappedMessages } = applyApiErrorsToForm(error, setError);
       showToast(unmappedMessages[0] ?? t("documents.uploadFailed"), "error");
     } finally {

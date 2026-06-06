@@ -145,6 +145,21 @@
   justify-content: center;
   width: 100%;
 }
+.cand-select-control.switch-toggle {
+  gap: 0;
+  min-height: 32px;
+}
+.cand-select-control .switch-toggle-control {
+  width: 32px;
+  height: 18px;
+}
+.cand-select-control .switch-toggle-control::after {
+  width: 14px;
+  height: 14px;
+}
+.cand-select-control input[type="checkbox"]:checked + .switch-toggle-control::after {
+  transform: translateX(14px);
+}
 .cand-select-th input,
 .cand-select-td input {
   width: 16px;

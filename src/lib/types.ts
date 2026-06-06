@@ -1209,7 +1209,7 @@ export interface AppUserResponse {
 
 export interface AppUserUpsertRequest {
   fullName: string;
-  phone: string;
+  phone: string | null;
   mebbisUsername?: string | null;
   mebbisPassword?: string | null;
   roleId?: string | null;

@@ -1892,7 +1892,7 @@ export function CandidatesPage({
     return fallback;
   };
 
-  const handleExamDateEdit = async (option: ExamScheduleOption, date: string) => {
+  const handleExamDateEdit = async (option: ExamScheduleOption, date: string, time?: string) => {
     if (!canManageGroups) return;
     if (editingExamScheduleId) {
       return;
@@ -1904,7 +1904,7 @@ export function CandidatesPage({
         examType: option.examType,
         date,
         examCodeId: option.examCodeId ?? null,
-        time: option.examType === "e_sinav" ? option.time : undefined,
+        time: option.examType === "e_sinav" ? (time ?? option.time) : undefined,
         capacity: option.capacity,
       });
       if (selectedExamDate === option.date) {
@@ -2598,14 +2598,15 @@ export function CandidatesPage({
             <tr>
               {bulkSelectEnabled && (
                 <th className="cand-select-th">
-                  <span className="cand-select-control">
+                  <label className="cand-select-control switch-toggle">
                     <input
                       aria-label={t("candidates.aria.selectAllOnPage")}
                       checked={allVisibleSelected}
                       onChange={toggleVisibleCandidateSelection}
                       type="checkbox"
                     />
-                  </span>
+                    <span className="switch-toggle-control" aria-hidden="true" />
+                  </label>
                 </th>
               )}
               {visibleColumns.map((col) => {
@@ -2687,7 +2688,7 @@ export function CandidatesPage({
                       className="cand-select-td"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <span className="cand-select-control">
+                      <label className="cand-select-control switch-toggle">
                         <input
                           aria-label={t("candidates.aria.selectCandidate", {
                             name: `${c.firstName} ${c.lastName}`,
@@ -2697,7 +2698,8 @@ export function CandidatesPage({
                           onClick={(event) => event.stopPropagation()}
                           type="checkbox"
                         />
-                      </span>
+                        <span className="switch-toggle-control" aria-hidden="true" />
+                      </label>
                     </td>
                   )}
                   {visibleColumns.map((col) => {

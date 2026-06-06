@@ -605,6 +605,33 @@ describe("CandidatesPage tabs", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
+  it("edits the exam schedule time without changing the date", async () => {
+    const onEdit = vi.fn();
+
+    renderWithProviders(
+      <CandidateExamDateSidebar
+        onEdit={onEdit}
+        onSelect={vi.fn()}
+        options={[examScheduleOption("2026-06-13", { time: "09:05", candidateCount: 1 })]}
+        selectedDate=""
+        title="E-Sınav Tarihi"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /13\.06\.2026 sınav tarihini düzenle/i }));
+    fireEvent.click(screen.getByLabelText("Sınav saati"));
+    fireEvent.click(screen.getByRole("option", { name: "10:05" }));
+    fireEvent.click(screen.getByRole("button", { name: /13\.06\.2026 sınav tarihini kaydet/i }));
+
+    await waitFor(() => {
+      expect(onEdit).toHaveBeenCalledWith(
+        expect.objectContaining({ date: "2026-06-13", time: "09:05" }),
+        "2026-06-13",
+        "10:05"
+      );
+    });
+  });
+
   it("moves e-sinav from havuz to randevulu when a date is selected", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-05-12", { candidateCount: 3 }),

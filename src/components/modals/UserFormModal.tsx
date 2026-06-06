@@ -21,8 +21,7 @@ const userFormSchema = z.object({
   fullName: z.string().min(1, "common.required").min(3, "common.minChars3"),
   phone: z
     .string()
-    .min(1, "common.required")
-    .refine((v) => isPhoneStartingWith5(v), "userForm.phone.startWith5"),
+    .refine((v) => !v.trim() || isPhoneStartingWith5(v), "userForm.phone.startWith5"),
   mebbisUsername: z.string(),
   mebbisPassword: z.string(),
   roleId: z.string(),
@@ -44,7 +43,7 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
   editing
     ? {
         fullName: editing.fullName,
-        phone: editing.phone ?? "",
+        phone: "",
         mebbisUsername: editing.mebbisUsername ?? "",
         mebbisPassword: "",
         roleId: editing.roleId ?? "",
@@ -121,10 +120,14 @@ export function UserFormModal({
 
   const submit = handleSubmit(async (values) => {
     if (!canManage) return;
+    if (!editing && !values.phone.trim()) {
+      setError("phone", { message: "common.required" });
+      return;
+    }
     setSubmitting(true);
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
-      phone: values.phone.trim(),
+      phone: editing && !values.phone.trim() ? null : values.phone.trim(),
       mebbisUsername: values.mebbisUsername.trim() || null,
       mebbisPassword: values.mebbisPassword.trim() || null,
       roleId: values.roleId || null,
@@ -222,9 +225,12 @@ export function UserFormModal({
               className={fieldClass(!!errors.phone, "form-input")}
               disabled={!canManage}
               maxLength={32}
-              placeholder="5XX XXX XX XX"
+              placeholder={editing?.phone ? `Mevcut: ${editing.phone}` : "5XX XXX XX XX"}
               {...phoneRegistration}
             />
+            {editing?.phone ? (
+              <div className="form-hint">Boş bırakırsanız mevcut telefon korunur.</div>
+            ) : null}
             {errors.phone && <div className="form-error">{translateError(errors.phone.message)}</div>}
           </div>
         </div>

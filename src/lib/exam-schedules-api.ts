@@ -27,7 +27,7 @@ export function getExamScheduleOptions(
 ): Promise<ExamScheduleOption[]> {
   return httpGet<ExamScheduleOption[]>(
     "/api/training/exam-schedules",
-    params,
+    { examType: params.examType },
     trainingRequestOptions(signal)
   );
 }

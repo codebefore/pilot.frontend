@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { CheckIcon, PencilIcon, TrashIcon, XIcon } from "../icons";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
+import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { formatExamScheduleLicenseClassSummary } from "../../lib/exam-schedule-summary";
 import { useT } from "../../lib/i18n";
 import { formatDateTR } from "../../lib/status-maps";
@@ -16,7 +17,7 @@ type CandidateExamDateSidebarProps = {
   onCodeSelect?: (code: string) => void;
   onSidebarTabChange?: (tab: "dates" | "codes") => void;
   onDelete?: (option: ExamScheduleOption) => void;
-  onEdit?: (option: ExamScheduleOption, date: string) => void;
+  onEdit?: (option: ExamScheduleOption, date: string, time?: string) => void;
   deletingOptionId?: string | null;
   actions?: { label: string; onClick: () => void; disabled?: boolean; title?: string }[];
   codeOptions?: ExamCodeOption[];
@@ -90,6 +91,7 @@ export function CandidateExamDateSidebar({
   const [confirmingCodeId, setConfirmingCodeId] = useState<string | null>(null);
   const [editingDateId, setEditingDateId] = useState<string | null>(null);
   const [editingDateValue, setEditingDateValue] = useState("");
+  const [editingTimeValue, setEditingTimeValue] = useState("");
   const [editingCodeLocalId, setEditingCodeLocalId] = useState<string | null>(null);
   const [editingCodeValue, setEditingCodeValue] = useState("");
   const [editingCodeError, setEditingCodeError] = useState("");
@@ -179,14 +181,19 @@ export function CandidateExamDateSidebar({
     setConfirmingId(null);
     setEditingDateId(option.id);
     setEditingDateValue(option.date);
+    setEditingTimeValue(option.time);
   };
   const submitDateEdit = (option: ExamScheduleOption) => {
     if (!canManageMutations) return;
-    if (!editingDateValue || editingDateValue === option.date) {
+    const trimmedTime = editingTimeValue.trim();
+    const nextTime = showTime ? trimmedTime : option.time;
+    const dateUnchanged = editingDateValue === option.date;
+    const timeUnchanged = nextTime === option.time;
+    if (!editingDateValue || (dateUnchanged && timeUnchanged)) {
       setEditingDateId(null);
       return;
     }
-    onEdit?.(option, editingDateValue);
+    onEdit?.(option, editingDateValue, nextTime);
   };
   const startCodeEdit = (option: ExamCodeOption) => {
     if (!canManageMutations) return;
@@ -430,16 +437,28 @@ export function CandidateExamDateSidebar({
             <div className="exam-date-option-shell">
               {isEditing ? (
                 <div className="exam-date-option exam-date-option-edit">
-                  <LocalizedDateInput
-                    ariaLabel={t("examDateSidebar.aria.examDate")}
-                    className="exam-date-option-edit-input"
-                    defaultOnOpen={option.date}
-                    disabled={!canManageMutations}
-                    lang="tr-TR"
-                    onChange={setEditingDateValue}
-                    size="sm"
-                    value={editingDateValue}
-                  />
+                  <div className="exam-date-option-edit-fields">
+                    <LocalizedDateInput
+                      ariaLabel={t("examDateSidebar.aria.examDate")}
+                      className="exam-date-option-edit-trigger"
+                      defaultOnOpen={option.date}
+                      disabled={!canManageMutations}
+                      lang="tr-TR"
+                      onChange={setEditingDateValue}
+                      size="sm"
+                      value={editingDateValue}
+                    />
+                    {showTime ? (
+                      <LocalizedTimeInput
+                        ariaLabel="Sınav saati"
+                        className="exam-date-option-edit-trigger exam-date-option-edit-time-trigger"
+                        disabled={!canManageMutations}
+                        onChange={setEditingTimeValue}
+                        size="sm"
+                        value={editingTimeValue}
+                      />
+                    ) : null}
+                  </div>
                 </div>
               ) : (
                 <button

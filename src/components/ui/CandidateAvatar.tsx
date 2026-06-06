@@ -7,16 +7,22 @@ import { normalizeCandidateGender } from "../../lib/status-maps";
 import type { CandidateResponse } from "../../lib/types";
 
 type CandidateAvatarProps = {
-  candidate: Pick<CandidateResponse, "id" | "firstName" | "lastName" | "photo"> & {
+  candidate: Pick<CandidateResponse, "id" | "photo"> & {
+    firstName?: string | null;
+    lastName?: string | null;
     gender?: string | null;
   };
   className?: string;
   size?: number;
 };
 
-function candidateInitials(candidate: Pick<CandidateResponse, "firstName" | "lastName">): string {
-  const first = candidate.firstName.trim().charAt(0);
-  const last = candidate.lastName.trim().charAt(0);
+function candidateNamePart(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function candidateInitials(candidate: Pick<CandidateAvatarProps["candidate"], "firstName" | "lastName">): string {
+  const first = candidateNamePart(candidate.firstName).charAt(0);
+  const last = candidateNamePart(candidate.lastName).charAt(0);
   return `${first}${last}`.trim().toLocaleUpperCase("tr-TR") || "A";
 }
 
@@ -75,7 +81,7 @@ export function CandidateAvatar({
     >
       {objectUrl ? (
         <img
-          alt={`${candidate.firstName} ${candidate.lastName}`}
+          alt={`${candidateNamePart(candidate.firstName)} ${candidateNamePart(candidate.lastName)}`.trim()}
           className="candidate-avatar-image"
           loading="lazy"
           src={objectUrl}
