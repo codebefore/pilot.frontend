@@ -34,8 +34,10 @@ import {
   TURKEY_PROVINCE_OPTIONS,
 } from "../../lib/status-maps";
 import {
+  findLicenseClassDefinitionIdForSelection,
+  useActiveLicenseClassDefinitions,
+  useCandidateLicenseClassOptions,
   useExistingLicenseTypeOptions,
-  useLicenseClassOptions,
 } from "../../lib/use-license-class-options";
 import type {
   CandidateResponse,
@@ -96,7 +98,6 @@ type ExistingLicenseDraft = {
   issuedAt: string;
   number: string;
   issuedProvince: string;
-  pre2016: boolean;
 };
 
 /**
@@ -125,7 +126,6 @@ function buildExistingLicenseDraft(candidate: CandidateResponse | null): Existin
     issuedAt: candidate?.existingLicenseIssuedAt ?? "",
     number: candidate?.existingLicenseNumber ?? "",
     issuedProvince: candidate?.existingLicenseIssuedProvince ?? "",
-    pre2016: candidate?.existingLicensePre2016 ?? false,
   };
 }
 
@@ -143,15 +143,15 @@ export function CandidateDrawer({
   const licenseDateInputId = useId();
   const licenseNumberInputId = useId();
   const issuedProvinceSelectId = useId();
-  const BOOLEAN_OPTIONS: SelectOption[] = [
-    { value: "true", label: t("common.yes") },
-    { value: "false", label: t("common.no") },
-  ];
-  const { options: licenseClassOptions } = useLicenseClassOptions();
+  const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
+  const { options: licenseClassOptions } = useCandidateLicenseClassOptions(
+    candidate?.existingLicenseType ?? "",
+    candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType
+  );
+  const { items: activeLicenseClassDefinitions } = useActiveLicenseClassDefinitions(!!candidate);
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const today = todayISO();
-  const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -277,6 +277,7 @@ export function CandidateDrawer({
         birthDate: candidate.birthDate,
         gender: normalizeCandidateGender(candidate.gender),
         licenseClass: candidate.licenseClass,
+        licenseClassDefinitionId: candidate.licenseClassDefinitionId ?? null,
         hasExistingLicense: candidate.hasExistingLicense ?? !!candidate.existingLicenseType,
         existingLicenseType: candidate.existingLicenseType,
         existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
@@ -350,11 +351,27 @@ export function CandidateDrawer({
     const nextType = nextTypeRaw && nextTypeRaw.trim().length > 0 ? nextTypeRaw : null;
     const nextHasExistingLicense =
       patch.hasExistingLicense ?? candidate.hasExistingLicense ?? !!candidate.existingLicenseType;
+    const nextLicenseClass = patch.licenseClass ?? candidate.licenseClass;
+    const licenseSelectionChanged =
+      patch.licenseClass !== undefined ||
+      patch.hasExistingLicense !== undefined ||
+      patch.existingLicenseType !== undefined;
+    const resolveDefinitionId = (
+      sourceLicenseClass: string | null,
+      hasExistingLicense: boolean
+    ) =>
+      findLicenseClassDefinitionIdForSelection(
+        activeLicenseClassDefinitions,
+        nextLicenseClass,
+        sourceLicenseClass,
+        hasExistingLicense
+      ) ?? (licenseSelectionChanged ? null : candidate.licenseClassDefinitionId ?? null);
 
     if (!nextHasExistingLicense) {
       return {
         hasExistingLicense: false,
         existingLicenseType: null,
+        licenseClassDefinitionId: resolveDefinitionId(null, false),
         existingLicenseIssuedAt: null,
         existingLicenseNumber: null,
         existingLicenseIssuedProvince: null,
@@ -376,15 +393,11 @@ export function CandidateDrawer({
         : candidate.existingLicenseIssuedProvince;
     const nextNumber = nextNumberRaw?.trim() || null;
     const nextProvince = nextProvinceRaw?.trim() || null;
-    const nextPre2016 =
-      patch.existingLicensePre2016 !== undefined
-        ? patch.existingLicensePre2016
-        : candidate.existingLicensePre2016;
-
     if (!nextType) {
       return {
         hasExistingLicense: true,
         existingLicenseType: null,
+        licenseClassDefinitionId: resolveDefinitionId(null, false),
         existingLicenseIssuedAt: nextIssuedAt ?? null,
         existingLicenseNumber: nextNumber,
         existingLicenseIssuedProvince: nextProvince,
@@ -410,10 +423,11 @@ export function CandidateDrawer({
     return {
       hasExistingLicense: true,
       existingLicenseType: nextType,
+      licenseClassDefinitionId: resolveDefinitionId(nextType, true),
       existingLicenseIssuedAt: nextIssuedAt,
       existingLicenseNumber: nextNumber,
       existingLicenseIssuedProvince: nextProvince,
-      existingLicensePre2016: nextPre2016 ?? false,
+      existingLicensePre2016: false,
     };
   };
 
@@ -437,8 +451,7 @@ export function CandidateDrawer({
     existingLicenseDraft.type !== (candidate?.existingLicenseType ?? "") ||
     existingLicenseDraft.issuedAt !== (candidate?.existingLicenseIssuedAt ?? "") ||
     existingLicenseDraft.number !== (candidate?.existingLicenseNumber ?? "") ||
-    existingLicenseDraft.issuedProvince !== (candidate?.existingLicenseIssuedProvince ?? "") ||
-    existingLicenseDraft.pre2016 !== (candidate?.existingLicensePre2016 ?? false);
+    existingLicenseDraft.issuedProvince !== (candidate?.existingLicenseIssuedProvince ?? "");
 
   const saveExistingLicense = async () => {
     if (!canManageCandidates) return;
@@ -470,6 +483,12 @@ export function CandidateDrawer({
       await saveField({
         hasExistingLicense: existingLicenseDraft.enabled,
         existingLicenseType: existingLicenseDraft.enabled ? existingLicenseDraft.type : null,
+        licenseClassDefinitionId: findLicenseClassDefinitionIdForSelection(
+          activeLicenseClassDefinitions,
+          candidate.licenseClass,
+          existingLicenseDraft.enabled ? existingLicenseDraft.type : null,
+          existingLicenseDraft.enabled
+        ),
         existingLicenseIssuedAt: existingLicenseDraft.enabled ? existingLicenseDraft.issuedAt : null,
         existingLicenseNumber: existingLicenseDraft.enabled
           ? existingLicenseDraft.number.trim()
@@ -477,9 +496,7 @@ export function CandidateDrawer({
         existingLicenseIssuedProvince: existingLicenseDraft.enabled
           ? existingLicenseDraft.issuedProvince.trim()
           : null,
-        existingLicensePre2016: existingLicenseDraft.enabled
-          ? existingLicenseDraft.pre2016
-          : false,
+        existingLicensePre2016: false,
       });
       showToast(t("candidateDrawer.toast.existingLicenseUpdated"));
     } catch {
@@ -711,7 +728,13 @@ export function CandidateDrawer({
               inputValue={candidate.licenseClass}
               label={t("common.field.licenseClass")}
               options={licenseClassOptions}
-              onSave={(v) => saveField({ licenseClass: v as LicenseClass })}
+              onSave={(v) =>
+                saveField({
+                  licenseClass: v as LicenseClass,
+                  licenseClassDefinitionId:
+                    licenseClassOptions.find((option) => option.value === v)?.licenseClassDefinitionId ?? null,
+                })
+              }
             />
             <EditableRow
               disabled={!canManageCandidates}
@@ -793,17 +816,6 @@ export function CandidateDrawer({
                     })
                   }
                 />
-                <EditableRow
-                  disabled={!canManageCandidates}
-                  disabledTitle={candidateEditDisabledTitle}
-                  displayValue={candidate.existingLicensePre2016 ? t("common.yes") : t("common.no")}
-                  inputValue={candidate.existingLicensePre2016 ? "true" : "false"}
-                  label={t("candidateDrawer.field.pre2016")}
-                  options={BOOLEAN_OPTIONS}
-                  onSave={(value) =>
-                    saveExistingLicenseField({ existingLicensePre2016: value === "true" })
-                  }
-                />
               </>
             ) : (
               <div className="drawer-form">
@@ -825,7 +837,6 @@ export function CandidateDrawer({
                               issuedAt: "",
                               number: "",
                               issuedProvince: "",
-                              pre2016: false,
                             }),
                       }));
                     }}
@@ -921,23 +932,6 @@ export function CandidateDrawer({
                       </CustomSelect>
                     </div>
 
-                    <div className="form-group">
-                      <label className="switch-toggle">
-                        <input
-                          checked={existingLicenseDraft.pre2016}
-                          disabled={!canManageCandidates}
-                          onChange={(event) =>
-                            setExistingLicenseDraft((current) => ({
-                              ...current,
-                              pre2016: event.target.checked,
-                            }))
-                          }
-                          type="checkbox"
-                        />
-                        <span className="switch-toggle-control" aria-hidden="true" />
-                        <span>{t("candidateDrawer.label.pre2016Lower")}</span>
-                      </label>
-                    </div>
                   </>
                 )}
 

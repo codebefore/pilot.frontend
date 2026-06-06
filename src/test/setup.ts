@@ -3,6 +3,14 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
 vi.stubEnv("VITE_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_AUTH_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_CANDIDATE_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_CATALOG_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_DOCUMENT_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_FINANCE_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_MEBBIS_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_PLATFORM_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_TRAINING_API_BASE_URL", "http://127.0.0.1:5080");
 
 if (!URL.createObjectURL) {
   URL.createObjectURL = vi.fn(() => "blob:test-object-url");

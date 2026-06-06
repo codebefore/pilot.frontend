@@ -14,6 +14,7 @@ import {
 
 export type { LoginChannel };
 import {
+  AUTH_STORAGE_KEY,
   clearStoredAuthSession,
   getStoredRefreshToken,
   readStoredAuthSession,
@@ -61,6 +62,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("pilot:unauthorized", onUnauthorized);
     return () => window.removeEventListener("pilot:unauthorized", onUnauthorized);
+  }, [queryClient]);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.storageArea !== localStorage || event.key !== AUTH_STORAGE_KEY) return;
+
+      const nextSession = readStoredAuthSession();
+      queryClient.clear();
+      setSession(nextSession);
+      setInstitutionRequired(!!nextSession && !nextSession.activeInstitution);
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [queryClient]);
 
   useEffect(() => {

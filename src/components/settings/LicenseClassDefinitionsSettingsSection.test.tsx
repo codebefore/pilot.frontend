@@ -41,19 +41,12 @@ const sampleLicenseClass = {
   id: "lc1",
   code: "B",
   name: "B Otomobil",
-  category: "automobile" as const,
   minimumAge: 18,
-  hasExistingLicense: false,
   existingLicenseType: null,
-  existingLicensePre2016: false,
-  requiresTheoryExam: true,
-  requiresPracticeExam: true,
   theoryLessonHours: 34,
-  simulatorLessonHours: 2,
   directPracticeLessonHours: 14,
   displayOrder: 20,
   isActive: true,
-  notes: null,
   createdAtUtc: "2026-01-01T00:00:00Z",
   updatedAtUtc: "2026-01-01T00:00:00Z",
   rowVersion: 1,
@@ -92,7 +85,6 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       id: "lc2",
       code: "A2",
       name: "A2 Motosiklet",
-      category: "motorcycle",
     });
     updateLicenseClassDefinitionMock.mockResolvedValue({
       ...sampleLicenseClass,
@@ -113,6 +105,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       expect(getLicenseClassDefinitionsMock).toHaveBeenCalledWith(
         {
           activity: "all",
+          baseOnly: true,
           code: undefined,
           page: 1,
           pageSize: 10,
@@ -124,35 +117,8 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     });
 
     expect(await screen.findByText("B")).toBeInTheDocument();
-    expect(screen.getByText("Otomobil")).toBeInTheDocument();
-    expect(screen.getByText("Mevcut Ehliyet")).toBeInTheDocument();
-    expect(screen.getByText("-")).toBeInTheDocument();
-  });
-
-  it("shows existing license type when required", async () => {
-    getLicenseClassDefinitionsMock.mockResolvedValue({
-      items: [
-        {
-          ...sampleLicenseClass,
-          id: "lc2",
-          code: "D",
-          hasExistingLicense: true,
-          existingLicenseType: "b",
-          existingLicensePre2016: true,
-        },
-      ],
-      page: 1,
-      pageSize: 10,
-      totalCount: 1,
-      totalPages: 1,
-      summary: {
-        activeCount: 1,
-      },
-    });
-
-    renderSection();
-
-    expect(await screen.findByText("B (2016 öncesi)")).toBeInTheDocument();
+    expect(screen.queryByText("Otomobil")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mevcut Ehliyet")).not.toBeInTheDocument();
   });
 
   it("applies filters and re-fetches", async () => {
@@ -162,14 +128,11 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Durum filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: "Pasif" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Ehliyet tipi filtresi" }));
-    fireEvent.click(screen.getByRole("button", { name: "Motosiklet" }));
-
     await waitFor(() => {
       expect(getLicenseClassDefinitionsMock).toHaveBeenLastCalledWith(
         {
           activity: "inactive",
-          category: "motorcycle",
+          baseOnly: true,
           code: undefined,
           page: 1,
           pageSize: 10,
@@ -195,6 +158,7 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       expect(getLicenseClassDefinitionsMock).toHaveBeenLastCalledWith(
         {
           activity: "all",
+          baseOnly: true,
           code: "b",
           page: 1,
           pageSize: 10,
@@ -216,8 +180,8 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       target: { value: " a2 " },
     });
     expect(screen.getByPlaceholderText("B")).toHaveValue(" A2 ");
-    fireEvent.change(screen.getByDisplayValue("Otomobil"), {
-      target: { value: "motorcycle" },
+    fireEvent.change(screen.getByPlaceholderText("Otomobil ve Kamyonet"), {
+      target: { value: "Motosiklet" },
     });
     fireEvent.change(screen.getByPlaceholderText("18"), {
       target: { value: "16" },
@@ -231,12 +195,10 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       expect(createLicenseClassDefinitionMock).toHaveBeenCalledWith(
         expect.objectContaining({
           code: "A2",
-          category: "motorcycle",
+          name: "Motosiklet",
           minimumAge: 16,
           theoryLessonHours: 34,
           isActive: true,
-          requiresTheoryExam: true,
-          requiresPracticeExam: true,
         })
       );
     });

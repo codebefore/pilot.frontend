@@ -123,7 +123,6 @@ describe("VehiclesSettingsSection", () => {
           id: "license-b",
           code: "B",
           name: "Otomobil",
-          category: "automobile",
           minimumAge: 18,
           hasExistingLicense: false,
           existingLicenseType: null,
@@ -144,7 +143,6 @@ describe("VehiclesSettingsSection", () => {
           id: "license-a2",
           code: "A2",
           name: "Motosiklet",
-          category: "motorcycle",
           minimumAge: 18,
           hasExistingLicense: false,
           existingLicenseType: null,
@@ -204,7 +202,7 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Bakımda" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Belge filtresi" }));
-    fireEvent.click(await screen.findByRole("button", { name: /^A2 -/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "A2" }));
 
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
@@ -451,8 +449,8 @@ describe("VehiclesSettingsSection", () => {
     });
     // Yeni form: licenseClasses checkbox listesi. Default'ta B seçili; B'yi
     // kaldırıp A2'yi seç.
-    const a2Checkbox = await screen.findByRole("checkbox", { name: /A2 - / });
-    const bCheckbox = screen.getByRole("checkbox", { name: /B - Otomobil/ });
+    const a2Checkbox = await screen.findByRole("checkbox", { name: "A2" });
+    const bCheckbox = screen.getByRole("checkbox", { name: "B" });
     fireEvent.click(a2Checkbox);
     fireEvent.click(bCheckbox);
     fireEvent.change(screen.getByDisplayValue("Düz"), {

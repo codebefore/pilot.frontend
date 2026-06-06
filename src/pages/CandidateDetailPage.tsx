@@ -61,7 +61,7 @@ import {
   listCandidateKCertificates,
 } from "../lib/candidate-k-certificates-api";
 import { getCashRegisters } from "../lib/cash-registers-api";
-import { getCertificateProgramFeeMatrix } from "../lib/certificate-program-fee-matrix-api";
+import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstructors } from "../lib/instructors-api";
 import { getGroups } from "../lib/groups-api";
@@ -89,7 +89,9 @@ import {
   printAuthorizedFile,
 } from "../lib/authorized-files";
 import {
-  useInitialLicenseClassOptions,
+  findLicenseClassDefinitionIdForSelection,
+  useActiveLicenseClassDefinitions,
+  useCandidateLicenseClassOptions,
   useExistingLicenseTypeOptions,
 } from "../lib/use-license-class-options";
 import {
@@ -133,7 +135,7 @@ import type {
   CandidateKCertificateResponse,
   CandidatePaymentMethod,
   CashRegisterResponse,
-  CertificateProgramFeeRowResponse,
+  LicenseClassFeeRowResponse,
   LicenseClassDefinitionResponse,
   CandidateDocumentOcrSuggestionResponse,
   DocumentMetadataField,
@@ -215,7 +217,6 @@ function buildCandidateUpdatePayload(
     birthDate: candidate.birthDate,
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
-    certificateProgramId: candidate.certificateProgramId ?? null,
     hasExistingLicense: candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType),
     existingLicenseType: candidate.existingLicenseType,
     existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
@@ -1852,18 +1853,15 @@ function buildCandidateExamEvents(
 
 type ExistingLicenseRuleOption = SelectOption & {
   existingLicenseType: string;
-  existingLicensePre2016: boolean;
   displayOrder: number;
 };
 
 function encodeExistingLicenseSelection(
   existingLicenseType: string | null | undefined,
-  existingLicensePre2016: boolean
+  _existingLicensePre2016: boolean
 ): string {
   if (!existingLicenseType) return "";
-  return `${encodeURIComponent(existingLicenseType.trim().toLowerCase())}|${
-    existingLicensePre2016 ? "1" : "0"
-  }`;
+  return encodeURIComponent(existingLicenseType.trim());
 }
 
 function decodeExistingLicenseSelection(value: string): {
@@ -1874,11 +1872,10 @@ function decodeExistingLicenseSelection(value: string): {
     return { existingLicenseType: null, existingLicensePre2016: false };
   }
 
-  const [encodedType = "", encodedPre2016 = "0"] = value.split("|");
-  const existingLicenseType = decodeURIComponent(encodedType).trim() || null;
+  const existingLicenseType = decodeURIComponent(value).trim() || null;
   return {
     existingLicenseType,
-    existingLicensePre2016: existingLicenseType ? encodedPre2016 === "1" : false,
+    existingLicensePre2016: false,
   };
 }
 
@@ -1893,12 +1890,12 @@ function buildExistingLicenseOptionsFromDefinitions(
   const byValue = new Map<string, ExistingLicenseRuleOption>();
 
   for (const definition of definitions) {
-    if (!definition.hasExistingLicense || !definition.existingLicenseType) continue;
+    if (!definition.existingLicenseType) continue;
     if (normalizeLicenseOptionKey(definition.code) !== targetKey) continue;
 
     const value = encodeExistingLicenseSelection(
       definition.existingLicenseType,
-      definition.existingLicensePre2016
+      false
     );
     const baseLabel = existingLicenseTypeLabel(
       definition.existingLicenseType,
@@ -1906,11 +1903,8 @@ function buildExistingLicenseOptionsFromDefinitions(
     );
     byValue.set(value, {
       value,
-      label: definition.existingLicensePre2016
-        ? `${baseLabel} (2016 öncesi)`
-        : baseLabel,
+      label: baseLabel,
       existingLicenseType: definition.existingLicenseType,
-      existingLicensePre2016: definition.existingLicensePre2016,
       displayOrder: definition.displayOrder,
     });
   }
@@ -1926,11 +1920,8 @@ function buildExistingLicenseOptionsFromDefinitions(
     );
     byValue.set(currentValue, {
       value: currentValue,
-      label: currentExistingLicensePre2016
-        ? `${baseLabel} (2016 öncesi)`
-        : baseLabel,
+      label: baseLabel,
       existingLicenseType: currentExistingLicenseType,
-      existingLicensePre2016: currentExistingLicensePre2016,
       displayOrder: Number.MAX_SAFE_INTEGER,
     });
   }
@@ -1946,7 +1937,7 @@ function buildExistingLicenseOptionsFromDefinitions(
 
 function formatExistingLicenseSelectionLabel(
   existingLicenseType: string | null | undefined,
-  existingLicensePre2016: boolean,
+  _existingLicensePre2016: boolean,
   configuredExistingLicenseTypeOptions: SelectOption[]
 ): string {
   if (!existingLicenseType) return "";
@@ -1954,7 +1945,7 @@ function formatExistingLicenseSelectionLabel(
     existingLicenseType,
     configuredExistingLicenseTypeOptions
   );
-  return existingLicensePre2016 ? `${label} (2016 öncesi)` : label;
+  return label;
 }
 
 function LicenseInfoTab({
@@ -1973,7 +1964,11 @@ function LicenseInfoTab({
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
-  const { options: licenseClassOptions } = useInitialLicenseClassOptions();
+  const { options: licenseClassOptions } = useCandidateLicenseClassOptions(
+    candidate.existingLicenseType ?? "",
+    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)
+  );
+  const { items: activeLicenseClassDefinitions } = useActiveLicenseClassDefinitions();
   const licenseClassLabel = useMemo(
     () =>
       licenseClassOptions.find((option) => option.value === candidate.licenseClass)
@@ -2057,7 +2052,14 @@ function LicenseInfoTab({
     queryKey: ["licenseClassDefinitions", "active"],
     queryFn: ({ signal }) =>
       getLicenseClassDefinitions(
-        { activity: "active", page: 1, pageSize: 1000, sortBy: "displayOrder", sortDir: "asc" },
+        {
+          activity: "active",
+          includeInstitutionContext: false,
+          page: 1,
+          pageSize: 1000,
+          sortBy: "displayOrder",
+          sortDir: "asc",
+        },
         signal
       ),
   });
@@ -2166,12 +2168,23 @@ function LicenseInfoTab({
             candidate.existingLicenseType,
             candidate.existingLicensePre2016
           );
-    const {
-      existingLicenseType: nextType,
-      existingLicensePre2016: nextPre2016,
-    } = decodeExistingLicenseSelection(nextTypeRaw ?? "");
+    const { existingLicenseType: nextType } = decodeExistingLicenseSelection(nextTypeRaw ?? "");
     const nextHasExistingLicense =
       patch.hasExistingLicense ?? candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+    const licenseSelectionChanged =
+      patch.licenseClass !== undefined ||
+      patch.hasExistingLicense !== undefined ||
+      patch.existingLicenseType !== undefined;
+    const resolveDefinitionId = (
+      sourceLicenseClass: string | null,
+      hasExistingLicense: boolean
+    ) =>
+      findLicenseClassDefinitionIdForSelection(
+        activeLicenseClassDefinitions,
+        candidate.licenseClass,
+        sourceLicenseClass,
+        hasExistingLicense
+      ) ?? (licenseSelectionChanged ? null : candidate.licenseClassDefinitionId ?? null);
 
     // Explicitly picking "— Belge Yok —" from the type dropdown clears every
     // field; partial saves of other fields (without a type yet) keep going.
@@ -2183,6 +2196,7 @@ function LicenseInfoTab({
         existingLicenseNumber: null,
         existingLicenseIssuedProvince: null,
         existingLicensePre2016: false,
+        licenseClassDefinitionId: resolveDefinitionId(null, false),
         rowVersion: candidate.rowVersion,
       };
     }
@@ -2206,7 +2220,8 @@ function LicenseInfoTab({
       existingLicenseIssuedAt: nextIssuedAt,
       existingLicenseNumber: nextNumber,
       existingLicenseIssuedProvince: nextProvince,
-      existingLicensePre2016: nextPre2016,
+      existingLicensePre2016: false,
+      licenseClassDefinitionId: resolveDefinitionId(nextType, nextHasExistingLicense || !!nextType),
       rowVersion: candidate.rowVersion,
     };
   };
@@ -2309,12 +2324,8 @@ function LicenseInfoTab({
               saveApplicationField(
                 {
                   licenseClass: value as CandidateResponse["licenseClass"],
-                  certificateProgramId: null,
-                  existingLicenseType: null,
-                  existingLicenseNumber: null,
-                  existingLicenseIssuedAt: null,
-                  existingLicenseIssuedProvince: null,
-                  existingLicensePre2016: false,
+                  licenseClassDefinitionId:
+                    licenseClassOptions.find((option) => option.value === value)?.licenseClassDefinitionId ?? null,
                 },
                 t("candidateDetail.license.toast.licenseTypeUpdated")
               )
@@ -2738,7 +2749,7 @@ function candidateExamAttemptLimit(
 }
 
 function suggestedCandidateExamFee(
-  row: CertificateProgramFeeRowResponse | undefined,
+  row: LicenseClassFeeRowResponse | undefined,
   examType: CandidateExamType,
   attemptNumber: number
 ): number | null {
@@ -3269,7 +3280,7 @@ function AccountingTab({
   const payments = accounting?.payments ?? [];
   const feeSuggestions = accounting?.feeSuggestions ?? [];
   const primaryCourseFeeSuggestion = feeSuggestions.find(
-    (suggestion) => suggestion.feeType === "certificate_program_matrix"
+    (suggestion) => suggestion.feeType === "license_class_matrix_course_fee"
   );
   const totalDebtAmount = activeMovements.reduce((sum, item) => sum + item.remainingAmount, 0);
   const courseFeeMovements = activeMovements.filter((item) => item.type === "kurs");
@@ -5353,17 +5364,17 @@ function CandidateExamAttemptsSection({
   }, [candidate.id]);
 
   useEffect(() => {
-    if (!candidate.certificateProgramId || !form.scheduledAt) {
+    if (!candidate.licenseClassDefinitionId || !form.scheduledAt) {
       setSuggestedFee(null);
       return;
     }
     const controller = new AbortController();
     const year = new Date(form.scheduledAt).getFullYear();
-    getCertificateProgramFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
+    getLicenseClassFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
       .then((matrix) => {
         const row = matrix.rows.find(
           (item) =>
-            item.program.id === candidate.certificateProgramId &&
+            item.program.id === candidate.licenseClassDefinitionId &&
             item.lessonType === form.examType
         );
         const attemptNumber = nextCandidateExamAttemptNumber(attempts, form.examType);
@@ -5383,7 +5394,7 @@ function CandidateExamAttemptsSection({
     return () => controller.abort();
   }, [
     attempts,
-    candidate.certificateProgramId,
+    candidate.licenseClassDefinitionId,
     candidate.licenseClass,
     feeTouched,
     form.examType,
@@ -5391,7 +5402,7 @@ function CandidateExamAttemptsSection({
   ]);
 
   useEffect(() => {
-    if (!candidate.certificateProgramId || attempts.length === 0) {
+    if (!candidate.licenseClassDefinitionId || attempts.length === 0) {
       setSuggestedFeesByKey({});
       return;
     }
@@ -5399,13 +5410,13 @@ function CandidateExamAttemptsSection({
     const years = [...new Set(attempts.map((attempt) => new Date(attempt.scheduledAt).getFullYear()))];
     Promise.all(
       years.map((year) =>
-        getCertificateProgramFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
+        getLicenseClassFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
           .then((matrix) => {
             const theoryRow = matrix.rows.find(
-              (row) => row.program.id === candidate.certificateProgramId && row.lessonType === "theory"
+              (row) => row.program.id === candidate.licenseClassDefinitionId && row.lessonType === "theory"
             );
             const practiceRow = matrix.rows.find(
-              (row) => row.program.id === candidate.certificateProgramId && row.lessonType === "practice"
+              (row) => row.program.id === candidate.licenseClassDefinitionId && row.lessonType === "practice"
             );
             return {
               year,
@@ -5431,7 +5442,7 @@ function CandidateExamAttemptsSection({
         }
       });
     return () => controller.abort();
-  }, [attempts, candidate.certificateProgramId, candidate.licenseClass]);
+  }, [attempts, candidate.licenseClassDefinitionId, candidate.licenseClass]);
 
   const nextAttemptNumber = (
     examType: CandidateExamType,
@@ -7164,12 +7175,12 @@ function normalizeFeeProgramLicenseKey(value: string | null | undefined): string
 }
 
 function findCandidateFeeMatrixRow(
-  rows: CertificateProgramFeeRowResponse[],
+  rows: LicenseClassFeeRowResponse[],
   candidate: CandidateResponse
-): CertificateProgramFeeRowResponse | undefined {
-  if (candidate.certificateProgramId) {
-    const byProgramId = rows.find((item) => item.program.id === candidate.certificateProgramId);
-    if (byProgramId) return byProgramId;
+): LicenseClassFeeRowResponse | undefined {
+  if (candidate.licenseClassDefinitionId) {
+    const byRuleId = rows.find((item) => item.program.id === candidate.licenseClassDefinitionId);
+    if (byRuleId) return byRuleId;
   }
 
   const hasExistingLicense =
@@ -7179,15 +7190,8 @@ function findCandidateFeeMatrixRow(
     hasExistingLicense && candidate.existingLicenseType
       ? normalizeFeeProgramLicenseKey(candidate.existingLicenseType)
       : "YOK";
-  const sourcePre2016 = sourceKey !== "YOK" && candidate.existingLicensePre2016;
 
   return (
-    rows.find(
-      (item) =>
-        normalizeFeeProgramLicenseKey(item.program.targetLicenseClass) === targetKey &&
-        normalizeFeeProgramLicenseKey(item.program.sourceLicenseClass) === sourceKey &&
-        item.program.sourceLicensePre2016 === sourcePre2016
-    ) ??
     rows.find(
       (item) =>
         normalizeFeeProgramLicenseKey(item.program.targetLicenseClass) === targetKey &&
@@ -7240,7 +7244,7 @@ function DocumentsTab({
 
     const controller = new AbortController();
     const year = candidateFeeMatrixYear(candidate);
-    getCertificateProgramFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
+    getLicenseClassFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
       .then((matrix) => {
         const row = findCandidateFeeMatrixRow(matrix.rows, candidate);
         const fee = row?.program.mebbisFee;
@@ -7254,9 +7258,8 @@ function DocumentsTab({
 
     return () => controller.abort();
   }, [
-    candidate.certificateProgramId,
+    candidate.licenseClassDefinitionId,
     candidate.createdAtUtc,
-    candidate.existingLicensePre2016,
     candidate.existingLicenseType,
     candidate.hasExistingLicense,
     candidate.licenseClass,

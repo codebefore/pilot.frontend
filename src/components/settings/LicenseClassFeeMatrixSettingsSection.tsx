@@ -4,24 +4,24 @@ import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import {
-  bulkApplyCertificateProgramFeeMatrix,
-  getCertificateProgramFeeMatrix,
-  updateCertificateProgramFeeMatrix,
-} from "../../lib/certificate-program-fee-matrix-api";
+  bulkApplyLicenseClassFeeMatrix,
+  getLicenseClassFeeMatrix,
+  updateLicenseClassFeeMatrix,
+} from "../../lib/license-class-fee-matrix-api";
 import { useAuth } from "../../lib/auth";
 import { canManageArea } from "../../lib/permissions";
 import type {
-  CertificateProgramFeeBulkApplyRequest,
-  CertificateProgramFeeProgramResponse,
-  CertificateProgramFeeProgramUpsertRequest,
-  CertificateProgramFeeRowResponse,
-  CertificateProgramFeeRowUpsertRequest,
+  LicenseClassFeeBulkApplyRequest,
+  LicenseClassFeeProgramResponse,
+  LicenseClassFeeProgramUpsertRequest,
+  LicenseClassFeeRowResponse,
+  LicenseClassFeeRowUpsertRequest,
 } from "../../lib/types";
 import { useToast } from "../ui/Toast";
 import { useT, currentLocale, type TranslationKey } from "../../lib/i18n";
 
 type StoredEditableField = keyof Pick<
-  CertificateProgramFeeRowResponse,
+  LicenseClassFeeRowResponse,
   | "vatIncludedHourlyRate"
   | "contractTheoryExamFee"
   | "contractPracticeExamFee"
@@ -32,9 +32,9 @@ type StoredEditableField = keyof Pick<
 /** Virtual editable fields:
  *  - "contractExamFee" / "institutionExamFee" collapse a per-lessonType pair
  *    of stored row fields into one column the user edits.
- *  - "courseFee" is *not* per-row at all — it lives in CertificateProgramYearFee
+ *  - "courseFee" is *not* per-row at all — it lives in LicenseClassYearFee
  *    keyed by (year, program), shared across both lesson rows of a program. */
-/** Single source of truth for program-scoped (CertificateProgramYearFee)
+/** Single source of truth for program-scoped (LicenseClassYearFee)
  *  fields. Adding a new program-level fee here automatically propagates to:
  *    - isProgramScopedField type guard
  *    - readEditableValue lookup
@@ -47,7 +47,7 @@ const PROGRAM_FIELD_KEYS = [
   "privateLessonFee",
   "educationFee",
   "otherFee1",
-] as const satisfies ReadonlyArray<keyof CertificateProgramFeeProgramResponse>;
+] as const satisfies ReadonlyArray<keyof LicenseClassFeeProgramResponse>;
 
 type ProgramScopedField = (typeof PROGRAM_FIELD_KEYS)[number];
 
@@ -64,7 +64,7 @@ function isProgramScopedField(field: EditableField): field is ProgramScopedField
 }
 
 function readProgramFee(
-  program: CertificateProgramFeeProgramResponse,
+  program: LicenseClassFeeProgramResponse,
   field: ProgramScopedField
 ): number | null {
   return program[field] as number | null;
@@ -126,7 +126,7 @@ function resolveStoredField(
 }
 
 function readEditableValue(
-  row: CertificateProgramFeeRowResponse,
+  row: LicenseClassFeeRowResponse,
   field: EditableField
 ): number | null {
   if (isProgramScopedField(field)) {
@@ -165,26 +165,26 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function calculateVatExcludedHourlyRate(row: CertificateProgramFeeRowResponse): number | null {
+function calculateVatExcludedHourlyRate(row: LicenseClassFeeRowResponse): number | null {
   return row.vatIncludedHourlyRate == null
     ? null
     : roundMoney(row.vatIncludedHourlyRate / (1 + VAT_RATE));
 }
 
-function calculateLessonFee(row: CertificateProgramFeeRowResponse): number | null {
+function calculateLessonFee(row: LicenseClassFeeRowResponse): number | null {
   return row.vatIncludedHourlyRate == null
     ? null
     : roundMoney(row.vatIncludedHourlyRate * row.lessonHours);
 }
 
-function calculateVatAmount(row: CertificateProgramFeeRowResponse): number | null {
+function calculateVatAmount(row: LicenseClassFeeRowResponse): number | null {
   const vatExcludedHourlyRate = calculateVatExcludedHourlyRate(row);
   return row.vatIncludedHourlyRate == null || vatExcludedHourlyRate == null
     ? null
     : roundMoney((row.vatIncludedHourlyRate - vatExcludedHourlyRate) * row.lessonHours);
 }
 
-function calculateLessonFeeVatExcluded(row: CertificateProgramFeeRowResponse): number | null {
+function calculateLessonFeeVatExcluded(row: LicenseClassFeeRowResponse): number | null {
   const vatExcludedHourlyRate = calculateVatExcludedHourlyRate(row);
   return vatExcludedHourlyRate == null
     ? null
@@ -194,9 +194,9 @@ function calculateLessonFeeVatExcluded(row: CertificateProgramFeeRowResponse): n
 /** Sum a per-row calculation across both lesson rows (theory + practice) of
  *  a program, so the contract subtotals can be shown once in a merged cell. */
 function sumByProgram(
-  rows: CertificateProgramFeeRowResponse[],
+  rows: LicenseClassFeeRowResponse[],
   programId: string,
-  perRow: (row: CertificateProgramFeeRowResponse) => number | null
+  perRow: (row: LicenseClassFeeRowResponse) => number | null
 ): number | null {
   let total = 0;
   let hasValue = false;
@@ -210,7 +210,7 @@ function sumByProgram(
   return hasValue ? roundMoney(total) : null;
 }
 
-function calculateContractTotal(row: CertificateProgramFeeRowResponse): number | null {
+function calculateContractTotal(row: LicenseClassFeeRowResponse): number | null {
   const lessonFeeVatExcluded = calculateLessonFeeVatExcluded(row);
   const vatAmount = calculateVatAmount(row);
   if (lessonFeeVatExcluded == null && vatAmount == null) return null;
@@ -218,24 +218,24 @@ function calculateContractTotal(row: CertificateProgramFeeRowResponse): number |
 }
 
 function calculateContractTotalByProgram(
-  rows: CertificateProgramFeeRowResponse[],
+  rows: LicenseClassFeeRowResponse[],
   programId: string
 ): number | null {
   return sumByProgram(rows, programId, calculateContractTotal);
 }
 
-function rowKey(row: CertificateProgramFeeRowResponse): string {
+function rowKey(row: LicenseClassFeeRowResponse): string {
   return `${row.program.id}:${row.lessonType}`;
 }
 
-function hasRowEditableValue(row: CertificateProgramFeeRowResponse): boolean {
+function hasRowEditableValue(row: LicenseClassFeeRowResponse): boolean {
   return ROW_EDITABLE_FIELDS.some((field) => readEditableValue(row, field.value) != null);
 }
 
-function toUpsertRow(row: CertificateProgramFeeRowResponse): CertificateProgramFeeRowUpsertRequest {
+function toUpsertRow(row: LicenseClassFeeRowResponse): LicenseClassFeeRowUpsertRequest {
   const isTheory = row.lessonType === "theory";
   return {
-    certificateProgramId: row.program.id,
+    licenseClassDefinitionId: row.program.id,
     lessonType: row.lessonType,
     vatIncludedHourlyRate: row.vatIncludedHourlyRate,
     contractTheoryExamFee: isTheory ? row.contractTheoryExamFee : null,
@@ -258,8 +258,8 @@ type Column = {
   editableField?: EditableField;
   /** The cell renderer for non-editable columns. */
   render?: (
-    row: CertificateProgramFeeRowResponse,
-    rows: CertificateProgramFeeRowResponse[],
+    row: LicenseClassFeeRowResponse,
+    rows: LicenseClassFeeRowResponse[],
     t: ReturnType<typeof useT>,
   ) => React.ReactNode;
   /** Optional minimum cell width (px) to give the column some breathing room. */
@@ -271,8 +271,8 @@ type Column = {
 };
 
 function renderSourceLicense(
-  row: CertificateProgramFeeRowResponse,
-  _rows: CertificateProgramFeeRowResponse[],
+  row: LicenseClassFeeRowResponse,
+  _rows: LicenseClassFeeRowResponse[],
   t: ReturnType<typeof useT>,
 ): React.ReactNode {
   const isNone = row.program.sourceLicenseClass.toUpperCase() === "YOK";
@@ -293,8 +293,8 @@ function renderSourceLicense(
 }
 
 function compareLessonType(
-  a: CertificateProgramFeeRowResponse,
-  b: CertificateProgramFeeRowResponse
+  a: LicenseClassFeeRowResponse,
+  b: LicenseClassFeeRowResponse
 ): number {
   const order = { theory: 0, practice: 1 };
   return order[a.lessonType] - order[b.lessonType];
@@ -313,21 +313,21 @@ function isMergedProgramColumn(column: Column): boolean {
 }
 
 function isFirstProgramRow(
-  rows: CertificateProgramFeeRowResponse[],
-  row: CertificateProgramFeeRowResponse,
+  rows: LicenseClassFeeRowResponse[],
+  row: LicenseClassFeeRowResponse,
   index: number
 ): boolean {
   return index === 0 || rows[index - 1].program.id !== row.program.id;
 }
 
 function countProgramRows(
-  rows: CertificateProgramFeeRowResponse[],
+  rows: LicenseClassFeeRowResponse[],
   programId: string
 ): number {
   return rows.filter((row) => row.program.id === programId).length;
 }
 
-function isVisibleMatrixRow(row: CertificateProgramFeeRowResponse): boolean {
+function isVisibleMatrixRow(row: LicenseClassFeeRowResponse): boolean {
   return row.lessonType !== "theory" || row.lessonHours > 0;
 }
 
@@ -585,25 +585,25 @@ function buildStickyOffsets(includeSelect: boolean): Map<string, number> {
   return map;
 }
 
-function countDistinctPrograms(rows: CertificateProgramFeeRowResponse[]): number {
+function countDistinctPrograms(rows: LicenseClassFeeRowResponse[]): number {
   const ids = new Set<string>();
   for (const row of rows) ids.add(row.program.id);
   return ids.size;
 }
 
 /** A row counts as "dolu" only when every editable field on it has a value. */
-function isRowFullyFilled(row: CertificateProgramFeeRowResponse): boolean {
+function isRowFullyFilled(row: LicenseClassFeeRowResponse): boolean {
   return EDITABLE_FIELDS.every((field) => readEditableValue(row, field.value) != null);
 }
 
-function countFullyFilledRows(rows: CertificateProgramFeeRowResponse[]): number {
+function countFullyFilledRows(rows: LicenseClassFeeRowResponse[]): number {
   return rows.reduce((acc, row) => (isRowFullyFilled(row) ? acc + 1 : acc), 0);
 }
 
 /** Snapshot the editable fields of every row by key, so we can later
  *  detect which rows the user has touched since the last server sync. */
 function snapshotEditableFields(
-  rows: CertificateProgramFeeRowResponse[]
+  rows: LicenseClassFeeRowResponse[]
 ): Map<string, Partial<Record<EditableField, number | null>>> {
   const map = new Map<string, Partial<Record<EditableField, number | null>>>();
   for (const row of rows) {
@@ -619,12 +619,12 @@ function snapshotEditableFields(
 /** Build the programs[] payload for save: one entry per program whose
  *  any program-scoped fee diverged from baseline since the last sync. The
  *  payload always includes all current values so the backend can persist
- *  them together (a single CertificateProgramYearFee row holds them all). */
+ *  them together (a single LicenseClassYearFee row holds them all). */
 function collectDirtyProgramFees(
-  rows: CertificateProgramFeeRowResponse[],
+  rows: LicenseClassFeeRowResponse[],
   baseline: Map<string, Partial<Record<EditableField, number | null>>>
-): CertificateProgramFeeProgramUpsertRequest[] {
-  const result: CertificateProgramFeeProgramUpsertRequest[] = [];
+): LicenseClassFeeProgramUpsertRequest[] {
+  const result: LicenseClassFeeProgramUpsertRequest[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
     if (seen.has(row.program.id)) continue;
@@ -640,7 +640,7 @@ function collectDirtyProgramFees(
     }
     if (!dirty) continue;
     result.push({
-      certificateProgramId: row.program.id,
+      licenseClassDefinitionId: row.program.id,
       ...currentByKey,
       rowVersion: row.program.yearFeeRowVersion,
     });
@@ -649,7 +649,7 @@ function collectDirtyProgramFees(
 }
 
 function isRowDirty(
-  row: CertificateProgramFeeRowResponse,
+  row: LicenseClassFeeRowResponse,
   baseline: Map<string, Partial<Record<EditableField, number | null>>>
 ): boolean {
   const original = baseline.get(rowKey(row));
@@ -662,7 +662,7 @@ function isRowDirty(
   return false;
 }
 
-export function CertificateProgramFeeMatrixSettingsSection() {
+export function LicenseClassFeeMatrixSettingsSection() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const navigate = useNavigate();
@@ -671,7 +671,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [year, setYear] = useState(CURRENT_YEAR);
-  const [rows, setRows] = useState<CertificateProgramFeeRowResponse[]>([]);
+  const [rows, setRows] = useState<LicenseClassFeeRowResponse[]>([]);
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedTargets, setExpandedTargets] = useState<Set<string>>(new Set());
@@ -719,8 +719,8 @@ export function CertificateProgramFeeMatrixSettingsSection() {
   };
 
   const matrixQuery = useQuery({
-    queryKey: ["settings", "certificate-program-fee-matrix", year, refreshKey],
-    queryFn: () => getCertificateProgramFeeMatrix(year),
+    queryKey: ["settings", "license-class-fee-matrix", year, refreshKey],
+    queryFn: () => getLicenseClassFeeMatrix(year),
     retry: false,
   });
   const loading = matrixQuery.isLoading;
@@ -745,7 +745,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     // Rows whose source license is "YOK" (candidates starting from scratch) are
     // collapsed into a single section instead of being scattered across every
     // target-license group. All other rows keep the target-based grouping.
-    const map = new Map<string, CertificateProgramFeeRowResponse[]>();
+    const map = new Map<string, LicenseClassFeeRowResponse[]>();
     for (const row of rows) {
       const isFromScratch =
         row.program.sourceLicenseClass.toUpperCase() === "YOK";
@@ -822,7 +822,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
       const target = rows.find((r) => rowKey(r) === key);
       if (!target) return;
       const programId = target.program.id;
-      const programPatch: Partial<CertificateProgramFeeProgramResponse> = { [field]: parsed };
+      const programPatch: Partial<LicenseClassFeeProgramResponse> = { [field]: parsed };
       setRows((current) =>
         current.map((row) =>
           row.program.id === programId
@@ -875,7 +875,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
     try {
       const payloadRows = rows.filter((row) => row.id || hasRowEditableValue(row)).map(toUpsertRow);
       const payloadPrograms = collectDirtyProgramFees(rows, baselineRef.current);
-      const response = await updateCertificateProgramFeeMatrix(year, {
+      const response = await updateLicenseClassFeeMatrix(year, {
         rows: payloadRows,
         programs: payloadPrograms,
       });
@@ -950,7 +950,7 @@ export function CertificateProgramFeeMatrixSettingsSection() {
 
     setSaving(true);
     try {
-      let lastResponse: { rows: CertificateProgramFeeRowResponse[] } | null = null;
+      let lastResponse: { rows: LicenseClassFeeRowResponse[] } | null = null;
       let appliedProgramCount = 0;
       for (const expansion of expansions) {
         const expansionTargetIds = expansion.lessonType
@@ -966,14 +966,14 @@ export function CertificateProgramFeeMatrixSettingsSection() {
         if (expansionTargetIds.length === 0) {
           continue;
         }
-        const payload: CertificateProgramFeeBulkApplyRequest = {
+        const payload: LicenseClassFeeBulkApplyRequest = {
           targetLicenseClass: null,
-          certificateProgramIds: expansionTargetIds,
+          licenseClassDefinitionIds: expansionTargetIds,
           lessonType: expansion.lessonType,
           field: expansion.backendField,
           value: parsed,
         };
-        lastResponse = await bulkApplyCertificateProgramFeeMatrix(year, payload);
+        lastResponse = await bulkApplyLicenseClassFeeMatrix(year, payload);
         appliedProgramCount = Math.max(appliedProgramCount, expansionTargetIds.length);
       }
       if (!lastResponse) {
@@ -1670,10 +1670,10 @@ function MatrixCell({
   noPermissionTitle,
 }: {
   column: Column;
-  row: CertificateProgramFeeRowResponse;
+  row: LicenseClassFeeRowResponse;
   rowKeyValue: string;
   rowSpan?: number;
-  sectionRows: CertificateProgramFeeRowResponse[];
+  sectionRows: LicenseClassFeeRowResponse[];
   updateRow: (key: string, field: EditableField, value: string) => void;
   selected: boolean;
   stickyOffsets: Map<string, number>;
@@ -1756,7 +1756,7 @@ function EditableMoneyCell({
   ariaLabel: string;
   disabled: boolean;
   field: EditableField;
-  row: CertificateProgramFeeRowResponse;
+  row: LicenseClassFeeRowResponse;
   rowKeyValue: string;
   title?: string;
   updateRow: (key: string, field: EditableField, value: string) => void;

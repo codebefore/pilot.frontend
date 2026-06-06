@@ -111,31 +111,27 @@ export function OutboxPage() {
 
       <Panel>
         <div className="outbox-page">
-          <div className="settings-toolbar outbox-toolbar">
-            <div className="filter-row">
+          <div className="page-tabs outbox-tabs" role="tablist" aria-label="Outbox views">
+            {[
+              { value: "outbox", label: "Outbox" },
+              { value: "inbox", label: "Inbox" },
+              { value: "stream", label: "Stream" },
+            ].map((tab) => (
               <button
-                className={activeTab === "outbox" ? "filter-chip active" : "filter-chip"}
-                onClick={() => setActiveTab("outbox")}
+                aria-selected={activeTab === tab.value}
+                className={activeTab === tab.value ? "page-tab active" : "page-tab"}
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value as QueueTab)}
+                role="tab"
                 type="button"
               >
-                Outbox
+                {tab.label}
               </button>
-              <button
-                className={activeTab === "inbox" ? "filter-chip active" : "filter-chip"}
-                onClick={() => setActiveTab("inbox")}
-                type="button"
-              >
-                Inbox
-              </button>
-              <button
-                className={activeTab === "stream" ? "filter-chip active" : "filter-chip"}
-                onClick={() => setActiveTab("stream")}
-                type="button"
-              >
-                Stream
-              </button>
-            </div>
-            {activeTab === "stream" ? null : (
+            ))}
+          </div>
+
+          {activeTab === "stream" ? null : (
+            <div className="settings-toolbar outbox-toolbar">
               <div className="filter-row">
                 {(activeTab === "outbox" ? OUTBOX_STATUS_OPTIONS : INBOX_STATUS_OPTIONS).map((option) => (
                   <button
@@ -158,8 +154,8 @@ export function OutboxPage() {
                   </button>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {activeTab === "outbox" ? (
             <OutboxTable

@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { CashRegistersSettingsSection } from "../components/settings/CashRegistersSettingsSection";
-import { CertificateProgramFeeMatrixSettingsSection } from "../components/settings/CertificateProgramFeeMatrixSettingsSection";
+import { LicenseClassFeeMatrixSettingsSection } from "../components/settings/LicenseClassFeeMatrixSettingsSection";
 import { ClassroomsSettingsSection } from "../components/settings/ClassroomsSettingsSection";
 import { GeneralInstitutionSection } from "../components/settings/GeneralInstitutionSection";
 import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
@@ -226,7 +226,7 @@ export function SettingsPage() {
                 path="definitions/classrooms"
               />
               <Route
-                element={requireSettingsPermission(["payments"], <CertificateProgramFeeMatrixSettingsSection />)}
+                element={requireSettingsPermission(["payments"], <LicenseClassFeeMatrixSettingsSection />)}
                 path="definitions/fees"
               />
               <Route

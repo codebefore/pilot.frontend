@@ -39,6 +39,7 @@ import { useT } from "../../lib/i18n";
 import { formatDateTR } from "../../lib/status-maps";
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 import {
+  mergeLicenseClassOptionsWithValues,
   type LicenseClassOption,
   useLicenseClassOptions,
 } from "../../lib/use-license-class-options";
@@ -282,6 +283,17 @@ export function InstructorsSettingsSection() {
   const [deletingInstructorId, setDeletingInstructorId] = useState<string | null>(null);
   const [trainingBranches, setTrainingBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const filterLicenseClassOptions = useMemo(
+    () =>
+      mergeLicenseClassOptionsWithValues(
+        licenseClassOptions,
+        [
+          filters.licenseClass !== "all" ? filters.licenseClass : null,
+          ...items.flatMap((instructor) => instructor.licenseClassCodes),
+        ]
+      ),
+    [filters.licenseClass, items, licenseClassOptions]
+  );
   const branchOptions = useMemo(() => getBranchOptions(trainingBranches), [trainingBranches]);
   const branchLabelMap = useMemo(() => getBranchLabelMap(branchOptions), [branchOptions]);
   const instructorColumns = useMemo(
@@ -511,7 +523,7 @@ export function InstructorsSettingsSection() {
                           filters,
                           setFilter,
                           branchOptions,
-                          licenseClassOptions,
+                          filterLicenseClassOptions,
                           t
                         )}
                         key={column.id}
@@ -526,7 +538,7 @@ export function InstructorsSettingsSection() {
                           filters,
                           setFilter,
                           branchOptions,
-                          licenseClassOptions,
+                          filterLicenseClassOptions,
                           t
                         )}
                         key={column.id}

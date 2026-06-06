@@ -101,7 +101,10 @@ import type {
   PagedResponse,
   VehicleResponse,
 } from "../lib/types";
-import { useLicenseClassOptions } from "../lib/use-license-class-options";
+import {
+  mergeLicenseClassOptionsWithValues,
+  useLicenseClassOptions,
+} from "../lib/use-license-class-options";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type CandidateTab = "all" | CandidateStatusValue;
@@ -1145,14 +1148,6 @@ export function CandidatesPage({
   const canManageGroups = canManageArea(user, permissions, "groups");
   const noPermissionTitle = t("common.noPermission");
   const { options: licenseClassOptions } = useLicenseClassOptions();
-  const compactLicenseClassOptions = useMemo(
-    () =>
-      licenseClassOptions.map((option) => ({
-        value: option.value,
-        label: option.value,
-      })),
-    [licenseClassOptions]
-  );
   const columnPageScope: CandidateColumnPageScope =
     examDateSidebar?.field === "eSinavDate"
       ? "eSinav"
@@ -1658,17 +1653,6 @@ export function CandidatesPage({
     ];
   }, [headerGroupCatalog, lang]);
 
-  const getColumnFilterControl = (col: CandidateColumnDef) =>
-    buildCandidateColumnFilterControl(
-      col.id,
-      filters,
-      handleFilterChange,
-      compactLicenseClassOptions,
-      headerPeriodGroupOptions,
-      t,
-      lang
-    );
-
   const pickerOptions: ColumnOption[] = resolvedColumns
     .filter((col) => !col.pickerHidden && !forcedVisibleColumnIds.has(col.id))
     .sort((left, right) => availableColumnIds.indexOf(left.id) - availableColumnIds.indexOf(right.id))
@@ -1767,6 +1751,28 @@ export function CandidatesPage({
   const loading = candidatesQuery.isLoading;
   const candidateLicenseClassCounts: ExamScheduleLicenseClassCount[] =
     candidatesQuery.isError ? [] : candidatesQuery.data?.licenseClassCounts ?? [];
+  const compactLicenseClassOptions = useMemo(
+    () =>
+      mergeLicenseClassOptionsWithValues(licenseClassOptions, [
+        ...filters.licenseClasses,
+        ...candidates.map((candidate) => candidate.licenseClass),
+        ...candidateLicenseClassCounts.map((item) => item.licenseClass),
+      ]).map((option) => ({
+        value: option.value,
+        label: option.value,
+      })),
+    [candidateLicenseClassCounts, candidates, filters.licenseClasses, licenseClassOptions]
+  );
+  const getColumnFilterControl = (col: CandidateColumnDef) =>
+    buildCandidateColumnFilterControl(
+      col.id,
+      filters,
+      handleFilterChange,
+      compactLicenseClassOptions,
+      headerPeriodGroupOptions,
+      t,
+      lang
+    );
   const licenseClassTotalSummary = useMemo(
     () =>
       showLicenseClassSummary

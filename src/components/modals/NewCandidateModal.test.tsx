@@ -7,7 +7,6 @@ import { NewCandidateModal } from "./NewCandidateModal";
 const createCandidateMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const getCandidateReuseSourcesMock = vi.fn();
-const getCertificateProgramsMock = vi.fn();
 const getLicenseClassDefinitionsMock = vi.fn();
 const getGroupsMock = vi.fn();
 const getTermsMock = vi.fn();
@@ -45,17 +44,6 @@ vi.mock("../../lib/groups-api", async () => {
   };
 });
 
-vi.mock("../../lib/certificate-programs-api", async () => {
-  const actual = await vi.importActual<typeof import("../../lib/certificate-programs-api")>(
-    "../../lib/certificate-programs-api"
-  );
-  return {
-    ...actual,
-    getCertificatePrograms: (...args: Parameters<typeof actual.getCertificatePrograms>) =>
-      getCertificateProgramsMock(...args),
-  };
-});
-
 vi.mock("../../lib/license-class-definitions-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/license-class-definitions-api")>(
     "../../lib/license-class-definitions-api"
@@ -82,19 +70,12 @@ const baseLicenseClassDefinition = (code: string, displayOrder: number) => ({
   id: `license-${code}`,
   code,
   name: code,
-  category: "automobile" as "automobile" | "heavy_vehicle",
   minimumAge: 18,
-  hasExistingLicense: false,
   existingLicenseType: null as string | null,
-  existingLicensePre2016: false,
-  requiresTheoryExam: true,
-  requiresPracticeExam: true,
   theoryLessonHours: 34,
-  simulatorLessonHours: 0,
   directPracticeLessonHours: 14,
   displayOrder,
   isActive: true,
-  notes: null,
   createdAtUtc: "2026-05-03T00:00:00Z",
   updatedAtUtc: "2026-05-03T00:00:00Z",
   rowVersion: 1,
@@ -109,36 +90,11 @@ const licenseClassDefinition = (
   ...overrides,
 });
 
-const certificateProgram = (
-  id: string,
-  sourceLicenseClass: string,
-  targetLicenseClass: string,
-  displayOrder: number
-) => ({
-  id,
-  code: `${sourceLicenseClass}-${targetLicenseClass}`,
-  sourceLicenseClass,
-  sourceLicenseDisplayName: sourceLicenseClass === "YOK" ? "Yok" : sourceLicenseClass,
-  sourceLicensePre2016: false,
-  targetLicenseClass,
-  targetLicenseDisplayName: targetLicenseClass,
-  minimumAge: 18,
-  theoryLessonHours: 34,
-  practiceLessonHours: 14,
-  displayOrder,
-  isActive: true,
-  notes: null,
-  createdAtUtc: "2026-05-03T00:00:00Z",
-  updatedAtUtc: "2026-05-03T00:00:00Z",
-  rowVersion: 1,
-});
-
 describe("NewCandidateModal", () => {
   beforeEach(() => {
     createCandidateMock.mockReset();
     assignCandidateGroupMock.mockReset();
     getCandidateReuseSourcesMock.mockReset();
-    getCertificateProgramsMock.mockReset();
     getLicenseClassDefinitionsMock.mockReset();
     getGroupsMock.mockReset();
     getTermsMock.mockReset();
@@ -165,18 +121,6 @@ describe("NewCandidateModal", () => {
     });
 
     getCandidateReuseSourcesMock.mockResolvedValue([]);
-    getCertificateProgramsMock.mockResolvedValue({
-      items: [
-        certificateProgram("program-a2", "YOK", "A2", 20),
-        certificateProgram("program-b", "YOK", "B", 30),
-        certificateProgram("program-b-otomatik", "YOK", "B-OTOMATIK", 40),
-      ],
-      page: 1,
-      pageSize: 1000,
-      totalCount: 3,
-      totalPages: 1,
-      summary: { activeCount: 3, inactiveCount: 0 },
-    });
 
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
       const items = [
@@ -286,7 +230,7 @@ describe("NewCandidateModal", () => {
     expect(createCandidateMock).not.toHaveBeenCalled();
   });
 
-  it("lists target license classes from certificate programs", async () => {
+  it("lists target license classes from global base license classes", async () => {
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
       const items = [
         licenseClassDefinition("A2", 20, { name: "Motosiklet" }),
@@ -302,52 +246,6 @@ describe("NewCandidateModal", () => {
         summary: { activeCount: items.length },
       });
     });
-    getCertificateProgramsMock.mockResolvedValue({
-      items: [
-        {
-          id: "program-1",
-          code: "YOK-A2",
-          sourceLicenseClass: "YOK",
-          sourceLicenseDisplayName: "Yok",
-          sourceLicensePre2016: false,
-          targetLicenseClass: "A2",
-          targetLicenseDisplayName: "A2",
-          minimumAge: 18,
-          theoryLessonHours: 34,
-          practiceLessonHours: 6,
-          displayOrder: 20,
-          isActive: true,
-          notes: null,
-          createdAtUtc: "2026-05-03T00:00:00Z",
-          updatedAtUtc: "2026-05-03T00:00:00Z",
-          rowVersion: 1,
-        },
-        {
-          id: "program-2",
-          code: "YOK-B-OTOMATIK",
-          sourceLicenseClass: "YOK",
-          sourceLicenseDisplayName: "Yok",
-          sourceLicensePre2016: false,
-          targetLicenseClass: "B - OTOMATİK",
-          targetLicenseDisplayName: "B - Otomatik",
-          minimumAge: 18,
-          theoryLessonHours: 34,
-          practiceLessonHours: 14,
-          displayOrder: 40,
-          isActive: true,
-          notes: null,
-          createdAtUtc: "2026-05-03T00:00:00Z",
-          updatedAtUtc: "2026-05-03T00:00:00Z",
-          rowVersion: 1,
-        },
-      ],
-      page: 1,
-      pageSize: 1000,
-      totalCount: 2,
-      totalPages: 1,
-      summary: { activeCount: 2, inactiveCount: 0 },
-    });
-
     renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
 
     await waitFor(() => {
@@ -359,38 +257,24 @@ describe("NewCandidateModal", () => {
       ]);
       expect([...select!.options].map((option) => option.textContent)).toEqual([
         "A2",
-        "B - Otomatik",
+        "B-OTOMATIK",
       ]);
     });
   });
 
-  it("does not list license classes without a certificate program", async () => {
-    getCertificateProgramsMock.mockResolvedValue({
-      items: [],
-      page: 1,
-      pageSize: 1000,
-      totalCount: 0,
-      totalPages: 0,
-      summary: { activeCount: 0, inactiveCount: 0 },
-    });
+  it("does not list transition license class rows as target options", async () => {
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
       const activeItems = [
         licenseClassDefinition("B", 10, { name: "Otomobil" }),
         licenseClassDefinition("C", 20, {
           id: "license-c-pre-2016",
           name: "Kamyon",
-          category: "heavy_vehicle",
-          hasExistingLicense: true,
-          existingLicenseType: "B",
-          existingLicensePre2016: true,
+          existingLicenseType: "B-2016",
         }),
         licenseClassDefinition("C", 21, {
           id: "license-c-after-2016",
           name: "Kamyon",
-          category: "heavy_vehicle",
-          hasExistingLicense: true,
           existingLicenseType: "B",
-          existingLicensePre2016: false,
         }),
       ];
 
@@ -409,24 +293,114 @@ describe("NewCandidateModal", () => {
     await waitFor(() => {
       const select = document.querySelector<HTMLSelectElement>('select[name="className"]');
       expect(select).not.toBeNull();
-      expect([...select!.options].map((option) => option.value)).toEqual([]);
+      expect([...select!.options].map((option) => option.value)).toEqual(["B"]);
     });
   });
 
-  it("submits the default no-existing-license certificate program for the selected class", async () => {
-    getCertificateProgramsMock.mockResolvedValue({
-      items: [
-        certificateProgram("program-b", "YOK", "B", 30),
-        certificateProgram("program-a2", "YOK", "A2", 20),
-        certificateProgram("program-b-from-a2", "A2", "B", 10),
-      ],
-      page: 1,
-      pageSize: 1000,
-      totalCount: 3,
-      totalPages: 1,
-      summary: { activeCount: 3, inactiveCount: 0 },
+  it("lists target license classes from active transitions when an existing license is selected", async () => {
+    getLicenseClassDefinitionsMock.mockImplementation((options) => {
+      const activeItems = [
+        licenseClassDefinition("B", 10, { name: "Otomobil" }),
+        licenseClassDefinition("C", 20, { name: "Kamyon" }),
+        licenseClassDefinition("D", 30, { name: "Otobüs" }),
+        licenseClassDefinition("C", 40, {
+          id: "license-b-to-c",
+          name: "Kamyon",
+          existingLicenseType: "B",
+        }),
+        licenseClassDefinition("D", 50, {
+          id: "license-b-to-d",
+          name: "Otobüs",
+          existingLicenseType: "B",
+        }),
+        licenseClassDefinition("D", 60, {
+          id: "license-c-to-d",
+          name: "Otobüs",
+          existingLicenseType: "C",
+        }),
+      ];
+
+      return Promise.resolve({
+        items: options?.activity === "active" ? activeItems : activeItems,
+        page: 1,
+        pageSize: options?.pageSize ?? 1000,
+        totalCount: activeItems.length,
+        totalPages: 1,
+        summary: { activeCount: activeItems.length },
+      });
     });
 
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    await waitFor(() => {
+      const targetSelect = document.querySelector<HTMLSelectElement>('select[name="className"]');
+      expect(targetSelect).not.toBeNull();
+      expect([...targetSelect!.options].map((option) => option.value)).toEqual(["B", "C", "D"]);
+    });
+
+    const existingLicenseSelect = document.querySelector<HTMLSelectElement>(
+      'select[name="existingLicenseType"]'
+    );
+    expect(existingLicenseSelect).not.toBeNull();
+    fireEvent.change(existingLicenseSelect!, { target: { value: "B" } });
+
+    await waitFor(() => {
+      const targetSelect = document.querySelector<HTMLSelectElement>('select[name="className"]');
+      expect(targetSelect).not.toBeNull();
+      expect([...targetSelect!.options].map((option) => option.value)).toEqual(["C", "D"]);
+      expect(targetSelect!.value).toBe("C");
+    });
+  });
+
+  it("lists existing license types from global rules while target classes stay institution scoped", async () => {
+    getLicenseClassDefinitionsMock.mockImplementation((options) => {
+      const institutionScopedItems = [
+        licenseClassDefinition("C", 20, { name: "Kamyon" }),
+        licenseClassDefinition("C", 40, {
+          id: "license-b-to-c",
+          name: "Kamyon",
+          existingLicenseType: "B",
+        }),
+      ];
+      const globalItems = [
+        licenseClassDefinition("B", 10, { name: "Otomobil" }),
+        ...institutionScopedItems,
+      ];
+      const items = options?.includeInstitutionContext === false ? globalItems : institutionScopedItems;
+
+      return Promise.resolve({
+        items: options?.activity === "active" ? items : items,
+        page: 1,
+        pageSize: options?.pageSize ?? 1000,
+        totalCount: items.length,
+        totalPages: 1,
+        summary: { activeCount: items.length },
+      });
+    });
+
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    const existingLicenseSelect = await waitFor(() => {
+      const select = document.querySelector<HTMLSelectElement>('select[name="existingLicenseType"]');
+      expect(select).not.toBeNull();
+      expect([...select!.options].map((option) => option.value)).toContain("B");
+      return select!;
+    });
+
+    const targetSelect = document.querySelector<HTMLSelectElement>('select[name="className"]');
+    expect(targetSelect).not.toBeNull();
+    expect([...targetSelect!.options].map((option) => option.value)).toEqual(["C"]);
+
+    fireEvent.change(existingLicenseSelect, { target: { value: "B" } });
+
+    await waitFor(() => {
+      const nextTargetSelect = document.querySelector<HTMLSelectElement>('select[name="className"]');
+      expect(nextTargetSelect).not.toBeNull();
+      expect([...nextTargetSelect!.options].map((option) => option.value)).toEqual(["C"]);
+    });
+  });
+
+  it("submits the selected class without resolving a certificate program in the UI", async () => {
     renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
 
     await waitFor(() => {
@@ -454,7 +428,6 @@ describe("NewCandidateModal", () => {
       expect(createCandidateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           licenseClass: "B",
-          certificateProgramId: "program-b",
           existingLicenseType: null,
           existingLicensePre2016: false,
         })
@@ -462,52 +435,7 @@ describe("NewCandidateModal", () => {
     });
   });
 
-  it("does not list certificate program targets without an active license class", async () => {
-    getCertificateProgramsMock.mockResolvedValue({
-      items: [
-        {
-          id: "program-1",
-          code: "YOK-A2",
-          sourceLicenseClass: "YOK",
-          sourceLicenseDisplayName: "Yok",
-          sourceLicensePre2016: false,
-          targetLicenseClass: "A2",
-          targetLicenseDisplayName: "A2",
-          minimumAge: 18,
-          theoryLessonHours: 34,
-          practiceLessonHours: 6,
-          displayOrder: 20,
-          isActive: true,
-          notes: null,
-          createdAtUtc: "2026-05-03T00:00:00Z",
-          updatedAtUtc: "2026-05-03T00:00:00Z",
-          rowVersion: 1,
-        },
-        {
-          id: "program-2",
-          code: "YOK-B",
-          sourceLicenseClass: "YOK",
-          sourceLicenseDisplayName: "Yok",
-          sourceLicensePre2016: false,
-          targetLicenseClass: "B",
-          targetLicenseDisplayName: "B",
-          minimumAge: 18,
-          theoryLessonHours: 34,
-          practiceLessonHours: 14,
-          displayOrder: 30,
-          isActive: true,
-          notes: null,
-          createdAtUtc: "2026-05-03T00:00:00Z",
-          updatedAtUtc: "2026-05-03T00:00:00Z",
-          rowVersion: 1,
-        },
-      ],
-      page: 1,
-      pageSize: 1000,
-      totalCount: 2,
-      totalPages: 1,
-      summary: { activeCount: 2, inactiveCount: 0 },
-    });
+  it("does not list inactive global license classes as targets", async () => {
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
       const activeItems = [licenseClassDefinition("A2", 20)];
       const allItems = [...activeItems, { ...licenseClassDefinition("B", 30), isActive: false }];

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,7 +15,10 @@ import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import type { VehicleResponse, VehicleUpsertRequest } from "../../lib/types";
-import { useLicenseClassOptions } from "../../lib/use-license-class-options";
+import {
+  useLicenseClassOptions,
+  type LicenseClassOption,
+} from "../../lib/use-license-class-options";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
@@ -163,6 +166,18 @@ function parseOptionalNumber(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function mergeSelectedLicenseOptions(
+  options: LicenseClassOption[],
+  selected: readonly string[]
+): LicenseClassOption[] {
+  const byValue = new Map(options.map((option) => [option.value, option]));
+  for (const value of selected) {
+    if (!value || byValue.has(value)) continue;
+    byValue.set(value, { value, label: value });
+  }
+  return [...byValue.values()];
+}
+
 const CONCURRENCY_CODE = "vehicle.validation.concurrencyConflict";
 
 function hasConcurrencyError(
@@ -219,6 +234,10 @@ export function VehicleFormModal({
     resolver: zodResolver(vehicleFormSchema) as any,
   });
   const selectedLicenseClasses = watch("licenseClasses");
+  const visibleLicenseClassOptions = useMemo(
+    () => mergeSelectedLicenseOptions(licenseClassOptions, selectedLicenseClasses ?? []),
+    [licenseClassOptions, selectedLicenseClasses]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -226,7 +245,7 @@ export function VehicleFormModal({
   }, [editing, open, reset]);
 
   useEffect(() => {
-    if (!open || licenseClassOptions.length === 0) return;
+    if (!open || editing || licenseClassOptions.length === 0) return;
     const supported = new Set(licenseClassOptions.map((option) => option.value));
     const selected = selectedLicenseClasses ?? [];
     if (selected.length > 0 && selected.every((value) => supported.has(value))) {
@@ -238,7 +257,7 @@ export function VehicleFormModal({
       activeSelected.length > 0 ? activeSelected : [licenseClassOptions[0].value],
       { shouldDirty: false, shouldValidate: true },
     );
-  }, [licenseClassOptions, open, selectedLicenseClasses, setValue]);
+  }, [editing, licenseClassOptions, open, selectedLicenseClasses, setValue]);
 
   const submit = handleSubmit(async (values) => {
     if (!canManage) return;
@@ -450,7 +469,7 @@ export function VehicleFormModal({
                 };
                 return (
                   <div className="settings-checkbox-list">
-                    {licenseClassOptions.map((option) => (
+                    {visibleLicenseClassOptions.map((option) => (
                       <label className="switch-toggle" key={option.value}>
                         <input
                           checked={values.includes(option.value as never)}

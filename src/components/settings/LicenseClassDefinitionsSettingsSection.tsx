@@ -18,16 +18,10 @@ import {
   type LicenseClassDefinitionSortDirection,
   type LicenseClassDefinitionSortField,
 } from "../../lib/license-class-definitions-api";
-import {
-  LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS,
-  LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS,
-} from "../../lib/license-class-definition-catalog";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
-import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import type {
-  LicenseClassDefinitionCategory,
   LicenseClassDefinitionListSummaryResponse,
   LicenseClassDefinitionResponse,
 } from "../../lib/types";
@@ -40,16 +34,12 @@ type SortState = {
   field: LicenseClassDefinitionSortField;
   direction: LicenseClassDefinitionSortDirection;
 } | null;
-type LicenseClassDefinitionFilterValue<T extends string> = T | "all";
 type LicenseClassDefinitionFilters = {
   activity: LicenseClassDefinitionActivityFilter;
   code: string;
-  category: LicenseClassDefinitionFilterValue<LicenseClassDefinitionCategory>;
 };
 type LicenseClassDefinitionColumnId =
   | "code"
-  | "category"
-  | "existingLicenseType"
   | "minimumAge"
   | "isActive";
 type LicenseClassDefinitionColumnDef = {
@@ -70,16 +60,9 @@ function formatOptionalNumber(value: number | null, suffix = ""): string {
   return `${value}${suffix}`;
 }
 
-function formatExistingLicenseRequirement(item: LicenseClassDefinitionResponse): string {
-  if (!item.hasExistingLicense) return "-";
-  const label = existingLicenseTypeLabel(item.existingLicenseType);
-  return item.existingLicensePre2016 ? `${label} (2016 öncesi)` : label;
-}
-
 const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
   activity: "all",
   code: "",
-  category: "all",
 };
 
 export function LicenseClassDefinitionsSettingsSection() {
@@ -92,24 +75,11 @@ export function LicenseClassDefinitionsSettingsSection() {
 
   const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
     {
-      id: "existingLicenseType",
-      label: t("settings.licenseClasses.columns.existingLicenseType"),
-      renderCell: (item) => formatExistingLicenseRequirement(item),
-      skeletonWidth: 100,
-    },
-    {
       id: "code",
       label: t("settings.licenseClasses.columns.code"),
       sortField: "code",
       renderCell: (item) => <strong>{item.code}</strong>,
       skeletonWidth: 70,
-    },
-    {
-      id: "category",
-      label: t("settings.licenseClasses.columns.category"),
-      sortField: "category",
-      renderCell: (item) => LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[item.category] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[item.category]) : item.category,
-      skeletonWidth: 100,
     },
     {
       id: "minimumAge",
@@ -144,7 +114,7 @@ export function LicenseClassDefinitionsSettingsSection() {
     }));
 
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.license-class-definitions.columns.v4",
+    "settings.license-class-definitions.columns.v5",
     LICENSE_CLASS_DEFINITION_COLUMN_IDS
   );
 
@@ -172,15 +142,15 @@ export function LicenseClassDefinitionsSettingsSection() {
   const listQueryParams = useMemo(
     () => ({
       activity: filters.activity,
+      baseOnly: true,
       code: filters.code.trim() || undefined,
       page,
       pageSize,
       search: search.trim() || undefined,
-      category: filters.category !== "all" ? filters.category : undefined,
       sortBy: sort?.field ?? "displayOrder",
       sortDir: sort?.direction ?? "asc",
     }),
-    [filters.activity, filters.category, filters.code, page, pageSize, search, sort]
+    [filters.activity, filters.code, page, pageSize, search, sort]
   );
 
   const listQuery = useQuery({
@@ -215,8 +185,7 @@ export function LicenseClassDefinitionsSettingsSection() {
   const hasActiveFilters =
     search.trim().length > 0 ||
     filters.activity !== DEFAULT_FILTERS.activity ||
-    filters.code !== DEFAULT_FILTERS.code ||
-    filters.category !== DEFAULT_FILTERS.category;
+    filters.code !== DEFAULT_FILTERS.code;
 
   const handleSaved = (_saved: LicenseClassDefinitionResponse) => {
     setFormOpen(false);
@@ -248,8 +217,6 @@ export function LicenseClassDefinitionsSettingsSection() {
         setFilter("activity", DEFAULT_FILTERS.activity);
       } else if (id === "code") {
         setFilter("code", DEFAULT_FILTERS.code);
-      } else if (id === "category") {
-        setFilter("category", DEFAULT_FILTERS.category);
       }
     }
     toggleColumn(id);
@@ -658,26 +625,6 @@ function buildColumnFilterControl(
         ]}
         title={t("settings.licenseClasses.filter.statusTitle")}
         value={filters.activity}
-      />
-    );
-  }
-
-  if (columnId === "category") {
-    return (
-      <TableHeaderFilter
-        active={filters.category !== DEFAULT_FILTERS.category}
-        onChange={(nextValue) =>
-          setFilter("category", nextValue as LicenseClassDefinitionFilterValue<LicenseClassDefinitionCategory>)
-        }
-        options={[
-          { value: "all", label: t("common.all") },
-          ...LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS.map((option) => ({
-            value: option.value,
-            label: t(option.labelKey),
-          })),
-        ]}
-        title={t("settings.licenseClasses.filter.categoryTitle")}
-        value={filters.category}
       />
     );
   }

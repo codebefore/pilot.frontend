@@ -4,14 +4,15 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider, useAuth } from "./auth";
-import { clearStoredAuthSession, readStoredAuthSession } from "./auth-storage";
+import { AUTH_STORAGE_KEY, clearStoredAuthSession, readStoredAuthSession } from "./auth-storage";
 
 const requestLoginCodeMock = vi.fn();
 const verifyLoginCodeMock = vi.fn();
 const selectInstitutionMock = vi.fn();
+const logoutSessionMock = vi.fn();
 
 vi.mock("./auth-api", () => ({
-  logoutSession: vi.fn(),
+  logoutSession: (...args: unknown[]) => logoutSessionMock(...args),
   requestLoginCode: (...args: unknown[]) => requestLoginCodeMock(...args),
   selectInstitution: (...args: unknown[]) => selectInstitutionMock(...args),
   verifyLoginCode: (...args: unknown[]) => verifyLoginCodeMock(...args),
@@ -98,6 +99,8 @@ describe("AuthProvider", () => {
     requestLoginCodeMock.mockReset();
     verifyLoginCodeMock.mockReset();
     selectInstitutionMock.mockReset();
+    logoutSessionMock.mockReset();
+    logoutSessionMock.mockResolvedValue(undefined);
   });
 
   it("stores institutions and active institution after login", async () => {
@@ -157,6 +160,66 @@ describe("AuthProvider", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("none"));
+  });
+
+  it("calls logout endpoint and clears only auth session locally", async () => {
+    verifyLoginCodeMock.mockResolvedValue(response());
+    localStorage.setItem("pilot.lang", "tr");
+    localStorage.setItem("pilot.theme", "pilot");
+    renderHarness();
+
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    await act(async () => {
+      screen.getByText("logout").click();
+    });
+
+    expect(logoutSessionMock).toHaveBeenCalledWith({ refreshToken: "refresh-token-a" });
+    expect(screen.getByTestId("user")).toHaveTextContent("none");
+    expect(readStoredAuthSession()).toBeNull();
+    expect(localStorage.getItem("pilot.lang")).toBe("tr");
+    expect(localStorage.getItem("pilot.theme")).toBe("pilot");
+  });
+
+  it("clears local session even when logout endpoint fails", async () => {
+    verifyLoginCodeMock.mockResolvedValue(response());
+    logoutSessionMock.mockRejectedValue(new Error("logout failed"));
+    renderHarness();
+
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    await act(async () => {
+      screen.getByText("logout").click();
+    });
+
+    expect(logoutSessionMock).toHaveBeenCalledWith({ refreshToken: "refresh-token-a" });
+    expect(screen.getByTestId("user")).toHaveTextContent("none");
+    expect(readStoredAuthSession()).toBeNull();
+  });
+
+  it("clears session when auth storage is removed in another tab", async () => {
+    verifyLoginCodeMock.mockResolvedValue(response());
+    renderHarness();
+
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    act(() => {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: AUTH_STORAGE_KEY,
+          oldValue: JSON.stringify(response()),
+          newValue: null,
+          storageArea: localStorage,
+        })
+      );
+    });
+
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("none"));
+    expect(screen.getByTestId("required")).toHaveTextContent("no");
   });
 
   it("marks institution required without clearing session", async () => {

@@ -480,9 +480,19 @@
 .outbox-page {
   min-width: 0;
 }
+.outbox-tabs {
+  padding-inline: var(--page-shell-gutter);
+}
 .outbox-toolbar {
-  padding: 16px var(--page-shell-gutter);
+  padding: 12px var(--page-shell-gutter);
   border-bottom: 1px solid var(--gray-100);
+}
+.outbox-toolbar .filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 .outbox-table-wrap {
   width: 100%;

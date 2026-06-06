@@ -2,13 +2,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageLoadError } from "../components/ui/PageLoadError";
-import { useT, type TranslationKey } from "../lib/i18n";
-import { LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS } from "../lib/license-class-definition-catalog";
+import { useT } from "../lib/i18n";
 import { getLicenseClassDefinition } from "../lib/license-class-definitions-api";
-
-function formatBool(value: boolean, t: (key: TranslationKey) => string): string {
-  return value ? t("common.yes") : t("common.no");
-}
 
 function formatHours(value: number | null): string {
   return value != null ? `${value} sa` : "—";
@@ -65,9 +60,6 @@ export function LicenseClassDefinitionDetailPage() {
               >
                 {definition.isActive ? "Aktif" : "Pasif"}
               </span>
-              <span>
-                {LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[definition.category] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[definition.category]) : definition.category}
-              </span>
             </div>
           </div>
 
@@ -77,34 +69,16 @@ export function LicenseClassDefinitionDetailPage() {
               value={definition.minimumAge != null ? String(definition.minimumAge) : "—"}
             />
             <Field label={t("licenseClassDefinitionDetail.field.displayOrder")} value={String(definition.displayOrder)} />
-            <Field label={t("licenseClassDefinitionDetail.field.existingLicenseRequired")} value={formatBool(definition.hasExistingLicense, t)} />
             <Field label="Mevcut Ehliyet Tipi" value={definition.existingLicenseType ?? "—"} />
-            <Field
-              label={t("licenseClassDefinitionDetail.field.pre2016License")}
-              value={formatBool(definition.existingLicensePre2016, t)}
-            />
           </div>
 
           <div className="instructor-detail-summary-grid">
-            <Field label={t("licenseClassDefinitionDetail.field.theoryExam")} value={formatBool(definition.requiresTheoryExam, t)} />
-            <Field label={t("licenseClassDefinitionDetail.field.practiceExam")} value={formatBool(definition.requiresPracticeExam, t)} />
             <Field label="Teorik Ders Saati" value={formatHours(definition.theoryLessonHours)} />
-            <Field
-              label={t("licenseClassDefinitionDetail.field.simulatorHours")}
-              value={formatHours(definition.simulatorLessonHours)}
-            />
             <Field
               label="Direkt Direksiyon Saati"
               value={formatHours(definition.directPracticeLessonHours)}
             />
           </div>
-
-          {definition.notes ? (
-            <div className="instructor-detail-notes">
-              <span className="instructor-detail-notes-label">Notlar</span>
-              <p>{definition.notes}</p>
-            </div>
-          ) : null}
         </header>
       )}
     </div>

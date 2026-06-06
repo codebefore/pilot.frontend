@@ -81,6 +81,7 @@ export type QueryParams = Record<string, QueryParamValue>;
 
 type RequestOptions = {
   baseUrl?: string;
+  includeInstitutionHeader?: boolean;
   signal?: AbortSignal;
 };
 
@@ -171,7 +172,7 @@ export async function httpGet<T>(
   options?: RequestOptions
 ): Promise<T> {
   const response = await fetchWithAuthRetry(buildUrl(path, params, options?.baseUrl), {
-    headers: buildHeaders(),
+    headers: buildHeaders(undefined, options),
     signal: options?.signal,
   });
   return handleResponse<T>(response);
@@ -251,14 +252,14 @@ export async function httpDelete<T = void>(
   return handleResponse<T>(response);
 }
 
-function buildHeaders(base?: HeadersInit): HeadersInit {
+function buildHeaders(base?: HeadersInit, options?: RequestOptions): HeadersInit {
   const headers = new Headers(base);
   const token = getStoredAccessToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
   const activeInstitutionId = getStoredActiveInstitutionId();
-  if (activeInstitutionId) {
+  if (activeInstitutionId && options?.includeInstitutionHeader !== false) {
     headers.set("X-Institution-Id", activeInstitutionId);
   }
   return headers;

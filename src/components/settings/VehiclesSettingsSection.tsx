@@ -30,6 +30,7 @@ import type {
   VehicleStatus,
 } from "../../lib/types";
 import {
+  mergeLicenseClassOptionsWithValues,
   type LicenseClassOption,
   useLicenseClassOptions,
 } from "../../lib/use-license-class-options";
@@ -217,6 +218,17 @@ export function VehiclesSettingsSection() {
   const [confirmDeleteVehicleId, setConfirmDeleteVehicleId] = useState<string | null>(null);
   const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const filterLicenseClassOptions = useMemo(
+    () =>
+      mergeLicenseClassOptionsWithValues(
+        licenseClassOptions,
+        [
+          filters.licenseClass !== "all" ? filters.licenseClass : null,
+          ...items.flatMap((vehicle) => vehicle.licenseClasses),
+        ]
+      ),
+    [filters.licenseClass, items, licenseClassOptions]
+  );
   const vehicleColumns = buildVehicleColumns(t);
   const visibleColumns = vehicleColumns;
 
@@ -393,7 +405,7 @@ export function VehiclesSettingsSection() {
                           column.id,
                           filters,
                           setFilter,
-                          licenseClassOptions,
+                          filterLicenseClassOptions,
                           t
                         )}
                         key={column.id}

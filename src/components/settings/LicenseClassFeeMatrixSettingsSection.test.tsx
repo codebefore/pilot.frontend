@@ -2,34 +2,34 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CertificateProgramFeeMatrixResponse } from "../../lib/types";
+import type { LicenseClassFeeMatrixResponse } from "../../lib/types";
 import { renderWithProviders } from "../../test/render-with-providers";
-import { CertificateProgramFeeMatrixSettingsSection } from "./CertificateProgramFeeMatrixSettingsSection";
+import { LicenseClassFeeMatrixSettingsSection } from "./LicenseClassFeeMatrixSettingsSection";
 
-const getCertificateProgramFeeMatrixMock = vi.fn();
-const updateCertificateProgramFeeMatrixMock = vi.fn();
-const bulkApplyCertificateProgramFeeMatrixMock = vi.fn();
+const getLicenseClassFeeMatrixMock = vi.fn();
+const updateLicenseClassFeeMatrixMock = vi.fn();
+const bulkApplyLicenseClassFeeMatrixMock = vi.fn();
 
-vi.mock("../../lib/certificate-program-fee-matrix-api", async () => {
-  const actual = await vi.importActual<typeof import("../../lib/certificate-program-fee-matrix-api")>(
-    "../../lib/certificate-program-fee-matrix-api"
+vi.mock("../../lib/license-class-fee-matrix-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/license-class-fee-matrix-api")>(
+    "../../lib/license-class-fee-matrix-api"
   );
 
   return {
     ...actual,
-    getCertificateProgramFeeMatrix: (
-      ...args: Parameters<typeof actual.getCertificateProgramFeeMatrix>
-    ) => getCertificateProgramFeeMatrixMock(...args),
-    updateCertificateProgramFeeMatrix: (
-      ...args: Parameters<typeof actual.updateCertificateProgramFeeMatrix>
-    ) => updateCertificateProgramFeeMatrixMock(...args),
-    bulkApplyCertificateProgramFeeMatrix: (
-      ...args: Parameters<typeof actual.bulkApplyCertificateProgramFeeMatrix>
-    ) => bulkApplyCertificateProgramFeeMatrixMock(...args),
+    getLicenseClassFeeMatrix: (
+      ...args: Parameters<typeof actual.getLicenseClassFeeMatrix>
+    ) => getLicenseClassFeeMatrixMock(...args),
+    updateLicenseClassFeeMatrix: (
+      ...args: Parameters<typeof actual.updateLicenseClassFeeMatrix>
+    ) => updateLicenseClassFeeMatrixMock(...args),
+    bulkApplyLicenseClassFeeMatrix: (
+      ...args: Parameters<typeof actual.bulkApplyLicenseClassFeeMatrix>
+    ) => bulkApplyLicenseClassFeeMatrixMock(...args),
   };
 });
 
-const matrixResponse: CertificateProgramFeeMatrixResponse = {
+const matrixResponse: LicenseClassFeeMatrixResponse = {
   year: new Date().getFullYear(),
   vatRate: 0.1,
   rows: [
@@ -107,21 +107,21 @@ const matrixResponse: CertificateProgramFeeMatrixResponse = {
 function renderSection(auth?: NonNullable<Parameters<typeof renderWithProviders>[1]>["auth"]) {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/settings/definitions/fee-matrix"]}>
-      <CertificateProgramFeeMatrixSettingsSection />
+      <LicenseClassFeeMatrixSettingsSection />
     </MemoryRouter>,
     { auth }
   );
 }
 
-describe("CertificateProgramFeeMatrixSettingsSection", () => {
+describe("LicenseClassFeeMatrixSettingsSection", () => {
   beforeEach(() => {
-    getCertificateProgramFeeMatrixMock.mockReset();
-    updateCertificateProgramFeeMatrixMock.mockReset();
-    bulkApplyCertificateProgramFeeMatrixMock.mockReset();
+    getLicenseClassFeeMatrixMock.mockReset();
+    updateLicenseClassFeeMatrixMock.mockReset();
+    bulkApplyLicenseClassFeeMatrixMock.mockReset();
 
-    getCertificateProgramFeeMatrixMock.mockResolvedValue(matrixResponse);
-    updateCertificateProgramFeeMatrixMock.mockResolvedValue(matrixResponse);
-    bulkApplyCertificateProgramFeeMatrixMock.mockResolvedValue(matrixResponse);
+    getLicenseClassFeeMatrixMock.mockResolvedValue(matrixResponse);
+    updateLicenseClassFeeMatrixMock.mockResolvedValue(matrixResponse);
+    bulkApplyLicenseClassFeeMatrixMock.mockResolvedValue(matrixResponse);
   });
 
   it("disables fee mutations when payments permission is view-only", async () => {
@@ -150,8 +150,8 @@ describe("CertificateProgramFeeMatrixSettingsSection", () => {
     fireEvent.change(courseFeeInput, { target: { value: "1200" } });
     fireEvent.keyDown(window, { key: "s", ctrlKey: true });
 
-    expect(updateCertificateProgramFeeMatrixMock).not.toHaveBeenCalled();
-    expect(bulkApplyCertificateProgramFeeMatrixMock).not.toHaveBeenCalled();
+    expect(updateLicenseClassFeeMatrixMock).not.toHaveBeenCalled();
+    expect(bulkApplyLicenseClassFeeMatrixMock).not.toHaveBeenCalled();
   });
 
   it("allows users with payments full permission to save fee changes", async () => {
@@ -174,12 +174,12 @@ describe("CertificateProgramFeeMatrixSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
-      expect(updateCertificateProgramFeeMatrixMock).toHaveBeenCalledWith(
+      expect(updateLicenseClassFeeMatrixMock).toHaveBeenCalledWith(
         matrixResponse.year,
         expect.objectContaining({
           programs: [
             expect.objectContaining({
-              certificateProgramId: "program-b",
+              licenseClassDefinitionId: "program-b",
               courseFee: 1200,
               rowVersion: 3,
             }),
@@ -187,5 +187,48 @@ describe("CertificateProgramFeeMatrixSettingsSection", () => {
         })
       );
     });
+  });
+
+  it("renders missing institution fees as empty inputs instead of zero", async () => {
+    const emptyFeeResponse: LicenseClassFeeMatrixResponse = {
+      ...matrixResponse,
+      rows: matrixResponse.rows.map((row) => ({
+        ...row,
+        id: null,
+        program: {
+          ...row.program,
+          courseFee: null,
+          mebbisFee: null,
+          failureRetryFee: null,
+          privateLessonFee: null,
+          yearFeeRowVersion: null,
+        },
+        vatIncludedHourlyRate: null,
+        contractTheoryExamFee: null,
+        contractPracticeExamFee: null,
+        institutionTheoryExamFee: null,
+        institutionPracticeExamFee: null,
+        rowVersion: null,
+      })),
+    };
+    getLicenseClassFeeMatrixMock.mockResolvedValue(emptyFeeResponse);
+
+    renderSection({
+      user: {
+        id: "finance-manager",
+        phone: "5073737262",
+        name: "Finance Manager",
+        roleName: "Finans",
+        isSuperAdmin: false,
+      },
+      permissions: { payments: "full" },
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Sıfırdan Başlayanlar/ }, { timeout: 5000 })
+    );
+
+    expect(screen.getByLabelText("Kurs Ücreti")).toHaveValue("");
+    expect(screen.getAllByLabelText("Saat KDV'li")[0]).toHaveValue("");
   });
 });

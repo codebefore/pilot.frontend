@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ManageDocumentModal } from "./ManageDocumentModal";
+import { applyRuntimeConfig } from "../../lib/api";
 import { renderWithProviders } from "../../test/render-with-providers";
 
 const getCandidateDocumentsMock = vi.fn();
@@ -43,6 +44,9 @@ vi.mock("../../lib/documents-api", async () => {
 
 describe("ManageDocumentModal", () => {
   beforeEach(() => {
+    applyRuntimeConfig({
+      documentApiBaseUrl: "https://api.pilotyanimda.com/v1/document",
+    });
     getCandidateDocumentsMock.mockReset();
     updateCandidateDocumentMock.mockReset();
     updateCandidateDocumentMebbisTransferMock.mockReset();

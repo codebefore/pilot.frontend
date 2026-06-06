@@ -8,9 +8,9 @@ import {
   getCandidateAccounting,
 } from "./candidate-accounting-api";
 import {
-  bulkApplyCertificateProgramFeeMatrix,
-  getCertificateProgramFeeMatrix,
-} from "./certificate-program-fee-matrix-api";
+  bulkApplyLicenseClassFeeMatrix,
+  getLicenseClassFeeMatrix,
+} from "./license-class-fee-matrix-api";
 import { createCashRegister, getCashRegisters } from "./cash-registers-api";
 import { createCashInflow, getPaymentsOverview } from "./payments-api";
 
@@ -100,17 +100,17 @@ describe("finance api routing", () => {
   it("routes fee matrix calls to the runtime finance base url", async () => {
     applyRuntimeConfig({ financeApiBaseUrl: "http://127.0.0.1:5093" });
 
-    await getCertificateProgramFeeMatrix(2026, { targetLicenseClass: "B" });
-    await bulkApplyCertificateProgramFeeMatrix(2026, {
+    await getLicenseClassFeeMatrix(2026, { targetLicenseClass: "B" });
+    await bulkApplyLicenseClassFeeMatrix(2026, {
       field: "vatIncludedHourlyRate",
       value: 500,
     });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5093/api/finance/certificate-program-fee-matrix/2026?targetLicenseClass=B"
+      "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026?targetLicenseClass=B"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5093/api/finance/certificate-program-fee-matrix/2026/bulk-apply"
+      "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026/bulk-apply"
     );
   });
 });

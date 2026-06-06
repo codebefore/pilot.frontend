@@ -1,6 +1,6 @@
 import { getPlatformApiBaseUrl } from "./api";
 import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
-import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, normalizeApiPathForBaseUrl } from "./http";
+import { httpDelete, httpGet, httpPostForm, httpPut, normalizeApiPathForBaseUrl } from "./http";
 
 export type FounderType = "real" | "legal";
 

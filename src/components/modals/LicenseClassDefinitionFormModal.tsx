@@ -8,7 +8,6 @@ import {
   createLicenseClassDefinition,
   updateLicenseClassDefinition,
 } from "../../lib/license-class-definitions-api";
-import { LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS } from "../../lib/license-class-definition-catalog";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { existingLicenseTypeLabel } from "../../lib/status-maps";
@@ -31,33 +30,21 @@ const optionalNonNegInt = (max: number, message: string) =>
 
 const licenseClassDefinitionSchema = z.object({
   code: z.string().min(1, "Hedef kod zorunlu"),
-  category: z.string(),
+  name: z.string().min(1, "Ad zorunlu"),
   minimumAge: optionalNonNegInt(100, "licenseClassDefForm.error.ageRange"),
-  hasExistingLicense: z.boolean(),
   existingLicenseType: z.string(),
-  existingLicensePre2016: z.boolean(),
-  requiresTheoryExam: z.boolean(),
-  requiresPracticeExam: z.boolean(),
   theoryLessonHours: optionalNonNegInt(999, "licenseClassDefForm.error.lessonHoursRange"),
-  simulatorLessonHours: optionalNonNegInt(999, "licenseClassDefForm.error.lessonHoursRange"),
   directPracticeLessonHours: optionalNonNegInt(999, "licenseClassDefForm.error.lessonHoursRange"),
   isActive: z.boolean(),
-  notes: z.string(),
 });
 type LicenseClassDefinitionFormValues = {
   code: string;
-  category: LicenseClassDefinitionUpsertRequest["category"];
+  name: string;
   minimumAge: string;
-  hasExistingLicense: boolean;
   existingLicenseType: string;
-  existingLicensePre2016: boolean;
-  requiresTheoryExam: boolean;
-  requiresPracticeExam: boolean;
   theoryLessonHours: string;
-  simulatorLessonHours: string;
   directPracticeLessonHours: string;
   isActive: boolean;
-  notes: string;
 };
 
 type LicenseClassDefinitionFormModalProps = {
@@ -72,24 +59,16 @@ type LicenseClassDefinitionFormModalProps = {
 const VALIDATION_FIELD_MAP: Record<string, keyof LicenseClassDefinitionFormValues> = {
   code: "code",
   Code: "code",
-  category: "category",
-  Category: "category",
+  name: "name",
+  Name: "name",
   minimumAge: "minimumAge",
   MinimumAge: "minimumAge",
-  hasExistingLicense: "hasExistingLicense",
-  HasExistingLicense: "hasExistingLicense",
   existingLicenseType: "existingLicenseType",
   ExistingLicenseType: "existingLicenseType",
-  existingLicensePre2016: "existingLicensePre2016",
-  ExistingLicensePre2016: "existingLicensePre2016",
   theoryLessonHours: "theoryLessonHours",
   TheoryLessonHours: "theoryLessonHours",
-  simulatorLessonHours: "simulatorLessonHours",
-  SimulatorLessonHours: "simulatorLessonHours",
   directPracticeLessonHours: "directPracticeLessonHours",
   DirectPracticeLessonHours: "directPracticeLessonHours",
-  notes: "notes",
-  Notes: "notes",
 };
 
 const CONCURRENCY_CODE = "licenseClassDefinition.validation.concurrencyConflict";
@@ -117,33 +96,21 @@ function getEmptyValues(
   return editing
     ? {
         code: editing.code,
-        category: editing.category,
+        name: editing.name,
         minimumAge: stringValue(editing.minimumAge),
-        hasExistingLicense: editing.hasExistingLicense,
         existingLicenseType: editing.existingLicenseType ?? "",
-        existingLicensePre2016: editing.existingLicensePre2016,
-        requiresTheoryExam: editing.requiresTheoryExam,
-        requiresPracticeExam: editing.requiresPracticeExam,
         theoryLessonHours: stringValue(editing.theoryLessonHours),
-        simulatorLessonHours: stringValue(editing.simulatorLessonHours),
         directPracticeLessonHours: stringValue(editing.directPracticeLessonHours),
         isActive: editing.isActive,
-        notes: editing.notes ?? "",
       }
     : {
         code: "",
-        category: "automobile",
+        name: "",
         minimumAge: "18",
-        hasExistingLicense: false,
         existingLicenseType: "",
-        existingLicensePre2016: false,
-        requiresTheoryExam: true,
-        requiresPracticeExam: true,
         theoryLessonHours: "",
-        simulatorLessonHours: "",
         directPracticeLessonHours: "",
         isActive: true,
-        notes: "",
       };
 }
 
@@ -166,9 +133,8 @@ export function LicenseClassDefinitionFormModal({
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const codeInputId = useId();
-  const categorySelectId = useId();
+  const nameInputId = useId();
   const minimumAgeId = useId();
-  const notesInputId = useId();
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions(open);
 
   const {
@@ -178,15 +144,12 @@ export function LicenseClassDefinitionFormModal({
     register,
     reset,
     setError,
-    setValue,
     watch,
   } = useForm<LicenseClassDefinitionFormValues>({
     defaultValues: getEmptyValues(editing),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(licenseClassDefinitionSchema) as any,
   });
-  const hasExistingLicense = watch("hasExistingLicense");
-  const existingLicensePre2016 = watch("existingLicensePre2016");
   const existingLicenseSelectOptions = useMemo(() => {
     if (!editing?.existingLicenseType) return existingLicenseTypeOptions;
     if (existingLicenseTypeOptions.some((option) => option.value === editing.existingLicenseType)) {
@@ -207,18 +170,6 @@ export function LicenseClassDefinitionFormModal({
     reset(getEmptyValues(editing));
   }, [editing, open, reset]);
 
-  useEffect(() => {
-    if (open && hasExistingLicense) {
-      setValue("requiresTheoryExam", false, { shouldDirty: true, shouldValidate: true });
-    }
-  }, [hasExistingLicense, open, setValue]);
-
-  useEffect(() => {
-    if (open && existingLicensePre2016 && !hasExistingLicense) {
-      setValue("hasExistingLicense", true, { shouldDirty: true, shouldValidate: true });
-    }
-  }, [existingLicensePre2016, hasExistingLicense, open, setValue]);
-
   const submit = handleSubmit(async (values) => {
     if (!canManage) return;
 
@@ -226,19 +177,13 @@ export function LicenseClassDefinitionFormModal({
 
     const payload: LicenseClassDefinitionUpsertRequest = {
       code: values.code.trim(),
-      category: values.category,
+      name: values.name.trim(),
       minimumAge: parseOptionalNumber(values.minimumAge),
-      hasExistingLicense: values.hasExistingLicense,
-      existingLicenseType: values.hasExistingLicense ? values.existingLicenseType.trim() || null : null,
-      existingLicensePre2016: values.hasExistingLicense ? values.existingLicensePre2016 : false,
-      requiresTheoryExam: values.hasExistingLicense ? false : values.requiresTheoryExam,
-      requiresPracticeExam: values.requiresPracticeExam,
+      existingLicenseType: values.existingLicenseType.trim() || null,
       theoryLessonHours: parseOptionalNumber(values.theoryLessonHours),
-      simulatorLessonHours: parseOptionalNumber(values.simulatorLessonHours),
       directPracticeLessonHours: parseOptionalNumber(values.directPracticeLessonHours),
       displayOrder: editing?.displayOrder ?? 1000,
       isActive: values.isActive,
-      notes: values.notes.trim() || null,
       ...(editing ? { rowVersion: editing.rowVersion } : {}),
     };
 
@@ -315,21 +260,14 @@ export function LicenseClassDefinitionFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor={categorySelectId}>{t("common.field.vehicleType")}</label>
-            <Controller
-              control={control}
-              name="category"
-              render={({ field }) => (
-                <CustomSelect id={categorySelectId} className={selectClass(errors.category?.message)} {...field}>
-                  {LICENSE_CLASS_DEFINITION_CATEGORY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {t(option.labelKey)}
-                    </option>
-                  ))}
-                </CustomSelect>
-              )}
+            <label className="form-label" htmlFor={nameInputId}>Ad<RequiredMark /></label>
+            <input
+              id={nameInputId}
+              className={fieldClass(errors.name?.message)}
+              placeholder="Otomobil ve Kamyonet"
+              {...register("name")}
             />
-            {errors.category && <div className="form-error">{errors.category.message}</div>}
+            {errors.name && <div className="form-error">{errors.name.message}</div>}
           </div>
 
           <div className="form-group">
@@ -349,29 +287,14 @@ export function LicenseClassDefinitionFormModal({
         </div>
 
         <div className="settings-checkbox-list">
-          <SwitchField
-            label={t("licenseClassDefForm.field.theoryExamRequired")}
-            switchValue={watch("requiresTheoryExam")}
-            {...register("requiresTheoryExam")}
-          />
-          <SwitchField
-            label={t("licenseClassDefForm.field.practiceExamRequired")}
-            switchValue={watch("requiresPracticeExam")}
-            {...register("requiresPracticeExam")}
-          />
           <SwitchField label={t("common.field.generalStatus")} switchValue={watch("isActive")} {...register("isActive")} />
         </div>
 
         <div className="form-subsection license-existing-section">
           <div className="form-subsection-header">
             <div>
-              <div className="form-subsection-title">{t("newCandidate.field.hasExistingLicense")}</div>
+              <div className="form-subsection-title">{t("settings.licenseClasses.columns.existingLicenseType")}</div>
             </div>
-          </div>
-
-          <div className="settings-checkbox-list">
-            <SwitchField label={t("licenseClassDefForm.switch.hasExistingLicense")} switchValue={watch("hasExistingLicense")} {...register("hasExistingLicense")} />
-            <SwitchField label={t("licenseClassDefForm.field.pre2016")} switchValue={watch("existingLicensePre2016")} {...register("existingLicensePre2016")} />
           </div>
 
           <div className="form-row">
@@ -379,18 +302,13 @@ export function LicenseClassDefinitionFormModal({
               <Controller
                 control={control}
                 name="existingLicenseType"
-                rules={{
-                  validate: (value) =>
-                    !watch("hasExistingLicense") || value.trim().length > 0 || t("licenseClassDefForm.error.existingTypeRequired"),
-                }}
                 render={({ field }) => (
                   <CustomSelect
                     {...field}
                     className={selectClass(errors.existingLicenseType?.message)}
-                    disabled={!watch("hasExistingLicense")}
                     value={field.value ?? ""}
                   >
-                    <option value="">{t("licenseClassDefForm.placeholder.selectExistingType")}</option>
+                    <option value="">-</option>
                     {existingLicenseSelectOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -419,24 +337,11 @@ export function LicenseClassDefinitionFormModal({
               registerProps={register("theoryLessonHours")}
             />
             <NumberField
-              error={errors.simulatorLessonHours?.message}
-              label={t("licenseClassDefForm.field.simulatorHours")}
-              placeholder="2"
-              registerProps={register("simulatorLessonHours")}
-            />
-            <NumberField
               error={errors.directPracticeLessonHours?.message}
               label={t("licenseClassDefForm.field.practiceHours")}
               placeholder="14"
               registerProps={register("directPracticeLessonHours")}
             />
-          </div>
-        </div>
-
-        <div className="form-row full">
-          <div className="form-group">
-            <label className="form-label" htmlFor={notesInputId}>{t("common.field.note")}</label>
-            <textarea id={notesInputId} className="form-input" rows={4} {...register("notes")} />
           </div>
         </div>
       </form>

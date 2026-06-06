@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import {
   AssignmentDateConflictError,
@@ -18,7 +18,10 @@ import type {
 	  LicenseClass,
 	  TrainingBranchDefinitionResponse,
 } from "../../lib/types";
-import { useLicenseClassOptions } from "../../lib/use-license-class-options";
+import {
+  useLicenseClassOptions,
+  type LicenseClassOption,
+} from "../../lib/use-license-class-options";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
@@ -71,6 +74,18 @@ function fromExisting(a: InstructorAssignment): FormState {
   };
 }
 
+function mergeSelectedLicenseOptions(
+  options: LicenseClassOption[],
+  selected: readonly string[]
+): LicenseClassOption[] {
+  const byValue = new Map(options.map((option) => [option.value, option]));
+  for (const value of selected) {
+    if (!value || byValue.has(value)) continue;
+    byValue.set(value, { value, label: value });
+  }
+  return [...byValue.values()];
+}
+
 export function InstructorAssignmentFormModal({
   open,
   canManage = true,
@@ -93,17 +108,19 @@ export function InstructorAssignmentFormModal({
   const [values, setValues] = useState<FormState>(emptyState);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | "_global", string>>>({});
+  const visibleLicenseClassOptions = useMemo(
+    () => mergeSelectedLicenseOptions(licenseClassOptions, values.licenseClassCodes),
+    [licenseClassOptions, values.licenseClassCodes]
+  );
 
 	  useEffect(() => {
 	    if (!open) return;
 	    const branchCodes = new Set(branches.map((branch) => branch.code));
-	    const licenseCodes = new Set(licenseClassOptions.map((option) => option.value));
 	    const next = editing ? fromExisting(editing) : emptyState();
 	    next.branches = next.branches.filter((branch) => branchCodes.has(branch));
-	    next.licenseClassCodes = next.licenseClassCodes.filter((code) => licenseCodes.has(code));
 	    setErrors({});
 	    setValues(next);
-	  }, [branches, editing, licenseClassOptions, open]);
+	  }, [branches, editing, open]);
 
   if (!open) return null;
 
@@ -317,7 +334,7 @@ export function InstructorAssignmentFormModal({
 	            <div className="form-group">
 	              <label className="form-label">{t("common.field.licenseClasses")}</label>
 	              <div className="settings-checkbox-list">
-	                {licenseClassOptions.map((option) => (
+	                {visibleLicenseClassOptions.map((option) => (
 	                  <label className="switch-toggle" key={option.value}>
 	                    <input
 	                      checked={values.licenseClassCodes.includes(option.value)}

@@ -34,7 +34,6 @@ export interface CandidateTag {
 
 interface CandidateEducationPlan {
   licenseClassDefinitionId: string | null;
-  certificateProgramId: string | null;
   requiresTheoryExam: boolean;
   requiresPracticeExam: boolean;
   theoryLessonHours: number | null;
@@ -78,7 +77,7 @@ export interface CandidateResponse {
   birthDate: string | null;
   gender: CandidateGenderValue | null;
   licenseClass: LicenseClass;
-  certificateProgramId?: string | null;
+  licenseClassDefinitionId?: string | null;
   hasExistingLicense?: boolean;
   existingLicenseType: string | null;
   existingLicenseIssuedAt: string | null;
@@ -160,7 +159,7 @@ export interface CandidateUpsertRequest {
   /** Write-boundary is strict: only canonical English (or null / omitted). */
   gender?: CandidateGenderValue | null;
   licenseClass: LicenseClass;
-  certificateProgramId?: string | null;
+  licenseClassDefinitionId?: string | null;
   hasExistingLicense?: boolean | null;
   existingLicenseType?: string | null;
   existingLicenseIssuedAt?: string | null;
@@ -194,6 +193,7 @@ export interface CandidateExistingLicenseRequest {
   existingLicenseNumber: string | null;
   existingLicenseIssuedProvince: string | null;
   existingLicensePre2016: boolean;
+  licenseClassDefinitionId?: string | null;
   rowVersion: number;
 }
 
@@ -873,32 +873,16 @@ export interface InstructorCreateRequest extends InstructorUpsertRequest {
 
 /* ── License Class Definitions ── */
 
-export type LicenseClassDefinitionCategory =
-  | "motorcycle"
-  | "automobile"
-  | "heavy_vehicle"
-  | "bus"
-  | "tractor"
-  | "work_machine"
-  | "other";
-
 export interface LicenseClassDefinitionResponse {
   id: string;
   code: string;
   name: string;
-  category: LicenseClassDefinitionCategory;
   minimumAge: number | null;
-  hasExistingLicense: boolean;
   existingLicenseType: string | null;
-  existingLicensePre2016: boolean;
-  requiresTheoryExam: boolean;
-  requiresPracticeExam: boolean;
   theoryLessonHours: number | null;
-  simulatorLessonHours: number | null;
   directPracticeLessonHours: number | null;
   displayOrder: number;
   isActive: boolean;
-  notes: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -916,19 +900,12 @@ export interface LicenseClassDefinitionListResponse
 export interface LicenseClassDefinitionUpsertRequest {
   code: string;
   name?: string;
-  category: LicenseClassDefinitionCategory;
   minimumAge?: number | null;
-  hasExistingLicense: boolean;
   existingLicenseType?: string | null;
-  existingLicensePre2016: boolean;
-  requiresTheoryExam: boolean;
-  requiresPracticeExam: boolean;
   theoryLessonHours?: number | null;
-  simulatorLessonHours?: number | null;
   directPracticeLessonHours?: number | null;
   displayOrder: number;
   isActive: boolean;
-  notes?: string | null;
   /** Required for updates; omitted on create. */
   rowVersion?: number;
 }
@@ -936,36 +913,6 @@ export interface LicenseClassDefinitionUpsertRequest {
 export interface LicenseClassDefinitionActivityRequest {
   isActive: boolean;
   rowVersion?: number;
-}
-
-/* ── Certificate Programs ── */
-
-export interface CertificateProgramResponse {
-  id: string;
-  code: string;
-  sourceLicenseClass: string;
-  sourceLicenseDisplayName: string;
-  sourceLicensePre2016: boolean;
-  targetLicenseClass: string;
-  targetLicenseDisplayName: string;
-  minimumAge: number;
-  theoryLessonHours: number;
-  practiceLessonHours: number;
-  displayOrder: number;
-  isActive: boolean;
-  notes: string | null;
-  createdAtUtc: string;
-  updatedAtUtc: string;
-  rowVersion: number;
-}
-
-interface CertificateProgramListSummaryResponse {
-  activeCount: number;
-  inactiveCount: number;
-}
-
-export interface CertificateProgramListResponse extends PagedResponse<CertificateProgramResponse> {
-  summary: CertificateProgramListSummaryResponse;
 }
 
 /* ── Terms ── */
@@ -1366,7 +1313,7 @@ export interface CashRegisterUpsertRequest {
   rowVersion?: number;
 }
 
-export interface CertificateProgramFeeProgramResponse {
+export interface LicenseClassFeeProgramResponse {
   id: string;
   code: string;
   sourceLicenseClass: string;
@@ -1386,8 +1333,8 @@ export interface CertificateProgramFeeProgramResponse {
   yearFeeRowVersion: number | null;
 }
 
-export interface CertificateProgramFeeProgramUpsertRequest {
-  certificateProgramId: string;
+export interface LicenseClassFeeProgramUpsertRequest {
+  licenseClassDefinitionId: string;
   courseFee?: number | null;
   mebbisFee?: number | null;
   failureRetryFee?: number | null;
@@ -1397,10 +1344,10 @@ export interface CertificateProgramFeeProgramUpsertRequest {
   rowVersion?: number | null;
 }
 
-export interface CertificateProgramFeeRowResponse {
+export interface LicenseClassFeeRowResponse {
   id: string | null;
   year: number;
-  program: CertificateProgramFeeProgramResponse;
+  program: LicenseClassFeeProgramResponse;
   lessonType: "theory" | "practice";
   lessonHours: number;
   vatIncludedHourlyRate: number | null;
@@ -1414,14 +1361,14 @@ export interface CertificateProgramFeeRowResponse {
   rowVersion: number | null;
 }
 
-export interface CertificateProgramFeeMatrixResponse {
+export interface LicenseClassFeeMatrixResponse {
   year: number;
   vatRate: number;
-  rows: CertificateProgramFeeRowResponse[];
+  rows: LicenseClassFeeRowResponse[];
 }
 
-export interface CertificateProgramFeeRowUpsertRequest {
-  certificateProgramId: string;
+export interface LicenseClassFeeRowUpsertRequest {
+  licenseClassDefinitionId: string;
   lessonType: "theory" | "practice";
   vatIncludedHourlyRate?: number | null;
   contractTheoryExamFee?: number | null;
@@ -1431,14 +1378,14 @@ export interface CertificateProgramFeeRowUpsertRequest {
   rowVersion?: number | null;
 }
 
-export interface CertificateProgramFeeMatrixUpsertRequest {
-  rows: CertificateProgramFeeRowUpsertRequest[];
-  programs?: CertificateProgramFeeProgramUpsertRequest[];
+export interface LicenseClassFeeMatrixUpsertRequest {
+  rows: LicenseClassFeeRowUpsertRequest[];
+  programs?: LicenseClassFeeProgramUpsertRequest[];
 }
 
-export interface CertificateProgramFeeBulkApplyRequest {
+export interface LicenseClassFeeBulkApplyRequest {
   targetLicenseClass?: string | null;
-  certificateProgramIds?: string[] | null;
+  licenseClassDefinitionIds?: string[] | null;
   lessonType?: "theory" | "practice" | null;
   field: string;
   value?: number | null;

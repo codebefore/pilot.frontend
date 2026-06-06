@@ -150,6 +150,57 @@ describe("http client", () => {
     expect(headers.get("X-Institution-Id")).toBe("institution-1");
   });
 
+  it("can omit active institution id for global catalog reads", async () => {
+    writeStoredAuthSession({
+      accessToken: "token",
+      expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      refreshToken: "refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 120_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "Test User",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [
+        {
+          id: "institution-1",
+          name: "Pilot Kurs",
+          slug: "pilot",
+          roleName: "Operator",
+          isDefault: true,
+          permissions: { payments: "full" },
+        },
+      ],
+      activeInstitution: {
+        id: "institution-1",
+        name: "Pilot Kurs",
+        slug: "pilot",
+        roleName: "Operator",
+        isDefault: true,
+        permissions: { payments: "full" },
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    await expect(
+      httpGet<{ ok: boolean }>("/api/test", undefined, { includeInstitutionHeader: false })
+    ).resolves.toEqual({ ok: true });
+
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers);
+    expect(headers.get("Authorization")).toBe("Bearer token");
+    expect(headers.get("X-Institution-Id")).toBeNull();
+  });
+
   it("refreshes the session and retries once on unauthorized responses", async () => {
     writeStoredAuthSession({
       accessToken: "old-token",
@@ -196,7 +247,7 @@ describe("http client", () => {
     await expect(httpGet<{ ok: boolean }>("/api/test")).resolves.toEqual({ ok: true });
 
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
-    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe("http://127.0.0.1:5080/api/auth/refresh");
+    expect(new URL(String(vi.mocked(fetch).mock.calls[1][0])).pathname).toMatch(/\/auth\/refresh$/);
     expect(new Headers(vi.mocked(fetch).mock.calls[2][1]?.headers).get("Authorization")).toBe("Bearer new-token");
     expect(refreshed).toHaveBeenCalledTimes(1);
     window.removeEventListener("pilot:session-refreshed", refreshed);
@@ -250,7 +301,7 @@ describe("http client", () => {
     ]);
 
     const refreshCalls = vi.mocked(fetch).mock.calls.filter(([url]) =>
-      String(url) === "http://127.0.0.1:5080/api/auth/refresh"
+      /\/auth\/refresh$/.test(new URL(String(url)).pathname)
     );
     expect(refreshCalls).toHaveLength(1);
   });
@@ -302,7 +353,7 @@ describe("http client", () => {
     } satisfies Partial<ApiError>);
 
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
-    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe("http://127.0.0.1:5080/api/auth/refresh");
+    expect(new URL(String(vi.mocked(fetch).mock.calls[1][0])).pathname).toMatch(/\/auth\/refresh$/);
     expect(unauthorized).toHaveBeenCalledTimes(1);
     window.removeEventListener("pilot:unauthorized", unauthorized);
   });

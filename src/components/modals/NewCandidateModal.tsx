@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,7 +11,6 @@ import {
   getCandidateReferences,
   type CandidateReferenceResponse,
 } from "../../lib/candidate-references-api";
-import { getCertificatePrograms } from "../../lib/certificate-programs-api";
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
@@ -19,12 +18,10 @@ import { isPhoneStartingWith5 } from "../../lib/phone";
 import { toTurkishUpperCase } from "../../lib/text-format";
 import type {
   CandidateReuseSourceResponse,
-  CertificateProgramResponse,
 } from "../../lib/types";
 import {
-  getActiveInitialLicenseClassOptions,
+  useCandidateLicenseClassOptions,
   useExistingLicenseTypeOptions,
-  type LicenseClassOption,
 } from "../../lib/use-license-class-options";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
 import { CustomSelect } from "../ui/CustomSelect";
@@ -100,70 +97,6 @@ function buildReuseSourceAvatarCandidate(source: CandidateReuseSourceResponse) {
   };
 }
 
-function buildTargetLicenseClassOptions(
-  programs: CertificateProgramResponse[],
-  activeLicenseClassOptions: LicenseClassOption[]
-): LicenseClassOption[] {
-  const byTarget = new Map<string, LicenseClassOption & { displayOrder: number }>();
-  const activeOptionByValue = new Map(
-    activeLicenseClassOptions.map((option) => [normalizeLicenseClassOptionKey(option.value), option])
-  );
-
-  for (const program of programs) {
-    const target = program.targetLicenseClass.trim();
-    if (!target) continue;
-    const activeOption = activeOptionByValue.get(normalizeLicenseClassOptionKey(target));
-    if (!activeOption) continue;
-
-    const existing = byTarget.get(target);
-    if (!existing || program.displayOrder < existing.displayOrder) {
-      byTarget.set(target, {
-        value: activeOption.value,
-        label: program.targetLicenseDisplayName || activeOption.label,
-        displayOrder: program.displayOrder,
-      });
-    }
-  }
-
-  return [...byTarget.values()]
-    .sort((a, b) => a.displayOrder - b.displayOrder || a.label.localeCompare(b.label, "tr"))
-    .map(({ value, label }) => ({ value, label }));
-}
-
-function findDefaultCertificateProgram(
-  programs: CertificateProgramResponse[],
-  targetLicenseClass: string
-): CertificateProgramResponse | null {
-  const targetKey = normalizeLicenseClassOptionKey(targetLicenseClass);
-  return (
-    programs
-      .filter(
-        (program) =>
-          normalizeLicenseClassOptionKey(program.targetLicenseClass) === targetKey &&
-          normalizeLicenseClassOptionKey(program.sourceLicenseClass) === "YOK" &&
-          !program.sourceLicensePre2016
-      )
-      .sort(
-        (a, b) =>
-          a.displayOrder - b.displayOrder ||
-          a.targetLicenseDisplayName.localeCompare(b.targetLicenseDisplayName, "tr")
-      )[0] ?? null
-  );
-}
-
-function normalizeLicenseClassOptionKey(value: string) {
-  return value
-    .trim()
-    .toLocaleUpperCase("tr-TR")
-    .replace(/Ç/g, "C")
-    .replace(/Ğ/g, "G")
-    .replace(/İ/g, "I")
-    .replace(/Ö/g, "O")
-    .replace(/Ş/g, "S")
-    .replace(/Ü/g, "U")
-    .replace(/[\s_-]/g, "");
-}
-
 const defaultValues = (): NewCandidateForm => ({
   tc: "",
   referenceName: "",
@@ -194,8 +127,6 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const issuedAtInputId = useId();
   const [reuseSources, setReuseSources] = useState<CandidateReuseSourceResponse[]>([]);
   const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
-  const [certificatePrograms, setCertificatePrograms] = useState<CertificateProgramResponse[]>([]);
-  const [activeLicenseClassOptions, setActiveLicenseClassOptions] = useState<LicenseClassOption[]>([]);
   const [references, setReferences] = useState<CandidateReferenceResponse[]>([]);
 
   const {
@@ -210,6 +141,8 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   } = useForm<NewCandidateForm>({ defaultValues: defaultValues(), resolver: zodResolver(newCandidateSchema) });
 
   const selectedClass = watch("className");
+  const hasExistingLicense = watch("hasExistingLicense");
+  const existingLicenseType = watch("existingLicenseType");
   const tc = watch("tc");
   const normalizedTc = (tc ?? "").replace(/\D/g, "");
   const reuseFromCandidateId = watch("reuseFromCandidateId");
@@ -217,23 +150,30 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const tags = watch("tags");
   const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
+  const {
+    options: licenseClassOptions,
+    loading: licenseClassOptionsLoading,
+  } = useCandidateLicenseClassOptions(
+    existingLicenseType,
+    hasExistingLicense,
+    open
+  );
   const selectedReuseSource =
     reuseSources.find((source) => source.id === reuseFromCandidateId) ?? null;
   const classRegistration = register("className");
   const phoneRegistration = register("phone");
-  // The license-class dropdown is derived from the active certificate
-  // programs catalog so only valid registration targets show up; this list
-  // is independent from the now-removed program/group selectors.
-  const licenseClassOptions = useMemo(() => {
-    const targetOptions = buildTargetLicenseClassOptions(
-      certificatePrograms,
-      activeLicenseClassOptions
-    );
-    return targetOptions;
-  }, [activeLicenseClassOptions, certificatePrograms]);
 
   useEffect(() => {
-    if (!open || licenseClassOptions.length === 0) return;
+    if (!open || licenseClassOptionsLoading) return;
+    if (licenseClassOptions.length === 0) {
+      if (selectedClass) {
+        setValue("className", "", {
+          shouldDirty: false,
+          shouldValidate: true,
+        });
+      }
+      return;
+    }
     if (licenseClassOptions.some((option) => option.value === selectedClass)) {
       setValue("className", selectedClass, {
         shouldDirty: false,
@@ -246,31 +186,15 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
       shouldDirty: false,
       shouldValidate: true,
     });
-  }, [licenseClassOptions, open, selectedClass, setValue]);
+  }, [licenseClassOptions, licenseClassOptionsLoading, open, selectedClass, setValue]);
 
   useEffect(() => {
-    if (!open) return;
-    const controller = new AbortController();
-
-    Promise.all([
-      getCertificatePrograms(
-        { activity: "active", page: 1, pageSize: 1000, sortBy: "displayOrder", sortDir: "asc" },
-        controller.signal
-      ),
-      getActiveInitialLicenseClassOptions(controller.signal),
-    ])
-      .then(([programResponse, licenseOptions]) => {
-        setCertificatePrograms(programResponse.items);
-        setActiveLicenseClassOptions(licenseOptions);
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setCertificatePrograms([]);
-        setActiveLicenseClassOptions([]);
-      });
-
-    return () => controller.abort();
-  }, [open]);
+    if (!open || hasExistingLicense || !existingLicenseType) return;
+    setValue("existingLicenseType", "", {
+      shouldDirty: false,
+      shouldValidate: false,
+    });
+  }, [existingLicenseType, hasExistingLicense, open, setValue]);
 
   useEffect(() => {
     if (!open) return;
@@ -345,7 +269,8 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
     if (!canManage) return;
     setSubmitting(true);
     try {
-      const defaultProgram = findDefaultCertificateProgram(certificatePrograms, data.className);
+      const selectedLicenseClassDefinitionId =
+        licenseClassOptions.find((option) => option.value === data.className)?.licenseClassDefinitionId ?? null;
       await createCandidate({
         firstName: data.firstName,
         lastName: data.lastName,
@@ -354,12 +279,11 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
         phoneNumber: data.phone.trim() || null,
         // Quick registration captures only identity + phone + license class.
         // Birth date, gender, existing license, and group assignment are
-        // edited from the candidate detail page. Certificate program is
-        // inferred from the selected target license for quick registration.
+        // edited from the candidate detail page.
         birthDate: null,
         gender: null,
         licenseClass: data.className,
-        certificateProgramId: defaultProgram?.id ?? null,
+        licenseClassDefinitionId: selectedLicenseClassDefinitionId,
         hasExistingLicense: data.hasExistingLicense,
         existingLicenseType:
           data.hasExistingLicense && data.existingLicenseType
@@ -371,10 +295,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
             : null,
         existingLicenseNumber: null,
         existingLicenseIssuedProvince: null,
-        existingLicensePre2016:
-          data.hasExistingLicense &&
-          !!data.existingLicenseIssuedAt &&
-          data.existingLicenseIssuedAt < "2016-01-01",
+        existingLicensePre2016: false,
         status: "pre_registered",
         tags: data.tags,
         reuseFromCandidateId: data.documentIdsToCopy.length > 0

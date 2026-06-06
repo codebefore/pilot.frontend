@@ -32,10 +32,9 @@ describe("service api routing ownership", () => {
 
       ["candidate-accounting-api.ts", "getFinanceApiBaseUrl"],
       ["cash-registers-api.ts", "getFinanceApiBaseUrl"],
-      ["certificate-program-fee-matrix-api.ts", "getFinanceApiBaseUrl"],
+      ["license-class-fee-matrix-api.ts", "getFinanceApiBaseUrl"],
       ["payments-api.ts", "getFinanceApiBaseUrl"],
 
-      ["certificate-programs-api.ts", "getCatalogApiBaseUrl"],
       ["license-class-definitions-api.ts", "getCatalogApiBaseUrl"],
       ["training-branch-definitions-api.ts", "getCatalogApiBaseUrl"],
       ["documents-api.ts", "getCatalogApiBaseUrl"],

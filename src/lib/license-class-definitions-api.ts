@@ -2,7 +2,6 @@ import { getCatalogApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type {
   LicenseClassDefinitionActivityRequest,
-  LicenseClassDefinitionCategory,
   LicenseClassDefinitionListResponse,
   LicenseClassDefinitionResponse,
   LicenseClassDefinitionUpsertRequest,
@@ -11,7 +10,6 @@ import type {
 export type LicenseClassDefinitionSortField =
   | "code"
   | "name"
-  | "category"
   | "minimumAge"
   | "displayOrder"
   | "isActive";
@@ -21,9 +19,10 @@ export type LicenseClassDefinitionActivityFilter = "active" | "inactive" | "all"
 interface GetLicenseClassDefinitionsOptions {
   search?: string;
   code?: string;
+  baseOnly?: boolean;
+  includeInstitutionContext?: boolean;
   includeInactive?: boolean;
   activity?: LicenseClassDefinitionActivityFilter;
-  category?: LicenseClassDefinitionCategory;
   page?: number;
   pageSize?: number;
   sortBy?: LicenseClassDefinitionSortField;
@@ -32,13 +31,14 @@ interface GetLicenseClassDefinitionsOptions {
 
 type LicenseClassSnapshot = Omit<
   LicenseClassDefinitionResponse,
-  "id" | "notes" | "createdAtUtc"
+  "id" | "createdAtUtc"
 > & {
   licenseClassDefinitionId: string;
 };
 
-const catalogRequestOptions = (signal?: AbortSignal) => ({
+const catalogRequestOptions = (signal?: AbortSignal, includeInstitutionContext = true) => ({
   baseUrl: getCatalogApiBaseUrl(),
+  includeInstitutionHeader: includeInstitutionContext,
   signal,
 });
 
@@ -49,7 +49,7 @@ export function getLicenseClassDefinitions(
   return httpGet<LicenseClassSnapshot[]>(
     "/api/catalog/license-classes",
     undefined,
-    catalogRequestOptions(signal)
+    catalogRequestOptions(signal, options?.includeInstitutionContext ?? true)
   ).then((items) => mapLicenseClassList(items, options));
 }
 
@@ -74,6 +74,9 @@ function mapLicenseClassList(
   const activity = options?.activity ?? (options?.includeInactive ? "all" : "active");
   let items = snapshots.map(mapLicenseClass);
 
+  if (options?.baseOnly) {
+    items = items.filter((item) => !item.existingLicenseType);
+  }
   if (activity === "active") {
     items = items.filter((item) => item.isActive);
   } else if (activity === "inactive") {
@@ -82,18 +85,18 @@ function mapLicenseClassList(
   if (options?.code) {
     items = items.filter((item) => item.code === options.code);
   }
-  if (options?.category) {
-    items = items.filter((item) => item.category === options.category);
-  }
   if (search) {
     items = items.filter((item) =>
-      [item.code, item.name, item.category, item.existingLicenseType ?? ""].some((value) =>
+      [item.code, item.name, item.existingLicenseType ?? ""].some((value) =>
         value.toLocaleLowerCase("tr-TR").includes(search)
       )
     );
   }
 
-  const activeCount = snapshots.filter((item) => item.isActive).length;
+  const summarySource = options?.baseOnly
+    ? snapshots.map(mapLicenseClass).filter((item) => !item.existingLicenseType)
+    : snapshots.map(mapLicenseClass);
+  const activeCount = summarySource.filter((item) => item.isActive).length;
   const sorted = sortLicenseClasses(items, options?.sortBy, options?.sortDir);
   return toLicensePagedResponse(sorted, options?.page, options?.pageSize, { activeCount });
 }
@@ -102,7 +105,6 @@ function mapLicenseClass(snapshot: LicenseClassSnapshot): LicenseClassDefinition
   return {
     ...snapshot,
     id: snapshot.licenseClassDefinitionId,
-    notes: null,
     createdAtUtc: snapshot.updatedAtUtc,
   };
 }

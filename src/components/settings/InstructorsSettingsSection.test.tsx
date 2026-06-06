@@ -170,7 +170,6 @@ describe("InstructorsSettingsSection", () => {
           id: "license-b",
           code: "B",
           name: "Otomobil",
-          category: "Otomobil",
           isActive: true,
           displayOrder: 10,
           createdAtUtc: "2026-01-01T00:00:00Z",
@@ -181,7 +180,6 @@ describe("InstructorsSettingsSection", () => {
           id: "license-a2",
           code: "A2",
           name: "Motosiklet",
-          category: "Motosiklet",
           isActive: true,
           displayOrder: 20,
           createdAtUtc: "2026-01-01T00:00:00Z",
@@ -239,7 +237,7 @@ describe("InstructorsSettingsSection", () => {
     fireEvent.click(screen.getByLabelText("Belge"));
 
     fireEvent.click(screen.getByRole("button", { name: "Belge filtresi" }));
-    fireEvent.click(screen.getByRole("button", { name: /^A2 -/ }));
+    fireEvent.click(screen.getByRole("button", { name: "A2" }));
 
     await waitFor(() => {
       expect(getInstructorsMock).toHaveBeenLastCalledWith(

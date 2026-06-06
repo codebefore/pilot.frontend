@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -39,7 +39,10 @@ import { useGroups } from "../lib/queries/use-groups";
 import { buildWhatsAppUrl } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
-import { useLicenseClassOptions } from "../lib/use-license-class-options";
+import {
+  mergeLicenseClassOptionsWithValues,
+  useLicenseClassOptions,
+} from "../lib/use-license-class-options";
 import type {
   CandidateTag,
   DocumentChecklistEntry,
@@ -276,6 +279,14 @@ export function DocumentsPage() {
 
   const entries: DocumentChecklistEntry[] = checklistData?.items ?? [];
   const totalPages = checklistData?.totalPages ?? 1;
+  const filterLicenseClassOptions = useMemo(
+    () =>
+      mergeLicenseClassOptionsWithValues(licenseClassOptions, [
+        ...candidateFilters.licenseClasses,
+        ...entries.map((entry) => entry.licenseClass),
+      ]),
+    [candidateFilters.licenseClasses, entries, licenseClassOptions]
+  );
 
   // --- React Query: tab counts ---
   const { hasMissingDocuments: _ignored, ...baseCandidateFilterQuery } = candidateFilterQuery;
@@ -906,9 +917,9 @@ export function DocumentsPage() {
                           next as CandidateFilterState["licenseClasses"]
                         )
                       }
-                      options={licenseClassOptions}
+                      options={filterLicenseClassOptions}
                       placeholder="Ehliyet Tipi"
-                      searchable={licenseClassOptions.length > 8}
+                      searchable={filterLicenseClassOptions.length > 8}
                       title="Ehliyet Tipi"
                       triggerVariant="icon"
                       values={candidateFilters.licenseClasses}

@@ -22,6 +22,7 @@ import type {
   LicenseClass,
 } from "../../lib/types";
 import {
+  mergeLicenseClassOptionsWithValues,
   useExistingLicenseTypeOptions,
   useLicenseClassOptions,
 } from "../../lib/use-license-class-options";
@@ -72,13 +73,17 @@ export function CandidateFilterPanel({
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
+  const visibleLicenseClassOptions = useMemo(
+    () => mergeLicenseClassOptionsWithValues(licenseClassOptions, filters.licenseClasses),
+    [filters.licenseClasses, licenseClassOptions]
+  );
   const compactLicenseClassOptions = useMemo(
     () =>
-      licenseClassOptions.map((option) => ({
+      visibleLicenseClassOptions.map((option) => ({
         value: option.value,
         label: option.value,
       })),
-    [licenseClassOptions]
+    [visibleLicenseClassOptions]
   );
 
   // Lazily fetch the group catalog the first time the panel opens so the

@@ -2,13 +2,12 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getLicenseClassDefinitions } from "./license-class-definitions-api";
-import { LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS } from "./license-class-definition-catalog";
-import { useT, type TranslationKey } from "./i18n";
 import type { LicenseClassDefinitionResponse } from "./types";
 
 export type LicenseClassOption = {
   value: string;
   label: string;
+  licenseClassDefinitionId?: string;
 };
 
 type ExistingLicenseTypeOption = LicenseClassOption;
@@ -17,74 +16,74 @@ const ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY = [
   "licenseClassDefinitions",
   "options",
   "active",
+  "institution",
 ] as const;
 
+const GLOBAL_ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY = [
+  "licenseClassDefinitions",
+  "options",
+  "active",
+  "global",
+] as const;
+
+function normalizeLicenseValue(value: string): string {
+  return value.trim().toLocaleUpperCase("tr-TR");
+}
+
 function toExistingLicenseValue(code: string): string {
-  return code.trim().toLowerCase();
+  return code.trim();
 }
 
-function toOption(item: LicenseClassDefinitionResponse, translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string): LicenseClassOption {
+function toOption(item: LicenseClassDefinitionResponse): LicenseClassOption {
   const code = item.code.trim();
-  const name = item.name.trim();
-  const fallbackName = translateCategory(item.category);
-  const labelName = stripCodeSuffixesFromName(name || fallbackName, code);
-
-  return { value: code, label: labelName === code ? code : `${code} - ${labelName}` };
+  return { value: code, label: code, licenseClassDefinitionId: item.id };
 }
 
-/**
- * Drop trailing modifier words from the name when the code already carries
- * them (e.g. code "A1-OTOMATIK" + name "Motosiklet - Otomatik" → "Motosiklet").
- * Compares normalized to be case- and diacritic-insensitive.
- */
-function stripCodeSuffixesFromName(name: string, code: string): string {
-  const codeTokens = code
-    .split(/[\s\-_]+/)
-    .map(normalizeForCompare)
-    .filter((token) => token.length > 0);
-  if (codeTokens.length === 0) return name;
+export function mergeLicenseClassOptionsWithValues(
+  options: readonly LicenseClassOption[],
+  values: Iterable<string | null | undefined>
+): LicenseClassOption[] {
+  const byValue = new Map(options.map((option) => [option.value, option]));
+  const appended: LicenseClassOption[] = [];
 
-  let result = name;
-  // Strip from the tail repeatedly so e.g. "Engelli Otomobil - Engelli - Otomatik" collapses fully.
-  // Each iteration peels off one trailing " - <segment>" if it matches a code token.
-  // Stops when the tail no longer matches.
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const match = result.match(/^(.*?)\s*-\s*([^-]+?)\s*$/);
-    if (!match) break;
-    const tail = normalizeForCompare(match[2]);
-    if (!codeTokens.includes(tail)) break;
-    result = match[1].trim();
-    if (result.length === 0) break;
+  for (const rawValue of values) {
+    const value = rawValue?.trim();
+    if (!value || byValue.has(value)) continue;
+    const option = { value, label: value };
+    byValue.set(value, option);
+    appended.push(option);
   }
-  return result.length > 0 ? result : name;
+
+  appended.sort((left, right) => left.label.localeCompare(right.label, "tr"));
+  return [...options, ...appended];
 }
 
-function normalizeForCompare(value: string): string {
-  // Use invariant lowercase: tr-TR maps "I" to dotless "ı", which would make
-  // "OTOMATIK" not equal "Otomatik" when compared.
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}+/gu, "");
-}
-
-function toExistingLicenseTypeOption(option: LicenseClassOption): ExistingLicenseTypeOption {
-  return {
-    value: toExistingLicenseValue(option.value),
-    label: option.label,
-  };
+export function findLicenseClassDefinitionIdForSelection(
+  items: readonly LicenseClassDefinitionResponse[],
+  licenseClass: string,
+  existingLicenseType: string | null | undefined,
+  hasExistingLicense: boolean
+): string | null {
+  const selectedTarget = normalizeLicenseValue(licenseClass);
+  const selectedSource =
+    hasExistingLicense && existingLicenseType?.trim()
+      ? normalizeLicenseValue(existingLicenseType)
+      : "";
+  const match = items.find((item) => {
+    if (normalizeLicenseValue(item.code) !== selectedTarget) return false;
+    const source = item.existingLicenseType ? normalizeLicenseValue(item.existingLicenseType) : "";
+    return source === selectedSource;
+  });
+  return match?.id ?? null;
 }
 
 function uniqueTargetOptions(
   items: LicenseClassDefinitionResponse[],
-  translateCategory: (cat: LicenseClassDefinitionResponse["category"]) => string,
 ): LicenseClassOption[] {
   const preferredByCode = new Map<string, LicenseClassDefinitionResponse>();
 
   for (const item of items) {
-    const key = item.code.trim().toLocaleUpperCase("tr-TR");
+    const key = normalizeLicenseValue(item.code);
     const current = preferredByCode.get(key);
     if (!current || isPreferredTargetOption(item, current)) {
       preferredByCode.set(key, item);
@@ -93,17 +92,13 @@ function uniqueTargetOptions(
 
   return [...preferredByCode.values()]
     .sort((a, b) => a.displayOrder - b.displayOrder || a.code.localeCompare(b.code, "tr"))
-    .map((item) => toOption(item, translateCategory));
+    .map((item) => toOption(item));
 }
 
 function isPreferredTargetOption(
   candidate: LicenseClassDefinitionResponse,
   current: LicenseClassDefinitionResponse
 ): boolean {
-  if (candidate.hasExistingLicense !== current.hasExistingLicense) {
-    return !candidate.hasExistingLicense;
-  }
-
   return (
     candidate.displayOrder < current.displayOrder ||
     (candidate.displayOrder === current.displayOrder &&
@@ -111,10 +106,14 @@ function isPreferredTargetOption(
   );
 }
 
-async function getActiveLicenseClassDefinitions(signal?: AbortSignal) {
+async function getActiveLicenseClassDefinitions(
+  signal?: AbortSignal,
+  includeInstitutionContext = true
+) {
   const activeResponse = await getLicenseClassDefinitions(
     {
       activity: "active",
+      includeInstitutionContext,
       page: 1,
       pageSize: 1000,
       sortBy: "displayOrder",
@@ -127,65 +126,124 @@ async function getActiveLicenseClassDefinitions(signal?: AbortSignal) {
 
 export async function getActiveInitialLicenseClassOptions(
   signal?: AbortSignal,
-  translateCategory?: (cat: LicenseClassDefinitionResponse["category"]) => string,
 ) {
   const items = await getActiveLicenseClassDefinitions(signal);
-  const translate = translateCategory ?? ((cat) => cat);
-  const activeOptions = uniqueTargetOptions(
-    items.filter((item) => !item.hasExistingLicense),
-    translate,
-  );
-  return activeOptions;
+  return getInitialLicenseClassOptions(items);
 }
 
 export function useLicenseClassOptions() {
-  const t = useT();
-  const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
-    LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
   const query = useQuery({
     queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
     queryFn: () => getActiveLicenseClassDefinitions(),
     staleTime: 5 * 60_000,
   });
   const options = useMemo(
-    () => uniqueTargetOptions(query.data ?? [], translateCategory),
-    [query.data, translateCategory]
+    () => uniqueTargetOptions((query.data ?? []).filter((item) => !item.existingLicenseType)),
+    [query.data]
   );
 
   return { options, loading: query.isLoading };
 }
 
+export function useActiveLicenseClassDefinitions(enabled = true) {
+  const query = useQuery({
+    queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
+    queryFn: () => getActiveLicenseClassDefinitions(),
+    enabled,
+    staleTime: 30_000,
+  });
+
+  return { items: query.data ?? [], loading: query.isLoading };
+}
+
 export function useInitialLicenseClassOptions() {
-  const t = useT();
-  const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
-    LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
   const query = useQuery({
     queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
     queryFn: () => getActiveLicenseClassDefinitions(),
     staleTime: 5 * 60_000,
   });
   const options = useMemo(
-    () => uniqueTargetOptions((query.data ?? []).filter((item) => !item.hasExistingLicense), translateCategory),
-    [query.data, translateCategory]
+    () => uniqueTargetOptions((query.data ?? []).filter((item) => !item.existingLicenseType)),
+    [query.data]
+  );
+
+  return { options, loading: query.isLoading };
+}
+
+export function useCandidateLicenseClassOptions(
+  existingLicenseType: string,
+  hasExistingLicense: boolean,
+  enabled = true
+) {
+  const query = useQuery({
+    queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
+    queryFn: () => getActiveLicenseClassDefinitions(),
+    enabled,
+    staleTime: 30_000,
+  });
+  const options = useMemo(
+    () => getCandidateTargetOptions(query.data ?? [], existingLicenseType, hasExistingLicense),
+    [existingLicenseType, hasExistingLicense, query.data]
   );
 
   return { options, loading: query.isLoading };
 }
 
 export function useExistingLicenseTypeOptions(enabled = true) {
-  const t = useT();
-  const translateCategory = (cat: LicenseClassDefinitionResponse["category"]) =>
-    LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] ? t(LICENSE_CLASS_DEFINITION_CATEGORY_LABEL_KEYS[cat] as TranslationKey) : cat;
   const query = useQuery({
-    queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
-    queryFn: () => getActiveLicenseClassDefinitions(),
+    queryKey: GLOBAL_ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
+    queryFn: () => getActiveLicenseClassDefinitions(undefined, false),
     enabled,
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
   });
   const options = useMemo(
-    () => uniqueTargetOptions(query.data ?? [], translateCategory).map(toExistingLicenseTypeOption),
-    [query.data, translateCategory]
+    () => uniqueExistingLicenseTypeOptions(query.data ?? []),
+    [query.data]
   );
 
   return { options, loading: query.isLoading };
+}
+
+function uniqueExistingLicenseTypeOptions(
+  items: LicenseClassDefinitionResponse[]
+): ExistingLicenseTypeOption[] {
+  const byValue = new Map<string, ExistingLicenseTypeOption>();
+
+  for (const item of items) {
+    if (!item.existingLicenseType) {
+      const value = toExistingLicenseValue(item.code);
+      if (!byValue.has(value)) byValue.set(value, { value, label: item.code });
+      continue;
+    }
+
+    const value = toExistingLicenseValue(item.existingLicenseType);
+    if (!byValue.has(value)) byValue.set(value, { value, label: item.existingLicenseType });
+  }
+
+  return [...byValue.values()].sort((left, right) => left.label.localeCompare(right.label, "tr"));
+}
+
+function getInitialLicenseClassOptions(
+  items: LicenseClassDefinitionResponse[]
+): LicenseClassOption[] {
+  return uniqueTargetOptions(items.filter((item) => !item.existingLicenseType));
+}
+
+function getCandidateTargetOptions(
+  items: LicenseClassDefinitionResponse[],
+  existingLicenseType: string,
+  hasExistingLicense: boolean
+): LicenseClassOption[] {
+  if (!hasExistingLicense || !existingLicenseType.trim()) {
+    return getInitialLicenseClassOptions(items);
+  }
+
+  const selectedExistingLicenseType = normalizeLicenseValue(existingLicenseType);
+  return uniqueTargetOptions(
+    items.filter(
+      (item) =>
+        item.existingLicenseType &&
+        normalizeLicenseValue(item.existingLicenseType) === selectedExistingLicenseType
+    )
+  );
 }

@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CandidateDrawer } from "./CandidateDrawer";
+import { applyRuntimeConfig } from "../../lib/api";
 import { renderWithProviders } from "../../test/render-with-providers";
 
 const getCandidateByIdMock = vi.fn();
@@ -85,6 +86,9 @@ vi.mock("../../lib/documents-api", () => ({
 
 describe("CandidateDrawer", () => {
   beforeEach(() => {
+    applyRuntimeConfig({
+      documentApiBaseUrl: "https://api.pilotyanimda.com/v1/document",
+    });
     getCandidateByIdMock.mockReset();
     updateCandidateMock.mockReset();
     assignCandidateGroupMock.mockReset();
@@ -155,11 +159,10 @@ describe("CandidateDrawer", () => {
           id: "license-b",
           code: "B",
           name: "B",
-          category: "automobile",
           minimumAge: 18,
           hasExistingLicense: false,
           existingLicenseType: null,
-          existingLicensePre2016: false,
+          existingLicensePre2016: true,
           requiresTheoryExam: true,
           requiresPracticeExam: true,
           theoryLessonHours: 34,
@@ -176,11 +179,10 @@ describe("CandidateDrawer", () => {
           id: "license-b-automatic",
           code: "B-OTOMATIK",
           name: "B Otomatik",
-          category: "automobile",
           minimumAge: 18,
           hasExistingLicense: false,
           existingLicenseType: null,
-          existingLicensePre2016: false,
+          existingLicensePre2016: true,
           requiresTheoryExam: true,
           requiresPracticeExam: true,
           theoryLessonHours: 34,
@@ -902,7 +904,7 @@ describe("CandidateDrawer", () => {
       birthDate: null,
       gender: null,
       licenseClass: "B",
-      existingLicenseType: "b-otomatik",
+      existingLicenseType: "B-OTOMATIK",
       existingLicenseIssuedAt: "2018-03-04",
       existingLicenseNumber: "12345",
       existingLicenseIssuedProvince: "Ankara",
@@ -934,7 +936,7 @@ describe("CandidateDrawer", () => {
 
     const existingLicenseTypeSelect = getHiddenSelect("Mevcut Belge");
     fireEvent.change(existingLicenseTypeSelect!, {
-      target: { value: "b-otomatik" },
+      target: { value: "B-OTOMATIK" },
     });
     const existingLicenseIssuedAtInput = document.querySelector(
       'input[type="date"]'
@@ -952,18 +954,17 @@ describe("CandidateDrawer", () => {
     fireEvent.change(existingLicenseProvinceSelect!, {
       target: { value: "Ankara" },
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: "2016 Ocak öncesi" }));
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(updateCandidateMock).toHaveBeenCalledWith(
         "candidate-1",
         expect.objectContaining({
-          existingLicenseType: "b-otomatik",
+          existingLicenseType: "B-OTOMATIK",
           existingLicenseIssuedAt: "2018-03-04",
           existingLicenseNumber: "12345",
           existingLicenseIssuedProvince: "Ankara",
-          existingLicensePre2016: true,
+          existingLicensePre2016: false,
         })
       );
     });
