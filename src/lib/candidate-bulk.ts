@@ -70,6 +70,8 @@ export function buildCandidateUpdatePayload(
     birthDate: candidate.birthDate,
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
+    licenseClassDefinitionId: candidate.licenseClassDefinitionId ?? null,
+    hasExistingLicense: candidate.hasExistingLicense ?? Boolean(candidate.existingLicenseType),
     existingLicenseType: candidate.existingLicenseType,
     existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
     existingLicenseNumber: candidate.existingLicenseNumber,
