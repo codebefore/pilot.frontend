@@ -18,6 +18,9 @@ const searchCandidateTagsMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const getGroupsMock = vi.fn();
 const getExamCodesMock = vi.fn();
+const listCandidateExamAttemptsMock = vi.fn();
+const createCandidateExamAttemptMock = vi.fn();
+const updateCandidateExamAttemptMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -112,6 +115,24 @@ vi.mock("../lib/exam-codes-api", async () => {
   };
 });
 
+vi.mock("../lib/candidate-exam-attempts-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/candidate-exam-attempts-api")>(
+    "../lib/candidate-exam-attempts-api"
+  );
+  return {
+    ...actual,
+    listCandidateExamAttempts: (
+      ...args: Parameters<typeof actual.listCandidateExamAttempts>
+    ) => listCandidateExamAttemptsMock(...args),
+    createCandidateExamAttempt: (
+      ...args: Parameters<typeof actual.createCandidateExamAttempt>
+    ) => createCandidateExamAttemptMock(...args),
+    updateCandidateExamAttempt: (
+      ...args: Parameters<typeof actual.updateCandidateExamAttempt>
+    ) => updateCandidateExamAttemptMock(...args),
+  };
+});
+
 function examScheduleOption(
   date: string,
   overrides: Partial<{
@@ -171,9 +192,15 @@ describe("CandidatesPage tabs", () => {
     assignCandidateGroupMock.mockReset();
     getGroupsMock.mockReset();
     getExamCodesMock.mockReset();
+    listCandidateExamAttemptsMock.mockReset();
+    createCandidateExamAttemptMock.mockReset();
+    updateCandidateExamAttemptMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
     getExamCodesMock.mockResolvedValue([]);
+    listCandidateExamAttemptsMock.mockResolvedValue([]);
+    createCandidateExamAttemptMock.mockResolvedValue({});
+    updateCandidateExamAttemptMock.mockResolvedValue({});
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "cand-1",
@@ -1868,6 +1895,15 @@ describe("CandidatesPage tabs", () => {
         })
       );
     });
+    expect(listCandidateExamAttemptsMock).toHaveBeenCalledWith("cand-1");
+    expect(createCandidateExamAttemptMock).toHaveBeenCalledWith(
+      "cand-1",
+      expect.objectContaining({
+        examType: "theory",
+        scheduledAt: "2026-05-12T09:00:00.000Z",
+        examScheduleId: "e_sinav-2026-05-12",
+      })
+    );
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(

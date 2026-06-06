@@ -1,7 +1,17 @@
 import { getCandidateById, updateCandidate } from "./candidates-api";
+import {
+  createCandidateExamAttempt,
+  listCandidateExamAttempts,
+  updateCandidateExamAttempt,
+} from "./candidate-exam-attempts-api";
 import type { CandidateExamDateType } from "./exam-schedules-api";
 import { normalizeCandidateGender, type CandidateStatusValue } from "./status-maps";
-import type { CandidateResponse, CandidateUpsertRequest } from "./types";
+import type {
+  CandidateExamAttemptResponse,
+  CandidateExamType,
+  CandidateResponse,
+  CandidateUpsertRequest,
+} from "./types";
 
 type CandidatePayloadOverrides = {
   status?: CandidateStatusValue;
@@ -161,6 +171,7 @@ export async function assignCandidatesToExamDate(
   examType: CandidateExamDateType,
   examDate: string,
   examScheduleId?: string | null,
+  examTime?: string | null,
   cache?: Map<string, CandidateResponse>
 ): Promise<BulkCandidateUpdateResult> {
   const results = await Promise.allSettled(
@@ -172,6 +183,9 @@ export async function assignCandidatesToExamDate(
           : { drivingExamDate: examDate, drivingExamScheduleId: examScheduleId ?? null };
 
       await updateCandidate(id, buildCandidateUpdatePayload(candidate, overrides));
+      if (examScheduleId) {
+        await upsertCandidateExamAttemptForSchedule(id, examType, examDate, examScheduleId, examTime);
+      }
     })
   );
 
@@ -180,4 +194,59 @@ export async function assignCandidatesToExamDate(
     successCount,
     failureCount: results.length - successCount,
   };
+}
+
+async function upsertCandidateExamAttemptForSchedule(
+  candidateId: string,
+  examType: CandidateExamDateType,
+  examDate: string,
+  examScheduleId: string,
+  examTime?: string | null
+) {
+  const attemptExamType: CandidateExamType = examType === "e_sinav" ? "theory" : "practice";
+  const attempts = await listCandidateExamAttempts(candidateId);
+  const existing = findScheduleAttempt(attempts, attemptExamType, examScheduleId, examDate);
+  const scheduledAt = examDateTimeUtc(examDate, examTime);
+  const payload = {
+    examType: attemptExamType,
+    scheduledAt,
+    examScheduleId,
+    attemptNumber: existing?.attemptNumber,
+    score: attemptExamType === "theory" ? existing?.score ?? null : null,
+    expiresAt: null,
+    vehicleId: attemptExamType === "practice" ? existing?.vehicleId ?? null : null,
+    vehiclePlate: attemptExamType === "practice" ? existing?.vehiclePlate ?? null : null,
+    instructorId: attemptExamType === "practice" ? existing?.instructorId ?? null : null,
+    instructorFullName: attemptExamType === "practice" ? existing?.instructorFullName ?? null : null,
+    examAttendanceStatus: attemptExamType === "practice" ? existing?.examAttendanceStatus ?? null : null,
+    examResultStatus: attemptExamType === "practice" ? existing?.examResultStatus ?? null : null,
+    fee: existing?.fee ?? 0,
+    feeStatus: existing?.feeStatus ?? "pending",
+    rowVersion: existing?.rowVersion,
+  };
+
+  if (existing) {
+    await updateCandidateExamAttempt(candidateId, existing.id, payload);
+  } else {
+    await createCandidateExamAttempt(candidateId, payload);
+  }
+}
+
+function findScheduleAttempt(
+  attempts: CandidateExamAttemptResponse[],
+  examType: CandidateExamType,
+  examScheduleId: string,
+  examDate: string
+): CandidateExamAttemptResponse | undefined {
+  return attempts.find((attempt) => attempt.examType === examType && attempt.examScheduleId === examScheduleId)
+    ?? attempts.find((attempt) =>
+      attempt.examType === examType &&
+      !attempt.examScheduleId &&
+      attempt.scheduledAt.slice(0, 10) === examDate
+    );
+}
+
+function examDateTimeUtc(examDate: string, examTime?: string | null): string {
+  const time = examTime && /^\d{1,2}:\d{2}$/.test(examTime) ? examTime : "09:00";
+  return `${examDate}T${time.padStart(5, "0")}:00.000Z`;
 }

@@ -2455,6 +2455,7 @@ export function CandidatesPage({
         examDateSidebar.examType,
         assignedExamDate,
         selectedSchedule.id,
+        selectedSchedule.time,
         candidateById
       );
 
