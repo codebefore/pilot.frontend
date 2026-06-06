@@ -5380,11 +5380,11 @@ function CandidateExamAttemptsSection({
         const attemptNumber = nextCandidateExamAttemptNumber(attempts, form.examType);
         const value = suggestedCandidateExamFee(row, form.examType, attemptNumber);
         setSuggestedFee(value ?? null);
-        setForm((current) =>
-          feeTouched || current.fee
-            ? current
-            : { ...current, fee: value != null ? String(value) : "" }
-        );
+        setForm((current) => {
+          if (feeTouched || editingAttempt) return current;
+          const nextFee = value != null ? String(value) : "";
+          return current.fee === nextFee ? current : { ...current, fee: nextFee };
+        });
       })
       .catch((err) => {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -5396,6 +5396,7 @@ function CandidateExamAttemptsSection({
     attempts,
     candidate.licenseClassDefinitionId,
     candidate.licenseClass,
+    editingAttempt,
     feeTouched,
     form.examType,
     form.scheduledAt,
