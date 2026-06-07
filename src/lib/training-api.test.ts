@@ -12,7 +12,7 @@ import {
 import { getClassrooms } from "./classrooms-api";
 import { getExamCodes } from "./exam-codes-api";
 import { createExamSchedule, getExamScheduleOptions } from "./exam-schedules-api";
-import { getGroups } from "./groups-api";
+import { getGroupById, getGroups } from "./groups-api";
 import { createAssignment, listAssignments } from "./instructor-assignments-api";
 import { getInstructors } from "./instructors-api";
 import { getTerms } from "./terms-api";
@@ -68,6 +68,79 @@ describe("training api routing", () => {
     expect(String(vi.mocked(fetch).mock.calls[6][0])).toBe(
       "http://127.0.0.1:5095/api/training/vehicles?includeInactive=false&activity=all&status=idle"
     );
+  });
+
+  it("enriches group candidates with biometric document photos", async () => {
+    applyRuntimeConfig({
+      trainingApiBaseUrl: "http://127.0.0.1:5095",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "group-1",
+            candidatePreview: [
+              {
+                candidateId: "candidate-1",
+                firstName: "Ayse",
+                lastName: "Yilmaz",
+                photo: null,
+              },
+            ],
+            activeCandidates: [
+              {
+                candidateId: "candidate-1",
+                firstName: "Ayse",
+                lastName: "Yilmaz",
+                photo: null,
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                candidateId: "candidate-1",
+                summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
+                photo: { documentId: "document-1", kind: "biometric_photo" },
+              },
+            ],
+            page: 1,
+            pageSize: 1,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      );
+
+    const result = await getGroupById("group-1");
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
+      "http://127.0.0.1:5095/api/training/groups/group-1"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
+      "http://127.0.0.1:5092/api/documents/candidate-checklist?candidateIds=candidate-1&page=1&pageSize=1"
+    );
+    expect(result.candidatePreview?.[0].photo).toEqual({
+      documentId: "document-1",
+      kind: "biometric_photo",
+    });
+    expect(result.activeCandidates[0].photo).toEqual({
+      documentId: "document-1",
+      kind: "biometric_photo",
+    });
   });
 
   it("routes schedule, lesson, and assignment commands to the runtime training base url", async () => {

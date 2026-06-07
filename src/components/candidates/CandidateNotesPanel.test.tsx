@@ -40,12 +40,12 @@ describe("CandidateNotesPanel", () => {
           id: "note-1",
           candidateId: "cand-1",
           body: "Kontrol notu",
-          reminderAtUtc: null,
+          reminderAtUtc: "2026-06-19T00:10:00Z",
           completedAtUtc: null,
           createdByUserId: "user-1",
           createdByName: "Test User",
-          createdAtUtc: "2026-01-01T09:00:00Z",
-          updatedAtUtc: "2026-01-01T09:00:00Z",
+          createdAtUtc: "2026-06-07T15:34:00Z",
+          updatedAtUtc: "2026-06-07T15:34:00Z",
           rowVersion: 1,
         },
       ],
@@ -67,6 +67,9 @@ describe("CandidateNotesPanel", () => {
     });
 
     await screen.findByText("Kontrol notu");
+    expect(screen.getByText(/19\.06\.2026/)).toBeInTheDocument();
+    expect(screen.getByText("Test User")).toBeInTheDocument();
+    expect(screen.queryByText(/07\.06\.2026/)).not.toBeInTheDocument();
 
     const addButton = screen.getByRole("button", { name: /Yeni Not/i });
     const toggleButton = screen.getByRole("button", { name: "Tamamlandı olarak işaretle" });

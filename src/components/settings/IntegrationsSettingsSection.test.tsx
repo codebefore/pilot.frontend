@@ -5,7 +5,6 @@ import { renderWithProviders } from "../../test/render-with-providers";
 import { IntegrationsSettingsSection } from "./IntegrationsSettingsSection";
 
 const getInstitutionIntegrationsMock = vi.fn();
-const getWhatsAppStatusMock = vi.fn();
 const upsertInstitutionIntegrationsMock = vi.fn();
 
 vi.mock("../../lib/institution-settings-api", async () => {
@@ -18,9 +17,6 @@ vi.mock("../../lib/institution-settings-api", async () => {
     getInstitutionIntegrations: (
       ...args: Parameters<typeof actual.getInstitutionIntegrations>
     ) => getInstitutionIntegrationsMock(...args),
-    getWhatsAppStatus: (
-      ...args: Parameters<typeof actual.getWhatsAppStatus>
-    ) => getWhatsAppStatusMock(...args),
     upsertInstitutionIntegrations: (
       ...args: Parameters<typeof actual.upsertInstitutionIntegrations>
     ) => upsertInstitutionIntegrationsMock(...args),
@@ -30,7 +26,6 @@ vi.mock("../../lib/institution-settings-api", async () => {
 describe("IntegrationsSettingsSection", () => {
   beforeEach(() => {
     getInstitutionIntegrationsMock.mockReset();
-    getWhatsAppStatusMock.mockReset();
     upsertInstitutionIntegrationsMock.mockReset();
 
     getInstitutionIntegrationsMock.mockResolvedValue({
@@ -40,13 +35,6 @@ describe("IntegrationsSettingsSection", () => {
       whatsAppAccessToken: null,
       updatedAtUtc: "2026-01-01T00:00:00Z",
       rowVersion: 4,
-    });
-    getWhatsAppStatusMock.mockResolvedValue({
-      enabled: true,
-      hasPhoneNumberId: true,
-      hasAccessToken: true,
-      templateName: "login_code",
-      templateLanguage: "tr",
     });
   });
 
@@ -86,6 +74,9 @@ describe("IntegrationsSettingsSection", () => {
 
     expect(await screen.findByLabelText("Erişim Token")).toHaveValue("");
     expect(screen.queryByLabelText("OCR Api key")).not.toBeInTheDocument();
-    expect(screen.getByText("login_code")).toBeInTheDocument();
+    expect(screen.queryByText("Durum")).not.toBeInTheDocument();
+    expect(screen.queryByText("Telefon ID")).not.toBeInTheDocument();
+    expect(screen.queryByText("Template Adı")).not.toBeInTheDocument();
+    expect(screen.queryByText("Template Dili")).not.toBeInTheDocument();
   });
 });

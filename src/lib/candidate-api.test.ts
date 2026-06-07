@@ -49,6 +49,73 @@ describe("candidate api routing", () => {
     );
   });
 
+  it("enriches candidate list items with biometric document photos", async () => {
+    applyRuntimeConfig({
+      candidateApiBaseUrl: "http://127.0.0.1:5094",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "candidate-1",
+                firstName: "Ayse",
+                lastName: "Yilmaz",
+                documentSummary: null,
+                photo: null,
+              },
+            ],
+            page: 2,
+            pageSize: 20,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                candidateId: "candidate-1",
+                summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
+                photo: { documentId: "document-1", kind: "biometric_photo" },
+              },
+            ],
+            page: 1,
+            pageSize: 1,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      );
+
+    const result = await getCandidates({ page: 2, pageSize: 20, search: "Ayse" });
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
+      "http://127.0.0.1:5094/api/candidates?page=2&pageSize=20&search=Ayse"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
+      "http://127.0.0.1:5092/api/documents/candidate-checklist?candidateIds=candidate-1&page=1&pageSize=1"
+    );
+    expect(result.items[0].photo).toEqual({ documentId: "document-1", kind: "biometric_photo" });
+    expect(result.items[0].documentSummary).toEqual({
+      completedCount: 1,
+      missingCount: 0,
+      totalRequiredCount: 1,
+    });
+  });
+
   it("routes candidate tag commands to the runtime candidate base url", async () => {
     applyRuntimeConfig({ candidateApiBaseUrl: "http://127.0.0.1:5094" });
 

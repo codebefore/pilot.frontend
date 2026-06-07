@@ -3,10 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   getInstitutionIntegrations,
-  getWhatsAppStatus,
   upsertInstitutionIntegrations,
   type InstitutionIntegrationsResponse,
-  type WhatsAppStatusResponse,
 } from "../../lib/institution-settings-api";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
@@ -35,28 +33,18 @@ export function IntegrationsSettingsSection() {
   const [whatsAppAccessToken, setWhatsAppAccessToken] = useState("");
   const [showWhatsAppAccessToken, setShowWhatsAppAccessToken] = useState(false);
 
-  const [whatsAppStatus, setWhatsAppStatus] =
-    useState<WhatsAppStatusResponse | null>(null);
-
   const integrationsQuery = useQuery({
     queryKey: ["settings", "integrations"],
-    queryFn: async () => {
-      const [integrations, wa] = await Promise.all([
-        getInstitutionIntegrations(),
-        getWhatsAppStatus().catch(() => null),
-      ]);
-      return { integrations, wa };
-    },
+    queryFn: () => getInstitutionIntegrations(),
     retry: false,
   });
   const loading = integrationsQuery.isLoading;
 
   useEffect(() => {
     if (!integrationsQuery.data) return;
-    setState(integrationsQuery.data.integrations);
-    setOcrApiKey(integrationsQuery.data.integrations.ocrApiKey ?? "");
-    setWhatsAppAccessToken(integrationsQuery.data.integrations.whatsAppAccessToken ?? "");
-    setWhatsAppStatus(integrationsQuery.data.wa);
+    setState(integrationsQuery.data);
+    setOcrApiKey(integrationsQuery.data.ocrApiKey ?? "");
+    setWhatsAppAccessToken(integrationsQuery.data.whatsAppAccessToken ?? "");
   }, [integrationsQuery.data]);
 
   useEffect(() => {
@@ -215,132 +203,61 @@ export function IntegrationsSettingsSection() {
             <h2 className="settings-surface-title">
               {t("settings.integrations.whatsApp.title")}
             </h2>
-            <p className="settings-surface-description">
-              {t("settings.integrations.whatsApp.description")}
-            </p>
           </div>
 
           <div className="settings-surface-body">
-            {whatsAppStatus === null ? (
-              <div>{t("settings.integrations.whatsApp.statusReadError")}</div>
-            ) : (
-              <div className="settings-form">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t("settings.integrations.whatsApp.statusLabel")}
-                    </label>
-                    <div>
-                      {whatsAppStatus.enabled ? (
-                        <span className="status-pill status-pill-success">
-                          {t("settings.integrations.whatsApp.statusActive")}
-                        </span>
+            <div className="settings-form">
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label" htmlFor={whatsAppAccessTokenId}>
+                    {t("settings.integrations.whatsApp.accessTokenLabel")}
+                  </label>
+                  <div className="settings-secret-input">
+                    <input
+                      autoComplete="off"
+                      className="form-input"
+                      disabled={!canManageSettings}
+                      id={whatsAppAccessTokenId}
+                      onChange={(event) => setWhatsAppAccessToken(event.target.value)}
+                      placeholder={
+                        state?.hasWhatsAppAccessToken
+                          ? t(
+                              "settings.integrations.whatsApp.accessTokenPlaceholder.replace",
+                            )
+                          : t(
+                              "settings.integrations.whatsApp.accessTokenPlaceholder.new",
+                            )
+                      }
+                      type={showWhatsAppAccessToken ? "text" : "password"}
+                      value={whatsAppAccessToken}
+                    />
+                    <button
+                      aria-label={
+                        showWhatsAppAccessToken
+                          ? t("settings.integrations.ocrApiKey.hide")
+                          : t("settings.integrations.ocrApiKey.show")
+                      }
+                      className="settings-secret-toggle"
+                      disabled={!whatsAppAccessToken}
+                      onClick={() => setShowWhatsAppAccessToken((current) => !current)}
+                      title={
+                        showWhatsAppAccessToken
+                          ? t("settings.integrations.ocrApiKey.hide")
+                          : t("settings.integrations.ocrApiKey.show")
+                      }
+                      type="button"
+                    >
+                      {showWhatsAppAccessToken ? (
+                        <EyeOffIcon size={16} />
                       ) : (
-                        <span className="status-pill status-pill-muted">
-                          {t("settings.integrations.whatsApp.statusInactive")}
-                        </span>
+                        <EyeIcon size={16} />
                       )}
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t("settings.integrations.whatsApp.phoneIdLabel")}
-                    </label>
-                    <div>
-                      {whatsAppStatus.hasPhoneNumberId ? (
-                        <span className="status-pill status-pill-success">
-                          {t("settings.integrations.whatsApp.configured")}
-                        </span>
-                      ) : (
-                        <span className="status-pill status-pill-danger">
-                          {t("settings.integrations.whatsApp.missing")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t("settings.integrations.whatsApp.accessTokenLabel")}
-                    </label>
-                    <div>
-                      {state?.hasWhatsAppAccessToken || whatsAppStatus.hasAccessToken ? (
-                        <span className="status-pill status-pill-success">
-                          {t("settings.integrations.whatsApp.configured")}
-                        </span>
-                      ) : (
-                        <span className="status-pill status-pill-danger">
-                          {t("settings.integrations.whatsApp.missing")}
-                        </span>
-                      )}
-                    </div>
+                    </button>
                   </div>
                 </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label" htmlFor={whatsAppAccessTokenId}>
-                      {t("settings.integrations.whatsApp.accessTokenLabel")}
-                    </label>
-                    <div className="settings-secret-input">
-                      <input
-                        autoComplete="off"
-                        className="form-input"
-                        disabled={!canManageSettings}
-                        id={whatsAppAccessTokenId}
-                        onChange={(event) => setWhatsAppAccessToken(event.target.value)}
-                        placeholder={
-                          state?.hasWhatsAppAccessToken
-                            ? t(
-                                "settings.integrations.whatsApp.accessTokenPlaceholder.replace",
-                              )
-                            : t(
-                                "settings.integrations.whatsApp.accessTokenPlaceholder.new",
-                              )
-                        }
-                        type={showWhatsAppAccessToken ? "text" : "password"}
-                        value={whatsAppAccessToken}
-                      />
-                      <button
-                        aria-label={
-                          showWhatsAppAccessToken
-                            ? t("settings.integrations.ocrApiKey.hide")
-                            : t("settings.integrations.ocrApiKey.show")
-                        }
-                        className="settings-secret-toggle"
-                        disabled={!whatsAppAccessToken}
-                        onClick={() => setShowWhatsAppAccessToken((current) => !current)}
-                        title={
-                          showWhatsAppAccessToken
-                            ? t("settings.integrations.ocrApiKey.hide")
-                            : t("settings.integrations.ocrApiKey.show")
-                        }
-                        type="button"
-                      >
-                        {showWhatsAppAccessToken ? (
-                          <EyeOffIcon size={16} />
-                        ) : (
-                          <EyeIcon size={16} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t("settings.integrations.whatsApp.templateNameLabel")}
-                    </label>
-                    <div className="form-readonly-value">{whatsAppStatus.templateName}</div>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">
-                      {t(
-                        "settings.integrations.whatsApp.templateLanguageLabel",
-                      )}
-                    </label>
-                    <div className="form-readonly-value">{whatsAppStatus.templateLanguage}</div>
-                  </div>
-                </div>
+                <div className="form-group" />
               </div>
-            )}
+            </div>
           </div>
         </section>
       ) : null}

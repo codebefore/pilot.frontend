@@ -1,4 +1,5 @@
 import { getCandidateApiBaseUrl, getTrainingApiBaseUrl } from "./api";
+import { getDocumentChecklistByCandidateIds } from "./documents-api";
 import { httpDelete, httpGet, httpPatch, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   CandidateExistingLicenseRequest,
@@ -8,6 +9,7 @@ import type {
   CandidateReuseSourceResponse,
   CandidateTag,
   CandidateUpsertRequest,
+  DocumentChecklistEntry,
   LicenseClass,
   PagedResponse,
 } from "./types";
@@ -89,7 +91,61 @@ export function getCandidates(
     "/api/candidates",
     params,
     candidateRequestOptions(signal)
+  ).then((response) => enrichCandidatesWithDocumentOverview(response, signal));
+}
+
+async function enrichCandidatesWithDocumentOverview(
+  response: PagedResponse<CandidateResponse>,
+  signal?: AbortSignal
+): Promise<PagedResponse<CandidateResponse>> {
+  if (response.items.length === 0) {
+    return response;
+  }
+
+  const overviewItems = await getDocumentChecklistByCandidateIds(
+    response.items.map((candidate) => candidate.id),
+    signal
+  ).catch(
+    () => null
   );
+  if (!overviewItems) {
+    return response;
+  }
+
+  const overviewByCandidateId = new Map(overviewItems.map((item) => [item.candidateId, item]));
+
+  return {
+    ...response,
+    items: response.items.map((candidate) =>
+      mergeCandidateWithDocumentOverview(candidate, overviewByCandidateId.get(candidate.id))
+    ),
+  };
+}
+
+async function enrichCandidateWithDocumentOverview(
+  candidate: CandidateResponse,
+  signal?: AbortSignal
+): Promise<CandidateResponse> {
+  if (!candidate.id) {
+    return candidate;
+  }
+
+  const overviewItems = await getDocumentChecklistByCandidateIds([candidate.id], signal).catch(() => null);
+
+  return mergeCandidateWithDocumentOverview(candidate, overviewItems?.[0]);
+}
+
+function mergeCandidateWithDocumentOverview(
+  candidate: CandidateResponse,
+  item: DocumentChecklistEntry | undefined
+): CandidateResponse {
+  return item
+    ? {
+        ...candidate,
+        documentSummary: item.summary,
+        photo: item.photo ?? null,
+      }
+    : candidate;
 }
 
 export function getCandidateById(
@@ -100,7 +156,7 @@ export function getCandidateById(
     `/api/candidates/${id}`,
     undefined,
     candidateRequestOptions(signal)
-  );
+  ).then((candidate) => enrichCandidateWithDocumentOverview(candidate, signal));
 }
 
 export function getCandidateReuseSources(

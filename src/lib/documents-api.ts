@@ -77,17 +77,18 @@ interface DocumentTypeSnapshot {
   updatedAtUtc: string;
 }
 
-interface GetDocumentChecklistParams extends QueryParams {
+export interface GetDocumentChecklistParams extends QueryParams {
+  candidateIds?: readonly string[];
   search?: string;
   status?: DocumentStatus;
   candidateStatus?: "pre_registered" | "active";
-  tags?: string[];
+  tags?: readonly string[];
   firstName?: string;
   lastName?: string;
   nationalId?: string;
   phoneNumber?: string;
   email?: string;
-  licenseClass?: string;
+  licenseClasses?: readonly string[];
   gender?: string;
   groupId?: string;
   hasActiveGroup?: boolean;
@@ -189,6 +190,36 @@ export function getDocumentChecklist(
     params,
     documentRequestOptions(signal)
   );
+}
+
+export async function getDocumentChecklistByCandidateIds(
+  candidateIds: readonly string[],
+  signal?: AbortSignal
+): Promise<DocumentChecklistEntry[]> {
+  const distinctCandidateIds = [...new Set(candidateIds.filter(Boolean))];
+  if (distinctCandidateIds.length === 0) {
+    return [];
+  }
+
+  const chunks: string[][] = [];
+  for (let index = 0; index < distinctCandidateIds.length; index += 100) {
+    chunks.push(distinctCandidateIds.slice(index, index + 100));
+  }
+
+  const pages = await Promise.all(
+    chunks.map((chunk) =>
+      getDocumentChecklist(
+        {
+          candidateIds: chunk,
+          page: 1,
+          pageSize: chunk.length,
+        },
+        signal
+      )
+    )
+  );
+
+  return pages.flatMap((page) => page.items);
 }
 
 interface UploadDocumentInput {

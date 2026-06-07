@@ -45,31 +45,6 @@ export function vehicleTypeForLicenseClass(licenseClass: string, t: ReturnType<t
   return null;
 }
 
-export function actorAvatarTone(name: string): "brand" | "blue" | "purple" | "amber" {
-  const palette = ["brand", "blue", "purple", "amber"] as const;
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return palette[Math.abs(hash) % palette.length];
-}
-
-export function mapToneToAvatar(tone: string): "brand" | "blue" | "purple" | "amber" {
-  switch (tone) {
-    case "current":
-      return "brand";
-    case "future":
-      return "purple";
-    case "warning":
-    case "danger":
-    case "amber":
-      return "amber";
-    case "info":
-    case "blue":
-      return "blue";
-    default:
-      return "brand";
-  }
-}
-
 export function buildFutureStages(candidate: CandidateResponse, t: ReturnType<typeof useT>): string[] {
   const stage = candidate.examStageLabel;
   if (!stage || stage === "Mezun" || stage === "Dosya Yakıldı") return [];

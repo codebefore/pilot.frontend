@@ -380,47 +380,6 @@
 .candidate-timeline-card-header .candidate-timeline-card-title {
   margin: 0;
 }
-.candidate-timeline-view-toggle {
-  display: inline-flex;
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--gray-50, #f9fafb);
-}
-.candidate-timeline-view-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  background: transparent;
-  color: var(--gray-500);
-  cursor: pointer;
-  padding: 0;
-}
-.candidate-timeline-view-btn + .candidate-timeline-view-btn {
-  border-left: 1px solid var(--gray-200);
-}
-.candidate-timeline-view-btn:hover {
-  color: var(--gray-800);
-}
-.candidate-timeline-view-btn.is-active {
-  background: var(--white);
-  color: var(--brand-dark);
-}
-.candidate-timeline-feed {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.candidate-timeline-feed-item {
-  padding-left: 0;
-  padding-right: 0;
-}
-.candidate-timeline-feed-item.is-future {
-  opacity: 0.45;
-}
 .candidate-timeline {
   --timeline-axis-width: 110px;
   list-style: none;

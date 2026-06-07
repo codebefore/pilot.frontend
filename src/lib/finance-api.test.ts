@@ -83,6 +83,75 @@ describe("finance api routing", () => {
     );
   });
 
+  it("enriches payments overview candidates with biometric document photos", async () => {
+    applyRuntimeConfig({
+      financeApiBaseUrl: "http://127.0.0.1:5093",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            summary: {},
+            payments: [
+              {
+                id: "payment-1",
+                candidate: {
+                  id: "candidate-1",
+                  firstName: "Ayse",
+                  lastName: "Yilmaz",
+                  licenseClass: "B",
+                  currentGroup: null,
+                  photo: null,
+                },
+              },
+            ],
+            refunds: [],
+            invoices: [],
+            installments: [],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                candidateId: "candidate-1",
+                summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
+                photo: { documentId: "document-1", kind: "biometric_photo" },
+              },
+            ],
+            page: 1,
+            pageSize: 1,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      );
+
+    const result = await getPaymentsOverview({ fromDate: "2026-06-01" });
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
+      "http://127.0.0.1:5093/api/finance/payments/overview?fromDate=2026-06-01"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
+      "http://127.0.0.1:5092/api/documents/candidate-checklist?candidateIds=candidate-1&page=1&pageSize=1"
+    );
+    expect(result.payments[0].candidate.photo).toEqual({
+      documentId: "document-1",
+      kind: "biometric_photo",
+    });
+  });
+
   it("routes cash register calls to the runtime finance base url", async () => {
     applyRuntimeConfig({ financeApiBaseUrl: "http://127.0.0.1:5093" });
 

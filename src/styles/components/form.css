@@ -183,24 +183,6 @@ textarea.form-input {
   color: var(--gray-700);
 }
 
-.toolbar-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gray-600);
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-.toolbar-toggle input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--brand);
-  cursor: pointer;
-}
 .toolbar-switch-toggle {
   min-height: 32px;
   padding: 0 8px;

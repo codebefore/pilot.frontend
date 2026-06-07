@@ -139,9 +139,6 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                 note.reminderAtUtc !== null &&
                 new Date(note.reminderAtUtc).getTime() <= Date.now();
               const author = note.createdByName?.trim() || null;
-              const authoredText = author
-                ? `${author} · ${formatReminder(note.createdAtUtc)}`
-                : formatReminder(note.createdAtUtc);
               return (
                 <li
                   className={`user-notes-item${completed ? " is-completed" : ""}${overdue ? " is-overdue" : ""}`}
@@ -165,7 +162,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                           <BellIcon size={12} /> {reminderText}
                         </span>
                       ) : null}
-                      <span className="user-notes-item-meta">{authoredText}</span>
+                      {author ? <span className="user-notes-item-meta">{author}</span> : null}
                     </div>
                   </div>
                   <div className="user-notes-item-actions">

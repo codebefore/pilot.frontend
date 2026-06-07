@@ -268,7 +268,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
           Filtreleri Temizle
         </button>
       ) : null}
-      <label className="toolbar-toggle">
+      <label className="switch-toggle toolbar-switch-toggle">
         <input
           checked={includeInactive}
           onChange={(e) => {
@@ -277,6 +277,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
           }}
           type="checkbox"
         />
+        <span className="switch-toggle-control" aria-hidden="true" />
         <span>{t("documentTypes.showInactive")}</span>
       </label>
     </>

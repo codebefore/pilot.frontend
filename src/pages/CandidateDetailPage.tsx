@@ -8,7 +8,7 @@ import { todayLocalDateOnly } from "../lib/date-only";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
-import { CameraIcon, GridIcon, ListIcon, PencilIcon, ScannerIcon, UploadCloudIcon } from "../components/icons";
+import { CameraIcon, PencilIcon, ScannerIcon, UploadCloudIcon } from "../components/icons";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
 import { EditableRow } from "../components/ui/EditableRow";
@@ -155,7 +155,6 @@ import type {
 } from "../lib/types";
 import { useT, type TranslationKey } from "../lib/i18n";
 import {
-  actorAvatarTone,
   addDays,
   addHours,
   buildFutureStages,
@@ -164,7 +163,6 @@ import {
   formatTimelineDate,
   hasExistingLicenseValue,
   isExistingLicenseCopyType,
-  mapToneToAvatar,
   normalizeLicenseOptionKey,
   nowDateTimeLocal,
   todayIsoDate,
@@ -1223,14 +1221,14 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
 
 function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
   const t = useT();
-  const [view, setView] = useState<"timeline" | "feed">("feed");
-  const events = candidate.timeline ?? [];
+  const events = (candidate.timeline ?? []).filter(isCandidateJourneyEvent);
   const futureSteps = buildFutureStages(candidate, t);
+  const documentStage = buildDocumentJourneyStage(candidate, t);
 
   type TimelineRow =
-    | { key: string; kind: "event"; tone: string; dateLabel: string; title: string; detail: string | null; actorName: string | null }
-    | { key: string; kind: "current"; tone: "current"; dateLabel: string; title: string; detail: string | null; actorName: null }
-    | { key: string; kind: "future"; tone: "future"; dateLabel: string; title: string; detail: null; actorName: null };
+    | { key: string; kind: "event"; tone: string; dateLabel: string; title: string; detail: string | null }
+    | { key: string; kind: "current"; tone: "current"; dateLabel: string; title: string; detail: string | null }
+    | { key: string; kind: "future"; tone: "future"; dateLabel: string; title: string; detail: null };
 
   // Newest at the top: future stages first (final goal on top), then "Şu an",
   // then past events in reverse-chronological order.
@@ -1242,7 +1240,6 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
       dateLabel: "—",
       title: label,
       detail: null,
-      actorName: null,
     })),
     ...(candidate.examStageLabel
       ? [{
@@ -1252,9 +1249,9 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
           dateLabel: t("candidateDetail.timeline.now"),
           title: candidate.examStageLabel,
           detail: candidate.appointmentStatusLabel ?? null,
-          actorName: null,
         }]
       : []),
+    ...(documentStage ? [documentStage] : []),
     ...[...events].reverse().map<TimelineRow>((event, index) => ({
       key: `${event.kind}-${event.occurredAtUtc}-${index}`,
       kind: "event",
@@ -1262,35 +1259,14 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
       dateLabel: formatTimelineDate(event.occurredAtUtc),
       title: event.title,
       detail: event.detail,
-      actorName: event.actorName ?? null,
     })),
   ];
 
   const header = (
     <div className="candidate-timeline-card-header">
       <h3 className="candidate-timeline-card-title">
-        {view === "feed" ? t("candidateDetail.timeline.titleFeed") : t("candidateDetail.timeline.titleTimeline")}
+        {t("candidateDetail.timeline.titleTimeline")}
       </h3>
-      <div className="candidate-timeline-view-toggle" role="group" aria-label={t("candidateDetail.timeline.viewAria")}>
-        <button
-          type="button"
-          className={`candidate-timeline-view-btn${view === "timeline" ? " is-active" : ""}`}
-          onClick={() => setView("timeline")}
-          aria-label={t("candidateDetail.timeline.timelineViewAria")}
-          aria-pressed={view === "timeline"}
-        >
-          <GridIcon size={14} />
-        </button>
-        <button
-          type="button"
-          className={`candidate-timeline-view-btn${view === "feed" ? " is-active" : ""}`}
-          onClick={() => setView("feed")}
-          aria-label={t("candidateDetail.timeline.feedViewAria")}
-          aria-pressed={view === "feed"}
-        >
-          <ListIcon size={14} />
-        </button>
-      </div>
     </div>
   );
 
@@ -1308,73 +1284,87 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
   return (
     <div className="instructor-detail-card">
       {header}
-      {view === "timeline" ? (
-        <ol className="candidate-timeline">
-          {(() => {
-            let sideIndex = 0;
-            return rows.map((row) => {
-              const isCentered = row.title === "Mezun";
-              const side = isCentered ? null : sideIndex++ % 2 === 0 ? "left" : "right";
-              const itemClass = [
-                "candidate-timeline-item",
-                isCentered ? "is-centered" : `side-${side}`,
-                row.kind === "current" ? "is-current" : "",
-                row.kind === "future" ? "is-future" : "",
-                row.kind === "event" ? `tone-${row.tone}` : "",
-              ]
-                .filter(Boolean)
-                .join(" ");
-              return (
-                <li key={row.key} className={itemClass}>
-                  <div className="candidate-timeline-content">
-                    <div className="candidate-timeline-title">{row.title}</div>
-                    {row.detail ? (
-                      <div className="candidate-timeline-detail">{row.detail}</div>
-                    ) : null}
-                  </div>
-                  <div className="candidate-timeline-axis">
-                    <span className="candidate-timeline-marker" aria-hidden="true" />
-                    <span className="candidate-timeline-date">{row.dateLabel}</span>
-                  </div>
-                </li>
-              );
-            });
-          })()}
-        </ol>
-      ) : (
-        <ul className="candidate-timeline-feed">
-          {rows.map((row) => {
-            const tone = row.kind === "event" ? row.tone : row.kind;
-            const actor = row.actorName?.trim() || null;
-            const initial = (actor ?? row.title)?.trim()?.[0]?.toUpperCase() ?? "•";
-            const avatarTone = actor ? actorAvatarTone(actor) : mapToneToAvatar(tone);
-            const meta = [actor, row.dateLabel].filter(Boolean).join(" · ");
+      <ol className="candidate-timeline">
+        {(() => {
+          let sideIndex = 0;
+          return rows.map((row) => {
+            const isCentered = row.title === "Mezun";
+            const side = isCentered ? null : sideIndex++ % 2 === 0 ? "left" : "right";
             const itemClass = [
-              "activity-item",
-              "candidate-timeline-feed-item",
+              "candidate-timeline-item",
+              isCentered ? "is-centered" : `side-${side}`,
+              row.kind === "current" ? "is-current" : "",
               row.kind === "future" ? "is-future" : "",
+              row.kind === "event" ? `tone-${row.tone}` : "",
             ]
               .filter(Boolean)
               .join(" ");
             return (
               <li key={row.key} className={itemClass}>
-                <div className={`activity-avatar tone-${avatarTone}`} title={actor ?? undefined}>
-                  {initial}
+                <div className="candidate-timeline-content">
+                  <div className="candidate-timeline-title">{row.title}</div>
+                  {row.detail ? (
+                    <div className="candidate-timeline-detail">{row.detail}</div>
+                  ) : null}
                 </div>
-                <div>
-                  <div className="activity-text">
-                    <strong>{row.title}</strong>
-                    {row.detail ? ` — ${row.detail}` : ""}
-                  </div>
-                  <div className="activity-time">{meta}</div>
+                <div className="candidate-timeline-axis">
+                  <span className="candidate-timeline-marker" aria-hidden="true" />
+                  <span className="candidate-timeline-date">{row.dateLabel}</span>
                 </div>
               </li>
             );
-          })}
-        </ul>
-      )}
+          });
+        })()}
+      </ol>
     </div>
   );
+}
+
+const CANDIDATE_JOURNEY_EVENT_KINDS = new Set([
+  "registered",
+  "existing_license_updated",
+  "theory_exemption_set",
+  "second_practice_round_toggled",
+  "k_certificate_added",
+  "k_certificate_removed",
+  "mebbis_sync",
+  "candidate_deleted",
+]);
+
+function isCandidateJourneyEvent(event: NonNullable<CandidateResponse["timeline"]>[number]): boolean {
+  return CANDIDATE_JOURNEY_EVENT_KINDS.has(event.kind);
+}
+
+function buildDocumentJourneyStage(
+  candidate: CandidateResponse,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): {
+  key: string;
+  kind: "event";
+  tone: string;
+  dateLabel: string;
+  title: string;
+  detail: string | null;
+} | null {
+  const summary = candidate.documentSummary;
+  if (!summary || summary.totalRequiredCount <= 0) return null;
+
+  const completed = summary.missingCount === 0;
+  return {
+    key: "documents-stage",
+    kind: "event",
+    tone: completed ? "success" : "warning",
+    dateLabel: t("candidateDetail.timeline.now"),
+    title: t(
+      completed
+        ? "candidateDetail.timeline.documents.complete"
+        : "candidateDetail.timeline.documents.waiting"
+    ),
+    detail: t("documents.summary", {
+      completedCount: summary.completedCount,
+      totalRequiredCount: summary.totalRequiredCount,
+    }),
+  };
 }
 
 function CandidateContactsEditor({

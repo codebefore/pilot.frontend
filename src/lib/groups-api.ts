@@ -1,4 +1,5 @@
 import { getTrainingApiBaseUrl } from "./api";
+import { getDocumentChecklistByCandidateIds } from "./documents-api";
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   GroupCreateRequest,
@@ -29,7 +30,7 @@ export function getGroups(
     "/api/training/groups",
     params,
     trainingRequestOptions(signal)
-  );
+  ).then((response) => enrichGroupListWithCandidatePhotos(response, signal));
 }
 
 export function getGroupById(id: string, signal?: AbortSignal): Promise<GroupDetailResponse> {
@@ -37,7 +38,84 @@ export function getGroupById(id: string, signal?: AbortSignal): Promise<GroupDet
     `/api/training/groups/${id}`,
     undefined,
     trainingRequestOptions(signal)
-  );
+  ).then((response) => enrichGroupDetailWithCandidatePhotos(response, signal));
+}
+
+async function enrichGroupListWithCandidatePhotos(
+  response: PagedResponse<GroupResponse>,
+  signal?: AbortSignal
+): Promise<PagedResponse<GroupResponse>> {
+  const candidateIds = [
+    ...new Set(
+      (response.items ?? [])
+        .flatMap((group) => group.candidatePreview ?? [])
+        .map((candidate) => candidate.candidateId)
+        .filter(Boolean)
+    ),
+  ];
+  if (candidateIds.length === 0) {
+    return response;
+  }
+
+  const photoByCandidateId = await getCandidatePhotoMap(candidateIds, signal);
+  if (!photoByCandidateId) {
+    return response;
+  }
+
+  return {
+    ...response,
+    items: response.items.map((group) => ({
+      ...group,
+      candidatePreview: group.candidatePreview?.map((candidate) => ({
+        ...candidate,
+        photo: photoByCandidateId.get(candidate.candidateId) ?? null,
+      })),
+    })),
+  };
+}
+
+async function enrichGroupDetailWithCandidatePhotos(
+  response: GroupDetailResponse,
+  signal?: AbortSignal
+): Promise<GroupDetailResponse> {
+  const candidateIds = [
+    ...new Set([
+      ...(response.candidatePreview ?? []).map((candidate) => candidate.candidateId),
+      ...(response.activeCandidates ?? []).map((candidate) => candidate.candidateId),
+    ]),
+  ].filter(Boolean);
+  if (candidateIds.length === 0) {
+    return response;
+  }
+
+  const photoByCandidateId = await getCandidatePhotoMap(candidateIds, signal);
+  if (!photoByCandidateId) {
+    return response;
+  }
+
+  return {
+    ...response,
+    candidatePreview: response.candidatePreview?.map((candidate) => ({
+      ...candidate,
+      photo: photoByCandidateId.get(candidate.candidateId) ?? null,
+    })),
+    activeCandidates: (response.activeCandidates ?? []).map((candidate) => ({
+      ...candidate,
+      photo: photoByCandidateId.get(candidate.candidateId) ?? null,
+    })),
+  };
+}
+
+async function getCandidatePhotoMap(
+  candidateIds: string[],
+  signal?: AbortSignal
+) {
+  const overviewItems = await getDocumentChecklistByCandidateIds(candidateIds, signal).catch(() => null);
+  if (!overviewItems) {
+    return null;
+  }
+
+  return new Map(overviewItems.map((item) => [item.candidateId, item.photo ?? null]));
 }
 
 export function createGroup(body: GroupCreateRequest): Promise<GroupResponse> {
