@@ -248,11 +248,6 @@ function formatCurrencyTRY(amount: number | null | undefined): string {
   }).format(amount ?? 0);
 }
 
-function formatCountSummary(items: { label: string; count: number }[]): string {
-  if (items.length === 0) return "Kayıt yok";
-  return items.map((item) => `${item.count} ${item.label}`).join(" · ");
-}
-
 function debtToneClass(amount: number | null | undefined): string {
   const value = amount ?? 0;
   if (value > 0) return " is-debt";
@@ -1813,72 +1808,6 @@ export function CandidatesPage({
         : [],
     [candidateLicenseClassCounts, showLicenseClassSummary]
   );
-  const cockpitCandidates = useMemo(() => candidates.slice(0, DEFAULT_PAGE_SIZE), [candidates]);
-  const cockpitSummaryCards = useMemo(() => {
-    const licenseCounts = new Map<string, number>();
-    const statusCounts = new Map<string, number>();
-    let completedDocuments = 0;
-    let requiredDocuments = 0;
-    let missingDocuments = 0;
-    let totalDebt = 0;
-    let debtCandidateCount = 0;
-
-    for (const candidate of cockpitCandidates) {
-      const licenseLabel =
-        licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass;
-      licenseCounts.set(licenseLabel, (licenseCounts.get(licenseLabel) ?? 0) + 1);
-
-      const statusLabel = candidateStatusLabel(candidate.status);
-      statusCounts.set(statusLabel, (statusCounts.get(statusLabel) ?? 0) + 1);
-
-      if (candidate.documentSummary) {
-        completedDocuments += candidate.documentSummary.completedCount;
-        requiredDocuments += candidate.documentSummary.totalRequiredCount;
-        missingDocuments += candidate.documentSummary.missingCount;
-      }
-
-      const debt = candidate.totalDebt ?? 0;
-      totalDebt += debt;
-      if (debt > 0) {
-        debtCandidateCount += 1;
-      }
-    }
-
-    const toSortedItems = (map: Map<string, number>) =>
-      Array.from(map, ([label, count]) => ({ label, count }))
-        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "tr"));
-
-    return [
-      {
-        key: "license",
-        label: "Ehliyet tipi",
-        value: formatCountSummary(toSortedItems(licenseCounts)),
-        meta: `${cockpitCandidates.length} kayıt`,
-      },
-      {
-        key: "status",
-        label: "Aday durumu",
-        value: formatCountSummary(toSortedItems(statusCounts)),
-        meta: "Görünen kayıtlara göre",
-      },
-      {
-        key: "documents",
-        label: "Evrak özeti",
-        value: requiredDocuments > 0
-          ? `${completedDocuments}/${requiredDocuments} tamam`
-          : "Evrak yok",
-        meta: missingDocuments > 0 ? `${missingDocuments} eksik evrak` : "Eksik evrak yok",
-      },
-      {
-        key: "finance",
-        label: "Tahsilat özeti",
-        value: formatCurrencyTRY(totalDebt),
-        meta: debtCandidateCount > 0
-          ? `${debtCandidateCount} adayın bakiyesi var`
-          : "Bakiye yok",
-      },
-    ];
-  }, [cockpitCandidates, licenseClassLabelByCode]);
 
   useEffect(() => {
     if (candidatesQuery.isError && !isAbortError(candidatesQuery.error)) {
@@ -2691,16 +2620,6 @@ export function CandidatesPage({
             ))}
           </span>
         ) : null}
-      </div>
-
-      <div className="candidate-cockpit-summary-grid" aria-label="Aday kokpit özeti">
-        {cockpitSummaryCards.map((card) => (
-          <div className="candidate-cockpit-summary-card" key={card.key}>
-            <span className="candidate-cockpit-summary-label">{card.label}</span>
-            <strong className="candidate-cockpit-summary-value">{card.value}</strong>
-            <span className="candidate-cockpit-summary-meta">{card.meta}</span>
-          </div>
-        ))}
       </div>
 
       <div className="table-wrap spaced">

@@ -120,57 +120,6 @@
   font-family: 'SF Mono', 'Fira Code', monospace;
 }
 
-/* ─── Candidate cockpit summary ─── */
-.candidate-cockpit-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
-}
-.candidate-cockpit-summary-card {
-  display: flex;
-  min-width: 0;
-  min-height: 92px;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 13px 14px;
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  background: var(--white);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-.candidate-cockpit-summary-label {
-  color: var(--gray-500);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.candidate-cockpit-summary-value {
-  min-width: 0;
-  color: var(--gray-900);
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-.candidate-cockpit-summary-meta {
-  color: var(--gray-500);
-  font-size: 12px;
-  line-height: 1.25;
-}
-@media (max-width: 1100px) {
-  .candidate-cockpit-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 640px) {
-  .candidate-cockpit-summary-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* ─── SKELETON ─── */
 @keyframes skeleton-shimmer {
   0%   { background-position: -400px 0; }

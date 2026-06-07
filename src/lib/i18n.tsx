@@ -41,6 +41,12 @@ type LanguageContextValue = {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
+const fallbackLanguageContext: LanguageContextValue = {
+  lang: DEFAULT_LANG,
+  setLang: () => undefined,
+  t: (key, params) => interpolate(tr[key] ?? key, params),
+};
+
 function interpolate(template: string, params?: Record<string, string | number>): string {
   if (!params) return template;
   return template.replace(/\{(\w+)\}/g, (_, key) => {
@@ -104,8 +110,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
 export function useLanguage(): LanguageContextValue {
   const ctx = useContext(LanguageContext);
-  if (!ctx) throw new Error("useLanguage must be used inside LanguageProvider");
-  return ctx;
+  return ctx ?? fallbackLanguageContext;
 }
 
 export function useT() {
