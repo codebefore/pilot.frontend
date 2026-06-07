@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./App";
 import { AuthContext, type AuthContextValue } from "./lib/auth";
 import type { AuthInstitution } from "./lib/auth-storage";
+import { getCandidates } from "./lib/candidates-api";
 import { getDashboardOverview } from "./lib/stats-api";
 import { LanguageProvider } from "./lib/i18n";
 import { ToastProvider } from "./components/ui/Toast";
@@ -22,6 +23,21 @@ vi.mock("./lib/stats-api", () => ({
     recentActivity: [],
   }),
 }));
+
+vi.mock("./lib/candidates-api", async () => {
+  const actual = await vi.importActual<typeof import("./lib/candidates-api")>("./lib/candidates-api");
+  return {
+    ...actual,
+    getCandidates: vi.fn().mockResolvedValue({
+      items: [],
+      licenseClassCounts: [],
+      page: 1,
+      pageSize: 1000,
+      totalCount: 0,
+      totalPages: 0,
+    }),
+  };
+});
 
 vi.mock("./lib/user-notes-api", () => ({
   getUserNotes: vi.fn().mockResolvedValue({ items: [] }),
@@ -66,6 +82,7 @@ const institutions: AuthInstitution[] = [
 describe("AppShell tenant state", () => {
   beforeEach(() => {
     vi.mocked(getDashboardOverview).mockClear();
+    vi.mocked(getCandidates).mockClear();
   });
 
   it("renders institution-required state instead of tenant pages", () => {

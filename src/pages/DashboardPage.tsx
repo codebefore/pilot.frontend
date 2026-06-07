@@ -6,6 +6,7 @@ import { AlertIcon, CandidatesIcon, ExamsIcon, GridIcon } from "../components/ic
 import { Panel } from "../components/ui/Panel";
 import { PanelListSkeleton } from "../components/ui/Skeleton";
 import { TaskItem } from "../components/ui/TaskItem";
+import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import { getCandidates, type GetCandidatesParams } from "../lib/candidates-api";
 import { getDashboardOverview } from "../lib/stats-api";
@@ -151,16 +152,18 @@ function buildDashboardCandidateSummaryCards({
 
 export function DashboardPage({ userName }: DashboardPageProps) {
   const t = useT();
+  const { activeInstitution } = useAuth();
   const { options: licenseClassOptions } = useLicenseClassOptions();
+  const activeInstitutionId = activeInstitution?.id ?? "";
   const {
     data: dashboard = { pendingTasks: [], recentMebJobs: [], recentActivity: [] },
     isLoading: dashboardLoading,
   } = useQuery<DashboardOverviewResponse>({
-    queryKey: ["dashboard", "overview"],
+    queryKey: ["dashboard", "overview", activeInstitutionId],
     queryFn: () => getDashboardOverview(),
   });
   const candidateSummaryQuery = useQuery({
-    queryKey: ["dashboard", "candidateSummary", "licenseClasses"],
+    queryKey: ["dashboard", "candidateSummary", "licenseClasses", activeInstitutionId],
     queryFn: async ({ signal }) => {
       const entries = await Promise.all(
         DASHBOARD_CANDIDATE_SUMMARY_CONFIG.map(async (config) => {
