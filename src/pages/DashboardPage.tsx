@@ -17,7 +17,6 @@ import {
 import type {
   CandidateResponse,
   DashboardOverviewResponse,
-  ExamScheduleLicenseClassCount,
   PagedResponse,
 } from "../lib/types";
 
@@ -184,9 +183,13 @@ export function DashboardPage({ userName }: DashboardPageProps) {
       >;
     },
   });
-  const candidateSummaryResponses = candidateSummaryQuery.data ?? {};
+  const candidateSummaryResponses: Partial<
+    Record<DashboardCandidateSummaryKey, PagedResponse<CandidateResponse>>
+  > = candidateSummaryQuery.data ?? {};
   const licenseClassLabelByCode = useMemo(() => {
-    const responses = Object.values(candidateSummaryResponses);
+    const responses: PagedResponse<CandidateResponse>[] = Object.values(
+      candidateSummaryResponses
+    );
     const mergedOptions = mergeLicenseClassOptionsWithValues(
       licenseClassOptions,
       responses.flatMap((response) => [
