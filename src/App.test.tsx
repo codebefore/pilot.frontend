@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./App";
 import { AuthContext, type AuthContextValue } from "./lib/auth";
 import type { AuthInstitution } from "./lib/auth-storage";
-import { getDashboardOverview, getSidebarStats } from "./lib/stats-api";
+import { getDashboardOverview } from "./lib/stats-api";
 import { LanguageProvider } from "./lib/i18n";
 import { ToastProvider } from "./components/ui/Toast";
 import { renderWithProviders } from "./test/render-with-providers";
@@ -16,13 +16,6 @@ vi.mock("./lib/notifications-api", () => ({
 }));
 
 vi.mock("./lib/stats-api", () => ({
-  getSidebarStats: vi.fn().mockResolvedValue({
-    candidates: { total: 0, active: 0 },
-    groups: { total: 0 },
-    documents: { missingCount: 0 },
-    mebJobs: { failed: 0, manualReview: 0 },
-    payments: { dueToday: 0 },
-  }),
   getDashboardOverview: vi.fn().mockResolvedValue({
     pendingTasks: [],
     recentMebJobs: [],
@@ -73,7 +66,6 @@ const institutions: AuthInstitution[] = [
 describe("AppShell tenant state", () => {
   beforeEach(() => {
     vi.mocked(getDashboardOverview).mockClear();
-    vi.mocked(getSidebarStats).mockClear();
   });
 
   it("renders institution-required state instead of tenant pages", () => {

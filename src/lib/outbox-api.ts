@@ -72,6 +72,31 @@ export interface DomainEventStreamStatusResponse {
   redisError: string | null;
 }
 
+export type ProjectionOutboxHealthStatus = "healthy" | "warning" | "danger" | "disabled" | "unreachable";
+
+export interface ProjectionOutboxHealthItemResponse {
+  service: string;
+  component: "outbox";
+  status: ProjectionOutboxHealthStatus;
+  message: string;
+  enabled: boolean;
+  pendingCount: number;
+  failedCount: number;
+  dueCount: number;
+  deadLetterCount: number;
+  oldestDueAtUtc: string | null;
+  lastPublishedAtUtc: string | null;
+  error: string | null;
+}
+
+export interface ProjectionOutboxHealthSummaryResponse {
+  service: string;
+  component: "projection-outbox-health";
+  status: "healthy" | "warning" | "danger";
+  message: string;
+  items: ProjectionOutboxHealthItemResponse[];
+}
+
 export function getOutboxMessages(
   params: { status?: OutboxMessageStatus; limit?: number },
   signal?: AbortSignal
@@ -106,6 +131,13 @@ export function retryInboxMessage(id: string): Promise<InboxMessageRetryResponse
 
 export function getDomainEventStreamStatus(signal?: AbortSignal): Promise<DomainEventStreamStatusResponse> {
   return httpGet<DomainEventStreamStatusResponse>("/health/domain-events", undefined, {
+    baseUrl: getPlatformApiBaseUrl(),
+    signal,
+  });
+}
+
+export function getProjectionOutboxHealth(signal?: AbortSignal): Promise<ProjectionOutboxHealthSummaryResponse> {
+  return httpGet<ProjectionOutboxHealthSummaryResponse>("/api/outbox/health", undefined, {
     baseUrl: getPlatformApiBaseUrl(),
     signal,
   });

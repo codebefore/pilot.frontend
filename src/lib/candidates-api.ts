@@ -184,7 +184,7 @@ export function updateCandidate(
     `/api/candidates/${id}`,
     body,
     candidateRequestOptions()
-  );
+  ).then((candidate) => enrichCandidateWithDocumentOverview(candidate));
 }
 
 export function setCandidateTheoryExemption(
@@ -230,7 +230,7 @@ export function updateCandidateExistingLicense(
     `/api/candidates/${id}/existing-license`,
     body,
     candidateRequestOptions()
-  );
+  ).then((candidate) => enrichCandidateWithDocumentOverview(candidate));
 }
 
 export function setCandidateSecondPracticeRound(

@@ -13,6 +13,7 @@ import {
   getDomainEventStreamStatus,
   getInboxMessages,
   getOutboxMessages,
+  getProjectionOutboxHealth,
   retryInboxMessage,
   retryOutboxMessage,
   type DomainEventStreamStatusResponse,
@@ -20,6 +21,9 @@ import {
   type InboxMessageStatus,
   type OutboxMessageResponse,
   type OutboxMessageStatus,
+  type ProjectionOutboxHealthItemResponse,
+  type ProjectionOutboxHealthStatus,
+  type ProjectionOutboxHealthSummaryResponse,
 } from "../lib/outbox-api";
 import type { JobStatus } from "../types";
 
@@ -57,6 +61,12 @@ export function OutboxPage() {
     enabled: activeTab === "outbox",
   });
 
+  const outboxHealthQuery = useQuery({
+    queryKey: ["outbox", "health"],
+    queryFn: () => getProjectionOutboxHealth(),
+    enabled: activeTab === "outbox",
+  });
+
   const inboxQuery = useQuery({
     queryKey: ["inbox", "messages", inboxStatusParam ?? "all"],
     queryFn: () => getInboxMessages({ status: inboxStatusParam, limit: 100 }),
@@ -91,6 +101,7 @@ export function OutboxPage() {
 
   const activeQuery =
     activeTab === "outbox" ? outboxQuery : activeTab === "inbox" ? inboxQuery : streamStatusQuery;
+  const isRefreshing = activeQuery.isFetching || (activeTab === "outbox" && outboxHealthQuery.isFetching);
 
   return (
     <>
@@ -98,8 +109,13 @@ export function OutboxPage() {
         actions={
           <button
             className="btn btn-secondary"
-            disabled={activeQuery.isFetching}
-            onClick={() => void activeQuery.refetch()}
+            disabled={isRefreshing}
+            onClick={() => {
+              void activeQuery.refetch();
+              if (activeTab === "outbox") {
+                void outboxHealthQuery.refetch();
+              }
+            }}
             type="button"
           >
             <RefreshIcon />
@@ -158,12 +174,15 @@ export function OutboxPage() {
           )}
 
           {activeTab === "outbox" ? (
-            <OutboxTable
-              messages={outboxQuery.data?.items ?? []}
-              onRetry={(id) => retryOutboxMutation.mutate(id)}
-              query={outboxQuery}
-              retryingId={retryOutboxMutation.isPending ? retryOutboxMutation.variables : undefined}
-            />
+            <>
+              <ProjectionOutboxHealth query={outboxHealthQuery} />
+              <OutboxTable
+                messages={outboxQuery.data?.items ?? []}
+                onRetry={(id) => retryOutboxMutation.mutate(id)}
+                query={outboxQuery}
+                retryingId={retryOutboxMutation.isPending ? retryOutboxMutation.variables : undefined}
+              />
+            </>
           ) : activeTab === "inbox" ? (
             <InboxTable
               messages={inboxQuery.data?.items ?? []}
@@ -177,6 +196,66 @@ export function OutboxPage() {
         </div>
       </Panel>
     </>
+  );
+}
+
+function ProjectionOutboxHealth({
+  query,
+}: {
+  query: ReturnType<typeof useQuery<ProjectionOutboxHealthSummaryResponse>>;
+}) {
+  if (query.isError) {
+    return (
+      <PageLoadError
+        description="Projection outbox durumu okunamadı."
+        onRetry={() => void query.refetch()}
+        variant="card"
+      />
+    );
+  }
+
+  if (query.isLoading) {
+    return <PanelListSkeleton rows={2} />;
+  }
+
+  if (!query.data) {
+    return null;
+  }
+
+  return (
+    <div className={`queue-health-band projection-health ${projectionHealthTone(query.data.status)}`}>
+      <div className="queue-health-main">
+        <div className="queue-health-title">Projection Outbox</div>
+        <div className="queue-health-message">{query.data.message}</div>
+      </div>
+      <div className="projection-health-grid">
+        {query.data.items.map((item) => (
+          <ProjectionOutboxHealthItem item={item} key={item.service} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProjectionOutboxHealthItem({ item }: { item: ProjectionOutboxHealthItemResponse }) {
+  const totalOpen = item.pendingCount + item.failedCount + item.deadLetterCount;
+  return (
+    <div className={`projection-health-item ${projectionHealthTone(item.status)}`}>
+      <div className="projection-health-item-head">
+        <span>{item.service.replace("pilot-", "")}</span>
+        <StatusPill label={item.status} status={projectionStatusPillTone(item.status)} />
+      </div>
+      <div className="projection-health-item-metrics">
+        <span>Open {totalOpen}</span>
+        <span>Due {item.dueCount}</span>
+        <span>Dead {item.deadLetterCount}</span>
+      </div>
+      {item.error ? (
+        <div className="projection-health-item-error" title={item.error}>
+          {item.error}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -482,6 +561,32 @@ function streamHealthTone(status: DomainEventStreamStatusResponse["status"]) {
       return "warning";
     case "danger":
       return "danger";
+  }
+}
+
+function projectionHealthTone(status: ProjectionOutboxHealthSummaryResponse["status"] | ProjectionOutboxHealthStatus) {
+  switch (status) {
+    case "healthy":
+      return "success";
+    case "warning":
+    case "disabled":
+    case "unreachable":
+      return "warning";
+    case "danger":
+      return "danger";
+  }
+}
+
+function projectionStatusPillTone(status: ProjectionOutboxHealthStatus): JobStatus {
+  switch (status) {
+    case "healthy":
+      return "success";
+    case "warning":
+    case "disabled":
+    case "unreachable":
+      return "warning";
+    case "danger":
+      return "failed";
   }
 }
 

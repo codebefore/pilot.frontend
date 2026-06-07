@@ -3,10 +3,8 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
 import { canViewAnyArea } from "../../lib/permissions";
-import { useSidebarStats } from "../../lib/sidebar-stats";
 import { useAuth } from "../../lib/auth";
 import type { AuthInstitution } from "../../lib/auth-storage";
-import type { SidebarStatsResponse } from "../../lib/types";
 import { navSections, type NavItem } from "../../nav";
 import type { NavKey } from "../../types";
 import { ChevronDownIcon } from "../icons";
@@ -21,26 +19,6 @@ type SidebarProps = {
   desktopVisible?: boolean;
   onMouseLeave?: () => void;
 };
-
-type SidebarBadge = { value: number; tone: "info" | "warn" | "danger" };
-
-/** Map the live stats response to per-nav-key badge content. Items that
- *  resolve to undefined render with no badge at all. */
-function buildNavBadges(stats: SidebarStatsResponse): Partial<Record<NavKey, SidebarBadge>> {
-  const mebAttention = stats.mebJobs.failed + stats.mebJobs.manualReview;
-  return {
-    candidates: { value: stats.candidates.active, tone: "info" },
-    documents:
-      stats.documents.missingCount > 0
-        ? { value: stats.documents.missingCount, tone: "warn" }
-        : undefined,
-    mebjobs: mebAttention > 0 ? { value: mebAttention, tone: "danger" } : undefined,
-    payments:
-      stats.payments.dueToday > 0
-        ? { value: stats.payments.dueToday, tone: "warn" }
-        : undefined,
-  };
-}
 
 function isPathActive(pathname: string, path: string): boolean {
   return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
@@ -66,7 +44,6 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const { user, permissions } = useAuth();
-  const { stats, loading, error } = useSidebarStats();
   const visibleSections = useMemo(
     () =>
       navSections
@@ -97,10 +74,6 @@ export function Sidebar({
   const [openSubmenus, setOpenSubmenus] = useState<Set<NavKey>>(
     () => new Set(activeParentKeys)
   );
-  // While the first request is still in flight, render with no badges to
-  // avoid flashing zeros. After error we keep the last fallback (zeros) and
-  // simply show no decoration — the rest of the app stays usable.
-  const badges = loading || error ? {} : buildNavBadges(stats);
   const activeParentSignature = activeParentKeys.join("|");
 
   useEffect(() => {
@@ -156,7 +129,6 @@ export function Sidebar({
             <div className="sidebar-heading">{t(section.headingKey)}</div>
             {section.items.map((item) => {
               const { Icon } = item;
-              const badge = badges[item.key];
               const children = item.children ?? [];
               const hasChildren = children.length > 0;
               const itemActive = isNavItemActive(location.pathname, item);
@@ -183,11 +155,6 @@ export function Sidebar({
                         <Icon />
                       </span>
                       {t(item.labelKey)}
-                      {badge && (
-                        <span className={`sidebar-badge ${badge.tone}`.trim()}>
-                          {badge.value}
-                        </span>
-                      )}
                       <span aria-hidden="true" className="sidebar-menu-chevron">
                         <ChevronDownIcon />
                       </span>
@@ -205,19 +172,12 @@ export function Sidebar({
                         <Icon />
                       </span>
                       {t(item.labelKey)}
-                      {badge && (
-                        <span className={`sidebar-badge ${badge.tone}`.trim()}>
-                          {badge.value}
-                        </span>
-                      )}
                     </NavLink>
                   )}
 
                   {hasChildren && subnavOpen && (
                     <div className="sidebar-subnav" id={`sidebar-subnav-${item.key}`}>
-                      {children.map((child) => {
-                        const childBadge = badges[child.key];
-                        return (
+                      {children.map((child) => (
                           <NavLink
                             className={({ isActive }) =>
                               isActive
@@ -231,14 +191,8 @@ export function Sidebar({
                           >
                             <span aria-hidden="true" className="sidebar-subdot" />
                             {t(child.labelKey)}
-                            {childBadge && (
-                              <span className={`sidebar-badge ${childBadge.tone}`.trim()}>
-                                {childBadge.value}
-                              </span>
-                            )}
                           </NavLink>
-                        );
-                      })}
+                      ))}
                     </div>
                   )}
                 </div>

@@ -382,12 +382,24 @@
 }
 .candidate-timeline {
   --timeline-axis-width: 110px;
+  position: relative;
   list-style: none;
   margin: 0;
   padding: 4px 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.candidate-timeline::before {
+  content: "";
+  position: absolute;
+  top: 28px;
+  bottom: 28px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: color-mix(in srgb, var(--gray-300) 80%, transparent);
+  z-index: 0;
 }
 .candidate-timeline-item {
   position: relative;
@@ -406,21 +418,7 @@
   padding: 6px 0;
 }
 .candidate-timeline-axis::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -12px;
-  bottom: -12px;
-  width: 2px;
-  margin-left: -1px;
-  background: color-mix(in srgb, var(--gray-300) 80%, transparent);
-  z-index: 0;
-}
-.candidate-timeline-item:first-child .candidate-timeline-axis::before {
-  top: 50%;
-}
-.candidate-timeline-item:last-child .candidate-timeline-axis::before {
-  bottom: 50%;
+  content: none;
 }
 .candidate-timeline-marker {
   position: relative;
@@ -529,6 +527,9 @@
   .candidate-timeline {
     --timeline-axis-width: 96px;
   }
+  .candidate-timeline::before {
+    left: 48px;
+  }
   .candidate-timeline-item {
     grid-template-columns: var(--timeline-axis-width) 1fr;
     gap: 12px;
@@ -550,9 +551,6 @@
   .candidate-timeline-item.is-centered .candidate-timeline-axis,
   .candidate-timeline-item.is-centered .candidate-timeline-content {
     grid-column: 1;
-  }
-  .candidate-timeline-axis::before {
-    left: 50%;
   }
 }
 .candidate-detail-stat-label {

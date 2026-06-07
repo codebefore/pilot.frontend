@@ -4,6 +4,7 @@ import { applyRuntimeConfig } from "./api";
 import { createCandidateKCertificate, listCandidateKCertificates } from "./candidate-k-certificates-api";
 import { createCandidateNote, getCandidateNotes } from "./candidate-notes-api";
 import { createCandidateReference, getCandidateReferences } from "./candidate-references-api";
+import type { CandidateUpsertRequest } from "./types";
 import {
   assignCandidateGroup,
   createCandidateTag,
@@ -12,6 +13,7 @@ import {
   getCandidates,
   removeActiveGroupAssignment,
   searchCandidateTags,
+  updateCandidate,
 } from "./candidates-api";
 
 describe("candidate api routing", () => {
@@ -114,6 +116,69 @@ describe("candidate api routing", () => {
       missingCount: 0,
       totalRequiredCount: 1,
     });
+  });
+
+  it("enriches updated candidates with biometric document photos", async () => {
+    applyRuntimeConfig({
+      candidateApiBaseUrl: "http://127.0.0.1:5094",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "candidate-1",
+            firstName: "Ayse",
+            lastName: "Yilmaz",
+            documentSummary: null,
+            photo: null,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                candidateId: "candidate-1",
+                summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
+                photo: { documentId: "document-1", kind: "biometric_photo" },
+              },
+            ],
+            page: 1,
+            pageSize: 1,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      );
+
+    const result = await updateCandidate("candidate-1", {
+      firstName: "Ayse",
+      lastName: "Yilmaz",
+      nationalId: "12345678910",
+      licenseClass: "B",
+      hasExistingLicense: false,
+      status: "active",
+      tags: [],
+      rowVersion: 1,
+    } as CandidateUpsertRequest);
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
+      "http://127.0.0.1:5094/api/candidates/candidate-1"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
+      "http://127.0.0.1:5092/api/documents/candidate-checklist?candidateIds=candidate-1&page=1&pageSize=1"
+    );
+    expect(result.photo).toEqual({ documentId: "document-1", kind: "biometric_photo" });
   });
 
   it("routes candidate tag commands to the runtime candidate base url", async () => {

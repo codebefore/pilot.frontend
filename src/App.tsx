@@ -11,7 +11,6 @@ import { AuthProvider, RequireAuth, useAuth } from "./lib/auth";
 import { LanguageProvider, useT } from "./lib/i18n";
 import { canViewAnyArea, firstAllowedTenantPath, settingsPermissionAreas } from "./lib/permissions";
 import { createQueryClient } from "./lib/query-client";
-import { SidebarStatsProvider } from "./lib/sidebar-stats";
 import { ThemeProvider } from "./lib/theme";
 
 const queryClient = createQueryClient();
@@ -118,7 +117,7 @@ export function AppShell() {
   };
 
   return (
-    <SidebarStatsProvider key={activeInstitutionId || "no-institution"}>
+    <>
       {!fullScreenRoute ? (
         <Header
           activeInstitutionId={activeInstitutionId}
@@ -326,7 +325,7 @@ export function AppShell() {
           </Suspense>
         )}
       </main>
-    </SidebarStatsProvider>
+    </>
   );
 }
 

@@ -307,6 +307,7 @@ describe("ManageDocumentModal", () => {
 
     await waitFor(() => {
       expect(updateCandidateDocumentMock).toHaveBeenCalledWith("cand-1", "doc-1", {
+        isPhysicallyAvailable: false,
         note: "Yeni not",
         metadata: {
           disability: "none",
@@ -360,6 +361,7 @@ describe("ManageDocumentModal", () => {
         candidateId: "cand-1",
         documentTypeId: "type-1",
         file,
+        isPhysicallyAvailable: false,
         note: "Yeni dosya notu",
         metadata: {
           disability: "none",
@@ -367,6 +369,137 @@ describe("ManageDocumentModal", () => {
         },
       });
       expect(updateCandidateDocumentMock).not.toHaveBeenCalled();
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("keeps the physically available flag after replacing with a file", async () => {
+    uploadDocumentMock.mockResolvedValue({
+      id: "doc-2",
+    });
+    updateCandidateDocumentMock.mockResolvedValue({
+      id: "doc-2",
+    });
+    const onSaved = vi.fn();
+
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-1"
+        documentTypes={documentTypes}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Mevcut Kurum");
+
+    const file = new File(["new-file"], "yeni-rapor.pdf", {
+      type: "application/pdf",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Belgeyi Değiştir" }));
+    fireEvent.change(getFileInput() as HTMLInputElement, {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByLabelText("Fiziksel evrak elde var"));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(uploadDocumentMock).toHaveBeenCalledWith({
+        candidateId: "cand-1",
+        documentTypeId: "type-1",
+        file,
+        isPhysicallyAvailable: true,
+        note: "Mevcut not",
+        metadata: {
+          disability: "none",
+          issuing_institution: "Mevcut Kurum",
+        },
+      });
+      expect(updateCandidateDocumentMock).toHaveBeenCalledWith("cand-1", "doc-2", {
+        isPhysicallyAvailable: true,
+        note: "Mevcut not",
+        metadata: {
+          disability: "none",
+          issuing_institution: "Mevcut Kurum",
+        },
+      });
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("rejects oversized replacement files even when physically available is selected", async () => {
+    const onSaved = vi.fn();
+
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-1"
+        documentTypes={documentTypes}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Mevcut Kurum");
+
+    const file = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "buyuk-rapor.pdf", {
+      type: "application/pdf",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Belgeyi Değiştir" }));
+    fireEvent.change(getFileInput() as HTMLInputElement, {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByLabelText("Fiziksel evrak elde var"));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    expect(await screen.findByText("Dosya 10 MB'tan büyük olamaz")).toBeInTheDocument();
+    expect(uploadDocumentMock).not.toHaveBeenCalled();
+    expect(updateCandidateDocumentMock).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("shows and updates the physically available toggle", async () => {
+    updateCandidateDocumentMock.mockResolvedValue({
+      id: "doc-1",
+    });
+    const onSaved = vi.fn();
+
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-1"
+        documentTypes={documentTypes}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Mevcut Kurum");
+
+    const toggle = screen.getByLabelText("Fiziksel evrak elde var");
+    expect(toggle).not.toBeChecked();
+
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateDocumentMock).toHaveBeenCalledWith("cand-1", "doc-1", {
+        isPhysicallyAvailable: true,
+        note: "Mevcut not",
+        metadata: {
+          disability: "none",
+          issuing_institution: "Mevcut Kurum",
+        },
+      });
       expect(onSaved).toHaveBeenCalledTimes(1);
     });
   });

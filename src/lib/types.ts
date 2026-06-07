@@ -1393,14 +1393,6 @@ export interface LicenseClassFeeBulkApplyRequest {
 
 /* ── Stats ── */
 
-export interface SidebarStatsResponse {
-  candidates: { total: number; active: number };
-  groups: { total: number };
-  documents: { missingCount: number };
-  mebJobs: { failed: number; manualReview: number };
-  payments: { dueToday: number };
-}
-
 export interface DashboardOverviewResponse {
   pendingTasks: DashboardPendingTaskResponse[];
   recentMebJobs: DashboardMebJobResponse[];
