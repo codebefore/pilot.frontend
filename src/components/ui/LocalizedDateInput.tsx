@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { CalendarIcon } from "../icons";
+import { useLanguage } from "../../lib/i18n";
 
 type LocalizedDateInputProps = {
   value: string;
@@ -40,6 +41,10 @@ type MonthCell = {
   isSelected: boolean;
   isCurrent: boolean;
 };
+
+function normalizeLocale(lang?: string): "tr-TR" | "en-US" {
+  return lang?.toLocaleLowerCase("en-US").startsWith("en") ? "en-US" : "tr-TR";
+}
 
 function todayISO(): string {
   const date = new Date();
@@ -172,6 +177,8 @@ export function LocalizedDateInput({
   size = "md",
   inputRef,
 }: LocalizedDateInputProps) {
+  const { lang: activeLanguage } = useLanguage();
+  const effectiveLang = normalizeLocale(lang ?? activeLanguage);
   const isMonthMode = mode === "month";
   const isYearMode = mode === "year";
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -191,7 +198,7 @@ export function LocalizedDateInput({
     [defaultOnOpen, selectedDate]
   );
   const today = todayISO();
-  const weekdayNames = useMemo(() => weekdayLabels(lang), [lang]);
+  const weekdayNames = useMemo(() => weekdayLabels(effectiveLang), [effectiveLang]);
 
   useEffect(() => {
     if (!open) return;
@@ -324,7 +331,7 @@ export function LocalizedDateInput({
     return items;
   }, [today, value, visibleMonth]);
 
-  const monthNames = useMemo(() => shortMonthNames(lang), [lang]);
+  const monthNames = useMemo(() => shortMonthNames(effectiveLang), [effectiveLang]);
   const monthCells = useMemo<MonthCell[]>(() => {
     const selectedMonthIso = value ? `${value.slice(0, 7)}-01` : "";
     const currentMonthIso = `${today.slice(0, 7)}-01`;
@@ -369,13 +376,13 @@ export function LocalizedDateInput({
     }
 
     if (isMonthMode) {
-      const m = lang === "tr-TR"
+      const m = effectiveLang === "tr-TR"
         ? trimmed.match(/^(\d{1,2})[./-](\d{4})$/)
         : trimmed.match(/^(\d{1,2})[./-](\d{4})$/) || trimmed.match(/^(\d{4})[./-](\d{1,2})$/);
       if (!m) return null;
       let year: number;
       let month: number;
-      if (lang === "tr-TR") {
+      if (effectiveLang === "tr-TR") {
         month = Number(m[1]);
         year = Number(m[2]);
       } else if (m[1].length === 4) {
@@ -389,14 +396,14 @@ export function LocalizedDateInput({
       return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
     }
 
-    const m = lang === "tr-TR"
+    const m = effectiveLang === "tr-TR"
       ? trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
       : trimmed.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
     if (!m) return null;
     let year: number;
     let month: number;
     let day: number;
-    if (lang === "tr-TR") {
+    if (effectiveLang === "tr-TR") {
       day = Number(m[1]);
       month = Number(m[2]);
       year = Number(m[3]);
@@ -447,8 +454,8 @@ export function LocalizedDateInput({
     ? isYearMode
       ? formatLocalizedYear(value)
       : isMonthMode
-      ? formatLocalizedMonth(value, lang)
-      : formatLocalizedDate(value, lang)
+      ? formatLocalizedMonth(value, effectiveLang)
+      : formatLocalizedDate(value, effectiveLang)
     : "";
 
   return (
@@ -500,7 +507,7 @@ export function LocalizedDateInput({
               setOpen(false);
             }
           }}
-          placeholder={placeholder || defaultPlaceholder(lang, mode)}
+          placeholder={placeholder || defaultPlaceholder(effectiveLang, mode)}
           type="text"
           value={typedValue ?? displayValue}
         />
@@ -513,7 +520,7 @@ export function LocalizedDateInput({
         aria-hidden="true"
         className="localized-date-native-input"
         disabled={disabled}
-        lang={lang}
+        lang={effectiveLang}
         name={name}
         onBlur={onBlur}
         onChange={(event) => onHiddenInputChange(event.target.value)}
@@ -558,7 +565,7 @@ export function LocalizedDateInput({
                 ? `${yearCells[0]?.label ?? ""} - ${yearCells[yearCells.length - 1]?.label ?? ""}`
                 : view === "month"
                 ? String(visibleMonth.getUTCFullYear())
-                : monthLabel(visibleMonth, lang)}
+                : monthLabel(visibleMonth, effectiveLang)}
             </button>
             <button
               className="localized-date-nav-btn"
@@ -666,15 +673,15 @@ export function LocalizedDateInput({
               type="button"
             >
               {isYearMode
-                ? lang === "tr-TR"
+                ? effectiveLang === "tr-TR"
                   ? "Bu yıl"
                   : "This year"
                 : isMonthMode
-                ? lang === "tr-TR"
+                ? effectiveLang === "tr-TR"
                   ? "Bu ay"
                   : "This month"
-                : lang === "tr-TR"
-                ? "Bugun"
+                : effectiveLang === "tr-TR"
+                ? "Bugün"
                 : "Today"}
             </button>
           </div>

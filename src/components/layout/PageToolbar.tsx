@@ -16,7 +16,7 @@ export function PageToolbar({ title, actions }: PageToolbarProps) {
 
 type PageTabsProps<K extends string> = {
   tabs: { key: K; label: string }[];
-  active: K;
+  active: K | "";
   onChange: (key: K) => void;
 };
 

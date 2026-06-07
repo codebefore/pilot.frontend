@@ -36,6 +36,7 @@ import {
   termGroupTermFilterValue,
   type CandidateFilterState,
 } from "../lib/candidate-filters";
+import { formatLocalDateOnly, todayLocalDateOnly } from "../lib/date-only";
 import {
   assignCandidatesToExamDate,
   applyStatusToCandidates,
@@ -508,6 +509,19 @@ function hasPassedExamResult(value: string | null | undefined): boolean {
 
 type CandidateExamStage = "eSinav" | "practice";
 type CandidateUnifiedExamStatus = "havuz" | "randevulu" | "basarisiz" | "basarili";
+
+function todayISO(): string {
+  return todayLocalDateOnly();
+}
+
+function isPastIsoDate(value: string): boolean {
+  return value < todayISO();
+}
+
+function omitExamTabFilter(params: Partial<GetCandidatesParams>): Partial<GetCandidatesParams> {
+  const { eSinavTab: _eSinavTab, drivingExamTab: _drivingExamTab, ...rest } = params;
+  return rest;
+}
 
 function candidateUsesPracticeStage(candidate: CandidateResponse): boolean {
   return candidate.educationPlan?.requiresTheoryExam === false ||
@@ -1286,6 +1300,7 @@ export function CandidatesPage({
   const selectedId = searchParams.get("selected");
   const [selectedExamDate, setSelectedExamDate] = useState("");
   const [selectedDrivingExamCode, setSelectedDrivingExamCode] = useState("");
+  const [examDateTabNeutral, setExamDateTabNeutral] = useState(false);
   const [examSidebarTab, setExamSidebarTab] = useState<"dates" | "codes">("dates");
   const [editingPracticeCell, setEditingPracticeCell] = useState<{
     candidateId: string;
@@ -1715,11 +1730,17 @@ export function CandidatesPage({
   useEffect(() => {
     setSelectedExamDate("");
     setSelectedDrivingExamCode("");
+    setExamDateTabNeutral(false);
     setExamSidebarTab("dates");
   }, [examDateSidebar?.field]);
 
   const candidatesRequestParams = useMemo<GetCandidatesParams>(() => {
-    const tabParams = isDrivingExamCodeTabActive ? {} : resolvedTabConfig.buildParams(tab);
+    const builtTabParams = resolvedTabConfig.buildParams(tab);
+    const tabParams = isDrivingExamCodeTabActive
+      ? {}
+      : examDateTabNeutral
+        ? omitExamTabFilter(builtTabParams)
+        : builtTabParams;
     return {
       search: normalizeTextQuery(debouncedSearch),
       ...tabParams,
@@ -1735,6 +1756,7 @@ export function CandidatesPage({
     activeTags,
     debouncedFilters,
     debouncedSearch,
+    examDateTabNeutral,
     examDateFilterParams,
     isDrivingExamCodeTabActive,
     page,
@@ -1974,6 +1996,7 @@ export function CandidatesPage({
   };
 
   const handleTabChange = (value: CandidateListTabKey) => {
+    setExamDateTabNeutral(false);
     if (examDateSidebar && value === "havuz") {
       setSelectedExamDate("");
     }
@@ -2002,7 +2025,9 @@ export function CandidatesPage({
     if (value) {
       setSelectedDrivingExamCode("");
     }
-    if (value && examDateSidebar && tab === "havuz") {
+    const neutral = Boolean(value && isPastIsoDate(value));
+    setExamDateTabNeutral(neutral);
+    if (value && examDateSidebar && tab === "havuz" && !neutral) {
       setTab("randevulu");
     }
     setPage(1);
@@ -2011,6 +2036,7 @@ export function CandidatesPage({
 
   const handleExamCodeSelect = (value: string) => {
     setSelectedExamDate("");
+    setExamDateTabNeutral(false);
     setSelectedDrivingExamCode(value);
     setPage(1);
   };
@@ -2220,7 +2246,7 @@ export function CandidatesPage({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `adaylar-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `adaylar-${formatLocalDateOnly(new Date())}.csv`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -2478,7 +2504,11 @@ export function CandidatesPage({
       setSelectedCandidateIds(new Set());
       setBulkExamDateValue("");
       setSelectedExamDate(assignedExamDate);
-      setTab("randevulu");
+      const neutral = isPastIsoDate(assignedExamDate);
+      setExamDateTabNeutral(neutral);
+      if (!neutral) {
+        setTab("randevulu");
+      }
       setPage(1);
       refreshAll();
     } catch {
@@ -2745,7 +2775,11 @@ export function CandidatesPage({
   const tabsSearchRow = (
     <div className={showTabs && !isDrivingExamCodeTabActive ? "tabs-search-row" : "tabs-search-row no-tabs"}>
       {showTabs && !isDrivingExamCodeTabActive && (
-        <PageTabs active={tab} onChange={handleTabChange} tabs={resolvedTabConfig.tabs} />
+        <PageTabs
+          active={examDateTabNeutral ? "" : tab}
+          onChange={handleTabChange}
+          tabs={resolvedTabConfig.tabs}
+        />
       )}
       <div className="search-box">
         <SearchInput
@@ -3026,6 +3060,7 @@ export function CandidatesPage({
                 setSelectedDrivingExamCode("");
               } else {
                 setSelectedExamDate("");
+                setExamDateTabNeutral(false);
               }
             }}
             options={displayedExamDateOptions}

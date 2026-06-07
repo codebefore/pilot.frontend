@@ -78,8 +78,7 @@ type NewCandidateModalProps = {
 function buildReuseSourceAvatarCandidate(source: CandidateReuseSourceResponse) {
   const photoDocument = source.documents.find(
     (document) =>
-      (document.documentTypeKey === "biometric_photo" ||
-        document.documentTypeKey === "webcam_photo") &&
+      document.documentTypeKey === "biometric_photo" &&
       document.hasFile
   );
 

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { createGroup, getGroups } from "../../lib/groups-api";
+import { todayLocalDateOnly } from "../../lib/date-only";
 import {
   buildGroupCode,
   GROUP_BRANCH_VALUES,
@@ -41,16 +42,12 @@ type NewGroupModalProps = {
   onSubmit: () => void;
 };
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 const defaultValues = (initialTermId?: string | null): NewGroupForm => ({
   groupNumber: GROUP_NUMBER_VALUES[0],
   groupBranch: GROUP_BRANCH_VALUES[0],
   termId: initialTermId ?? "",
   capacity: 20,
-  startDate: todayISO(),
+  startDate: todayLocalDateOnly(),
 });
 
 export function NewGroupModal({

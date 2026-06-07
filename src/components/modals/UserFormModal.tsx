@@ -43,7 +43,7 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
   editing
     ? {
         fullName: editing.fullName,
-        phone: "",
+        phone: editing.phone ?? "",
         mebbisUsername: editing.mebbisUsername ?? "",
         mebbisPassword: "",
         roleId: editing.roleId ?? "",
@@ -127,7 +127,7 @@ export function UserFormModal({
     setSubmitting(true);
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
-      phone: editing && !values.phone.trim() ? null : values.phone.trim(),
+      phone: values.phone.trim() || null,
       mebbisUsername: values.mebbisUsername.trim() || null,
       mebbisPassword: values.mebbisPassword.trim() || null,
       roleId: values.roleId || null,
@@ -225,12 +225,9 @@ export function UserFormModal({
               className={fieldClass(!!errors.phone, "form-input")}
               disabled={!canManage}
               maxLength={32}
-              placeholder={editing?.phone ? `Mevcut: ${editing.phone}` : "5XX XXX XX XX"}
+              placeholder="5XX XXX XX XX"
               {...phoneRegistration}
             />
-            {editing?.phone ? (
-              <div className="form-hint">Boş bırakırsanız mevcut telefon korunur.</div>
-            ) : null}
             {errors.phone && <div className="form-error">{translateError(errors.phone.message)}</div>}
           </div>
         </div>

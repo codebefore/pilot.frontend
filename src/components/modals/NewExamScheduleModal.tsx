@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { createExamSchedule } from "../../lib/exam-schedules-api";
+import { todayLocalDateOnly } from "../../lib/date-only";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { ApiError } from "../../lib/http";
@@ -32,13 +33,9 @@ type NewExamScheduleModalProps = {
   onSaved: () => void;
 };
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function defaultValues(): NewExamScheduleForm {
   return {
-    date: todayISO(),
+    date: todayLocalDateOnly(),
     examCodeId: "",
     time: "09:00",
     capacity: 20,

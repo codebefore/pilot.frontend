@@ -175,7 +175,7 @@ export function AppShell() {
               <Route
                 element={
                   <RequireTenantPermission areas={["dashboard"]}>
-                    <DashboardPage activeInstitution={activeInstitution} userName={user?.name ?? null} />
+                    <DashboardPage userName={user?.name ?? null} />
                   </RequireTenantPermission>
                 }
                 path="/"

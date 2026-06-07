@@ -12,7 +12,8 @@ import {
   getDocumentChecklist,
   getDocumentTypes,
 } from "../../lib/documents-api";
-import { getGroups } from "../../lib/groups-api";
+import { todayLocalDateOnly } from "../../lib/date-only";
+import { getGroupById, getGroups } from "../../lib/groups-api";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { buildWhatsAppUrl } from "../../lib/phone";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
@@ -40,6 +41,7 @@ import {
   useExistingLicenseTypeOptions,
 } from "../../lib/use-license-class-options";
 import type {
+  CandidateGroupAssignmentResponse,
   CandidateResponse,
   CandidateUpsertRequest,
   DocumentResponse,
@@ -47,7 +49,6 @@ import type {
   LicenseClass,
 } from "../../lib/types";
 import { ApiError, type ApiValidationError } from "../../lib/http";
-import { UploadDocumentModal } from "../modals/UploadDocumentModal";
 import { WhatsAppIcon } from "../icons";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { CandidateTagsInput } from "../ui/CandidateTagsInput";
@@ -60,13 +61,26 @@ import { PanelListSkeleton } from "../ui/Skeleton";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function formatOptionalText(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed ? trimmed : "—";
+}
+
+function applyGroupAssignmentToCandidate(
+  candidate: CandidateResponse,
+  assignment: CandidateGroupAssignmentResponse,
+  group: Awaited<ReturnType<typeof getGroupById>>
+): CandidateResponse {
+  return {
+    ...candidate,
+    currentGroup: {
+      groupId: assignment.groupId,
+      title: assignment.groupTitle || group.title,
+      startDate: assignment.groupStartDate ?? group.startDate,
+      term: group.term,
+      assignedAtUtc: assignment.assignedAtUtc,
+    },
+  };
 }
 
 /* ── Drawer ── */
@@ -151,13 +165,12 @@ export function CandidateDrawer({
   const { items: activeLicenseClassDefinitions } = useActiveLicenseClassDefinitions(!!candidate);
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
-  const today = todayISO();
+  const today = todayLocalDateOnly();
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [missingDocs, setMissingDocs] = useState<string[] | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<DocumentResponse[] | null>(null);
   const existingLicenseEditOptions: SelectOption[] = [
@@ -262,7 +275,7 @@ export function CandidateDrawer({
         setUploadedDocs([]);
       });
     return () => controller.abort();
-  }, [candidateId]);
+  }, [candidateId, reloadKey]);
 
   const saveField = async (patch: Partial<CandidateUpsertRequest>) => {
     if (!canManageCandidates) return;
@@ -512,11 +525,16 @@ export function CandidateDrawer({
     try {
       if (!groupId) {
         await removeActiveGroupAssignment(candidateId);
+        setCandidate((current) => current ? { ...current, currentGroup: null } : current);
       } else {
-        await assignCandidateGroup(candidateId, groupId);
+        const [assignment, group] = await Promise.all([
+          assignCandidateGroup(candidateId, groupId),
+          getGroupById(groupId),
+        ]);
+        setCandidate((current) =>
+          current ? applyGroupAssignmentToCandidate(current, assignment, group) : current
+        );
       }
-      const updated = await getCandidateById(candidateId);
-      setCandidate(updated);
       onUpdated?.();
     } catch {
       showToast(t("candidateDrawer.toast.groupAssignFailed"), "error");
@@ -605,19 +623,9 @@ export function CandidateDrawer({
       ) : candidate ? (
         <>
           <div className="drawer-profile-summary">
-            <button
-              aria-label={candidate.photo ? t("candidateDrawer.aria.changePhoto") : t("candidateDrawer.aria.uploadPhoto")}
-              className="drawer-profile-avatar-button"
-              disabled={!canManageCandidates}
-              onClick={() => {
-                if (!canManageCandidates) return;
-                setUploadOpen(true);
-              }}
-              title={candidateEditDisabledTitle}
-              type="button"
-            >
+            <span className="drawer-profile-avatar-shell">
               <CandidateAvatar candidate={candidate} className="drawer-profile-avatar" size={64} />
-            </button>
+            </span>
             <div className="drawer-profile-meta">
               <div className="drawer-profile-name">
                 {candidate.firstName} {candidate.lastName}
@@ -1151,30 +1159,6 @@ export function CandidateDrawer({
         />
       ) : null}
 
-      <UploadDocumentModal
-        canManage={canManageCandidates}
-        candidateId={candidate ? candidateId : null}
-        candidateName={candidate ? `${candidate.firstName} ${candidate.lastName}` : undefined}
-        lockedDocumentTypeKey="biometric_photo"
-        onClose={() => setUploadOpen(false)}
-        onUploaded={async () => {
-          setUploadOpen(false);
-          showToast(candidate?.photo ? t("candidateDrawer.toast.photoUpdated") : t("candidateDrawer.toast.photoUploaded"));
-          // Refresh the in-drawer candidate so documentSummary + missing list
-          // reflect the upload immediately.
-          if (candidateId) {
-            try {
-              const fresh = await getCandidateById(candidateId);
-              setCandidate(fresh);
-            } catch {
-              /* swallow — parent refresh will still run */
-            }
-          }
-          onUpdated?.();
-        }}
-        open={uploadOpen}
-        title={candidate?.photo ? t("candidateDrawer.upload.changeTitle") : t("candidateDrawer.upload.uploadTitle")}
-      />
     </Drawer>
   );
 }

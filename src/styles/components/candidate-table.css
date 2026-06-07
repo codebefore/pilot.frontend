@@ -1,19 +1,39 @@
 /* ─── Document — physically available toggle + badge ─── */
 .upload-doc-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: var(--gray-700);
-  cursor: pointer;
-  user-select: none;
+  margin-right: auto;
 }
-.upload-doc-toggle input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  cursor: pointer;
+.upload-doc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gray-100);
+}
+.upload-doc-source-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.upload-doc-source-actions .candidate-doc-upload-option {
+  min-height: 46px;
+}
+.upload-doc-camera-panel {
+  margin-bottom: 10px;
+}
+.upload-doc-crop-panel {
+  margin-bottom: 10px;
+}
+@media (max-width: 560px) {
+  .upload-doc-source-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .upload-doc-actions {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
 }
 .file-drop.disabled {
   opacity: 0.5;
@@ -343,19 +363,10 @@
   padding: 16px 20px;
   border-bottom: 1px solid var(--gray-100);
 }
-.drawer-profile-avatar-button {
+.drawer-profile-avatar-shell {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-.drawer-profile-avatar-button:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-  border-radius: 999px;
 }
 .drawer-profile-avatar {
   flex-shrink: 0;

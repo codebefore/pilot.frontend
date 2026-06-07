@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,21 +22,7 @@ vi.mock("../lib/stats-api", async () => {
 function renderDashboard() {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/"]}>
-      <DashboardPage
-        activeInstitution={{
-          id: "institution-1",
-          name: "Pilot Kurs",
-          slug: "pilot-kurs",
-          roleName: "Finans",
-          isDefault: true,
-          permissions: {
-            dashboard: "view",
-            candidates: "view",
-            payments: "view",
-          },
-        }}
-        userName="Finans Viewer"
-      />
+      <DashboardPage userName="Finans Viewer" />
     </MemoryRouter>,
     {
       auth: {
@@ -57,7 +43,7 @@ function renderDashboard() {
   );
 }
 
-describe("DashboardPage permissions", () => {
+describe("DashboardPage layout", () => {
   beforeEach(() => {
     getDashboardOverviewMock.mockReset();
     getDashboardOverviewMock.mockResolvedValue({
@@ -67,21 +53,14 @@ describe("DashboardPage permissions", () => {
     });
   });
 
-  it("keeps quick actions visible but disabled without full permissions", async () => {
+  it("does not render the secondary cockpit grid", async () => {
     renderDashboard();
 
-    expect(await screen.findByText("Hızlı İşlemler")).toBeInTheDocument();
-
-    const newCandidateButton = screen.getByRole("button", { name: /Yeni Aday Kaydı/ });
-    const newPaymentButton = screen.getByRole("button", { name: /Tahsilat Girişi/ });
-    const mebButton = screen.getByRole("button", { name: /MEB İşi Başlat/ });
-
-    for (const button of [newCandidateButton, newPaymentButton, mebButton]) {
-      expect(button).toBeDisabled();
-      expect(button).toHaveAttribute("title", "Yetkiniz yok.");
-      fireEvent.click(button);
-    }
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText("Bekleyen Görevler")).toBeInTheDocument();
+    expect(screen.queryByText("MEBBİS Senkronizasyonu")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hızlı İşlemler")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Yeni Aday Kaydı/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Tahsilat Girişi/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /MEB İşi Başlat/ })).not.toBeInTheDocument();
   });
 });

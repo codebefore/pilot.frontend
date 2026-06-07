@@ -12,6 +12,7 @@ import {
   type InstitutionSettingsUpsertRequest,
 } from "../../lib/institution-settings-api";
 import { useAuth } from "../../lib/auth";
+import { updateStoredInstitutionName } from "../../lib/auth-storage";
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey, currentLocale } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
@@ -152,7 +153,7 @@ export function GeneralInstitutionSection() {
   const founderTaxOfficeId = useId();
   const founderPhoneId = useId();
   const founderAddressId = useId();
-  const { user, permissions } = useAuth();
+  const { user, permissions, activeInstitution } = useAuth();
   const canManageSettings = canManageArea(user, permissions, "settings");
   const noPermissionTitle = t("common.noPermission");
 
@@ -328,6 +329,9 @@ export function GeneralInstitutionSection() {
     try {
       const request = toUpsertRequest(values, serverState?.rowVersion ?? null);
       const response = await upsertInstitutionSettings(request);
+      if (activeInstitution && response.institutionName) {
+        updateStoredInstitutionName(activeInstitution.id, response.institutionName);
+      }
       setServerState(response);
       setValues(fromResponse(response));
       setErrors({});

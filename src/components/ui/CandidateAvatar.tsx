@@ -30,6 +30,7 @@ function buildCandidatePhotoUrl(
   candidate: Pick<CandidateResponse, "id" | "photo">
 ): string | null {
   if (!candidate.photo?.documentId) return null;
+  if (candidate.photo.kind !== "biometric_photo") return null;
 
   const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
   const path = `/api/candidates/${candidate.id}/documents/${candidate.photo.documentId}/download`;

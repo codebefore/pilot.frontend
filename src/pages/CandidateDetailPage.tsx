@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { useGroup } from "../lib/queries/use-groups";
+import { todayLocalDateOnly } from "../lib/date-only";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
@@ -68,7 +69,7 @@ import { getCashRegisters } from "../lib/cash-registers-api";
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstructors } from "../lib/instructors-api";
-import { getGroups } from "../lib/groups-api";
+import { getGroupById, getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { getTrainingLessons } from "../lib/training-lessons-api";
 import { getVehicles } from "../lib/vehicles-api";
@@ -125,6 +126,7 @@ import { toTurkishUpperCase } from "../lib/text-format";
 import { StatusPill } from "../components/ui/StatusPill";
 import type {
   CandidateResponse,
+  CandidateGroupAssignmentResponse,
   CandidateContactResponse,
   CandidateContactType,
   CandidateContactUpsertRequest,
@@ -990,7 +992,7 @@ function SecondPracticeRoundBanner({
     if (!canManageCandidates) return;
     setSaving(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayLocalDateOnly();
       const updated = await updateCandidateField(candidate, {
         status: "dropped",
         terminationDate: today,
@@ -1107,7 +1109,7 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
 
   const saveCandidateStatus = async (value: string) => {
     const nextStatus = value.trim();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocalDateOnly();
     await saveGeneralField(
       nextStatus === "dropped"
         ? {
@@ -1953,6 +1955,23 @@ function formatExistingLicenseSelectionLabel(
   return label;
 }
 
+function applyGroupAssignmentToCandidate(
+  candidate: CandidateResponse,
+  assignment: CandidateGroupAssignmentResponse,
+  group: Awaited<ReturnType<typeof getGroupById>>
+): CandidateResponse {
+  return {
+    ...candidate,
+    currentGroup: {
+      groupId: assignment.groupId,
+      title: assignment.groupTitle || group.title,
+      startDate: assignment.groupStartDate ?? group.startDate,
+      term: group.term,
+      assignedAtUtc: assignment.assignedAtUtc,
+    },
+  };
+}
+
 function LicenseInfoTab({
   age,
   canManageCandidates,
@@ -2002,12 +2021,15 @@ function LicenseInfoTab({
     try {
       if (!groupId) {
         await removeActiveGroupAssignment(candidate.id);
+        onSaved({ ...candidate, currentGroup: null });
       } else {
-        await assignCandidateGroup(candidate.id, groupId);
+        const [assignment, group] = await Promise.all([
+          assignCandidateGroup(candidate.id, groupId),
+          getGroupById(groupId),
+        ]);
+        onSaved(applyGroupAssignmentToCandidate(candidate, assignment, group));
       }
 
-      const updated = await getCandidateById(candidate.id);
-      onSaved(updated);
       showToast(t(groupId ? "candidateDetail.license.toast.groupAssigned" : "candidateDetail.license.toast.groupRemoved"));
     } catch {
       showToast(t("candidateDetail.license.toast.groupSaveFailed"), "error");
@@ -5412,7 +5434,7 @@ function CandidateExamAttemptsSection({
   }, [candidate.id]);
 
   useEffect(() => {
-    if (!candidate.licenseClassDefinitionId || !form.scheduledAt) {
+    if (!addOpen || !candidate.licenseClassDefinitionId || !form.scheduledAt) {
       setSuggestedFee(null);
       return;
     }
@@ -5441,6 +5463,7 @@ function CandidateExamAttemptsSection({
       });
     return () => controller.abort();
   }, [
+    addOpen,
     attempts,
     candidate.licenseClassDefinitionId,
     candidate.licenseClass,

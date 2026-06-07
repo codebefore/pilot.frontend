@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,6 +25,7 @@ import { FileDropInput } from "../ui/FileDropInput";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+import { CameraIcon, ScannerIcon } from "../icons";
 
 const uploadDocumentSchema = z.object({
   candidateId: z.string(),
@@ -44,12 +52,119 @@ type UploadDocumentModalProps = {
 
 const ACCEPT = "image/jpeg,image/png,application/pdf";
 const MAX_BYTES = 10 * 1024 * 1024;
+const MIN_CROP_SIZE = 12;
 const HEALTH_REPORT_META_KEYS = {
   disability: "disability",
 } as const;
 const HEALTH_REPORT_DEFAULT_METADATA: Record<string, string> = {
   [HEALTH_REPORT_META_KEYS.disability]: "none",
 };
+
+function createCapturedFileName(): string {
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "");
+  return `evrak-${stamp}.jpg`;
+}
+
+type CropRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function defaultCropRect(): CropRect {
+  return { x: 10, y: 10, width: 80, height: 80 };
+}
+
+function toJpegFileName(fileName: string): string {
+  const baseName = fileName.replace(/\.[^.]+$/, "").trim() || "evrak";
+  return `${baseName}.jpg`;
+}
+
+function drawVideoFrameToFile(video: HTMLVideoElement): Promise<File> {
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  if (width <= 0 || height <= 0) {
+    return Promise.reject(new Error("camera-frame-not-ready"));
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return Promise.reject(new Error("canvas-not-supported"));
+  context.drawImage(video, 0, 0, width, height);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("capture-failed"));
+          return;
+        }
+        resolve(new File([blob], createCapturedFileName(), { type: "image/jpeg" }));
+      },
+      "image/jpeg",
+      0.92
+    );
+  });
+}
+
+function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect): Promise<File> {
+  const naturalWidth = image.naturalWidth;
+  const naturalHeight = image.naturalHeight;
+  const sourceX = Math.round((crop.x / 100) * naturalWidth);
+  const sourceY = Math.round((crop.y / 100) * naturalHeight);
+  const sourceWidth = Math.round((crop.width / 100) * naturalWidth);
+  const sourceHeight = Math.round((crop.height / 100) * naturalHeight);
+  if (sourceWidth <= 0 || sourceHeight <= 0) {
+    return Promise.reject(new Error("invalid-crop"));
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceWidth;
+  canvas.height = sourceHeight;
+  const context = canvas.getContext("2d");
+  if (!context) return Promise.reject(new Error("canvas-not-supported"));
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    sourceWidth,
+    sourceHeight
+  );
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("crop-failed"));
+          return;
+        }
+        resolve(new File([blob], toJpegFileName(file.name), { type: "image/jpeg" }));
+      },
+      "image/jpeg",
+      0.92
+    );
+  });
+}
+
+function isCropSupportedUpload(file: File): boolean {
+  return file.type === "image/jpeg" || file.type === "image/png";
+}
 
 const emptyForm = (
   candidateId?: string | null,
@@ -94,6 +209,17 @@ export function UploadDocumentModal({
   const candidateSelectId = useId();
   const documentTypeSelectId = useId();
   const noteInputId = useId();
+  const scannerInputId = useId();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const cropViewportRef = useRef<HTMLDivElement | null>(null);
+  const cropImageRef = useRef<HTMLImageElement | null>(null);
+  const dragRef = useRef<{
+    mode: CropDragMode;
+    startX: number;
+    startY: number;
+    startCrop: CropRect;
+  } | null>(null);
 
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeResponse[]>(
     documentTypesProp ?? []
@@ -102,6 +228,14 @@ export function UploadDocumentModal({
   const [submitting, setSubmitting] = useState(false);
   const [metadataValues, setMetadataValues] = useState<Record<string, string>>({});
   const [metadataErrors, setMetadataErrors] = useState<Record<string, string>>({});
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<"environment" | "user">("environment");
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [capturedFile, setCapturedFile] = useState<File | null>(null);
+  const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
+  const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
+  const [cropSaving, setCropSaving] = useState(false);
 
   const {
     control,
@@ -110,6 +244,7 @@ export function UploadDocumentModal({
     register,
     reset,
     setError,
+    setValue,
     watch,
   } = useForm<UploadDocumentForm>({
     defaultValues: emptyForm(candidateId, initialDocumentTypeId),
@@ -120,11 +255,210 @@ export function UploadDocumentModal({
   const selectedDocumentTypeId = watch("documentTypeId");
   const isPhysicallyAvailable = watch("isPhysicallyAvailable");
 
+  const stopCamera = () => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  const setSelectedFile = (file: File | null) => {
+    setValue("file", file, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const clearCapture = () => {
+    if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+    setCapturedUrl(null);
+    setCapturedFile(null);
+    setCrop(defaultCropRect());
+    setCropSaving(false);
+  };
+
+  const closeCamera = () => {
+    stopCamera();
+    setCameraOpen(false);
+    setCameraLoading(false);
+    setCameraError(null);
+  };
+
+  const openCropForFile = (file: File) => {
+    stopCamera();
+    setCameraOpen(false);
+    if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+    setCapturedFile(file);
+    setCapturedUrl(URL.createObjectURL(file));
+    setCrop(defaultCropRect());
+    setCropSaving(false);
+  };
+
+  const handleSelectedFile = (file: File | null) => {
+    if (!file) {
+      clearCapture();
+      setSelectedFile(null);
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      clearCapture();
+      setSelectedFile(file);
+      return;
+    }
+    if (isCropSupportedUpload(file)) {
+      openCropForFile(file);
+      return;
+    }
+    clearCapture();
+    setSelectedFile(file);
+  };
+
+  const startCamera = async (facing: "environment" | "user" = cameraFacing) => {
+    setCameraOpen(true);
+    setCameraFacing(facing);
+    setCameraLoading(true);
+    setCameraError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraLoading(false);
+      setCameraError("Bu cihazda kamera desteklenmiyor.");
+      return;
+    }
+
+    stopCamera();
+    try {
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facing } },
+          audio: false,
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
+      streamRef.current = stream;
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch {
+      stopCamera();
+      setCameraError(t("candidateDetail.documents.upload.cameraError"));
+    } finally {
+      setCameraLoading(false);
+    }
+  };
+
+  const switchCamera = () => {
+    const next = cameraFacing === "environment" ? "user" : "environment";
+    void startCamera(next);
+  };
+
+  const captureCameraPhoto = async () => {
+    if (!videoRef.current) return;
+    try {
+      const file = await drawVideoFrameToFile(videoRef.current);
+      openCropForFile(file);
+    } catch {
+      setCameraError(t("candidateDetail.documents.upload.photoError"));
+    }
+  };
+
+  const handleCropPointerDown = (
+    event: ReactPointerEvent<HTMLElement>,
+    dragMode: CropDragMode
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      mode: dragMode,
+      startX: event.clientX,
+      startY: event.clientY,
+      startCrop: crop,
+    };
+  };
+
+  const handleCropPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const viewport = cropViewportRef.current;
+    if (!drag || !viewport) return;
+    const rect = viewport.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const dx = ((event.clientX - drag.startX) / rect.width) * 100;
+    const dy = ((event.clientY - drag.startY) / rect.height) * 100;
+    const start = drag.startCrop;
+    let next = { ...start };
+
+    if (drag.mode === "move") {
+      next.x = clampNumber(start.x + dx, 0, 100 - start.width);
+      next.y = clampNumber(start.y + dy, 0, 100 - start.height);
+    } else {
+      const left = start.x;
+      const top = start.y;
+      const right = start.x + start.width;
+      const bottom = start.y + start.height;
+      const nextLeft = drag.mode.includes("w")
+        ? clampNumber(left + dx, 0, right - MIN_CROP_SIZE)
+        : left;
+      const nextRight = drag.mode.includes("e")
+        ? clampNumber(right + dx, left + MIN_CROP_SIZE, 100)
+        : right;
+      const nextTop = drag.mode.includes("n")
+        ? clampNumber(top + dy, 0, bottom - MIN_CROP_SIZE)
+        : top;
+      const nextBottom = drag.mode.includes("s")
+        ? clampNumber(bottom + dy, top + MIN_CROP_SIZE, 100)
+        : bottom;
+      next = {
+        x: nextLeft,
+        y: nextTop,
+        width: nextRight - nextLeft,
+        height: nextBottom - nextTop,
+      };
+    }
+    setCrop(next);
+  };
+
+  const handleCropPointerUp = () => {
+    dragRef.current = null;
+  };
+
+  const saveCroppedFile = async () => {
+    if (!capturedFile || !cropImageRef.current || cropSaving) return;
+    setCropSaving(true);
+    try {
+      const file = await cropImageFile(capturedFile, cropImageRef.current, crop);
+      setSelectedFile(file);
+      clearCapture();
+    } catch {
+      showToast(t("candidateDetail.documents.upload.photoError"), "error");
+      setCropSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (open) {
       reset(emptyForm(candidateId, initialDocumentTypeId));
+      closeCamera();
+      clearCapture();
     }
   }, [candidateId, initialDocumentTypeId, open, reset]);
+
+  useEffect(() => {
+    if (!open) {
+      closeCamera();
+      clearCapture();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+      if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+    };
+  }, [capturedUrl]);
 
   useEffect(() => {
     if (!open) return;
@@ -256,7 +590,7 @@ export function UploadDocumentModal({
       await uploadDocument({
         candidateId: resolvedCandidateId,
         documentTypeId: resolvedSubmitDocumentTypeId,
-        file: data.isPhysicallyAvailable ? null : data.file,
+        file: data.file,
         isPhysicallyAvailable: data.isPhysicallyAvailable,
         note: data.note.trim() || undefined,
         metadata:
@@ -284,27 +618,6 @@ export function UploadDocumentModal({
 
   return (
     <Modal
-      footer={
-        <>
-          <button
-            className="btn btn-secondary"
-            disabled={submitting}
-            onClick={onClose}
-            type="button"
-          >
-            {t("uploadDoc.cancel")}
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={submitting || !canManage}
-            onClick={submit}
-            title={!canManage ? noPermissionTitle : undefined}
-            type="button"
-          >
-            {submitting ? t("uploadDoc.submitting") : t("uploadDoc.submit")}
-          </button>
-        </>
-      }
       onClose={onClose}
       open={open}
       title={title ?? t("uploadDoc.title")}
@@ -380,17 +693,151 @@ export function UploadDocumentModal({
         <div className="form-row full">
           <div className="form-group">
             <label className="form-label">{t("uploadDoc.file")}</label>
-            <label className="upload-doc-toggle">
-              <input type="checkbox" {...register("isPhysicallyAvailable")} />
-              <span>{t("uploadDoc.physicallyAvailable")}</span>
-            </label>
+            <div className="upload-doc-source-actions">
+              <button
+                className="candidate-doc-upload-option"
+                disabled={submitting || !canManage}
+                onClick={() => document.getElementById(scannerInputId)?.click()}
+                type="button"
+              >
+                <span className="candidate-doc-upload-option-icon" aria-hidden="true">
+                  <ScannerIcon size={15} />
+                </span>
+                <span>
+                  <strong>{t("candidateDetail.documents.upload.scanner")}</strong>
+                  <small>{t("candidateDetail.documents.upload.scannerHint")}</small>
+                </span>
+              </button>
+              <button
+                className="candidate-doc-upload-option"
+                disabled={submitting || !canManage}
+                onClick={() => void startCamera("environment")}
+                type="button"
+              >
+                <span className="candidate-doc-upload-option-icon" aria-hidden="true">
+                  <CameraIcon size={15} />
+                </span>
+                <span>
+                  <strong>{t("candidateDetail.documents.upload.camera")}</strong>
+                  <small>{t("candidateDetail.documents.upload.cameraHint")}</small>
+                </span>
+              </button>
+            </div>
+            <input
+              accept="application/pdf,image/*"
+              disabled={submitting || !canManage}
+              hidden
+              id={scannerInputId}
+              onChange={(event) => {
+                handleSelectedFile(event.target.files?.[0] ?? null);
+                event.target.value = "";
+              }}
+              type="file"
+            />
+            {cameraOpen ? (
+              <div className="candidate-doc-camera-panel upload-doc-camera-panel">
+                <div className="candidate-doc-camera-frame">
+                  {cameraLoading ? <span>{t("candidateDetail.documents.upload.cameraLoading")}</span> : null}
+                  {cameraError ? <span>{cameraError}</span> : null}
+                  <video
+                    autoPlay
+                    className={cameraError || cameraLoading ? "is-hidden" : ""}
+                    muted
+                    playsInline
+                    ref={videoRef}
+                  />
+                </div>
+                <div className="candidate-doc-camera-actions">
+                  <button className="btn btn-secondary btn-sm" onClick={switchCamera} type="button">
+                    Kamera Değiştir
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={cameraLoading || Boolean(cameraError)}
+                    onClick={() => void captureCameraPhoto()}
+                    type="button"
+                  >
+                    Çek
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={closeCamera} type="button">
+                    İptal
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {capturedUrl ? (
+              <div className="candidate-doc-crop-panel upload-doc-crop-panel">
+                <div className="candidate-doc-upload-popover-head">
+                  <div>
+                    <div className="candidate-doc-upload-popover-title">
+                      {t("candidateDetail.documents.upload.cropTitle")}
+                    </div>
+                    <div className="candidate-doc-upload-popover-subtitle">
+                      {t("candidateDetail.documents.upload.cropSubtitle")}
+                    </div>
+                  </div>
+                  <button
+                    aria-label="Kapat"
+                    className="candidate-doc-upload-popover-close"
+                    onClick={clearCapture}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div
+                  className="candidate-doc-crop-stage"
+                  onPointerCancel={handleCropPointerUp}
+                  onPointerMove={handleCropPointerMove}
+                  onPointerUp={handleCropPointerUp}
+                >
+                  <div className="candidate-doc-crop-viewport" ref={cropViewportRef}>
+                    <img
+                      alt={t("candidateDetail.documents.upload.capturedAlt")}
+                      ref={cropImageRef}
+                      src={capturedUrl}
+                    />
+                    <div
+                      className="candidate-doc-crop-box"
+                      onPointerDown={(event) => handleCropPointerDown(event, "move")}
+                      style={{
+                        left: `${crop.x}%`,
+                        top: `${crop.y}%`,
+                        width: `${crop.width}%`,
+                        height: `${crop.height}%`,
+                      }}
+                    >
+                      {(["nw", "ne", "sw", "se"] as CropDragMode[]).map((handle) => (
+                        <span
+                          className={`candidate-doc-crop-handle ${handle}`}
+                          key={handle}
+                          onPointerDown={(event) => handleCropPointerDown(event, handle)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="candidate-doc-camera-actions">
+                  <button className="btn btn-secondary btn-sm" onClick={clearCapture} type="button">
+                    İptal
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={cropSaving}
+                    onClick={() => void saveCroppedFile()}
+                    type="button"
+                  >
+                    {cropSaving ? t("common.loading") : t("uploadDoc.cropAndAttach")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <Controller
               control={control}
               name="file"
               render={({ field, fieldState }) => (
                 <FileDropInput
                   accept={ACCEPT}
-                  disabled={isPhysicallyAvailable}
                   error={!!fieldState.error}
                   file={field.value ?? undefined}
                   hint={
@@ -400,8 +847,8 @@ export function UploadDocumentModal({
                   }
                   name={field.name}
                   onBlur={field.onBlur}
-                  onChange={(list) => field.onChange(list?.[0] ?? null)}
-                  onClear={() => field.onChange(null)}
+                  onChange={(list) => handleSelectedFile(list?.[0] ?? null)}
+                  onClear={() => handleSelectedFile(null)}
                   ref={field.ref}
                 />
               )}
@@ -438,6 +885,30 @@ export function UploadDocumentModal({
               {...register("note")}
             />
           </div>
+        </div>
+        <div className="upload-doc-actions">
+          <label className="switch-toggle upload-doc-toggle">
+            <input type="checkbox" {...register("isPhysicallyAvailable")} />
+            <span className="switch-toggle-control" aria-hidden="true" />
+            <span>{t("uploadDoc.physicallyAvailable")}</span>
+          </label>
+          <button
+            className="btn btn-secondary"
+            disabled={submitting}
+            onClick={onClose}
+            type="button"
+          >
+            {t("uploadDoc.cancel")}
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={submitting || !canManage}
+            onClick={submit}
+            title={!canManage ? noPermissionTitle : undefined}
+            type="button"
+          >
+            {submitting ? t("uploadDoc.submitting") : t("uploadDoc.submit")}
+          </button>
         </div>
       </form>
     </Modal>

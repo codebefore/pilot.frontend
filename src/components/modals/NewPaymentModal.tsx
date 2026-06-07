@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { Modal } from "../ui/Modal";
 import { getCandidates } from "../../lib/candidates-api";
+import { todayLocalDateOnly } from "../../lib/date-only";
 import { useLanguage, useT, currentLocale, type TranslationKey } from "../../lib/i18n";
 import type { CandidateResponse } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
@@ -19,7 +20,12 @@ const newPaymentSchema = z.object({
     .string()
     .min(1, "common.required")
     .refine((v) => {
-      const diff = (new Date(v).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+      const [year, month, day] = v.split("-").map(Number);
+      if (!year || !month || !day) return false;
+      const paymentDate = new Date(year, month - 1, day);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const diff = (paymentDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
       return diff <= 1;
     }, "newPayment.error.futureDate"),
   note: z.string(),
@@ -34,13 +40,11 @@ type NewPaymentModalProps = {
   onSubmit: () => void;
 };
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
 const defaultValues = (): NewPaymentForm => ({
   candidateId: "",
   amount: 2400,
   method: "Nakit",
-  date: todayISO(),
+  date: todayLocalDateOnly(),
   note: "",
 });
 

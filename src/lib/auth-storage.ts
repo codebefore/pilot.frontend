@@ -67,6 +67,36 @@ export function clearStoredAuthSession(): void {
   localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
+export function updateStoredInstitutionName(institutionId: string, name: string): AuthSession | null {
+  const normalizedName = name.trim();
+  if (!institutionId || !normalizedName) return readStoredAuthSession();
+
+  const session = readStoredAuthSession();
+  if (!session) return null;
+
+  let changed = false;
+  const institutions = session.institutions.map((institution) => {
+    if (institution.id !== institutionId || institution.name === normalizedName) {
+      return institution;
+    }
+    changed = true;
+    return { ...institution, name: normalizedName };
+  });
+  const activeInstitution =
+    session.activeInstitution?.id === institutionId && session.activeInstitution.name !== normalizedName
+      ? { ...session.activeInstitution, name: normalizedName }
+      : session.activeInstitution;
+  if (activeInstitution !== session.activeInstitution) {
+    changed = true;
+  }
+  if (!changed) return session;
+
+  const nextSession = { ...session, institutions, activeInstitution };
+  writeStoredAuthSession(nextSession);
+  notifySessionRefreshed(nextSession);
+  return nextSession;
+}
+
 export function getStoredAccessToken(): string | null {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);

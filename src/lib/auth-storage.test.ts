@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearStoredAuthSession,
   readStoredAuthSession,
+  updateStoredInstitutionName,
   writeStoredAuthSession,
   type AuthSession,
 } from "./auth-storage";
@@ -95,6 +96,16 @@ describe("auth storage", () => {
     });
 
     expect(readStoredAuthSession()?.refreshToken).toBe("refresh-a");
+  });
+
+  it("updates the active institution name in the stored session", () => {
+    writeStoredAuthSession(validSession);
+
+    const updated = updateStoredInstitutionName("institution-1", "Yeni Kurum Adi");
+
+    expect(updated?.activeInstitution?.name).toBe("Yeni Kurum Adi");
+    expect(updated?.institutions[0]?.name).toBe("Yeni Kurum Adi");
+    expect(readStoredAuthSession()?.activeInstitution?.name).toBe("Yeni Kurum Adi");
   });
 
   it("clears sessions with expired refresh token", () => {

@@ -123,13 +123,13 @@ describe("AppShell tenant state", () => {
     renderSwitchingShell();
 
     await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(1), { timeout: 5000 });
-    expect(screen.getByText(/Pilot Sürücü Kursu.*operasyon özeti/i)).toBeInTheDocument();
+    expect(screen.queryByText(/operasyon özeti/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: /Pilot Sürücü Kursu.*pilot-surucu-kursu/i })[0]);
     fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*ikinci-kurum.*Personel/i }));
 
     await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(2), { timeout: 5000 });
-    expect(screen.getByText(/İkinci Kurum.*operasyon özeti/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /İkinci Kurum/i }).length).toBeGreaterThan(0);
   });
 
   it("redirects unauthorized tenant routes to the first permitted page", async () => {

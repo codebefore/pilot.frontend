@@ -33,6 +33,7 @@ import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
 import { canManageArea } from "../lib/permissions";
 import type { JobStatus } from "../types";
 import { useT, currentLocale, type TranslationKey } from "../lib/i18n";
+import { formatLocalDateOnly } from "../lib/date-only";
 
 type StatusFilter = "all" | "running" | "queued" | "manual" | "failed" | "success";
 
@@ -136,7 +137,7 @@ function getCandidateFilterValue(job: MebJob): string {
 function getStartedAtFilterValue(job: MebJob): string {
   const date = new Date(job.startedAtIso);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toISOString().slice(0, 10);
+  return formatLocalDateOnly(date);
 }
 
 function formatDateFilterLabel(value: string): string {

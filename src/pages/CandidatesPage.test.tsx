@@ -634,6 +634,29 @@ describe("CandidatesPage tabs", () => {
 
   it("moves e-sinav from havuz to randevulu when a date is selected", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-06-12", { candidateCount: 3 }),
+    ]);
+
+    renderESinavPage();
+
+    const dateButton = await screen.findByRole("button", { name: /12\.06\.2026/i, pressed: false });
+    fireEvent.click(dateButton);
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: "active",
+          eSinavTab: "randevulu",
+          eSinavDate: "2026-06-12",
+          page: 1,
+          pageSize: 10,
+        })
+      );
+    });
+  });
+
+  it("keeps the current e-sinav tab when a past exam date is selected", async () => {
+    getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-05-12", { candidateCount: 3 }),
     ]);
 
@@ -646,13 +669,17 @@ describe("CandidatesPage tabs", () => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
           status: "active",
-          eSinavTab: "randevulu",
           eSinavDate: "2026-05-12",
           page: 1,
           pageSize: 10,
         })
       );
     });
+    const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
+    expect(lastCall?.[0].eSinavTab).toBeUndefined();
+    expect(screen.getByRole("button", { name: "Havuz" })).not.toHaveClass("active");
+    expect(screen.getByRole("button", { name: "Başarısız" })).not.toHaveClass("active");
+    expect(screen.getByRole("button", { name: "Randevulu" })).not.toHaveClass("active");
   });
 
   it("uses the new e-sinav column storage key so old visibility state is ignored", async () => {
@@ -683,7 +710,7 @@ describe("CandidatesPage tabs", () => {
 
   it("filters the uygulama page by the selected driving exam date", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
-      examScheduleOption("2026-06-03", {
+      examScheduleOption("2026-06-13", {
         examType: "uygulama",
         candidateCount: 2,
       }),
@@ -707,7 +734,7 @@ describe("CandidatesPage tabs", () => {
     const scheduleOptionCallCount = getExamScheduleOptionsMock.mock.calls.length;
 
     fireEvent.click(
-      await within(sidebar).findByRole("button", { name: /03\.06\.2026/i, pressed: false })
+      await within(sidebar).findByRole("button", { name: /13\.06\.2026/i, pressed: false })
     );
 
     await waitFor(() => {
@@ -715,7 +742,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           status: "active",
           drivingExamTab: "randevulu",
-          drivingExamDate: "2026-06-03",
+          drivingExamDate: "2026-06-13",
           page: 1,
           pageSize: 10,
         })
@@ -1883,14 +1910,14 @@ describe("CandidatesPage tabs", () => {
       totalPages: 1,
     });
     getExamScheduleOptionsMock.mockResolvedValue([
-      examScheduleOption("2026-05-12", {
+      examScheduleOption("2026-06-12", {
         candidateCount: 3,
         time: "09:00",
       }),
     ]);
     updateCandidateMock.mockResolvedValue({
       ...candidates[0],
-      mebExamDate: "2026-05-12",
+      mebExamDate: "2026-06-12",
     });
 
     renderESinavPage();
@@ -1906,11 +1933,11 @@ describe("CandidatesPage tabs", () => {
     const optionLabels = Array.from(bulkExamDateSelect.querySelectorAll("option")).map(
       (option) => option.textContent
     );
-    expect(optionLabels).toContain("12.05.2026 09:00");
-    expect(optionLabels).not.toContain("12.05.2026 09:00 - 3 aday");
+    expect(optionLabels).toContain("12.06.2026 09:00");
+    expect(optionLabels).not.toContain("12.06.2026 09:00 - 3 aday");
 
     fireEvent.change(screen.getByLabelText("Toplu sınav tarihi seç"), {
-      target: { value: "e_sinav-2026-05-12" },
+      target: { value: "e_sinav-2026-06-12" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
 
@@ -1918,7 +1945,7 @@ describe("CandidatesPage tabs", () => {
       expect(updateCandidateMock).toHaveBeenCalledWith(
         "cand-1",
         expect.objectContaining({
-          mebExamDate: "2026-05-12",
+          mebExamDate: "2026-06-12",
         })
       );
     });
@@ -1927,8 +1954,8 @@ describe("CandidatesPage tabs", () => {
       "cand-1",
       expect.objectContaining({
         examType: "theory",
-        scheduledAt: "2026-05-12T09:00:00.000Z",
-        examScheduleId: "e_sinav-2026-05-12",
+        scheduledAt: "2026-06-12T09:00:00.000Z",
+        examScheduleId: "e_sinav-2026-06-12",
       })
     );
 
@@ -1937,7 +1964,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           status: "active",
           eSinavTab: "randevulu",
-          eSinavDate: "2026-05-12",
+          eSinavDate: "2026-06-12",
           page: 1,
           pageSize: 10,
         })

@@ -479,12 +479,17 @@
 }
 .outbox-page {
   min-width: 0;
+  --outbox-panel-padding-x: 16px;
+  --outbox-panel-padding-y: 14px;
+}
+.panel-body:has(.outbox-page) {
+  overflow-x: visible;
 }
 .outbox-tabs {
-  padding-inline: var(--page-shell-gutter);
+  padding-inline: var(--outbox-panel-padding-x);
 }
 .outbox-toolbar {
-  padding: 12px var(--page-shell-gutter);
+  padding: 10px var(--outbox-panel-padding-x);
   border-bottom: 1px solid var(--gray-100);
 }
 .outbox-toolbar .filter-row {
@@ -497,6 +502,15 @@
 .outbox-table-wrap {
   width: 100%;
   overflow-x: auto;
+}
+.outbox-page > .outbox-table-wrap {
+  padding: var(--outbox-panel-padding-y) var(--outbox-panel-padding-x) 0;
+}
+.outbox-page > .data-table-empty,
+.outbox-page > .page-load-error,
+.outbox-page > .panel-list-skeleton,
+.outbox-page > .queue-health-band {
+  margin: var(--outbox-panel-padding-y) var(--outbox-panel-padding-x);
 }
 .outbox-table {
   min-width: 980px;

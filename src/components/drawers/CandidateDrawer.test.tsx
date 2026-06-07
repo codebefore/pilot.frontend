@@ -10,6 +10,7 @@ const updateCandidateMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const removeActiveGroupAssignmentMock = vi.fn();
 const getGroupsMock = vi.fn();
+const getGroupByIdMock = vi.fn();
 const getLicenseClassDefinitionsMock = vi.fn();
 
 function getHiddenSelect(ariaLabel: string) {
@@ -44,6 +45,7 @@ vi.mock("../../lib/groups-api", async () => {
   return {
     ...actual,
     getGroups: (...args: Parameters<typeof actual.getGroups>) => getGroupsMock(...args),
+    getGroupById: (...args: Parameters<typeof actual.getGroupById>) => getGroupByIdMock(...args),
   };
 });
 
@@ -94,6 +96,7 @@ describe("CandidateDrawer", () => {
     assignCandidateGroupMock.mockReset();
     removeActiveGroupAssignmentMock.mockReset();
     getGroupsMock.mockReset();
+    getGroupByIdMock.mockReset();
     getLicenseClassDefinitionsMock.mockReset();
 
     getCandidateByIdMock.mockResolvedValue({
@@ -153,6 +156,26 @@ describe("CandidateDrawer", () => {
     });
     removeActiveGroupAssignmentMock.mockResolvedValue(undefined);
     getGroupsMock.mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 });
+    getGroupByIdMock.mockResolvedValue({
+      id: "group-2",
+      title: "2B",
+      term: {
+        id: "term-2",
+        monthDate: "2026-05-01",
+        sequence: 1,
+        name: null,
+      },
+      capacity: 20,
+      assignedCandidateCount: 1,
+      activeCandidateCount: 1,
+      licenseClassCounts: [],
+      startDate: "2026-05-05",
+      mebStatus: null,
+      activeCandidates: [],
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+      rowVersion: 1,
+    });
     getLicenseClassDefinitionsMock.mockResolvedValue({
       items: [
         {
@@ -204,7 +227,7 @@ describe("CandidateDrawer", () => {
     });
   });
 
-  it("keeps delete and upload panels closed when candidate actions are disabled", async () => {
+  it("keeps delete closed and does not expose profile photo upload from the drawer header", async () => {
     renderWithProviders(
       <CandidateDrawer
         candidateId="candidate-1"
@@ -218,15 +241,12 @@ describe("CandidateDrawer", () => {
     expect(await screen.findByRole("heading", { name: "Ada Yilmaz" })).toBeInTheDocument();
 
     const deleteButton = screen.getByRole("button", { name: "Aday Sil" });
-    const uploadButton = screen.getByRole("button", { name: "Profil resmi yükle" });
 
     expect(deleteButton).toBeDisabled();
     expect(deleteButton).toHaveAttribute("title", "Yetkiniz yok.");
-    expect(uploadButton).toBeDisabled();
-    expect(uploadButton).toHaveAttribute("title", "Yetkiniz yok.");
+    expect(screen.queryByRole("button", { name: /profil resmi/i })).not.toBeInTheDocument();
 
     fireEvent.click(deleteButton);
-    fireEvent.click(uploadButton);
 
     expect(screen.queryByRole("button", { name: "Evet, Sil" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Evrak Yükle" })).not.toBeInTheDocument();
@@ -856,6 +876,7 @@ describe("CandidateDrawer", () => {
       "src",
       "https://api.pilotyanimda.com/v1/document/candidates/candidate-1/documents/doc-1/download"
     );
+    expect(screen.queryByRole("button", { name: /profil resmi/i })).not.toBeInTheDocument();
   });
 
   it("shows raw phone number under the name and links it to WhatsApp", async () => {
