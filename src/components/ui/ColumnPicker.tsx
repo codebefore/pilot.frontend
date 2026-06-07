@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { ListIcon } from "../icons";
@@ -28,6 +28,7 @@ type ColumnPickerProps = {
   resetLabel?: string;
   /** Tooltip / aria-label for the trigger button. */
   triggerTitle?: string;
+  footer?: ReactNode;
 };
 
 export function ColumnPicker({
@@ -39,6 +40,7 @@ export function ColumnPicker({
   menuTitle,
   resetLabel,
   triggerTitle,
+  footer,
 }: ColumnPickerProps) {
   const t = useT();
   const effectiveResetLabel = resetLabel ?? t("columnPicker.resetLabel");
@@ -173,6 +175,7 @@ export function ColumnPicker({
                 </label>
               );
             })}
+            {footer ? <div className="column-picker-footer">{footer}</div> : null}
           </div>,
           document.body
         )}

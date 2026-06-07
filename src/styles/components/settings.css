@@ -1924,29 +1924,6 @@
   padding: 4px 8px;
   font-size: 12px;
 }
-.candidate-detail-doc-metadata-input-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px;
-  gap: 6px;
-  align-items: center;
-}
-.candidate-detail-doc-metadata-input-row .form-input {
-  min-width: 0;
-}
-.candidate-detail-doc-metadata-input-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 30px;
-  border: 1px solid var(--gray-200);
-  border-radius: 6px;
-  background: var(--gray-50);
-  color: var(--gray-600);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-}
 .candidate-detail-doc-metadata-field em {
   font-size: 11px;
   font-style: normal;
@@ -2462,7 +2439,8 @@
   overflow-wrap: anywhere;
 }
 .candidate-accounting-ledger-table .candidate-accounting-col-dueDate,
-.candidate-accounting-ledger-table .candidate-accounting-col-paidAt {
+.candidate-accounting-ledger-table .candidate-accounting-col-paidAt,
+.candidate-accounting-ledger-table .candidate-accounting-col-createdAt {
   width: 112px;
 }
 .finance-date-time {
@@ -2971,6 +2949,19 @@
 .candidate-payment-plan-preview-table th,
 .candidate-payment-plan-preview-table td {
   white-space: nowrap;
+}
+.candidate-payment-plan-preview-table td:has(.candidate-payment-plan-date-input) {
+  min-width: 160px;
+  overflow: visible;
+}
+.candidate-payment-plan-preview-table .localized-date-field {
+  width: 150px;
+}
+.candidate-payment-plan-preview-table .localized-date-field:has(.localized-date-popover) {
+  z-index: 40;
+}
+.candidate-payment-plan-date-input {
+  min-height: 34px;
 }
 .candidate-accounting-type-picker {
   display: grid;
@@ -4381,6 +4372,20 @@
 .finance-detail-row.type-refund .payment-credit,
 .finance-detail-row.type-cancelled .payment-credit {
   color: var(--red);
+}
+.finance-detail-row.type-cancelledDebt td {
+  color: var(--gray-500);
+  text-decoration: line-through;
+}
+.finance-cash-summary-table .finance-col-selectedInflow.payment-credit,
+.finance-cash-movements-table .cash-movement-inflow {
+  color: #15803d;
+  font-weight: 700;
+}
+.finance-cash-summary-table .finance-col-selectedOutflow.payment-debit,
+.finance-cash-movements-table .cash-movement-outflow {
+  color: #dc2626;
+  font-weight: 700;
 }
 
 .finance-matrix-table thead th {

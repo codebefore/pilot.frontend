@@ -94,6 +94,14 @@ function invalidateCandidateLists(queryClient: ReturnType<typeof useQueryClient>
   return queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
 }
 
+function invalidateExamScheduleOptions(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
+}
+
+function invalidatePaymentOverviews(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({ queryKey: ["payments"] });
+}
+
 export function useCreateCandidate() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -122,6 +130,8 @@ export function useDeleteCandidate() {
     mutationFn: (id: string) => deleteCandidate(id),
     onSuccess: (_data, id) => {
       void invalidateCandidateLists(queryClient);
+      void invalidateExamScheduleOptions(queryClient);
+      void invalidatePaymentOverviews(queryClient);
       void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(id) });
     },
   });

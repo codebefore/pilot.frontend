@@ -32,6 +32,10 @@ export function ExamUygulamaPage() {
         title: t("candidates.col.drivingExamDate"),
       }}
       groupColumnMode="term"
+      showBulkGroupAction={false}
+      showBulkStatusAction={false}
+      showCreateCandidateAction={false}
+      showFiltersAction={false}
       tabConfig={{
         tabs,
         defaultTab: "havuz",

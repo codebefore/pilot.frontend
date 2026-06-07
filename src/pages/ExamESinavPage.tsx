@@ -29,6 +29,11 @@ export function ExamESinavPage() {
         title: t("candidates.col.eSinavDate"),
       }}
       groupColumnMode="term"
+      showBulkGroupAction={false}
+      showBulkPracticeTrainingAction={false}
+      showBulkStatusAction={false}
+      showCreateCandidateAction={false}
+      showFiltersAction={false}
       tabConfig={{
         tabs,
         defaultTab: "havuz",

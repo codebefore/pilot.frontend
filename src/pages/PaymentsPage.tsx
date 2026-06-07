@@ -50,6 +50,7 @@ type DetailTab =
   | "payment"
   | "refund"
   | "cancelled"
+  | "cancelledDebt"
   | "installment"
   | "debt";
 type DetailColumnId =
@@ -230,6 +231,7 @@ const COLLECTION_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
 const FINANCE_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
   { key: "installment", labelKey: "payments.detailTab.installment" },
   { key: "debt", labelKey: "payments.detailTab.debt" },
+  { key: "cancelledDebt", labelKey: "payments.detailTab.cancelledDebt" },
 ];
 
 const DETAIL_COLUMNS: {
@@ -1404,6 +1406,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             amount: payment.amount,
           })),
       );
+    }
+
+    if (detailTab === "all" || detailTab === "cancelled" || detailTab === "cancelledDebt") {
       rows.push(
         ...(overview.installments ?? [])
           .filter(
@@ -4133,7 +4138,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                   ? "finance-detail-description-cell"
                                   : "",
                                 column.numeric
-                                  ? "finance-matrix-amount payment-credit"
+                                  ? `finance-matrix-amount ${
+                                      row.type === "Giriş"
+                                        ? "cash-movement-inflow"
+                                        : "cash-movement-outflow"
+                                    }`
                                   : "",
                                 `finance-col-${column.id}`,
                               ]

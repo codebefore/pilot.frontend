@@ -2854,7 +2854,8 @@ function toDateOnlyValue(date: Date): string {
 function buildCoursePaymentPlanMovements(
   totalAmount: number,
   installmentCount: number,
-  firstDueDate: string
+  firstDueDate: string,
+  customDueDates: Record<number, string> = {}
 ): Array<{
   type: CandidateAccountingType;
   dueDate: string;
@@ -2872,7 +2873,7 @@ function buildCoursePaymentPlanMovements(
 
     return {
       type: "kurs",
-      dueDate: addMonthsToISODate(firstDueDate, index),
+      dueDate: customDueDates[index] ?? addMonthsToISODate(firstDueDate, index),
       amount: cents / 100,
       description: `Ödeme planı ${index + 1}/${installmentCount}`,
     };
@@ -2987,6 +2988,12 @@ function accountingTypeLabel(type: CandidateAccountingType): string {
   return "Diğer";
 }
 
+function accountingPaymentDisplayTypeLabel(type: CandidateAccountingType): string {
+  if (type === "teorik_sinav") return "E-Sınav";
+  if (type === "direksiyon_sinav") return "Direksiyon";
+  return accountingTypeLabel(type);
+}
+
 function accountingMovementStatus(
   movement: CandidateAccountingSummaryResponse["movements"][number]
 ): { className: string } {
@@ -3083,6 +3090,7 @@ type AccountingLedgerColumnId =
   | "cashRegister"
   | "refundedAmount"
   | "paidAt"
+  | "createdAt"
   | "actions";
 
 type AccountingLedgerSortField = Exclude<AccountingLedgerColumnId, "actions">;
@@ -3113,6 +3121,7 @@ const ACCOUNTING_LEDGER_COLUMNS: Array<{
   { id: "actions", labelKey: "candidateDetail.accounting.col.actions", locked: true },
   { id: "refundedAmount", labelKey: "candidateDetail.accounting.col.refund", sortField: "refundedAmount" },
   { id: "number", labelKey: "candidateDetail.accounting.col.number", sortField: "number" },
+  { id: "createdAt", labelKey: "candidateDetail.accounting.col.createdAt", sortField: "createdAt" },
 ];
 
 const DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS: AccountingLedgerColumnId[] = [
@@ -3221,12 +3230,14 @@ function AccountingTab({
     amount: string;
     installmentCount: string;
     dueDate: string;
+    customDueDates: Record<number, string>;
     previewOpen: boolean;
   }>({
     open: false,
     amount: "",
     installmentCount: "4",
     dueDate: todayIsoDate(),
+    customDueDates: {},
     previewOpen: false,
   });
   const [paymentModal, setPaymentModal] = useState<{
@@ -3372,7 +3383,8 @@ function AccountingTab({
       ? buildCoursePaymentPlanMovements(
           parsedPaymentPlanAmount,
           paymentPlanInstallmentCount,
-          paymentPlanModal.dueDate
+          paymentPlanModal.dueDate,
+          paymentPlanModal.customDueDates
         )
       : [];
   const canSavePaymentPlan =
@@ -3426,6 +3438,7 @@ function AccountingTab({
       amount: defaultAmount > 0 ? String(defaultAmount) : "",
       installmentCount: "4",
       dueDate: todayIsoDate(),
+      customDueDates: {},
       previewOpen: false,
     });
   };
@@ -3445,6 +3458,9 @@ function AccountingTab({
     if (!canManagePayments) return;
     const defaultMethod: CandidatePaymentMethod = "cash";
     const firstRegister = cashRegisters.find((register) => register.type === defaultMethod);
+    const movementDescription = movementId
+      ? activeMovements.find((item) => item.id === movementId)?.description ?? ""
+      : "";
     setPaymentModal({
       open: true,
       type,
@@ -3452,7 +3468,7 @@ function AccountingTab({
       method: defaultMethod,
       cashRegisterId: firstRegister?.id ?? "",
       paidAtUtc: nowDateTimeLocal(),
-      note: "",
+      note: movementDescription,
       movementId,
     });
   };
@@ -3871,7 +3887,13 @@ function AccountingTab({
               disabled={!canSavePaymentPlan}
               onClick={() => {
                 if (!canSavePaymentPlan || parsedPaymentPlanAmount == null) return;
-                void onCreateMovements(paymentPlanPreviewMovements);
+                const movementsToCreate = buildCoursePaymentPlanMovements(
+                  parsedPaymentPlanAmount,
+                  paymentPlanInstallmentCount,
+                  paymentPlanModal.dueDate,
+                  paymentPlanModal.customDueDates
+                );
+                void onCreateMovements(movementsToCreate);
                 setPaymentPlanModal((current) => ({ ...current, open: false }));
               }}
               type="button"
@@ -3892,7 +3914,12 @@ function AccountingTab({
               disabled={!canManagePayments}
               inputMode="decimal"
               onChange={(event) =>
-                setPaymentPlanModal((current) => ({ ...current, amount: event.target.value, previewOpen: false }))
+                setPaymentPlanModal((current) => ({
+                  ...current,
+                  amount: event.target.value,
+                  customDueDates: {},
+                  previewOpen: false,
+                }))
               }
               placeholder="0,00"
               value={paymentPlanModal.amount}
@@ -3910,6 +3937,7 @@ function AccountingTab({
                 setPaymentPlanModal((current) => ({
                   ...current,
                   installmentCount: event.target.value,
+                  customDueDates: {},
                   previewOpen: false,
                 }))
               }
@@ -3922,7 +3950,14 @@ function AccountingTab({
             <LocalizedDateInput
               className="form-input"
               disabled={!canManagePayments}
-              onChange={(dueDate) => setPaymentPlanModal((current) => ({ ...current, dueDate, previewOpen: false }))}
+              onChange={(dueDate) =>
+                setPaymentPlanModal((current) => ({
+                  ...current,
+                  dueDate,
+                  customDueDates: {},
+                  previewOpen: false,
+                }))
+              }
               value={paymentPlanModal.dueDate}
             />
           </label>
@@ -3946,7 +3981,24 @@ function AccountingTab({
                   {paymentPlanPreviewMovements.map((movement, index) => (
                     <tr key={`${movement.dueDate}:${index}`}>
                       <td>{index + 1}. Taksit</td>
-                      <td>{formatDateTR(movement.dueDate)}</td>
+                      <td>
+                        <LocalizedDateInput
+                          ariaLabel={`${index + 1}. taksit vade tarihi`}
+                          className="candidate-payment-plan-date-input"
+                          disabled={!canManagePayments}
+                          onChange={(dueDate) =>
+                            setPaymentPlanModal((current) => ({
+                              ...current,
+                              customDueDates: {
+                                ...current.customDueDates,
+                                [index]: dueDate,
+                              },
+                            }))
+                          }
+                          size="sm"
+                          value={movement.dueDate}
+                        />
+                      </td>
                       <td>{formatCurrencyTRY(movement.amount)}</td>
                     </tr>
                   ))}
@@ -4440,18 +4492,20 @@ function AccountingMovementSection({
   } | null>(null);
   const [sort, setSort] = useState<AccountingLedgerSortState>(null);
   const [filters, setFilters] = useState<AccountingLedgerFilters>(DEFAULT_ACCOUNTING_LEDGER_FILTERS);
+  const [showDeletedDebts, setShowDeletedDebts] = useState(false);
   useEffect(() => {
     const stalePrefixes = [
       "candidate-accounting-ledger-columns:",
       "candidate-accounting-ledger-columns:v2:",
       "candidate-accounting-ledger-columns:v3:",
+      "candidate-accounting-ledger-columns:v4:",
     ];
     for (const prefix of stalePrefixes) {
       localStorage.removeItem(`${prefix}${title}`);
     }
   }, [title]);
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    `candidate-accounting-ledger-columns:v4:${title}`,
+    `candidate-accounting-ledger-columns:v5:${title}`,
     ACCOUNTING_LEDGER_COLUMNS.map((column) => column.id),
     DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS
   );
@@ -4516,7 +4570,18 @@ function AccountingMovementSection({
   };
 
   const setFilter = (key: AccountingLedgerFilterKey, value: string) => {
+    if (key === "kind") {
+      setShowDeletedDebts(value !== "hideCancelled");
+    }
     setFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const toggleDeletedDebts = (checked: boolean) => {
+    setShowDeletedDebts(checked);
+    setFilters((current) => ({
+      ...current,
+      kind: checked ? "all" : "hideCancelled",
+    }));
   };
 
   const cashRegisterFilterOptions = useMemo(() => {
@@ -4537,17 +4602,22 @@ function AccountingMovementSection({
     ];
   }, [payments, refunds, t]);
 
-  const sortedMovements = useMemo(() => {
-    if (!sort) return movements;
+  const visibleMovements = useMemo(
+    () => (showDeletedDebts ? movements : movements.filter((movement) => movement.status !== "cancelled")),
+    [movements, showDeletedDebts],
+  );
 
-    return [...movements].sort((left, right) => {
+  const sortedMovements = useMemo(() => {
+    if (!sort) return visibleMovements;
+
+    return [...visibleMovements].sort((left, right) => {
       const result = compareAccountingSortValues(
         accountingMovementSortValue(left, payments, sort.field),
         accountingMovementSortValue(right, payments, sort.field)
       );
       return sort.direction === "asc" ? result : -result;
     });
-  }, [movements, payments, sort]);
+  }, [visibleMovements, payments, sort]);
 
   const hasActiveFilters = Object.entries(filters).some(
     ([key, value]) => value !== DEFAULT_ACCOUNTING_LEDGER_FILTERS[key as AccountingLedgerFilterKey]
@@ -4592,6 +4662,16 @@ function AccountingMovementSection({
               <th className="col-picker-th">
                 <ColumnPicker
                   columns={columnPickerOptions}
+                  footer={
+                    <label className="column-picker-toggle">
+                      <input
+                        checked={showDeletedDebts}
+                        onChange={(event) => toggleDeletedDebts(event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>{t("candidateDetail.accounting.showDeletedDebts")}</span>
+                    </label>
+                  }
                   isVisible={isVisible}
                   onToggle={toggleColumn}
                   triggerTitle={t("candidateDetail.accounting.columnsTriggerTitle")}
@@ -4933,6 +5013,8 @@ function accountingMovementSortValue(
       return movement.refundedAmount;
     case "paidAt":
       return movement.lastPaidAtUtc ?? "";
+    case "createdAt":
+      return movement.createdAtUtc;
     default:
       return "";
   }
@@ -5026,6 +5108,7 @@ function renderAccountingMovementCell({
   if (columnId === "paidAt") {
     return renderFinanceDateTime(movement.createdAtUtc);
   }
+  if (columnId === "createdAt") return renderFinanceDateTime(movement.createdAtUtc);
 
   if (!canPay && !canCreateInvoice && !canCancelMovement) {
     return "—";
@@ -5102,14 +5185,14 @@ function renderAccountingPaymentCell({
 
     return (
       <div className="candidate-accounting-type-cell">
-        <span>{t("candidateDetail.accounting.payment.status.paid")}</span>
+        <span>{accountingPaymentDisplayTypeLabel(movement.type)}</span>
         <span className="candidate-finance-installment-status status-paid">{t("candidateDetail.accounting.payment.status.collection")}</span>
       </div>
     );
   }
   if (columnId === "description") return payment.status === "cancelled"
     ? payment.cancellationReason || t("candidateDetail.accounting.paymentCancellation")
-    : payment.note || t("candidateDetail.accounting.payment");
+    : payment.note || "—";
   if (columnId === "dueDate") return formatDateTR(movement.dueDate);
   if (columnId === "amount") return formatCurrencyTRY(allocation.amount);
   if (columnId === "paidAmount") return payment.status === "cancelled" ? "—" : formatCurrencyTRY(allocation.amount);
@@ -5126,6 +5209,7 @@ function renderAccountingPaymentCell({
       : "—";
   }
   if (columnId === "paidAt") return renderFinanceDateTime(payment.cancelledAtUtc ?? payment.paidAtUtc);
+  if (columnId === "createdAt") return renderFinanceDateTime(payment.createdAtUtc);
 
   if (payment.status === "cancelled") return "—";
 
@@ -5193,6 +5277,7 @@ function renderAccountingRefundCell({
   if (columnId === "cashRegister") return refund.cashRegister?.name ?? payment.cashRegister?.name ?? "—";
   if (columnId === "refundedAmount") return formatCurrencyTRY(amount);
   if (columnId === "paidAt") return renderFinanceDateTime(refund.refundedAtUtc);
+  if (columnId === "createdAt") return renderFinanceDateTime(refund.createdAtUtc);
   return "—";
 }
 
@@ -7120,11 +7205,13 @@ function getDocumentMetadataDisplayValue(
 
 function buildCandidateDocumentChecklistItems({
   candidate,
+  contractFee,
   documentTypes,
   t,
   uploadsByKey,
 }: {
   candidate: CandidateResponse;
+  contractFee: number | null;
   documentTypes: DocumentTypeResponse[];
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
   uploadsByKey: Map<string, DocumentResponse>;
@@ -7192,8 +7279,8 @@ function buildCandidateDocumentChecklistItems({
     }),
     {
       label: t("candidateDetail.documents.checklistItem.contractFee"),
-      status: candidate.totalFee > 0 ? "done" : "missing",
-      value: candidate.totalFee > 0 ? formatCurrencyTRY(candidate.totalFee) : undefined,
+      status: contractFee != null && contractFee > 0 ? "done" : "missing",
+      value: contractFee != null && contractFee > 0 ? formatCurrencyTRY(contractFee) : undefined,
     },
     {
       label: t("candidateDetail.documents.checklistItem.contract"),
@@ -7463,8 +7550,14 @@ function DocumentsTab({
     const upload = uploadsByKey.get(type.key) ?? null;
     return getCandidateDocumentStatus(upload) !== "missing" && upload?.isMebbisTransferred !== true;
   });
+  const contractFee = parseMoneyInput(
+    getDocumentMetadataValue(uploadsByKey, "contract_back", "institution_mebbis_fee") ??
+      contractBackMebbisFeeDefault ??
+      ""
+  );
   const documentChecklistItems = buildCandidateDocumentChecklistItems({
     candidate,
+    contractFee,
     documentTypes,
     t,
     uploadsByKey,
@@ -9223,26 +9316,6 @@ function DocRow({
                         </option>
                       ))}
                     </CustomSelect>
-                  ) : field.key === "institution_mebbis_fee" ? (
-                    <span className="candidate-detail-doc-metadata-input-row">
-                      <input
-                        aria-label={field.label}
-                        className={error ? "form-input error" : "form-input"}
-                        disabled={!canManageDocuments}
-                        onBlur={(event) => {
-                          const next = event.target.value;
-                          if (next === (upload?.metadata?.[field.key] ?? "")) return;
-                          void handleSaveMetadata({ ...metadataValues, [field.key]: next });
-                        }}
-                        onChange={(event) => setMetadataValue(field.key, event.target.value)}
-                        placeholder={field.placeholder ?? ""}
-                        type="text"
-                        value={value}
-                      />
-                      <span className="candidate-detail-doc-metadata-input-arrow" aria-hidden="true">
-                        →
-                      </span>
-                    </span>
                   ) : (
                     <input
                       aria-label={field.label}

@@ -1136,6 +1136,11 @@ type CandidatesPageProps = {
   columnStorageKey?: string;
   defaultVisibleColumnIds?: CandidateColumnId[];
   columnLabelOverrides?: Partial<Record<CandidateColumnId, string>>;
+  showCreateCandidateAction?: boolean;
+  showBulkGroupAction?: boolean;
+  showBulkStatusAction?: boolean;
+  showBulkPracticeTrainingAction?: boolean;
+  showFiltersAction?: boolean;
   showTabs?: boolean;
   defaultTab?: CandidateTab;
   groupColumnMode?: "group" | "term";
@@ -1152,6 +1157,11 @@ export function CandidatesPage({
   columnStorageKey = "candidates.columns.v18",
   defaultVisibleColumnIds: defaultVisibleColumnIdsProp,
   columnLabelOverrides,
+  showCreateCandidateAction = true,
+  showBulkGroupAction = true,
+  showBulkStatusAction = true,
+  showBulkPracticeTrainingAction = true,
+  showFiltersAction = true,
   showTabs = true,
   defaultTab = DEFAULT_TAB,
   groupColumnMode = "group",
@@ -1267,7 +1277,7 @@ export function CandidatesPage({
   const [deletingExamCodeId, setDeletingExamCodeId] = useState<string | null>(null);
   const [editingExamCodeId, setEditingExamCodeId] = useState<string | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
-  const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
+  const [bulkSelectEnabled, setBulkSelectEnabled] = useState(true);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
@@ -2796,203 +2806,237 @@ export function CandidatesPage({
       <PageToolbar
         actions={
           bulkSelectEnabled ? (
-            <div className="candidate-bulk-toolbar">
-              {selectedCount > 0 ? (
-                <span className="candidate-bulk-count">{t("candidates.selectedCount", { count: selectedCount })}</span>
-              ) : null}
-              {bulkActionMode === "status" ? (
-                <>
-                  <CustomSelect
-                    aria-label={t("candidates.aria.bulkStatusSelect")}
-                    onChange={(event) =>
-                      setBulkStatusValue(event.target.value as "" | CandidateStatusValue)
-                    }
-                    size="sm"
-                    value={bulkStatusValue}
-                  >
-                    <option value="">{t("candidates.bulk.statusPlaceholder")}</option>
-                    {visibleBulkStatusOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </CustomSelect>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkStatusValue || bulkSaving || !canManageCandidates}
-                    onClick={applyBulkStatusChange}
-                    title={!canManageCandidates ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {bulkSaving ? t("candidates.bulk.applying") : t("candidates.bulk.apply")}
-                  </button>
-                </>
-              ) : bulkActionMode === "tags" ? (
-                <>
-                  <CandidateTagsInput
-                    ariaLabel={t("candidates.aria.bulkTagSelect")}
-                    className="candidate-bulk-tags-input"
-                    onChange={setBulkTagValues}
-                    placeholder={t("candidates.bulk.tagSearchPlaceholder")}
-                    value={bulkTagValues}
+            <>
+              {showFiltersAction ? (
+                <label className="switch-toggle cand-filters-switch">
+                  <input
+                    aria-controls="cand-filters-panel"
+                    aria-label={t("candidates.filters.button")}
+                    checked={filtersOpen}
+                    onChange={(event) => setFiltersOpen(event.target.checked)}
+                    type="checkbox"
                   />
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || bulkTagValues.length === 0 || bulkSaving || !canManageCandidates}
-                    onClick={applyBulkTagChange}
-                    title={!canManageCandidates ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
-                  </button>
-                </>
-              ) : bulkActionMode === "export" ? (
-                <button
-                  className="btn btn-primary btn-sm"
-                  disabled={selectedCount === 0 || bulkExporting}
-                  onClick={downloadSelectedCandidatesCsv}
-                  type="button"
-                >
-                  {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
-                </button>
-              ) : bulkActionMode === "examDate" ? (
-                <>
-                  <CustomSelect
-                    aria-label={t("candidates.aria.bulkExamDateSelect")}
-                    onChange={(event) => setBulkExamDateValue(event.target.value)}
-                    size="sm"
-                    value={bulkExamDateValue}
-                  >
-                    <option value="">{t("candidates.bulk.datePlaceholder")}</option>
-                    {displayedExamDateOptions.map((option) => (
-                      <option data-secondary={option.examCode ?? undefined} key={option.id} value={option.id}>
-                        {formatBulkExamDateOptionLabel(option, examDateSidebar?.showTime)}
-                      </option>
-                    ))}
-                  </CustomSelect>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkExamDateValue || bulkSaving || !canManageCandidates}
-                    onClick={applyBulkExamDateChange}
-                    title={!canManageCandidates ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
-                  </button>
-                </>
-              ) : bulkActionMode === "group" ? (
-                <>
-                  <CustomSelect
-                    aria-label={t("candidates.aria.bulkGroupSelect")}
-                    disabled={bulkGroupLoading}
-                    onChange={(event) => setBulkGroupId(event.target.value)}
-                    size="sm"
-                    value={bulkGroupId}
-                  >
-                    <option value="">
-                      {bulkGroupLoading
-                        ? t("candidates.bulk.loadingGroups")
-                        : t("candidates.bulk.groupPlaceholder")}
-                    </option>
-                    {bulkGroupOptions.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {buildGroupHeading(group.title, group.term, [group.term], lang)}
-                      </option>
-                    ))}
-                  </CustomSelect>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || !bulkGroupId || bulkSaving || !canManageGroups}
-                    onClick={applyBulkGroupChange}
-                    title={!canManageGroups ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {examDateSidebar ? (
+                  <span className="switch-toggle-control" aria-hidden="true" />
+                  <span>{t("candidates.filters.button")}</span>
+                  {activeFilterCount > 0 && !filtersOpen && (
+                    <span className="cand-filters-badge">{activeFilterCount}</span>
+                  )}
+                </label>
+              ) : null}
+              <div className="candidate-bulk-toolbar">
+                {selectedCount > 0 ? (
+                  <span className="candidate-bulk-count">{t("candidates.selectedCount", { count: selectedCount })}</span>
+                ) : null}
+                {bulkActionMode === "status" ? (
+                  <>
+                    <CustomSelect
+                      aria-label={t("candidates.aria.bulkStatusSelect")}
+                      onChange={(event) =>
+                        setBulkStatusValue(event.target.value as "" | CandidateStatusValue)
+                      }
+                      size="sm"
+                      value={bulkStatusValue}
+                    >
+                      <option value="">{t("candidates.bulk.statusPlaceholder")}</option>
+                      {visibleBulkStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </CustomSelect>
                     <button
-                      className="btn btn-secondary btn-sm"
-                      disabled={!canManageCandidates}
-                      onClick={openBulkExamDateAction}
+                      className="btn btn-primary btn-sm"
+                      disabled={selectedCount === 0 || !bulkStatusValue || bulkSaving || !canManageCandidates}
+                      onClick={applyBulkStatusChange}
                       title={!canManageCandidates ? noPermissionTitle : undefined}
                       type="button"
                     >
-                      {t("candidates.bulk.setExamDate")}
+                      {bulkSaving ? t("candidates.bulk.applying") : t("candidates.bulk.apply")}
                     </button>
-                  ) : null}
+                  </>
+                ) : bulkActionMode === "tags" ? (
+                  <>
+                    <CandidateTagsInput
+                      ariaLabel={t("candidates.aria.bulkTagSelect")}
+                      className="candidate-bulk-tags-input"
+                      onChange={setBulkTagValues}
+                      placeholder={t("candidates.bulk.tagSearchPlaceholder")}
+                      value={bulkTagValues}
+                    />
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={selectedCount === 0 || bulkTagValues.length === 0 || bulkSaving || !canManageCandidates}
+                      onClick={applyBulkTagChange}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
+                      type="button"
+                    >
+                      {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
+                    </button>
+                  </>
+                ) : bulkActionMode === "export" ? (
                   <button
-                    className="btn btn-secondary btn-sm"
-                    disabled={!canManageGroups}
-                    onClick={openBulkGroupAction}
-                    title={!canManageGroups ? noPermissionTitle : undefined}
+                    className="btn btn-primary btn-sm"
+                    disabled={selectedCount === 0 || bulkExporting}
+                    onClick={downloadSelectedCandidatesCsv}
                     type="button"
                   >
-                    {t("candidates.bulk.assignGroup")}
+                    {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
                   </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    disabled={!canManageCandidates}
-                    onClick={openBulkTagAction}
-                    title={!canManageCandidates ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {t("candidates.bulk.addTag")}
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    disabled={!canManageCandidates}
-                    onClick={openBulkStatusAction}
-                    title={!canManageCandidates ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {t("candidates.bulk.changeStatus")}
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    disabled={!canManageCandidates}
-                    onClick={openPracticeTrainingForSelected}
-                    title={!canManageCandidates ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {t("candidates.bulk.practiceTraining")}
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={openBulkExportAction}
-                    type="button"
-                  >
-                    <DownloadIcon size={14} />
-                    {t("candidates.bulk.export")}
-                  </button>
-                </>
-              )}
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={toggleBulkSelection}
-                type="button"
-              >
-                {t("candidates.bulk.close")}
-              </button>
-            </div>
+                ) : bulkActionMode === "examDate" ? (
+                  <>
+                    <CustomSelect
+                      aria-label={t("candidates.aria.bulkExamDateSelect")}
+                      onChange={(event) => setBulkExamDateValue(event.target.value)}
+                      size="sm"
+                      value={bulkExamDateValue}
+                    >
+                      <option value="">{t("candidates.bulk.datePlaceholder")}</option>
+                      {displayedExamDateOptions.map((option) => (
+                        <option data-secondary={option.examCode ?? undefined} key={option.id} value={option.id}>
+                          {formatBulkExamDateOptionLabel(option, examDateSidebar?.showTime)}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={selectedCount === 0 || !bulkExamDateValue || bulkSaving || !canManageCandidates}
+                      onClick={applyBulkExamDateChange}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
+                      type="button"
+                    >
+                      {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
+                    </button>
+                  </>
+                ) : bulkActionMode === "group" ? (
+                  <>
+                    <CustomSelect
+                      aria-label={t("candidates.aria.bulkGroupSelect")}
+                      disabled={bulkGroupLoading}
+                      onChange={(event) => setBulkGroupId(event.target.value)}
+                      size="sm"
+                      value={bulkGroupId}
+                    >
+                      <option value="">
+                        {bulkGroupLoading
+                          ? t("candidates.bulk.loadingGroups")
+                          : t("candidates.bulk.groupPlaceholder")}
+                      </option>
+                      {bulkGroupOptions.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {buildGroupHeading(group.title, group.term, [group.term], lang)}
+                        </option>
+                      ))}
+                    </CustomSelect>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={selectedCount === 0 || !bulkGroupId || bulkSaving || !canManageGroups}
+                      onClick={applyBulkGroupChange}
+                      title={!canManageGroups ? noPermissionTitle : undefined}
+                      type="button"
+                    >
+                      {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {examDateSidebar ? (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={!canManageCandidates}
+                        onClick={openBulkExamDateAction}
+                        title={!canManageCandidates ? noPermissionTitle : undefined}
+                        type="button"
+                      >
+                        {t("candidates.bulk.setExamDate")}
+                      </button>
+                    ) : null}
+                    {showBulkGroupAction ? (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={!canManageGroups}
+                        onClick={openBulkGroupAction}
+                        title={!canManageGroups ? noPermissionTitle : undefined}
+                        type="button"
+                      >
+                        {t("candidates.bulk.assignGroup")}
+                      </button>
+                    ) : null}
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={!canManageCandidates}
+                      onClick={openBulkTagAction}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
+                      type="button"
+                    >
+                      {t("candidates.bulk.addTag")}
+                    </button>
+                    {showBulkStatusAction ? (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={!canManageCandidates}
+                        onClick={openBulkStatusAction}
+                        title={!canManageCandidates ? noPermissionTitle : undefined}
+                        type="button"
+                      >
+                        {t("candidates.bulk.changeStatus")}
+                      </button>
+                    ) : null}
+                    {showBulkPracticeTrainingAction ? (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={!canManageCandidates}
+                        onClick={openPracticeTrainingForSelected}
+                        title={!canManageCandidates ? noPermissionTitle : undefined}
+                        type="button"
+                      >
+                        {t("candidates.bulk.practiceTraining")}
+                      </button>
+                    ) : null}
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={openBulkExportAction}
+                      type="button"
+                    >
+                      <DownloadIcon size={14} />
+                      {t("candidates.bulk.export")}
+                    </button>
+                  </>
+                )}
+              </div>
+              {showCreateCandidateAction ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={!canManageCandidates}
+                  onClick={() => {
+                    if (!canManageCandidates) return;
+                    setModalOpen(true);
+                  }}
+                  title={!canManageCandidates ? noPermissionTitle : undefined}
+                  type="button"
+                >
+                  <PlusIcon size={14} />
+                  {t("candidates.newCandidate")}
+                </button>
+              ) : null}
+            </>
           ) : (
             <>
-              <label className="switch-toggle cand-filters-switch">
-                <input
-                  aria-controls="cand-filters-panel"
-                  aria-label={t("candidates.filters.button")}
-                  checked={filtersOpen}
-                  onChange={(event) => setFiltersOpen(event.target.checked)}
-                  type="checkbox"
-                />
-                <span className="switch-toggle-control" aria-hidden="true" />
-                <span>{t("candidates.filters.button")}</span>
-                {activeFilterCount > 0 && !filtersOpen && (
-                  <span className="cand-filters-badge">{activeFilterCount}</span>
-                )}
-              </label>
+              {showFiltersAction ? (
+                <label className="switch-toggle cand-filters-switch">
+                  <input
+                    aria-controls="cand-filters-panel"
+                    aria-label={t("candidates.filters.button")}
+                    checked={filtersOpen}
+                    onChange={(event) => setFiltersOpen(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span className="switch-toggle-control" aria-hidden="true" />
+                  <span>{t("candidates.filters.button")}</span>
+                  {activeFilterCount > 0 && !filtersOpen && (
+                    <span className="cand-filters-badge">{activeFilterCount}</span>
+                  )}
+                </label>
+              ) : null}
               <button
                 aria-pressed={bulkSelectEnabled}
                 className="btn btn-secondary btn-sm"
@@ -3001,34 +3045,38 @@ export function CandidatesPage({
               >
                 Toplu Seçim
               </button>
-              <button
-                className="btn btn-primary btn-sm"
-                disabled={!canManageCandidates}
-                onClick={() => {
-                  if (!canManageCandidates) return;
-                  setModalOpen(true);
-                }}
-                title={!canManageCandidates ? noPermissionTitle : undefined}
-                type="button"
-              >
-                <PlusIcon size={14} />
-                {t("candidates.newCandidate")}
-              </button>
+              {showCreateCandidateAction ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={!canManageCandidates}
+                  onClick={() => {
+                    if (!canManageCandidates) return;
+                    setModalOpen(true);
+                  }}
+                  title={!canManageCandidates ? noPermissionTitle : undefined}
+                  type="button"
+                >
+                  <PlusIcon size={14} />
+                  {t("candidates.newCandidate")}
+                </button>
+              ) : null}
             </>
           )
         }
         title={title ?? t("candidates.headerTitleDefault")}
       />
 
-      <CandidateFilterPanel
-        activeFilterCount={activeFilterCount}
-        filters={filters}
-        hasAnyActiveFilter={activeFilterCount > 0 || activeTags.length > 0}
-        onChange={handleFilterChange}
-        onClearAll={clearAllFilters}
-        onClose={() => setFiltersOpen(false)}
-        open={filtersOpen}
-      />
+      {showFiltersAction ? (
+        <CandidateFilterPanel
+          activeFilterCount={activeFilterCount}
+          filters={filters}
+          hasAnyActiveFilter={activeFilterCount > 0 || activeTags.length > 0}
+          onChange={handleFilterChange}
+          onClearAll={clearAllFilters}
+          onClose={() => setFiltersOpen(false)}
+          open={filtersOpen}
+        />
+      ) : null}
       {examDateSidebar ? (
         <div className="candidates-layout">
           <CandidateExamDateSidebar
@@ -3093,12 +3141,14 @@ export function CandidatesPage({
         onUpdated={() => refreshAll()}
       />
 
-      <NewCandidateModal
-        canManage={canManageCandidates}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSubmitNew}
-        open={modalOpen}
-      />
+      {showCreateCandidateAction ? (
+        <NewCandidateModal
+          canManage={canManageCandidates}
+          onClose={() => setModalOpen(false)}
+          onSubmit={handleSubmitNew}
+          open={modalOpen}
+        />
+      ) : null}
       <CandidateTagManagerModal
         canManage={canManageCandidates}
         onClose={() => setTagManagerOpen(false)}
