@@ -6,6 +6,8 @@ import { NotificationListSkeleton } from "../components/ui/Skeleton";
 import { useT } from "../lib/i18n";
 import { getNotifications, notificationTone } from "../lib/notifications-api";
 
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
 export function NotificationsPage() {
   const t = useT();
   const navigate = useNavigate();
@@ -13,6 +15,7 @@ export function NotificationsPage() {
   const notificationsQuery = useQuery({
     queryKey: ["notifications", "list"],
     queryFn: ({ signal }) => getNotifications(signal),
+    refetchInterval: REFRESH_INTERVAL_MS,
   });
   const items = notificationsQuery.data?.items ?? [];
   const loading = notificationsQuery.isLoading;

@@ -20,6 +20,7 @@ import {
   createCashTransfer,
   getPaymentsOverview,
 } from "../lib/payments-api";
+import { candidateKeys } from "../lib/queries/use-candidates";
 import { useAuth } from "../lib/auth";
 import { canManageArea } from "../lib/permissions";
 import { formatDateTR } from "../lib/status-maps";
@@ -225,7 +226,6 @@ const COLLECTION_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
   { key: "all", labelKey: "payments.detailTab.all" },
   { key: "payment", labelKey: "payments.detailTab.payment" },
   { key: "refund", labelKey: "payments.detailTab.refund" },
-  { key: "cancelled", labelKey: "payments.detailTab.cancelled" },
 ];
 
 const FINANCE_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
@@ -1332,9 +1332,18 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     isError: loadError,
   } = useQuery({
     queryKey: ["payments", "overview", overviewQueryParams],
-    queryFn: () => getPaymentsOverview(overviewQueryParams),
+    queryFn: ({ signal }) => getPaymentsOverview(overviewQueryParams, signal),
     staleTime: 0,
   });
+
+  const invalidateFinanceData = () => {
+    void queryClient.invalidateQueries({ queryKey: ["payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const filteredPayments = useMemo(() => {
     if (!overview) return [];
@@ -1394,31 +1403,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       );
     }
 
-    if (detailTab === "all" || detailTab === "cancelled") {
-      rows.push(
-        ...(overview.payments ?? [])
-          .filter(
-            (payment) =>
-              payment.status === "cancelled" &&
-              isActivePaymentCandidate(payment.candidate) &&
-              Boolean(payment.cancelledAtUtc) &&
-              isInDateRange(
-                payment.cancelledAtUtc ?? payment.paidAtUtc,
-                fromDate,
-                toDate,
-              ),
-          )
-          .map((payment) => ({
-            kind: "cancelled" as const,
-            id: payment.id,
-            payment,
-            date: payment.cancelledAtUtc ?? payment.paidAtUtc,
-            amount: payment.amount,
-          })),
-      );
-    }
-
-    if (detailTab === "all" || detailTab === "cancelled" || detailTab === "cancelledDebt") {
+    if (detailTab === "cancelledDebt") {
       rows.push(
         ...(overview.installments ?? [])
           .filter(
@@ -2444,7 +2429,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         });
       }
       setCashActionMode(null);
-      void queryClient.invalidateQueries({ queryKey: ["payments"] });
+      invalidateFinanceData();
       showToast("Kasa hareketi kaydedildi");
     } catch {
       showToast("Kasa hareketi kaydedilemedi", "error");

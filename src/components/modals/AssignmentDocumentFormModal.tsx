@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { addAssignmentDocument } from "../../lib/instructor-assignments-api";
 import { useT } from "../../lib/i18n";
@@ -23,6 +24,7 @@ export function AssignmentDocumentFormModal({
   onClose,
   onSaved,
 }: Props) {
+  const queryClient = useQueryClient();
   const t = useT();
   const { showToast } = useToast();
   const noPermissionTitle = t("common.noPermission");
@@ -34,6 +36,17 @@ export function AssignmentDocumentFormModal({
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const invalidateAssignmentDocumentDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["instructorAssignments", instructorId] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail", instructorId] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +75,7 @@ export function AssignmentDocumentFormModal({
         description: description.trim() || null,
         file,
       });
+      invalidateAssignmentDocumentDependents();
       showToast(t("settings.instructors.detail.assignments.documents.toasts.added"));
       onSaved(saved);
     } catch {

@@ -269,7 +269,7 @@ function findScheduleAttempt(
     ?? attempts.find((attempt) =>
       attempt.examType === examType &&
       !attempt.examScheduleId &&
-      attempt.scheduledAt.slice(0, 10) === examDate
+      applicationDateOnly(attempt.scheduledAt) === examDate
     )
     ?? latestOpenExamAttempt(attempts, examType);
 }
@@ -311,5 +311,19 @@ function compareCandidateExamAttemptRecency(
 
 function examDateTimeUtc(examDate: string, examTime?: string | null): string {
   const time = examTime && /^\d{1,2}:\d{2}$/.test(examTime) ? examTime : "09:00";
-  return `${examDate}T${time.padStart(5, "0")}:00.000Z`;
+  return new Date(`${examDate}T${time.padStart(5, "0")}:00+03:00`).toISOString();
+}
+
+function applicationDateOnly(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }

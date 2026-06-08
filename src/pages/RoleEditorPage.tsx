@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
+import { updateStoredActiveInstitutionRoleName } from "../lib/auth-storage";
 import { ApiError } from "../lib/http";
 import { canManageArea } from "../lib/permissions";
 import { createRole, getRoles, updateRole } from "../lib/roles-api";
@@ -36,7 +37,8 @@ export function RoleEditorPage() {
   const location = useLocation();
   const { roleId } = useParams();
   const { showToast } = useToast();
-  const { user, permissions } = useAuth();
+  const queryClient = useQueryClient();
+  const { user, permissions, activeInstitution } = useAuth();
   const canManagePermissions = canManageArea(user, permissions, "permissions");
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -107,6 +109,14 @@ export function RoleEditorPage() {
         ? await updateRole(editingRole.id, payload)
         : await createRole(payload);
 
+      void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["rolePermissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      if (editingRole && activeInstitution?.roleName === editingRole.name) {
+        updateStoredActiveInstitutionRoleName(editingRole.name, saved.name);
+      }
       showToast(t(editingRole ? "roleEditor.toast.roleUpdated" : "roleEditor.toast.roleCreated"));
       navigate(buildPermissionsPath(saved.id));
     } catch (error) {

@@ -64,7 +64,7 @@ export function InstructorDetailPage() {
   });
   const assignmentsQuery = useQuery({
     queryKey: ["instructorAssignments", instructorId],
-    queryFn: () => listAssignments(instructorId as string),
+    queryFn: ({ signal }) => listAssignments(instructorId as string, signal),
     enabled: Boolean(instructorId),
   });
   const branchesQuery = useQuery({
@@ -124,7 +124,13 @@ export function InstructorDetailPage() {
     // assignment'tan flatten edildiği için atama değişince beraber yenile.
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["instructorAssignments", instructorId] }),
+      queryClient.invalidateQueries({ queryKey: ["instructors", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] }),
       queryClient.invalidateQueries({ queryKey: ["instructors", "detail", instructorId] }),
+      queryClient.invalidateQueries({ queryKey: ["training", "instructors"] }),
+      queryClient.invalidateQueries({ queryKey: ["training", "lessons"] }),
+      queryClient.invalidateQueries({ queryKey: ["notifications", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
     ]);
   };
 
@@ -189,6 +195,12 @@ export function InstructorDetailPage() {
         rowVersion: instructor.rowVersion,
       });
       queryClient.setQueryData(["instructors", "detail", instructorId], updated);
+      void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+      void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+      void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setLeaveModalOpen(false);
       showToast(t("instructorDetail.toast.leftSaved"));
     } catch {
@@ -205,6 +217,12 @@ export function InstructorDetailPage() {
     try {
       const updated = await clearInstructorLeft(instructorId);
       queryClient.setQueryData(["instructors", "detail", instructorId], updated);
+      void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+      void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+      void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("instructorDetail.toast.activated"));
     } catch {
       showToast(t("instructorDetail.toast.activateFailed"), "error");

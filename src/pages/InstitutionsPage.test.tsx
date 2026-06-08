@@ -84,7 +84,8 @@ describe("InstitutionsPage", () => {
 
     await waitFor(() => {
       expect(getInstitutionsMock).toHaveBeenCalledWith(
-        { includeInactive: false }
+        { includeInactive: false },
+        expect.any(AbortSignal)
       );
     });
 

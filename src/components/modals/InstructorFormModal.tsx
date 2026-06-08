@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,6 +14,7 @@ import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { isPhoneStartingWith5 } from "../../lib/phone";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type {
   InstructorCreateRequest,
   InstructorResponse,
@@ -124,6 +126,7 @@ export function InstructorFormModal({
   onSaved,
   onConcurrencyConflict,
 }: InstructorFormModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -139,6 +142,20 @@ export function InstructorFormModal({
   const emailId = useId();
   const notesId = useId();
   const { options: licenseClassOptions } = useLicenseClassOptions();
+
+  const invalidateInstructorDependents = (instructorId?: string) => {
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+    if (instructorId) {
+      void queryClient.invalidateQueries({ queryKey: ["instructors", "detail", instructorId] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     control,
@@ -203,6 +220,7 @@ export function InstructorFormModal({
       const saved = editing
         ? await updateInstructor(editing.id, payload)
         : await createInstructor(createPayload);
+      invalidateInstructorDependents(saved.id);
       onSaved(saved);
     } catch (error) {
       if (error instanceof ApiError) {
@@ -238,6 +256,7 @@ export function InstructorFormModal({
     try {
       const updated = await uploadInstructorPhoto(photoInstructor.id, file);
       setPhotoInstructor(updated);
+      invalidateInstructorDependents(updated.id);
       onSaved(updated);
     } catch {
       showToast(t("instructorForm.toast.photoUploadFailed"), "error");
@@ -253,6 +272,7 @@ export function InstructorFormModal({
     try {
       const updated = await deleteInstructorPhoto(photoInstructor.id);
       setPhotoInstructor(updated);
+      invalidateInstructorDependents(updated.id);
       onSaved(updated);
     } catch {
       showToast("Resim silinemedi", "error");

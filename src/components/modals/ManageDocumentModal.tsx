@@ -6,6 +6,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,6 +27,7 @@ import {
 import { ApiError } from "../../lib/http";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import { formatDateTR } from "../../lib/status-maps";
 import type {
   DocumentMetadataField,
@@ -226,6 +228,7 @@ export function ManageDocumentModal({
   onClose,
   onSaved,
 }: ManageDocumentModalProps) {
+  const queryClient = useQueryClient();
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -264,6 +267,23 @@ export function ManageDocumentModal({
     "mebbis" | "delete" | "download" | "print" | null
   >(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const invalidateDocumentMutationDependents = () => {
+    if (candidateId) {
+      void queryClient.invalidateQueries({
+        queryKey: ["candidates", "documents", candidateId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: candidateKeys.detail(candidateId),
+      });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     formState: { errors },
@@ -621,6 +641,7 @@ export function ManageDocumentModal({
         });
       }
 
+      invalidateDocumentMutationDependents();
       onSaved();
     } catch (error) {
       // Apply note field errors via applyApiErrorsToForm
@@ -684,6 +705,7 @@ export function ManageDocumentModal({
         activeDocumentType.id,
         !isMebbisTransferred
       );
+      invalidateDocumentMutationDependents();
       onSaved();
     } catch {
       showToast(t("documents.manage.mebbisFailed"), "error");
@@ -699,6 +721,7 @@ export function ManageDocumentModal({
     setActionPending("delete");
     try {
       await deleteCandidateDocument(candidateId, document.id);
+      invalidateDocumentMutationDependents();
       onSaved();
     } catch {
       showToast(t("documents.manage.deleteFailed"), "error");

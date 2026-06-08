@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Controller, type Path, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,6 +11,7 @@ import {
 } from "../../lib/license-class-definitions-api";
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import { existingLicenseTypeLabel } from "../../lib/status-maps";
 import { useExistingLicenseTypeOptions } from "../../lib/use-license-class-options";
 import type {
@@ -128,6 +130,7 @@ export function LicenseClassDefinitionFormModal({
   onSaved,
   onConcurrencyConflict,
 }: LicenseClassDefinitionFormModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -136,6 +139,22 @@ export function LicenseClassDefinitionFormModal({
   const nameInputId = useId();
   const minimumAgeId = useId();
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions(open);
+
+  const invalidateLicenseClassDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["licenseClassDefinitions"] });
+    void queryClient.invalidateQueries({ queryKey: ["settings", "license-class-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: ["finance", "license-class-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidate-detail", "exam-attempt-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidate-detail", "contract-back-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["training", "vehicles"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     control,
@@ -191,6 +210,7 @@ export function LicenseClassDefinitionFormModal({
       const saved = editing
         ? await updateLicenseClassDefinition(editing.id, payload)
         : await createLicenseClassDefinition(payload);
+      invalidateLicenseClassDependents();
       onSaved(saved);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409 && hasConcurrencyError(error.validationErrorCodes)) {

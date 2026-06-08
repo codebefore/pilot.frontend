@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   assignCandidateGroup,
@@ -15,6 +16,8 @@ import { ApiError } from "../../lib/http";
 import { getGroupValidationToastMessage } from "../../lib/group-validation";
 import { useLanguage, useT } from "../../lib/i18n";
 import { formatNationalId } from "../../lib/national-id";
+import { candidateKeys } from "../../lib/queries/use-candidates";
+import { groupKeys } from "../../lib/queries/use-groups";
 import { normalizeTextQuery } from "../../lib/search";
 import {
   formatDateTR,
@@ -34,7 +37,6 @@ import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { PageLoadError } from "../ui/PageLoadError";
 import { CustomSelect } from "../ui/CustomSelect";
 import { EditableRow } from "../ui/EditableRow";
-import { Modal } from "../ui/Modal";
 import { PanelListSkeleton } from "../ui/Skeleton";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
@@ -49,6 +51,7 @@ type GroupDrawerProps = {
 
 export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -71,6 +74,19 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   } | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mebStatusConfirmResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
+
+  const invalidateGroupDrawerDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   useEffect(() => {
     if (!groupId) {
@@ -141,6 +157,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    const controller = new AbortController();
     const normalizedSearchQuery = normalizeTextQuery(searchQuery);
     if (!normalizedSearchQuery) {
       setSearchResults([]);
@@ -150,21 +167,27 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     searchTimerRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const result = await getCandidates({ search: normalizedSearchQuery, pageSize: 20 });
+        const result = await getCandidates(
+          { search: normalizedSearchQuery, pageSize: 20 },
+          controller.signal
+        );
         const activeCandidateIds = new Set(group?.activeCandidates.map((c) => c.candidateId) ?? []);
         setSearchResults(
           result.items
             .filter((c) => !activeCandidateIds.has(c.id))
             .map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, nationalId: c.nationalId }))
         );
-      } catch {
-        /* ignore */
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setSearchResults([]);
+        }
       } finally {
-        setSearchLoading(false);
+        if (!controller.signal.aborted) setSearchLoading(false);
       }
     }, 300);
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      controller.abort();
     };
   }, [searchQuery, group]);
 
@@ -172,6 +195,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     if (!groupId) return;
     const updated = await getGroupById(groupId);
     setGroup(updated);
+    invalidateGroupDrawerDependents();
     onUpdated?.();
   };
 
@@ -209,6 +233,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
         ...patch,
       });
       setGroup({ ...updated, activeCandidates: group.activeCandidates });
+      invalidateGroupDrawerDependents();
       onUpdated?.();
     } catch (error) {
       // 409 on RowVersion means someone else updated this group while the
@@ -269,6 +294,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     try {
       await deleteGroup(groupId);
       showToast(t("groupDrawer.toast.groupDeleted"));
+      invalidateGroupDrawerDependents();
       onDeleted?.();
     } catch (error) {
       if (error instanceof ApiError) {
@@ -494,31 +520,36 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
         />
       ) : null}
     </Drawer>
-    <Modal
-      footer={
-        <>
+    {mebStatusConfirm !== null ? (
+      <div
+        aria-labelledby="group-meb-confirm-title"
+        className="group-meb-confirm-popover"
+        role="alertdialog"
+      >
+        <div className="group-meb-confirm-title" id="group-meb-confirm-title">
+          {t("groupDrawer.confirm.mebStatusSentTitle")}
+        </div>
+        <p className="group-meb-confirm-message">
+          {t("groupDrawer.confirm.mebStatusSentActivatesCandidates")}
+        </p>
+        <div className="group-meb-confirm-actions">
           <button
-            className="btn btn-secondary"
+            className="btn btn-secondary btn-sm"
             onClick={() => closeMebStatusConfirm(false)}
             type="button"
           >
             {t("common.cancel")}
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             onClick={() => closeMebStatusConfirm(true)}
             type="button"
           >
             {t("groupDrawer.confirm.activateCandidates")}
           </button>
-        </>
-      }
-      onClose={() => closeMebStatusConfirm(false)}
-      open={mebStatusConfirm !== null}
-      title={t("groupDrawer.confirm.mebStatusSentTitle")}
-    >
-      <p>{t("groupDrawer.confirm.mebStatusSentActivatesCandidates")}</p>
-    </Modal>
+        </div>
+      </div>
+    ) : null}
     </>
   );
 }

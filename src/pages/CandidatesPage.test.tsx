@@ -37,7 +37,7 @@ vi.mock("../lib/candidates-api", async () => {
   return {
     ...actual,
     getCandidates: (...args: Parameters<typeof actual.getCandidates>) =>
-      getCandidatesMock(...args),
+      getCandidatesMock(args[0]),
     getCandidateById: (...args: Parameters<typeof actual.getCandidateById>) =>
       getCandidateByIdMock(...args),
     createCandidate: vi.fn(),
@@ -559,7 +559,6 @@ describe("CandidatesPage tabs", () => {
           examScheduleOption("2026-05-22", { candidateCount: 2 }),
           examScheduleOption("2026-05-20", { candidateCount: 1 }),
         ]}
-        selectedDate=""
         title="E-Sınav Tarihi"
       />
     );
@@ -589,7 +588,6 @@ describe("CandidatesPage tabs", () => {
         onEdit={onEdit}
         onSelect={vi.fn()}
         options={[examScheduleOption("2026-05-25", { candidateCount: 3 })]}
-        selectedDate=""
         title="E-Sınav Tarihi"
       />
     );
@@ -619,7 +617,6 @@ describe("CandidatesPage tabs", () => {
         onEdit={onEdit}
         onSelect={vi.fn()}
         options={[examScheduleOption("2026-06-13", { time: "09:05", candidateCount: 1 })]}
-        selectedDate=""
         title="E-Sınav Tarihi"
       />
     );
@@ -638,7 +635,7 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("moves e-sinav from havuz to randevulu when a date is selected", async () => {
+  it("filters e-sinav by date without applying a tab filter", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-06-12", { candidateCount: 3 }),
     ]);
@@ -652,13 +649,15 @@ describe("CandidatesPage tabs", () => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
           status: "active",
-          eSinavTab: "randevulu",
           eSinavDate: "2026-06-12",
+          eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
           pageSize: 10,
         })
       );
     });
+    const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
+    expect(lastCall?.[0].eSinavTab).toBeUndefined();
   });
 
   it("keeps the current e-sinav tab when a past exam date is selected", async () => {
@@ -676,6 +675,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           status: "active",
           eSinavDate: "2026-05-12",
+          eSinavScheduleId: "e_sinav-2026-05-12",
           page: 1,
           pageSize: 10,
         })
@@ -747,13 +747,15 @@ describe("CandidatesPage tabs", () => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
           status: "active",
-          drivingExamTab: "randevulu",
           drivingExamDate: "2026-06-13",
+          drivingExamScheduleId: "uygulama-2026-06-13",
           page: 1,
           pageSize: 10,
         })
       );
     });
+    const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
+    expect(lastCall?.[0].drivingExamTab).toBeUndefined();
     expect(getExamScheduleOptionsMock).toHaveBeenCalledTimes(scheduleOptionCallCount);
   });
 
@@ -1963,7 +1965,7 @@ describe("CandidatesPage tabs", () => {
       id: "attempt-1",
       candidateId: "cand-1",
       examType: "theory",
-      scheduledAt: "2026-06-12T09:00:00.000Z",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
       attemptNumber: 1,
       score: null,
       expiresAt: null,
@@ -2016,7 +2018,7 @@ describe("CandidatesPage tabs", () => {
       "cand-1",
       expect.objectContaining({
         examType: "theory",
-        scheduledAt: "2026-06-12T09:00:00.000Z",
+        scheduledAt: "2026-06-12T06:00:00.000Z",
         examScheduleId: "e_sinav-2026-06-12",
       })
     );
@@ -2076,7 +2078,7 @@ describe("CandidatesPage tabs", () => {
       id: "attempt-1",
       candidateId: "cand-1",
       examType: "theory",
-      scheduledAt: "2026-06-12T09:00:00.000Z",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
       attemptNumber: 1,
       score: null,
       expiresAt: null,

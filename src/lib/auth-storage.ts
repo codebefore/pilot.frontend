@@ -97,6 +97,101 @@ export function updateStoredInstitutionName(institutionId: string, name: string)
   return nextSession;
 }
 
+export function updateStoredUserProfile(
+  userId: string,
+  profile: {
+    name?: string | null;
+    phone?: string | null;
+    roleName?: string | null;
+    isSuperAdmin?: boolean;
+  }
+): AuthSession | null {
+  const session = readStoredAuthSession();
+  if (!session || session.user.id !== userId) return session;
+
+  const normalizedName = profile.name?.trim();
+  const normalizedRoleName = profile.roleName?.trim() || null;
+  const nextUser = {
+    ...session.user,
+    name: normalizedName || session.user.name,
+    phone: profile.phone ?? session.user.phone,
+    roleName: normalizedRoleName,
+    isSuperAdmin: profile.isSuperAdmin ?? session.user.isSuperAdmin,
+  };
+  if (
+    nextUser.name === session.user.name &&
+    nextUser.phone === session.user.phone &&
+    nextUser.roleName === session.user.roleName &&
+    nextUser.isSuperAdmin === session.user.isSuperAdmin
+  ) {
+    return session;
+  }
+
+  const nextSession = { ...session, user: nextUser };
+  writeStoredAuthSession(nextSession);
+  notifySessionRefreshed(nextSession);
+  return nextSession;
+}
+
+export function updateStoredActiveInstitutionRoleName(
+  previousRoleName: string | null | undefined,
+  nextRoleName: string | null | undefined
+): AuthSession | null {
+  const session = readStoredAuthSession();
+  const previousName = previousRoleName?.trim();
+  const normalizedNextName = nextRoleName?.trim() || null;
+  if (!session || !previousName || !normalizedNextName) return session;
+  if (session.activeInstitution?.roleName !== previousName && session.user.roleName !== previousName) {
+    return session;
+  }
+
+  let changed = false;
+  const institutions = session.institutions.map((institution) => {
+    if (institution.id !== session.activeInstitution?.id || institution.roleName !== previousName) {
+      return institution;
+    }
+    changed = true;
+    return { ...institution, roleName: normalizedNextName };
+  });
+  const activeInstitution =
+    session.activeInstitution?.roleName === previousName
+      ? { ...session.activeInstitution, roleName: normalizedNextName }
+      : session.activeInstitution;
+  if (activeInstitution !== session.activeInstitution) changed = true;
+  const user =
+    session.user.roleName === previousName
+      ? { ...session.user, roleName: normalizedNextName }
+      : session.user;
+  if (user !== session.user) changed = true;
+  if (!changed) return session;
+
+  const nextSession = { ...session, user, institutions, activeInstitution };
+  writeStoredAuthSession(nextSession);
+  notifySessionRefreshed(nextSession);
+  return nextSession;
+}
+
+export function updateStoredActiveInstitutionPermissions(
+  roleName: string | null | undefined,
+  permissions: Record<string, "view" | "full">
+): AuthSession | null {
+  const session = readStoredAuthSession();
+  const normalizedRoleName = roleName?.trim();
+  if (!session || !session.activeInstitution || !normalizedRoleName) return session;
+  if (session.activeInstitution.roleName !== normalizedRoleName) return session;
+
+  const institutions = session.institutions.map((institution) =>
+    institution.id === session.activeInstitution?.id
+      ? { ...institution, permissions }
+      : institution
+  );
+  const activeInstitution = { ...session.activeInstitution, permissions };
+  const nextSession = { ...session, institutions, activeInstitution };
+  writeStoredAuthSession(nextSession);
+  notifySessionRefreshed(nextSession);
+  return nextSession;
+}
+
 export function getStoredAccessToken(): string | null {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);

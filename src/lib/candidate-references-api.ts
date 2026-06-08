@@ -28,7 +28,8 @@ interface CandidateReferenceUpsertRequest {
 }
 
 export async function getCandidateReferences(
-  options: { includeInactive?: boolean } = {}
+  options: { includeInactive?: boolean } = {},
+  signal?: AbortSignal
 ): Promise<CandidateReferenceResponse[]> {
   const params = new URLSearchParams();
   if (options.includeInactive) {
@@ -39,7 +40,7 @@ export async function getCandidateReferences(
   const response = await httpGet<CandidateReferenceListResponse>(
     url,
     undefined,
-    candidateRequestOptions()
+    candidateRequestOptions(signal)
   );
   return response.items;
 }

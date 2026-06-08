@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getInstitutionIntegrations,
@@ -14,10 +14,13 @@ import { SettingsFormSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 
 type IntegrationTab = "ocr" | "whatsapp";
+const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
+const INTEGRATIONS_QUERY_KEY = ["settings", "integrations"] as const;
 
 export function IntegrationsSettingsSection() {
   const t = useT();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const { user, permissions } = useAuth();
   const whatsAppAccessTokenId = useId();
   const canManageSettings = canManageArea(user, permissions, "settings");
@@ -34,8 +37,9 @@ export function IntegrationsSettingsSection() {
   const [showWhatsAppAccessToken, setShowWhatsAppAccessToken] = useState(false);
 
   const integrationsQuery = useQuery({
-    queryKey: ["settings", "integrations"],
-    queryFn: () => getInstitutionIntegrations(),
+    gcTime: SETTINGS_QUERY_CACHE_MS,
+    queryKey: INTEGRATIONS_QUERY_KEY,
+    queryFn: ({ signal }) => getInstitutionIntegrations(signal),
     retry: false,
   });
   const loading = integrationsQuery.isLoading;
@@ -72,6 +76,9 @@ export function IntegrationsSettingsSection() {
       setState(response);
       setOcrApiKey(response.ocrApiKey ?? "");
       setWhatsAppAccessToken(response.whatsAppAccessToken ?? "");
+      queryClient.setQueryData(INTEGRATIONS_QUERY_KEY, response);
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["outbox", "health"] });
       showToast(t("settings.integrations.toast.saved"));
     } catch {
       showToast(t("settings.integrations.toast.saveError"), "error");

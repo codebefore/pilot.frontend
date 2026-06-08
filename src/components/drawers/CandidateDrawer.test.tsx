@@ -758,7 +758,7 @@ describe("CandidateDrawer", () => {
     fireEvent.click(groupRow.querySelector('button[title="Düzenle"]') as HTMLButtonElement);
 
     await waitFor(() => {
-      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 });
+      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 }, expect.any(AbortSignal));
     });
     const groupSelect = groupRow.querySelector("select") as HTMLSelectElement;
     fireEvent.change(groupSelect, { target: { value: "group-2" } });
@@ -823,7 +823,7 @@ describe("CandidateDrawer", () => {
     fireEvent.click(groupRow.querySelector('button[title="Düzenle"]') as HTMLButtonElement);
 
     await waitFor(() => {
-      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 });
+      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 }, expect.any(AbortSignal));
     });
     const groupSelect = groupRow.querySelector("select") as HTMLSelectElement;
     fireEvent.change(groupSelect, { target: { value: "" } });

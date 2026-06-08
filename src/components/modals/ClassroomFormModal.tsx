@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { getTrainingBranchDefinitions } from "../../lib/training-branch-definiti
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type {
   ClassroomResponse,
   ClassroomUpsertRequest,
@@ -90,6 +92,7 @@ export function ClassroomFormModal({
   onSaved,
   onConcurrencyConflict,
 }: ClassroomFormModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -99,6 +102,14 @@ export function ClassroomFormModal({
   const nameInputId = useId();
   const capacityInputId = useId();
   const notesInputId = useId();
+
+  const invalidateClassroomDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["settings", "classrooms"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     control,
@@ -155,6 +166,7 @@ export function ClassroomFormModal({
       const saved = editing
         ? await updateClassroom(editing.id, payload)
         : await createClassroom(payload);
+      invalidateClassroomDependents();
       onSaved(saved);
     } catch (error) {
       if (error instanceof ApiError) {

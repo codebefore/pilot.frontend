@@ -57,25 +57,25 @@ export function OutboxPage() {
 
   const outboxQuery = useQuery({
     queryKey: ["outbox", "messages", outboxStatusParam ?? "all"],
-    queryFn: () => getOutboxMessages({ status: outboxStatusParam, limit: 100 }),
+    queryFn: ({ signal }) => getOutboxMessages({ status: outboxStatusParam, limit: 100 }, signal),
     enabled: activeTab === "outbox",
   });
 
   const outboxHealthQuery = useQuery({
     queryKey: ["outbox", "health"],
-    queryFn: () => getProjectionOutboxHealth(),
+    queryFn: ({ signal }) => getProjectionOutboxHealth(signal),
     enabled: activeTab === "outbox",
   });
 
   const inboxQuery = useQuery({
     queryKey: ["inbox", "messages", inboxStatusParam ?? "all"],
-    queryFn: () => getInboxMessages({ status: inboxStatusParam, limit: 100 }),
+    queryFn: ({ signal }) => getInboxMessages({ status: inboxStatusParam, limit: 100 }, signal),
     enabled: activeTab === "inbox",
   });
 
   const streamStatusQuery = useQuery({
     queryKey: ["domain-events", "stream-status"],
-    queryFn: () => getDomainEventStreamStatus(),
+    queryFn: ({ signal }) => getDomainEventStreamStatus(signal),
     enabled: activeTab === "stream",
   });
 
@@ -84,6 +84,8 @@ export function OutboxPage() {
     onSuccess: async () => {
       showToast(t("outbox.toast.outboxRequeued"));
       await queryClient.invalidateQueries({ queryKey: ["outbox", "messages"] });
+      await queryClient.invalidateQueries({ queryKey: ["outbox", "health"] });
+      await queryClient.invalidateQueries({ queryKey: ["domain-events", "stream-status"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     },
     onError: () => showToast(t("outbox.toast.outboxRequeueFailed"), "error"),
@@ -94,6 +96,7 @@ export function OutboxPage() {
     onSuccess: async () => {
       showToast(t("outbox.toast.inboxRequeued"));
       await queryClient.invalidateQueries({ queryKey: ["inbox", "messages"] });
+      await queryClient.invalidateQueries({ queryKey: ["domain-events", "stream-status"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     },
     onError: () => showToast(t("outbox.toast.inboxRequeueFailed"), "error"),

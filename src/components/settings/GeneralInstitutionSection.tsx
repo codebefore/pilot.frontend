@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   deleteInstitutionLogo,
@@ -64,6 +64,8 @@ const EMPTY_VALUES: GeneralFormValues = {
   founderAddress: "",
   founderPhone: "",
 };
+const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
+const INSTITUTION_SETTINGS_QUERY_KEY = ["settings", "institution-settings"] as const;
 
 function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues {
   const city = resolveTurkeyProvinceValue(response.city);
@@ -154,6 +156,7 @@ export function GeneralInstitutionSection() {
   const founderPhoneId = useId();
   const founderAddressId = useId();
   const { user, permissions, activeInstitution } = useAuth();
+  const queryClient = useQueryClient();
   const canManageSettings = canManageArea(user, permissions, "settings");
   const noPermissionTitle = t("common.noPermission");
 
@@ -169,8 +172,9 @@ export function GeneralInstitutionSection() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const settingsQuery = useQuery({
-    queryKey: ["settings", "institution-settings"],
-    queryFn: () => getInstitutionSettings(),
+    gcTime: SETTINGS_QUERY_CACHE_MS,
+    queryKey: INSTITUTION_SETTINGS_QUERY_KEY,
+    queryFn: ({ signal }) => getInstitutionSettings(signal),
     retry: false,
   });
   const loading = settingsQuery.isLoading;
@@ -335,6 +339,11 @@ export function GeneralInstitutionSection() {
       setServerState(response);
       setValues(fromResponse(response));
       setErrors({});
+      queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, response);
+      void queryClient.invalidateQueries({ queryKey: ["institutions", "list"] });
+      void queryClient.invalidateQueries({ queryKey: INSTITUTION_SETTINGS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("settings.general.toast.saved"));
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -344,6 +353,7 @@ export function GeneralInstitutionSection() {
           if (fresh) {
             setServerState(fresh);
             setValues(fromResponse(fresh));
+            queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, fresh);
           }
         } catch {
           // ignore
@@ -369,6 +379,11 @@ export function GeneralInstitutionSection() {
       const response = await uploadInstitutionLogo(file, serverState?.rowVersion ?? null);
       setServerState(response);
       setValues((current) => ({ ...current })); // logo değişti ama form alanları aynı, dirty değişmesin
+      queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, response);
+      void queryClient.invalidateQueries({ queryKey: ["institutions", "list"] });
+      void queryClient.invalidateQueries({ queryKey: INSTITUTION_SETTINGS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("settings.general.toast.logoUploaded"));
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -377,6 +392,7 @@ export function GeneralInstitutionSection() {
         if (fresh) {
           setServerState(fresh);
           setValues(fromResponse(fresh));
+          queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, fresh);
         }
         return;
       }
@@ -397,6 +413,11 @@ export function GeneralInstitutionSection() {
     try {
       const response = await deleteInstitutionLogo(serverState.rowVersion);
       setServerState(response);
+      queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, response);
+      void queryClient.invalidateQueries({ queryKey: ["institutions", "list"] });
+      void queryClient.invalidateQueries({ queryKey: INSTITUTION_SETTINGS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("settings.general.toast.logoRemoved"));
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -405,6 +426,7 @@ export function GeneralInstitutionSection() {
         if (fresh) {
           setServerState(fresh);
           setValues(fromResponse(fresh));
+          queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, fresh);
         }
         return;
       }

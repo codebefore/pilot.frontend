@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { z } from "zod";
 import { createDocumentType, updateDocumentType } from "../../lib/documents-api";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type {
   DocumentMetadataField,
   DocumentMetadataFieldOption,
@@ -102,6 +104,7 @@ export function DocumentTypeFormModal({
   onClose,
   onSaved,
 }: DocumentTypeFormModalProps) {
+  const queryClient = useQueryClient();
   const t = useT();
   const { showToast } = useToast();
   const noPermissionTitle = t("common.noPermission");
@@ -113,6 +116,18 @@ export function DocumentTypeFormModal({
   const keyInputId = useId();
   const sortOrderId = useId();
   const nameInputId = useId();
+
+  const invalidateDocumentTypeDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["documentTypes", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documentTypes", "candidate"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "types"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     formState: { errors },
@@ -268,6 +283,7 @@ export function DocumentTypeFormModal({
       const saved = editing
         ? await updateDocumentType(editing.id, payload)
         : await createDocumentType(payload);
+      invalidateDocumentTypeDependents();
       onSaved(saved);
     } catch (error) {
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {

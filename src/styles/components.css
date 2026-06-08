@@ -788,6 +788,52 @@
   margin-top: 14px;
 }
 
+.group-meb-confirm-popover {
+  position: fixed;
+  top: 74px;
+  right: 24px;
+  z-index: 1300;
+  width: min(340px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.18);
+}
+
+.group-meb-confirm-popover::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 28px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  background: var(--white);
+  border-left: 1px solid var(--gray-200);
+  border-top: 1px solid var(--gray-200);
+}
+
+.group-meb-confirm-title {
+  color: var(--gray-900);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.group-meb-confirm-message {
+  margin: 6px 0 0;
+  color: var(--gray-700);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.group-meb-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .exam-charge-table-wrap {
   max-height: min(56vh, 520px);
   overflow: auto;

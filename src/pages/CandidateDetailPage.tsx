@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { candidateKeys } from "../lib/queries/use-candidates";
-import { useGroup } from "../lib/queries/use-groups";
+import { groupKeys, useGroup } from "../lib/queries/use-groups";
 import { todayLocalDateOnly } from "../lib/date-only";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
@@ -190,6 +190,9 @@ const TABS: { key: TabKey; labelKey: TranslationKey }[] = [
 const HERO_DOCUMENT_KEYS = ["application_form", "identity_card", "existing_license_copy"] as const;
 type HeroDocumentKey = (typeof HERO_DOCUMENT_KEYS)[number];
 
+const candidateTargetFeeMatrixKey = (year: number, targetLicenseClass: string) =>
+  ["finance", "license-class-fee-matrix", year, targetLicenseClass] as const;
+
 function notifyMebbisJobQueued(jobId: string, jobType: string): void {
   const delays = [0, 250, 1000, 2500];
   for (const delay of delays) {
@@ -251,8 +254,9 @@ const CONTACT_TYPE_LABEL_KEYS: Record<CandidateContactType, TranslationKey> = {
 async function loadReferenceOptions(
   currentValue: string | null,
   t: ReturnType<typeof useT>,
+  signal?: AbortSignal,
 ): Promise<SelectOption[]> {
-  const items = await getCandidateReferences();
+  const items = await getCandidateReferences(undefined, signal);
   const options: SelectOption[] = [
     { value: "", label: "—" },
     ...items.map((item) => ({ value: item.name, label: item.name })),
@@ -339,6 +343,7 @@ export function CandidateDetailPage() {
     queryKey: candidateId ? candidateKeys.detail(candidateId) : candidateKeys.detail("__missing__"),
     queryFn: ({ signal }) => getCandidateById(candidateId as string, signal),
     enabled: Boolean(candidateId),
+    staleTime: 0,
   });
   const error = isErrorCandidate ? t("candidateDetail.error.candidateLoad") : null;
   // setCandidate is used in handlers that mutate and get back a fresh object;
@@ -347,12 +352,32 @@ export function CandidateDetailPage() {
     updater: CandidateResponse | null | ((prev: CandidateResponse | null) => CandidateResponse | null)
   ) => {
     if (!candidateId) return;
+    let nextCandidate: CandidateResponse | null = null;
     if (typeof updater === "function") {
       const prev = queryClient.getQueryData<CandidateResponse>(candidateKeys.detail(candidateId)) ?? null;
       const next = updater(prev);
-      if (next !== null) queryClient.setQueryData(candidateKeys.detail(candidateId), next);
+      if (next !== null) {
+        nextCandidate = next;
+        queryClient.setQueryData(candidateKeys.detail(candidateId), next);
+      }
     } else if (updater !== null) {
+      nextCandidate = updater;
       queryClient.setQueryData(candidateKeys.detail(candidateId), updater);
+    }
+    if (nextCandidate !== null) {
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) });
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: ["candidates", "documents", candidateId] });
+      void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+      void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+      void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+      void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+      void queryClient.invalidateQueries({ queryKey: ["payments"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     }
   };
 
@@ -365,6 +390,7 @@ export function CandidateDetailPage() {
     queryKey: candidateId ? ["candidates", "documents", candidateId] : ["candidates", "documents", "__missing__"],
     queryFn: ({ signal }) => getCandidateDocuments(candidateId as string, signal),
     enabled: Boolean(candidateId) && activeTab === "documents",
+    staleTime: 0,
   });
   const {
     data: documentTypes = null,
@@ -387,6 +413,7 @@ export function CandidateDetailPage() {
     queryKey: candidateId ? ["candidates", "accounting", candidateId] : ["candidates", "accounting", "__missing__"],
     queryFn: ({ signal }) => getCandidateAccounting(candidateId as string, signal),
     enabled: Boolean(candidateId),
+    staleTime: 0,
   });
   const accountingError = isErrorAccounting ? t("candidateDetail.error.accountingLoad") : null;
 
@@ -417,6 +444,11 @@ export function CandidateDetailPage() {
   const refreshAccounting = async () => {
     if (!candidateId) return;
     await queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: ["payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
   const openAccountingPayment = (movementId: string) => {
@@ -705,6 +737,12 @@ export function CandidateDetailPage() {
                   await queryClient.invalidateQueries({
                     queryKey: ["candidates", "documents", candidateId],
                   });
+                  void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) });
+                  void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+                  void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+                  void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+                  void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+                  void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
                 }}
                 onDeleted={() => navigate("/candidates")}
               />
@@ -2014,8 +2052,8 @@ function LicenseInfoTab({
     ? { filled: currentGroupData.activeCandidateCount, capacity: currentGroupData.capacity }
     : null;
 
-  const loadGroupOptions = async (): Promise<SelectOption[]> => {
-    const response = await getGroups({ pageSize: 200 });
+  const loadGroupOptions = async (signal?: AbortSignal): Promise<SelectOption[]> => {
+    const response = await getGroups({ pageSize: 200 }, signal);
     return [
       { value: "", label: t("candidateDetail.license.unassignedOption") },
       ...response.items.map((group) => ({
@@ -2515,7 +2553,7 @@ function LicenseInfoTab({
               displayValue={candidate.referenceName ?? ""}
               inputValue={candidate.referenceName ?? ""}
               label={t("candidateDetail.license.field.reference")}
-              loadOptions={() => loadReferenceOptions(candidate.referenceName, t)}
+              loadOptions={(signal) => loadReferenceOptions(candidate.referenceName, t, signal)}
               onSave={(value) =>
                 saveApplicationField(
                   { referenceName: value.trim() || null },
@@ -2792,14 +2830,6 @@ function suggestedCandidateExamFee(
   if (examType === "theory") return row?.institutionTheoryExamFee ?? null;
   if (attemptNumber > 1) return row?.program.failureRetryFee ?? null;
   return row?.institutionPracticeExamFee ?? null;
-}
-
-function suggestedFeeLookupKeyForAttempt(attempt: CandidateExamAttemptResponse): string {
-  const year = new Date(attempt.scheduledAt).getFullYear();
-  if (attempt.examType === "practice" && attempt.attemptNumber > 1) {
-    return `${year}:practice:retry`;
-  }
-  return `${year}:${attempt.examType}`;
 }
 
 const THEORY_RIGHTS_EXPIRY_DAYS = 120;
@@ -5438,6 +5468,7 @@ function CandidateExamAttemptsSection({
   onTheoryExemptChanged?: (value: boolean) => void;
 }) {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [exemptSaving, setExemptSaving] = useState(false);
@@ -5481,7 +5512,6 @@ function CandidateExamAttemptsSection({
   });
   const [suggestedFee, setSuggestedFee] = useState<number | null>(null);
   const [feeTouched, setFeeTouched] = useState(false);
-  const [suggestedFeesByKey, setSuggestedFeesByKey] = useState<Record<string, number | null>>({});
   const theoryAttempts = attempts.filter((attempt) => attempt.examType === "theory");
   const practiceAttempts = attempts.filter((attempt) => attempt.examType === "practice");
   const editingFeeLocked = Boolean(editingAttempt);
@@ -5517,98 +5547,78 @@ function CandidateExamAttemptsSection({
     void reload(controller.signal);
     getVehicles({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
       .then((response) => setVehicles(response.items))
-      .catch(() => setVehicles([]));
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setVehicles([]);
+      });
     getInstructors({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
       .then((response) => setInstructors(response.items))
-      .catch(() => setInstructors([]));
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setInstructors([]);
+      });
     getExamScheduleOptions({ examType: "uygulama" }, controller.signal)
       .then((response) => setPracticeSchedules(response))
-      .catch(() => setPracticeSchedules([]));
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setPracticeSchedules([]);
+      });
     return () => controller.abort();
   }, [candidate.id]);
 
+  const examAttemptFeeMatrixYear = new Date(form.scheduledAt).getFullYear();
+  const examAttemptFeeMatrixQuery = useQuery({
+    enabled:
+      addOpen &&
+      Boolean(candidate.licenseClassDefinitionId) &&
+      Boolean(candidate.licenseClass) &&
+      Boolean(form.scheduledAt) &&
+      Number.isFinite(examAttemptFeeMatrixYear),
+    gcTime: 60 * 60 * 1000,
+    queryKey: candidateTargetFeeMatrixKey(examAttemptFeeMatrixYear, candidate.licenseClass),
+    queryFn: ({ signal }) =>
+      getLicenseClassFeeMatrix(
+        examAttemptFeeMatrixYear,
+        { targetLicenseClass: candidate.licenseClass },
+        signal
+      ),
+    staleTime: 60 * 60 * 1000,
+  });
+
   useEffect(() => {
-    if (!addOpen || !candidate.licenseClassDefinitionId || !form.scheduledAt) {
+    if (!addOpen || !candidate.licenseClassDefinitionId || !examAttemptFeeMatrixQuery.data) {
       setSuggestedFee(null);
       return;
     }
-    const controller = new AbortController();
-    const year = new Date(form.scheduledAt).getFullYear();
-    getLicenseClassFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
-      .then((matrix) => {
-        const row = matrix.rows.find(
-          (item) =>
-            item.program.id === candidate.licenseClassDefinitionId &&
-            item.lessonType === form.examType
-        );
-        const attemptNumber = nextCandidateExamAttemptNumber(attempts, form.examType);
-        const value = suggestedCandidateExamFee(row, form.examType, attemptNumber);
-        setSuggestedFee(value ?? null);
-        setForm((current) => {
-          if (feeTouched || editingAttempt) return current;
-          const nextFee = value != null ? String(value) : "";
-          return current.fee === nextFee ? current : { ...current, fee: nextFee };
-        });
-      })
-      .catch((err) => {
-        if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setSuggestedFee(null);
-        }
-      });
-    return () => controller.abort();
+
+    const row = examAttemptFeeMatrixQuery.data.rows.find(
+      (item) =>
+        item.program.id === candidate.licenseClassDefinitionId &&
+        item.lessonType === form.examType
+    );
+    const attemptNumber = nextCandidateExamAttemptNumber(attempts, form.examType);
+    const value = suggestedCandidateExamFee(row, form.examType, attemptNumber);
+    setSuggestedFee(value ?? null);
+    setForm((current) => {
+      if (feeTouched || editingAttempt) return current;
+      const nextFee = value != null ? String(value) : "";
+      return current.fee === nextFee ? current : { ...current, fee: nextFee };
+    });
   }, [
     addOpen,
     attempts,
     candidate.licenseClassDefinitionId,
-    candidate.licenseClass,
     editingAttempt,
+    examAttemptFeeMatrixQuery.data,
     feeTouched,
     form.examType,
-    form.scheduledAt,
   ]);
 
   useEffect(() => {
-    if (!candidate.licenseClassDefinitionId || attempts.length === 0) {
-      setSuggestedFeesByKey({});
-      return;
+    if (examAttemptFeeMatrixQuery.isError) {
+      setSuggestedFee(null);
     }
-    const controller = new AbortController();
-    const years = [...new Set(attempts.map((attempt) => new Date(attempt.scheduledAt).getFullYear()))];
-    Promise.all(
-      years.map((year) =>
-        getLicenseClassFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
-          .then((matrix) => {
-            const theoryRow = matrix.rows.find(
-              (row) => row.program.id === candidate.licenseClassDefinitionId && row.lessonType === "theory"
-            );
-            const practiceRow = matrix.rows.find(
-              (row) => row.program.id === candidate.licenseClassDefinitionId && row.lessonType === "practice"
-            );
-            return {
-              year,
-              theory: theoryRow?.institutionTheoryExamFee ?? null,
-              practice: practiceRow?.institutionPracticeExamFee ?? null,
-              practiceRetry: practiceRow?.program.failureRetryFee ?? null,
-            };
-          })
-      )
-    )
-      .then((items) => {
-        const next: Record<string, number | null> = {};
-        for (const item of items) {
-          next[`${item.year}:theory`] = item.theory;
-          next[`${item.year}:practice`] = item.practice;
-          next[`${item.year}:practice:retry`] = item.practiceRetry;
-        }
-        setSuggestedFeesByKey(next);
-      })
-      .catch((err) => {
-        if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setSuggestedFeesByKey({});
-        }
-      });
-    return () => controller.abort();
-  }, [attempts, candidate.licenseClassDefinitionId, candidate.licenseClass]);
+  }, [examAttemptFeeMatrixQuery.isError]);
 
   const nextAttemptNumber = (
     examType: CandidateExamType,
@@ -5672,6 +5682,14 @@ function CandidateExamAttemptsSection({
     } catch {
       showToast("Aday sınav özeti güncellenemedi.", "error");
     }
+  };
+
+  const invalidateExamAttemptDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidate.id) });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
   const saveAttempt = async () => {
@@ -5741,6 +5759,7 @@ function CandidateExamAttemptsSection({
       ).sort(compareExamAttempts);
       setAttempts(nextAttempts);
       await syncCandidateExamSummary(nextAttempts);
+      invalidateExamAttemptDependents();
       if (editingAttempt && !editingFeeLocked && fee !== editingAttempt.fee) {
         try {
           await onAccountingChanged?.();
@@ -5769,6 +5788,7 @@ function CandidateExamAttemptsSection({
     try {
       const updated = await chargeCandidateExamAttempt(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
+      invalidateExamAttemptDependents();
       try {
         await onAccountingChanged?.();
       } catch {
@@ -5811,6 +5831,7 @@ function CandidateExamAttemptsSection({
       const nextAttempts = attempts.map((item) => (item.id === updated.id ? updated : item));
       setAttempts(nextAttempts);
       await syncCandidateExamSummary(nextAttempts);
+      invalidateExamAttemptDependents();
       showToast(nextScore == null ? "Puan silindi" : `Puan kaydedildi (${nextScore})`);
       return true;
     } catch (error) {
@@ -5852,6 +5873,7 @@ function CandidateExamAttemptsSection({
       const nextAttempts = attempts.map((item) => (item.id === updated.id ? updated : item));
       setAttempts(nextAttempts);
       await syncCandidateExamSummary(nextAttempts);
+      invalidateExamAttemptDependents();
       showToast(t("candidateDetail.exam.toast.practiceStatusUpdated"));
       return true;
     } catch (error) {
@@ -5870,6 +5892,7 @@ function CandidateExamAttemptsSection({
     try {
       const updated = await markCandidateExamAttemptSelfPaid(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
+      invalidateExamAttemptDependents();
       showToast(t("candidateDetail.exam.toast.selfPaidMarked"));
     } catch {
       showToast(t("candidateDetail.exam.toast.selfPaidFailed"), "error");
@@ -5888,6 +5911,7 @@ function CandidateExamAttemptsSection({
     try {
       const updated = await chargeCandidateExamAttempt(candidate.id, attempt.id);
       setAttempts((items) => items.map((item) => item.id === updated.id ? updated : item));
+      invalidateExamAttemptDependents();
       if (!updated.accountingMovementId) {
         showToast(t("candidateDetail.exam.toast.noOpenBalance"), "error");
         return;
@@ -5910,6 +5934,7 @@ function CandidateExamAttemptsSection({
       const nextAttempts = attempts.filter((item) => item.id !== attempt.id);
       setAttempts(nextAttempts);
       await syncCandidateExamSummary(nextAttempts);
+      invalidateExamAttemptDependents();
       setDeleteConfirmId(null);
       showToast(t("candidateDetail.exam.toast.attemptDeleted"));
     } catch (error) {
@@ -6016,7 +6041,6 @@ function CandidateExamAttemptsSection({
                     onPay={() => void payAttempt(attempt)}
                     onSelfPaid={() => markSelfPaid(attempt)}
                     onScoreSave={(nextScore) => updateAttemptScore(attempt, nextScore)}
-                    suggestedFee={suggestedFeesByKey[suggestedFeeLookupKeyForAttempt(attempt)] ?? null}
                   />
                 ))}
               </tbody>
@@ -6088,7 +6112,6 @@ function CandidateExamAttemptsSection({
                     onStatusSave={(nextAttendanceStatus, nextResultStatus) =>
                       updatePracticeAttemptStatus(attempt, nextAttendanceStatus, nextResultStatus)
                     }
-                    suggestedFee={suggestedFeesByKey[suggestedFeeLookupKeyForAttempt(attempt)] ?? null}
                   />
                 ))}
               </tbody>
@@ -6151,18 +6174,18 @@ function CandidateExamAttemptsSection({
               <option value="practice">Direksiyon</option>
             </CustomSelect>
           </label>
+          <label>
+            <span>Hak</span>
+            <input
+              readOnly
+              value={`${Math.min(
+                editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus),
+                candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)
+              )}/${candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)}`}
+            />
+          </label>
           {form.examType === "practice" ? (
             <>
-              <label>
-                <span>Hak</span>
-                <input
-                  readOnly
-                  value={`${Math.min(
-                    editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus),
-                    candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)
-                  )}/${candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)}`}
-                />
-              </label>
               <label>
                 <span>Sınav tarihi</span>
                 <CustomSelect
@@ -6252,18 +6275,6 @@ function CandidateExamAttemptsSection({
               </label>
             </>
           )}
-          {form.examType !== "practice" ? (
-            <label>
-              <span>Hak</span>
-              <input
-                readOnly
-                value={`${Math.min(
-                  editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus),
-                  candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)
-                )}/${candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus)}`}
-              />
-            </label>
-          ) : null}
           {form.examType === "practice" ? (
             <>
               <label>
@@ -6390,7 +6401,6 @@ function CandidateExamAttemptRow({
   onRequestDelete,
   onSelfPaid,
   onScoreSave,
-  suggestedFee,
 }: {
   attempt: CandidateExamAttemptResponse;
   attemptLimit: number;
@@ -6404,7 +6414,6 @@ function CandidateExamAttemptRow({
   onRequestDelete: () => void;
   onSelfPaid: () => void;
   onScoreSave: (nextScore: number | null) => Promise<boolean>;
-  suggestedFee: number | null;
 }) {
   const t = useT();
   return (
@@ -6420,14 +6429,7 @@ function CandidateExamAttemptRow({
       </td>
       <td>
         <div className="candidate-exam-fee-cell">
-          {suggestedFee != null && suggestedFee !== attempt.fee ? (
-            <>
-              <em>{formatCurrencyTRY(suggestedFee)}</em>
-              <strong>{formatCurrencyTRY(attempt.fee)}</strong>
-            </>
-          ) : (
-            <strong>{formatCurrencyTRY(attempt.fee)}</strong>
-          )}
+          <strong>{formatCurrencyTRY(attempt.fee)}</strong>
         </div>
       </td>
       <td>
@@ -6531,7 +6533,6 @@ function CandidatePracticeExamAttemptRow({
   onRequestDelete,
   onSelfPaid,
   onStatusSave,
-  suggestedFee,
 }: {
   attempt: CandidateExamAttemptResponse;
   attemptLimit: number;
@@ -6548,7 +6549,6 @@ function CandidatePracticeExamAttemptRow({
     nextAttendanceStatus: CandidateExamAttemptResponse["examAttendanceStatus"],
     nextResultStatus: CandidateExamAttemptResponse["examResultStatus"]
   ) => Promise<boolean>;
-  suggestedFee: number | null;
 }) {
   const t = useT();
   const attendanceStatus = attempt.examAttendanceStatus ?? "";
@@ -6595,14 +6595,7 @@ function CandidatePracticeExamAttemptRow({
       </td>
       <td>
         <div className="candidate-exam-fee-cell">
-          {suggestedFee != null && suggestedFee !== attempt.fee ? (
-            <>
-              <em>{formatCurrencyTRY(suggestedFee)}</em>
-              <strong>{formatCurrencyTRY(attempt.fee)}</strong>
-            </>
-          ) : (
-            <strong>{formatCurrencyTRY(attempt.fee)}</strong>
-          )}
+          <strong>{formatCurrencyTRY(attempt.fee)}</strong>
         </div>
       </td>
       <td>
@@ -6895,6 +6888,7 @@ function CandidateKCertificateSection({
   candidate: CandidateResponse;
 }) {
   const t = useT();
+  const queryClient = useQueryClient();
   const [lessons, setLessons] = useState<TrainingLessonResponse[]>([]);
   const renewSavingRef = useRef(false);
   const [hiddenRowIds, setHiddenRowIds] = useState<string[]>([]);
@@ -6903,6 +6897,16 @@ function CandidateKCertificateSection({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const noPermissionTitle = t("common.noPermission");
+
+  const invalidateKCertificateDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidate.id) });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -6977,6 +6981,7 @@ function CandidateKCertificateSection({
         lastLessonEndDate: nextRow.lastLessonEndDate,
       });
       setPersistedRows((current) => [...current, kCertificateResponseToRow(created)]);
+      invalidateKCertificateDependents();
     } catch {
       setError("K belgesi yenilenemedi.");
     } finally {
@@ -6992,6 +6997,7 @@ function CandidateKCertificateSection({
       try {
         await deleteCandidateKCertificate(candidate.id, row.id);
         setPersistedRows((current) => current.filter((item) => item.id !== row.id));
+        invalidateKCertificateDependents();
       } catch {
         setError("K belgesi silinemedi.");
       } finally {
@@ -7413,6 +7419,7 @@ function DocumentsTab({
   onDeleted: () => void;
 }) {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const noPermissionTitle = "Yetkiniz yok.";
   const t = useT();
   const [statusFilter, setStatusFilter] = useState<CandidateDocumentFilter>("all");
@@ -7421,35 +7428,31 @@ function DocumentsTab({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
-  const [contractBackMebbisFeeDefault, setContractBackMebbisFeeDefault] = useState<string | null>(null);
+  const contractBackFeeMatrixYear = candidateFeeMatrixYear(candidate);
+  const contractBackFeeMatrixQuery = useQuery({
+    enabled: Boolean(candidate.licenseClass),
+    gcTime: 60 * 60 * 1000,
+    queryKey: candidateTargetFeeMatrixKey(contractBackFeeMatrixYear, candidate.licenseClass),
+    queryFn: ({ signal }) =>
+      getLicenseClassFeeMatrix(
+        contractBackFeeMatrixYear,
+        { targetLicenseClass: candidate.licenseClass },
+        signal
+      ),
+    staleTime: 60 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    if (!candidate.licenseClass) {
-      setContractBackMebbisFeeDefault(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    const year = candidateFeeMatrixYear(candidate);
-    getLicenseClassFeeMatrix(year, { targetLicenseClass: candidate.licenseClass }, controller.signal)
-      .then((matrix) => {
-        const row = findCandidateFeeMatrixRow(matrix.rows, candidate);
-        const fee = row?.program.mebbisFee;
-        setContractBackMebbisFeeDefault(fee != null ? String(fee) : null);
-      })
-      .catch((err) => {
-        if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setContractBackMebbisFeeDefault(null);
-        }
-      });
-
-    return () => controller.abort();
+  const contractBackMebbisFeeDefault = useMemo(() => {
+    if (!contractBackFeeMatrixQuery.data) return null;
+    const row = findCandidateFeeMatrixRow(contractBackFeeMatrixQuery.data.rows, candidate);
+    const fee = row?.program.mebbisFee;
+    return fee != null ? String(fee) : null;
   }, [
     candidate.licenseClassDefinitionId,
-    candidate.createdAtUtc,
     candidate.existingLicenseType,
     candidate.hasExistingLicense,
     candidate.licenseClass,
+    contractBackFeeMatrixQuery.data,
   ]);
 
   const contractBackMetadataDefaults = useMemo(
@@ -7467,6 +7470,19 @@ function DocumentsTab({
     try {
       await deleteCandidate(candidateId);
       showToast("Aday silindi");
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) });
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: ["candidates", "documents", candidateId] });
+      void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+      void queryClient.invalidateQueries({ queryKey: ["payments"] });
+      void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+      void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+      void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       onDeleted();
     } catch {
       showToast("Aday silinemedi", "error");
@@ -7617,6 +7633,9 @@ function DocumentsTab({
     try {
       const job = await createCandidateSyncJob(candidateId);
       notifyMebbisJobQueued(job.id, job.jobType);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("candidateDetail.documents.toast.termSyncQueued"));
     } catch {
       showToast(t("candidateDetail.documents.toast.termSyncFailed"), "error");
@@ -8993,19 +9012,21 @@ function DocRow({
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     let objectUrl: string | null = null;
-    createAuthorizedObjectUrl(fileUrl)
+    createAuthorizedObjectUrl(fileUrl, controller.signal)
       .then((url) => {
         objectUrl = url;
-        if (!cancelled) setPreviewUrl(url);
+        if (!controller.signal.aborted) setPreviewUrl(url);
       })
-      .catch(() => {
-        if (!cancelled) setPreviewUrl(null);
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setPreviewUrl(null);
+        }
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       setPreviewUrl(null);
     };

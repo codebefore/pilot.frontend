@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   AssignmentDateConflictError,
@@ -104,6 +105,7 @@ export function InstructorAssignmentFormModal({
   onClose,
   onSaved,
 }: Props) {
+  const queryClient = useQueryClient();
 	  const t = useT();
   const roleSelectId = useId();
   const employmentTypeId = useId();
@@ -121,6 +123,17 @@ export function InstructorAssignmentFormModal({
     () => mergeSelectedLicenseOptions(licenseClassOptions, values.licenseClassCodes),
     [licenseClassOptions, values.licenseClassCodes]
   );
+
+  const invalidateAssignmentDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["instructorAssignments", instructorId] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail", instructorId] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
 	  useEffect(() => {
 	    if (!open) return;
@@ -230,6 +243,7 @@ export function InstructorAssignmentFormModal({
       const saved = editing
         ? await updateAssignment(instructorId, editing.id, body)
         : await createAssignment(instructorId, body);
+      invalidateAssignmentDependents();
       showToast(
         editing
           ? t("settings.instructors.detail.assignments.toasts.updated")

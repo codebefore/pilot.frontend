@@ -23,7 +23,7 @@ type CandidateDocumentBadgeProps = {
    * on the parent response. Called the first time the popover is opened with
    * a non-zero missing count, and the result is cached for subsequent opens.
    */
-  loadMissingDocumentNames?: () => Promise<string[]>;
+  loadMissingDocumentNames?: (signal?: AbortSignal) => Promise<string[]>;
   /**
    * Called when the badge is activated. Overrides the default popover toggle
    * behavior — useful for navigating to a richer detail surface.
@@ -103,22 +103,25 @@ export function CandidateDocumentBadge({
     if (lazyNames !== null) return;
     if (!loadMissingDocumentNames) return;
 
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
     setLoadError(false);
-    loadMissingDocumentNames()
+    loadMissingDocumentNames(controller.signal)
       .then((names) => {
-        if (!cancelled) setLazyNames(names);
+        setLazyNames(names);
       })
-      .catch(() => {
-        if (!cancelled) setLoadError(true);
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setLoadError(true);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [open, summary, missingDocumentNames, lazyNames, loadMissingDocumentNames]);
 

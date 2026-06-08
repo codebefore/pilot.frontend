@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,6 +15,8 @@ import {
 } from "../../lib/group-code";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { translateGroupValidationMessage } from "../../lib/group-validation";
+import { candidateKeys } from "../../lib/queries/use-candidates";
+import { groupKeys } from "../../lib/queries/use-groups";
 import { getTerms } from "../../lib/terms-api";
 import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
@@ -57,6 +60,7 @@ export function NewGroupModal({
   onClose,
   onSubmit,
 }: NewGroupModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const { lang } = useLanguage();
@@ -89,6 +93,17 @@ export function NewGroupModal({
   const groupNumberRegistration = register("groupNumber");
   const groupBranchRegistration = register("groupBranch");
   const startDateRegistration = register("startDate");
+
+  const invalidateNewGroupDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   useEffect(() => {
     if (open) {
@@ -172,6 +187,7 @@ export function NewGroupModal({
         startDate: data.startDate,
         mebStatus: "not_sent",
       });
+      invalidateNewGroupDependents();
       onSubmit();
     } catch (error) {
       const { applied, appliedMessages, unmappedMessages } = applyApiErrorsToForm(error, setError, {

@@ -103,7 +103,7 @@ describe("buildCandidateUpdatePayload", () => {
       id: "attempt-1",
       candidateId: "candidate-1",
       examType: "practice",
-      scheduledAt: "2026-06-08T10:00:00.000Z",
+      scheduledAt: "2026-06-08T07:00:00.000Z",
       attemptNumber: 1,
       score: null,
       expiresAt: null,
@@ -151,7 +151,7 @@ describe("buildCandidateUpdatePayload", () => {
       expect.objectContaining({
         examType: "practice",
         examScheduleId: "new-schedule",
-        scheduledAt: "2026-06-08T10:00:00.000Z",
+        scheduledAt: "2026-06-08T07:00:00.000Z",
         rowVersion: 5,
       })
     );
@@ -209,7 +209,7 @@ describe("buildCandidateUpdatePayload", () => {
       id: "attempt-2",
       candidateId: "candidate-1",
       examType: "practice",
-      scheduledAt: "2026-06-08T10:00:00.000Z",
+      scheduledAt: "2026-06-08T07:00:00.000Z",
       attemptNumber: 2,
       score: null,
       expiresAt: null,
@@ -256,7 +256,7 @@ describe("buildCandidateUpdatePayload", () => {
       expect.objectContaining({
         examType: "practice",
         examScheduleId: "new-schedule",
-        scheduledAt: "2026-06-08T10:00:00.000Z",
+        scheduledAt: "2026-06-08T07:00:00.000Z",
       })
     );
   });

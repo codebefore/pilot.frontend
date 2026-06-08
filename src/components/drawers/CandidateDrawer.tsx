@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   assignCandidateGroup,
@@ -16,6 +17,8 @@ import { todayLocalDateOnly } from "../../lib/date-only";
 import { getGroupById, getGroups } from "../../lib/groups-api";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { buildWhatsAppUrl } from "../../lib/phone";
+import { candidateKeys } from "../../lib/queries/use-candidates";
+import { groupKeys } from "../../lib/queries/use-groups";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import {
@@ -151,6 +154,7 @@ export function CandidateDrawer({
   onUpdated,
 }: CandidateDrawerProps) {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const { lang } = useLanguage();
   const t = useT();
   const existingLicenseSelectId = useId();
@@ -197,6 +201,19 @@ export function CandidateDrawer({
     candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType;
   const noPermissionTitle = t("common.noPermission");
   const candidateEditDisabledTitle = !canManageCandidates ? noPermissionTitle : undefined;
+
+  const invalidateCandidateDrawerDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: ["payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   useEffect(() => {
     if (!candidateId) {
@@ -312,6 +329,7 @@ export function CandidateDrawer({
         ...patch,
       });
       setCandidate(updated);
+      invalidateCandidateDrawerDependents();
       onUpdated?.();
     } catch (error) {
       if (error instanceof ApiError) {
@@ -535,6 +553,7 @@ export function CandidateDrawer({
           current ? applyGroupAssignmentToCandidate(current, assignment, group) : current
         );
       }
+      invalidateCandidateDrawerDependents();
       onUpdated?.();
     } catch {
       showToast(t("candidateDrawer.toast.groupAssignFailed"), "error");
@@ -542,10 +561,15 @@ export function CandidateDrawer({
     }
   };
 
-  const loadGroupOptions = async (): Promise<SelectOption[]> => {
+  const loadGroupOptions = async (signal?: AbortSignal): Promise<SelectOption[]> => {
     const [groupsResult, termsResult] = await Promise.all([
-      getGroups({ pageSize: 100 }),
-      getTerms({ pageSize: 200 }).catch(() => ({ items: [] })),
+      getGroups({ pageSize: 100 }, signal),
+      getTerms({ pageSize: 200 }, signal).catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
+        return { items: [] };
+      }),
     ]);
     const sortedTerms = [...termsResult.items].sort(compareTermsDesc);
     return [
@@ -567,6 +591,7 @@ export function CandidateDrawer({
     try {
       await deleteCandidate(candidateId);
       showToast(t("candidateDrawer.toast.candidateDeleted"));
+      invalidateCandidateDrawerDependents();
       onDeleted();
     } catch {
       showToast(t("candidateDrawer.toast.candidateDeleteFailed"), "error");

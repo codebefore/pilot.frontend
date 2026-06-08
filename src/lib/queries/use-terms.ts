@@ -13,6 +13,7 @@ import type {
   TermResponse,
   UpdateTermRequest,
 } from "../types";
+import { candidateKeys } from "./use-candidates";
 import { groupKeys } from "./use-groups";
 
 export const termKeys = {
@@ -22,10 +23,10 @@ export const termKeys = {
     [...termKeys.lists(), filters ?? {}] as const,
 };
 
-export function useTerms(filters?: GetTermsParams, enabled = true, consumeSignal = true) {
+export function useTerms(filters?: GetTermsParams, enabled = true) {
   return useQuery<PagedResponse<TermResponse>>({
     queryKey: termKeys.list(filters),
-    queryFn: ({ signal }) => (consumeSignal ? getTerms(filters, signal) : getTerms(filters)),
+    queryFn: ({ signal }) => getTerms(filters, signal),
     enabled,
   });
 }
@@ -35,6 +36,13 @@ function invalidateTermAndGroupLists(
 ) {
   void queryClient.invalidateQueries({ queryKey: termKeys.lists() });
   void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+  void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+  void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+  void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+  void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+  void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
 }
 
 export function useCreateTerm() {

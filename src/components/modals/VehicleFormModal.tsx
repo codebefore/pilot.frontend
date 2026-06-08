@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,6 +15,7 @@ import {
 import { ApiError, type ApiValidationError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type { VehicleResponse, VehicleUpsertRequest } from "../../lib/types";
 import {
   useLicenseClassOptions,
@@ -198,6 +200,7 @@ export function VehicleFormModal({
   onSaved,
   onConcurrencyConflict,
 }: VehicleFormModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -218,6 +221,20 @@ export function VehicleFormModal({
   const crashCountId = useId();
   const otherId = useId();
   const noteId = useId();
+
+  const invalidateVehicleDependents = (vehicleId?: string) => {
+    void queryClient.invalidateQueries({ queryKey: ["vehicles", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["vehicles", "detail"] });
+    if (vehicleId) {
+      void queryClient.invalidateQueries({ queryKey: ["vehicles", "detail", vehicleId] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["training", "vehicles"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     control,
@@ -290,6 +307,7 @@ export function VehicleFormModal({
       const saved = editing
         ? await updateVehicle(editing.id, payload)
         : await createVehicle(payload);
+      invalidateVehicleDependents(saved.id);
       onSaved(saved);
     } catch (error) {
       if (error instanceof ApiError) {

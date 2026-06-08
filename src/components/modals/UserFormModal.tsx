@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -75,6 +76,7 @@ export function UserFormModal({
   onClose,
   onSaved,
 }: UserFormModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -84,6 +86,14 @@ export function UserFormModal({
   const phoneId = useId();
   const mebbisUsernameId = useId();
   const mebbisPasswordId = useId();
+
+  const invalidateUserDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["rolePermissions"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     formState: { errors },
@@ -138,6 +148,7 @@ export function UserFormModal({
       const saved = editing
         ? await updateUser(editing.id, payload)
         : await createUser(payload);
+      invalidateUserDependents();
       onSaved(saved);
     } catch (error) {
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {

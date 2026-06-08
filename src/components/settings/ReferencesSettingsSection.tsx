@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PencilIcon, TrashIcon } from "../icons";
 import { SettingsTableSkeleton } from "../ui/Skeleton";
@@ -15,12 +15,16 @@ import {
 import { useAuth } from "../../lib/auth";
 import { canManageArea } from "../../lib/permissions";
 import { useT } from "../../lib/i18n";
+import { candidateKeys } from "../../lib/queries/use-candidates";
+
+const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 
 export function ReferencesSettingsSection() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const t = useT();
+  const queryClient = useQueryClient();
   const noPermissionTitle = t("common.noPermission");
   const [refreshKey, setRefreshKey] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -33,8 +37,9 @@ export function ReferencesSettingsSection() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const referencesQuery = useQuery({
+    gcTime: SETTINGS_QUERY_CACHE_MS,
     queryKey: ["settings", "candidate-references", { includeInactive: true }, refreshKey],
-    queryFn: () => getCandidateReferences({ includeInactive: true }),
+    queryFn: ({ signal }) => getCandidateReferences({ includeInactive: true }, signal),
     retry: false,
   });
   const items = referencesQuery.data ?? [];
@@ -46,7 +51,14 @@ export function ReferencesSettingsSection() {
     }
   }, [referencesQuery.isError, showToast, t]);
 
-  const refresh = () => setRefreshKey((value) => value + 1);
+  const refresh = () => {
+    setRefreshKey((value) => value + 1);
+    void queryClient.invalidateQueries({ queryKey: ["settings", "candidate-references"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const handleCreate = async () => {
     if (!canManageCandidates) return;

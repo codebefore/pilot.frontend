@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -69,6 +70,7 @@ export function TrainingBranchFormModal({
   onClose,
   onSaved,
 }: TrainingBranchFormModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -77,6 +79,18 @@ export function TrainingBranchFormModal({
   const nameInputId = useId();
   const colorInputId = useId();
   const systemLimitId = useId();
+
+  const invalidateTrainingBranchDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["settings", "training-branches"] });
+    void queryClient.invalidateQueries({ queryKey: ["settings", "classrooms", "training-branches"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "branches"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
   const {
     formState: { errors },
     handleSubmit,
@@ -100,6 +114,7 @@ export function TrainingBranchFormModal({
     try {
       const payload = buildPayload(values, editing);
       const saved = await updateTrainingBranchDefinition(editing.id, payload);
+      invalidateTrainingBranchDependents();
       onSaved(saved);
     } catch (error) {
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError);

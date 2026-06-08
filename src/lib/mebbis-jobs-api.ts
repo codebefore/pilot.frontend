@@ -108,39 +108,48 @@ export type MebbisExtensionPairResponse = {
   apiToken: string;
 };
 
-const mebbisRequestOptions = () => ({
+const mebbisRequestOptions = (signal?: AbortSignal) => ({
   baseUrl: getMebbisApiBaseUrl(),
+  signal,
 });
 
-export async function listMebbisJobs(limit = 100): Promise<MebbisJobResponse[]> {
+export async function listMebbisJobs(limit = 100, signal?: AbortSignal): Promise<MebbisJobResponse[]> {
   const response = await httpGet<MebbisJobListResponse>("/api/mebbis/jobs", {
     limit,
-  }, mebbisRequestOptions());
+  }, mebbisRequestOptions(signal));
   return response.items;
 }
 
-export async function getMebbisJob(jobId: string): Promise<MebbisJobResponse> {
+export async function getMebbisJob(
+  jobId: string,
+  signal?: AbortSignal
+): Promise<MebbisJobResponse> {
   return httpGet<MebbisJobResponse>(
     `/api/mebbis/jobs/${jobId}`,
     undefined,
-    mebbisRequestOptions()
+    mebbisRequestOptions(signal)
   );
 }
 
-export async function listMebbisJobSteps(jobId: string): Promise<MebbisJobStepResponse[]> {
+export async function listMebbisJobSteps(
+  jobId: string,
+  signal?: AbortSignal
+): Promise<MebbisJobStepResponse[]> {
   const response = await httpGet<MebbisJobStepListResponse>(
     `/api/mebbis/jobs/${jobId}/steps`,
     undefined,
-    mebbisRequestOptions()
+    mebbisRequestOptions(signal)
   );
   return response.items;
 }
 
-export async function getMebbisJobQueueStatus(): Promise<MebbisJobQueueStatusResponse> {
+export async function getMebbisJobQueueStatus(
+  signal?: AbortSignal
+): Promise<MebbisJobQueueStatusResponse> {
   return httpGet<MebbisJobQueueStatusResponse>(
     "/api/mebbis/jobs/queue/status",
     undefined,
-    mebbisRequestOptions()
+    mebbisRequestOptions(signal)
   );
 }
 

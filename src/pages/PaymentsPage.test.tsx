@@ -103,6 +103,26 @@ function renderFinancePage() {
   );
 }
 
+function renderCollectionsPage() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/payments/collections"]}>
+      <PaymentsPage mode="collections" />
+    </MemoryRouter>,
+    {
+      auth: {
+        user: {
+          id: "payments-viewer",
+          phone: "5073737262",
+          name: "Finans Viewer",
+          roleName: "Finans",
+          isSuperAdmin: false,
+        },
+        permissions: { payments: "view" },
+      },
+    }
+  );
+}
+
 function todayDateOnly() {
   const today = new Date();
   const month = `${today.getMonth() + 1}`.padStart(2, "0");
@@ -227,5 +247,63 @@ describe("PaymentsPage permissions", () => {
     expect(await screen.findByText("Aktif tahsilat")).toBeInTheDocument();
     expect(screen.queryByText("Silinen tahsilat")).not.toBeInTheDocument();
     expect(screen.queryByText("Silinen iade")).not.toBeInTheDocument();
+  });
+
+  it("does not show cancelled collections on the collections page", async () => {
+    const today = todayDateOnly();
+    const candidate = {
+      id: "candidate-active",
+      firstName: "Aktif",
+      lastName: "Aday",
+      nationalId: "11111111111",
+      licenseClass: "B",
+      isDeleted: false,
+      currentGroup: null,
+      photo: null,
+    };
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      payments: [
+        {
+          id: "payment-active",
+          candidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-1",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 100,
+          paymentMethod: "cash",
+          paidAtUtc: `${today}T09:00:00Z`,
+          note: "Aktif tahsilat",
+          status: "active",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+        {
+          id: "payment-cancelled",
+          candidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-2",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 200,
+          paymentMethod: "cash",
+          paidAtUtc: `${today}T10:00:00Z`,
+          note: "Silinen tahsilat",
+          status: "cancelled",
+          cancelledAtUtc: `${today}T10:30:00Z`,
+          cancellationReason: "Hatalı tahsilat",
+        },
+      ],
+    });
+
+    renderCollectionsPage();
+
+    expect(await screen.findByText("Aktif tahsilat")).toBeInTheDocument();
+    expect(screen.queryByText("Silinen tahsilat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hatalı tahsilat")).not.toBeInTheDocument();
   });
 });

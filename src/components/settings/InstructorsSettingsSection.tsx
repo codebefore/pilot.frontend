@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
@@ -12,6 +13,7 @@ import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
 import { canManageArea } from "../../lib/permissions";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import {
   deleteInstructor,
   getInstructors,
@@ -255,6 +257,7 @@ const DEFAULT_FILTERS: InstructorFilters = {
 export function InstructorsSettingsSection() {
   const t = useT();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
@@ -369,11 +372,23 @@ export function InstructorsSettingsSection() {
     filters.branch !== DEFAULT_FILTERS.branch ||
     filters.licenseClass !== DEFAULT_FILTERS.licenseClass;
 
+  const invalidateInstructorDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
   const handleSaved = (saved: InstructorResponse) => {
     const wasCreate = !editing;
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
+    invalidateInstructorDependents();
     showToast(editing ? t("settings.instructors.toasts.updated") : t("settings.instructors.toasts.created"));
     if (wasCreate) {
       navigate(`/settings/definitions/instructors/${saved.id}?newAssignment=1`);
@@ -434,6 +449,7 @@ export function InstructorsSettingsSection() {
       } else {
         setRefreshKey((current) => current + 1);
       }
+      invalidateInstructorDependents();
     } catch {
       showToast(t("settings.instructors.errors.deleteFailed"), "error");
     } finally {

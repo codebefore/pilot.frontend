@@ -1,5 +1,5 @@
 import type { AriaAttributes, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -31,6 +31,8 @@ import {
 } from "../lib/mebbis-jobs-api";
 import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
 import { canManageArea } from "../lib/permissions";
+import { candidateKeys } from "../lib/queries/use-candidates";
+import { groupKeys } from "../lib/queries/use-groups";
 import type { JobStatus } from "../types";
 import { useT, currentLocale, type TranslationKey } from "../lib/i18n";
 import { formatLocalDateOnly } from "../lib/date-only";
@@ -211,8 +213,7 @@ export function MebJobsPage() {
 
   const candidatesQuery = useQuery({
     queryKey: ["candidates", "list", { pageSize: 500 }],
-    queryFn: () => getCandidates({ pageSize: 500 }),
-    staleTime: 5 * 60 * 1000,
+    queryFn: ({ signal }) => getCandidates({ pageSize: 500 }, signal),
   });
 
   const candidatesById = useMemo<Map<string, CandidateLite>>(() => {
@@ -241,7 +242,7 @@ export function MebJobsPage() {
   // would not re-invoke `select` just because an unrelated query updated.
   const jobsQuery = useQuery<MebbisJobResponse[]>({
     queryKey: ["mebbisJobs", "list"],
-    queryFn: () => listMebbisJobs(100),
+    queryFn: ({ signal }) => listMebbisJobs(100, signal),
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return false;
@@ -252,7 +253,7 @@ export function MebJobsPage() {
 
   const queueStatusQuery = useQuery({
     queryKey: ["mebbisJobs", "queue", "status"],
-    queryFn: getMebbisJobQueueStatus,
+    queryFn: ({ signal }) => getMebbisJobQueueStatus(signal),
     refetchInterval: 30_000,
   });
 
@@ -336,9 +337,46 @@ export function MebJobsPage() {
   };
 
   const selected = selectedId ? jobs.find((j) => j.id === selectedId) ?? null : null;
+  const previousJobStatusesRef = useRef<Map<string, JobStatus>>(new Map());
 
   const openDrawer = (id: string) => setSearchParams({ selected: id });
   const closeDrawer = () => setSearchParams({});
+  const invalidateMebbisJobData = (includeDomainData = false) => {
+    void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    if (!includeDomainData) return;
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+  };
+
+  useEffect(() => {
+    if (!jobsQuery.data) return;
+    let completedWhileOpen = false;
+    const nextStatuses = new Map<string, JobStatus>();
+    for (const job of jobsQuery.data) {
+      const status = mapMebbisStatusToJobStatus(job.status);
+      const previousStatus = previousJobStatusesRef.current.get(job.id);
+      nextStatuses.set(job.id, status);
+      if (
+        previousStatus &&
+        ACTIVE_STATUSES.includes(previousStatus) &&
+        !ACTIVE_STATUSES.includes(status)
+      ) {
+        completedWhileOpen = true;
+      }
+    }
+    previousJobStatusesRef.current = nextStatuses;
+    if (completedWhileOpen) {
+      invalidateMebbisJobData(true);
+    }
+  }, [jobsQuery.data]);
 
   const handleCancel = async (job: MebJob) => {
     if (!canManageMebJobs) return;
@@ -346,7 +384,7 @@ export function MebJobsPage() {
     try {
       await cancelMebbisJob(job.id);
       showToast(t("mebJobs.toast.cancelled"));
-      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      invalidateMebbisJobData();
     } catch {
       showToast(t("mebJobs.toast.cancelFailed"), "error");
     } finally {
@@ -360,7 +398,7 @@ export function MebJobsPage() {
     try {
       const result = await retryMebbisJobQueuePublishes(100);
       showToast(`${result.retriedCount} kuyruk işi yeniden denendi`);
-      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      invalidateMebbisJobData();
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
     } catch {
       showToast(t("mebJobs.toast.retryFailed"), "error");
@@ -671,7 +709,7 @@ export function MebJobsPage() {
           await createCandidateLookupJob(values.candidateId);
           setModalOpen(false);
           showToast(t("mebJobs.toast.queued"));
-          void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+          invalidateMebbisJobData();
         }}
         open={modalOpen}
       />

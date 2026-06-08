@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearStoredAuthSession,
   readStoredAuthSession,
+  updateStoredActiveInstitutionPermissions,
+  updateStoredActiveInstitutionRoleName,
   updateStoredInstitutionName,
+  updateStoredUserProfile,
   writeStoredAuthSession,
   type AuthSession,
 } from "./auth-storage";
@@ -106,6 +109,53 @@ describe("auth storage", () => {
     expect(updated?.activeInstitution?.name).toBe("Yeni Kurum Adi");
     expect(updated?.institutions[0]?.name).toBe("Yeni Kurum Adi");
     expect(readStoredAuthSession()?.activeInstitution?.name).toBe("Yeni Kurum Adi");
+  });
+
+  it("updates the current user profile in the stored session", () => {
+    writeStoredAuthSession(validSession);
+
+    const updated = updateStoredUserProfile("user-1", {
+      name: "Yeni Kullanici",
+      phone: "5550001122",
+      roleName: "Personel",
+      isSuperAdmin: true,
+    });
+
+    expect(updated?.user).toMatchObject({
+      name: "Yeni Kullanici",
+      phone: "5550001122",
+      roleName: "Personel",
+      isSuperAdmin: true,
+    });
+    expect(readStoredAuthSession()?.user.name).toBe("Yeni Kullanici");
+  });
+
+  it("updates the active institution role name in the stored session", () => {
+    writeStoredAuthSession(validSession);
+
+    const updated = updateStoredActiveInstitutionRoleName("Kurum Yöneticisi", "Müdür");
+
+    expect(updated?.user.roleName).toBe("Müdür");
+    expect(updated?.activeInstitution?.roleName).toBe("Müdür");
+    expect(updated?.institutions[0]?.roleName).toBe("Müdür");
+  });
+
+  it("updates the active institution permissions in the stored session", () => {
+    writeStoredAuthSession(validSession);
+
+    const updated = updateStoredActiveInstitutionPermissions("Kurum Yöneticisi", {
+      dashboard: "full",
+      payments: "view",
+    });
+
+    expect(updated?.activeInstitution?.permissions).toEqual({
+      dashboard: "full",
+      payments: "view",
+    });
+    expect(updated?.institutions[0]?.permissions).toEqual({
+      dashboard: "full",
+      payments: "view",
+    });
   });
 
   it("clears sessions with expired refresh token", () => {

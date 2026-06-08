@@ -31,6 +31,7 @@ import type {
 import { groupKeys } from "./use-groups";
 
 type GetExamScheduleOptionsParams = Parameters<typeof getExamScheduleOptions>[0];
+const LIVE_CANDIDATE_STALE_TIME_MS = 0;
 
 export const candidateKeys = {
   all: ["candidates"] as const,
@@ -46,11 +47,12 @@ export const candidateKeys = {
     [...candidateKeys.all, "examScheduleOptions", params] as const,
 };
 
-export function useCandidates(filters?: GetCandidatesParams, enabled = true, consumeSignal = true) {
+export function useCandidates(filters?: GetCandidatesParams, enabled = true) {
   return useQuery<PagedResponse<CandidateResponse>>({
     queryKey: candidateKeys.list(filters),
-    queryFn: ({ signal }) => (consumeSignal ? getCandidates(filters, signal) : getCandidates(filters)),
+    queryFn: ({ signal }) => getCandidates(filters, signal),
     enabled,
+    staleTime: LIVE_CANDIDATE_STALE_TIME_MS,
   });
 }
 
@@ -59,14 +61,14 @@ export function useCandidate(id: string | null | undefined) {
     queryKey: id ? candidateKeys.detail(id) : candidateKeys.detail("__missing__"),
     queryFn: ({ signal }) => getCandidateById(id as string, signal),
     enabled: Boolean(id),
+    staleTime: LIVE_CANDIDATE_STALE_TIME_MS,
   });
 }
 
-export function useCandidateTags(search?: string, limit = 20, enabled = true, consumeSignal = true) {
+export function useCandidateTags(search?: string, limit = 20, enabled = true) {
   return useQuery({
     queryKey: candidateKeys.tags(search),
-    queryFn: ({ signal }) =>
-      consumeSignal ? searchCandidateTags(search, limit, signal) : searchCandidateTags(search, limit),
+    queryFn: ({ signal }) => searchCandidateTags(search, limit, signal),
     enabled,
   });
 }
@@ -94,6 +96,14 @@ function invalidateCandidateLists(queryClient: ReturnType<typeof useQueryClient>
   return queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
 }
 
+function invalidateCandidateDetails(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+}
+
+function invalidateDashboardData(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
 function invalidateExamScheduleOptions(queryClient: ReturnType<typeof useQueryClient>) {
   return queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
 }
@@ -102,12 +112,34 @@ function invalidatePaymentOverviews(queryClient: ReturnType<typeof useQueryClien
   return queryClient.invalidateQueries({ queryKey: ["payments"] });
 }
 
+function invalidateCandidateMutationDependents(
+  queryClient: ReturnType<typeof useQueryClient>,
+  candidateId?: string
+) {
+  void invalidateCandidateLists(queryClient);
+  void invalidateCandidateDetails(queryClient);
+  if (candidateId) {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "documents", candidateId] });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+  }
+  void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+  void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+  void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+  void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+  void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+  void invalidatePaymentOverviews(queryClient);
+  void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+  void invalidateDashboardData(queryClient);
+}
+
 export function useCreateCandidate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: CandidateUpsertRequest) => createCandidate(body),
     onSuccess: () => {
-      void invalidateCandidateLists(queryClient);
+      invalidateCandidateMutationDependents(queryClient);
     },
   });
 }
@@ -118,8 +150,7 @@ export function useUpdateCandidate() {
     mutationFn: ({ id, body }: { id: string; body: CandidateUpsertRequest }) =>
       updateCandidate(id, body),
     onSuccess: (_data, variables) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(variables.id) });
+      invalidateCandidateMutationDependents(queryClient, variables.id);
     },
   });
 }
@@ -129,10 +160,8 @@ export function useDeleteCandidate() {
   return useMutation({
     mutationFn: (id: string) => deleteCandidate(id),
     onSuccess: (_data, id) => {
-      void invalidateCandidateLists(queryClient);
       void invalidateExamScheduleOptions(queryClient);
-      void invalidatePaymentOverviews(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(id) });
+      invalidateCandidateMutationDependents(queryClient, id);
     },
   });
 }
@@ -143,8 +172,7 @@ export function useSetCandidateTheoryExemption() {
     mutationFn: ({ id, isTheoryExempt }: { id: string; isTheoryExempt: boolean }) =>
       setCandidateTheoryExemption(id, isTheoryExempt),
     onSuccess: (_data, variables) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(variables.id) });
+      invalidateCandidateMutationDependents(queryClient, variables.id);
     },
   });
 }
@@ -162,8 +190,7 @@ export function useSetCandidateRegistrationNumber() {
       rowVersion: number;
     }) => setCandidateRegistrationNumber(id, registrationNumber, rowVersion),
     onSuccess: (_data, variables) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(variables.id) });
+      invalidateCandidateMutationDependents(queryClient, variables.id);
     },
   });
 }
@@ -181,8 +208,7 @@ export function useSetCandidateRegistrationDate() {
       rowVersion: number;
     }) => setCandidateRegistrationDate(id, registrationDate, rowVersion),
     onSuccess: (_data, variables) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(variables.id) });
+      invalidateCandidateMutationDependents(queryClient, variables.id);
     },
   });
 }
@@ -193,8 +219,7 @@ export function useUpdateCandidateExistingLicense() {
     mutationFn: ({ id, body }: { id: string; body: CandidateExistingLicenseRequest }) =>
       updateCandidateExistingLicense(id, body),
     onSuccess: (_data, variables) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(variables.id) });
+      invalidateCandidateMutationDependents(queryClient, variables.id);
     },
   });
 }
@@ -212,8 +237,7 @@ export function useSetCandidateSecondPracticeRound() {
       rowVersion: number;
     }) => setCandidateSecondPracticeRound(id, enabled, rowVersion),
     onSuccess: (_data, variables) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(variables.id) });
+      invalidateCandidateMutationDependents(queryClient, variables.id);
     },
   });
 }
@@ -224,11 +248,7 @@ export function useAssignCandidateGroup() {
     mutationFn: ({ candidateId, groupId }: { candidateId: string; groupId: string }) =>
       assignCandidateGroup(candidateId, groupId),
     onSuccess: (_data, variables) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({
-        queryKey: candidateKeys.detail(variables.candidateId),
-      });
-      void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+      invalidateCandidateMutationDependents(queryClient, variables.candidateId);
     },
   });
 }
@@ -238,17 +258,17 @@ export function useRemoveActiveGroupAssignment() {
   return useMutation({
     mutationFn: (candidateId: string) => removeActiveGroupAssignment(candidateId),
     onSuccess: (_data, candidateId) => {
-      void invalidateCandidateLists(queryClient);
-      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) });
-      void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+      invalidateCandidateMutationDependents(queryClient, candidateId);
     },
   });
 }
 
 function invalidateCandidateTags(queryClient: ReturnType<typeof useQueryClient>) {
-  return queryClient.invalidateQueries({
-    queryKey: [...candidateKeys.all, "tags"],
-  });
+  void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
+  void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+  void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+  void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+  void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
 }
 
 export function useCreateCandidateTag() {
@@ -266,8 +286,9 @@ export function useUpdateCandidateTag() {
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => updateCandidateTag(id, name),
     onSuccess: () => {
-      void invalidateCandidateTags(queryClient);
+      invalidateCandidateTags(queryClient);
       void invalidateCandidateLists(queryClient);
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
     },
   });
 }
@@ -277,8 +298,9 @@ export function useDeleteCandidateTag() {
   return useMutation({
     mutationFn: (id: string) => deleteCandidateTag(id),
     onSuccess: () => {
-      void invalidateCandidateTags(queryClient);
+      invalidateCandidateTags(queryClient);
       void invalidateCandidateLists(queryClient);
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
     },
   });
 }

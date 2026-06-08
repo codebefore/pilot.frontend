@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -90,6 +91,7 @@ export function CashRegisterFormModal({
   onSaved,
   onConcurrencyConflict,
 }: CashRegisterFormModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -97,6 +99,14 @@ export function CashRegisterFormModal({
   const nameInputId = useId();
   const typeSelectId = useId();
   const notesInputId = useId();
+
+  const invalidateCashRegisterDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["settings", "cash-registers"] });
+    void queryClient.invalidateQueries({ queryKey: ["payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     formState: { errors },
@@ -131,6 +141,7 @@ export function CashRegisterFormModal({
       const saved = editing
         ? await updateCashRegister(editing.id, payload)
         : await createCashRegister(payload);
+      invalidateCashRegisterDependents();
       onSaved(saved);
     } catch (error) {
       if (error instanceof ApiError) {

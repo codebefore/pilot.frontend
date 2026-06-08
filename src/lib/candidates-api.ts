@@ -45,6 +45,8 @@ export interface GetCandidatesParams extends QueryParams {
   drivingExamTab?: CandidateExamTabValue;
   eSinavDate?: string;
   drivingExamDate?: string;
+  eSinavScheduleId?: string;
+  drivingExamScheduleId?: string;
   drivingExamCode?: string;
   groupIds?: readonly string[];
   termIds?: readonly string[];

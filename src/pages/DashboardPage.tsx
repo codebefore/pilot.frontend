@@ -159,7 +159,7 @@ export function DashboardPage({ userName }: DashboardPageProps) {
     isLoading: dashboardLoading,
   } = useQuery<DashboardOverviewResponse>({
     queryKey: ["dashboard", "overview", activeInstitutionId],
-    queryFn: () => getDashboardOverview(),
+    queryFn: ({ signal }) => getDashboardOverview(signal),
   });
   const candidateSummaryQuery = useQuery({
     queryKey: ["dashboard", "candidateSummary", "licenseClasses", activeInstitutionId],

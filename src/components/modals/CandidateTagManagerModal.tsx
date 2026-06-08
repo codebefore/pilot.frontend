@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { deleteCandidateTag, updateCandidateTag } from "../../lib/candidates-api";
 import { ApiError } from "../../lib/http";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type { CandidateTag } from "../../lib/types";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
@@ -32,6 +34,7 @@ export function CandidateTagManagerModal({
   onDeleted,
   onRenamed,
 }: CandidateTagManagerModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -39,6 +42,16 @@ export function CandidateTagManagerModal({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
+
+  const invalidateTagMutationDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   useEffect(() => {
     if (!open) {
@@ -79,6 +92,7 @@ export function CandidateTagManagerModal({
 
     try {
       const saved = await updateCandidateTag(tag.id, nextName);
+      invalidateTagMutationDependents();
       onRenamed(tag, saved);
       showToast(t(saved.id === tag.id ? "tagManager.toast.updated" : "tagManager.toast.merged"));
       cancelEditing();
@@ -104,6 +118,7 @@ export function CandidateTagManagerModal({
 
     try {
       await deleteCandidateTag(tag.id);
+      invalidateTagMutationDependents();
       onDeleted(tag);
       showToast(t("tagManager.toast.deleted"));
       setConfirmDeleteId(null);

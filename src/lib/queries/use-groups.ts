@@ -14,6 +14,7 @@ import type {
   GroupUpdateRequest,
   PagedResponse,
 } from "../types";
+import { candidateKeys } from "./use-candidates";
 
 export const groupKeys = {
   all: ["groups"] as const,
@@ -24,10 +25,10 @@ export const groupKeys = {
   detail: (id: string) => [...groupKeys.details(), id] as const,
 };
 
-export function useGroups(filters?: GetGroupsParams, enabled = true, consumeSignal = true) {
+export function useGroups(filters?: GetGroupsParams, enabled = true) {
   return useQuery<PagedResponse<GroupResponse>>({
     queryKey: groupKeys.list(filters),
-    queryFn: ({ signal }) => (consumeSignal ? getGroups(filters, signal) : getGroups(filters)),
+    queryFn: ({ signal }) => getGroups(filters, signal),
     enabled,
   });
 }
@@ -40,12 +41,29 @@ export function useGroup(id: string | null | undefined) {
   });
 }
 
+function invalidateGroupMutationDependents(
+  queryClient: ReturnType<typeof useQueryClient>,
+  groupId?: string
+) {
+  void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+  if (groupId) {
+    void queryClient.invalidateQueries({ queryKey: groupKeys.detail(groupId) });
+  }
+  void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+  void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+  void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+  void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+  void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
 export function useCreateGroup() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: GroupCreateRequest) => createGroup(body),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+      invalidateGroupMutationDependents(queryClient);
     },
   });
 }
@@ -56,8 +74,7 @@ export function useUpdateGroup() {
     mutationFn: ({ id, body }: { id: string; body: GroupUpdateRequest }) =>
       updateGroup(id, body),
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
-      void queryClient.invalidateQueries({ queryKey: groupKeys.detail(variables.id) });
+      invalidateGroupMutationDependents(queryClient, variables.id);
     },
   });
 }
@@ -67,8 +84,7 @@ export function useDeleteGroup() {
   return useMutation({
     mutationFn: (id: string) => deleteGroup(id),
     onSuccess: (_data, id) => {
-      void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
-      void queryClient.invalidateQueries({ queryKey: groupKeys.detail(id) });
+      invalidateGroupMutationDependents(queryClient, id);
     },
   });
 }

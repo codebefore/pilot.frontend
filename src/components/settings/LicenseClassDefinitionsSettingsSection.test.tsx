@@ -110,7 +110,8 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
           search: undefined,
           sortBy: "displayOrder",
           sortDir: "asc",
-        }
+        },
+        expect.any(AbortSignal)
       );
     });
 
@@ -135,7 +136,8 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
           search: undefined,
           sortBy: "displayOrder",
           sortDir: "asc",
-        }
+        },
+        expect.any(AbortSignal)
       );
     });
   });
@@ -159,7 +161,8 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
           search: undefined,
           sortBy: "displayOrder",
           sortDir: "asc",
-        }
+        },
+        expect.any(AbortSignal)
       );
     });
   });

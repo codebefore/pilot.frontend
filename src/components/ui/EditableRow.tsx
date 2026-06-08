@@ -16,7 +16,7 @@ type EditableRowProps = {
   disabled?: boolean;
   disabledTitle?: string;
   options?: SelectOption[];
-  loadOptions?: () => Promise<SelectOption[]>;
+  loadOptions?: (signal?: AbortSignal) => Promise<SelectOption[]>;
   /**
    * Her onChange'te draft değerine uygulanır (canlı). Örn. Türkçe büyük
    * harf normalizasyonu. Save sırasında ayrıca çağrılmaz.
@@ -45,12 +45,17 @@ export function EditableRow({
   const [options, setOptions] = useState<SelectOption[] | undefined>(staticOptions);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const inputRef = useRef<HTMLInputElement & HTMLSelectElement>(null);
+  const loadOptionsControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (staticOptions) {
       setOptions(staticOptions);
     }
   }, [staticOptions]);
+
+  useEffect(() => {
+    return () => loadOptionsControllerRef.current?.abort();
+  }, []);
 
   const startEdit = async () => {
     if (disabled) {
@@ -60,18 +65,34 @@ export function EditableRow({
     setDraft(inputValue);
     setEditing(true);
     if (loadOptions && !options) {
+      loadOptionsControllerRef.current?.abort();
+      const controller = new AbortController();
+      loadOptionsControllerRef.current = controller;
       setLoadingOptions(true);
       try {
-        const loaded = await loadOptions();
+        const loaded = await loadOptions(controller.signal);
         setOptions(loaded);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          throw error;
+        }
       } finally {
-        setLoadingOptions(false);
+        if (loadOptionsControllerRef.current === controller) {
+          loadOptionsControllerRef.current = null;
+          setLoadingOptions(false);
+        }
       }
     }
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  const cancel = () => { setEditing(false); setDraft(inputValue); };
+  const cancel = () => {
+    loadOptionsControllerRef.current?.abort();
+    loadOptionsControllerRef.current = null;
+    setLoadingOptions(false);
+    setEditing(false);
+    setDraft(inputValue);
+  };
 
   const save = async () => {
     if (draft === inputValue) { setEditing(false); return; }

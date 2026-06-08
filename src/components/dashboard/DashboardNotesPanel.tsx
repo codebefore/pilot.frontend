@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { BellIcon, CheckIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { NoteComposerModal, type NoteDraft } from "../notes/NoteComposerModal";
 import { Panel } from "../ui/Panel";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
+import { isAbortError } from "../../lib/http";
 import { canManageArea } from "../../lib/permissions";
 import { useT } from "../../lib/i18n";
 import {
@@ -21,23 +23,28 @@ export function DashboardNotesPanel() {
   const { user, permissions } = useAuth();
   const canManageDashboard = canManageArea(user, permissions, "dashboard");
   const t = useT();
+  const queryClient = useQueryClient();
   const noPermissionTitle = t("common.noPermission");
   const [notes, setNotes] = useState<UserNoteResponse[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<UserNoteResponse | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await getUserNotes();
+      const response = await getUserNotes(signal);
+      if (signal?.aborted) return;
       setNotes(response.items);
-    } catch {
+    } catch (error) {
+      if (isAbortError(error)) return;
       showToast(t("notesPanel.toast.loadFailed"), "error");
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   const beginCreate = () => {
@@ -57,6 +64,11 @@ export function DashboardNotesPanel() {
     setEditing(null);
   };
 
+  const invalidateNoteDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
   const handleSubmit = async ({ body, reminderAtUtc }: NoteDraft) => {
     if (!canManageDashboard) return;
 
@@ -71,6 +83,7 @@ export function DashboardNotesPanel() {
       }
       closeComposer();
       await load();
+      invalidateNoteDependents();
     } catch {
       showToast(t(editing ? "notesPanel.toast.noteUpdateFailed" : "notesPanel.toast.noteAddFailed"), "error");
     } finally {
@@ -84,6 +97,7 @@ export function DashboardNotesPanel() {
     try {
       await setUserNoteCompletion(note.id, note.completedAtUtc === null);
       await load();
+      invalidateNoteDependents();
     } catch {
       showToast(t("notesPanel.toast.noteUpdateFailed"), "error");
     }
@@ -95,6 +109,7 @@ export function DashboardNotesPanel() {
     try {
       await deleteUserNote(note.id);
       await load();
+      invalidateNoteDependents();
     } catch {
       showToast("Not silinemedi", "error");
     }

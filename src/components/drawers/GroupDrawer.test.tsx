@@ -225,7 +225,8 @@ describe("GroupDrawer", () => {
         expect.objectContaining({
           search: "Ay",
           pageSize: 20,
-        })
+        }),
+        expect.any(AbortSignal)
       );
     });
   });
@@ -344,9 +345,10 @@ describe("GroupDrawer", () => {
     fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Kaydet"));
 
     expect(await screen.findByText("Adaylar aktife geçirilecek")).toBeInTheDocument();
-    const dialogs = screen.getAllByRole("dialog");
-    const modal = dialogs[dialogs.length - 1] as HTMLElement;
-    fireEvent.click(within(modal).getByRole("button", { name: "Vazgeç" }));
+    const popover = screen.getByRole("alertdialog", {
+      name: "Adaylar aktife geçirilecek",
+    });
+    fireEvent.click(within(popover).getByRole("button", { name: "Vazgeç" }));
 
     await waitFor(() => {
       expect(updateGroupMock).not.toHaveBeenCalled();

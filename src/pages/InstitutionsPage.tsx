@@ -8,6 +8,7 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
+import { updateStoredInstitutionName } from "../lib/auth-storage";
 import { ApiError } from "../lib/http";
 import {
   createInstitutionFounder,
@@ -37,7 +38,7 @@ const emptyForm: InstitutionFormValues = {
 };
 
 export function InstitutionsPage() {
-  const { user } = useAuth();
+  const { user, activeInstitution } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -48,7 +49,7 @@ export function InstitutionsPage() {
 
   const institutionsQuery = useQuery({
     queryKey: ["institutions", "list", { includeInactive }],
-    queryFn: () => getInstitutions({ includeInactive }),
+    queryFn: ({ signal }) => getInstitutions({ includeInactive }, signal),
     enabled: user?.isSuperAdmin === true,
   });
 
@@ -98,7 +99,13 @@ export function InstitutionsPage() {
         return next.sort(sortByName);
       }
     );
+    if (saved.id === activeInstitution?.id) {
+      updateStoredInstitutionName(saved.id, saved.name);
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["settings", "institution-settings"] });
+    }
     void queryClient.invalidateQueries({ queryKey: ["institutions", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     showToast(editing ? "Kurum güncellendi" : "Kurum eklendi");
     setEditing(null);
     setFormOpen(false);
@@ -125,6 +132,11 @@ export function InstitutionsPage() {
         }
       );
       void queryClient.invalidateQueries({ queryKey: ["institutions", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      if (institutionId === activeInstitution?.id) {
+        void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+        void queryClient.invalidateQueries({ queryKey: ["settings", "institution-settings"] });
+      }
       showToast("Kurum pasife alındı");
     },
     onError: () => {

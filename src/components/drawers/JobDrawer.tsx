@@ -27,21 +27,23 @@ export function JobDrawer({ job, canCancel = true, onCancel, onClose }: JobDrawe
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setLoadingSteps(true);
-    listMebbisJobSteps(job.id)
+    listMebbisJobSteps(job.id, controller.signal)
       .then((items) => {
-        if (!cancelled) setSteps(items);
+        if (!controller.signal.aborted) setSteps(items);
       })
-      .catch(() => {
-        if (!cancelled) setSteps([]);
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setSteps([]);
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoadingSteps(false);
+        if (!controller.signal.aborted) setLoadingSteps(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [job]);
 

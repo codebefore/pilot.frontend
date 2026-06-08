@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PencilIcon } from "../icons";
 import { TrainingBranchFormModal } from "../modals/TrainingBranchFormModal";
@@ -11,9 +11,12 @@ import { useT } from "../../lib/i18n";
 import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import type { TrainingBranchDefinitionResponse } from "../../lib/types";
 
+const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
+
 export function TrainingBranchesSettingsSection() {
   const { showToast } = useToast();
   const t = useT();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const canManage = user?.isSuperAdmin ?? false;
   const [items, setItems] = useState<TrainingBranchDefinitionResponse[]>([]);
@@ -22,8 +25,9 @@ export function TrainingBranchesSettingsSection() {
   const [formOpen, setFormOpen] = useState(false);
 
   const branchesQuery = useQuery({
+    gcTime: SETTINGS_QUERY_CACHE_MS,
     queryKey: ["settings", "training-branches", { activity: "all", page: 1, pageSize: 100 }, refreshKey],
-    queryFn: () => getTrainingBranchDefinitions({ activity: "all", page: 1, pageSize: 100 }),
+    queryFn: ({ signal }) => getTrainingBranchDefinitions({ activity: "all", page: 1, pageSize: 100 }, signal),
     retry: false,
   });
   const loading = branchesQuery.isLoading;
@@ -59,6 +63,14 @@ export function TrainingBranchesSettingsSection() {
     showToast(t("trainingBranchSettings.toast.updated"));
     closeForm();
     setRefreshKey((value) => value + 1);
+    void queryClient.invalidateQueries({ queryKey: ["training", "branches"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["settings", "classrooms", "training-branches"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["instructors", "detail"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
   return (

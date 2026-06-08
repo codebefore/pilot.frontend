@@ -1089,7 +1089,7 @@ export const tr = {
   "candidateDetail.exam.scoreEditTooltip": "Puanı düzenlemek için tıkla",
   "candidateDetail.exam.result.pass": "Geçti",
   "candidateDetail.exam.result.fail": "Kaldı",
-  "candidateDetail.exam.feeStatus.paid": "Yatırıldı",
+  "candidateDetail.exam.feeStatus.paid": "Ödendi",
   "candidateDetail.exam.feeStatus.partiallyPaid": "Kısmi ödendi",
   "candidateDetail.exam.feeStatus.partiallyRefunded": "Kısmi iade",
   "candidateDetail.exam.feeStatus.refunded": "İade edildi",

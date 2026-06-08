@@ -9,6 +9,7 @@ import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
+import { updateStoredActiveInstitutionPermissions } from "../lib/auth-storage";
 import { ApiError, isAbortError } from "../lib/http";
 import { useT, type TranslationKey } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
@@ -55,7 +56,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
-  const { user, permissions } = useAuth();
+  const { user, permissions, activeInstitution } = useAuth();
   const canManagePermissions = canManageArea(user, permissions, "permissions");
   const noPermissionTitle = t("common.noPermission");
 
@@ -72,12 +73,12 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
 
   const rolesQuery = useQuery<RoleResponse[]>({
     queryKey: ["roles", "list", { includeInactive: false }],
-    queryFn: () => getRoles({ includeInactive: false }),
+    queryFn: ({ signal }) => getRoles({ includeInactive: false }, signal),
   });
 
   const areasQuery = useQuery<PermissionAreasResponse>({
     queryKey: ["permissionAreas", "list"],
-    queryFn: () => getPermissionAreas(),
+    queryFn: ({ signal }) => getPermissionAreas(signal),
   });
 
   const rawRoles = rolesQuery.data ?? [];
@@ -225,6 +226,14 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
         .map(([area, level]) => ({ area, level: level as PermissionLevel }));
       const saved = await saveRolePermissions(selectedRoleId, body);
       if (areas) applyLoadedMatrix(areas.areas, saved);
+      if (selectedRole && selectedRole.name === activeInstitution?.roleName) {
+        updateStoredActiveInstitutionPermissions(selectedRole.name, toPermissionRecord(saved));
+      }
+      void queryClient.invalidateQueries({ queryKey: ["rolePermissions", "detail", selectedRoleId] });
+      void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast("Yetkiler kaydedildi");
     } catch (error) {
       const message = error instanceof ApiError ? error.message : "Yetkiler kaydedilemedi";
@@ -267,6 +276,11 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
         ["roles", "list", { includeInactive: false }],
         (prev) => (prev ? prev.filter((role) => role.id !== selectedRole.id) : [])
       );
+      void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["rolePermissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setConfirmDeleteRoleId(null);
       showToast("Rol silindi");
     } catch (error) {
@@ -558,4 +572,13 @@ function isEqualMatrix(
     if ((a[key] ?? "none") !== (b[key] ?? "none")) return false;
   }
   return true;
+}
+
+function toPermissionRecord(
+  permissions: RolePermissionResponse[]
+): Record<string, PermissionLevel> {
+  return permissions.reduce<Record<string, PermissionLevel>>((acc, permission) => {
+    acc[permission.area] = permission.level;
+    return acc;
+  }, {});
 }

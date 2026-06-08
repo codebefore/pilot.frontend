@@ -23,6 +23,7 @@ import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
+import { updateStoredUserProfile } from "../lib/auth-storage";
 import { ApiError } from "../lib/http";
 import { canManageArea, canViewArea } from "../lib/permissions";
 import { getRoles } from "../lib/roles-api";
@@ -170,18 +171,28 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
 
   const usersQuery = useQuery<AppUserResponse[]>({
     queryKey: ["users", "list"],
-    queryFn: () => getUsers({ includeInactive: true }),
+    queryFn: ({ signal }) => getUsers({ includeInactive: true }, signal),
   });
 
   const rolesQuery = useQuery<RoleResponse[]>({
     queryKey: ["roles", "list"],
-    queryFn: () => getRoles({ includeInactive: true }),
+    queryFn: ({ signal }) => getRoles({ includeInactive: true }, signal),
   });
 
   const users = usersQuery.data ?? [];
   const roles = rolesQuery.data ?? [];
   const loading = usersQuery.isPending || rolesQuery.isPending;
   const loadError = usersQuery.isError || rolesQuery.isError;
+
+  const invalidateUserAdminCaches = (includeUsersList = true) => {
+    if (includeUsersList) {
+      void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["roles", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["rolePermissions"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const [sort, setSort] = useState<SortState>(null);
   const [search, setSearch] = useState("");
@@ -347,7 +358,15 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
       next[idx] = saved;
       return next;
     });
-    void queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+    invalidateUserAdminCaches();
+    if (saved.id === user?.id) {
+      updateStoredUserProfile(saved.id, {
+        name: saved.fullName,
+        phone: saved.phone,
+        roleName: saved.roleName,
+        isSuperAdmin: saved.isSuperAdmin,
+      });
+    }
   };
 
   const handleDelete = async (user: AppUserResponse) => {
@@ -358,6 +377,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
       queryClient.setQueryData<AppUserResponse[]>(["users", "list"], (prev) =>
         prev ? prev.filter((u) => u.id !== user.id) : []
       );
+      invalidateUserAdminCaches(false);
       setConfirmDeleteUserId(null);
       showToast(t("users.toast.userDeleted"));
     } catch (error) {

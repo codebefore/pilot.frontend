@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,6 +8,9 @@ import { createTerm, updateTerm } from "../../lib/terms-api";
 import { ApiError } from "../../lib/http";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { candidateKeys } from "../../lib/queries/use-candidates";
+import { groupKeys } from "../../lib/queries/use-groups";
+import { termKeys } from "../../lib/queries/use-terms";
 import type { TermResponse } from "../../lib/types";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { RequiredMark } from "../ui/RequiredMark";
@@ -61,6 +65,7 @@ function isNameRequiredForDuplicateMonth(message: string): boolean {
 }
 
 export function NewTermModal({ open, canManage = true, onClose, onSaved, term }: NewTermModalProps) {
+  const queryClient = useQueryClient();
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -83,6 +88,18 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
   const monthDate = watch("monthDate");
   const monthDateRegistration = register("monthDate");
 
+  const invalidateTermDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: termKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
   useEffect(() => {
     if (open) reset(termValues(term));
   }, [open, reset, term]);
@@ -102,6 +119,7 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
             monthDate: normalizedMonthDate,
             name: data.name.trim() || null,
           });
+      invalidateTermDependents();
       showToast(t(isEditMode ? "terms.updated" : "terms.created"));
       onSaved(saved);
     } catch (error) {

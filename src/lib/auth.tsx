@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("pilot:session-refreshed", onSessionRefreshed);
     return () => window.removeEventListener("pilot:session-refreshed", onSessionRefreshed);
-  }, []);
+  }, [queryClient, session]);
 
   const requestLoginCode = async (phone: string, channel?: LoginChannel) => {
     if (!phone) throw new Error("Telefon gerekli");

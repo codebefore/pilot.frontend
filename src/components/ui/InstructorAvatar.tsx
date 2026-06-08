@@ -45,19 +45,21 @@ export function InstructorAvatar({
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     let createdUrl: string | null = null;
-    createAuthorizedObjectUrl(imageUrl)
+    createAuthorizedObjectUrl(imageUrl, controller.signal)
       .then((url) => {
         createdUrl = url;
-        if (!cancelled) setObjectUrl(url);
+        if (!controller.signal.aborted) setObjectUrl(url);
       })
-      .catch(() => {
-        if (!cancelled) setObjectUrl(null);
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setObjectUrl(null);
+        }
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
       if (createdUrl) URL.revokeObjectURL(createdUrl);
       setObjectUrl(null);
     };

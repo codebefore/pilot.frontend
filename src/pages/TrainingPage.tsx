@@ -32,6 +32,8 @@ import {
 import { getCandidates, getCandidateById } from "../lib/candidates-api";
 import { getGroupById, getGroups } from "../lib/groups-api";
 import { getInstructors } from "../lib/instructors-api";
+import { candidateKeys } from "../lib/queries/use-candidates";
+import { groupKeys } from "../lib/queries/use-groups";
 import {
   createTheoryScheduleImportJob,
   createTheoryScheduleSyncJob,
@@ -132,7 +134,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const theoryOverlayQuery = useQuery({
     queryKey: ["training", "lessons", "overlay", "teorik", overlayWindow],
-    queryFn: () => getTrainingLessons({ kind: "teorik", ...overlayWindow }),
+    queryFn: ({ signal }) => getTrainingLessons({ kind: "teorik", ...overlayWindow }, signal),
     enabled: type === "uygulama",
   });
   const theoryEventsForOverlay = useMemo<TrainingCalendarEvent[]>(
@@ -145,7 +147,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const practiceOverlayQuery = useQuery({
     queryKey: ["training", "lessons", "overlay", "uygulama", overlayWindow],
-    queryFn: () => getTrainingLessons({ kind: "uygulama", ...overlayWindow }),
+    queryFn: ({ signal }) => getTrainingLessons({ kind: "uygulama", ...overlayWindow }, signal),
     enabled: type === "teorik",
   });
   const practiceEventsForOverlay = useMemo<TrainingCalendarEvent[]>(
@@ -158,22 +160,32 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
   const queryClient = useQueryClient();
+  const invalidateTrainingLessons = () => {
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const instructorsQuery = useQuery({
     queryKey: ["training", "instructors"],
-    queryFn: () => getInstructors({ activity: "active", page: 1, pageSize: 100 }),
+    queryFn: ({ signal }) => getInstructors({ activity: "active", page: 1, pageSize: 100 }, signal),
   });
   const instructors: InstructorResponse[] = instructorsQuery.data?.items ?? [];
 
   const groupsQuery = useQuery({
     queryKey: ["training", "groups"],
-    queryFn: () => getGroups({ page: 1, pageSize: 100 }),
+    queryFn: ({ signal }) => getGroups({ page: 1, pageSize: 100 }, signal),
   });
   const groups: GroupResponse[] = groupsQuery.data?.items ?? [];
 
   const vehiclesQuery = useQuery({
     queryKey: ["training", "vehicles"],
-    queryFn: () => getVehicles({ activity: "active", page: 1, pageSize: 100 }),
+    queryFn: ({ signal }) => getVehicles({ activity: "active", page: 1, pageSize: 100 }, signal),
   });
   const vehicles: VehicleResponse[] = vehiclesQuery.data?.items ?? [];
 
@@ -182,7 +194,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // bu listeyi kullanır, hardcoded sabit kullanılmaz.
   const branchesQuery = useQuery({
     queryKey: ["training", "branches"],
-    queryFn: () => getTrainingBranchDefinitions({ activity: "active", pageSize: 100 }),
+    queryFn: ({ signal }) => getTrainingBranchDefinitions({ activity: "active", pageSize: 100 }, signal),
   });
   const branches: TrainingBranchDefinitionResponse[] = branchesQuery.data?.items ?? [];
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
@@ -295,6 +307,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const lastClickPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const mebbisPollTimersRef = useRef<number[]>([]);
   const mebbisPollingJobIdsRef = useRef<Set<string>>(new Set());
+  const mebbisPollControllersRef = useRef<Map<string, AbortController>>(new Map());
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -310,7 +323,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
       for (const timerId of mebbisPollTimersRef.current) {
         window.clearTimeout(timerId);
       }
+      for (const controller of mebbisPollControllersRef.current.values()) {
+        controller.abort();
+      }
       mebbisPollTimersRef.current = [];
+      mebbisPollControllersRef.current.clear();
       mebbisPollingJobIdsRef.current.clear();
     };
   }, []);
@@ -736,6 +753,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           return next;
         });
       }
+      invalidateTrainingLessons();
       showToast(t("training.toast.bulkAssigned", { count: successCount }));
     } catch (error) {
       console.error(error);
@@ -830,6 +848,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           return next;
         });
       }
+      invalidateTrainingLessons();
       showToast(t("training.toast.bulkAssigned", { count: successCount }));
     } catch (error) {
       console.error(error);
@@ -866,6 +885,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       setEvents((prev) => [...prev, nextEvent]);
       setModalOpen(false);
       setNewLessonSlot(null);
+      invalidateTrainingLessons();
       showToast(t("training.toast.lessonCreated"));
     } catch (error) {
       console.error(error);
@@ -891,6 +911,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         calendarEventToTrainingLessonRequest(event, overrides)
       );
       replaceEvent(trainingLessonToCalendarEvent(saved));
+      invalidateTrainingLessons();
       showToast(t("training.toast.lessonUpdated"));
     } catch (error) {
       console.error(error);
@@ -910,6 +931,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       await deleteTrainingLesson(event.id);
       setEvents((prev) => prev.filter((e) => e.id !== event.id));
       setSelectedEvent(null);
+      invalidateTrainingLessons();
       showToast(t("training.toast.lessonDeleted"));
     } catch (error) {
       console.error(error);
@@ -1218,6 +1240,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const finishMebbisJobPoll = (jobId: string) => {
+    mebbisPollControllersRef.current.get(jobId)?.abort();
+    mebbisPollControllersRef.current.delete(jobId);
     mebbisPollingJobIdsRef.current.delete(jobId);
   };
 
@@ -1237,10 +1261,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const queueMebbisJobPoll = (jobId: string, groupId: string, startedAt: number) => {
     const timerId = window.setTimeout(async () => {
       mebbisPollTimersRef.current = mebbisPollTimersRef.current.filter((id) => id !== timerId);
+      const controller = new AbortController();
+      mebbisPollControllersRef.current.set(jobId, controller);
       try {
-        const job = await getMebbisJob(jobId);
+        const job = await getMebbisJob(jobId, controller.signal);
+        mebbisPollControllersRef.current.delete(jobId);
         if (job.status === "succeeded") {
           await refreshGroupAfterMebbisTransfer(groupId);
+          invalidateTrainingLessons();
+          void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+          void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+          void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
           finishMebbisJobPoll(jobId);
           showToast(t(
             job.jobType === "theory_schedule_import"
@@ -1251,6 +1282,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
         }
 
         if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) {
+          void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+          void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+          void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
           finishMebbisJobPoll(jobId);
           showToast(t("training.toast.mebbisTransferNeedsManualAction"));
           return;
@@ -1264,6 +1298,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
         finishMebbisJobPoll(jobId);
         showToast(t("training.toast.mebbisTransferStillRunning"));
       } catch (error) {
+        mebbisPollControllersRef.current.delete(jobId);
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         console.error(error);
         if (Date.now() - startedAt < 30 * 60 * 1000) {
           queueMebbisJobPoll(jobId, groupId, startedAt);
@@ -1289,6 +1327,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
     try {
       const job = await createTheoryScheduleSyncJob(selectedTheoryGroup.id);
       notifyMebbisJobQueued(job.id, job.jobType);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("training.toast.mebbisTransferQueued"));
       scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id);
     } catch (error) {
@@ -1315,6 +1356,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
     try {
       const job = await createTheoryScheduleImportJob(selectedTheoryGroup.id);
       notifyMebbisJobQueued(job.id, job.jobType);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("training.toast.mebbisImportQueued"));
       scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id);
     } catch (error) {
@@ -1343,6 +1387,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       );
       setSelectedEvent(null);
       setBulkDeleteGroup(null);
+      invalidateTrainingLessons();
       showToast(
         t("training.toast.bulkLessonsDeleted", {
           count: result.deletedCount,
@@ -1369,6 +1414,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       );
       setSelectedEvent(null);
       setBulkDeleteCandidate(null);
+      invalidateTrainingLessons();
       showToast(
         t("training.toast.bulkLessonsDeleted", {
           count: result.deletedCount,

@@ -102,7 +102,16 @@ export function VehicleDetailPage() {
 
   const refreshDocuments = async () => {
     if (!vehicleId) return;
-    await queryClient.invalidateQueries({ queryKey: ["vehicleDocuments", vehicleId] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["vehicleDocuments", vehicleId] }),
+      queryClient.invalidateQueries({ queryKey: ["vehicles", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["vehicles", "detail"] }),
+      queryClient.invalidateQueries({ queryKey: ["vehicles", "detail", vehicleId] }),
+      queryClient.invalidateQueries({ queryKey: ["training", "vehicles"] }),
+      queryClient.invalidateQueries({ queryKey: ["training", "lessons"] }),
+      queryClient.invalidateQueries({ queryKey: ["notifications", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+    ]);
   };
 
   const openCreate = (type: VehicleDocumentType) => {

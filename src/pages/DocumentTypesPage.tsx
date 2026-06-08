@@ -23,12 +23,14 @@ import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { getDocumentTypes } from "../lib/documents-api";
 import { useT, type TranslationKey } from "../lib/i18n";
+import { candidateKeys } from "../lib/queries/use-candidates";
 import type { DocumentTypeResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
+const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 
 type DocumentTypeSortField = "name" | "isRequired" | "isActive";
 type DocumentTypeColumnId = DocumentTypeSortField;
@@ -123,12 +125,25 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
   const visibleColumns = columns.filter((column) => isVisible(column.id));
 
   const documentTypesQuery = useQuery<DocumentTypeResponse[]>({
+    gcTime: SETTINGS_QUERY_CACHE_MS,
     queryKey: ["documentTypes", "list", { includeInactive }],
-    queryFn: () => getDocumentTypes({ includeInactive }),
+    queryFn: ({ signal }) => getDocumentTypes({ includeInactive }, signal),
   });
 
   const items = documentTypesQuery.data ?? [];
   const loading = documentTypesQuery.isPending;
+
+  const invalidateDocumentTypeDependentCaches = () => {
+    void queryClient.invalidateQueries({ queryKey: ["documentTypes", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documentTypes", "candidate"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "types"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
@@ -246,7 +261,7 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
         return next;
       }
     );
-    void queryClient.invalidateQueries({ queryKey: ["documentTypes", "list"] });
+    invalidateDocumentTypeDependentCaches();
   };
 
   const actions = (

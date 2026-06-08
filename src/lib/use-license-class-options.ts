@@ -134,8 +134,7 @@ export async function getActiveInitialLicenseClassOptions(
 export function useLicenseClassOptions() {
   const query = useQuery({
     queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
-    queryFn: () => getActiveLicenseClassDefinitions(),
-    staleTime: 5 * 60_000,
+    queryFn: ({ signal }) => getActiveLicenseClassDefinitions(signal),
   });
   const options = useMemo(
     () => uniqueTargetOptions((query.data ?? []).filter((item) => !item.existingLicenseType)),
@@ -148,9 +147,8 @@ export function useLicenseClassOptions() {
 export function useActiveLicenseClassDefinitions(enabled = true) {
   const query = useQuery({
     queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
-    queryFn: () => getActiveLicenseClassDefinitions(),
+    queryFn: ({ signal }) => getActiveLicenseClassDefinitions(signal),
     enabled,
-    staleTime: 30_000,
   });
 
   return { items: query.data ?? [], loading: query.isLoading };
@@ -159,8 +157,7 @@ export function useActiveLicenseClassDefinitions(enabled = true) {
 export function useInitialLicenseClassOptions() {
   const query = useQuery({
     queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
-    queryFn: () => getActiveLicenseClassDefinitions(),
-    staleTime: 5 * 60_000,
+    queryFn: ({ signal }) => getActiveLicenseClassDefinitions(signal),
   });
   const options = useMemo(
     () => uniqueTargetOptions((query.data ?? []).filter((item) => !item.existingLicenseType)),
@@ -177,9 +174,8 @@ export function useCandidateLicenseClassOptions(
 ) {
   const query = useQuery({
     queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
-    queryFn: () => getActiveLicenseClassDefinitions(),
+    queryFn: ({ signal }) => getActiveLicenseClassDefinitions(signal),
     enabled,
-    staleTime: 30_000,
   });
   const options = useMemo(
     () => getCandidateTargetOptions(query.data ?? [], existingLicenseType, hasExistingLicense),
@@ -192,9 +188,8 @@ export function useCandidateLicenseClassOptions(
 export function useExistingLicenseTypeOptions(enabled = true) {
   const query = useQuery({
     queryKey: GLOBAL_ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
-    queryFn: () => getActiveLicenseClassDefinitions(undefined, false),
+    queryFn: ({ signal }) => getActiveLicenseClassDefinitions(signal, false),
     enabled,
-    staleTime: 30_000,
   });
   const options = useMemo(
     () => uniqueExistingLicenseTypeOptions(query.data ?? []),

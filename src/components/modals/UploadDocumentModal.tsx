@@ -6,6 +6,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,6 +16,7 @@ import { getDocumentTypes, uploadDocument } from "../../lib/documents-api";
 import { useLanguage, useT } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { ApiError } from "../../lib/http";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type {
   CandidateResponse,
   DocumentMetadataField,
@@ -201,6 +203,7 @@ export function UploadDocumentModal({
   onClose,
   onUploaded,
 }: UploadDocumentModalProps) {
+  const queryClient = useQueryClient();
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -236,6 +239,21 @@ export function UploadDocumentModal({
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
   const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
   const [cropSaving, setCropSaving] = useState(false);
+
+  const invalidateUploadDocumentDependents = (resolvedCandidateId: string) => {
+    void queryClient.invalidateQueries({
+      queryKey: ["candidates", "documents", resolvedCandidateId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: candidateKeys.detail(resolvedCandidateId),
+    });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   const {
     control,
@@ -596,6 +614,7 @@ export function UploadDocumentModal({
         metadata:
           Object.keys(metadataToSend).length > 0 ? metadataToSend : undefined,
       });
+      invalidateUploadDocumentDependents(resolvedCandidateId);
       onUploaded();
     } catch (error) {
       if (error instanceof ApiError && error.status === 413) {

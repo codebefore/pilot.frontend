@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
@@ -20,6 +20,7 @@ import {
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type {
   LicenseClassDefinitionListSummaryResponse,
   LicenseClassDefinitionResponse,
@@ -27,6 +28,7 @@ import type {
 import { useColumnVisibility } from "../../lib/use-column-visibility";
 
 const SEARCH_DEBOUNCE_MS = 300;
+const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 type SortState = {
   field: LicenseClassDefinitionSortField;
   direction: LicenseClassDefinitionSortDirection;
@@ -62,10 +64,27 @@ const DEFAULT_FILTERS: LicenseClassDefinitionFilters = {
   code: "",
 };
 
+function invalidateLicenseClassDependentCaches(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ["licenseClassDefinitions"] });
+  void queryClient.invalidateQueries({ queryKey: ["settings", "license-class-fee-matrix"] });
+  void queryClient.invalidateQueries({ queryKey: ["finance", "license-class-fee-matrix"] });
+  void queryClient.invalidateQueries({ queryKey: ["candidate-detail", "exam-attempt-fee-matrix"] });
+  void queryClient.invalidateQueries({ queryKey: ["candidate-detail", "contract-back-fee-matrix"] });
+  void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+  void queryClient.invalidateQueries({ queryKey: ["training", "vehicles"] });
+  void queryClient.invalidateQueries({ queryKey: ["training", "instructors"] });
+  void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+  void queryClient.invalidateQueries({ queryKey: ["payments"] });
+  void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+  void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
 export function LicenseClassDefinitionsSettingsSection() {
   const navigate = useNavigate();
   const t = useT();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const { permissions, user } = useAuth();
   const canManageCatalog = user?.isSuperAdmin ?? false;
   const canManageActivity = canManageArea(user, permissions, "settings");
@@ -146,8 +165,9 @@ export function LicenseClassDefinitionsSettingsSection() {
   );
 
   const listQuery = useQuery({
+    gcTime: SETTINGS_QUERY_CACHE_MS,
     queryKey: ["settings", "license-class-definitions", listQueryParams, refreshKey],
-    queryFn: () => getLicenseClassDefinitions(listQueryParams),
+    queryFn: ({ signal }) => getLicenseClassDefinitions(listQueryParams, signal),
     retry: false,
   });
 
@@ -182,6 +202,7 @@ export function LicenseClassDefinitionsSettingsSection() {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
+    invalidateLicenseClassDependentCaches(queryClient);
     showToast(editing ? t("settings.licenseClasses.toast.updated") : t("settings.licenseClasses.toast.created"));
   };
 
@@ -227,6 +248,7 @@ export function LicenseClassDefinitionsSettingsSection() {
       setConfirmDeleteId(null);
       showToast(t("settings.licenseClasses.toast.deleted"));
       setRefreshKey((current) => current + 1);
+      invalidateLicenseClassDependentCaches(queryClient);
     } catch {
       showToast(t("settings.licenseClasses.toast.deleteFailed"), "error");
     } finally {
@@ -252,6 +274,7 @@ export function LicenseClassDefinitionsSettingsSection() {
           })
       );
       setRefreshKey((current) => current + 1);
+      invalidateLicenseClassDependentCaches(queryClient);
       showToast(
         saved.isActive
           ? t("settings.licenseClasses.toast.activated")

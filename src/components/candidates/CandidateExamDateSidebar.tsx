@@ -11,9 +11,9 @@ import type { ExamCodeOption, ExamScheduleOption } from "../../lib/types";
 type CandidateExamDateSidebarProps = {
   title: string;
   options: ExamScheduleOption[];
-  selectedDate: string;
+  selectedOptionId?: string;
   selectedCode?: string;
-  onSelect: (date: string) => void;
+  onSelect: (option: ExamScheduleOption | null) => void;
   onCodeSelect?: (code: string) => void;
   onSidebarTabChange?: (tab: "dates" | "codes") => void;
   onDelete?: (option: ExamScheduleOption) => void;
@@ -65,7 +65,7 @@ function findTodayDividerDate(
 export function CandidateExamDateSidebar({
   title,
   options,
-  selectedDate,
+  selectedOptionId = "",
   selectedCode = "",
   onSelect,
   onCodeSelect,
@@ -462,9 +462,9 @@ export function CandidateExamDateSidebar({
                 </div>
               ) : (
                 <button
-                  aria-pressed={selectedDate === option.date}
-                  className={selectedDate === option.date ? "exam-date-option active" : "exam-date-option"}
-                  onClick={() => onSelect(selectedDate === option.date ? "" : option.date)}
+                  aria-pressed={selectedOptionId === option.id}
+                  className={selectedOptionId === option.id ? "exam-date-option active" : "exam-date-option"}
+                  onClick={() => onSelect(selectedOptionId === option.id ? null : option)}
                   type="button"
                 >
                   <span className="exam-date-option-head">

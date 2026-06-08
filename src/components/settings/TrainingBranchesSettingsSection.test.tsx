@@ -65,7 +65,8 @@ describe("TrainingBranchesSettingsSection", () => {
 
     await waitFor(() => {
       expect(getTrainingBranchDefinitionsMock).toHaveBeenCalledWith(
-        { activity: "all", page: 1, pageSize: 100 }
+        { activity: "all", page: 1, pageSize: 100 },
+        expect.any(AbortSignal)
       );
     });
     expect(await screen.findByText("Direksiyon")).toBeInTheDocument();

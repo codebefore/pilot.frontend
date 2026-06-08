@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
@@ -11,6 +12,7 @@ import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import {
   deleteVehicle,
   getVehicles,
@@ -196,6 +198,7 @@ const DEFAULT_FILTERS: VehicleFilters = {
 export function VehiclesSettingsSection() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const t = useT();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
@@ -280,10 +283,22 @@ export function VehiclesSettingsSection() {
     filters.status !== DEFAULT_FILTERS.status ||
     filters.licenseClass !== DEFAULT_FILTERS.licenseClass;
 
+  const invalidateVehicleDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["training", "vehicles"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["vehicles", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["vehicles", "detail"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
   const handleSaved = (_saved: VehicleResponse) => {
     setFormOpen(false);
     setEditing(null);
     setRefreshKey((current) => current + 1);
+    invalidateVehicleDependents();
     showToast(editing ? t("settings.vehicles.toast.updated") : t("settings.vehicles.toast.created"));
   };
 
@@ -317,6 +332,7 @@ export function VehiclesSettingsSection() {
       } else {
         setRefreshKey((current) => current + 1);
       }
+      invalidateVehicleDependents();
     } catch {
       showToast(t("settings.vehicles.toast.deleteError"), "error");
     } finally {

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import {
 } from "../../lib/license-class-fee-matrix-api";
 import { useAuth } from "../../lib/auth";
 import { canManageArea } from "../../lib/permissions";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import type {
   LicenseClassFeeBulkApplyRequest,
   LicenseClassFeeProgramResponse,
@@ -664,6 +665,7 @@ function isRowDirty(
 
 export function LicenseClassFeeMatrixSettingsSection() {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const { user, permissions } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -701,12 +703,30 @@ export function LicenseClassFeeMatrixSettingsSection() {
     setBulkValues({});
   };
 
+  const matrixQueryKey = useMemo(
+    () => ["settings", "license-class-fee-matrix", year, refreshKey] as const,
+    [refreshKey, year]
+  );
   const matrixQuery = useQuery({
-    queryKey: ["settings", "license-class-fee-matrix", year, refreshKey],
-    queryFn: () => getLicenseClassFeeMatrix(year),
+    gcTime: 60 * 60 * 1000,
+    queryKey: matrixQueryKey,
+    queryFn: ({ signal }) => getLicenseClassFeeMatrix(year, undefined, signal),
     retry: false,
+    staleTime: 60 * 60 * 1000,
   });
   const loading = matrixQuery.isLoading;
+  const invalidateCandidateFeeMatrixCaches = () => {
+    void queryClient.invalidateQueries({ queryKey: ["settings", "license-class-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: ["finance", "license-class-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidate-detail", "exam-attempt-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidate-detail", "contract-back-fee-matrix"] });
+    void queryClient.invalidateQueries({ queryKey: ["payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   useEffect(() => {
     if (!matrixQuery.data) return;
@@ -864,6 +884,8 @@ export function LicenseClassFeeMatrixSettingsSection() {
       });
       setRows(response.rows);
       baselineRef.current = snapshotEditableFields(response.rows);
+      queryClient.setQueryData(matrixQueryKey, response);
+      invalidateCandidateFeeMatrixCaches();
       showToast(t("feeMatrix.toast.saved"));
     } catch {
       showToast(t("feeMatrix.toast.saveFailed"), "error");
@@ -966,6 +988,8 @@ export function LicenseClassFeeMatrixSettingsSection() {
       if (lastResponse) {
         setRows(lastResponse.rows);
         baselineRef.current = snapshotEditableFields(lastResponse.rows);
+        queryClient.setQueryData(matrixQueryKey, lastResponse);
+        invalidateCandidateFeeMatrixCaches();
       }
       const fieldLabel = (EDITABLE_FIELDS.find((f) => f.value === field) ? t(EDITABLE_FIELDS.find((f) => f.value === field)!.labelKey) : field);
       const lessonSuffix =

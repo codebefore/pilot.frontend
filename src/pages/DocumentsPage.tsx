@@ -34,8 +34,8 @@ import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
 import { isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
-import { useCandidateTags } from "../lib/queries/use-candidates";
-import { useGroups } from "../lib/queries/use-groups";
+import { candidateKeys, useCandidateTags } from "../lib/queries/use-candidates";
+import { groupKeys, useGroups } from "../lib/queries/use-groups";
 import { buildWhatsAppUrl } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
@@ -200,8 +200,8 @@ export function DocumentsPage() {
   // --- React Query: document types ---
   const { data: documentTypes = [] } = useQuery<DocumentTypeResponse[]>({
     queryKey: ["documents", "types"],
-    queryFn: () =>
-      getDocumentTypes().catch((err) => {
+    queryFn: ({ signal }) =>
+      getDocumentTypes(undefined, signal).catch((err) => {
         if (isAbortError(err)) {
           throw err;
         }
@@ -211,17 +211,31 @@ export function DocumentsPage() {
   });
 
   // --- React Query: groups for bulk actions and Dönem filter ---
-  const { data: bulkGroupsData, isLoading: bulkGroupLoading } = useGroups({ pageSize: 200 }, true, false);
+  const { data: bulkGroupsData, isLoading: bulkGroupLoading } = useGroups({ pageSize: 200 }, true);
   const bulkGroupOptions: GroupResponse[] = bulkGroupsData?.items ?? [];
 
   // --- React Query: candidate tags for filter chips ---
-  const { data: tagsData } = useCandidateTags("", 200, true, false);
+  const { data: tagsData } = useCandidateTags("", 200, true);
 
   // Sync fetched tags into local state so mutations (create/rename/delete) can
   // update the list without a full refetch.
   useEffect(() => {
     if (tagsData) setAllTags(tagsData);
   }, [tagsData]);
+
+  const invalidateDocumentChecklist = () => {
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+  };
+
+  const invalidateCandidateAndGroupData = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
 
   // Drop active tag filters that no longer exist (e.g. renamed/deleted elsewhere).
   useEffect(() => {
@@ -266,8 +280,8 @@ export function DocumentsPage() {
     isFetching: loading,
   } = useQuery({
     queryKey: ["documents", "list", checklistParams],
-    queryFn: () =>
-      getDocumentChecklist(checklistParams).catch((err) => {
+    queryFn: ({ signal }) =>
+      getDocumentChecklist(checklistParams, signal).catch((err) => {
         if (isAbortError(err)) {
           throw err;
         }
@@ -299,15 +313,17 @@ export function DocumentsPage() {
 
   const { data: tabCountAll } = useQuery({
     queryKey: ["documents", "tabCount", "all", baseCountParams],
-    queryFn: () => getDocumentChecklist(baseCountParams),
+    queryFn: ({ signal }) => getDocumentChecklist(baseCountParams, signal),
   });
   const { data: tabCountMissing } = useQuery({
     queryKey: ["documents", "tabCount", "missing", baseCountParams],
-    queryFn: () => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: true }),
+    queryFn: ({ signal }) =>
+      getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: true }, signal),
   });
   const { data: tabCountComplete } = useQuery({
     queryKey: ["documents", "tabCount", "complete", baseCountParams],
-    queryFn: () => getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: false }),
+    queryFn: ({ signal }) =>
+      getDocumentChecklist({ ...baseCountParams, hasMissingDocuments: false }, signal),
   });
   const tabCounts = {
     all: tabCountAll?.totalCount ?? 0,
@@ -431,6 +447,7 @@ export function DocumentsPage() {
       setPage(1);
       setIsAddingTag(false);
       setNewTagDraft("");
+      void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
     } catch {
       showToast(t("documentsPage.toast.tagCreateFailed"), "error");
     } finally {
@@ -457,17 +474,17 @@ export function DocumentsPage() {
       const mapped = current.map((name) => (name === previousTag.name ? nextTag.name : name));
       return mapped.filter((name, index) => mapped.indexOf(name) === index);
     });
-    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
-    void queryClient.invalidateQueries({ queryKey: ["candidates", "tags"] });
+    invalidateDocumentChecklist();
+    invalidateCandidateAndGroupData();
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
   };
 
   const handleTagDeleted = (tag: CandidateTag) => {
     removeTagFromCatalog(tag.id);
     setActiveTags((current) => current.filter((name) => name !== tag.name));
-    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
-    void queryClient.invalidateQueries({ queryKey: ["candidates", "tags"] });
+    invalidateDocumentChecklist();
+    invalidateCandidateAndGroupData();
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
   };
 
   const toggleCandidateSelection = (candidateId: string) => {
@@ -528,9 +545,9 @@ export function DocumentsPage() {
       setBulkActionMode(null);
       setSelectedCandidateIds(new Set());
       setBulkTagValues([]);
-      void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
-      void queryClient.invalidateQueries({ queryKey: ["candidates", "tags"] });
+      invalidateDocumentChecklist();
+      invalidateCandidateAndGroupData();
+      void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
     } catch {
       showToast(t("candidates.toast.bulkTagFailed"), "error");
     } finally {
@@ -551,8 +568,8 @@ export function DocumentsPage() {
       setBulkActionMode(null);
       setSelectedCandidateIds(new Set());
       setBulkGroupId("");
-      void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+      invalidateDocumentChecklist();
+      invalidateCandidateAndGroupData();
     } catch {
       showToast(t("candidates.toast.bulkGroupFailed"), "error");
     } finally {
@@ -582,15 +599,15 @@ export function DocumentsPage() {
   const handleUploaded = () => {
     setUploadTarget(null);
     showToast(t("documents.uploaded"));
-    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    invalidateDocumentChecklist();
+    invalidateCandidateAndGroupData();
   };
 
   const handleDocumentSaved = () => {
     setManageTarget(null);
     showToast(t("documents.manage.saved"));
-    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    invalidateDocumentChecklist();
+    invalidateCandidateAndGroupData();
   };
 
   const emptyMessage = hasAnyFilter
@@ -1209,12 +1226,12 @@ export function DocumentsPage() {
         onClose={closeDrawer}
         onDeleted={() => {
           closeDrawer();
-          void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-          void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+          invalidateDocumentChecklist();
+          invalidateCandidateAndGroupData();
         }}
         onUpdated={() => {
-          void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-          void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+          invalidateDocumentChecklist();
+          invalidateCandidateAndGroupData();
         }}
       />
     </>

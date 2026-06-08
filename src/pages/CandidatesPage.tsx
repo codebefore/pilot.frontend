@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } fr
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
-import { useGroups } from "../lib/queries/use-groups";
+import { groupKeys, useGroups } from "../lib/queries/use-groups";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
@@ -928,13 +928,13 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     sortField: "missingDocumentCount",
     renderCell: (c) => (
       <CandidateDocumentBadge
-        loadMissingDocumentNames={async () => {
+        loadMissingDocumentNames={async (signal) => {
           const result = await getDocumentChecklist({
             status: "missing",
             search: c.nationalId,
             page: 1,
             pageSize: 1,
-          });
+          }, signal);
           return result.items[0]?.missingDocumentNames ?? [];
         }}
         summary={c.documentSummary}
@@ -1360,6 +1360,7 @@ export function CandidatesPage({
   const navigate = useNavigate();
   const selectedId = searchParams.get("selected");
   const [selectedExamDate, setSelectedExamDate] = useState("");
+  const [selectedExamScheduleId, setSelectedExamScheduleId] = useState("");
   const [selectedDrivingExamCode, setSelectedDrivingExamCode] = useState("");
   const [examDateTabNeutral, setExamDateTabNeutral] = useState(false);
   const [examSidebarTab, setExamSidebarTab] = useState<"dates" | "codes">("dates");
@@ -1420,11 +1421,11 @@ export function CandidatesPage({
   // Tag catalog for the filter bar. Tag mutations from within this page do
   // optimistic queryClient.setQueryData updates; cross-page mutations
   // invalidate via candidateKeys.tags() in the use-candidates mutation hooks.
-  const allTagsQuery = useCandidateTags("", 200, true, false);
+  const allTagsQuery = useCandidateTags("", 200, true);
   const allTags: CandidateTag[] = allTagsQuery.data ?? [];
 
   // Group catalog for the "Grup" column header filter.
-  const headerGroupCatalogQuery = useGroups({ pageSize: 200 }, true, false);
+  const headerGroupCatalogQuery = useGroups({ pageSize: 200 }, true);
   const headerGroupCatalog: GroupResponse[] = headerGroupCatalogQuery.data?.items ?? [];
 
   const defaultVisibleColumnIds = useMemo<CandidateColumnId[]>(() => {
@@ -1550,6 +1551,11 @@ export function CandidatesPage({
               }
             : current
       );
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidate.id) });
+      void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
+      void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setEditingPracticeCell(null);
       showToast(t("candidates.toast.appointmentUpdated"));
     } catch (error) {
@@ -1754,9 +1760,21 @@ export function CandidatesPage({
     }
 
     return examDateSidebar.field === "eSinavDate"
-      ? { eSinavDate: selectedExamDate }
-      : { drivingExamDate: selectedExamDate };
-  }, [examDateSidebar, isDrivingExamCodeTabActive, selectedDrivingExamCode, selectedExamDate]);
+      ? {
+          eSinavDate: selectedExamDate,
+          eSinavScheduleId: selectedExamScheduleId || undefined,
+        }
+      : {
+          drivingExamDate: selectedExamDate,
+          drivingExamScheduleId: selectedExamScheduleId || undefined,
+        };
+  }, [
+    examDateSidebar,
+    isDrivingExamCodeTabActive,
+    selectedDrivingExamCode,
+    selectedExamDate,
+    selectedExamScheduleId,
+  ]);
   const displayedExamDateOptions = useMemo(
     () => sortExamDateOptionsNewestFirst(examDateOptions),
     [examDateOptions]
@@ -1790,6 +1808,7 @@ export function CandidatesPage({
 
   useEffect(() => {
     setSelectedExamDate("");
+    setSelectedExamScheduleId("");
     setSelectedDrivingExamCode("");
     setExamDateTabNeutral(false);
     setExamSidebarTab("dates");
@@ -1827,7 +1846,7 @@ export function CandidatesPage({
     tab,
   ]);
 
-  const candidatesQuery = useCandidates(candidatesRequestParams, true, false);
+  const candidatesQuery = useCandidates(candidatesRequestParams, true);
   const candidates = candidatesQuery.data?.items ?? [];
   const totalPages = candidatesQuery.data?.totalPages ?? 1;
   const loading = candidatesQuery.isLoading;
@@ -1878,13 +1897,17 @@ export function CandidatesPage({
 
   const invalidateCandidates = () => {
     void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
   const refreshAll = () => {
     invalidateCandidates();
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
     void queryClient.invalidateQueries({ queryKey: candidateKeys.tags("") });
-    void queryClient.invalidateQueries({ queryKey: ["groups", "list"] });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: ["examCodes"] });
-    void queryClient.invalidateQueries({ queryKey: ["candidates", "examScheduleOptions"] });
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
   };
   const allVisibleSelected =
     candidates.length > 0 && candidates.every((candidate) => selectedCandidateIds.has(candidate.id));
@@ -1905,14 +1928,19 @@ export function CandidatesPage({
       return;
     }
 
-    if (!displayedExamDateOptions.some((option) => option.date === selectedExamDate)) {
+    const selectedOptionStillExists = selectedExamScheduleId
+      ? displayedExamDateOptions.some((option) => option.id === selectedExamScheduleId)
+      : displayedExamDateOptions.some((option) => option.date === selectedExamDate);
+    if (!selectedOptionStillExists) {
       setSelectedExamDate("");
+      setSelectedExamScheduleId("");
     }
   }, [
     displayedExamDateOptions,
     examDateOptionsLoading,
     examDateSidebar,
     selectedExamDate,
+    selectedExamScheduleId,
   ]);
 
   useEffect(() => {
@@ -1946,8 +1974,9 @@ export function CandidatesPage({
     setDeletingExamScheduleId(option.id);
     try {
       await deleteExamSchedule(option.id);
-      if (selectedExamDate === option.date) {
+      if (selectedExamScheduleId === option.id) {
         setSelectedExamDate("");
+        setSelectedExamScheduleId("");
       }
       refreshAll();
       showToast(t("candidates.toast.examScheduleDeleted"));
@@ -1990,7 +2019,7 @@ export function CandidatesPage({
         time: option.examType === "e_sinav" ? (time ?? option.time) : undefined,
         capacity: option.capacity,
       });
-      if (selectedExamDate === option.date) {
+      if (selectedExamScheduleId === option.id) {
         setSelectedExamDate(date);
       }
       refreshAll();
@@ -2060,6 +2089,7 @@ export function CandidatesPage({
     setExamDateTabNeutral(false);
     if (examDateSidebar && value === "havuz") {
       setSelectedExamDate("");
+      setSelectedExamScheduleId("");
     }
     setTab(value);
     setPage(1);
@@ -2082,21 +2112,20 @@ export function CandidatesPage({
     setFilters((current) => ({ ...current, [key]: value }));
   };
 
-  const handleExamDateSelect = (value: string) => {
+  const handleExamDateSelect = (option: ExamScheduleOption | null) => {
+    const value = option?.date ?? "";
     if (value) {
       setSelectedDrivingExamCode("");
     }
-    const neutral = Boolean(value && isPastIsoDate(value));
-    setExamDateTabNeutral(neutral);
-    if (value && examDateSidebar && tab === "havuz" && !neutral) {
-      setTab("randevulu");
-    }
+    setExamDateTabNeutral(Boolean(value));
     setPage(1);
     setSelectedExamDate(value);
+    setSelectedExamScheduleId(option?.id ?? "");
   };
 
   const handleExamCodeSelect = (value: string) => {
     setSelectedExamDate("");
+    setSelectedExamScheduleId("");
     setExamDateTabNeutral(false);
     setSelectedDrivingExamCode(value);
     setPage(1);
@@ -2108,6 +2137,7 @@ export function CandidatesPage({
     setDebouncedFilters(EMPTY_CANDIDATE_FILTERS);
     setActiveTags([]);
     setSelectedExamDate("");
+    setSelectedExamScheduleId("");
   };
 
   const openAddTagInput = () => {
@@ -2443,8 +2473,8 @@ export function CandidatesPage({
     }
 
     setBulkExamDateValue(
-      displayedExamDateOptions.some((option) => option.date === selectedExamDate)
-        ? displayedExamDateOptions.find((option) => option.date === selectedExamDate)?.id ?? ""
+      displayedExamDateOptions.some((option) => option.id === selectedExamScheduleId)
+        ? selectedExamScheduleId
         : ""
     );
     setBulkActionMode("examDate");
@@ -2565,6 +2595,7 @@ export function CandidatesPage({
       setSelectedCandidateIds(new Set());
       setBulkExamDateValue("");
       setSelectedExamDate(assignedExamDate);
+      setSelectedExamScheduleId(selectedSchedule.id);
       const neutral = isPastIsoDate(assignedExamDate);
       setExamDateTabNeutral(neutral);
       if (!neutral) {
@@ -3207,12 +3238,13 @@ export function CandidatesPage({
                 setSelectedDrivingExamCode("");
               } else {
                 setSelectedExamDate("");
+                setSelectedExamScheduleId("");
                 setExamDateTabNeutral(false);
               }
             }}
             options={displayedExamDateOptions}
             selectedCode={selectedDrivingExamCode}
-            selectedDate={selectedExamDate}
+            selectedOptionId={selectedExamScheduleId}
             showTime={examDateSidebar.showTime}
             summaryMode={examDateSidebar.summaryMode}
             title={examDateSidebar.title}

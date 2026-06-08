@@ -120,7 +120,8 @@ describe("GroupsPage", () => {
         expect.objectContaining({
           page: 1,
           pageSize: 100,
-        })
+        }),
+        expect.any(AbortSignal)
       );
     });
 
@@ -198,14 +199,16 @@ describe("GroupsPage", () => {
       expect.objectContaining({
         page: 1,
         pageSize: 100,
-      })
+      }),
+      expect.any(AbortSignal)
     );
     expect(getGroupsMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         page: 2,
         pageSize: 100,
-      })
+      }),
+      expect.any(AbortSignal)
     );
     expect(getGroupsMock.mock.calls[0]?.[0]).not.toHaveProperty("termId");
     expect(getGroupsMock.mock.calls[1]?.[0]).not.toHaveProperty("termId");
@@ -222,7 +225,8 @@ describe("GroupsPage", () => {
       expect.objectContaining({
         page: 1,
         pageSize: 100,
-      })
+      }),
+      expect.any(AbortSignal)
     );
     const lastParams = getGroupsMock.mock.calls[getGroupsMock.mock.calls.length - 1]?.[0];
     expect(lastParams).not.toHaveProperty("mebStatus");
@@ -243,7 +247,8 @@ describe("GroupsPage", () => {
           mebStatus: "sent",
           page: 1,
           pageSize: 100,
-        })
+        }),
+        expect.any(AbortSignal)
       );
     });
   });
@@ -269,7 +274,8 @@ describe("GroupsPage", () => {
           search: "1A",
           page: 1,
           pageSize: 100,
-        })
+        }),
+        expect.any(AbortSignal)
       );
     });
   });
@@ -318,7 +324,8 @@ describe("GroupsPage", () => {
           termId: "term-2",
           page: 1,
           pageSize: 100,
-        })
+        }),
+        expect.any(AbortSignal)
       );
     });
   });

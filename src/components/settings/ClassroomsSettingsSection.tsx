@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PencilIcon, PlusIcon } from "../icons";
 import { ClassroomFormModal } from "../modals/ClassroomFormModal";
@@ -12,6 +12,7 @@ import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import {
   getClassrooms,
   type ClassroomActivityFilter,
@@ -29,6 +30,7 @@ import { useColumnVisibility } from "../../lib/use-column-visibility";
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
+const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 
 type SortState = { field: ClassroomSortField; direction: ClassroomSortDirection } | null;
 type ClassroomFilters = {
@@ -122,6 +124,7 @@ function buildColumns(t: ReturnType<typeof useT>): ClassroomColumnDef[] {
 export function ClassroomsSettingsSection() {
   const { showToast } = useToast();
   const t = useT();
+  const queryClient = useQueryClient();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const noPermissionTitle = t("common.noPermission");
@@ -149,8 +152,9 @@ export function ClassroomsSettingsSection() {
   const visibleColumns = columns.filter((column) => isVisible(column.id));
 
   const branchesQuery = useQuery({
+    gcTime: SETTINGS_QUERY_CACHE_MS,
     queryKey: ["settings", "classrooms", "training-branches", { activity: "active", page: 1, pageSize: 200 }],
-    queryFn: () => getTrainingBranchDefinitions({ activity: "active", page: 1, pageSize: 200 }),
+    queryFn: ({ signal }) => getTrainingBranchDefinitions({ activity: "active", page: 1, pageSize: 200 }, signal),
     retry: false,
   });
 
@@ -173,8 +177,9 @@ export function ClassroomsSettingsSection() {
   );
 
   const listQuery = useQuery({
+    gcTime: SETTINGS_QUERY_CACHE_MS,
     queryKey: ["settings", "classrooms", listQueryParams, refreshKey],
-    queryFn: () => getClassrooms(listQueryParams),
+    queryFn: ({ signal }) => getClassrooms(listQueryParams, signal),
     retry: false,
   });
 
@@ -245,6 +250,11 @@ export function ClassroomsSettingsSection() {
     const wasEditing = editing !== null;
     setEditing(null);
     setRefreshKey((current) => current + 1);
+    void queryClient.invalidateQueries({ queryKey: ["settings", "classrooms"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     showToast(
       wasEditing
         ? t("settings.classrooms.toast.updated")

@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { todayLocalDateOnly } from "../../lib/date-only";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { ApiError } from "../../lib/http";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
 import { Modal } from "../ui/Modal";
@@ -50,6 +52,7 @@ export function NewExamScheduleModal({
   onClose,
   onSaved,
 }: NewExamScheduleModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -78,6 +81,16 @@ export function NewExamScheduleModal({
   const dateRegistration = register("date");
   const timeRegistration = register("time");
 
+  const invalidateExamScheduleDependents = () => {
+    void queryClient.invalidateQueries({
+      queryKey: [...candidateKeys.all, "examScheduleOptions"],
+    });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
   useEffect(() => {
     if (open) {
       reset({
@@ -104,6 +117,7 @@ export function NewExamScheduleModal({
         ...(showTimeField ? { time: data.time.trim() } : {}),
         capacity: Number(data.capacity),
       });
+      invalidateExamScheduleDependents();
       showToast("Sinav tarihi eklendi");
       onSaved();
     } catch (error) {

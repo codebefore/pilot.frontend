@@ -1,7 +1,7 @@
 import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
 
-export async function createAuthorizedObjectUrl(url: string): Promise<string> {
-  const blob = await fetchAuthorizedBlob(url);
+export async function createAuthorizedObjectUrl(url: string, signal?: AbortSignal): Promise<string> {
+  const blob = await fetchAuthorizedBlob(url, signal);
   return URL.createObjectURL(blob);
 }
 
@@ -54,14 +54,14 @@ export async function printAuthorizedFile(url: string, title: string): Promise<v
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
-async function fetchAuthorizedBlob(url: string): Promise<Blob> {
+async function fetchAuthorizedBlob(url: string, signal?: AbortSignal): Promise<Blob> {
   const headers = new Headers();
   const token = getStoredAccessToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, { headers, signal });
   if (response.status === 401) {
     notifyUnauthorized();
   }

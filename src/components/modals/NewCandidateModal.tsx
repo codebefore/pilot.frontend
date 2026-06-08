@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,6 +16,7 @@ import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { isPhoneStartingWith5 } from "../../lib/phone";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import { toTurkishUpperCase } from "../../lib/text-format";
 import type {
   CandidateReuseSourceResponse,
@@ -112,6 +114,7 @@ const defaultValues = (): NewCandidateForm => ({
 });
 
 export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }: NewCandidateModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -162,6 +165,17 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const classRegistration = register("className");
   const phoneRegistration = register("phone");
 
+  const invalidateNewCandidateDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "reuseSources"] });
+    void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
+    void queryClient.invalidateQueries({ queryKey: ["payments"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
   useEffect(() => {
     if (!open || licenseClassOptionsLoading) return;
     if (licenseClassOptions.length === 0) {
@@ -197,16 +211,18 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    getCandidateReferences()
+    const controller = new AbortController();
+    getCandidateReferences(undefined, controller.signal)
       .then((items) => {
-        if (!cancelled) setReferences(items);
+        if (!controller.signal.aborted) setReferences(items);
       })
-      .catch(() => {
-        if (!cancelled) setReferences([]);
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setReferences([]);
+        }
       });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [open]);
 
@@ -303,6 +319,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
         documentIdsToCopy: data.documentIdsToCopy,
       });
 
+      invalidateNewCandidateDependents();
       showToast(t("newCandidate.toast.success"));
       onSubmit();
     } catch (err) {

@@ -18,7 +18,9 @@ import { getGroups } from "../lib/groups-api";
 import { ApiError, isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
+import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
+import { termKeys } from "../lib/queries/use-terms";
 import { normalizeTextQuery } from "../lib/search";
 import {
   formatDateTR,
@@ -242,7 +244,7 @@ export function GroupsPage() {
 
   const termsQuery = useQuery({
     queryKey: ["terms", "list", { pageSize: 200 }, termRefreshKey],
-    queryFn: () => getTerms({ pageSize: 200 }),
+    queryFn: ({ signal }) => getTerms({ pageSize: 200 }, signal),
   });
   const sortedTerms = useMemo(
     () => [...(termsQuery.data?.items ?? [])].sort(compareTermsDesc),
@@ -269,6 +271,17 @@ export function GroupsPage() {
 
   const invalidateGroups = () => {
     void queryClient.invalidateQueries({ queryKey: groupKeys.all });
+    void queryClient.invalidateQueries({ queryKey: termKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+  const invalidateCandidates = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
   const handleTermCreated = (term: TermResponse) => {
@@ -276,6 +289,7 @@ export function GroupsPage() {
     setSelectedTermId(term.id);
     setTermRefreshKey((k) => k + 1);
     invalidateGroups();
+    invalidateCandidates();
   };
 
   const handleTermSaved = (term: TermResponse) => {
@@ -299,6 +313,7 @@ export function GroupsPage() {
       if (selectedTermId === term.id) setSelectedTermId("");
       setTermRefreshKey((k) => k + 1);
       invalidateGroups();
+      invalidateCandidates();
       setConfirmDeleteTermId(null);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors?.term?.length) {
@@ -319,11 +334,12 @@ export function GroupsPage() {
       "all-pages",
       { termId: selectedTermId || undefined, search: effectiveSearch, mebStatus: selectedMebStatus || undefined },
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       loadAllGroups(
         selectedTermId || undefined,
         effectiveSearch,
-        selectedMebStatus || undefined
+        selectedMebStatus || undefined,
+        signal
       ),
   });
   const groups = useMemo<GroupResponse[]>(() => groupsQuery.data ?? [], [groupsQuery.data]);
@@ -339,17 +355,20 @@ export function GroupsPage() {
     setModalOpen(false);
     showToast(t("groups.created"));
     invalidateGroups();
+    invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
   };
 
   const handleGroupUpdated = () => {
     invalidateGroups();
+    invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
   };
 
   const handleGroupDeleted = () => {
     setSelectedGroupId(null);
     invalidateGroups();
+    invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
   };
 

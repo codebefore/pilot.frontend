@@ -19,21 +19,23 @@ export function NotificationsMenu() {
   const ref = useRef<HTMLDivElement>(null);
   const notificationsQuery = useQuery({
     queryKey: ["notifications", "list"],
-    queryFn: () => getNotifications(),
+    queryFn: ({ signal }) => getNotifications(signal),
     refetchInterval: REFRESH_INTERVAL_MS,
   });
+  const refetchNotifications = notificationsQuery.refetch;
 
   useEffect(() => {
     if (!open) return;
+    void refetchNotifications();
     const onClick = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  }, [open, refetchNotifications]);
 
   const items: NotificationResponse[] = notificationsQuery.data?.items ?? [];
-  const unreadCount = items.length;
+  const unreadCount = notificationsQuery.data?.unreadCount ?? items.length;
   const visibleItems = items.slice(0, 5);
 
   return (

@@ -1,10 +1,12 @@
 import { useEffect, useId, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { createExamCode } from "../../lib/exam-codes-api";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { candidateKeys } from "../../lib/queries/use-candidates";
 import { Modal } from "../ui/Modal";
 import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
@@ -31,6 +33,7 @@ export function NewExamCodeModal({
   onClose,
   onSaved,
 }: NewExamCodeModalProps) {
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -50,6 +53,17 @@ export function NewExamCodeModal({
   });
   const code = watch("code");
 
+  const invalidateExamCodeDependents = () => {
+    void queryClient.invalidateQueries({ queryKey: ["examCodes"] });
+    void queryClient.invalidateQueries({
+      queryKey: [...candidateKeys.all, "examScheduleOptions"],
+    });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
   useEffect(() => {
     if (open) reset({ code: "" });
   }, [open, reset]);
@@ -59,6 +73,7 @@ export function NewExamCodeModal({
     setSubmitting(true);
     try {
       await createExamCode({ examType: "uygulama", code: data.code });
+      invalidateExamCodeDependents();
       showToast(t("examCode.toast.added"));
       onSaved();
     } catch (error) {
