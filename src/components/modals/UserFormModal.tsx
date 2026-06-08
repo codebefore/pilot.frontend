@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,6 +31,13 @@ const userFormSchema = z.object({
 
 type UserFormValues = z.infer<typeof userFormSchema>;
 
+const MEBBIS_PASSWORD_MASK = "********";
+const PHONE_MAX_DIGITS = 10;
+
+function normalizeUserPhone(raw: string | null | undefined): string {
+  return (raw ?? "").replace(/\D/g, "").slice(0, PHONE_MAX_DIGITS);
+}
+
 type UserFormModalProps = {
   open: boolean;
   editing: AppUserResponse | null;
@@ -44,9 +51,9 @@ const emptyValues = (editing: AppUserResponse | null): UserFormValues =>
   editing
     ? {
         fullName: editing.fullName,
-        phone: editing.phone ?? "",
+        phone: normalizeUserPhone(editing.phone),
         mebbisUsername: editing.mebbisUsername ?? "",
-        mebbisPassword: "",
+        mebbisPassword: editing.hasMebbisPassword ? MEBBIS_PASSWORD_MASK : "",
         roleId: editing.roleId ?? "",
         isActive: editing.isActive,
       }
@@ -105,8 +112,18 @@ export function UserFormModal({
     watch,
   } = useForm<UserFormValues>({ defaultValues: emptyValues(editing), resolver: zodResolver(userFormSchema) });
   const selectedRoleId = watch("roleId");
+  const mebbisPasswordValue = watch("mebbisPassword");
   const activeRoles = useMemo(() => roles.filter((role) => role.isActive), [roles]);
   const phoneRegistration = register("phone");
+  const handlePhoneChange = (event: ChangeEvent<HTMLInputElement>) => {
+    event.target.value = normalizeUserPhone(event.target.value);
+    void phoneRegistration.onChange(event);
+  };
+  const handleMebbisPasswordFocus = () => {
+    if (editing?.hasMebbisPassword && mebbisPasswordValue === MEBBIS_PASSWORD_MASK) {
+      setValue("mebbisPassword", "");
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -137,9 +154,12 @@ export function UserFormModal({
     setSubmitting(true);
     const payload: AppUserUpsertRequest = {
       fullName: values.fullName.trim(),
-      phone: values.phone.trim() || null,
+      phone: normalizeUserPhone(values.phone) || null,
       mebbisUsername: values.mebbisUsername.trim() || null,
-      mebbisPassword: values.mebbisPassword.trim() || null,
+      mebbisPassword:
+        editing?.hasMebbisPassword && values.mebbisPassword.trim() === MEBBIS_PASSWORD_MASK
+          ? null
+          : values.mebbisPassword.trim() || null,
       roleId: values.roleId || null,
       isActive: values.isActive,
     };
@@ -235,9 +255,14 @@ export function UserFormModal({
               id={phoneId}
               className={fieldClass(!!errors.phone, "form-input")}
               disabled={!canManage}
-              maxLength={32}
+              inputMode="numeric"
+              maxLength={PHONE_MAX_DIGITS}
+              onChange={handlePhoneChange}
+              pattern="[0-9]*"
               placeholder="5XX XXX XX XX"
-              {...phoneRegistration}
+              name={phoneRegistration.name}
+              onBlur={phoneRegistration.onBlur}
+              ref={phoneRegistration.ref}
             />
             {errors.phone && <div className="form-error">{translateError(errors.phone.message)}</div>}
           </div>
@@ -264,6 +289,7 @@ export function UserFormModal({
               autoComplete="new-password"
               className={fieldClass(!!errors.mebbisPassword, "form-input")}
               disabled={!canManage}
+              onFocus={handleMebbisPasswordFocus}
               placeholder={t(editing?.hasMebbisPassword ? "userForm.placeholder.mebbisPasswordNew" : "userForm.placeholder.mebbisPassword")}
               type="password"
               {...register("mebbisPassword")}

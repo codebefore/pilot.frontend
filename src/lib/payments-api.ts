@@ -122,6 +122,7 @@ export function createCashTransfer(
       toCashRegisterId: body.targetCashRegisterId,
       amount: body.amount,
       occurredDate: body.occurredDate,
+      occurredAtUtc: body.occurredAtUtc,
       note: body.note,
     },
     financeRequestOptions()

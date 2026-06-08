@@ -148,6 +148,7 @@ describe("http client", () => {
     const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers);
     expect(headers.get("Authorization")).toBe("Bearer token");
     expect(headers.get("X-Institution-Id")).toBe("institution-1");
+    expect(headers.get("X-User-Id")).toBe("user-1");
   });
 
   it("can omit active institution id for global catalog reads", async () => {
@@ -199,6 +200,7 @@ describe("http client", () => {
     const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers);
     expect(headers.get("Authorization")).toBe("Bearer token");
     expect(headers.get("X-Institution-Id")).toBeNull();
+    expect(headers.get("X-User-Id")).toBe("user-1");
   });
 
   it("refreshes the session and retries once on unauthorized responses", async () => {

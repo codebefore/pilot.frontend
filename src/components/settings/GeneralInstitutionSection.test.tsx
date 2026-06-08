@@ -135,4 +135,36 @@ describe("GeneralInstitutionSection", () => {
       );
     });
   });
+
+  it("normalizes institution phone input to 10 digits without a leading zero", async () => {
+    renderWithProviders(<GeneralInstitutionSection />, {
+      auth: {
+        user: {
+          id: "settings-manager",
+          phone: "5073737262",
+          name: "Settings Manager",
+          roleName: "Ayar Yönetimi",
+          isSuperAdmin: false,
+        },
+        permissions: { settings: "full" },
+      },
+    });
+
+    const phoneInput = await screen.findByLabelText("Telefon");
+    fireEvent.change(phoneInput, { target: { value: "0555 111 22 3344" } });
+
+    expect(phoneInput).toHaveValue("5551112233");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(upsertInstitutionSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          institutionPhone: "5551112233",
+          rowVersion: 7,
+        })
+      );
+    });
+  });
+
 });

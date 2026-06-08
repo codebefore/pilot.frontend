@@ -895,7 +895,8 @@ function ExtensionPairPanel({
       <div className="queue-health-main">
         <span className="queue-health-title">MEBBIS Extension Pair</span>
         <span className="queue-health-meta">
-          Yetkili kullanici aktif kurum icin extension token uretir.
+          Yetkili kullanici aktif kurum ve kendi kullanici hesabi icin extension token uretir.
+          Extension giris bilgisini tokeni ureten kullanicidan okur.
         </span>
         {pairResult && (
           <span className="queue-health-message">

@@ -92,6 +92,7 @@ export type MebbisJobQueueRetryResponse = {
 export type MebbisExtensionClientResponse = {
   id: string;
   institutionId: string;
+  userId: string | null;
   displayName: string;
   status: string;
   lastSeenAtUtc: string | null;

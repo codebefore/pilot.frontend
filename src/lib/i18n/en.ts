@@ -162,7 +162,7 @@ export const en: Record<TranslationKey, string> = {
   "licenseClassDefForm.field.practiceHours": "Driving Hours",
   "licenseClassDefForm.error.existingTypeRequired": "Existing type is required",
   "trainingFilters.title.expired": "Contract has expired",
-  "generalInstitution.error.phoneStartWith5": "Must start with 5",
+  "generalInstitution.error.phoneStartWith5": "Phone must be at most 10 digits and must not start with 0",
   "newExamSchedule.error.examCodeRequired": "Exam code is required",
   "newExamSchedule.title.eSinav": "New E-Exam Date",
   "newExamSchedule.title.driving": "New Driving Date",

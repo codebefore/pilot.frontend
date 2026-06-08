@@ -160,7 +160,7 @@ export const tr = {
   "licenseClassDefForm.field.practiceHours": "Direksiyon Saati",
   "licenseClassDefForm.error.existingTypeRequired": "Mevcut tipi zorunlu",
   "trainingFilters.title.expired": "Sözleşmesi sona ermiş",
-  "generalInstitution.error.phoneStartWith5": "5 ile başlamalı",
+  "generalInstitution.error.phoneStartWith5": "Telefon en fazla 10 haneli olmalı ve 0 ile başlamamalı",
   "newExamSchedule.error.examCodeRequired": "Sınav kodu zorunlu",
   "newExamSchedule.title.eSinav": "Yeni E-Sınav Tarihi",
   "newExamSchedule.title.driving": "Yeni Direksiyon Tarihi",

@@ -3,6 +3,7 @@ import {
   getStoredAccessToken,
   getStoredActiveInstitutionId,
   getStoredRefreshToken,
+  getStoredUserId,
   notifyInstitutionRequired,
   notifySessionRefreshed,
   notifyUnauthorized,
@@ -261,6 +262,10 @@ function buildHeaders(base?: HeadersInit, options?: RequestOptions): HeadersInit
   const activeInstitutionId = getStoredActiveInstitutionId();
   if (activeInstitutionId && options?.includeInstitutionHeader !== false) {
     headers.set("X-Institution-Id", activeInstitutionId);
+  }
+  const userId = getStoredUserId();
+  if (userId) {
+    headers.set("X-User-Id", userId);
   }
   return headers;
 }

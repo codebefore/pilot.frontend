@@ -76,6 +76,60 @@ describe("UserFormModal", () => {
     );
 
     expect(screen.getByRole("button", { name: "Patron" })).toBeInTheDocument();
+    expect(screen.getByLabelText("MEBBİS Şifresi")).toHaveValue("********");
+  });
+
+  it("keeps the existing MEBBIS password when the mask is unchanged", async () => {
+    const onSaved = vi.fn();
+    updateUserMock.mockResolvedValue({
+      id: "user-1",
+      fullName: "Ada Yilmaz",
+      phone: "5551234567",
+      mebbisUsername: "ada.mebbis",
+      hasMebbisPassword: true,
+      roleId: null,
+      roleName: null,
+      isSuperAdmin: false,
+      isActive: true,
+      createdAtUtc: "2026-04-01T00:00:00Z",
+      updatedAtUtc: "2026-04-01T00:00:00Z",
+    });
+
+    renderWithProviders(
+      <UserFormModal
+        editing={{
+          id: "user-1",
+          fullName: "Ada Yilmaz",
+          phone: "5551234567",
+          mebbisUsername: "ada.mebbis",
+          hasMebbisPassword: true,
+          roleId: null,
+          roleName: null,
+          isSuperAdmin: false,
+          isActive: true,
+          createdAtUtc: "2026-04-01T00:00:00Z",
+          updatedAtUtc: "2026-04-01T00:00:00Z",
+        }}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+        roles={[]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateUserMock).toHaveBeenCalledWith("user-1", {
+        fullName: "Ada Yilmaz",
+        phone: "5551234567",
+        mebbisUsername: "ada.mebbis",
+        mebbisPassword: null,
+        roleId: null,
+        isActive: true,
+      });
+    });
+    expect(onSaved).toHaveBeenCalled();
   });
 
   it("puts the current phone into the edit input", async () => {
@@ -165,6 +219,41 @@ describe("UserFormModal", () => {
         roleId: null,
         isActive: true,
       });
+    });
+    expect(onSaved).toHaveBeenCalled();
+  });
+
+  it("limits user phone input to 10 digits", async () => {
+    const onSaved = vi.fn();
+
+    renderWithProviders(
+      <UserFormModal
+        editing={null}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+        roles={[]}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Ad Soyad"), {
+      target: { value: "Kemal Can" },
+    });
+    const phoneInput = screen.getByPlaceholderText("5XX XXX XX XX");
+    fireEvent.change(phoneInput, {
+      target: { value: "555 123 45 6789" },
+    });
+
+    expect(phoneInput).toHaveValue("5551234567");
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(createUserMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phone: "5551234567",
+        })
+      );
     });
     expect(onSaved).toHaveBeenCalled();
   });

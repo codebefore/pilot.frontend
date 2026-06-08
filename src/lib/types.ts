@@ -497,6 +497,7 @@ export interface CashRegisterMovementResponse {
   cashRegister: AccountingCashRegisterSummaryResponse;
   amount: number;
   occurredDate: string;
+  occurredAtUtc?: string | null;
   note: string | null;
   transferGroupId: string | null;
 }
@@ -505,6 +506,7 @@ export interface CashRegisterMovementCreateRequest {
   cashRegisterId: string;
   amount: number;
   occurredDate?: string | null;
+  occurredAtUtc?: string | null;
   note?: string | null;
 }
 
@@ -513,6 +515,7 @@ export interface CashRegisterTransferCreateRequest {
   targetCashRegisterId: string;
   amount: number;
   occurredDate?: string | null;
+  occurredAtUtc?: string | null;
   note?: string | null;
 }
 

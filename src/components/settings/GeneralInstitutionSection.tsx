@@ -16,7 +16,6 @@ import { updateStoredInstitutionName } from "../../lib/auth-storage";
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey, currentLocale } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
-import { isPhoneStartingWith5 } from "../../lib/phone";
 import {
   getTurkeyDistrictOptions,
   resolveTurkeyDistrictValue,
@@ -66,6 +65,19 @@ const EMPTY_VALUES: GeneralFormValues = {
 };
 const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 const INSTITUTION_SETTINGS_QUERY_KEY = ["settings", "institution-settings"] as const;
+const PHONE_MAX_DIGITS = 10;
+
+function normalizeGeneralPhone(raw: string | null | undefined): string {
+  return (raw ?? "").replace(/\D/g, "").replace(/^0+/, "").slice(0, PHONE_MAX_DIGITS);
+}
+
+function isValidGeneralPhone(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.length === 0 ||
+    (/^\d{1,10}$/.test(trimmed) && !trimmed.startsWith("0"))
+  );
+}
 
 function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues {
   const city = resolveTurkeyProvinceValue(response.city);
@@ -74,7 +86,7 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     institutionOfficialName: response.institutionOfficialName ?? "",
     institutionCode: response.institutionCode ?? "",
     institutionAddress: response.institutionAddress ?? "",
-    institutionPhone: response.institutionPhone ?? "",
+    institutionPhone: normalizeGeneralPhone(response.institutionPhone),
     institutionEmail: response.institutionEmail ?? "",
     city,
     district: resolveTurkeyDistrictValue(city, response.district),
@@ -83,7 +95,7 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     founderTaxId: response.founder.taxId ?? "",
     founderTaxOffice: response.founder.taxOffice ?? "",
     founderAddress: response.founder.address ?? "",
-    founderPhone: response.founder.phone ?? "",
+    founderPhone: normalizeGeneralPhone(response.founder.phone),
   };
 }
 
@@ -96,7 +108,7 @@ function toUpsertRequest(
     institutionOfficialName: values.institutionOfficialName.trim() || null,
     institutionCode: values.institutionCode.trim() || null,
     institutionAddress: values.institutionAddress.trim() || null,
-    institutionPhone: values.institutionPhone.trim() || null,
+    institutionPhone: normalizeGeneralPhone(values.institutionPhone) || null,
     institutionEmail: values.institutionEmail.trim() || null,
     city: values.city.trim() || null,
     district: values.district.trim() || null,
@@ -106,7 +118,7 @@ function toUpsertRequest(
       taxId: values.founderTaxId.trim() || null,
       taxOffice: values.founderTaxOffice.trim() || null,
       address: values.founderAddress.trim() || null,
-      phone: values.founderPhone.trim() || null,
+      phone: normalizeGeneralPhone(values.founderPhone) || null,
     },
     authorizedPersons: [],
     mebbis: null,
@@ -253,7 +265,7 @@ export function GeneralInstitutionSection() {
   const handlePhoneInput =
     (field: "institutionPhone" | "founderPhone") =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      setField(field, event.target.value);
+      setField(field, normalizeGeneralPhone(event.target.value));
     };
 
   const handleCityChange = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -285,10 +297,10 @@ export function GeneralInstitutionSection() {
     if (values.institutionEmail.trim() && !isValidEmail(values.institutionEmail.trim())) {
       nextErrors.institutionEmail = t("settings.general.validation.email");
     }
-    if (values.institutionPhone.trim() && !isPhoneStartingWith5(values.institutionPhone)) {
+    if (!isValidGeneralPhone(values.institutionPhone)) {
       nextErrors.institutionPhone = t("generalInstitution.error.phoneStartWith5");
     }
-    if (values.founderPhone.trim() && !isPhoneStartingWith5(values.founderPhone)) {
+    if (!isValidGeneralPhone(values.founderPhone)) {
       nextErrors.founderPhone = t("generalInstitution.error.phoneStartWith5");
     }
     if (values.city && !values.district) {
@@ -548,7 +560,9 @@ export function GeneralInstitutionSection() {
                   className={errors.institutionPhone ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   inputMode="numeric"
+                  maxLength={PHONE_MAX_DIGITS}
                   onChange={handlePhoneInput("institutionPhone")}
+                  pattern="[0-9]*"
                   placeholder={t("settings.general.placeholder.phone")}
                   value={values.institutionPhone}
                 />
@@ -772,7 +786,9 @@ export function GeneralInstitutionSection() {
                   className={errors.founderPhone ? "form-input error" : "form-input"}
                   disabled={!canManageSettings}
                   inputMode="numeric"
+                  maxLength={PHONE_MAX_DIGITS}
                   onChange={handlePhoneInput("founderPhone")}
+                  pattern="[0-9]*"
                   placeholder={t("settings.general.placeholder.phone")}
                   value={values.founderPhone}
                 />

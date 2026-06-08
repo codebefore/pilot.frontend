@@ -7,6 +7,7 @@ import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
+import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { PageSkeleton } from "../components/ui/Skeleton";
@@ -1051,6 +1052,22 @@ function todayDateInput(): string {
   return formatDateInput(today);
 }
 
+function formatTimeInput(date: Date): string {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function currentTimeInput(): string {
+  return formatTimeInput(new Date());
+}
+
+function combineDateAndTimeUtc(dateValue: string, timeValue: string): string | null {
+  if (!dateValue || !timeValue) return null;
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const [hour, minute] = timeValue.split(":").map(Number);
+  if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  return new Date(year, month - 1, day, hour, minute, 0, 0).toISOString();
+}
+
 function monthDateRange(monthValue: string): { fromDate: string; toDate: string } {
   if (!monthValue) return { fromDate: "", toDate: "" };
   const [yearValue, monthPart] = monthValue.split("-");
@@ -1727,7 +1744,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           id: `cash:${movement.id}`,
           type: isInflow ? "Giriş" : "Çıkış",
           cashRegister: movement.cashRegister.name,
-          date: movement.occurredDate,
+          date: movement.occurredAtUtc ?? movement.occurredDate,
           description: movement.note?.trim() || cashMovementTypeLabel(movement.type, t),
           amount: movement.amount,
         });
@@ -2411,6 +2428,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           targetCashRegisterId: payload.targetCashRegisterId,
           amount: payload.amount,
           occurredDate: payload.occurredDate,
+          occurredAtUtc: payload.occurredAtUtc,
           note: payload.note,
         });
       } else if (payload.mode === "inflow") {
@@ -2418,6 +2436,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           cashRegisterId: payload.cashRegisterId,
           amount: payload.amount,
           occurredDate: payload.occurredDate,
+          occurredAtUtc: payload.occurredAtUtc,
           note: payload.note,
         });
       } else if (payload.mode === "outflow") {
@@ -2425,6 +2444,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           cashRegisterId: payload.cashRegisterId,
           amount: payload.amount,
           occurredDate: payload.occurredDate,
+          occurredAtUtc: payload.occurredAtUtc,
           note: payload.note,
         });
       }
@@ -4440,6 +4460,7 @@ type CashActionSubmitPayload =
       cashRegisterId: string;
       amount: number;
       occurredDate: string;
+      occurredAtUtc: string;
       note: string | null;
     }
   | {
@@ -4448,6 +4469,7 @@ type CashActionSubmitPayload =
       targetCashRegisterId: string;
       amount: number;
       occurredDate: string;
+      occurredAtUtc: string;
       note: string | null;
     };
 
@@ -4461,6 +4483,7 @@ function CashActionModal({
 }: CashActionModalProps) {
   const t = useT();
   const [date, setDate] = useState(todayDateInput);
+  const [time, setTime] = useState(currentTimeInput);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [cashRegisterId, setCashRegisterId] = useState("");
@@ -4480,6 +4503,7 @@ function CashActionModal({
     Boolean(mode) &&
     parsedAmount > 0 &&
     Boolean(date) &&
+    Boolean(time) &&
     (isTransfer
       ? Boolean(sourceCashRegisterId) &&
         Boolean(targetCashRegisterId) &&
@@ -4489,6 +4513,7 @@ function CashActionModal({
   useEffect(() => {
     if (!open) return;
     setDate(todayDateInput());
+    setTime(currentTimeInput());
     setAmount("");
     setNote("");
     setCashRegisterId(registers[0]?.id ?? "");
@@ -4508,6 +4533,8 @@ function CashActionModal({
             disabled={!canSubmit || saving}
             onClick={() => {
               if (!mode || !canSubmit) return;
+              const occurredAtUtc = combineDateAndTimeUtc(date, time);
+              if (!occurredAtUtc) return;
               if (isTransfer) {
                 onSubmit({
                   mode: "transfer",
@@ -4515,6 +4542,7 @@ function CashActionModal({
                   targetCashRegisterId,
                   amount: parsedAmount,
                   occurredDate: date,
+                  occurredAtUtc,
                   note: note.trim() || null,
                 });
               } else {
@@ -4523,6 +4551,7 @@ function CashActionModal({
                   cashRegisterId,
                   amount: parsedAmount,
                   occurredDate: date,
+                  occurredAtUtc,
                   note: note.trim() || null,
                 });
               }
@@ -4617,6 +4646,17 @@ function CashActionModal({
               name="cash-action-date"
               onChange={setDate}
               value={date}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Saat</label>
+            <LocalizedTimeInput
+              ariaLabel="Saat"
+              className="form-input"
+              disabled={!canManagePayments}
+              name="cash-action-time"
+              onChange={setTime}
+              value={time}
             />
           </div>
         </div>

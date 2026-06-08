@@ -249,6 +249,32 @@ describe("PaymentsPage permissions", () => {
     expect(screen.queryByText("Silinen iade")).not.toBeInTheDocument();
   });
 
+  it("shows cash movement time when available", async () => {
+    const today = todayDateOnly();
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      cashMovements: [
+        {
+          id: "cash-movement-1",
+          type: "inflow",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 300,
+          occurredDate: today,
+          occurredAtUtc: `${today}T09:15:00Z`,
+          note: "Manuel kasa girişi",
+          transferGroupId: null,
+        },
+      ],
+    });
+
+    renderCashPage();
+
+    expect(await screen.findByText("Manuel kasa girişi")).toBeInTheDocument();
+    expect(screen.getByText("12:15")).toBeInTheDocument();
+  });
+
   it("does not show cancelled collections on the collections page", async () => {
     const today = todayDateOnly();
     const candidate = {
