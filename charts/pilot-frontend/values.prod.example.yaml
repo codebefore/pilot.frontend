@@ -31,7 +31,11 @@ ingress:
   enabled: true
   className: nginx
   host: pilotyanimda.com
+  hosts:
+    - pilotyanimda.com
+    - www.pilotyanimda.com
   tls:
     - secretName: pilot-frontend-prod-tls
       hosts:
         - pilotyanimda.com
+        - www.pilotyanimda.com

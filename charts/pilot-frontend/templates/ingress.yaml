@@ -18,14 +18,17 @@ spec:
     {{- toYaml .Values.ingress.tls | nindent 4 }}
   {{- end }}
   rules:
-    - host: {{ required "ingress.host is required when ingress is enabled" .Values.ingress.host | quote }}
+    {{- $hosts := .Values.ingress.hosts | default (list .Values.ingress.host) }}
+    {{- range $hosts }}
+    - host: {{ required "ingress.host or ingress.hosts is required when ingress is enabled" . | quote }}
       http:
         paths:
-          - path: {{ .Values.ingress.path }}
-            pathType: {{ .Values.ingress.pathType }}
+          - path: {{ $.Values.ingress.path }}
+            pathType: {{ $.Values.ingress.pathType }}
             backend:
               service:
-                name: {{ include "pilot-frontend.fullname" . }}
+                name: {{ include "pilot-frontend.fullname" $ }}
                 port:
-                  number: {{ .Values.service.port }}
+                  number: {{ $.Values.service.port }}
+    {{- end }}
 {{- end }}
