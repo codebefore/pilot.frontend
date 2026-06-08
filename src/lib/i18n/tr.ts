@@ -1720,6 +1720,7 @@ export const tr = {
   "terms.form.month": "Ay",
   "terms.form.monthHelp": "Dönemin ait olduğu ayı seç",
   "terms.form.name": "Ad (opsiyonel)",
+  "terms.form.nameHelp": "Aynı ayda başka dönem varsa ad zorunlu.",
   "terms.form.namePlaceholder": "Örn. Ek Dönem",
   "terms.form.create": "Dönem Oluştur",
   "terms.form.edit": "Dönemi Düzenle",

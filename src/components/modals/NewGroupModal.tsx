@@ -12,8 +12,8 @@ import {
   suggestNextGroupBranch,
   suggestNextGroupCodeParts,
 } from "../../lib/group-code";
-import { ApiError } from "../../lib/http";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
+import { translateGroupValidationMessage } from "../../lib/group-validation";
 import { getTerms } from "../../lib/terms-api";
 import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
@@ -160,14 +160,6 @@ export function NewGroupModal({
     [selectedTermId, sortedTerms]
   );
 
-  const termLabelById = useMemo(() => {
-    const labels = new Map<string, string>();
-    for (const term of sortedTerms) {
-      labels.set(term.id, buildTermLabel(term, sortedTerms, lang));
-    }
-    return labels;
-  }, [lang, sortedTerms]);
-
   const submit = handleSubmit(async (data) => {
     if (!canManage) return;
     setSubmitting(true);
@@ -182,31 +174,27 @@ export function NewGroupModal({
       });
       onSubmit();
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        const startDateError =
-          error.validationErrors.startDate?.[0] ??
-          error.validationErrors.StartDate?.[0];
-
-        if (startDateError) {
-          const selectedTermLabel = termLabelById.get(data.termId);
-          const message = selectedTermLabel
-            ? `Baslangic tarihi secilen donemin ayi icinde olmali: ${selectedTermLabel}.`
-            : "Baslangic tarihi secilen donemin ayi icinde olmali.";
-          setError("startDate", { message });
-          showToast(message, "error");
-          return;
-        }
-      }
-
-      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+      const { applied, appliedMessages, unmappedMessages } = applyApiErrorsToForm(error, setError, {
         translateCode: (code) => t(code as TranslationKey),
+        translateMessage: (message) => translateGroupValidationMessage(message, t),
+        fieldMap: {
+          Group: "startDate",
+          group: "startDate",
+          StartDate: "startDate",
+          startDate: "startDate",
+        },
       });
       if (applied) {
-        showToast("Grup olusturulamadi. Form alanlarini kontrol edin.", "error");
+        showToast(
+          appliedMessages[0]
+            ?? unmappedMessages[0]
+            ?? t("group.validation.generic"),
+          "error"
+        );
       } else if (unmappedMessages.length > 0) {
         showToast(unmappedMessages[0], "error");
       } else {
-        showToast("Grup olusturulamadi. Lutfen tekrar deneyin.", "error");
+        showToast(t("group.validation.generic"), "error");
       }
     } finally {
       setSubmitting(false);

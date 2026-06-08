@@ -1723,6 +1723,7 @@ export const en: Record<TranslationKey, string> = {
   "terms.form.month": "Month",
   "terms.form.monthHelp": "Select the month this term belongs to",
   "terms.form.name": "Name (optional)",
+  "terms.form.nameHelp": "Name is required when another term already exists in the same month.",
   "terms.form.namePlaceholder": "e.g. Extra Term",
   "terms.form.create": "Create Term",
   "terms.form.edit": "Edit Term",

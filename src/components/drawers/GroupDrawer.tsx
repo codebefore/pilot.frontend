@@ -12,6 +12,7 @@ import {
   GROUP_NUMBER_VALUES,
 } from "../../lib/group-code";
 import { ApiError } from "../../lib/http";
+import { getGroupValidationToastMessage } from "../../lib/group-validation";
 import { useLanguage, useT } from "../../lib/i18n";
 import { formatNationalId } from "../../lib/national-id";
 import { normalizeTextQuery } from "../../lib/search";
@@ -188,7 +189,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
           throw new Error("save failed");
         }
       }
-      showToast(t("groupDrawer.toast.saveFailed"), "error");
+      showToast(getGroupValidationToastMessage(error, t) ?? t("groupDrawer.toast.saveFailed"), "error");
       throw new Error("save failed");
     }
   };

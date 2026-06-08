@@ -2052,10 +2052,6 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const baseCashSummaryRows = useMemo<CashSummaryRow[]>(() => {
     if (!overview) return [];
     const rows = new Map<string, CashSummaryRow>();
-    const officialCashRegisterIds = new Set(
-      (overview.cashRegisters ?? []).map((register) => register.id),
-    );
-
     const ensureRow = (key: string, name: string) => {
       const existing = rows.get(key);
       if (existing) return existing;
@@ -2078,9 +2074,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     };
 
     (overview.cashRegisters ?? []).forEach((register) => {
-      const row = ensureRow(register.id, register.name);
-      row.balance = register.balance ?? 0;
-      row.lastMovementDate = register.lastMovementDate ?? "";
+      ensureRow(register.id, register.name);
     });
 
     (overview.payments ?? [])
@@ -2088,16 +2082,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       .filter((payment) => isActivePaymentCandidate(payment.candidate))
       .forEach((payment) => {
         const key = cashRegisterKey(payment);
-        const row = officialCashRegisterIds.has(key)
-          ? ensureRow(key, cashRegisterLabel(payment, t))
-          : key === NO_CASH_REGISTER_KEY
-            ? ensureRow(key, cashRegisterLabel(payment, t))
-            : null;
-        if (!row) return;
-        if (!officialCashRegisterIds.has(key)) {
-          row.balance += payment.amount;
-          updateLastMovementDate(row, payment.paidAtUtc);
-        }
+        const row = ensureRow(key, cashRegisterLabel(payment, t));
+        row.balance += payment.amount;
+        updateLastMovementDate(row, payment.paidAtUtc);
         if (isInDateRange(payment.paidAtUtc, fromDate, toDate)) {
           row.selectedInflow += payment.amount;
         }
@@ -2107,16 +2094,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       .filter((refund) => isActivePaymentCandidate(refund.candidate))
       .forEach((refund) => {
         const key = refundCashRegisterKey(refund);
-        const row = officialCashRegisterIds.has(key)
-          ? ensureRow(key, refundCashRegisterLabel(refund, t))
-          : key === NO_CASH_REGISTER_KEY
-            ? ensureRow(key, refundCashRegisterLabel(refund, t))
-            : null;
-        if (!row) return;
-        if (!officialCashRegisterIds.has(key)) {
-          row.balance -= refund.amount;
-          updateLastMovementDate(row, refund.refundedAtUtc);
-        }
+        const row = ensureRow(key, refundCashRegisterLabel(refund, t));
+        row.balance -= refund.amount;
+        updateLastMovementDate(row, refund.refundedAtUtc);
         if (isInDateRange(refund.refundedAtUtc, fromDate, toDate)) {
           row.selectedOutflow += refund.amount;
         }
@@ -2126,6 +2106,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       const key = movement.cashRegisterId;
       const row = ensureRow(key, movement.cashRegister.name);
       const isInflow = movement.type === "inflow" || movement.type === "transfer_in";
+      row.balance += isInflow ? movement.amount : -movement.amount;
+      updateLastMovementDate(row, movement.occurredDate);
       if (isInDateRange(movement.occurredDate, fromDate, toDate)) {
         if (isInflow) {
           row.selectedInflow += movement.amount;

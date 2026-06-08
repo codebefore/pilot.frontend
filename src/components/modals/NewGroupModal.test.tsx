@@ -93,7 +93,7 @@ describe("NewGroupModal", () => {
 
     createGroupMock.mockRejectedValue(
       new ApiError(400, "Bad Request", {
-        StartDate: ["Start date must be inside the selected term month."],
+        group: ["Start date must be inside the selected term month."],
       })
     );
 
@@ -132,9 +132,8 @@ describe("NewGroupModal", () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByText("Baslangic tarihi secilen donemin ayi icinde olmali: NİSAN 2026.")
-          .length
-      ).toBeGreaterThan(0);
+        screen.getAllByText("Başlangıç tarihi seçilen dönem ayının içinde olmalı")
+      ).toHaveLength(2);
     });
   });
 

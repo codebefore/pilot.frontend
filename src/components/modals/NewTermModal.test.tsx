@@ -77,10 +77,10 @@ describe("NewTermModal", () => {
     expect(createTermMock).not.toHaveBeenCalled();
   });
 
-  it("shows a field error when target month already has another term and name is missing", async () => {
+  it("shows a localized field error and toast when target month already has another term and name is missing", async () => {
     updateTermMock.mockRejectedValue(
       new ApiError(400, "Bad Request", {
-        Name: ["Name is required when another term already exists in the same month."],
+        term: ["Name is required when another term already exists in the same month. (Parameter 'request')"],
       })
     );
 
@@ -109,8 +109,7 @@ describe("NewTermModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
-    expect(
-      await screen.findByText("Name is required when another term already exists in the same month.")
-    ).toBeInTheDocument();
+    const messages = await screen.findAllByText("Aynı ayda başka bir dönem varken ad zorunlu");
+    expect(messages).toHaveLength(2);
   });
 });

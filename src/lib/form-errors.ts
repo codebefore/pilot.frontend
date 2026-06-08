@@ -5,11 +5,13 @@ import { ApiError } from "./http";
 export type ApplyApiErrorsResult = {
   /** True when at least one validation error was set on a known form field. */
   applied: boolean;
+  /** Translated messages that were set on known form fields. */
+  appliedMessages: string[];
   /** Translated messages for server fields that did not map to a form path. */
   unmappedMessages: string[];
 };
 
-const EMPTY_RESULT: ApplyApiErrorsResult = { applied: false, unmappedMessages: [] };
+const EMPTY_RESULT: ApplyApiErrorsResult = { applied: false, appliedMessages: [], unmappedMessages: [] };
 
 /**
  * Maps backend ValidationProblemDetails (`errors` / `errorCodes`) onto a
@@ -33,6 +35,8 @@ export function applyApiErrorsToForm<TFieldValues extends FieldValues>(
   options?: {
     /** Translate validation error codes into messages. */
     translateCode?: (code: string, params?: Record<string, string>) => string;
+    /** Translate raw backend validation messages into user-facing copy. */
+    translateMessage?: (message: string, serverField: string) => string;
     /** Map server field names onto form paths (e.g. "Term" → "termId"). */
     fieldMap?: Record<string, Path<TFieldValues>>;
   }
@@ -48,6 +52,7 @@ export function applyApiErrorsToForm<TFieldValues extends FieldValues>(
   };
 
   const unmappedMessages: string[] = [];
+  const appliedMessages: string[] = [];
   let applied = false;
 
   if (error.validationErrorCodes && options?.translateCode) {
@@ -58,27 +63,30 @@ export function applyApiErrorsToForm<TFieldValues extends FieldValues>(
       const path = resolvePath(serverField);
       if (path) {
         setError(path, { type: "server", message });
+        appliedMessages.push(message);
         applied = true;
       } else {
         unmappedMessages.push(message);
       }
     }
-    return { applied, unmappedMessages };
+    return { applied, appliedMessages, unmappedMessages };
   }
 
   if (error.validationErrors) {
     for (const [serverField, messages] of Object.entries(error.validationErrors)) {
       const first = messages[0];
       if (!first) continue;
+      const message = options?.translateMessage?.(first, serverField) ?? first;
       const path = resolvePath(serverField);
       if (path) {
-        setError(path, { type: "server", message: first });
+        setError(path, { type: "server", message });
+        appliedMessages.push(message);
         applied = true;
       } else {
-        unmappedMessages.push(first);
+        unmappedMessages.push(message);
       }
     }
   }
 
-  return { applied, unmappedMessages };
+  return { applied, appliedMessages, unmappedMessages };
 }

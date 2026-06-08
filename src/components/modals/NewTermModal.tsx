@@ -56,6 +56,10 @@ function termValues(term?: TermResponse | null): NewTermForm {
   };
 }
 
+function isNameRequiredForDuplicateMonth(message: string): boolean {
+  return /name is required when another term already exists in the same month/i.test(message);
+}
+
 export function NewTermModal({ open, canManage = true, onClose, onSaved, term }: NewTermModalProps) {
   const t = useT();
   const { lang } = useLanguage();
@@ -118,10 +122,28 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
         }
       }
 
-      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+      const { applied, appliedMessages, unmappedMessages } = applyApiErrorsToForm(error, setError, {
         translateCode: (code) => t(code as TranslationKey),
+        translateMessage: (message) =>
+          isNameRequiredForDuplicateMonth(message)
+            ? t("term.validation.nameRequired")
+            : message,
+        fieldMap: {
+          Name: "name",
+          name: "name",
+          Term: "name",
+          term: "name",
+        },
       });
-      if (applied) return;
+      if (applied) {
+        showToast(
+          appliedMessages[0]
+            ?? unmappedMessages[0]
+            ?? t(isEditMode ? "terms.updateFailed" : "terms.createFailed"),
+          "error"
+        );
+        return;
+      }
       const fallback = unmappedMessages[0]
         ?? t(isEditMode ? "terms.updateFailed" : "terms.createFailed");
       showToast(fallback, "error");
@@ -203,7 +225,7 @@ export function NewTermModal({ open, canManage = true, onClose, onSaved, term }:
             {errors.name ? (
               <div className="form-error">{errors.name.message}</div>
             ) : (
-              <div className="form-hint">Ayni ayda baska donem varsa ad zorunlu.</div>
+              <div className="form-hint">{t("terms.form.nameHelp")}</div>
             )}
           </div>
         </div>
