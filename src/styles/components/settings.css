@@ -221,6 +221,39 @@
   color: var(--gray-600);
   font-size: 12px;
 }
+.candidate-detail-hero-exam-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.candidate-detail-hero-exam-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--gray-300) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--gray-50) 80%, var(--white));
+  color: var(--gray-700);
+}
+.candidate-detail-hero-exam-item--wide {
+  max-width: 100%;
+}
+.candidate-detail-hero-exam-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+.candidate-detail-hero-exam-value {
+  min-width: 0;
+  color: var(--gray-900);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
 .candidate-detail-hero-accounting-pill {
   display: inline-flex;
   align-items: center;

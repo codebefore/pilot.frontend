@@ -28,6 +28,10 @@ export type CandidatePayloadOverrides = {
 type BulkCandidateUpdateResult = {
   successCount: number;
   failureCount: number;
+  assignedCandidates: {
+    candidate: CandidateResponse;
+    attempt: CandidateExamAttemptResponse | null;
+  }[];
 };
 
 /**
@@ -201,9 +205,11 @@ export async function assignCandidatesToExamDate(
           : { drivingExamDate: examDate, drivingExamScheduleId: examScheduleId ?? null };
 
       await updateCandidate(id, buildCandidateUpdatePayload(candidate, overrides));
+      let attempt: CandidateExamAttemptResponse | null = null;
       if (examScheduleId) {
-        await upsertCandidateExamAttemptForSchedule(id, examType, examDate, examScheduleId, examTime);
+        attempt = await upsertCandidateExamAttemptForSchedule(id, examType, examDate, examScheduleId, examTime);
       }
+      return { candidate, attempt };
     })
   );
 
@@ -211,6 +217,9 @@ export async function assignCandidatesToExamDate(
   return {
     successCount,
     failureCount: results.length - successCount,
+    assignedCandidates: results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
+    ),
   };
 }
 
@@ -220,7 +229,7 @@ async function upsertCandidateExamAttemptForSchedule(
   examDate: string,
   examScheduleId: string,
   examTime?: string | null
-) {
+): Promise<CandidateExamAttemptResponse> {
   const attemptExamType: CandidateExamType = examType === "e_sinav" ? "theory" : "practice";
   const attempts = await listCandidateExamAttempts(candidateId);
   const existing = findScheduleAttempt(attempts, attemptExamType, examScheduleId, examDate);
@@ -244,10 +253,10 @@ async function upsertCandidateExamAttemptForSchedule(
   };
 
   if (existing) {
-    await updateCandidateExamAttempt(candidateId, existing.id, payload);
-  } else {
-    await createCandidateExamAttempt(candidateId, payload);
+    return updateCandidateExamAttempt(candidateId, existing.id, payload);
   }
+
+  return createCandidateExamAttempt(candidateId, payload);
 }
 
 function findScheduleAttempt(

@@ -333,13 +333,13 @@ function isVisibleMatrixRow(row: LicenseClassFeeRowResponse): boolean {
 
 const COLUMNS: Column[] = [
   {
-    // Bulk-selection checkbox; rendered manually in the table body so it can
+    // Bulk-selection toggle; rendered manually in the table body so it can
     // hook into selection state. The render here is just a placeholder.
     key: "select",
     labelKey: "",
     kind: "info",
     sticky: true,
-    width: 32,
+    width: 44,
     render: () => null,
   },
   {
@@ -676,7 +676,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedTargets, setExpandedTargets] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<ColumnGroup>>(new Set());
-  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedProgramIds, setSelectedProgramIds] = useState<Set<string>>(new Set());
   /** Values currently typed into the inline bulk-apply row.
    *  Key is either the EditableField name (e.g. "courseFee") for single-slot
@@ -685,11 +684,8 @@ export function LicenseClassFeeMatrixSettingsSection() {
   const [bulkValues, setBulkValues] = useState<Record<string, string>>({});
   const baselineRef = useRef<Map<string, Partial<Record<EditableField, number | null>>>>(new Map());
 
-  const visibleColumns = useMemo(
-    () => COLUMNS.filter((column) => column.key !== "select" || selectionMode),
-    [selectionMode]
-  );
-  const stickyOffsets = useMemo(() => buildStickyOffsets(selectionMode), [selectionMode]);
+  const visibleColumns = useMemo(() => COLUMNS, []);
+  const stickyOffsets = useMemo(() => buildStickyOffsets(true), []);
 
   const toggleProgramSelection = (programId: string) => {
     setSelectedProgramIds((current) => {
@@ -703,19 +699,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
   const clearProgramSelection = () => {
     setSelectedProgramIds(new Set());
     setBulkValues({});
-  };
-
-  const toggleSelectionMode = () => {
-    setSelectionMode((current) => {
-      const next = !current;
-      if (!next) {
-        // Leaving selection mode: drop any pending selection + bulk inputs
-        // so reopening starts from a clean slate.
-        setSelectedProgramIds(new Set());
-        setBulkValues({});
-      }
-      return next;
-    });
   };
 
   const matrixQuery = useQuery({
@@ -1073,9 +1056,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
             })}</div>
           </div>
           <div className="settings-module-actions fee-matrix-toolbar">
-            {selectionMode ? null : (
-              <>
-                <label className="fee-matrix-year-field">
+            <label className="fee-matrix-year-field">
                   <span>{t("feeMatrix.action.year")}</span>
                   <input
                     className="form-input fee-matrix-year-input"
@@ -1107,21 +1088,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                     {t("feeMatrix.action.dirtyCount", { count: dirtyCount })}
                   </span>
                 ) : null}
-              </>
-            )}
-            {sections.length > 0 ? (
-              <button
-                className={`btn btn-secondary btn-sm${selectionMode ? " active" : ""}`}
-                disabled={!canManagePayments}
-                onClick={toggleSelectionMode}
-                title={!canManagePayments ? noPermissionTitle : undefined}
-                type="button"
-              >
-                {selectionMode ? t("feeMatrix.action.closeSelection") : t("feeMatrix.action.bulkSelect")}
-              </button>
-            ) : null}
-            {selectionMode ? null : (
-              <button
+            <button
                 className="btn btn-primary btn-sm"
                 disabled={!canManagePayments || saving || !isDirty}
                 onClick={save}
@@ -1135,14 +1102,12 @@ export function LicenseClassFeeMatrixSettingsSection() {
                 type="button"
               >
                 {saving ? t("common.saving") : t("common.save")}
-              </button>
-            )}
+            </button>
           </div>
         </div>
 
         <div className="settings-surface-body fee-matrix-body">
-          {selectionMode ? (
-            <div className="fee-matrix-bulk-hint" role="status">
+          <div className="fee-matrix-bulk-hint" role="status">
               <span>
                 {selectionCount > 0
                   ? t("feeMatrix.bulk.selected", { count: selectionCount })
@@ -1178,8 +1143,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                   {t("feeMatrix.bulk.applyAll")}
                 </button>
               </div>
-            </div>
-          ) : null}
+          </div>
 
           {loading ? (
             <div className="instructor-detail-empty">{t("feeMatrix.empty.loading")}</div>
@@ -1295,7 +1259,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                       className={`fee-matrix-th fee-matrix-th--${column.kind} fee-matrix-th--key-${column.key}${
                                         column.sticky ? " fee-matrix-th--sticky" : ""
                                       }${column.group ? ` fee-matrix-th--group-${column.group}` : ""}${
-                                        selectionMode &&
                                         column.editableField &&
                                         bulkColumnHasValue(column.editableField)
                                           ? " is-bulk-target"
@@ -1310,38 +1273,50 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                       scope="col"
                                     >
                                       {column.key === "select" ? (
-                                        <input
-                                          aria-label={t("feeMatrix.aria.selectAllInSection", {
-                                            section: section.target === FROM_SCRATCH_SECTION_KEY
-                                              ? t(FROM_SCRATCH_SECTION_LABEL_KEY)
-                                              : section.target,
-                                          })}
-                                          checked={sectionSelection.allSelected}
-                                          className="fee-matrix-row-checkbox"
-                                          onChange={() =>
-                                            setSelectedProgramIds((current) => {
-                                              const next = new Set(current);
-                                              if (sectionSelection.allSelected) {
-                                                for (const id of sectionSelection.programIds) {
-                                                  next.delete(id);
+                                        <label className="fee-matrix-select-toggle switch-toggle">
+                                          <input
+                                            aria-label={t("feeMatrix.aria.selectAllInSection", {
+                                              section: section.target === FROM_SCRATCH_SECTION_KEY
+                                                ? t(FROM_SCRATCH_SECTION_LABEL_KEY)
+                                                : section.target,
+                                            })}
+                                            checked={sectionSelection.allSelected}
+                                            disabled={!canManagePayments}
+                                            onChange={() =>
+                                              setSelectedProgramIds((current) => {
+                                                const next = new Set(current);
+                                                if (sectionSelection.allSelected) {
+                                                  for (const id of sectionSelection.programIds) {
+                                                    next.delete(id);
+                                                  }
+                                                } else {
+                                                  for (const id of sectionSelection.programIds) {
+                                                    next.add(id);
+                                                  }
                                                 }
-                                              } else {
-                                                for (const id of sectionSelection.programIds) {
-                                                  next.add(id);
-                                                }
-                                              }
-                                              return next;
-                                            })
-                                          }
-                                          ref={(el) => {
-                                            if (el) {
-                                              el.indeterminate =
-                                                sectionSelection.someSelected &&
-                                                !sectionSelection.allSelected;
+                                                return next;
+                                              })
                                             }
-                                          }}
-                                          type="checkbox"
-                                        />
+                                            ref={(el) => {
+                                              if (el) {
+                                                el.indeterminate =
+                                                  sectionSelection.someSelected &&
+                                                  !sectionSelection.allSelected;
+                                              }
+                                            }}
+                                            type="checkbox"
+                                          />
+                                          <span
+                                            aria-hidden="true"
+                                            className="switch-toggle-control"
+                                            data-indeterminate={
+                                              sectionSelection.someSelected &&
+                                              !sectionSelection.allSelected
+                                                ? "true"
+                                                : undefined
+                                            }
+                                          />
+                                        </label>
                                       ) : showTooltip ? (
                                         <ColumnHeaderLabel label={columnLabel} tooltip={tooltip} />
                                       ) : (
@@ -1368,8 +1343,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                 </th>
                               ) : null}
                             </tr>
-                            {selectionMode ? (
-                              <tr className="fee-matrix-bulk-row">
+                            <tr className="fee-matrix-bulk-row">
                                 {visibleColumns.map((column) => {
                                   if (column.group && collapsedGroups.has(column.group)) {
                                     return null;
@@ -1543,8 +1517,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                     style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
                                   />
                                 ) : null}
-                              </tr>
-                            ) : null}
+                            </tr>
                           </thead>
                           <tbody>
                             {visibleSectionRows.map((row, index) => {
@@ -1596,7 +1569,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                         <MatrixCell
                                           column={column}
                                           isBulkTarget={
-                                            selectionMode &&
                                             column.editableField !== undefined &&
                                             bulkColumnHasValue(column.editableField)
                                           }
@@ -1697,13 +1669,16 @@ function MatrixCell({
   if (column.key === "select") {
     return (
       <td className={baseClass} rowSpan={rowSpan} style={style}>
-        <input
-          aria-label={`${row.program.sourceLicenseDisplayName} → ${row.program.targetLicenseDisplayName} programını seç`}
-          checked={selected}
-          className="fee-matrix-row-checkbox"
-          onChange={() => onToggleSelect(row.program.id)}
-          type="checkbox"
-        />
+        <label className="fee-matrix-select-toggle switch-toggle">
+          <input
+            aria-label={`${row.program.sourceLicenseDisplayName} → ${row.program.targetLicenseDisplayName} programını seç`}
+            checked={selected}
+            disabled={!canManage}
+            onChange={() => onToggleSelect(row.program.id)}
+            type="checkbox"
+          />
+          <span className="switch-toggle-control" aria-hidden="true" />
+        </label>
       </td>
     );
   }

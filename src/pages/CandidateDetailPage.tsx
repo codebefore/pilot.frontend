@@ -113,6 +113,7 @@ import { createCandidateSyncJob } from "../lib/mebbis-jobs-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
   CANDIDATE_STATUS_OPTIONS,
+  candidateExamResultLabel,
   candidateGenderLabel,
   candidateStatusLabel,
   candidateStatusToPill,
@@ -789,6 +790,10 @@ function CandidateHero({
       : candidate.examStageLabel;
   const stageTone = stagePillTone(heroStageLabel ?? null);
   const appointmentTone = appointmentPillTone(candidate.appointmentStatusLabel ?? null);
+  const examStatusLabel = [
+    heroStageLabel,
+    candidate.appointmentStatusLabel,
+  ].filter(Boolean).join(" · ") || candidateExamResultLabel(candidate.mebExamResult);
 
   return (
     <header className="candidate-detail-hero">
@@ -842,6 +847,20 @@ function CandidateHero({
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--accounting">
           <span className={`candidate-detail-hero-accounting-pill tone-${accountingStatus.tone}`}>
             {t(accountingStatus.labelKey)}
+          </span>
+        </div>
+        <div className="candidate-detail-hero-exam-summary" aria-label="Aday sınav özeti">
+          <span className="candidate-detail-hero-exam-item">
+            <span className="candidate-detail-hero-exam-label">Sınav Hakkı</span>
+            <strong className="candidate-detail-hero-exam-value">{candidate.eSinavAttemptCount ?? 1}/4</strong>
+          </span>
+          <span className="candidate-detail-hero-exam-item">
+            <span className="candidate-detail-hero-exam-label">Direksiyon Hakkı</span>
+            <strong className="candidate-detail-hero-exam-value">{candidate.drivingExamAttemptCount ?? 1}/4</strong>
+          </span>
+          <span className="candidate-detail-hero-exam-item candidate-detail-hero-exam-item--wide">
+            <span className="candidate-detail-hero-exam-label">Sınav Durumu</span>
+            <strong className="candidate-detail-hero-exam-value">{examStatusLabel}</strong>
           </span>
         </div>
       </div>

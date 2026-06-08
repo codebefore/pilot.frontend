@@ -21,6 +21,7 @@ const getExamCodesMock = vi.fn();
 const listCandidateExamAttemptsMock = vi.fn();
 const createCandidateExamAttemptMock = vi.fn();
 const updateCandidateExamAttemptMock = vi.fn();
+const chargeCandidateExamAttemptMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -130,6 +131,9 @@ vi.mock("../lib/candidate-exam-attempts-api", async () => {
     updateCandidateExamAttempt: (
       ...args: Parameters<typeof actual.updateCandidateExamAttempt>
     ) => updateCandidateExamAttemptMock(...args),
+    chargeCandidateExamAttempt: (
+      ...args: Parameters<typeof actual.chargeCandidateExamAttempt>
+    ) => chargeCandidateExamAttemptMock(...args),
   };
 });
 
@@ -195,12 +199,14 @@ describe("CandidatesPage tabs", () => {
     listCandidateExamAttemptsMock.mockReset();
     createCandidateExamAttemptMock.mockReset();
     updateCandidateExamAttemptMock.mockReset();
+    chargeCandidateExamAttemptMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
     getExamCodesMock.mockResolvedValue([]);
     listCandidateExamAttemptsMock.mockResolvedValue([]);
     createCandidateExamAttemptMock.mockResolvedValue({});
     updateCandidateExamAttemptMock.mockResolvedValue({});
+    chargeCandidateExamAttemptMock.mockResolvedValue({});
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "cand-1",
@@ -1444,13 +1450,9 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    expect(
-      screen.queryByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })
-    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
-
-    expect(screen.queryByRole("button", { name: "Yeni Aday" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Yeni Aday" })).toBeInTheDocument();
     expect(screen.queryByText("0 seçili")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
@@ -1462,7 +1464,7 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByRole("checkbox", { name: "Ayse Demir seç" })).toBeInTheDocument();
   });
 
-  it("reveals export actions only inside bulk selection", async () => {
+  it("keeps export actions visible without bulk selection mode", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [
         {
@@ -1497,10 +1499,9 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    expect(screen.queryByRole("button", { name: "Dışa Aktar" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
 
     expect(await screen.findByText("Önce en az bir aday seç")).toBeInTheDocument();
@@ -1509,7 +1510,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
 
-    expect(screen.queryByRole("button", { name: "Yeni Aday" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Yeni Aday" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "CSV İndir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kapat" })).toBeInTheDocument();
   });
@@ -1549,7 +1550,6 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
 
     expect(await screen.findByText("Önce en az bir aday seç")).toBeInTheDocument();
@@ -1591,12 +1591,56 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum seç" }));
 
     expect(await screen.findByRole("option", { name: "Park" })).toBeInTheDocument();
+  });
+
+  it("cancels a bulk action and shows the bulk action buttons again", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "20000000114",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamResult: null,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
+
+    expect(screen.getByRole("button", { name: "Uygula" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "İptal" }));
+
+    expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
   });
 
   it("selects visible rows with the bulk selection header checkbox", async () => {
@@ -1656,7 +1700,6 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
 
     const selectAll = screen.getByRole("checkbox", {
       name: "Bu sayfadaki tüm adayları seç",
@@ -1706,7 +1749,6 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
     fireEvent.change(screen.getByLabelText("Toplu durum seç"), {
@@ -1794,7 +1836,6 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Mehmet Kaya seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Gruba Aktar" }));
@@ -1853,7 +1894,6 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Etiket Ekle" }));
 
@@ -1919,11 +1959,33 @@ describe("CandidatesPage tabs", () => {
       ...candidates[0],
       mebExamDate: "2026-06-12",
     });
+    createCandidateExamAttemptMock.mockResolvedValue({
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "theory",
+      scheduledAt: "2026-06-12T09:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "e_sinav-2026-06-12",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 750,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 1,
+    });
 
     renderESinavPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Sınav Tarihi Belirle" }));
 
@@ -1958,6 +2020,12 @@ describe("CandidatesPage tabs", () => {
         examScheduleId: "e_sinav-2026-06-12",
       })
     );
+    expect(await screen.findByText("Sınav borçlandırması yapılsın mı?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hayır" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Sınav borçlandırması yapılsın mı?")).not.toBeInTheDocument();
+    });
+    expect(chargeCandidateExamAttemptMock).not.toHaveBeenCalled();
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
@@ -1971,10 +2039,105 @@ describe("CandidatesPage tabs", () => {
       );
     });
 
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "Sınav Tarihi Belirle" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sınav Tarihi Belirle" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();
+  });
+
+  it("charges selected candidates after bulk e-sinav date assignment when confirmed", async () => {
+    const candidates = [
+      {
+        id: "cand-1",
+        firstName: "Ayse",
+        lastName: "Demir",
+        nationalId: "20000000114",
+        phoneNumber: "0555 111 22 33",
+        email: null,
+        birthDate: null,
+        gender: null,
+        licenseClass: "B",
+        existingLicenseType: null,
+        existingLicenseIssuedAt: null,
+        existingLicenseNumber: null,
+        existingLicenseIssuedProvince: null,
+        existingLicensePre2016: false,
+        status: "active",
+        mebExamDate: null,
+        drivingExamDate: null,
+        eSinavAttemptCount: 1,
+        drivingExamAttemptCount: 1,
+        currentGroup: null,
+        documentSummary: null,
+        mebExamResult: null,
+        createdAtUtc: "2026-04-01T10:00:00Z",
+        updatedAtUtc: "2026-04-02T10:00:00Z",
+      },
+    ];
+    const attempt = {
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "theory",
+      scheduledAt: "2026-06-12T09:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "e_sinav-2026-06-12",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 750,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 1,
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: candidates,
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
     });
-    expect(screen.getByRole("button", { name: "Toplu Seçim" })).toBeInTheDocument();
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-06-12", { time: "09:00" }),
+    ]);
+    updateCandidateMock.mockResolvedValue({ ...candidates[0], mebExamDate: "2026-06-12" });
+    createCandidateExamAttemptMock.mockResolvedValue(attempt);
+    updateCandidateExamAttemptMock.mockResolvedValue({ ...attempt, fee: 900, rowVersion: 2 });
+    chargeCandidateExamAttemptMock.mockResolvedValue({ ...attempt, fee: 900, feeStatus: "charged" });
+
+    renderESinavPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sınav Tarihi Belirle" }));
+    fireEvent.change(screen.getByLabelText("Toplu sınav tarihi seç"), {
+      target: { value: "e_sinav-2026-06-12" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Evet" }));
+    const feeInput = screen.getByLabelText("Ayse Demir sınav ücreti");
+    fireEvent.change(feeInput, { target: { value: "900" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateExamAttemptMock).toHaveBeenCalledWith(
+        "cand-1",
+        "attempt-1",
+        expect.objectContaining({
+          fee: 900,
+          feeStatus: "pending",
+          rowVersion: 1,
+        })
+      );
+    });
+    expect(chargeCandidateExamAttemptMock).toHaveBeenCalledWith("cand-1", "attempt-1");
   });
 
   it("renames a tag from the global tag manager", async () => {
@@ -2065,7 +2228,6 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
 
@@ -2568,7 +2730,6 @@ describe("CandidatesPage bulk status update", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
     fireEvent.change(screen.getByLabelText("Toplu durum seç"), {

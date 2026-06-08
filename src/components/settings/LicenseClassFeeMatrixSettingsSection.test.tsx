@@ -140,7 +140,13 @@ describe("LicenseClassFeeMatrixSettingsSection", () => {
       await screen.findByRole("button", { name: /Sıfırdan Başlayanlar/ }, { timeout: 5000 })
     );
 
-    expect(screen.getByRole("button", { name: "Toplu seçim" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Toplu seçim" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Sıfırdan Başlayanlar bölümündeki tüm programları seç",
+      })
+    ).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Yok → B programını seç" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Kaydet" })).toBeDisabled();
 
     const courseFeeInput = screen.getByLabelText("Kurs Ücreti");

@@ -192,6 +192,54 @@ describe("DocumentsPage", () => {
     await waitFor(() => expect(getDocumentTypesMock).toHaveBeenCalledTimes(1));
   });
 
+  it("keeps bulk selection controls visible without a bulk selection toggle", async () => {
+    getDocumentChecklistMock.mockResolvedValueOnce({
+      items: [
+        {
+          candidateId: "cand-1",
+          fullName: "Ayse Demir",
+          phoneNumber: null,
+          licenseClass: "B",
+          hasExistingLicense: false,
+          hasAdvancePayment: false,
+          currentGroup: null,
+          summary: {
+            completedCount: 0,
+            missingCount: 2,
+            totalRequiredCount: 2,
+          },
+          missingDocumentKeys: ["national_id", "health_report"],
+          missingDocumentNames: ["Nüfus Cüzdanı", "Sağlık Raporu"],
+        },
+      ],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderPage();
+
+    await screen.findByText("Ayse Demir");
+
+    expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gruba Aktar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Ayse Demir seç" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gruba Aktar" }));
+
+    expect(screen.getByRole("button", { name: "Uygula" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "İptal" }));
+
+    expect(screen.getByRole("button", { name: "Gruba Aktar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
+  });
+
   it("renders a sortable candidate header without triggering an extra fetch", async () => {
     renderPage();
 

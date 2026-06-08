@@ -20,6 +20,7 @@ import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTag
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
+import { Modal } from "../components/ui/Modal";
 import { Pagination } from "../components/ui/Pagination";
 import { CheckboxListPopover } from "../components/ui/CheckboxListPopover";
 import { SearchInput } from "../components/ui/SearchInput";
@@ -50,7 +51,10 @@ import {
   type CandidateSortField,
   type SortDirection,
 } from "../lib/candidates-api";
-import { updateCandidateExamAttempt } from "../lib/candidate-exam-attempts-api";
+import {
+  chargeCandidateExamAttempt,
+  updateCandidateExamAttempt,
+} from "../lib/candidate-exam-attempts-api";
 import { getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
 import { getVehicles } from "../lib/vehicles-api";
@@ -94,6 +98,8 @@ import { normalizeTextQuery } from "../lib/search";
 import type { JobStatus } from "../types";
 import type {
   CandidateExamFeeStatus,
+  CandidateExamAttemptResponse,
+  CandidateExamAttemptUpsertRequest,
   CandidateResponse,
   CandidateTag,
   ExamCodeOption,
@@ -246,6 +252,49 @@ function formatCurrencyTRY(amount: number | null | undefined): string {
     currency: "TRY",
     maximumFractionDigits: 2,
   }).format(amount ?? 0);
+}
+
+type ExamChargeCandidateRow = {
+  candidate: CandidateResponse;
+  attempt: CandidateExamAttemptResponse;
+  fee: string;
+};
+
+type ExamChargePromptState = {
+  examType: CandidateExamDateType;
+  rows: ExamChargeCandidateRow[];
+};
+
+function examChargeTitle(examType: CandidateExamDateType): string {
+  return examType === "e_sinav" ? "E-Sınav borçlandırması" : "Direksiyon sınav borçlandırması";
+}
+
+function candidateFullName(candidate: CandidateResponse): string {
+  return `${candidate.firstName} ${candidate.lastName}`.trim();
+}
+
+function buildExamAttemptPayload(
+  attempt: CandidateExamAttemptResponse,
+  fee: number
+): CandidateExamAttemptUpsertRequest {
+  return {
+    examType: attempt.examType,
+    scheduledAt: attempt.scheduledAt,
+    attemptNumber: attempt.attemptNumber,
+    score: attempt.score,
+    expiresAt: attempt.expiresAt,
+    examScheduleId: attempt.examScheduleId,
+    examCode: attempt.examCode,
+    vehicleId: attempt.vehicleId,
+    vehiclePlate: attempt.vehiclePlate,
+    instructorId: attempt.instructorId,
+    instructorFullName: attempt.instructorFullName,
+    examAttendanceStatus: attempt.examAttendanceStatus,
+    examResultStatus: attempt.examResultStatus,
+    fee,
+    feeStatus: attempt.feeStatus,
+    rowVersion: attempt.rowVersion,
+  };
 }
 
 function debtToneClass(amount: number | null | undefined): string {
@@ -1277,7 +1326,6 @@ export function CandidatesPage({
   const [deletingExamCodeId, setDeletingExamCodeId] = useState<string | null>(null);
   const [editingExamCodeId, setEditingExamCodeId] = useState<string | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
-  const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
@@ -1288,6 +1336,9 @@ export function CandidatesPage({
   const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
+  const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
+  const [examChargeSaving, setExamChargeSaving] = useState(false);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -2288,24 +2339,6 @@ export function CandidatesPage({
     }
   };
 
-  const toggleBulkSelection = () => {
-    setBulkSelectEnabled((current) => {
-      const next = !current;
-      if (next) {
-        // Filtreler toggle butonu bulk modunda toolbardan kayboluyor; açık
-        // kalmış paneli beraber kapatıp orphan state'i engelliyoruz.
-        setFiltersOpen(false);
-      } else {
-        setBulkActionMode(null);
-        setSelectedCandidateIds(new Set());
-        setBulkStatusValue("");
-        setBulkTagValues([]);
-        setBulkExamDateValue("");
-      }
-      return next;
-    });
-  };
-
   const toggleCandidateSelection = (candidateId: string) => {
     setSelectedCandidateIds((current) => {
       const next = new Set(current);
@@ -2417,6 +2450,14 @@ export function CandidatesPage({
     setBulkActionMode("examDate");
   };
 
+  const cancelBulkAction = () => {
+    setBulkActionMode(null);
+    setBulkStatusValue("");
+    setBulkTagValues([]);
+    setBulkExamDateValue("");
+    setBulkGroupId("");
+  };
+
   const applyBulkStatusChange = async () => {
     if (!canManageCandidates) return;
     if (!bulkStatusValue || selectedCandidateIds.size === 0) {
@@ -2509,8 +2550,18 @@ export function CandidatesPage({
         );
       }
 
+      const chargeRows = result.assignedCandidates.flatMap(({ candidate, attempt }) =>
+        attempt ? [{ candidate, attempt, fee: String(attempt.fee ?? 0) }] : []
+      );
+      if (chargeRows.length > 0) {
+        setExamChargePrompt({
+          examType: examDateSidebar.examType,
+          rows: chargeRows,
+        });
+        setExamChargeModalOpen(false);
+      }
+
       setBulkActionMode(null);
-      setBulkSelectEnabled(false);
       setSelectedCandidateIds(new Set());
       setBulkExamDateValue("");
       setSelectedExamDate(assignedExamDate);
@@ -2525,6 +2576,62 @@ export function CandidatesPage({
       showToast(t("candidates.toast.bulkExamFailed"), "error");
     } finally {
       setBulkSaving(false);
+    }
+  };
+
+  const closeExamChargePrompt = () => {
+    if (examChargeSaving) return;
+    setExamChargePrompt(null);
+    setExamChargeModalOpen(false);
+  };
+
+  const openExamChargeModal = () => {
+    setExamChargeModalOpen(true);
+  };
+
+  const updateExamChargeFee = (candidateId: string, value: string) => {
+    setExamChargePrompt((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        rows: current.rows.map((row) =>
+          row.candidate.id === candidateId ? { ...row, fee: value } : row
+        ),
+      };
+    });
+  };
+
+  const saveExamCharges = async () => {
+    if (!examChargePrompt || examChargeSaving) return;
+    const prepared = examChargePrompt.rows.map((row) => ({
+      ...row,
+      amount: Number(row.fee),
+    }));
+    if (prepared.some((row) => !Number.isFinite(row.amount) || row.amount < 0)) {
+      showToast("Sınav ücreti 0 veya daha büyük olmalı", "error");
+      return;
+    }
+
+    setExamChargeSaving(true);
+    try {
+      await Promise.all(
+        prepared.map(async (row) => {
+          const updatedAttempt = await updateCandidateExamAttempt(
+            row.candidate.id,
+            row.attempt.id,
+            buildExamAttemptPayload(row.attempt, row.amount)
+          );
+          await chargeCandidateExamAttempt(row.candidate.id, updatedAttempt.id);
+        })
+      );
+      showToast(`${prepared.length} aday için sınav borçlandırması yapıldı`);
+      setExamChargePrompt(null);
+      setExamChargeModalOpen(false);
+      refreshAll();
+    } catch {
+      showToast("Sınav borçlandırması yapılamadı", "error");
+    } finally {
+      setExamChargeSaving(false);
     }
   };
 
@@ -2544,7 +2651,6 @@ export function CandidatesPage({
 
       showToast(`${selectedIds.length} aday gruba aktarıldı`);
       setBulkActionMode(null);
-      setBulkSelectEnabled(false);
       setSelectedCandidateIds(new Set());
       setBulkGroupId("");
       refreshAll();
@@ -2636,19 +2742,17 @@ export function CandidatesPage({
         <table className="data-table cand-table">
           <thead>
             <tr>
-              {bulkSelectEnabled && (
-                <th className="cand-select-th">
-                  <label className="cand-select-control switch-toggle">
-                    <input
-                      aria-label={t("candidates.aria.selectAllOnPage")}
-                      checked={allVisibleSelected}
-                      onChange={toggleVisibleCandidateSelection}
-                      type="checkbox"
-                    />
-                    <span className="switch-toggle-control" aria-hidden="true" />
-                  </label>
-                </th>
-              )}
+              <th className="cand-select-th">
+                <label className="cand-select-control switch-toggle">
+                  <input
+                    aria-label={t("candidates.aria.selectAllOnPage")}
+                    checked={allVisibleSelected}
+                    onChange={toggleVisibleCandidateSelection}
+                    type="checkbox"
+                  />
+                  <span className="switch-toggle-control" aria-hidden="true" />
+                </label>
+              </th>
               {visibleColumns.map((col) => {
                 const label = getColumnLabel(col);
                 const filterControl = getColumnFilterControl(col);
@@ -2691,7 +2795,7 @@ export function CandidatesPage({
               <>
                 {Array.from({ length: Math.min(pageSize, 10) }, (_, i) => (
                   <tr key={i} style={{ pointerEvents: "none" }}>
-                    {bulkSelectEnabled && <td className="cand-select-td" />}
+                    <td className="cand-select-td" />
                     {visibleColumns.map((col) => (
                       <td className={col.cellClassName} key={col.id}>
                         <span
@@ -2708,7 +2812,7 @@ export function CandidatesPage({
               <tr>
                 <td
                   className="data-table-empty"
-                  colSpan={visibleColumns.length + 1 + (bulkSelectEnabled ? 1 : 0)}
+                  colSpan={visibleColumns.length + 2}
                 >
                   {t("candidates.empty.noMatches")}
                 </td>
@@ -2723,25 +2827,23 @@ export function CandidatesPage({
                   }
                   key={c.id}
                 >
-                  {bulkSelectEnabled && (
-                    <td
-                      className="cand-select-td"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <label className="cand-select-control switch-toggle">
-                        <input
-                          aria-label={t("candidates.aria.selectCandidate", {
-                            name: `${c.firstName} ${c.lastName}`,
-                          })}
-                          checked={selectedCandidateIds.has(c.id)}
-                          onChange={() => toggleCandidateSelection(c.id)}
-                          onClick={(event) => event.stopPropagation()}
-                          type="checkbox"
-                        />
-                        <span className="switch-toggle-control" aria-hidden="true" />
-                      </label>
-                    </td>
-                  )}
+                  <td
+                    className="cand-select-td"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <label className="cand-select-control switch-toggle">
+                      <input
+                        aria-label={t("candidates.aria.selectCandidate", {
+                          name: `${c.firstName} ${c.lastName}`,
+                        })}
+                        checked={selectedCandidateIds.has(c.id)}
+                        onChange={() => toggleCandidateSelection(c.id)}
+                        onClick={(event) => event.stopPropagation()}
+                        type="checkbox"
+                      />
+                      <span className="switch-toggle-control" aria-hidden="true" />
+                    </label>
+                  </td>
                   {visibleColumns.map((col) => {
                     const opensDrawer = col.id === "photo" || col.id === "name";
                     return (
@@ -2805,8 +2907,7 @@ export function CandidatesPage({
     <>
       <PageToolbar
         actions={
-          bulkSelectEnabled ? (
-            <>
+          <>
               {showFiltersAction ? (
                 <label className="switch-toggle cand-filters-switch">
                   <input
@@ -2853,6 +2954,14 @@ export function CandidatesPage({
                     >
                       {bulkSaving ? t("candidates.bulk.applying") : t("candidates.bulk.apply")}
                     </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={bulkSaving}
+                      onClick={cancelBulkAction}
+                      type="button"
+                    >
+                      {t("candidates.bulk.cancel")}
+                    </button>
                   </>
                 ) : bulkActionMode === "tags" ? (
                   <>
@@ -2871,6 +2980,14 @@ export function CandidatesPage({
                       type="button"
                     >
                       {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={bulkSaving}
+                      onClick={cancelBulkAction}
+                      type="button"
+                    >
+                      {t("candidates.bulk.cancel")}
                     </button>
                   </>
                 ) : bulkActionMode === "export" ? (
@@ -2915,6 +3032,14 @@ export function CandidatesPage({
                     >
                       {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
                     </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={bulkSaving}
+                      onClick={cancelBulkAction}
+                      type="button"
+                    >
+                      {t("candidates.bulk.cancel")}
+                    </button>
                   </>
                 ) : bulkActionMode === "group" ? (
                   <>
@@ -2944,6 +3069,14 @@ export function CandidatesPage({
                       type="button"
                     >
                       {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={bulkSaving}
+                      onClick={cancelBulkAction}
+                      type="button"
+                    >
+                      {t("candidates.bulk.cancel")}
                     </button>
                   </>
                 ) : (
@@ -3012,33 +3145,6 @@ export function CandidatesPage({
                   </>
                 )}
               </div>
-            </>
-          ) : (
-            <>
-              {showFiltersAction ? (
-                <label className="switch-toggle cand-filters-switch">
-                  <input
-                    aria-controls="cand-filters-panel"
-                    aria-label={t("candidates.filters.button")}
-                    checked={filtersOpen}
-                    onChange={(event) => setFiltersOpen(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span className="switch-toggle-control" aria-hidden="true" />
-                  <span>{t("candidates.filters.button")}</span>
-                  {activeFilterCount > 0 && !filtersOpen && (
-                    <span className="cand-filters-badge">{activeFilterCount}</span>
-                  )}
-                </label>
-              ) : null}
-              <button
-                aria-pressed={bulkSelectEnabled}
-                className="btn btn-secondary btn-sm"
-                onClick={toggleBulkSelection}
-                type="button"
-              >
-                Toplu Seçim
-              </button>
               {showCreateCandidateAction ? (
                 <button
                   className="btn btn-primary btn-sm"
@@ -3055,7 +3161,6 @@ export function CandidatesPage({
                 </button>
               ) : null}
             </>
-          )
         }
         title={title ?? t("candidates.headerTitleDefault")}
       />
@@ -3151,6 +3256,92 @@ export function CandidatesPage({
         open={tagManagerOpen}
         tags={allTags}
       />
+      {examChargePrompt && !examChargeModalOpen ? (
+        <div
+          aria-label="Sınav borçlandırması yapılsın mı?"
+          className="exam-charge-popover"
+          role="dialog"
+        >
+          <div className="exam-charge-popover-title">Sınav borçlandırması yapılsın mı?</div>
+          <p className="exam-charge-confirm-text">
+            {`${examChargePrompt.rows.length} aday için ${examChargeTitle(examChargePrompt.examType).toLocaleLowerCase("tr-TR")} hazırlanabilir.`}
+          </p>
+          <div className="exam-charge-popover-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={closeExamChargePrompt}
+              type="button"
+            >
+              Hayır
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={openExamChargeModal}
+              type="button"
+            >
+              Evet
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <Modal
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              disabled={examChargeSaving}
+              onClick={closeExamChargePrompt}
+              type="button"
+            >
+              Vazgeç
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={examChargeSaving}
+              onClick={saveExamCharges}
+              type="button"
+            >
+              {examChargeSaving ? "Kaydediliyor" : "Kaydet"}
+            </button>
+          </>
+        }
+        onClose={closeExamChargePrompt}
+        open={Boolean(examChargePrompt) && examChargeModalOpen}
+        title={examChargePrompt ? examChargeTitle(examChargePrompt.examType) : "Sınav borçlandırması"}
+      >
+        <div className="exam-charge-table-wrap">
+          <table className="exam-charge-table">
+            <thead>
+              <tr>
+                <th>Ad Soyad</th>
+                <th>TC</th>
+                <th>Telefon</th>
+                <th>Ücret</th>
+              </tr>
+            </thead>
+            <tbody>
+              {examChargePrompt?.rows.map((row) => (
+                <tr key={row.candidate.id}>
+                  <td>{candidateFullName(row.candidate)}</td>
+                  <td>{formatNationalId(row.candidate.nationalId)}</td>
+                  <td>{formatOptionalText(row.candidate.phoneNumber)}</td>
+                  <td>
+                    <input
+                      aria-label={`${candidateFullName(row.candidate)} sınav ücreti`}
+                      className="exam-charge-fee-input"
+                      min="0"
+                      onChange={(event) => updateExamChargeFee(row.candidate.id, event.target.value)}
+                      step="0.01"
+                      type="number"
+                      value={row.fee}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
       {examDateSidebar ? (
         <NewExamScheduleModal
           canManage={canManageCandidates}

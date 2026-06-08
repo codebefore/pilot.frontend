@@ -99,7 +99,29 @@ describe("buildCandidateUpdatePayload", () => {
         rowVersion: 5,
       },
     ]);
-    examAttemptApiMocks.updateCandidateExamAttempt.mockResolvedValue({});
+    examAttemptApiMocks.updateCandidateExamAttempt.mockResolvedValue({
+      id: "attempt-1",
+      candidateId: "candidate-1",
+      examType: "practice",
+      scheduledAt: "2026-06-08T10:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "new-schedule",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 0,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 6,
+    });
 
     const result = await assignCandidatesToExamDate(
       ["candidate-1"],
@@ -109,7 +131,19 @@ describe("buildCandidateUpdatePayload", () => {
       "10:00"
     );
 
-    expect(result).toEqual({ successCount: 1, failureCount: 0 });
+    expect(result).toEqual({
+      successCount: 1,
+      failureCount: 0,
+      assignedCandidates: [
+        {
+          candidate,
+          attempt: expect.objectContaining({
+            id: "attempt-1",
+            examScheduleId: "new-schedule",
+          }),
+        },
+      ],
+    });
     expect(examAttemptApiMocks.createCandidateExamAttempt).not.toHaveBeenCalled();
     expect(examAttemptApiMocks.updateCandidateExamAttempt).toHaveBeenCalledWith(
       "candidate-1",
@@ -171,7 +205,29 @@ describe("buildCandidateUpdatePayload", () => {
         rowVersion: 5,
       },
     ]);
-    examAttemptApiMocks.createCandidateExamAttempt.mockResolvedValue({});
+    examAttemptApiMocks.createCandidateExamAttempt.mockResolvedValue({
+      id: "attempt-2",
+      candidateId: "candidate-1",
+      examType: "practice",
+      scheduledAt: "2026-06-08T10:00:00.000Z",
+      attemptNumber: 2,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "new-schedule",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 0,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 1,
+    });
 
     const result = await assignCandidatesToExamDate(
       ["candidate-1"],
@@ -181,7 +237,19 @@ describe("buildCandidateUpdatePayload", () => {
       "10:00"
     );
 
-    expect(result).toEqual({ successCount: 1, failureCount: 0 });
+    expect(result).toEqual({
+      successCount: 1,
+      failureCount: 0,
+      assignedCandidates: [
+        {
+          candidate,
+          attempt: expect.objectContaining({
+            id: "attempt-2",
+            examScheduleId: "new-schedule",
+          }),
+        },
+      ],
+    });
     expect(examAttemptApiMocks.updateCandidateExamAttempt).not.toHaveBeenCalled();
     expect(examAttemptApiMocks.createCandidateExamAttempt).toHaveBeenCalledWith(
       "candidate-1",

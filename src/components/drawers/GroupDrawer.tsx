@@ -34,6 +34,7 @@ import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { PageLoadError } from "../ui/PageLoadError";
 import { CustomSelect } from "../ui/CustomSelect";
 import { EditableRow } from "../ui/EditableRow";
+import { Modal } from "../ui/Modal";
 import { PanelListSkeleton } from "../ui/Skeleton";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
@@ -65,7 +66,11 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   const [adding, setAdding] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mebStatusConfirm, setMebStatusConfirm] = useState<{
+    resolve: (confirmed: boolean) => void;
+  } | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mebStatusConfirmResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
 
   useEffect(() => {
     if (!groupId) {
@@ -74,6 +79,11 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       setSearchQuery("");
       setSearchResults([]);
       setConfirmDelete(false);
+      setMebStatusConfirm((current) => {
+        current?.resolve(false);
+        mebStatusConfirmResolveRef.current = null;
+        return null;
+      });
       setLoadError(false);
       return;
     }
@@ -92,6 +102,13 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       });
     return () => controller.abort();
   }, [groupId, reloadKey]);
+
+  useEffect(() => {
+    return () => {
+      mebStatusConfirmResolveRef.current?.(false);
+      mebStatusConfirmResolveRef.current = null;
+    };
+  }, []);
 
   // Load term catalog lazily so the term selector can build the correct
   // "Nisan 2026 / 2" style labels and so the user can reassign the group to
@@ -158,9 +175,30 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     onUpdated?.();
   };
 
+  const requestMebStatusSentConfirmation = () =>
+    new Promise<boolean>((resolve) => {
+      mebStatusConfirmResolveRef.current = resolve;
+      setMebStatusConfirm({ resolve });
+    });
+
+  const closeMebStatusConfirm = (confirmed: boolean) => {
+    mebStatusConfirmResolveRef.current?.(confirmed);
+    mebStatusConfirmResolveRef.current = null;
+    setMebStatusConfirm(null);
+  };
+
   const saveField = async (patch: Partial<GroupUpdateRequest>) => {
     if (!canManageGroups) return;
     if (!group || !groupId || !group.startDate) return;
+    const nextMebStatus = patch.mebStatus ? normalizeGroupMebStatusValue(patch.mebStatus) : undefined;
+    const currentMebStatus = normalizeGroupMebStatusValue(group.mebStatus);
+    if (nextMebStatus === "sent" && currentMebStatus !== "sent") {
+      const confirmed = await requestMebStatusSentConfirmation();
+      if (!confirmed) {
+        return;
+      }
+    }
+
     try {
       const updated = await updateGroup(groupId, {
         termId: group.term.id,
@@ -300,6 +338,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   );
 
   return (
+    <>
     <Drawer actions={actions} onClose={onClose} open title={title}>
       {loading ? (
         <PanelListSkeleton rows={5} />
@@ -455,6 +494,32 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
         />
       ) : null}
     </Drawer>
+    <Modal
+      footer={
+        <>
+          <button
+            className="btn btn-secondary"
+            onClick={() => closeMebStatusConfirm(false)}
+            type="button"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => closeMebStatusConfirm(true)}
+            type="button"
+          >
+            {t("groupDrawer.confirm.activateCandidates")}
+          </button>
+        </>
+      }
+      onClose={() => closeMebStatusConfirm(false)}
+      open={mebStatusConfirm !== null}
+      title={t("groupDrawer.confirm.mebStatusSentTitle")}
+    >
+      <p>{t("groupDrawer.confirm.mebStatusSentActivatesCandidates")}</p>
+    </Modal>
+    </>
   );
 }
 

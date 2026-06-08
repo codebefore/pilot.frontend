@@ -190,7 +190,6 @@ export function DocumentsPage() {
   const openDrawer = (id: string) => setSearchParams({ selected: id });
   const closeDrawer = () => setSearchParams({});
 
-  const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkTagValues, setBulkTagValues] = useState<string[]>([]);
@@ -471,22 +470,6 @@ export function DocumentsPage() {
     void queryClient.invalidateQueries({ queryKey: ["candidates", "tags"] });
   };
 
-  const toggleBulkSelection = () => {
-    setBulkSelectEnabled((current) => {
-      const next = !current;
-      if (next) {
-        // Close the filter drawer so the toolbar has room for the bulk controls.
-        setFiltersOpen(false);
-      } else {
-        setBulkActionMode(null);
-        setSelectedCandidateIds(new Set());
-        setBulkTagValues([]);
-        setBulkGroupId("");
-      }
-      return next;
-    });
-  };
-
   const toggleCandidateSelection = (candidateId: string) => {
     setSelectedCandidateIds((current) => {
       const next = new Set(current);
@@ -528,6 +511,12 @@ export function DocumentsPage() {
     setBulkGroupId("");
   };
 
+  const cancelBulkAction = () => {
+    setBulkActionMode(null);
+    setBulkTagValues([]);
+    setBulkGroupId("");
+  };
+
   const applyBulkTagChange = async () => {
     if (!canManageCandidates) return;
     if (bulkTagValues.length === 0 || selectedCount === 0) return;
@@ -560,7 +549,6 @@ export function DocumentsPage() {
       );
       showToast(`${selectedIds.length} aday gruba aktarıldı`);
       setBulkActionMode(null);
-      setBulkSelectEnabled(false);
       setSelectedCandidateIds(new Set());
       setBulkGroupId("");
       void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
@@ -681,7 +669,21 @@ export function DocumentsPage() {
     <>
       <PageToolbar
         actions={
-          bulkSelectEnabled ? (
+          <>
+            <label className="switch-toggle cand-filters-switch">
+              <input
+                aria-controls="documents-filters-panel"
+                aria-label="Filtreler"
+                checked={filtersOpen}
+                onChange={(event) => setFiltersOpen(event.target.checked)}
+                type="checkbox"
+              />
+              <span className="switch-toggle-control" aria-hidden="true" />
+              <span>Filtreler</span>
+              {activeFilterCount > 0 && !filtersOpen && (
+                <span className="cand-filters-badge">{activeFilterCount}</span>
+              )}
+            </label>
             <div className="candidate-bulk-toolbar">
               {selectedCount > 0 ? (
                 <span className="candidate-bulk-count">{t("documentsPage.selectedCount", { count: selectedCount })}</span>
@@ -705,6 +707,14 @@ export function DocumentsPage() {
                     type="button"
                   >
                     {bulkSaving ? t("candidates.bulk.adding") : t("candidates.bulk.apply")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={bulkSaving}
+                    onClick={cancelBulkAction}
+                    type="button"
+                  >
+                    {t("candidates.bulk.cancel")}
                   </button>
                 </>
               ) : bulkActionMode === "group" ? (
@@ -737,6 +747,14 @@ export function DocumentsPage() {
                   >
                     {bulkSaving ? t("candidates.bulk.assigning") : t("candidates.bulk.apply")}
                   </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={bulkSaving}
+                    onClick={cancelBulkAction}
+                    type="button"
+                  >
+                    {t("candidates.bulk.cancel")}
+                  </button>
                 </>
               ) : (
                 <>
@@ -760,40 +778,8 @@ export function DocumentsPage() {
                   </button>
                 </>
               )}
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={toggleBulkSelection}
-                type="button"
-              >
-                {t("candidates.bulk.close")}
-              </button>
             </div>
-          ) : (
-            <>
-              <label className="switch-toggle cand-filters-switch">
-                <input
-                  aria-controls="documents-filters-panel"
-                  aria-label="Filtreler"
-                  checked={filtersOpen}
-                  onChange={(event) => setFiltersOpen(event.target.checked)}
-                  type="checkbox"
-                />
-                <span className="switch-toggle-control" aria-hidden="true" />
-                <span>Filtreler</span>
-                {activeFilterCount > 0 && !filtersOpen && (
-                  <span className="cand-filters-badge">{activeFilterCount}</span>
-                )}
-              </label>
-              <button
-                aria-pressed={bulkSelectEnabled}
-                className="btn btn-secondary btn-sm"
-                onClick={toggleBulkSelection}
-                type="button"
-              >
-                Toplu Seçim
-              </button>
-            </>
-          )
+          </>
         }
         title={t("documents.title")}
       />
@@ -888,19 +874,17 @@ export function DocumentsPage() {
         <table className="data-table cand-table documents-table">
             <thead>
               <tr>
-                {bulkSelectEnabled && (
-                  <th className="cand-select-th">
-                    <label className="cand-select-control switch-toggle">
-                      <input
-                        aria-label={t("documentsPage.aria.selectAll")}
-                        checked={allVisibleSelected}
-                        onChange={toggleVisibleCandidateSelection}
-                        type="checkbox"
-                      />
-                      <span className="switch-toggle-control" aria-hidden="true" />
-                    </label>
-                  </th>
-                )}
+                <th className="cand-select-th">
+                  <label className="cand-select-control switch-toggle">
+                    <input
+                      aria-label={t("documentsPage.aria.selectAll")}
+                      checked={allVisibleSelected}
+                      onChange={toggleVisibleCandidateSelection}
+                      type="checkbox"
+                    />
+                    <span className="switch-toggle-control" aria-hidden="true" />
+                  </label>
+                </th>
                 <th aria-label="Resim" className="cand-photo-th" />
                 <SortableTh
                   field="name"
@@ -1004,7 +988,7 @@ export function DocumentsPage() {
               {loading ? (
                 Array.from({ length: 6 }, (_, index) => (
                   <tr key={index} style={{ pointerEvents: "none" }}>
-                    {bulkSelectEnabled && <td className="cand-select-td" />}
+                    <td className="cand-select-td" />
                     <td className="cand-photo-td">
                       <span className="skeleton" style={{ width: 28, height: 28, borderRadius: "999px" }} />
                     </td>
@@ -1038,7 +1022,7 @@ export function DocumentsPage() {
                 <tr>
                   <td
                     className="data-table-empty"
-                    colSpan={visibleRequiredDocumentTypes.length + 7 + (bulkSelectEnabled ? 1 : 0)}
+                    colSpan={visibleRequiredDocumentTypes.length + 8}
                   >
                     {emptyMessage}
                   </td>
@@ -1047,23 +1031,21 @@ export function DocumentsPage() {
                 sortedEntries.map((entry) => {
                   return (
                     <tr key={entry.candidateId} onClick={() => openDrawer(entry.candidateId)}>
-                      {bulkSelectEnabled && (
-                        <td
-                          className="cand-select-td"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <label className="cand-select-control switch-toggle">
-                            <input
-                              aria-label={`${entry.fullName} seç`}
-                              checked={selectedCandidateIds.has(entry.candidateId)}
-                              onChange={() => toggleCandidateSelection(entry.candidateId)}
-                              onClick={(event) => event.stopPropagation()}
-                              type="checkbox"
-                            />
-                            <span className="switch-toggle-control" aria-hidden="true" />
-                          </label>
-                        </td>
-                      )}
+                      <td
+                        className="cand-select-td"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <label className="cand-select-control switch-toggle">
+                          <input
+                            aria-label={`${entry.fullName} seç`}
+                            checked={selectedCandidateIds.has(entry.candidateId)}
+                            onChange={() => toggleCandidateSelection(entry.candidateId)}
+                            onClick={(event) => event.stopPropagation()}
+                            type="checkbox"
+                          />
+                          <span className="switch-toggle-control" aria-hidden="true" />
+                        </label>
+                      </td>
                       <td className="cand-photo-td">
                         <CandidateAvatar
                           candidate={toAvatarCandidate(entry)}

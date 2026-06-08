@@ -25,6 +25,9 @@
 .modal:has(.candidate-detail-doc-checklist-modal) {
   max-width: min(820px, calc(100vw - 40px));
 }
+.modal:has(.exam-charge-table-wrap) {
+  max-width: min(940px, calc(100vw - 40px));
+}
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(-16px) scale(.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }

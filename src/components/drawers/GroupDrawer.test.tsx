@@ -127,6 +127,39 @@ describe("GroupDrawer", () => {
     expect(await screen.findByRole("button", { name: "Aday Ekle" })).toBeInTheDocument();
   });
 
+  it("shows a custom confirmation before marking MEB status as sent", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    getGroupByIdMock.mockResolvedValue(buildGroup({ mebStatus: "not_sent" }));
+    updateGroupMock.mockResolvedValue(buildGroup({ mebStatus: "sent", rowVersion: 2 }));
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    await screen.findByText("Gönderilmedi");
+    const mebStatusRow = screen.getByText("MEB Durumu").closest(".drawer-row");
+    expect(mebStatusRow).not.toBeNull();
+
+    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Düzenle"));
+    fireEvent.change(within(mebStatusRow as HTMLElement).getByLabelText("MEB Durumu"), {
+      target: { value: "sent" },
+    });
+    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Kaydet"));
+
+    expect(await screen.findByText("Adaylar aktife geçirilecek")).toBeInTheDocument();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(updateGroupMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Devam et" }));
+
+    await waitFor(() => {
+      expect(updateGroupMock).toHaveBeenCalledWith(
+        "group-1",
+        expect.objectContaining({ mebStatus: "sent" })
+      );
+    });
+
+    confirmSpy.mockRestore();
+  });
+
   it("renders the group code with the term label in the drawer title", async () => {
     getGroupByIdMock.mockResolvedValue(buildGroup({ title: "2B" }));
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
@@ -289,6 +322,58 @@ describe("GroupDrawer", () => {
         expect.objectContaining({
           groupNumber: 3,
           groupBranch: "C",
+          rowVersion: 1,
+        })
+      );
+    });
+  });
+
+  it("asks before marking MEB status as sent and cancels without updating", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({ mebStatus: "not_sent" }));
+    updateGroupMock.mockResolvedValue(buildGroup({ mebStatus: "sent" }));
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    const mebStatusValue = await screen.findByText("Gönderilmedi");
+    const mebStatusRow = mebStatusValue.closest(".drawer-row");
+    expect(mebStatusRow).not.toBeNull();
+    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Düzenle"));
+    fireEvent.change(within(mebStatusRow as HTMLElement).getByLabelText("MEB Durumu"), {
+      target: { value: "sent" },
+    });
+    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Kaydet"));
+
+    expect(await screen.findByText("Adaylar aktife geçirilecek")).toBeInTheDocument();
+    const dialogs = screen.getAllByRole("dialog");
+    const modal = dialogs[dialogs.length - 1] as HTMLElement;
+    fireEvent.click(within(modal).getByRole("button", { name: "Vazgeç" }));
+
+    await waitFor(() => {
+      expect(updateGroupMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("updates MEB status after activation confirmation", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({ mebStatus: "not_sent" }));
+    updateGroupMock.mockResolvedValue(buildGroup({ mebStatus: "sent" }));
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    const mebStatusValue = await screen.findByText("Gönderilmedi");
+    const mebStatusRow = mebStatusValue.closest(".drawer-row");
+    expect(mebStatusRow).not.toBeNull();
+    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Düzenle"));
+    fireEvent.change(within(mebStatusRow as HTMLElement).getByLabelText("MEB Durumu"), {
+      target: { value: "sent" },
+    });
+    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Kaydet"));
+    fireEvent.click(await screen.findByRole("button", { name: "Devam et" }));
+
+    await waitFor(() => {
+      expect(updateGroupMock).toHaveBeenCalledWith(
+        "group-1",
+        expect.objectContaining({
+          mebStatus: "sent",
           rowVersion: 1,
         })
       );
