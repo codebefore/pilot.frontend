@@ -103,6 +103,13 @@ function renderFinancePage() {
   );
 }
 
+function todayDateOnly() {
+  const today = new Date();
+  const month = `${today.getMonth() + 1}`.padStart(2, "0");
+  const day = `${today.getDate()}`.padStart(2, "0");
+  return `${today.getFullYear()}-${month}-${day}`;
+}
+
 describe("PaymentsPage permissions", () => {
   beforeEach(() => {
     getPaymentsOverviewMock.mockReset();
@@ -142,5 +149,83 @@ describe("PaymentsPage permissions", () => {
     renderFinancePage();
 
     expect(await screen.findByRole("heading", { name: "Finans" })).toBeInTheDocument();
+  });
+
+  it("hides deleted candidate accounting rows from cash movements", async () => {
+    const today = todayDateOnly();
+    const activeCandidate = {
+      id: "candidate-active",
+      firstName: "Aktif",
+      lastName: "Aday",
+      nationalId: "11111111111",
+      licenseClass: "B",
+      isDeleted: false,
+      currentGroup: null,
+      photo: null,
+    };
+    const deletedCandidate = {
+      ...activeCandidate,
+      id: "candidate-deleted",
+      firstName: "Silinen",
+      isDeleted: true,
+    };
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      payments: [
+        {
+          id: "payment-active",
+          candidate: activeCandidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-1",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 100,
+          paymentMethod: "cash",
+          paidAtUtc: `${today}T09:00:00Z`,
+          note: "Aktif tahsilat",
+          status: "active",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+        {
+          id: "payment-deleted",
+          candidate: deletedCandidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-2",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 200,
+          paymentMethod: "cash",
+          paidAtUtc: `${today}T10:00:00Z`,
+          note: "Silinen tahsilat",
+          status: "active",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+      ],
+      refunds: [
+        {
+          id: "refund-deleted",
+          paymentId: "payment-deleted",
+          candidate: deletedCandidate,
+          type: "kurs",
+          number: "IAD-1",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 50,
+          refundedAtUtc: `${today}T11:00:00Z`,
+          note: "Silinen iade",
+        },
+      ],
+    });
+
+    renderCashPage();
+
+    expect(await screen.findByText("Aktif tahsilat")).toBeInTheDocument();
+    expect(screen.queryByText("Silinen tahsilat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Silinen iade")).not.toBeInTheDocument();
   });
 });

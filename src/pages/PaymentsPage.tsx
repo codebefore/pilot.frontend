@@ -520,6 +520,10 @@ function rowCandidate(row: PaymentDetailRow) {
   return row.payment.candidate;
 }
 
+function isActivePaymentCandidate(candidate: PaymentCandidateSummaryResponse | null | undefined): boolean {
+  return candidate != null && candidate.isDeleted !== true;
+}
+
 function rowType(row: PaymentDetailRow): CandidateAccountingType {
   if (row.kind === "refund") return row.refund.type;
   if (row.kind === "cancelledDebt") return row.installment.type;
@@ -1336,14 +1340,17 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (!overview) return [];
     return (overview.payments ?? []).filter((item) => {
       if (item.status !== "active") return false;
+      if (!isActivePaymentCandidate(item.candidate)) return false;
       return isInDateRange(item.paidAtUtc, fromDate, toDate);
     });
   }, [fromDate, overview, toDate]);
 
   const filteredRefunds = useMemo(() => {
     if (!overview) return [];
-    return (overview.refunds ?? []).filter((refund) =>
-      isInDateRange(refund.refundedAtUtc, fromDate, toDate),
+    return (overview.refunds ?? []).filter(
+      (refund) =>
+        isActivePaymentCandidate(refund.candidate) &&
+        isInDateRange(refund.refundedAtUtc, fromDate, toDate),
     );
   }, [fromDate, overview, toDate]);
 
@@ -1357,6 +1364,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           .filter(
             (payment) =>
               payment.status === "active" &&
+              isActivePaymentCandidate(payment.candidate) &&
               isInDateRange(payment.paidAtUtc, fromDate, toDate),
           )
           .map((payment) => ({
@@ -1373,6 +1381,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       rows.push(
         ...(overview.refunds ?? [])
           .filter((refund) =>
+            isActivePaymentCandidate(refund.candidate) &&
             isInDateRange(refund.refundedAtUtc, fromDate, toDate),
           )
           .map((refund) => ({
@@ -1391,6 +1400,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           .filter(
             (payment) =>
               payment.status === "cancelled" &&
+              isActivePaymentCandidate(payment.candidate) &&
               Boolean(payment.cancelledAtUtc) &&
               isInDateRange(
                 payment.cancelledAtUtc ?? payment.paidAtUtc,
@@ -1413,6 +1423,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         ...(overview.installments ?? [])
           .filter(
             (installment) =>
+              isActivePaymentCandidate(installment.candidate) &&
               installment.status === "cancelled" &&
               Boolean(installment.cancelledAtUtc) &&
               isInDateRange(
@@ -1463,8 +1474,10 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   ]);
 
   const baseInvoiceRows = useMemo(() => {
-    return (overview?.invoices ?? []).filter((invoice) =>
-      isInDateRange(invoice.invoiceDate, fromDate, toDate),
+    return (overview?.invoices ?? []).filter(
+      (invoice) =>
+        isActivePaymentCandidate(invoice.candidate) &&
+        isInDateRange(invoice.invoiceDate, fromDate, toDate),
     );
   }, [fromDate, overview, toDate]);
 
@@ -1528,6 +1541,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
     (overview?.installments ?? [])
       .filter((installment) => installment.status === "active")
+      .filter((installment) => isActivePaymentCandidate(installment.candidate))
       .filter((installment) => installment.type === "kurs")
       .forEach((installment) => {
         const row = ensureRow(installment.candidate);
@@ -1571,6 +1585,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const baseInstallmentRows = useMemo(() => {
     return (overview?.installments ?? []).filter(
       (installment) =>
+        isActivePaymentCandidate(installment.candidate) &&
         installment.status === "active" &&
         (isBalancesPage && periodMonth
           ? candidateMatchesPeriod(installment.candidate, periodMonth)
@@ -1689,6 +1704,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
     (overview.payments ?? [])
       .filter((payment) => payment.status === "active")
+      .filter((payment) => isActivePaymentCandidate(payment.candidate))
       .filter((payment) => isInDateRange(payment.paidAtUtc, fromDate, toDate))
       .forEach((payment) => {
         rows.push({
@@ -1705,6 +1721,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       });
 
     (overview.refunds ?? [])
+      .filter((refund) => isActivePaymentCandidate(refund.candidate))
       .filter((refund) => isInDateRange(refund.refundedAtUtc, fromDate, toDate))
       .forEach((refund) => {
         rows.push({
@@ -2068,6 +2085,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
     (overview.payments ?? [])
       .filter((payment) => payment.status === "active")
+      .filter((payment) => isActivePaymentCandidate(payment.candidate))
       .forEach((payment) => {
         const key = cashRegisterKey(payment);
         const row = officialCashRegisterIds.has(key)
@@ -2085,22 +2103,24 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         }
       });
 
-    (overview.refunds ?? []).forEach((refund) => {
-      const key = refundCashRegisterKey(refund);
-      const row = officialCashRegisterIds.has(key)
-        ? ensureRow(key, refundCashRegisterLabel(refund, t))
-        : key === NO_CASH_REGISTER_KEY
+    (overview.refunds ?? [])
+      .filter((refund) => isActivePaymentCandidate(refund.candidate))
+      .forEach((refund) => {
+        const key = refundCashRegisterKey(refund);
+        const row = officialCashRegisterIds.has(key)
           ? ensureRow(key, refundCashRegisterLabel(refund, t))
-          : null;
-      if (!row) return;
-      if (!officialCashRegisterIds.has(key)) {
-        row.balance -= refund.amount;
-        updateLastMovementDate(row, refund.refundedAtUtc);
-      }
-      if (isInDateRange(refund.refundedAtUtc, fromDate, toDate)) {
-        row.selectedOutflow += refund.amount;
-      }
-    });
+          : key === NO_CASH_REGISTER_KEY
+            ? ensureRow(key, refundCashRegisterLabel(refund, t))
+            : null;
+        if (!row) return;
+        if (!officialCashRegisterIds.has(key)) {
+          row.balance -= refund.amount;
+          updateLastMovementDate(row, refund.refundedAtUtc);
+        }
+        if (isInDateRange(refund.refundedAtUtc, fromDate, toDate)) {
+          row.selectedOutflow += refund.amount;
+        }
+      });
 
     (overview.cashMovements ?? []).forEach((movement) => {
       const key = movement.cashRegisterId;

@@ -1277,7 +1277,7 @@ export function CandidatesPage({
   const [deletingExamCodeId, setDeletingExamCodeId] = useState<string | null>(null);
   const [editingExamCodeId, setEditingExamCodeId] = useState<string | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
-  const [bulkSelectEnabled, setBulkSelectEnabled] = useState(true);
+  const [bulkSelectEnabled, setBulkSelectEnabled] = useState(false);
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
@@ -2874,14 +2874,23 @@ export function CandidatesPage({
                     </button>
                   </>
                 ) : bulkActionMode === "export" ? (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || bulkExporting}
-                    onClick={downloadSelectedCandidatesCsv}
-                    type="button"
-                  >
-                    {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
-                  </button>
+                  <>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={selectedCount === 0 || bulkExporting}
+                      onClick={downloadSelectedCandidatesCsv}
+                      type="button"
+                    >
+                      {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setBulkActionMode(null)}
+                      type="button"
+                    >
+                      {t("candidates.bulk.close")}
+                    </button>
+                  </>
                 ) : bulkActionMode === "examDate" ? (
                   <>
                     <CustomSelect
@@ -3003,21 +3012,6 @@ export function CandidatesPage({
                   </>
                 )}
               </div>
-              {showCreateCandidateAction ? (
-                <button
-                  className="btn btn-primary btn-sm"
-                  disabled={!canManageCandidates}
-                  onClick={() => {
-                    if (!canManageCandidates) return;
-                    setModalOpen(true);
-                  }}
-                  title={!canManageCandidates ? noPermissionTitle : undefined}
-                  type="button"
-                >
-                  <PlusIcon size={14} />
-                  {t("candidates.newCandidate")}
-                </button>
-              ) : null}
             </>
           ) : (
             <>

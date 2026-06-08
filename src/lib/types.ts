@@ -453,6 +453,7 @@ export interface PaymentCandidateSummaryResponse {
   lastName: string;
   nationalId: string;
   licenseClass: string;
+  isDeleted?: boolean;
   currentGroup: CandidateGroupSummary | null;
   photo: CandidatePhotoSummary | null;
 }
