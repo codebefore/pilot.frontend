@@ -114,6 +114,7 @@ export function UserFormModal({
   const selectedRoleId = watch("roleId");
   const mebbisPasswordValue = watch("mebbisPassword");
   const activeRoles = useMemo(() => roles.filter((role) => role.isActive), [roles]);
+  const editingSuperAdmin = editing?.isSuperAdmin === true;
   const phoneRegistration = register("phone");
   const handlePhoneChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.target.value = normalizeUserPhone(event.target.value);
@@ -233,7 +234,7 @@ export function UserFormModal({
             <CustomSelect
               id={roleSelectId}
               className={fieldClass(!!errors.roleId, "form-select")}
-              disabled={!canManage}
+              disabled={!canManage || editingSuperAdmin}
               value={selectedRoleId ?? ""}
               {...register("roleId")}
             >
@@ -305,7 +306,7 @@ export function UserFormModal({
 
         <div className="form-row full">
           <label className="switch-toggle">
-            <input disabled={!canManage} type="checkbox" {...register("isActive")} />
+            <input disabled={!canManage || editingSuperAdmin} type="checkbox" {...register("isActive")} />
             <span className="switch-toggle-control" aria-hidden="true" />
             <span>{watch("isActive") ? t("common.active") : t("common.inactive")}</span>
           </label>

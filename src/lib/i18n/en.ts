@@ -318,6 +318,7 @@ export const en: Record<TranslationKey, string> = {
   "users.subtab.users": "Users",
   "users.subtab.permissions": "Permissions",
   "users.filter.allRoles": "All Roles",
+  "users.superAdminProtected": "Super admins cannot be deleted from institution user management.",
   "users.toast.userUpdated": "User updated",
   "users.toast.userAdded": "User added",
   "users.toast.userDeleted": "User deleted",

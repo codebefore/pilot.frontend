@@ -316,6 +316,7 @@ export const tr = {
   "users.subtab.users": "Kullanıcılar",
   "users.subtab.permissions": "Yetki Yönetimi",
   "users.filter.allRoles": "Tüm Roller",
+  "users.superAdminProtected": "Süper admin kurum kullanıcı yönetiminden silinemez.",
   "users.toast.userUpdated": "Kullanıcı güncellendi",
   "users.toast.userAdded": "Kullanıcı eklendi",
   "users.toast.userDeleted": "Kullanıcı silindi",

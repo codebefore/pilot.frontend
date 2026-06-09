@@ -168,10 +168,14 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   );
 
   const queryClient = useQueryClient();
+  const includeSuperAdmins = user?.isSuperAdmin === true;
+  const usersListQueryKey = ["users", "list", { includeSuperAdmins }] as const;
+  const superAdminProtectedTitle = t("users.superAdminProtected");
 
   const usersQuery = useQuery<AppUserResponse[]>({
-    queryKey: ["users", "list"],
-    queryFn: ({ signal }) => getUsers({ includeInactive: true }, signal),
+    queryKey: usersListQueryKey,
+    queryFn: ({ signal }) =>
+      getUsers({ includeInactive: true, includeSuperAdmins }, signal),
   });
 
   const rolesQuery = useQuery<RoleResponse[]>({
@@ -350,7 +354,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     showToast(t(editing ? "users.toast.userUpdated" : "users.toast.userAdded"));
     setEditing(null);
     // Optimistic update: merge saved user into cache immediately
-    queryClient.setQueryData<AppUserResponse[]>(["users", "list"], (prev) => {
+    queryClient.setQueryData<AppUserResponse[]>(usersListQueryKey, (prev) => {
       if (!prev) return [saved];
       const idx = prev.findIndex((p) => p.id === saved.id);
       if (idx === -1) return [...prev, saved];
@@ -370,11 +374,11 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   };
 
   const handleDelete = async (user: AppUserResponse) => {
-    if (!canManageUsers) return;
+    if (!canManageUsers || user.isSuperAdmin) return;
     setDeletingUserId(user.id);
     try {
       await deleteUser(user.id);
-      queryClient.setQueryData<AppUserResponse[]>(["users", "list"], (prev) =>
+      queryClient.setQueryData<AppUserResponse[]>(usersListQueryKey, (prev) =>
         prev ? prev.filter((u) => u.id !== user.id) : []
       );
       invalidateUserAdminCaches(false);
@@ -533,70 +537,78 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
               </td>
             </tr>
           ) : (
-            pagedUsers.map((user) => (
-              <tr key={user.id}>
-                {visibleColumns.map((column) => (
-                  <td key={column.id}>{column.renderCell(user)}</td>
-                ))}
-                <td className="col-picker-td">
-                  <div
-                    className={
-                      confirmDeleteUserId === user.id
-                        ? "table-row-actions table-row-actions-confirm"
-                        : "table-row-actions"
-                    }
-                  >
-                    {confirmDeleteUserId === user.id ? (
-                      <>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          disabled={deletingUserId === user.id}
-                          onClick={() => setConfirmDeleteUserId(null)}
-                          type="button"
-                        >
-                          Vazgeç
-                        </button>
-                        <button
-                          className="btn btn-danger btn-sm"
-                          disabled={deletingUserId === user.id || !canManageUsers}
-                          onClick={() => handleDelete(user)}
-                          title={!canManageUsers ? noPermissionTitle : undefined}
-                          type="button"
-                        >
-                          {deletingUserId === user.id ? "Siliniyor..." : "Sil"}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          aria-label={t("common.edit")}
-                          className="icon-btn"
-                          disabled={!canManageUsers}
-                          onClick={() => openEdit(user)}
-                          title={!canManageUsers ? noPermissionTitle : t("common.edit")}
-                          type="button"
-                        >
-                          <PencilIcon size={14} />
-                        </button>
-                        <button
-                          aria-label="Sil"
-                          className="icon-btn icon-btn-danger"
-                          disabled={deletingUserId !== null || !canManageUsers}
-                          onClick={() => {
-                            if (!canManageUsers) return;
-                            setConfirmDeleteUserId(user.id);
-                          }}
-                          title={!canManageUsers ? noPermissionTitle : "Sil"}
-                          type="button"
-                        >
-                          <TrashIcon size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))
+            pagedUsers.map((user) => {
+              const canEditUser = canManageUsers;
+              const canDeleteUser = canManageUsers && !user.isSuperAdmin;
+              const protectedActionTitle = user.isSuperAdmin
+                ? superAdminProtectedTitle
+                : noPermissionTitle;
+
+              return (
+                <tr key={user.id}>
+                  {visibleColumns.map((column) => (
+                    <td key={column.id}>{column.renderCell(user)}</td>
+                  ))}
+                  <td className="col-picker-td">
+                    <div
+                      className={
+                        confirmDeleteUserId === user.id
+                          ? "table-row-actions table-row-actions-confirm"
+                          : "table-row-actions"
+                      }
+                    >
+                      {confirmDeleteUserId === user.id ? (
+                        <>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={deletingUserId === user.id}
+                            onClick={() => setConfirmDeleteUserId(null)}
+                            type="button"
+                          >
+                            Vazgeç
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            disabled={deletingUserId === user.id || !canDeleteUser}
+                            onClick={() => handleDelete(user)}
+                            title={!canDeleteUser ? protectedActionTitle : undefined}
+                            type="button"
+                          >
+                            {deletingUserId === user.id ? "Siliniyor..." : "Sil"}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            aria-label={t("common.edit")}
+                            className="icon-btn"
+                            disabled={!canEditUser}
+                            onClick={() => openEdit(user)}
+                            title={!canEditUser ? noPermissionTitle : t("common.edit")}
+                            type="button"
+                          >
+                            <PencilIcon size={14} />
+                          </button>
+                          <button
+                            aria-label="Sil"
+                            className="icon-btn icon-btn-danger"
+                            disabled={deletingUserId !== null || !canDeleteUser}
+                            onClick={() => {
+                              if (!canDeleteUser) return;
+                              setConfirmDeleteUserId(user.id);
+                            }}
+                            title={!canDeleteUser ? protectedActionTitle : "Sil"}
+                            type="button"
+                          >
+                            <TrashIcon size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
