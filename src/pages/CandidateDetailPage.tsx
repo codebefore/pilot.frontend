@@ -109,7 +109,7 @@ import {
   updateCandidateDocumentMebbisTransfer,
   uploadDocument,
 } from "../lib/documents-api";
-import { createCandidateSyncJob } from "../lib/mebbis-jobs-api";
+import { createCandidateSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
   CANDIDATE_STATUS_OPTIONS,
@@ -207,6 +207,12 @@ function notifyMebbisJobQueued(jobId: string, jobType: string): void {
       );
     }, delay);
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 function buildCandidateUpdatePayload(
@@ -734,15 +740,17 @@ export function CandidateDetailPage() {
                 error={documentsError}
                 onRefresh={async () => {
                   if (!candidateId) return;
-                  await queryClient.invalidateQueries({
-                    queryKey: ["candidates", "documents", candidateId],
-                  });
-                  void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) });
-                  void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
-                  void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
-                  void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
-                  void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
-                  void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                  await Promise.all([
+                    queryClient.invalidateQueries({
+                      queryKey: ["candidates", "documents", candidateId],
+                    }),
+                    queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidateId) }),
+                    queryClient.invalidateQueries({ queryKey: candidateKeys.lists() }),
+                    queryClient.invalidateQueries({ queryKey: ["documents", "list"] }),
+                    queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] }),
+                    queryClient.invalidateQueries({ queryKey: ["notifications", "list"] }),
+                    queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+                  ]);
                 }}
                 onDeleted={() => navigate("/candidates")}
               />
@@ -7425,6 +7433,7 @@ function DocumentsTab({
   const [statusFilter, setStatusFilter] = useState<CandidateDocumentFilter>("all");
   const [bulkMebbisLoading, setBulkMebbisLoading] = useState(false);
   const [candidateSyncQueuing, setCandidateSyncQueuing] = useState(false);
+  const [candidateSyncRunning, setCandidateSyncRunning] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
@@ -7628,7 +7637,7 @@ function DocumentsTab({
 
   const handleQueueCandidateSync = async () => {
     if (!canManageMebJobs) return;
-    if (candidateSyncQueuing) return;
+    if (candidateSyncQueuing || candidateSyncRunning) return;
     setCandidateSyncQueuing(true);
     try {
       const job = await createCandidateSyncJob(candidateId);
@@ -7637,10 +7646,36 @@ function DocumentsTab({
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("candidateDetail.documents.toast.termSyncQueued"));
+      setCandidateSyncQueuing(false);
+      setCandidateSyncRunning(true);
+
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        if (attempt > 0) {
+          await delay(5000);
+        }
+        const latestJob = await getMebbisJob(job.id);
+        if (latestJob.status === "succeeded") {
+          for (let refreshAttempt = 0; refreshAttempt < 5; refreshAttempt += 1) {
+            if (refreshAttempt > 0) {
+              await delay(1500);
+            }
+            await onRefresh();
+          }
+          showToast(t("candidateDetail.documents.toast.termSyncCompleted"));
+          return;
+        }
+        if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
+          showToast(t("candidateDetail.documents.toast.termSyncNeedsReview"), "error");
+          return;
+        }
+      }
+
+      showToast(t("candidateDetail.documents.toast.termSyncStillRunning"));
     } catch {
       showToast(t("candidateDetail.documents.toast.termSyncFailed"), "error");
     } finally {
       setCandidateSyncQueuing(false);
+      setCandidateSyncRunning(false);
     }
   };
 
@@ -7718,12 +7753,16 @@ function DocumentsTab({
                   </button>
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={candidateSyncQueuing || !canManageMebJobs}
+                    disabled={candidateSyncQueuing || candidateSyncRunning || !canManageMebJobs}
                     onClick={handleQueueCandidateSync}
                     title={!canManageMebJobs ? noPermissionTitle : undefined}
                     type="button"
                   >
-                    {candidateSyncQueuing ? t("candidateDetail.documents.button.queuing") : t("candidateDetail.documents.button.enrollTerm")}
+                    {candidateSyncQueuing
+                      ? t("candidateDetail.documents.button.queuing")
+                      : candidateSyncRunning
+                        ? t("candidateDetail.documents.button.syncing")
+                        : t("candidateDetail.documents.button.enrollTerm")}
                   </button>
                   <button
                     className="btn btn-primary btn-sm"

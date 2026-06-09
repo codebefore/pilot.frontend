@@ -89,6 +89,38 @@ const GENERAL_CODES = new Set<string>([
   "trainingLesson.validation.generic",
 ]);
 
+type ActiveMebbisTrainingJob = {
+  groupId: string;
+  jobType: string;
+};
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function getMebbisImportExpectedLessonCount(resultJson: string | null): number | null {
+  if (!resultJson) return null;
+  try {
+    const result = JSON.parse(resultJson) as {
+      importedLessonCount?: unknown;
+      updatedLessonCount?: unknown;
+      rows?: unknown;
+    };
+    if (Array.isArray(result.rows)) return result.rows.length;
+    const importedLessonCount =
+      typeof result.importedLessonCount === "number" ? result.importedLessonCount : 0;
+    const updatedLessonCount =
+      typeof result.updatedLessonCount === "number" ? result.updatedLessonCount : 0;
+    const totalChanged = importedLessonCount + updatedLessonCount;
+    if (totalChanged > 0) return totalChanged;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function notifyMebbisJobQueued(jobId: string, jobType: string): void {
   const delays = [0, 250, 1000, 2500];
   for (const delay of delays) {
@@ -201,6 +233,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
   const [isMebbisTransferLoading, setIsMebbisTransferLoading] = useState(false);
   const [isMebbisImportLoading, setIsMebbisImportLoading] = useState(false);
+  const [mebbisImportedFocusDate, setMebbisImportedFocusDate] = useState<Date | null>(null);
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
@@ -308,6 +341,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const mebbisPollTimersRef = useRef<number[]>([]);
   const mebbisPollingJobIdsRef = useRef<Set<string>>(new Set());
   const mebbisPollControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const [activeMebbisTrainingJobs, setActiveMebbisTrainingJobs] = useState<
+    Record<string, ActiveMebbisTrainingJob>
+  >({});
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -390,6 +426,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     if (!nextId) {
       prevQuickGroupRef.current = "";
       setVisibleGroups(new Set());
+      setMebbisImportedFocusDate(null);
       return;
     }
     const group = groups.find((g) => g.id === nextId);
@@ -398,6 +435,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return;
     }
     prevQuickGroupRef.current = nextId;
+    setMebbisImportedFocusDate(null);
     setVisibleGroups(new Set([group.title]));
   }, [quickSettings.groupId, groups]);
 
@@ -466,9 +504,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   function fetchTheoryLessonsForGroupIds(
     groupIds: string[],
     signal?: AbortSignal
-  ): Promise<void> {
+  ): Promise<TrainingCalendarEvent[]> {
     const uniqueGroupIds = [...new Set(groupIds.filter(Boolean))];
-    if (uniqueGroupIds.length === 0) return Promise.resolve();
+    if (uniqueGroupIds.length === 0) return Promise.resolve([]);
 
     return Promise.all(
       uniqueGroupIds.map((groupId) =>
@@ -487,25 +525,43 @@ export function TrainingPage({ type }: TrainingPageProps) {
           (a, b) => a.start.getTime() - b.start.getTime()
         );
       });
+      return groupEvents;
     });
   }
 
   async function refreshTheoryLessonsAfterMebbisImport(
     groupId: string,
-    updatedGroup?: GroupResponse
+    updatedGroup?: GroupResponse,
+    expectedLessonCount?: number | null
   ): Promise<void> {
     if (type !== "teorik") return;
     const group = updatedGroup ?? groups.find((item) => item.id === groupId);
-    if (!group) {
-      await fetchTheoryLessonsForGroupIds([groupId]);
-      return;
+    const groupIds = group
+      ? (() => {
+          const groupsInTerm = groups.filter((item) => item.term.id === group.term.id);
+          return groupsInTerm.some((item) => item.id === group.id)
+            ? groupsInTerm.map((item) => item.id)
+            : [...groupsInTerm.map((item) => item.id), group.id];
+        })()
+      : [groupId];
+
+    let importedEvents: TrainingCalendarEvent[] = [];
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (attempt > 0 || expectedLessonCount) {
+        await delay(attempt === 0 ? 1000 : 1500);
+      }
+
+      importedEvents = await fetchTheoryLessonsForGroupIds(groupIds);
+      const groupEvents = importedEvents.filter((event) => event.groupId === groupId);
+      if (!expectedLessonCount || groupEvents.length >= expectedLessonCount) {
+        break;
+      }
     }
 
-    const groupsInTerm = groups.filter((item) => item.term.id === group.term.id);
-    const groupIds = groupsInTerm.some((item) => item.id === group.id)
-      ? groupsInTerm.map((item) => item.id)
-      : [...groupsInTerm.map((item) => item.id), group.id];
-    await fetchTheoryLessonsForGroupIds(groupIds);
+    const firstImportedEvent = importedEvents
+      .filter((event) => event.groupId === groupId)
+      .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+    setMebbisImportedFocusDate(firstImportedEvent?.start ?? null);
   }
 
   // QA seçimi takvimi otomatik bir tarihe odaklar:
@@ -517,6 +573,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // bozulur. O yüzden "bugün" durumunda null dönüp, takvim tarafındaki
   // useEffect null'ı no-op olarak ele alıyor.
   const focusDate = useMemo<Date | null>(() => {
+    if (type === "teorik" && mebbisImportedFocusDate) {
+      return mebbisImportedFocusDate;
+    }
     if (type === "teorik") {
       if (!quickSettings.groupId) return new Date();
       const group = groups.find((g) => g.id === quickSettings.groupId);
@@ -537,6 +596,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     type,
     quickSettings.groupId,
     quickSettings.candidateId,
+    mebbisImportedFocusDate,
     groups,
     events,
   ]);
@@ -1319,8 +1379,18 @@ export function TrainingPage({ type }: TrainingPageProps) {
     ).length;
   }, [bulkDeleteGroup, events]);
 
-  const refreshGroupAfterMebbisTransfer = async (groupId: string) => {
-    const updatedGroup = await getGroupById(groupId);
+  const refreshGroupAfterMebbisTransfer = async (
+    groupId: string,
+    expectedMebStatus?: string
+  ) => {
+    let updatedGroup = await getGroupById(groupId);
+    for (let attempt = 0; expectedMebStatus && attempt < 8; attempt += 1) {
+      if (updatedGroup.mebStatus?.trim().toLowerCase() === expectedMebStatus) {
+        break;
+      }
+      await delay(1500);
+      updatedGroup = await getGroupById(groupId);
+    }
     queryClient.setQueryData<typeof groupsQuery.data>(
       ["training", "groups"],
       (current) =>
@@ -1340,11 +1410,20 @@ export function TrainingPage({ type }: TrainingPageProps) {
     mebbisPollControllersRef.current.get(jobId)?.abort();
     mebbisPollControllersRef.current.delete(jobId);
     mebbisPollingJobIdsRef.current.delete(jobId);
+    setActiveMebbisTrainingJobs((current) => {
+      if (!(jobId in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[jobId];
+      return next;
+    });
   };
 
   const scheduleMebbisJobPoll = (
     jobId: string,
     groupId: string,
+    jobType: string,
     startedAt = Date.now()
   ) => {
     if (mebbisPollingJobIdsRef.current.has(jobId)) {
@@ -1352,6 +1431,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
 
     mebbisPollingJobIdsRef.current.add(jobId);
+    setActiveMebbisTrainingJobs((current) => ({
+      ...current,
+      [jobId]: { groupId, jobType },
+    }));
     queueMebbisJobPoll(jobId, groupId, startedAt);
   };
 
@@ -1364,9 +1447,16 @@ export function TrainingPage({ type }: TrainingPageProps) {
         const job = await getMebbisJob(jobId, controller.signal);
         mebbisPollControllersRef.current.delete(jobId);
         if (job.status === "succeeded") {
-          const updatedGroup = await refreshGroupAfterMebbisTransfer(groupId);
+          const updatedGroup = await refreshGroupAfterMebbisTransfer(
+            groupId,
+            job.jobType === "theory_schedule_sync" ? "sent" : undefined
+          );
           if (job.jobType === "theory_schedule_import") {
-            await refreshTheoryLessonsAfterMebbisImport(groupId, updatedGroup);
+            await refreshTheoryLessonsAfterMebbisImport(
+              groupId,
+              updatedGroup,
+              getMebbisImportExpectedLessonCount(job.resultJson)
+            );
           }
           invalidateTrainingLessons();
           void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
@@ -1431,7 +1521,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("training.toast.mebbisTransferQueued"));
-      scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id);
+      scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id, job.jobType);
     } catch (error) {
       console.error(error);
       const message =
@@ -1460,7 +1550,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       showToast(t("training.toast.mebbisImportQueued"));
-      scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id);
+      scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id, job.jobType);
     } catch (error) {
       console.error(error);
       const message =
@@ -1527,6 +1617,27 @@ export function TrainingPage({ type }: TrainingPageProps) {
       setIsBulkDeleteLoading(false);
     }
   };
+
+  const activeMebbisImportJob = Object.values(activeMebbisTrainingJobs).find(
+    (job) => job.jobType === "theory_schedule_import"
+  );
+  const activeMebbisTransferJob = Object.values(activeMebbisTrainingJobs).find(
+    (job) => job.jobType === "theory_schedule_sync"
+  );
+  const activeMebbisStatusGroupId =
+    activeMebbisImportJob?.groupId ?? activeMebbisTransferJob?.groupId ?? null;
+  const activeMebbisStatusGroup = activeMebbisStatusGroupId
+    ? groups.find((group) => group.id === activeMebbisStatusGroupId)
+    : null;
+  const activeMebbisStatusMessage = activeMebbisImportJob
+    ? t("training.mebbis.importRunning", {
+        group: activeMebbisStatusGroup?.title ?? "",
+      })
+    : activeMebbisTransferJob
+      ? t("training.mebbis.transferRunning", {
+          group: activeMebbisStatusGroup?.title ?? "",
+        })
+      : null;
 
   return (
     <>
@@ -1637,6 +1748,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
       />
 
       <div className="training-layout-wrap">
+        {type === "teorik" && activeMebbisStatusMessage ? (
+          <div className="training-mebbis-status" role="status" aria-live="polite">
+            <MebIcon size={16} />
+            <span>{activeMebbisStatusMessage}</span>
+          </div>
+        ) : null}
         {loading ? <PageSkeleton /> : null}
         <div className="training-layout">
           <aside className="training-filters-sidebar">

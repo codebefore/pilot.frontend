@@ -24,6 +24,8 @@ type DashboardPageProps = {
   userName?: string | null;
 };
 
+const DASHBOARD_ACTIVE_MEB_JOB_REFRESH_MS = 5000;
+
 type DashboardSummaryCard = {
   key: string;
   label: string;
@@ -160,6 +162,12 @@ export function DashboardPage({ userName }: DashboardPageProps) {
   } = useQuery<DashboardOverviewResponse>({
     queryKey: ["dashboard", "overview", activeInstitutionId],
     queryFn: ({ signal }) => getDashboardOverview(signal),
+    refetchInterval: (query) => {
+      const hasActiveMebJob = query.state.data?.recentMebJobs.some((job) =>
+        job.status === "running" || job.status === "queued"
+      );
+      return hasActiveMebJob ? DASHBOARD_ACTIVE_MEB_JOB_REFRESH_MS : false;
+    },
   });
   const candidateSummaryQuery = useQuery({
     queryKey: ["dashboard", "candidateSummary", "licenseClasses", activeInstitutionId],

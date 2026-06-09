@@ -1,5 +1,5 @@
 import type { AriaAttributes, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -117,6 +117,19 @@ const FILTERS: { key: StatusFilter; labelKey: TranslationKey }[] = [
 
 const ACTIVE_STATUSES: JobStatus[] = ["running", "queued"];
 const POLL_INTERVAL_MS = 5000;
+const RECENT_DOMAIN_REFRESH_WINDOW_MS = 2 * 60 * 1000;
+
+function isDomainApplyMebbisJob(jobType: string): boolean {
+  return ["candidate_sync", "theory_schedule_sync", "theory_schedule_import"].includes(jobType);
+}
+
+function isRecentlyCompletedDomainJob(job: MebbisJobResponse): boolean {
+  if (!isDomainApplyMebbisJob(job.jobType) || job.status !== "succeeded" || !job.completedAtUtc) {
+    return false;
+  }
+  const completedAt = new Date(job.completedAtUtc).getTime();
+  return Number.isFinite(completedAt) && Date.now() - completedAt <= RECENT_DOMAIN_REFRESH_WINDOW_MS;
+}
 
 function buildFilterOptions(
   values: string[],
@@ -338,10 +351,11 @@ export function MebJobsPage() {
 
   const selected = selectedId ? jobs.find((j) => j.id === selectedId) ?? null : null;
   const previousJobStatusesRef = useRef<Map<string, JobStatus>>(new Map());
+  const scheduledDomainRefreshJobIdsRef = useRef<Set<string>>(new Set());
 
   const openDrawer = (id: string) => setSearchParams({ selected: id });
   const closeDrawer = () => setSearchParams({});
-  const invalidateMebbisJobData = (includeDomainData = false) => {
+  const invalidateMebbisJobData = useCallback((includeDomainData = false) => {
     void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -354,7 +368,13 @@ export function MebJobsPage() {
     void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
     void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
     void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
-  };
+  }, [queryClient]);
+
+  const scheduleDomainRefreshAfterMebbisCompletion = useCallback(() => {
+    for (const delay of [0, 1500, 4000, 8000]) {
+      window.setTimeout(() => invalidateMebbisJobData(true), delay);
+    }
+  }, [invalidateMebbisJobData]);
 
   useEffect(() => {
     if (!jobsQuery.data) return;
@@ -364,19 +384,23 @@ export function MebJobsPage() {
       const status = mapMebbisStatusToJobStatus(job.status);
       const previousStatus = previousJobStatusesRef.current.get(job.id);
       nextStatuses.set(job.id, status);
-      if (
+      const transitionedFromActive =
         previousStatus &&
         ACTIVE_STATUSES.includes(previousStatus) &&
-        !ACTIVE_STATUSES.includes(status)
-      ) {
+        !ACTIVE_STATUSES.includes(status);
+      const shouldRefreshDomainData =
+        isDomainApplyMebbisJob(job.jobType) &&
+        (transitionedFromActive || (!previousStatus && isRecentlyCompletedDomainJob(job)));
+      if (shouldRefreshDomainData && !scheduledDomainRefreshJobIdsRef.current.has(job.id)) {
+        scheduledDomainRefreshJobIdsRef.current.add(job.id);
         completedWhileOpen = true;
       }
     }
     previousJobStatusesRef.current = nextStatuses;
     if (completedWhileOpen) {
-      invalidateMebbisJobData(true);
+      scheduleDomainRefreshAfterMebbisCompletion();
     }
-  }, [jobsQuery.data]);
+  }, [jobsQuery.data, scheduleDomainRefreshAfterMebbisCompletion]);
 
   const handleCancel = async (job: MebJob) => {
     if (!canManageMebJobs) return;
