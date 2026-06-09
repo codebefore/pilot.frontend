@@ -27,7 +27,6 @@ const validSession: AuthSession = {
     {
       id: "institution-1",
       name: "Pilot Kurum",
-      slug: "pilot-kurum",
       roleName: "Kurum Yöneticisi",
       isDefault: true,
       permissions: { dashboard: "view", candidates: "full" },
@@ -36,7 +35,6 @@ const validSession: AuthSession = {
   activeInstitution: {
     id: "institution-1",
     name: "Pilot Kurum",
-    slug: "pilot-kurum",
     roleName: "Kurum Yöneticisi",
     isDefault: true,
     permissions: { dashboard: "view", candidates: "full" },
@@ -81,7 +79,6 @@ describe("auth storage", () => {
       activeInstitution: {
         id: "missing-institution",
         name: "Missing Kurum",
-        slug: "missing-kurum",
         roleName: "Personel",
         isDefault: false,
         permissions: { candidates: "view" },

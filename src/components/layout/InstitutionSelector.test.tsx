@@ -10,7 +10,6 @@ const institutions: AuthInstitution[] = [
   {
     id: "kurum-a",
     name: "Kurum A",
-    slug: "kurum-a",
     roleName: "Yönetici",
     isDefault: true,
     permissions: { dashboard: "view" },
@@ -18,7 +17,6 @@ const institutions: AuthInstitution[] = [
   {
     id: "kurum-b",
     name: "Kurum B",
-    slug: "kurum-b",
     roleName: "Personel",
     isDefault: false,
     permissions: { candidates: "view" },
@@ -42,14 +40,14 @@ describe("InstitutionSelector", () => {
     renderSelector();
 
     expect(screen.getByRole("button", { name: /Kurum seç/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Kurum A.*kurum-a/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Kurum A/i })).not.toBeInTheDocument();
   });
 
   it("selects an institution from the menu", async () => {
     const { onSelect } = renderSelector("kurum-a");
 
-    fireEvent.click(screen.getByRole("button", { name: /Kurum A.*kurum-a/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Kurum B.*kurum-b.*Personel/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Kurum A/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Kurum B.*Personel/i }));
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith("kurum-b"));
   });

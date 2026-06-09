@@ -55,7 +55,6 @@ const institutions: AuthInstitution[] = [
   {
     id: "i1",
     name: "Pilot Sürücü Kursu",
-    slug: "pilot-surucu-kursu",
     roleName: "Kurum Yöneticisi",
     isDefault: true,
     permissions: {
@@ -72,7 +71,6 @@ const institutions: AuthInstitution[] = [
   {
     id: "i2",
     name: "İkinci Kurum",
-    slug: "ikinci-kurum",
     roleName: "Personel",
     isDefault: false,
     permissions: { dashboard: "view", candidates: "view" },
@@ -134,8 +132,8 @@ describe("AppShell tenant state", () => {
     await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(1), { timeout: 5000 });
     expect(screen.queryByText(/operasyon özeti/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: /Pilot Sürücü Kursu.*pilot-surucu-kursu/i })[0]);
-    fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*ikinci-kurum.*Personel/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Pilot Sürücü Kursu" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*Personel/i }));
 
     await waitFor(() => expect(getDashboardOverview).toHaveBeenCalledTimes(2), { timeout: 5000 });
     expect(screen.getAllByRole("button", { name: /İkinci Kurum/i }).length).toBeGreaterThan(0);

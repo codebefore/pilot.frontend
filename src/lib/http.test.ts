@@ -118,7 +118,6 @@ describe("http client", () => {
         {
           id: "institution-1",
           name: "Pilot Kurs",
-          slug: "pilot",
           roleName: "Operator",
           isDefault: true,
           permissions: { payments: "full" },
@@ -127,7 +126,6 @@ describe("http client", () => {
       activeInstitution: {
         id: "institution-1",
         name: "Pilot Kurs",
-        slug: "pilot",
         roleName: "Operator",
         isDefault: true,
         permissions: { payments: "full" },
@@ -168,7 +166,6 @@ describe("http client", () => {
         {
           id: "institution-1",
           name: "Pilot Kurs",
-          slug: "pilot",
           roleName: "Operator",
           isDefault: true,
           permissions: { payments: "full" },
@@ -177,7 +174,6 @@ describe("http client", () => {
       activeInstitution: {
         id: "institution-1",
         name: "Pilot Kurs",
-        slug: "pilot",
         roleName: "Operator",
         isDefault: true,
         permissions: { payments: "full" },

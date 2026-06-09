@@ -4,7 +4,6 @@ import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 export type InstitutionResponse = {
   id: string;
   name: string;
-  slug: string;
   isActive: boolean;
   memberCount: number;
   createdAtUtc: string;
@@ -13,7 +12,6 @@ export type InstitutionResponse = {
 
 export type InstitutionCreateRequest = {
   name: string;
-  slug: string | null;
   isActive: boolean;
 };
 

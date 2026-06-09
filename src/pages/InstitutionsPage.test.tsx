@@ -32,7 +32,6 @@ vi.mock("../lib/institutions-api", async () => {
 const sampleInstitution = {
   id: "institution-1",
   name: "Pilot Sürücü Kursu",
-  slug: "pilot-surucu-kursu",
   isActive: true,
   memberCount: 3,
   createdAtUtc: "2026-01-01T00:00:00Z",
@@ -54,7 +53,6 @@ describe("InstitutionsPage", () => {
         ...sampleInstitution,
         id: "institution-2",
         name: "Yeni Kurum",
-        slug: "yeni-kurum",
         memberCount: 0,
       },
       firstAdmin: null,
@@ -90,7 +88,6 @@ describe("InstitutionsPage", () => {
     });
 
     expect(await screen.findByText("Pilot Sürücü Kursu")).toBeInTheDocument();
-    expect(screen.getByText("pilot-surucu-kursu")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Yeni Kurum" })).toBeInTheDocument();
   });
 
@@ -119,9 +116,6 @@ describe("InstitutionsPage", () => {
     fireEvent.change(screen.getByLabelText(/Kurum adı/i), {
       target: { value: "Yeni Kurum" },
     });
-    fireEvent.change(screen.getByLabelText("Slug"), {
-      target: { value: "yeni-kurum" },
-    });
     fireEvent.change(screen.getByLabelText(/Ad soyad/i), {
       target: { value: "Zekeriyya Sevim" },
     });
@@ -133,7 +127,6 @@ describe("InstitutionsPage", () => {
     await waitFor(() => {
       expect(createInstitutionMock).toHaveBeenCalledWith({
         name: "Yeni Kurum",
-        slug: "yeni-kurum",
         isActive: true,
       });
     });
@@ -155,7 +148,6 @@ describe("InstitutionsPage", () => {
     await waitFor(() => {
       expect(updateInstitutionMock).toHaveBeenCalledWith("institution-1", {
         name: "Pilot Sürücü Kursu",
-        slug: "pilot-surucu-kursu",
         isActive: false,
       });
     });

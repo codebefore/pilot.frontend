@@ -30,7 +30,6 @@ const defaultUser: AuthUser = {
 const defaultInstitution: AuthInstitution = {
   id: "test-institution",
   name: "Test Kurum",
-  slug: "test-kurum",
   roleName: "super_admin",
   isDefault: true,
   permissions: {

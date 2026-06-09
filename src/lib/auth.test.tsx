@@ -21,7 +21,6 @@ vi.mock("./auth-api", () => ({
 const kurumA = {
   id: "kurum-a",
   name: "Kurum A",
-  slug: "kurum-a",
   roleName: "Operator",
   isDefault: true,
   permissions: { dashboard: "view", candidates: "view" },
@@ -30,7 +29,6 @@ const kurumA = {
 const kurumB = {
   id: "kurum-b",
   name: "Kurum B",
-  slug: "kurum-b",
   roleName: "Yönetici",
   isDefault: false,
   permissions: { dashboard: "full", candidates: "full" },
@@ -59,7 +57,7 @@ function Harness() {
   return (
     <div>
       <div data-testid="user">{auth.user?.name ?? "none"}</div>
-      <div data-testid="active">{auth.activeInstitution?.slug ?? "none"}</div>
+      <div data-testid="active">{auth.activeInstitution?.id ?? "none"}</div>
       <div data-testid="role">{auth.user?.roleName ?? "none"}</div>
       <div data-testid="required">{auth.institutionRequired ? "yes" : "no"}</div>
       <button onClick={() => void auth.login("5551112233", "123456")} type="button">

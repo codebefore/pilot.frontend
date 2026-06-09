@@ -8,14 +8,12 @@ type InstitutionSelectorProps = {
   institutions: AuthInstitution[];
   activeId: string;
   onSelect: (id: string) => Promise<void>;
-  showActiveMeta?: boolean;
 };
 
 export function InstitutionSelector({
   institutions,
   activeId,
   onSelect,
-  showActiveMeta = true,
 }: InstitutionSelectorProps) {
   const [open, setOpen] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
@@ -46,7 +44,6 @@ export function InstitutionSelector({
         <span className="inst-dot" />
         <span className="inst-selector-text">
           <span>{active?.name ?? (hasInstitutions ? t("institutionSelector.placeholder.select") : t("institutionSelector.empty"))}</span>
-          {showActiveMeta && active?.slug ? <small>{active.slug}</small> : null}
         </span>
       </button>
 
@@ -80,7 +77,6 @@ export function InstitutionSelector({
               <span className="inst-dot" />
               <span className="inst-menu-item-main">
                 <span>{inst.name}</span>
-                <small>{inst.slug}</small>
               </span>
               {inst.roleName ? <span className="inst-role-badge">{inst.roleName}</span> : null}
             </button>

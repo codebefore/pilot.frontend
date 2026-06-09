@@ -23,7 +23,6 @@ const SEARCH_DEBOUNCE_MS = 250;
 
 type InstitutionFormValues = {
   name: string;
-  slug: string;
   isActive: boolean;
   firstAdminFullName: string;
   firstAdminPhone: string;
@@ -31,7 +30,6 @@ type InstitutionFormValues = {
 
 const emptyForm: InstitutionFormValues = {
   name: "",
-  slug: "",
   isActive: true,
   firstAdminFullName: "",
   firstAdminPhone: "",
@@ -58,11 +56,9 @@ export function InstitutionsPage() {
     const query = search.trim().toLocaleLowerCase("tr-TR");
     if (!query) return institutions;
 
-    return institutions.filter((institution) => {
-      const name = institution.name.toLocaleLowerCase("tr-TR");
-      const slug = institution.slug.toLocaleLowerCase("tr-TR");
-      return name.includes(query) || slug.includes(query);
-    });
+    return institutions.filter((institution) =>
+      institution.name.toLocaleLowerCase("tr-TR").includes(query)
+    );
   }, [institutions, search]);
 
   const counts = useMemo(
@@ -172,7 +168,7 @@ export function InstitutionsPage() {
         <SearchInput
           debounceMs={SEARCH_DEBOUNCE_MS}
           onChange={setSearch}
-          placeholder="Kurum adı veya slug ara"
+          placeholder="Kurum adı ara"
           value={search}
         />
       </div>
@@ -216,7 +212,6 @@ export function InstitutionsPage() {
           <thead>
             <tr>
               <th>Kurum</th>
-              <th>Slug</th>
               <th>Üye</th>
               <th>Durum</th>
               <th>Güncelleme</th>
@@ -228,7 +223,6 @@ export function InstitutionsPage() {
               Array.from({ length: 5 }, (_, index) => (
                 <tr key={index} style={{ pointerEvents: "none" }}>
                   <td><span className="skeleton" style={{ width: 180 }} /></td>
-                  <td><span className="skeleton" style={{ width: 120 }} /></td>
                   <td><span className="skeleton" style={{ width: 32 }} /></td>
                   <td><span className="skeleton skeleton-pill" style={{ width: 64 }} /></td>
                   <td><span className="skeleton" style={{ width: 120 }} /></td>
@@ -237,13 +231,13 @@ export function InstitutionsPage() {
               ))
             ) : institutionsQuery.isError ? (
               <tr>
-                <td className="data-table-empty" colSpan={6}>
+                <td className="data-table-empty" colSpan={5}>
                   Kurum listesi yüklenemedi.
                 </td>
               </tr>
             ) : filteredInstitutions.length === 0 ? (
               <tr>
-                <td className="data-table-empty" colSpan={6}>
+                <td className="data-table-empty" colSpan={5}>
                   Kurum bulunamadı.
                 </td>
               </tr>
@@ -253,7 +247,6 @@ export function InstitutionsPage() {
                   <td>
                     <strong>{institution.name}</strong>
                   </td>
-                  <td>{institution.slug}</td>
                   <td>{institution.memberCount}</td>
                   <td>
                     <StatusPill
@@ -325,7 +318,6 @@ function InstitutionFormModal({
     mutationFn: async (body: InstitutionFormValues) => {
       const payload = {
         name: body.name.trim(),
-        slug: body.slug.trim() || null,
         isActive: body.isActive,
       };
 
@@ -361,7 +353,6 @@ function InstitutionFormModal({
       editing
         ? {
             name: editing.name,
-            slug: editing.slug,
             isActive: editing.isActive,
             firstAdminFullName: "",
             firstAdminPhone: "",
@@ -411,22 +402,6 @@ function InstitutionFormModal({
                 value={values.name}
               />
               {errors.name ? <div className="form-error">{errors.name}</div> : null}
-            </div>
-          </div>
-          <div className="form-row full">
-            <div className="form-group">
-              <label className="form-label" htmlFor="institution-slug">
-                Slug
-              </label>
-              <input
-                className={errors.slug ? "form-input error" : "form-input"}
-                id="institution-slug"
-                maxLength={80}
-                onChange={(event) => setValues((current) => ({ ...current, slug: event.target.value }))}
-                placeholder="Boş bırakılırsa kurum adından üretilir"
-                value={values.slug}
-              />
-              {errors.slug ? <div className="form-error">{errors.slug}</div> : null}
             </div>
           </div>
           {!editing ? (
@@ -510,7 +485,6 @@ function validate(values: InstitutionFormValues, editing: InstitutionResponse | 
   const errors: Partial<Record<keyof InstitutionFormValues, string>> = {};
   if (!values.name.trim()) errors.name = "Kurum adı zorunlu.";
   if (values.name.trim().length > 200) errors.name = "Kurum adı 200 karakteri geçemez.";
-  if (values.slug.trim().length > 80) errors.slug = "Slug 80 karakteri geçemez.";
   if (!editing) {
     if (!values.firstAdminFullName.trim()) {
       errors.firstAdminFullName = "Kurucu ad soyad zorunlu.";
@@ -528,7 +502,6 @@ function mapApiErrors(validationErrors?: Record<string, string[]>) {
   if (!validationErrors) return {};
   return {
     name: validationErrors.name?.[0],
-    slug: validationErrors.slug?.[0],
     firstAdminFullName: validationErrors.FullName?.[0] ?? validationErrors.fullName?.[0],
     firstAdminPhone: validationErrors.Phone?.[0] ?? validationErrors.phone?.[0],
   };

@@ -3,7 +3,6 @@ export const AUTH_STORAGE_KEY = "pilot.auth";
 export type AuthInstitution = {
   id: string;
   name: string;
-  slug: string;
   roleName: string | null;
   isDefault: boolean;
   permissions: Record<string, "view" | "full">;
@@ -263,7 +262,6 @@ function isAuthInstitution(value: unknown): value is AuthInstitution {
   return !!institution &&
     typeof institution.id === "string" &&
     typeof institution.name === "string" &&
-    typeof institution.slug === "string" &&
     (institution.roleName === null || typeof institution.roleName === "string") &&
     typeof institution.isDefault === "boolean" &&
     isPermissions(institution.permissions);

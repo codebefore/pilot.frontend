@@ -14,7 +14,6 @@ const institutions: AuthInstitution[] = [
   {
     id: "i1",
     name: "Pilot Sürücü Kursu",
-    slug: "pilot-surucu-kursu",
     roleName: "Kurum Yöneticisi",
     isDefault: true,
     permissions: { dashboard: "view", candidates: "view" },
@@ -22,7 +21,6 @@ const institutions: AuthInstitution[] = [
   {
     id: "i2",
     name: "İkinci Kurum",
-    slug: "ikinci-kurum",
     roleName: "Personel",
     isDefault: false,
     permissions: { candidates: "view" },
@@ -55,7 +53,7 @@ describe("Header tenant selector", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Pilot Sürücü Kursu" }));
-    fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*ikinci-kurum.*Personel/i }));
+    fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*Personel/i }));
 
     await waitFor(() => expect(onInstitutionChange).toHaveBeenCalledWith("i2"));
   });
