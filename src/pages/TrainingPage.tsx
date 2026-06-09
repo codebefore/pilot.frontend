@@ -387,14 +387,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const prevQuickGroupRef = useRef<string>("");
   useEffect(() => {
     const nextId = quickSettings.groupId;
-    if (nextId === prevQuickGroupRef.current) return;
-    prevQuickGroupRef.current = nextId;
     if (!nextId) {
+      prevQuickGroupRef.current = "";
       setVisibleGroups(new Set());
       return;
     }
     const group = groups.find((g) => g.id === nextId);
     if (!group) return;
+    if (nextId === prevQuickGroupRef.current) {
+      return;
+    }
+    prevQuickGroupRef.current = nextId;
     setVisibleGroups(new Set([group.title]));
   }, [quickSettings.groupId, groups]);
 
@@ -416,7 +419,94 @@ export function TrainingPage({ type }: TrainingPageProps) {
     () => new Map(groups.map((g) => [g.id, g.title])),
     [groups]
   );
+  const groupTermIdById = useMemo(
+    () => new Map(groups.map((g) => [g.id, g.term.id])),
+    [groups]
+  );
+  const visibleTheoryTermIds = useMemo(() => {
+    if (type !== "teorik" || visibleGroups.size === 0) return new Set<string>();
+    return new Set(
+      groups
+        .filter((group) => visibleGroups.has(group.title))
+        .map((group) => group.term.id)
+    );
+  }, [groups, type, visibleGroups]);
+  const visibleTheoryLessonGroupKey = useMemo(() => {
+    if (type !== "teorik" || visibleGroups.size === 0) return "";
+    const selectedTermIds = new Set(
+      groups
+        .filter((group) => visibleGroups.has(group.title))
+        .map((group) => group.term.id)
+    );
+    if (selectedTermIds.size === 0) return "";
+    return groups
+      .filter((group) => selectedTermIds.has(group.term.id))
+      .map((group) => group.id)
+      .sort()
+      .join("|");
+  }, [groups, type, visibleGroups]);
   const branchHelpers = useMemo(() => buildBranchHelpers(branches), [branches]);
+
+  useEffect(() => {
+    if (type !== "teorik" || !visibleTheoryLessonGroupKey) return;
+
+    const controller = new AbortController();
+    const groupIds = visibleTheoryLessonGroupKey.split("|").filter(Boolean);
+
+    fetchTheoryLessonsForGroupIds(groupIds, controller.signal)
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error(error);
+        showToast(t("training.toast.lessonsLoadFailed"));
+      });
+
+    return () => controller.abort();
+  }, [showToast, t, type, visibleTheoryLessonGroupKey]);
+
+  function fetchTheoryLessonsForGroupIds(
+    groupIds: string[],
+    signal?: AbortSignal
+  ): Promise<void> {
+    const uniqueGroupIds = [...new Set(groupIds.filter(Boolean))];
+    if (uniqueGroupIds.length === 0) return Promise.resolve();
+
+    return Promise.all(
+      uniqueGroupIds.map((groupId) =>
+        getTrainingLessons({ kind: "teorik", groupId }, signal)
+      )
+    ).then((results) => {
+      const groupEvents = results.flatMap((result) =>
+        result.items.map(trainingLessonToCalendarEvent)
+      );
+      setEvents((current) => {
+        const next = new Map(current.map((event) => [event.id, event]));
+        for (const event of groupEvents) {
+          next.set(event.id, event);
+        }
+        return Array.from(next.values()).sort(
+          (a, b) => a.start.getTime() - b.start.getTime()
+        );
+      });
+    });
+  }
+
+  async function refreshTheoryLessonsAfterMebbisImport(
+    groupId: string,
+    updatedGroup?: GroupResponse
+  ): Promise<void> {
+    if (type !== "teorik") return;
+    const group = updatedGroup ?? groups.find((item) => item.id === groupId);
+    if (!group) {
+      await fetchTheoryLessonsForGroupIds([groupId]);
+      return;
+    }
+
+    const groupsInTerm = groups.filter((item) => item.term.id === group.term.id);
+    const groupIds = groupsInTerm.some((item) => item.id === group.id)
+      ? groupsInTerm.map((item) => item.id)
+      : [...groupsInTerm.map((item) => item.id), group.id];
+    await fetchTheoryLessonsForGroupIds(groupIds);
+  }
 
   // QA seçimi takvimi otomatik bir tarihe odaklar:
   //  - Teorik: seçili grubun startDate'i; seçim yoksa bugün.
@@ -496,6 +586,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
           if (titleFromState && visibleGroups.has(titleFromState)) {
             matchesGroup = true;
           }
+          const termIdFromState = groupTermIdById.get(e.groupId);
+          if (termIdFromState && visibleTheoryTermIds.has(termIdFromState)) {
+            matchesGroup = true;
+          }
         }
         if (matchesGroup) filtered.push(e);
         continue;
@@ -565,6 +659,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
     visibleInstructors,
     type,
     groupTitleById,
+    groupTermIdById,
+    visibleTheoryTermIds,
     isBranchPickerOpen,
     newLessonSlot,
     quickSettings.instructorId,
@@ -1237,6 +1333,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
             }
           : current
     );
+    return updatedGroup;
   };
 
   const finishMebbisJobPoll = (jobId: string) => {
@@ -1267,7 +1364,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
         const job = await getMebbisJob(jobId, controller.signal);
         mebbisPollControllersRef.current.delete(jobId);
         if (job.status === "succeeded") {
-          await refreshGroupAfterMebbisTransfer(groupId);
+          const updatedGroup = await refreshGroupAfterMebbisTransfer(groupId);
+          if (job.jobType === "theory_schedule_import") {
+            await refreshTheoryLessonsAfterMebbisImport(groupId, updatedGroup);
+          }
           invalidateTrainingLessons();
           void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
           void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
