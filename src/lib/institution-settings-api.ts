@@ -32,13 +32,6 @@ export interface InstitutionSettingsResponse {
   district: string | null;
   logo: InstitutionLogoResponse | null;
   founder: InstitutionFounderResponse;
-  mebbisInstitutionCode: string | null;
-  mebbisUsername: string | null;
-  hasMebbisPassword: boolean;
-  mebbisIsActive: boolean;
-  mebbisLastLoginAtUtc: string | null;
-  mebbisLastLoginStatus: string | null;
-  mebbisLastLoginError: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -53,13 +46,6 @@ interface InstitutionFounderUpsertRequest {
   phone: string | null;
 }
 
-interface InstitutionMebbisUpsertRequest {
-  institutionCode: string | null;
-  username: string | null;
-  password: string | null;
-  isActive: boolean;
-}
-
 export interface InstitutionSettingsUpsertRequest {
   institutionName: string | null;
   institutionOfficialName: string | null;
@@ -71,7 +57,6 @@ export interface InstitutionSettingsUpsertRequest {
   district: string | null;
   founder: InstitutionFounderUpsertRequest;
   authorizedPersons: [];
-  mebbis: InstitutionMebbisUpsertRequest | null;
   rowVersion: number | null;
 }
 

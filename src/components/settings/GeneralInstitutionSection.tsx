@@ -121,7 +121,6 @@ function toUpsertRequest(
       phone: normalizeGeneralPhone(values.founderPhone) || null,
     },
     authorizedPersons: [],
-    mebbis: null,
     rowVersion,
   };
 }
