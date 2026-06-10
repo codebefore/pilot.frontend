@@ -450,7 +450,7 @@
 .dash-header {
   background: linear-gradient(135deg, var(--hero-bg-start) 0%, var(--hero-bg-end) 100%);
   color: var(--hero-fg);
-  padding: 36px 36px 28px;
+  padding: 86px 36px 48px;
   position: relative;
   overflow: hidden;
 }
@@ -465,6 +465,7 @@
 .dash-header h1 {
   font-size: 26px; font-weight: 800;
   position: relative;
+  z-index: 1;
 }
 .dash-header h1 span { color: var(--brand); }
 .dash-header p {
@@ -472,12 +473,27 @@
   margin-top: 6px;
   position: relative;
 }
+.dash-header-pattern {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(560px, 54vw);
+  max-height: 58vh;
+  object-fit: contain;
+  object-position: top right;
+  opacity: 0.32;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
 
 .dash-content {
   padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
   display: flex;
   flex-direction: column;
   gap: var(--page-shell-gap);
+  position: relative;
+  z-index: 1;
 }
 
 .dash-primary-grid {
@@ -497,9 +513,7 @@
   z-index: 2;
 }
 .dash-stats .stat-card-value {
-  font-size: 22px;
-  line-height: 1.22;
-  overflow-wrap: anywhere;
+  font-size: 16px;
 }
 
 /* ─── RESPONSIVE ─── */
@@ -532,6 +546,11 @@
   .dash-stats,
   .settings-page { padding-left: var(--page-shell-gutter); padding-right: var(--page-shell-gutter); }
   .dash-header { padding-top: 24px; padding-bottom: 20px; }
+  .dash-header-pattern {
+    width: 320px;
+    max-height: 42vh;
+    opacity: 0.22;
+  }
   .dash-content { padding-bottom: 32px; }
   .dash-stats {
     grid-template-columns: minmax(0, 1fr);

@@ -89,10 +89,10 @@
   color: #b91c1c;
 }
 .documents-doc-icon-btn:hover .documents-doc-icon.present {
-  color: #179d85;
+  color: #15803d;
 }
 .documents-doc-icon.present {
-  color: var(--brand);
+  color: #16a34a;
 }
 .documents-doc-icon.missing {
   color: var(--red);

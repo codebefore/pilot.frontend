@@ -34,7 +34,7 @@ export const THEME_OPTIONS: ThemeOption[] = [
     key: "midnight",
     labelKey: "theme.midnight.label",
     descriptionKey: "theme.midnight.description",
-    swatches: ["#ED2AA3", "#4694F6", "#111827", "#f9fafb"],
+    swatches: ["#3B82F6", "#38BDF8", "#0F172A", "#F8FAFC"],
   },
 ];
 

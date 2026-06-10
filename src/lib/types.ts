@@ -6,7 +6,6 @@ export interface PagedResponse<T> {
   pageSize: number;
   totalCount: number;
   totalPages: number;
-  licenseClassCounts?: ExamScheduleLicenseClassCount[];
 }
 
 export type LicenseClass = string;
@@ -75,6 +74,7 @@ export interface CandidateResponse {
   phoneNumber: string | null;
   address: string | null;
   birthDate: string | null;
+  birthPlace?: string | null;
   gender: CandidateGenderValue | null;
   licenseClass: LicenseClass;
   licenseClassDefinitionId?: string | null;
@@ -158,6 +158,7 @@ export interface CandidateUpsertRequest {
   phoneNumber?: string | null;
   address?: string | null;
   birthDate?: string | null;
+  birthPlace?: string | null;
   /** Write-boundary is strict: only canonical English (or null / omitted). */
   gender?: CandidateGenderValue | null;
   licenseClass: LicenseClass;

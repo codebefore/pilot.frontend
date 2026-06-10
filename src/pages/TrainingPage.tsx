@@ -41,11 +41,6 @@ import {
 } from "../lib/mebbis-jobs-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import {
-  clearPracticeCandidateScope,
-  getPracticeCandidateScope,
-  setPracticeCandidateScope,
-} from "../lib/practice-candidate-scope";
-import {
   createTrainingLesson,
   deleteTrainingLesson,
   deleteTrainingLessonsByCandidate,
@@ -237,19 +232,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
-  // Adaylar sayfasından bulk yönlendirme ile gelinen aday kümesi.
-  // localStorage kalıcı ama "scope etkili" sayılması için URL'de
-  // `?candidateId=...` olmalı — yoksa direkt giriş kabul edilip ilk
-  // render'da boş başlatılır (eski oturum sızıntısı yok, flicker yok).
-  const [practiceCandidateScope, setPracticeCandidateScopeState] = useState<
-    string[]
-  >(() => {
-    if (type !== "uygulama") return [];
-    if (typeof window === "undefined") return [];
-    const hasIncoming = new URLSearchParams(window.location.search).has("candidateId");
-    return hasIncoming ? getPracticeCandidateScope() : [];
-  });
-
   // Hızlı atama ayarları. Süre artık takvimde drag ile seçilen slot'tan
   // türetiliyor (newLessonSlot.end - start). N saatlik blok = N adet
   // 1 saatlik ayrı ders olarak yaratılır (handleQuickAssign loop).
@@ -262,66 +244,42 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Uygulama sayfasına `?candidateId=...` ile gelinmişse o adayı QA'da
-  // initial seçili yap. Query param yoksa "direkt URL girişi" sayılır ve
-  // önceki oturumdan kalan scope temizlenir (eski seçimin sızmaması için).
+  // Aday detayından `?assignCandidateId=...` ile gelinirse tek-aday
+  // ders atama intent'i açıkça başlatılır. Direkt sayfa girişinde hiçbir
+  // aday otomatik seçilmez.
   useEffect(() => {
     if (type !== "uygulama") return;
-    const incomingId = searchParams.get("candidateId");
-    if (!incomingId) {
-      // Direkt giriş: scope state + localStorage temizle.
-      setPracticeCandidateScopeState((prev) => (prev.length === 0 ? prev : []));
-      clearPracticeCandidateScope();
-      return;
-    }
+    const incomingId = searchParams.get("assignCandidateId");
+    if (!incomingId) return;
     setQuickSettings((prev) => ({ ...prev, candidateId: incomingId }));
-    // Scope'ta yoksa (direkt link senaryosu) tek-aday scope kur.
-    setPracticeCandidateScopeState((prev) => {
-      if (prev.length > 0 && prev.includes(incomingId)) return prev;
-      if (prev.length > 0) return prev;
-      const next = [incomingId];
-      setPracticeCandidateScope(next);
-      return next;
-    });
     // Param'ı temizle ki refresh'te tekrar tetiklenmesin.
     const next = new URLSearchParams(searchParams);
-    next.delete("candidateId");
+    next.delete("assignCandidateId");
     setSearchParams(next, { replace: true });
   }, [type, searchParams, setSearchParams]);
 
-  const clearPracticeScope = () => {
-    setPracticeCandidateScopeState([]);
-    clearPracticeCandidateScope();
-  };
-
-  // Scope ile gelen adaylar default getCandidates sayfasının dışında
-  // olabilir (sayfalama, sıralama veya status filtresi). QuickPractice
-  // panelinin boş kalmaması için eksikleri tek tek çekip listeye merge
-  // et. Liste tarafında duplicate olmasın diye id-bazlı dedup.
+  // assignCandidateId ile gelen veya picker aksiyonundan seçilen aday,
+  // TrainingPage'in genel candidates sayfasında olmayabilir. Sidebar ve
+  // overlay hesapları boş kalmasın diye eksik adayı detail endpoint'inden
+  // tekil olarak merge ederiz.
   useEffect(() => {
     if (type !== "uygulama") return;
-    if (practiceCandidateScope.length === 0) return;
+    if (!quickSettings.candidateId) return;
     const known = new Set(candidates.map((c) => c.id));
-    const missing = practiceCandidateScope.filter((id) => !known.has(id));
-    if (missing.length === 0) return;
+    if (known.has(quickSettings.candidateId)) return;
     const controller = new AbortController();
-    Promise.all(
-      missing.map((id) =>
-        getCandidateById(id, controller.signal).catch(() => null)
-      )
-    ).then((results) => {
+    getCandidateById(quickSettings.candidateId, controller.signal)
+      .catch(() => null)
+      .then((candidate) => {
       if (controller.signal.aborted) return;
-      const fetched = results.filter((c): c is CandidateResponse => c !== null);
-      if (fetched.length === 0) return;
+      if (!candidate) return;
       setCandidates((prev) => {
         const have = new Set(prev.map((c) => c.id));
-        const next = [...prev];
-        for (const c of fetched) if (!have.has(c.id)) next.push(c);
-        return next;
+        return have.has(candidate.id) ? prev : [...prev, candidate];
       });
     });
     return () => controller.abort();
-  }, [type, practiceCandidateScope, candidates]);
+  }, [type, quickSettings.candidateId, candidates]);
 
   const [isBranchPickerOpen, setIsBranchPickerOpen] = useState(false);
   // Uygulama akışında slot tıklayınca eğitim türü popover'ı açılır;
@@ -381,11 +339,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
         },
         controller.signal
       ),
-      getCandidates({ page: 1, pageSize: 100 }, controller.signal),
+      type === "teorik"
+        ? getCandidates({ page: 1, pageSize: 100 }, controller.signal)
+        : Promise.resolve(null),
     ])
       .then(([lessonResult, candidateResult]) => {
         setEvents(lessonResult.items.map(trainingLessonToCalendarEvent));
-        setCandidates(candidateResult.items);
+        if (candidateResult) {
+          setCandidates(candidateResult.items);
+        }
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
@@ -1734,7 +1696,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
                     setQuickSettings((prev) => ({ ...prev, candidateId: "" }));
-                    clearPracticeScope();
                   }}
                   type="button"
                 >
@@ -1767,19 +1728,14 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 }
               />
             ) : (
-              <QuickPracticeAssignment
-                candidateId={quickSettings.candidateId}
-                candidates={candidates}
-                isLoading={isQuickAssignLoading}
-                onSettingsChange={(settings) => {
-                  setQuickSettings((prev) => ({ ...prev, ...settings }));
-                  // Adayı toggle ile kapatmak = "listeye dön" ile aynı;
-                  // scope kalırsa picker tek-aday gösterir, kullanıcı
-                  // listeyi göremez.
-                  if (settings.candidateId === "") clearPracticeScope();
-                }}
-                scopedCandidateIds={practiceCandidateScope}
-              />
+	              <QuickPracticeAssignment
+	                candidateId={quickSettings.candidateId}
+	                candidates={candidates}
+	                isLoading={isQuickAssignLoading}
+	                onSettingsChange={(settings) =>
+	                  setQuickSettings((prev) => ({ ...prev, ...settings }))
+	                }
+	              />
             )}
             <TrainingBranchSummary
               branches={branches}
@@ -1810,23 +1766,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
             />
           </aside>
           {type === "uygulama" && !quickSettings.candidateId ? (
-            <PracticeCandidatePicker
-              events={events}
-              onClearScope={clearPracticeScope}
-              onPick={(id, picked) => {
-                setQuickSettings((prev) => ({ ...prev, candidateId: id }));
-                // Sidebar QuickPractice kendi `candidates` prop'undan
-                // render eder ama picker'ın listesi farklı bir kaynaktan
-                // gelir; seçileni direkt merge ederiz ki sidebar boş
-                // kalmasın.
-                setCandidates((prev) =>
-                  prev.some((c) => c.id === id) ? prev : [...prev, picked]
-                );
-                setPracticeCandidateScopeState([id]);
-                setPracticeCandidateScope([id]);
-              }}
-              scopedCandidateIds={practiceCandidateScope}
-            />
+	            <PracticeCandidatePicker
+	              onAssign={(id) => {
+	                setQuickSettings((prev) => ({ ...prev, candidateId: id }));
+	              }}
+	            />
           ) : (
             <div className="training-calendar-wrap">
               <TrainingCalendar

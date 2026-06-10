@@ -305,6 +305,7 @@ export function CandidateDrawer({
         referenceName: candidate.referenceName,
         phoneNumber: candidate.phoneNumber,
         birthDate: candidate.birthDate,
+        birthPlace: candidate.birthPlace,
         gender: normalizeCandidateGender(candidate.gender),
         licenseClass: candidate.licenseClass,
         licenseClassDefinitionId: candidate.licenseClassDefinitionId ?? null,

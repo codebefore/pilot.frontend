@@ -30,7 +30,6 @@ vi.mock("./lib/candidates-api", async () => {
     ...actual,
     getCandidates: vi.fn().mockResolvedValue({
       items: [],
-      licenseClassCounts: [],
       page: 1,
       pageSize: 1000,
       totalCount: 0,

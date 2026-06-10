@@ -88,32 +88,99 @@
 .candidate-contact-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
+}
+
+.candidate-contact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.candidate-contact-header .candidate-detail-section-title {
+  margin: 0;
 }
 
 .candidate-contact-toolbar {
+  position: relative;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.candidate-contact-new-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 136px;
+  padding: 5px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+}
+
+.candidate-contact-new-popover::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 18px;
+  width: 9px;
+  height: 9px;
+  border-top: 1px solid var(--gray-200);
+  border-left: 1px solid var(--gray-200);
+  background: var(--white);
+  transform: rotate(45deg);
+}
+
+.candidate-contact-new-option {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-800);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.candidate-contact-new-option:hover {
+  background: var(--gray-50);
+  color: var(--gray-950);
+}
+
 .candidate-contact-row,
 .candidate-contact-draft-row {
   display: grid;
-  grid-template-columns: minmax(150px, 220px) minmax(180px, 240px) auto;
-  column-gap: 8px;
-  row-gap: 10px;
-  align-items: end;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--gray-200) 88%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--gray-50) 55%, var(--white));
+  grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr) auto;
+  column-gap: 12px;
+  row-gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--gray-200) 70%, transparent);
+  background: transparent;
 }
 
 .candidate-contact-draft-row {
-  border-style: dashed;
-  background: var(--white);
+  padding: 8px 0;
+}
+
+.candidate-contact-row:last-child,
+.candidate-contact-draft-row:last-child {
+  border-bottom: 0;
 }
 
 .candidate-contact-row.is-address,
@@ -126,7 +193,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0;
 }
 
 .candidate-contact-field-label {
@@ -136,7 +203,7 @@
 }
 
 .candidate-contact-read-value {
-  min-height: 28px;
+  min-height: 24px;
   display: flex;
   align-items: center;
   font-size: 13px;
@@ -150,13 +217,13 @@
 }
 
 .candidate-contact-value-field {
-  align-items: flex-end;
-  text-align: right;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .candidate-contact-value-field .candidate-contact-read-value {
-  justify-content: flex-end;
-  text-align: right;
+  justify-content: flex-start;
+  text-align: left;
   overflow-wrap: anywhere;
 }
 
@@ -190,7 +257,7 @@
 .candidate-contact-value-field .form-input-sm {
   width: 100%;
   flex: 0 0 auto;
-  text-align: right;
+  text-align: left;
 }
 
 .candidate-contact-draft-row .form-input-sm,
@@ -211,9 +278,24 @@
 
 .candidate-contact-row-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 6px;
   white-space: nowrap;
+}
+
+.candidate-contact-row-actions .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.candidate-contact-delete-trigger {
+  color: var(--danger-600, #dc2626);
+}
+
+.candidate-contact-delete-trigger:hover:not(:disabled) {
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  color: #b91c1c;
 }
 
 @media (max-width: 640px) {
@@ -227,6 +309,13 @@
   }
   .candidate-contact-row-actions {
     grid-column: 1 / -1;
+  }
+  .candidate-contact-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .candidate-contact-toolbar {
+    justify-content: flex-start;
   }
 }
 

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
@@ -72,14 +72,9 @@ import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
-  buildLicenseClassTotalSummaryItems,
-  formatLicenseClassTotalSummary,
-} from "../lib/exam-schedule-summary";
-import {
   DRIVING_EXAM_TIME_SLOT_LABELS,
   DRIVING_EXAM_TIME_SLOTS,
 } from "../lib/driving-exam-time-slots";
-import { setPracticeCandidateScope } from "../lib/practice-candidate-scope";
 import { useLanguage, useT } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { canManageArea } from "../lib/permissions";
@@ -108,7 +103,6 @@ import type {
   CandidateResponse,
   CandidateTag,
   ExamCodeOption,
-  ExamScheduleLicenseClassCount,
   ExamScheduleOption,
   GroupResponse,
   InstructorResponse,
@@ -1241,6 +1235,35 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS: CandidateColumnId[] = [
   "mebSyncStatus",
 ];
 
+const GENERAL_CANDIDATE_COLUMN_PICKER_IDS: CandidateColumnId[] = [
+  "photo",
+  "name",
+  "existingLicenseType",
+  "licenseClass",
+  "group",
+  "status",
+  "eSinavAttemptCount",
+  "eSinavPoolStatus",
+  "totalFee",
+  "totalPaid",
+  "totalDebt",
+  "referenceName",
+  "nationalId",
+  "phoneNumber",
+  "birthDate",
+  "motherName",
+  "fatherName",
+  "gender",
+  "createdAtUtc",
+  "groupStartDate",
+  "graduationDate",
+  "terminationDate",
+  "terminationReason",
+  "updatedAtUtc",
+  "documents",
+  "mebSyncStatus",
+];
+
 const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, CandidateColumnId[]> = {
   all: [
     "photo",
@@ -1302,6 +1325,7 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "group",
     "status",
     "graduationDate",
+    "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
     "totalPaid",
@@ -1430,7 +1454,6 @@ type ExamDateSidebarConfig = {
   field: "eSinavDate" | "drivingExamDate";
   showTime?: boolean;
   showLicenseClassInHeader?: boolean;
-  showLicenseClassTotalSummary?: boolean;
   summaryMode?: "capacity" | "candidateCount" | "licenseClass";
 };
 
@@ -1442,7 +1465,6 @@ type CandidatesPageProps = {
   showCreateCandidateAction?: boolean;
   showBulkGroupAction?: boolean;
   showBulkStatusAction?: boolean;
-  showBulkPracticeTrainingAction?: boolean;
   showFiltersAction?: boolean;
   showTabs?: boolean;
   defaultTab?: CandidateTab;
@@ -1457,13 +1479,12 @@ type CandidatesPageProps = {
 
 export function CandidatesPage({
   title,
-  columnStorageKey = "candidates.columns.v18",
+  columnStorageKey = "candidates.columns.v19",
   defaultVisibleColumnIds: defaultVisibleColumnIdsProp,
   columnLabelOverrides,
   showCreateCandidateAction = true,
   showBulkGroupAction = true,
   showBulkStatusAction = true,
-  showBulkPracticeTrainingAction = true,
   showFiltersAction = true,
   showTabs = true,
   defaultTab = DEFAULT_TAB,
@@ -1556,9 +1577,6 @@ export function CandidatesPage({
         }
         if (eSinavAllowedColumnIds && !eSinavAllowedColumnIds.has(column.id)) return false;
         if (drivingAllowedColumnIds && !drivingAllowedColumnIds.has(column.id)) return false;
-        if ((tab === "graduated" || tab === "dropped") && column.id === "eSinavAttemptCount") {
-          return false;
-        }
         return true;
       }).map((column) => column.id);
       if (eSinavAllowedColumnIds) {
@@ -1593,6 +1611,7 @@ export function CandidatesPage({
   const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
   const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
   const [examChargeSaving, setExamChargeSaving] = useState(false);
+  const [bulkSelectionEnabled, setBulkSelectionEnabled] = useState(false);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -2153,10 +2172,14 @@ export function CandidatesPage({
         : tab === "randevulu"
           ? t("candidatesPage.col.scheduledExamDate")
           : t(col.labelKey)
+      : columnPageScope === "eSinav" && col.id === "eSinavTheoryExamFeeStatus"
+        ? t("candidates.col.examFeeStatus")
       : columnPageScope === "uygulama" && col.id === "drivingExamDate" && tab === "basarisiz"
         ? t("candidatesPage.col.lastExamDate")
       : columnPageScope === "uygulama" && col.id === "drivingExamCode"
         ? t("candidatesPage.col.lastExamCode")
+      : columnPageScope === "uygulama" && col.id === "drivingExamFeeStatus"
+        ? t("candidates.col.examFeeStatus")
         : null) ??
     columnLabelOverrides?.[col.id] ??
     ((col.id === "group" && groupColumnMode === "term")
@@ -2183,13 +2206,27 @@ export function CandidatesPage({
   }, [headerGroupCatalog, lang]);
 
   const pickerOptions: ColumnOption[] = resolvedColumns
-    .filter((col) => !col.pickerHidden && !forcedVisibleColumnIds.has(col.id))
-    .sort((left, right) => availableColumnIds.indexOf(left.id) - availableColumnIds.indexOf(right.id))
+    .filter((col) => {
+      if (col.pickerHidden || forcedVisibleColumnIds.has(col.id)) return false;
+      if (columnPageScope !== "all") return true;
+      return GENERAL_CANDIDATE_COLUMN_PICKER_IDS.includes(col.id);
+    })
+    .sort((left, right) => {
+      if (columnPageScope === "all") {
+        return (
+          GENERAL_CANDIDATE_COLUMN_PICKER_IDS.indexOf(left.id) -
+          GENERAL_CANDIDATE_COLUMN_PICKER_IDS.indexOf(right.id)
+        );
+      }
+      return availableColumnIds.indexOf(left.id) - availableColumnIds.indexOf(right.id);
+    })
     .map((col) => ({
       id: col.id,
       label: getColumnLabel(col),
     }));
   const selectedCount = selectedCandidateIds.size;
+  const canToggleBulkSelection = columnPageScope === "all";
+  const selectionColumnVisible = !canToggleBulkSelection || bulkSelectionEnabled;
   const isDrivingExamCodeTabActive =
     examDateSidebar?.examType === "uygulama" && examSidebarTab === "codes";
   const shouldDimBlockedLatestCodeRows =
@@ -2227,9 +2264,6 @@ export function CandidatesPage({
     () => sortExamDateOptionsNewestFirst(examDateOptions),
     [examDateOptions]
   );
-  const showLicenseClassSummary =
-    !!examDateSidebar?.showLicenseClassTotalSummary &&
-    (examSidebarTab === "dates" || !!selectedDrivingExamCode);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search);
@@ -2298,19 +2332,16 @@ export function CandidatesPage({
   const candidates = candidatesQuery.data?.items ?? [];
   const totalPages = candidatesQuery.data?.totalPages ?? 1;
   const loading = candidatesQuery.isLoading;
-  const candidateLicenseClassCounts: ExamScheduleLicenseClassCount[] =
-    candidatesQuery.isError ? [] : candidatesQuery.data?.licenseClassCounts ?? [];
   const compactLicenseClassOptions = useMemo(
     () =>
       mergeLicenseClassOptionsWithValues(licenseClassOptions, [
         ...filters.licenseClasses,
         ...candidates.map((candidate) => candidate.licenseClass),
-        ...candidateLicenseClassCounts.map((item) => item.licenseClass),
       ]).map((option) => ({
         value: option.value,
         label: option.value,
       })),
-    [candidateLicenseClassCounts, candidates, filters.licenseClasses, licenseClassOptions]
+    [candidates, filters.licenseClasses, licenseClassOptions]
   );
   const getColumnFilterControl = (col: CandidateColumnDef) =>
     buildCandidateColumnFilterControl(
@@ -2322,21 +2353,6 @@ export function CandidatesPage({
       t,
       lang
     );
-  const licenseClassTotalSummary = useMemo(
-    () =>
-      showLicenseClassSummary
-        ? formatLicenseClassTotalSummary(candidateLicenseClassCounts)
-        : "",
-    [candidateLicenseClassCounts, showLicenseClassSummary]
-  );
-  const licenseClassTotalSummaryItems = useMemo(
-    () =>
-      showLicenseClassSummary
-        ? buildLicenseClassTotalSummaryItems(candidateLicenseClassCounts)
-        : [],
-    [candidateLicenseClassCounts, showLicenseClassSummary]
-  );
-
   useEffect(() => {
     if (candidatesQuery.isError && !isAbortError(candidatesQuery.error)) {
       showToast(t("candidates.toast.loadFailed"), "error");
@@ -2878,20 +2894,6 @@ export function CandidatesPage({
     setBulkActionMode("export");
   };
 
-  const openPracticeTrainingForSelected = () => {
-    if (!canManageCandidates) return;
-    if (selectedCandidateIds.size === 0) {
-      showToast(t("candidates.toast.selectAtLeastOne"), "error");
-      return;
-    }
-    // localStorage'a yaz, sonra uygulama sayfasına yönlendir.
-    // İlk seçili aday QA'da default seçili gelir; diğerleri scope'ta
-    // toggle olarak listelenir.
-    const ids = Array.from(selectedCandidateIds);
-    setPracticeCandidateScope(ids);
-    navigate(`/training/uygulama?candidateId=${encodeURIComponent(ids[0])}`);
-  };
-
   const openBulkGroupAction = async () => {
     if (!canManageGroups) return;
     if (selectedCandidateIds.size === 0) {
@@ -2944,6 +2946,17 @@ export function CandidatesPage({
     setBulkTagValues([]);
     setBulkExamDateValue("");
     setBulkGroupId("");
+  };
+
+  const toggleBulkSelectionMode = () => {
+    setBulkSelectionEnabled((current) => {
+      const next = !current;
+      if (!next) {
+        setSelectedCandidateIds(new Set());
+        cancelBulkAction();
+      }
+      return next;
+    });
   };
 
   const applyBulkStatusChange = async () => {
@@ -3231,39 +3244,25 @@ export function CandidatesPage({
         >
           {t("candidates.bulk.manageTags")}
         </button>
-        {licenseClassTotalSummary ? (
-          <span
-            aria-label={t("candidates.aria.licenseClassSummary")}
-            className="tag-filter-summary-chip tag-filter-license-summary"
-          >
-            {licenseClassTotalSummaryItems.map((item, index) => (
-              <Fragment key={item.licenseClass}>
-                {index > 0 ? " " : null}
-                <span className="tag-filter-license-summary-item">
-                  <span className="tag-filter-license-summary-class">{item.licenseClass}</span>
-                  <span className="tag-filter-license-summary-count">({item.count})</span>
-                </span>
-              </Fragment>
-            ))}
-          </span>
-        ) : null}
       </div>
 
       <div className="table-wrap spaced">
         <table className="data-table cand-table">
           <thead>
             <tr>
-              <th className="cand-select-th">
-                <label className="cand-select-control switch-toggle">
-                  <input
-                    aria-label={t("candidates.aria.selectAllOnPage")}
-                    checked={allVisibleSelected}
-                    onChange={toggleVisibleCandidateSelection}
-                    type="checkbox"
-                  />
-                  <span className="switch-toggle-control" aria-hidden="true" />
-                </label>
-              </th>
+              {selectionColumnVisible ? (
+                <th className="cand-select-th">
+                  <label className="cand-select-control switch-toggle">
+                    <input
+                      aria-label={t("candidates.aria.selectAllOnPage")}
+                      checked={allVisibleSelected}
+                      onChange={toggleVisibleCandidateSelection}
+                      type="checkbox"
+                    />
+                    <span className="switch-toggle-control" aria-hidden="true" />
+                  </label>
+                </th>
+              ) : null}
               {visibleColumns.map((col) => {
                 const label = getColumnLabel(col);
                 const filterControl = getColumnFilterControl(col);
@@ -3306,7 +3305,7 @@ export function CandidatesPage({
               <>
                 {Array.from({ length: Math.min(pageSize, 10) }, (_, i) => (
                   <tr key={i} style={{ pointerEvents: "none" }}>
-                    <td className="cand-select-td" />
+                    {selectionColumnVisible ? <td className="cand-select-td" /> : null}
                     {visibleColumns.map((col) => (
                       <td className={col.cellClassName} key={col.id}>
                         <span
@@ -3323,7 +3322,7 @@ export function CandidatesPage({
               <tr>
                 <td
                   className="data-table-empty"
-                  colSpan={visibleColumns.length + 2}
+                  colSpan={visibleColumns.length + (selectionColumnVisible ? 2 : 1)}
                 >
                   {t("candidates.empty.noMatches")}
                 </td>
@@ -3338,23 +3337,25 @@ export function CandidatesPage({
                   }
                   key={c.id}
                 >
-                  <td
-                    className="cand-select-td"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <label className="cand-select-control switch-toggle">
-                      <input
-                        aria-label={t("candidates.aria.selectCandidate", {
-                          name: `${c.firstName} ${c.lastName}`,
-                        })}
-                        checked={selectedCandidateIds.has(c.id)}
-                        onChange={() => toggleCandidateSelection(c.id)}
-                        onClick={(event) => event.stopPropagation()}
-                        type="checkbox"
-                      />
-                      <span className="switch-toggle-control" aria-hidden="true" />
-                    </label>
-                  </td>
+                  {selectionColumnVisible ? (
+                    <td
+                      className="cand-select-td"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <label className="cand-select-control switch-toggle">
+                        <input
+                          aria-label={t("candidates.aria.selectCandidate", {
+                            name: `${c.firstName} ${c.lastName}`,
+                          })}
+                          checked={selectedCandidateIds.has(c.id)}
+                          onChange={() => toggleCandidateSelection(c.id)}
+                          onClick={(event) => event.stopPropagation()}
+                          type="checkbox"
+                        />
+                        <span className="switch-toggle-control" aria-hidden="true" />
+                      </label>
+                    </td>
+                  ) : null}
                   {visibleColumns.map((col) => {
                     const opensDrawer = col.id === "photo" || col.id === "name";
                     return (
@@ -3419,22 +3420,6 @@ export function CandidatesPage({
       <PageToolbar
         actions={
           <>
-              {showFiltersAction ? (
-                <label className="switch-toggle cand-filters-switch">
-                  <input
-                    aria-controls="cand-filters-panel"
-                    aria-label={t("candidates.filters.button")}
-                    checked={filtersOpen}
-                    onChange={(event) => setFiltersOpen(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span className="switch-toggle-control" aria-hidden="true" />
-                  <span>{t("candidates.filters.button")}</span>
-                  {activeFilterCount > 0 && !filtersOpen && (
-                    <span className="cand-filters-badge">{activeFilterCount}</span>
-                  )}
-                </label>
-              ) : null}
               <div className="candidate-bulk-toolbar">
                 {selectedCount > 0 ? (
                   <span className="candidate-bulk-count">{t("candidates.selectedCount", { count: selectedCount })}</span>
@@ -3593,58 +3578,106 @@ export function CandidatesPage({
                 ) : (
                   <>
                     {examDateSidebar ? (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={!canManageCandidates}
-                        onClick={openBulkExamDateAction}
-                        title={!canManageCandidates ? noPermissionTitle : undefined}
-                        type="button"
-                      >
-                        {t("candidates.bulk.setExamDate")}
-                      </button>
-                    ) : null}
-                    {showBulkGroupAction ? (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={!canManageGroups}
-                        onClick={openBulkGroupAction}
-                        title={!canManageGroups ? noPermissionTitle : undefined}
-                        type="button"
-                      >
-                        {t("candidates.bulk.assignGroup")}
-                      </button>
-                    ) : null}
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      disabled={!canManageCandidates}
-                      onClick={openBulkTagAction}
-                      title={!canManageCandidates ? noPermissionTitle : undefined}
-                      type="button"
-                    >
-                      {t("candidates.bulk.addTag")}
-                    </button>
-                    {showBulkStatusAction ? (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={!canManageCandidates}
-                        onClick={openBulkStatusAction}
-                        title={!canManageCandidates ? noPermissionTitle : undefined}
-                        type="button"
-                      >
-                        {t("candidates.bulk.changeStatus")}
-                      </button>
-                    ) : null}
-                    {showBulkPracticeTrainingAction ? (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={!canManageCandidates}
-                        onClick={openPracticeTrainingForSelected}
-                        title={!canManageCandidates ? noPermissionTitle : undefined}
-                        type="button"
-                      >
-                        {t("candidates.bulk.practiceTraining")}
-                      </button>
-                    ) : null}
+                      <>
+                        {selectedExamDate ? (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled
+                            title={t("candidates.bulk.mebbisDisabled")}
+                            type="button"
+                          >
+                            {t("candidates.bulk.mebbis")}
+                          </button>
+                        ) : null}
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={!canManageCandidates}
+                          onClick={openBulkExamDateAction}
+                          title={!canManageCandidates ? noPermissionTitle : undefined}
+                          type="button"
+                        >
+                          {t("candidates.bulk.setExamDate")}
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={!canManageCandidates}
+                          onClick={openBulkTagAction}
+                          title={!canManageCandidates ? noPermissionTitle : undefined}
+                          type="button"
+                        >
+                          {t("candidates.bulk.addTag")}
+                        </button>
+                        {showBulkStatusAction ? (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={!canManageCandidates}
+                            onClick={openBulkStatusAction}
+                            title={!canManageCandidates ? noPermissionTitle : undefined}
+                            type="button"
+                          >
+                            {t("candidates.bulk.changeStatus")}
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        {showBulkGroupAction ? (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={!canManageGroups}
+                            onClick={openBulkGroupAction}
+                            title={!canManageGroups ? noPermissionTitle : undefined}
+                            type="button"
+                          >
+                            {t("candidates.bulk.assignGroup")}
+                          </button>
+                        ) : null}
+                        {showBulkStatusAction ? (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={!canManageCandidates}
+                            onClick={openBulkStatusAction}
+                            title={!canManageCandidates ? noPermissionTitle : undefined}
+                            type="button"
+                          >
+                            {t("candidates.bulk.changeStatus")}
+                          </button>
+                        ) : null}
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={!canManageCandidates}
+                          onClick={openBulkTagAction}
+                          title={!canManageCandidates ? noPermissionTitle : undefined}
+                          type="button"
+                        >
+                          {t("candidates.bulk.addTag")}
+                        </button>
+                        {showFiltersAction ? (
+                          <button
+                            aria-controls="cand-filters-panel"
+                            aria-expanded={filtersOpen}
+                            className={filtersOpen ? "btn btn-secondary btn-sm active cand-filters-button" : "btn btn-secondary btn-sm cand-filters-button"}
+                            onClick={() => setFiltersOpen((current) => !current)}
+                            type="button"
+                          >
+                            <span>{t("candidates.filters.button")}</span>
+                            {activeFilterCount > 0 && !filtersOpen && (
+                              <span className="cand-filters-badge">{activeFilterCount}</span>
+                            )}
+                          </button>
+                        ) : null}
+                        {canToggleBulkSelection ? (
+                          <button
+                            aria-pressed={bulkSelectionEnabled}
+                            className={bulkSelectionEnabled ? "btn btn-secondary btn-sm active" : "btn btn-secondary btn-sm"}
+                            onClick={toggleBulkSelectionMode}
+                            type="button"
+                          >
+                            {t("candidates.bulk.selection")}
+                          </button>
+                        ) : null}
+                      </>
+                    )}
                     <button
                       className="btn btn-secondary btn-sm"
                       onClick={openBulkExportAction}

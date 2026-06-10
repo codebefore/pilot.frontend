@@ -1,14 +1,15 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { JobStatus } from "../types";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys, useGroup } from "../lib/queries/use-groups";
 import { todayLocalDateOnly } from "../lib/date-only";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
-import { CameraIcon, PencilIcon, ScannerIcon, UploadCloudIcon } from "../components/icons";
+import { CameraIcon, CheckIcon, PencilIcon, ScannerIcon, TrashIcon, UploadCloudIcon, XIcon } from "../components/icons";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
 import { EditableRow } from "../components/ui/EditableRow";
@@ -113,7 +114,6 @@ import { createCandidateSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
   CANDIDATE_STATUS_OPTIONS,
-  candidateExamResultLabel,
   candidateGenderLabel,
   candidateStatusLabel,
   candidateStatusToPill,
@@ -229,6 +229,7 @@ function buildCandidateUpdatePayload(
     phoneNumber: candidate.phoneNumber,
     address: candidate.address,
     birthDate: candidate.birthDate,
+    birthPlace: candidate.birthPlace,
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
     hasExistingLicense: candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType),
@@ -322,6 +323,7 @@ async function updateCandidateField(
 
 export function CandidateDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
@@ -332,6 +334,7 @@ export function CandidateDetailPage() {
   const canManagePayments = canManageArea(user, permissions, "payments");
   const canManageDocuments = canManageArea(user, permissions, "documents");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
+  const canManageTraining = canManageArea(user, permissions, "training");
   const { candidateId } = useParams<{ candidateId: string }>();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
@@ -422,6 +425,9 @@ export function CandidateDetailPage() {
     staleTime: 0,
   });
   const accountingError = isErrorAccounting ? t("candidateDetail.error.accountingLoad") : null;
+  const returnState = location.state as { returnLabel?: string; returnTo?: string } | null;
+  const breadcrumbLabel = returnState?.returnLabel ?? "← Aday listesine dön";
+  const breadcrumbTarget = returnState?.returnTo ?? "/candidates";
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -632,10 +638,10 @@ export function CandidateDetailPage() {
       <div className="instructor-detail-breadcrumb">
         <button
           className="btn btn-secondary btn-sm"
-          onClick={() => navigate("/candidates")}
+          onClick={() => navigate(breadcrumbTarget)}
           type="button"
         >
-          ← Aday listesine dön
+          {breadcrumbLabel}
         </button>
       </div>
 
@@ -724,7 +730,7 @@ export function CandidateDetailPage() {
                   }
                 />
                 <CandidateKCertificateSection canManageCandidates={canManageCandidates} candidate={candidate} />
-                <TrainingTab candidate={candidate} />
+                <TrainingTab candidate={candidate} canManageTraining={canManageTraining} />
               </>
             )}
             {activeTab === "documents" && (
@@ -829,17 +835,31 @@ function CandidateHero({
   ]
     .filter(Boolean)
     .join(" · ");
-  const accountingStatus = computeAccountingStatus(candidate, accounting);
+  const accountingStatus = computeAccountingStatus(accounting);
   const heroStageLabel =
     candidate.status === "dropped" && candidate.examStageLabel === "Dosya Yakıldı"
       ? null
       : candidate.examStageLabel;
   const stageTone = stagePillTone(heroStageLabel ?? null);
   const appointmentTone = appointmentPillTone(candidate.appointmentStatusLabel ?? null);
-  const examStatusLabel = [
-    heroStageLabel,
-    candidate.appointmentStatusLabel,
-  ].filter(Boolean).join(" · ") || candidateExamResultLabel(candidate.mebExamResult);
+  const showDrivingExamAttempts = isCandidateInDrivingStage(candidate);
+  const examStatusLabel = candidateHeroExamStatusLabel(candidate);
+  const examStatusPill = examStatusPillStatus(examStatusLabel);
+  const attemptValue = showDrivingExamAttempts
+    ? candidate.drivingExamAttemptCount
+    : candidate.eSinavAttemptCount;
+  const attemptPill = examStatusPill === "success"
+    ? "success"
+    : examAttemptPillStatus(attemptValue);
+  const attemptSummary = showDrivingExamAttempts
+    ? {
+        label: "Direksiyon",
+        value: `${candidate.drivingExamAttemptCount ?? 1}/4`,
+      }
+    : {
+        label: "E-Sınav Hakkı",
+        value: `${candidate.eSinavAttemptCount ?? 1}/4`,
+      };
 
   return (
     <header className="candidate-detail-hero">
@@ -878,6 +898,15 @@ function CandidateHero({
         </div>
         <div className="candidate-detail-hero-meta candidate-detail-hero-meta--status">
           <StatusPill label={statusLabel} status={statusPill} />
+          <span className={`candidate-detail-hero-mini-pill job-status-pill pill-${attemptPill}`}>
+            <span className="dot" />
+            <span>{attemptSummary.label}</span>
+            <strong>{attemptSummary.value}</strong>
+          </span>
+          <span className={`candidate-detail-hero-mini-pill job-status-pill pill-${examStatusPill}`}>
+            <span className="dot" />
+            <strong>{examStatusLabel}</strong>
+          </span>
           {heroStageLabel ? (
             <span className={`candidate-detail-hero-stage-pill tone-${stageTone}`}>
               {heroStageLabel}
@@ -895,23 +924,56 @@ function CandidateHero({
             {t(accountingStatus.labelKey)}
           </span>
         </div>
-        <div className="candidate-detail-hero-exam-summary" aria-label="Aday sınav özeti">
-          <span className="candidate-detail-hero-exam-item">
-            <span className="candidate-detail-hero-exam-label">Sınav Hakkı</span>
-            <strong className="candidate-detail-hero-exam-value">{candidate.eSinavAttemptCount ?? 1}/4</strong>
-          </span>
-          <span className="candidate-detail-hero-exam-item">
-            <span className="candidate-detail-hero-exam-label">Direksiyon Hakkı</span>
-            <strong className="candidate-detail-hero-exam-value">{candidate.drivingExamAttemptCount ?? 1}/4</strong>
-          </span>
-          <span className="candidate-detail-hero-exam-item candidate-detail-hero-exam-item--wide">
-            <span className="candidate-detail-hero-exam-label">Sınav Durumu</span>
-            <strong className="candidate-detail-hero-exam-value">{examStatusLabel}</strong>
-          </span>
-        </div>
       </div>
     </header>
   );
+}
+
+function isCandidateInDrivingStage(candidate: CandidateResponse): boolean {
+  const theoryResult = normalizeCandidateExamResultValue(candidate.mebExamResult);
+  return (
+    candidate.isTheoryExempt === true ||
+    (candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)) ||
+    theoryResult === "passed" ||
+    Boolean(candidate.drivingExamDate) ||
+    Boolean(candidate.drivingExamResultStatus) ||
+    (candidate.drivingExamAttemptCount ?? 0) > 0
+  );
+}
+
+function candidateHeroExamStatusLabel(candidate: CandidateResponse): string {
+  if (isCandidateInDrivingStage(candidate)) {
+    switch (candidate.drivingExamResultStatus) {
+      case "passed":
+        return "Direksiyon Başarılı";
+      case "failed":
+        return "Direksiyon Başarısız";
+      default:
+        return candidate.drivingExamDate ? "Direksiyon Randevulu" : "Direksiyon Havuz";
+    }
+  }
+
+  switch (normalizeCandidateExamResultValue(candidate.mebExamResult)) {
+    case "failed":
+      return "E-Sınav Başarısız";
+    default:
+      return candidate.mebExamDate ? "E-Sınav Randevulu" : "E-Sınav Havuz";
+  }
+}
+
+function examStatusPillStatus(label: string): JobStatus {
+  const normalized = label.toLocaleLowerCase("tr-TR");
+  if (normalized.includes("başarısız")) return "failed";
+  if (normalized.includes("başarılı")) return "success";
+  if (normalized.includes("randevulu")) return "running";
+  return "queued";
+}
+
+function examAttemptPillStatus(value: number | null | undefined): JobStatus {
+  const attempt = Math.min(Math.max(value ?? 1, 1), 4);
+  if (attempt >= 4) return "failed";
+  if (attempt >= 2) return "manual";
+  return "success";
 }
 
 type AccountingStatus = {
@@ -919,25 +981,30 @@ type AccountingStatus = {
   tone: "neutral" | "info" | "success" | "danger";
 };
 
-function computeAccountingStatus(
-  candidate: CandidateResponse,
-  accounting: CandidateAccountingSummaryResponse | null,
-): AccountingStatus {
-  if (candidate.totalFee <= 0 && (!accounting || accounting.movements.length === 0)) {
+function computeAccountingStatus(accounting: CandidateAccountingSummaryResponse | null): AccountingStatus {
+  if (!accounting) {
     return { labelKey: "candidateDetail.hero.accounting.noRecord", tone: "neutral" };
   }
-  if (accounting) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const hasOverdue = accounting.movements.some((m) => {
-      if (m.status !== "active") return false;
-      if (m.remainingAmount <= 0) return false;
-      const due = new Date(m.dueDate);
-      return !Number.isNaN(due.getTime()) && due < today;
-    });
-    if (hasOverdue) return { labelKey: "candidateDetail.hero.accounting.overdue", tone: "danger" };
+
+  const courseMovements = accounting.movements.filter((movement) => movement.type === "kurs");
+  const activeCourseMovements = courseMovements.filter((movement) => movement.status === "active");
+  const courseTotal = activeCourseMovements.reduce((sum, movement) => sum + movement.amount, 0);
+  const courseRemaining = activeCourseMovements.reduce((sum, movement) => sum + movement.remainingAmount, 0);
+
+  if (courseTotal <= 0) {
+    return { labelKey: "candidateDetail.hero.accounting.noRecord", tone: "neutral" };
   }
-  if (candidate.totalDebt <= 0 && candidate.totalFee > 0) {
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const hasOverdue = activeCourseMovements.some((movement) => {
+    if (movement.remainingAmount <= 0) return false;
+    const due = new Date(movement.dueDate);
+    return !Number.isNaN(due.getTime()) && due < today;
+  });
+  if (hasOverdue) return { labelKey: "candidateDetail.hero.accounting.overdue", tone: "danger" };
+
+  if (courseRemaining <= 0) {
     return { labelKey: "candidateDetail.hero.accounting.completed", tone: "success" };
   }
   return { labelKey: "candidateDetail.hero.accounting.inProgress", tone: "info" };
@@ -1188,6 +1255,41 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
     );
   };
 
+  const saveRegistrationNumber = async (value: string) => {
+    if (!canManageCandidates) return;
+    const trimmed = value.trim();
+    if (!trimmed) {
+      showToast(t("candidateDetail.license.toast.registrationNumberEmpty"), "error");
+      throw new Error("registration number empty");
+    }
+    try {
+      await setCandidateRegistrationNumber(candidate.id, trimmed, candidate.rowVersion);
+      const refreshed = await getCandidateById(candidate.id);
+      onSaved(refreshed);
+      showToast(t("candidateDetail.license.toast.registrationNumberUpdated"));
+    } catch {
+      showToast(t("candidateDetail.license.toast.registrationNumberFailed"), "error");
+      throw new Error("save failed");
+    }
+  };
+
+  const saveRegistrationDate = async (value: string) => {
+    if (!canManageCandidates) return;
+    if (!value) {
+      showToast(t("candidateDetail.license.toast.registrationDateEmpty"), "error");
+      throw new Error("registration date empty");
+    }
+    try {
+      await setCandidateRegistrationDate(candidate.id, value, candidate.rowVersion);
+      const refreshed = await getCandidateById(candidate.id);
+      onSaved(refreshed);
+      showToast(t("candidateDetail.license.toast.registrationDateUpdated"));
+    } catch {
+      showToast(t("candidateDetail.license.toast.registrationDateFailed"), "error");
+      throw new Error("save failed");
+    }
+  };
+
   const saveTags = async (names: string[]) => {
     if (!canManageCandidates) return;
     setTagsSaving(true);
@@ -1206,14 +1308,8 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
     <div className="candidate-detail-tab-content">
       <div className="candidate-general-grid">
         <div className="candidate-general-grid-col">
-          <CandidateTimeline candidate={candidate} />
-        </div>
-        <div className="candidate-general-grid-col">
-          <CandidateNotesPanel candidateId={candidate.id} />
-        </div>
-        <div className="candidate-general-grid-col">
           <section className="instructor-detail-card">
-            <h3 className="candidate-detail-section-title">{t("candidateDetail.general.section.status")}</h3>
+            <h3 className="candidate-detail-section-title">{t("candidateDetail.general.section.candidateInfo")}</h3>
             <div className="candidate-detail-edit-list">
               <EditableRow
                 disabled={!canManageCandidates}
@@ -1239,6 +1335,57 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
                   }
                 />
               ) : null}
+              <EditableRow
+                disabled={!canManageCandidates}
+                disabledTitle={noPermissionTitle}
+                displayValue={formatDateTR(candidate.createdAtUtc)}
+                inputType="date"
+                inputValue={candidate.createdAtUtc.slice(0, 10)}
+                label={t("candidateDetail.license.field.registrationDate")}
+                onSave={saveRegistrationDate}
+              />
+              <EditableRow
+                disabled={!canManageCandidates}
+                disabledTitle={noPermissionTitle}
+                displayValue={candidateMebbisStatusLabel(candidate.mebSyncStatus)}
+                inputValue={candidate.mebSyncStatus ?? "not_synced"}
+                label={t("candidateDetail.license.field.mebbisStatus")}
+                options={[
+                  { value: "not_synced", label: "Gönderilmedi" },
+                  { value: "synced", label: "Gönderildi" },
+                ]}
+                onSave={(value) =>
+                  saveGeneralField({ mebSyncStatus: value || "not_synced" }, t("candidateDetail.license.toast.mebbisStatusUpdated"))
+                }
+              />
+              <EditableRow
+                disabled={!canManageCandidates}
+                disabledTitle={noPermissionTitle}
+                displayValue={candidate.registrationNumber}
+                inputValue={candidate.registrationNumber}
+                label={t("candidateDetail.license.field.candidateNumber")}
+                onSave={saveRegistrationNumber}
+              />
+            </div>
+          </section>
+
+          <section className="instructor-detail-card">
+            <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.reference")}</h3>
+            <div className="candidate-detail-edit-list">
+              <EditableRow
+                disabled={!canManageCandidates}
+                disabledTitle={noPermissionTitle}
+                displayValue={candidate.referenceName ?? ""}
+                inputValue={candidate.referenceName ?? ""}
+                label={t("candidateDetail.license.field.reference")}
+                loadOptions={(signal) => loadReferenceOptions(candidate.referenceName, t, signal)}
+                onSave={(value) =>
+                  saveGeneralField(
+                    { referenceName: value.trim() || null },
+                    t("candidateDetail.license.toast.referenceUpdated"),
+                  )
+                }
+              />
             </div>
           </section>
 
@@ -1252,6 +1399,20 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
                 void saveTags(names);
               }}
               value={candidate.tags?.map((tag) => tag.name) ?? []}
+            />
+          </section>
+        </div>
+        <div className="candidate-general-grid-col">
+          <CandidateNotesPanel candidateId={candidate.id} />
+          <CandidateTimeline candidate={candidate} />
+        </div>
+        <div className="candidate-general-grid-col">
+          <section className="instructor-detail-card">
+            <CandidateContactsEditor
+              canManageCandidates={canManageCandidates}
+              candidate={candidate}
+              title={t("candidateDetail.license.section.contacts")}
+              onSave={saveGeneralField}
             />
           </section>
 
@@ -1350,36 +1511,30 @@ function CandidateTimeline({ candidate }: { candidate: CandidateResponse }) {
     <div className="instructor-detail-card">
       {header}
       <ol className="candidate-timeline">
-        {(() => {
-          let sideIndex = 0;
-          return rows.map((row) => {
-            const isCentered = row.title === "Mezun";
-            const side = isCentered ? null : sideIndex++ % 2 === 0 ? "left" : "right";
-            const itemClass = [
-              "candidate-timeline-item",
-              isCentered ? "is-centered" : `side-${side}`,
-              row.kind === "current" ? "is-current" : "",
-              row.kind === "future" ? "is-future" : "",
-              row.kind === "event" ? `tone-${row.tone}` : "",
-            ]
-              .filter(Boolean)
-              .join(" ");
-            return (
-              <li key={row.key} className={itemClass}>
-                <div className="candidate-timeline-content">
-                  <div className="candidate-timeline-title">{row.title}</div>
-                  {row.detail ? (
-                    <div className="candidate-timeline-detail">{row.detail}</div>
-                  ) : null}
-                </div>
-                <div className="candidate-timeline-axis">
-                  <span className="candidate-timeline-marker" aria-hidden="true" />
-                  <span className="candidate-timeline-date">{row.dateLabel}</span>
-                </div>
-              </li>
-            );
-          });
-        })()}
+        {rows.map((row) => {
+          const itemClass = [
+            "candidate-timeline-item",
+            row.kind === "current" ? "is-current" : "",
+            row.kind === "future" ? "is-future" : "",
+            row.kind === "event" ? `tone-${row.tone}` : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return (
+            <li key={row.key} className={itemClass}>
+              <div className="candidate-timeline-axis">
+                <span className="candidate-timeline-date">{row.dateLabel}</span>
+                <span className="candidate-timeline-marker" aria-hidden="true" />
+              </div>
+              <div className="candidate-timeline-content">
+                <div className="candidate-timeline-title">{row.title}</div>
+                {row.detail ? (
+                  <div className="candidate-timeline-detail">{row.detail}</div>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -1435,14 +1590,18 @@ function buildDocumentJourneyStage(
 function CandidateContactsEditor({
   canManageCandidates,
   candidate,
+  title,
   onSave,
 }: {
   canManageCandidates: boolean;
   candidate: CandidateResponse;
+  title: string;
   onSave: (patch: Partial<CandidateUpsertRequest>, message: string) => Promise<void>;
 }) {
   const t = useT();
   const [drafts, setDrafts] = useState<Array<{ id: string; type: CandidateContactType }>>([]);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement | null>(null);
   const contacts = buildCandidateContacts(candidate);
   const noPermissionTitle = t("common.noPermission");
 
@@ -1546,24 +1705,52 @@ function CandidateContactsEditor({
       ...current,
       { id: `${type}-${Date.now()}-${current.length}`, type },
     ]);
+    setNewMenuOpen(false);
   };
+
+  useEffect(() => {
+    if (!newMenuOpen) return;
+    const handlePointerDown = (event: globalThis.MouseEvent) => {
+      if (newMenuRef.current?.contains(event.target as Node)) return;
+      setNewMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [newMenuOpen]);
 
   const contactLabelCounts: Partial<Record<CandidateContactType, number>> = {};
   return (
     <div className="candidate-detail-contacts">
-      <div className="candidate-contact-toolbar">
-        {CONTACT_KINDS.map((kind) => (
+      <div className="candidate-contact-header">
+        <h3 className="candidate-detail-section-title">{title}</h3>
+        <div className="candidate-contact-toolbar" ref={newMenuRef}>
           <button
+            aria-expanded={newMenuOpen}
+            aria-haspopup="menu"
             className="btn btn-secondary btn-sm"
             disabled={!canManageCandidates}
-            key={kind.type}
-            onClick={() => addDraft(kind.type)}
+            onClick={() => setNewMenuOpen((current) => !current)}
             title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
-            {t("candidateDetail.contacts.newKind", { singular: t(kind.singularKey) })}
+            Yeni
           </button>
-        ))}
+          {newMenuOpen ? (
+            <div className="candidate-contact-new-popover" role="menu">
+              {CONTACT_KINDS.map((kind) => (
+                <button
+                  className="candidate-contact-new-option"
+                  key={kind.type}
+                  onClick={() => addDraft(kind.type)}
+                  role="menuitem"
+                  type="button"
+                >
+                  {t(kind.singularKey)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="candidate-contact-list">
         {contacts.length === 0 && drafts.length === 0 ? (
@@ -1661,9 +1848,9 @@ function CandidateContactRow({
     <div className={`candidate-contact-row ${isPhone ? "is-phone" : "is-address"}`}>
       {isPhone ? (
         <div className="candidate-contact-field candidate-contact-owner-field">
-          <span className="candidate-contact-field-label">{t("candidateDetail.contacts.ownerLabel")}</span>
           {editing ? (
             <input
+              aria-label={t("candidateDetail.contacts.ownerLabel")}
               className="form-input-sm"
               disabled={saving}
               onChange={(event) => setOwnerName(event.target.value)}
@@ -1677,10 +1864,10 @@ function CandidateContactRow({
         </div>
       ) : null}
       <div className="candidate-contact-field candidate-contact-value-field">
-        <span className="candidate-contact-field-label">{label}</span>
         {editing ? (
           contactInputType(contact.type) === "textarea" ? (
             <textarea
+              aria-label={label}
               className="form-textarea-sm"
               disabled={saving}
               onChange={(event) => setValue(event.target.value)}
@@ -1688,6 +1875,7 @@ function CandidateContactRow({
             />
           ) : (
             <input
+              aria-label={label}
               className="form-input-sm"
               disabled={saving}
               onChange={(event) => setValue(event.target.value)}
@@ -1704,46 +1892,51 @@ function CandidateContactRow({
         {editing ? (
           <>
             <button
-              className="btn btn-primary btn-sm"
+              aria-label={t("common.save")}
+              className="icon-btn icon-btn-confirm"
               disabled={!trimmedValue || saving || unchanged || !canManageCandidates}
               onClick={() => void save()}
-              title={!canManageCandidates ? noPermissionTitle : undefined}
+              title={!canManageCandidates ? noPermissionTitle : t("common.save")}
               type="button"
             >
-              {saving ? t("common.saving") : t("common.save")}
+              <CheckIcon size={13} />
             </button>
             <button
-              className="btn btn-secondary btn-sm"
+              aria-label={t("common.cancel")}
+              className="icon-btn"
               disabled={saving}
               onClick={() => {
                 setValue(contact.value);
                 setOwnerName(contact.ownerName ?? "");
                 setEditing(false);
               }}
+              title={t("common.cancel")}
               type="button"
             >
-              {t("common.cancel")}
+              <XIcon size={13} />
             </button>
           </>
         ) : (
           <button
-            className="btn btn-secondary btn-sm"
+            aria-label={t("common.edit")}
+            className="icon-btn candidate-contact-edit-trigger"
             disabled={!canManageCandidates}
             onClick={() => setEditing(true)}
-            title={!canManageCandidates ? noPermissionTitle : undefined}
+            title={!canManageCandidates ? noPermissionTitle : t("common.edit")}
             type="button"
           >
-            {t("common.edit")}
+            <PencilIcon size={12} />
           </button>
         )}
         <button
-          className="btn btn-danger btn-sm"
+          aria-label={t("common.delete")}
+          className="icon-btn candidate-contact-delete-trigger"
           disabled={saving || !canManageCandidates}
           onClick={() => void onDelete()}
-          title={!canManageCandidates ? noPermissionTitle : undefined}
+          title={!canManageCandidates ? noPermissionTitle : t("common.delete")}
           type="button"
         >
-          {t("common.delete")}
+          <TrashIcon size={12} />
         </button>
       </div>
     </div>
@@ -1791,7 +1984,6 @@ function CandidateContactDraftRow({
     <div className={`candidate-contact-draft-row ${isPhone ? "is-phone" : "is-address"}`}>
       {isPhone ? (
         <label className="candidate-contact-field candidate-contact-owner-field">
-          <span className="candidate-contact-field-label">{t("candidateDetail.contacts.ownerLabel")}</span>
           <input
             aria-label={t("candidateDetail.contacts.ownerAriaPhone")}
             className="form-input-sm"
@@ -1804,9 +1996,9 @@ function CandidateContactDraftRow({
         </label>
       ) : null}
       <label className="candidate-contact-field candidate-contact-value-field">
-        <span className="candidate-contact-field-label">{label}</span>
         {inputType === "textarea" ? (
           <textarea
+            aria-label={label}
             className="form-textarea-sm"
             disabled={saving}
             onChange={(event) => {
@@ -1817,6 +2009,7 @@ function CandidateContactDraftRow({
           />
         ) : (
           <input
+            aria-label={label}
             className="form-input-sm"
             disabled={saving}
             onChange={(event) => {
@@ -1831,21 +2024,24 @@ function CandidateContactDraftRow({
       </label>
       <div className="candidate-contact-row-actions">
         <button
-          className="btn btn-primary btn-sm"
+          aria-label={t("common.save")}
+          className="icon-btn icon-btn-confirm"
           disabled={!trimmedValue || saving || !canManageCandidates}
           onClick={() => void save()}
-          title={!canManageCandidates ? noPermissionTitle : undefined}
+          title={!canManageCandidates ? noPermissionTitle : t("common.save")}
           type="button"
         >
-          {saving ? t("common.saving") : t("common.save")}
+          <CheckIcon size={13} />
         </button>
         <button
-          className="btn btn-secondary btn-sm"
+          aria-label={t("common.cancel")}
+          className="icon-btn"
           disabled={saving}
           onClick={() => onCancel(draftId)}
+          title={t("common.cancel")}
           type="button"
         >
-          {t("common.cancel")}
+          <XIcon size={13} />
         </button>
       </div>
       {error ? <span className="candidate-contact-validation">{error}</span> : null}
@@ -1860,6 +2056,10 @@ function Field({ label, value }: { label: string; value: string }) {
       <span className="value">{value}</span>
     </div>
   );
+}
+
+function candidateMebbisStatusLabel(status: string | null | undefined): string {
+  return status === "synced" ? "Gönderildi" : "Gönderilmedi";
 }
 
 function buildCandidateExamEvents(
@@ -2186,41 +2386,6 @@ function LicenseInfoTab({
     }
   };
 
-  const saveRegistrationNumber = async (value: string) => {
-    if (!canManageCandidates) return;
-    const trimmed = value.trim();
-    if (!trimmed) {
-      showToast(t("candidateDetail.license.toast.registrationNumberEmpty"), "error");
-      throw new Error("registration number empty");
-    }
-    try {
-      await setCandidateRegistrationNumber(candidate.id, trimmed, candidate.rowVersion);
-      const refreshed = await getCandidateById(candidate.id);
-      onSaved(refreshed);
-      showToast(t("candidateDetail.license.toast.registrationNumberUpdated"));
-    } catch {
-      showToast(t("candidateDetail.license.toast.registrationNumberFailed"), "error");
-      throw new Error("save failed");
-    }
-  };
-
-  const saveRegistrationDate = async (value: string) => {
-    if (!canManageCandidates) return;
-    if (!value) {
-      showToast(t("candidateDetail.license.toast.registrationDateEmpty"), "error");
-      throw new Error("registration date empty");
-    }
-    try {
-      await setCandidateRegistrationDate(candidate.id, value, candidate.rowVersion);
-      const refreshed = await getCandidateById(candidate.id);
-      onSaved(refreshed);
-      showToast(t("candidateDetail.license.toast.registrationDateUpdated"));
-    } catch {
-      showToast(t("candidateDetail.license.toast.registrationDateFailed"), "error");
-      throw new Error("save failed");
-    }
-  };
-
   const [exemptSaving, setExemptSaving] = useState(false);
   const hasExistingLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
   const hasExistingLicenseDraft = hasExistingLicense || licenseFieldsOpen;
@@ -2392,69 +2557,166 @@ function LicenseInfoTab({
 
   return (
     <div className="candidate-detail-tab-content candidate-detail-license-grid">
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.application")}</h3>
-        <div className="candidate-detail-edit-list">
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={licenseClassLabel}
-            inputValue={candidate.licenseClass}
-            label={t("common.field.licenseClass")}
-            options={licenseClassOptions}
-            onSave={(value) =>
-              saveApplicationField(
-                {
-                  licenseClass: value as CandidateResponse["licenseClass"],
-                  licenseClassDefinitionId:
-                    licenseClassOptions.find((option) => option.value === value)?.licenseClassDefinitionId ?? null,
-                },
-                t("candidateDetail.license.toast.licenseTypeUpdated")
-              )
-            }
-          />
-        </div>
-
-        <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
-          <span className="form-label" style={{ margin: 0 }}>
-            {t("candidateDetail.license.theoryExemption")}
-          </span>
-          <label
-            className="switch-toggle switch-toggle-knob-right"
-            title={hasExistingLicenseDraft
-              ? t("candidateDetail.license.autoExemptByLicense")
-              : t("candidateDetail.license.exemptText")}
-          >
-            <input
-              checked={isTheoryExempt}
-              disabled={exemptSaving || hasExistingLicenseDraft || !canManageCandidates}
-              onChange={toggleTheoryExempt}
-              title={!canManageCandidates ? noPermissionTitle : undefined}
-              type="checkbox"
+      <div className="candidate-detail-license-column">
+        <section className="instructor-detail-card candidate-detail-license-card">
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.identity")}</h3>
+          <div className="candidate-detail-edit-list">
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidate.firstName}
+              inputValue={candidate.firstName}
+              label={t("common.field.firstName")}
+              transform={toTurkishUpperCase}
+              onSave={(value) => saveApplicationField({ firstName: value.trim() }, t("candidateDetail.license.toast.firstNameUpdated"))}
             />
-            <span>{isTheoryExempt ? t("candidateDetail.license.exempt") : t("candidateDetail.license.notExempt")}</span>
-            <span aria-hidden="true" className="switch-toggle-control" />
-          </label>
-        </div>
-
-        <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
-          <span className="form-label" style={{ margin: 0 }}>
-            {t("candidateDetail.license.existingLicense")}
-          </span>
-          <label className="switch-toggle switch-toggle-knob-right">
-            <input
-              checked={licenseFieldsOpen}
-              disabled={existingLicenseToggleSaving || !canManageCandidates}
-              onChange={(event) => handleToggleExistingLicense(event.target.checked)}
-              title={!canManageCandidates ? noPermissionTitle : undefined}
-              type="checkbox"
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidate.lastName}
+              inputValue={candidate.lastName}
+              label={t("common.field.lastName")}
+              transform={toTurkishUpperCase}
+              onSave={(value) => saveApplicationField({ lastName: value.trim() }, t("candidateDetail.license.toast.lastNameUpdated"))}
             />
-            <span>{licenseFieldsOpen ? t("candidateDetail.license.hasIt") : t("candidateDetail.license.noneIt")}</span>
-            <span aria-hidden="true" className="switch-toggle-control" />
-          </label>
-        </div>
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidate.nationalId}
+              inputType="tel"
+              inputValue={candidate.nationalId}
+              label={t("common.field.nationalId")}
+              onSave={(value) => saveApplicationField({ nationalId: value.trim() }, t("candidateDetail.license.toast.nationalIdUpdated"))}
+            />
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidate.identitySerialNumber ?? ""}
+              inputValue={candidate.identitySerialNumber ?? ""}
+              label={t("common.field.identitySerialNumber")}
+              onSave={(value) =>
+                saveApplicationField({ identitySerialNumber: value.trim() || null }, t("candidateDetail.license.toast.identitySerialUpdated"))
+              }
+            />
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidate.motherName ?? ""}
+              inputValue={candidate.motherName ?? ""}
+              label={t("common.field.motherName")}
+              transform={toTurkishUpperCase}
+              onSave={(value) => saveApplicationField({ motherName: value.trim() || null }, t("candidateDetail.license.toast.motherNameUpdated"))}
+            />
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidate.fatherName ?? ""}
+              inputValue={candidate.fatherName ?? ""}
+              label={t("common.field.fatherName")}
+              transform={toTurkishUpperCase}
+              onSave={(value) => saveApplicationField({ fatherName: value.trim() || null }, t("candidateDetail.license.toast.fatherNameUpdated"))}
+            />
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidateGenderLabel(candidate.gender)}
+              inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
+              label={t("common.field.gender")}
+              options={CANDIDATE_GENDER_OPTIONS}
+              onSave={(value) =>
+                saveApplicationField({ gender: normalizeCandidateGender(value) }, t("candidateDetail.license.toast.genderUpdated"))
+              }
+            />
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={formatDateTR(candidate.birthDate)}
+              inputType="date"
+              inputValue={candidate.birthDate ?? ""}
+              label={t("common.field.birthDate")}
+              onSave={(value) => saveApplicationField({ birthDate: value || null }, t("candidateDetail.license.toast.birthDateUpdated"))}
+            />
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidate.birthPlace ?? ""}
+              inputValue={candidate.birthPlace ?? ""}
+              label={t("common.field.birthPlace")}
+              onSave={(value) =>
+                saveApplicationField({ birthPlace: value.trim() || null }, t("candidateDetail.license.toast.birthPlaceUpdated"))
+              }
+            />
+            <Field label={t("common.field.age")} value={age != null ? String(age) : "—"} />
+          </div>
+        </section>
 
-        <div className="candidate-detail-edit-list">
+      </div>
+
+      <div className="candidate-detail-license-column">
+        <section className="instructor-detail-card candidate-detail-license-card">
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.application")}</h3>
+          <div className="candidate-detail-edit-list">
+            <EditableRow
+              className="candidate-detail-license-class-row"
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={licenseClassLabel}
+              inputValue={candidate.licenseClass}
+              label={t("common.field.licenseClass")}
+              options={licenseClassOptions}
+              onSave={(value) =>
+                saveApplicationField(
+                  {
+                    licenseClass: value as CandidateResponse["licenseClass"],
+                    licenseClassDefinitionId:
+                      licenseClassOptions.find((option) => option.value === value)?.licenseClassDefinitionId ?? null,
+                  },
+                  t("candidateDetail.license.toast.licenseTypeUpdated")
+                )
+              }
+            />
+          </div>
+
+          <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
+            <span className="form-label" style={{ margin: 0 }}>
+              {t("candidateDetail.license.theoryExemption")}
+            </span>
+            <label
+              className="switch-toggle switch-toggle-knob-right"
+              title={hasExistingLicenseDraft
+                ? t("candidateDetail.license.autoExemptByLicense")
+                : t("candidateDetail.license.exemptText")}
+            >
+              <input
+                checked={isTheoryExempt}
+                disabled={exemptSaving || hasExistingLicenseDraft || !canManageCandidates}
+                onChange={toggleTheoryExempt}
+                title={!canManageCandidates ? noPermissionTitle : undefined}
+                type="checkbox"
+              />
+              <span>{isTheoryExempt ? t("candidateDetail.license.exempt") : t("candidateDetail.license.notExempt")}</span>
+              <span aria-hidden="true" className="switch-toggle-control" />
+            </label>
+          </div>
+
+          <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
+            <span className="form-label" style={{ margin: 0 }}>
+              {t("candidateDetail.license.existingLicense")}
+            </span>
+            <label className="switch-toggle switch-toggle-knob-right">
+              <input
+                checked={licenseFieldsOpen}
+                disabled={existingLicenseToggleSaving || !canManageCandidates}
+                onChange={(event) => handleToggleExistingLicense(event.target.checked)}
+                title={!canManageCandidates ? noPermissionTitle : undefined}
+                type="checkbox"
+              />
+              <span>{licenseFieldsOpen ? t("candidateDetail.license.hasIt") : t("candidateDetail.license.noneIt")}</span>
+              <span aria-hidden="true" className="switch-toggle-control" />
+            </label>
+          </div>
+
+          <div className="candidate-detail-edit-list">
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={noPermissionTitle}
@@ -2526,181 +2788,46 @@ function LicenseInfoTab({
               </div>
             ) : null}
           </div>
-      </section>
-
-      <div className="candidate-detail-registration-stack">
-        <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.registration")}</h3>
-          <div className="candidate-detail-edit-list">
-            <EditableRow
-              disabled={!canManageCandidates}
-              disabledTitle={noPermissionTitle}
-              displayValue={candidate.registrationNumber}
-              inputValue={candidate.registrationNumber}
-              label={t("candidateDetail.license.field.candidateNumber")}
-              onSave={saveRegistrationNumber}
-            />
-            <EditableRow
-              disabled={!canManageCandidates}
-              disabledTitle={noPermissionTitle}
-              displayValue={formatDateTR(candidate.createdAtUtc)}
-              inputType="date"
-              inputValue={candidate.createdAtUtc.slice(0, 10)}
-              label={t("candidateDetail.license.field.registrationDate")}
-              onSave={saveRegistrationDate}
-            />
-          </div>
         </section>
 
-        <section className="instructor-detail-card">
-          <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.reference")}</h3>
+      </div>
+
+      <div className="candidate-detail-license-column">
+        <section className="instructor-detail-card candidate-detail-license-card">
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.group")}</h3>
           <div className="candidate-detail-edit-list">
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={noPermissionTitle}
-              displayValue={candidate.referenceName ?? ""}
-              inputValue={candidate.referenceName ?? ""}
-              label={t("candidateDetail.license.field.reference")}
-              loadOptions={(signal) => loadReferenceOptions(candidate.referenceName, t, signal)}
-              onSave={(value) =>
-                saveApplicationField(
-                  { referenceName: value.trim() || null },
-                  t("candidateDetail.license.toast.referenceUpdated"),
-                )
+              displayValue={candidate.currentGroup?.title ?? t("candidateDetail.license.unassigned")}
+              inputValue={candidate.currentGroup?.groupId ?? ""}
+              label={t("candidateDetail.license.field.activeGroup")}
+              loadOptions={loadGroupOptions}
+              onSave={saveGroup}
+            />
+            <Field
+              label={t("candidateDetail.license.field.term")}
+              value={
+                candidate.currentGroup?.term
+                  ? buildTermLabel(candidate.currentGroup.term, [])
+                  : "—"
+              }
+            />
+            <Field
+              label={t("candidateDetail.license.field.groupStart")}
+              value={formatDateTR(candidate.currentGroup?.startDate ?? null)}
+            />
+            <Field
+              label="Kontenjan"
+              value={
+                groupCapacity
+                  ? `${groupCapacity.filled}/${groupCapacity.capacity}`
+                  : "—"
               }
             />
           </div>
         </section>
       </div>
-
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.group")}</h3>
-        <div className="candidate-detail-edit-list">
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidate.currentGroup?.title ?? t("candidateDetail.license.unassigned")}
-            inputValue={candidate.currentGroup?.groupId ?? ""}
-            label={t("candidateDetail.license.field.activeGroup")}
-            loadOptions={loadGroupOptions}
-            onSave={saveGroup}
-          />
-          <Field
-            label={t("candidateDetail.license.field.term")}
-            value={
-              candidate.currentGroup?.term
-                ? buildTermLabel(candidate.currentGroup.term, [])
-                : "—"
-            }
-          />
-          <Field
-            label={t("candidateDetail.license.field.groupStart")}
-            value={formatDateTR(candidate.currentGroup?.startDate ?? null)}
-          />
-          <Field
-            label="Kontenjan"
-            value={
-              groupCapacity
-                ? `${groupCapacity.filled}/${groupCapacity.capacity}`
-                : "—"
-            }
-          />
-        </div>
-        <div className="form-subsection-note" style={{ marginTop: 8 }}>
-          Yeni bir grup seçildiğinde mevcut aktif atama otomatik kapatılır. Boş seçim aktif atamayı kaldırır.
-        </div>
-      </section>
-
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.identity")}</h3>
-        <div className="candidate-detail-edit-list">
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidate.firstName}
-            inputValue={candidate.firstName}
-            label={t("common.field.firstName")}
-            transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ firstName: value.trim() }, t("candidateDetail.license.toast.firstNameUpdated"))}
-          />
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidate.lastName}
-            inputValue={candidate.lastName}
-            label={t("common.field.lastName")}
-            transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ lastName: value.trim() }, t("candidateDetail.license.toast.lastNameUpdated"))}
-          />
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidate.nationalId}
-            inputType="tel"
-            inputValue={candidate.nationalId}
-            label={t("common.field.nationalId")}
-            onSave={(value) => saveApplicationField({ nationalId: value.trim() }, t("candidateDetail.license.toast.nationalIdUpdated"))}
-          />
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidate.identitySerialNumber ?? ""}
-            inputValue={candidate.identitySerialNumber ?? ""}
-            label={t("common.field.identitySerialNumber")}
-            onSave={(value) =>
-              saveApplicationField({ identitySerialNumber: value.trim() || null }, t("candidateDetail.license.toast.identitySerialUpdated"))
-            }
-          />
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidate.motherName ?? ""}
-            inputValue={candidate.motherName ?? ""}
-            label={t("common.field.motherName")}
-            transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ motherName: value.trim() || null }, t("candidateDetail.license.toast.motherNameUpdated"))}
-          />
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidate.fatherName ?? ""}
-            inputValue={candidate.fatherName ?? ""}
-            label={t("common.field.fatherName")}
-            transform={toTurkishUpperCase}
-            onSave={(value) => saveApplicationField({ fatherName: value.trim() || null }, t("candidateDetail.license.toast.fatherNameUpdated"))}
-          />
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={candidateGenderLabel(candidate.gender)}
-            inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
-            label={t("common.field.gender")}
-            options={CANDIDATE_GENDER_OPTIONS}
-            onSave={(value) =>
-              saveApplicationField({ gender: normalizeCandidateGender(value) }, t("candidateDetail.license.toast.genderUpdated"))
-            }
-          />
-          <EditableRow
-            disabled={!canManageCandidates}
-            disabledTitle={noPermissionTitle}
-            displayValue={formatDateTR(candidate.birthDate)}
-            inputType="date"
-            inputValue={candidate.birthDate ?? ""}
-            label={t("common.field.birthDate")}
-            onSave={(value) => saveApplicationField({ birthDate: value || null }, t("candidateDetail.license.toast.birthDateUpdated"))}
-          />
-          <Field label={t("common.field.age")} value={age != null ? String(age) : "—"} />
-        </div>
-      </section>
-
-      <section className="instructor-detail-card">
-        <h3 className="candidate-detail-section-title">{t("candidateDetail.license.section.contacts")}</h3>
-        <CandidateContactsEditor
-          canManageCandidates={canManageCandidates}
-          candidate={candidate}
-          onSave={saveApplicationField}
-        />
-      </section>
     </div>
   );
 }
@@ -6759,8 +6886,15 @@ function InlineDeleteConfirm({
 }) {
   if (!open) {
     return (
-      <button className="btn btn-danger btn-sm" disabled={disabled} onClick={onRequest} type="button">
-        Sil
+      <button
+        aria-label="Sil"
+        className="icon-btn candidate-exam-delete-trigger"
+        disabled={disabled}
+        onClick={onRequest}
+        title="Sil"
+        type="button"
+      >
+        <TrashIcon size={13} />
       </button>
     );
   }
@@ -7537,10 +7671,14 @@ function DocumentsTab({
   const contractTypes = CONTRACT_GROUP_DOCUMENT_TYPE_KEYS
     .map((key) => sortedTypes.find((t) => t.key === key))
     .filter((t): t is DocumentTypeResponse => t !== undefined);
+  const a4DocumentTypes = A4_DOCUMENT_TYPE_KEYS
+    .map((key) => sortedTypes.find((t) => t.key === key))
+    .filter((t): t is DocumentTypeResponse => t !== undefined);
   const requiredTypes = sortedTypes.filter(
     (t) =>
       t.isRequired &&
       !HERO_DOCUMENT_KEYS.includes(t.key as HeroDocumentKey) &&
+      !A4_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof A4_DOCUMENT_TYPE_KEYS)[number]) &&
       !PHOTO_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]) &&
       !CONTRACT_GROUP_DOCUMENT_TYPE_KEYS.includes(
         t.key as (typeof CONTRACT_GROUP_DOCUMENT_TYPE_KEYS)[number]
@@ -7549,6 +7687,7 @@ function DocumentsTab({
   const optionalTypes = sortedTypes.filter(
     (t) =>
       !t.isRequired &&
+      !A4_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof A4_DOCUMENT_TYPE_KEYS)[number]) &&
       !PHOTO_DOCUMENT_TYPE_KEYS.includes(t.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]) &&
       !CONTRACT_GROUP_DOCUMENT_TYPE_KEYS.includes(
         t.key as (typeof CONTRACT_GROUP_DOCUMENT_TYPE_KEYS)[number]
@@ -7589,6 +7728,8 @@ function DocumentsTab({
   };
   const filteredRequiredTypes = requiredTypes.filter(matchesFilter);
   const filteredOptionalTypes = optionalTypes.filter(matchesFilter);
+  const filteredA4DocumentTypes = a4DocumentTypes.filter(matchesFilter);
+  const hasRequiredDocumentTypes = requiredTypes.length + a4DocumentTypes.length > 0;
   const pendingMebbisTypes = sortedTypes.filter((type) => {
     if (isNotApplicable(type)) return false;
     const upload = uploadsByKey.get(type.key) ?? null;
@@ -7744,15 +7885,6 @@ function DocumentsTab({
                 <div className="candidate-detail-doc-actions-bar">
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={bulkMebbisLoading || pendingMebbisTypes.length === 0 || !canManageDocuments}
-                    onClick={handleBulkMebbisTransfer}
-                    title={!canManageDocuments ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {bulkMebbisLoading ? t("candidateDetail.documents.button.marking") : t("candidateDetail.documents.button.markMebbis")}
-                  </button>
-                  <button
-                    className="btn btn-primary btn-sm"
                     disabled={candidateSyncQueuing || candidateSyncRunning || !canManageMebJobs}
                     onClick={handleQueueCandidateSync}
                     title={!canManageMebJobs ? noPermissionTitle : undefined}
@@ -7841,11 +7973,22 @@ function DocumentsTab({
         </ul>
       )}
 
-      {requiredTypes.length === 0 ? (
-        <div className="instructor-detail-empty">{t("candidateDetail.documents.emptyRequired")}</div>
-      ) : filteredRequiredTypes.length === 0 ? (
-        <div className="instructor-detail-empty">Bu filtrede zorunlu evrak yok.</div>
-      ) : (
+      {filteredA4DocumentTypes.length > 0 ? (
+        <ul className="candidate-detail-doc-list candidate-detail-doc-a4-grid">
+          {filteredA4DocumentTypes.map((type) => (
+            <DocRow
+              canManageDocuments={canManageDocuments}
+              candidateId={candidateId}
+              key={type.id}
+              onRefresh={onRefresh}
+              type={type}
+              upload={uploadsByKey.get(type.key) ?? null}
+            />
+          ))}
+        </ul>
+      ) : null}
+
+      {filteredRequiredTypes.length > 0 ? (
         <ul className="candidate-detail-doc-list">
           {filteredRequiredTypes.map((type) => (
             <DocRow
@@ -7858,7 +8001,9 @@ function DocumentsTab({
             />
           ))}
         </ul>
-      )}
+      ) : hasRequiredDocumentTypes && filteredA4DocumentTypes.length === 0 ? (
+        <div className="instructor-detail-empty">Bu filtrede zorunlu evrak yok.</div>
+      ) : null}
 
       {optionalTypes.length > 0 && (
         <section className="instructor-detail-card">
@@ -9585,11 +9730,14 @@ function DocRow({
 
 function TrainingTab({
   candidate,
+  canManageTraining,
 }: {
   candidate: CandidateResponse;
+  canManageTraining: boolean;
 }) {
   const navigate = useNavigate();
   const t = useT();
+  const noPermissionTitle = t("common.noPermission");
   const [calendarEvents, setCalendarEvents] = useState<TrainingCalendarEvent[]>([]);
   const [calendarBranches, setCalendarBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -9684,7 +9832,12 @@ function TrainingTab({
           <h3 className="candidate-detail-section-title">{t("candidateDetail.training.title")}</h3>
           <button
             className="btn btn-primary btn-sm"
-            onClick={() => navigate(`/training/uygulama?candidateId=${encodeURIComponent(candidate.id)}`)}
+            disabled={!canManageTraining}
+            onClick={() => {
+              if (!canManageTraining) return;
+              navigate(`/training/uygulama?assignCandidateId=${encodeURIComponent(candidate.id)}`);
+            }}
+            title={!canManageTraining ? noPermissionTitle : undefined}
             type="button"
           >
             {t("candidateDetail.training.scheduleDriving")}

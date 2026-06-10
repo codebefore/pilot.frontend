@@ -68,6 +68,7 @@ type GroupTermSection = {
   term: GroupResponse["term"];
   groups: GroupResponse[];
   totalCapacity: number;
+  assignedCandidateCount: number;
   activeCandidateCount: number;
 };
 
@@ -395,6 +396,7 @@ export function GroupsPage() {
       if (existing) {
         existing.groups.push(group);
         existing.totalCapacity += group.capacity;
+        existing.assignedCandidateCount += group.assignedCandidateCount;
         existing.activeCandidateCount += group.activeCandidateCount;
         return;
       }
@@ -403,6 +405,7 @@ export function GroupsPage() {
         term: group.term,
         groups: [group],
         totalCapacity: group.capacity,
+        assignedCandidateCount: group.assignedCandidateCount,
         activeCandidateCount: group.activeCandidateCount,
       });
     });
@@ -503,6 +506,9 @@ export function GroupsPage() {
   const renderTermSectionHeader = (section: GroupTermSection) => {
     const fullTerm = sortedTerms.find((term) => term.id === section.term.id);
     const licenseClassCounts = fullTerm?.licenseClassCounts ?? [];
+    const occupancyRate = section.totalCapacity > 0
+      ? Math.round((section.assignedCandidateCount / section.totalCapacity) * 100)
+      : 0;
     return (
       <div className="group-term-section-header">
         <div className="group-term-section-copy">
@@ -515,19 +521,15 @@ export function GroupsPage() {
         </div>
         <div className="group-term-section-stats">
           <div className="group-term-section-stat">
-            <strong>{section.groups.length}</strong>
-            <span>{t("groups.section.groups")}</span>
-          </div>
-          <div className="group-term-section-stat">
-            <strong>{section.totalCapacity}</strong>
+            <strong>{section.totalCapacity}/{section.assignedCandidateCount}</strong>
             <span>{t("groups.section.totalCapacity")}</span>
           </div>
           <div className="group-term-section-stat">
-            <strong>{section.activeCandidateCount}</strong>
-            <span>{t("groups.section.activeCandidates")}</span>
+            <strong>%{occupancyRate}</strong>
+            <span>{t("groups.section.occupancy")}</span>
           </div>
           {licenseClassCounts.map((entry) => (
-            <div className="group-term-section-stat" key={entry.licenseClass}>
+            <div className="group-term-section-stat group-term-section-stat-license" key={entry.licenseClass}>
               <strong>{entry.count}</strong>
               <span>{entry.licenseClass}</span>
             </div>
@@ -595,9 +597,8 @@ export function GroupsPage() {
       </div>
       <div className="group-term-section-stats">
         {[
-          t("groups.section.groups"),
           t("groups.section.totalCapacity"),
-          t("groups.section.activeCandidates"),
+          t("groups.section.occupancy"),
         ].map((label) => (
           <div className="group-term-section-stat" key={label}>
             <strong>

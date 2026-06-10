@@ -180,6 +180,10 @@ function renderPage() {
   );
 }
 
+function showBulkSelection() {
+  fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+}
+
 function renderESinavPage() {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/exams/e-sinav"]}>
@@ -814,7 +818,7 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    await screen.findByRole("columnheader", { name: "Direksiyon Sınav Ücreti Durumu" });
+    await screen.findByRole("columnheader", { name: "Sınav Ücreti Durumu" });
     expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Hak" })).toBeInTheDocument();
   });
@@ -917,8 +921,8 @@ describe("CandidatesPage tabs", () => {
         capacity: 12,
         candidateCount: 4,
         licenseClassCounts: [
-          { licenseClass: "A2", count: 1 },
           { licenseClass: "B", count: 3 },
+          { licenseClass: "B-OTOMATIK", count: 1 },
         ],
       }),
     ]);
@@ -932,21 +936,20 @@ describe("CandidatesPage tabs", () => {
 
     expect(
       await within(sidebar).findByRole("button", {
-        name: /03\.06\.2026\s*B\s*-\s*A2\s*4\/12/i,
+        name: /03\.06\.2026\s*B\s*-\s*B-O\s*4\/12/i,
       })
     ).toBeInTheDocument();
     expect(within(sidebar).queryByText("09:00")).not.toBeInTheDocument();
     expect(within(sidebar).queryByText(/B\(3\)|A2\(1\)/i)).not.toBeInTheDocument();
   });
 
-  it("renders one aggregate uygulama license summary in the tag row", async () => {
+  it("does not render aggregate uygulama license summary in the tag row", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
       pageSize: 10,
       totalCount: 8,
       totalPages: 1,
-      licenseClassCounts: [{ licenseClass: "B", count: 8 }],
     });
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-06-03", {
@@ -991,8 +994,8 @@ describe("CandidatesPage tabs", () => {
       throw new Error("tag filter bar not found");
     }
 
-    const summaryNode = await within(tagBar).findByLabelText("Ehliyet sınıfı özeti");
-    await waitFor(() => expect(summaryNode).toHaveTextContent("B(8) A2(0)"));
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+    expect(within(tagBar).queryByLabelText("Ehliyet sınıfı özeti")).not.toBeInTheDocument();
     expect(within(tagBar).queryByText(/\(2\/10\)\s*B\(2\)/i)).not.toBeInTheDocument();
   });
 
@@ -1296,7 +1299,7 @@ describe("CandidatesPage tabs", () => {
     renderUygulamaPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    await screen.findByRole("columnheader", { name: "Direksiyon Sınav Ücreti Durumu" });
+    await screen.findByRole("columnheader", { name: "Sınav Ücreti Durumu" });
     expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Hak" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Sınav Durumu" })).toBeInTheDocument();
@@ -1313,7 +1316,7 @@ describe("CandidatesPage tabs", () => {
     expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
     expect(within(picker).queryByText(/^Sınav Durumu$/)).not.toBeInTheDocument();
     expect(within(picker).queryByText(/^Sınav Sonucu$/)).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Direksiyon Sınav Ücreti Durumu")).not.toBeInTheDocument();
+    expect(within(picker).queryByText("Sınav Ücreti Durumu")).not.toBeInTheDocument();
   });
 
   it("shows driving exam status columns after attempt count on the uygulama failed tab", async () => {
@@ -1329,15 +1332,15 @@ describe("CandidatesPage tabs", () => {
         "Hak",
         "Sınav Durumu",
         "Sınav Sonucu",
-        "Direksiyon Sınav Ücreti Durumu",
+        "Sınav Ücreti Durumu",
         "Son Sınav Tarihi",
         "Son Sınav Kodu",
       ])
     );
     expect(headers.indexOf("Sınav Durumu")).toBe(headers.indexOf("Hak") + 1);
     expect(headers.indexOf("Sınav Sonucu")).toBe(headers.indexOf("Sınav Durumu") + 1);
-    expect(headers.indexOf("Direksiyon Sınav Ücreti Durumu")).toBe(headers.indexOf("Sınav Sonucu") + 1);
-    expect(headers.indexOf("Son Sınav Tarihi")).toBe(headers.indexOf("Direksiyon Sınav Ücreti Durumu") + 1);
+    expect(headers.indexOf("Sınav Ücreti Durumu")).toBe(headers.indexOf("Sınav Sonucu") + 1);
+    expect(headers.indexOf("Son Sınav Tarihi")).toBe(headers.indexOf("Sınav Ücreti Durumu") + 1);
     expect(headers.indexOf("Son Sınav Kodu")).toBe(headers.indexOf("Son Sınav Tarihi") + 1);
   });
 
@@ -2185,13 +2188,18 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Ayse Demir");
 
-    expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toplu Seçim" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Yeni Aday" })).toBeInTheDocument();
     expect(screen.queryByText("0 seçili")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Ayse Demir seç" })).not.toBeInTheDocument();
+
+    showBulkSelection();
+
     expect(
       screen.getByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })
     ).toBeInTheDocument();
@@ -2241,6 +2249,7 @@ describe("CandidatesPage tabs", () => {
     expect(await screen.findByText("Önce en az bir aday seç")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
 
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
 
@@ -2325,6 +2334,7 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum seç" }));
@@ -2367,6 +2377,7 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
 
@@ -2434,6 +2445,7 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
 
     const selectAll = screen.getByRole("checkbox", {
       name: "Bu sayfadaki tüm adayları seç",
@@ -2483,6 +2495,7 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
     fireEvent.change(screen.getByLabelText("Toplu durum seç"), {
@@ -2570,6 +2583,7 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Mehmet Kaya seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Gruba Aktar" }));
@@ -2628,6 +2642,7 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Etiket Ekle" }));
 
@@ -3240,6 +3255,7 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
 
@@ -3415,7 +3431,7 @@ describe("CandidatesPage filter panel", () => {
     // Inputs inside the panel are not rendered while collapsed.
     expect(screen.queryByLabelText(/^Ad$/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
 
     // After toggling the panel, individual inputs become available.
     expect(screen.getByPlaceholderText("Ad")).toBeInTheDocument();
@@ -3427,7 +3443,7 @@ describe("CandidatesPage filter panel", () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
 
     const firstNameInput = screen.getByPlaceholderText("Ad") as HTMLInputElement;
 
@@ -3447,7 +3463,7 @@ describe("CandidatesPage filter panel", () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
 
     const firstNameInput = screen.getByPlaceholderText("Ad") as HTMLInputElement;
 
@@ -3474,7 +3490,7 @@ describe("CandidatesPage filter panel", () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
 
     const hasPhotoSelect = screen.getByLabelText(
       "Fotoğrafı Var"
@@ -3512,7 +3528,7 @@ describe("CandidatesPage filter panel", () => {
     });
 
     // Open the panel and change a filter — page should reset to 1.
-    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
     const nationalIdInput = screen.getByPlaceholderText(
       "TC Kimlik"
     ) as HTMLInputElement;
@@ -3532,7 +3548,7 @@ describe("CandidatesPage filter panel", () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
 
     const firstNameInput = screen.getByPlaceholderText("Ad") as HTMLInputElement;
     fireEvent.change(firstNameInput, { target: { value: "Ayse" } });
@@ -3554,7 +3570,7 @@ describe("CandidatesPage filter panel", () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Filtreler/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
 
     // The filter panel exposes the gender select via an accessible name that
     // matches the Turkish column header ("Cinsiyet").
@@ -3742,6 +3758,7 @@ describe("CandidatesPage bulk status update", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
+    showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Durum Değiştir" }));
     fireEvent.change(screen.getByLabelText("Toplu durum seç"), {

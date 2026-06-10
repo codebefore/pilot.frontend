@@ -11,6 +11,7 @@ type EditableRowProps = {
   label: string;
   displayValue: string;
   inputValue: string;
+  className?: string;
   inputType?: string;
   inputLang?: string;
   disabled?: boolean;
@@ -29,6 +30,7 @@ export function EditableRow({
   label,
   displayValue,
   inputValue,
+  className,
   inputType = "text",
   inputLang,
   disabled = false,
@@ -113,7 +115,7 @@ export function EditableRow({
   const isSelect = !!(staticOptions || loadOptions);
 
   return (
-    <div className="drawer-row editable-row">
+    <div className={["drawer-row editable-row", className].filter(Boolean).join(" ")}>
       {!editing && <span className="label">{label}</span>}
       {editing ? (
         <span className="editable-row-edit">

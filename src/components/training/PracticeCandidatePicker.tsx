@@ -1,84 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { MebIcon } from "../icons";
 import { useT, currentLocale } from "../../lib/i18n";
 import {
-  getCandidates,
-  type CandidateSortField,
-  type SortDirection,
-} from "../../lib/candidates-api";
-import type { TrainingCalendarEvent } from "../../lib/training-calendar";
-import type { CandidateResponse } from "../../lib/types";
-import { CandidateAvatar } from "../ui/CandidateAvatar";
+  getPracticeCandidates,
+  type PracticeCandidateListItem,
+  type PracticeCandidateTab,
+} from "../../lib/practice-candidates-api";
 
 type PracticeCandidatePickerProps = {
-  /** Sayfanın tüm uygulama event'leri — kart başına saat toplamak için. */
-  events: TrainingCalendarEvent[];
-  /** Bulk yönlendirme ile gelinen aday kümesi; varsa fetch yerine
-   *  sadece bu ID'ler frontend'de filtrelenir. */
-  scopedCandidateIds?: readonly string[];
-  /** Kart tıklanınca QA'ya yazılır. İkinci argüman seçilen aday object'i —
-   *  parent'ın kendi candidates listesinde olmasa bile sidebar'da
-   *  gösterebilmesi için. */
-  onPick: (candidateId: string, candidate: CandidateResponse) => void;
-  /** Bulk scope aktifken üstte çıkan "Tümünü göster" linki için. */
-  onClearScope?: () => void;
+  onAssign: (candidateId: string) => void;
 };
 
-const DEFAULT_TARGET = 16;
 const SEARCH_DEBOUNCE_MS = 300;
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
 
-// Frontend-only sıralama anahtarları (backend'de yok, lokal hesap).
-type LocalSortField = "progress" | "lastLesson";
-// Tüm sıralanabilir kolon anahtarları.
-type SortField = CandidateSortField | LocalSortField;
+const tabs: PracticeCandidateTab[] = ["all", "havuz", "basarisiz", "randevulu"];
 
-const BACKEND_SORT_FIELDS: ReadonlySet<SortField> = new Set<SortField>([
-  "name",
-  "licenseClass",
-  "groupTitle",
-]);
-
-type StageFilter = "all" | "fresh" | "failed";
-
-// Backend `appointmentStatusLabel` üzerinden filtre:
-// - "Havuz (1/4)..." → hiç practice attempt yok = aday "Yeni"
-// - "Havuz/Başarısız..." → son sınavı başarısız = "Başarısız"
-// Diğerleri (Randevulu, Havuz (2+/4)) iki tab'da da yer almaz; "Tümü"
-// modunda görünür. Mezun/Dosya Yakıldı listede zaten yok (status=active).
-function matchesStageFilter(
-  candidate: CandidateResponse,
-  filter: StageFilter
-): boolean {
-  if (filter === "all") return true;
-  const label = candidate.appointmentStatusLabel ?? "";
-  if (filter === "failed") return label.startsWith("Havuz/Başarısız");
-  // "fresh": hiç practice attempt yok — etiket "Havuz (1/4)" ile başlar.
-  return label.startsWith("Havuz (1/4)");
-}
-
-function hoursOfEvent(e: TrainingCalendarEvent): number {
-  return (e.end.getTime() - e.start.getTime()) / (60 * 60 * 1000);
-}
-
-export function PracticeCandidatePicker({
-  events,
-  scopedCandidateIds,
-  onPick,
-  onClearScope,
-}: PracticeCandidatePickerProps) {
+export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerProps) {
   const t = useT();
+  const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sort, setSort] = useState<{
-    field: SortField;
-    direction: SortDirection;
-  }>({ field: "progress", direction: "desc" });
-
-  const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
+  const [tab, setTab] = useState<PracticeCandidateTab>("all");
+  const [page, setPage] = useState(1);
+  const [items, setItems] = useState<PracticeCandidateListItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [stageFilter, setStageFilter] = useState<StageFilter>("all");
-
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     try {
       const stored = localStorage.getItem("pilot.training.pickerView");
@@ -87,6 +37,49 @@ export function PracticeCandidatePicker({
       return "grid";
     }
   });
+
+  useEffect(() => {
+    const id = window.setTimeout(
+      () => setDebouncedSearch(searchInput),
+      SEARCH_DEBOUNCE_MS
+    );
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, tab]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    getPracticeCandidates(
+      {
+        tab,
+        search: debouncedSearch.trim() || undefined,
+        page,
+        pageSize: PAGE_SIZE,
+      },
+      controller.signal
+    )
+      .then((response) => {
+        setItems(response.items);
+        setTotalCount(response.totalCount);
+        setTotalPages(response.totalPages);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error(error);
+        setItems([]);
+        setTotalCount(0);
+        setTotalPages(0);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [debouncedSearch, page, tab]);
+
   const switchView = (next: "grid" | "list") => {
     setViewMode(next);
     try {
@@ -96,107 +89,11 @@ export function PracticeCandidatePicker({
     }
   };
 
-  const scopeActive = (scopedCandidateIds?.length ?? 0) > 0;
-
-  // Debounce: kullanıcı yazarken her keystroke'ta backend çağırma.
-  useEffect(() => {
-    const id = window.setTimeout(
-      () => setDebouncedSearch(searchInput),
-      SEARCH_DEBOUNCE_MS
-    );
-    return () => window.clearTimeout(id);
-  }, [searchInput]);
-
-  // Backend'den aktif aday listesi. Sıralama backend destekliyse
-  // sortBy/sortDir gönderilir; aksi halde local sort uygulanır.
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    const sendSort = BACKEND_SORT_FIELDS.has(sort.field);
-    getCandidates(
-      {
-        status: "active",
-        search: debouncedSearch.trim() || undefined,
-        page: 1,
-        pageSize: PAGE_SIZE,
-        sortBy: sendSort ? (sort.field as CandidateSortField) : undefined,
-        sortDir: sendSort ? sort.direction : undefined,
-      },
-      controller.signal
-    )
-      .then((response) => setCandidates(response.items))
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        console.error(error);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [debouncedSearch, sort.field, sort.direction]);
-
-  // Aday başına verilen uygulama saati ve son ders.
-  type CardData = {
-    candidate: CandidateResponse;
-    hours: number;
-    target: number;
-    lastLessonAt: Date | null;
-  };
-  const cards: CardData[] = useMemo(() => {
-    const eventsByCandidate = new Map<string, TrainingCalendarEvent[]>();
-    for (const e of events) {
-      if (e.kind !== "uygulama" || !e.candidateId) continue;
-      const list = eventsByCandidate.get(e.candidateId) ?? [];
-      list.push(e);
-      eventsByCandidate.set(e.candidateId, list);
-    }
-    const scoped = scopeActive
-      ? candidates.filter((c) => scopedCandidateIds!.includes(c.id))
-      : candidates;
-    const base = scoped.filter((c) => matchesStageFilter(c, stageFilter));
-    return base.map((c) => {
-      const own = eventsByCandidate.get(c.id) ?? [];
-      const hours = own.reduce((sum, e) => sum + hoursOfEvent(e), 0);
-      const target = c.educationPlan?.practiceLessonHours ?? DEFAULT_TARGET;
-      const lastLessonAt = own.reduce<Date | null>(
-        (acc, e) => (acc && acc > e.start ? acc : e.start),
-        null
-      );
-      return { candidate: c, hours, target, lastLessonAt };
-    });
-  }, [
-    candidates,
-    events,
-    scopeActive,
-    scopedCandidateIds,
-    stageFilter,
-  ]);
-
-  // Local sort (progress, lastLesson) — backend'de yok, frontend uygular.
-  // Backend sıralı kolon seçildiyse bu blok sırayı değiştirmez (default
-  // index sırası backend'den geliyor).
-  const sortedCards = useMemo(() => {
-    if (BACKEND_SORT_FIELDS.has(sort.field)) return cards;
-    const dirMul = sort.direction === "desc" ? -1 : 1;
-    return cards.slice().sort((a, b) => {
-      if (sort.field === "progress") {
-        // "İlerleme" — kalan saat çok olan üstte (default: desc).
-        const aRem = a.target - a.hours;
-        const bRem = b.target - b.hours;
-        return (aRem - bRem) * dirMul;
-      }
-      if (sort.field === "lastLesson") {
-        const aTs = a.lastLessonAt?.getTime() ?? -Infinity;
-        const bTs = b.lastLessonAt?.getTime() ?? -Infinity;
-        return (aTs - bTs) * dirMul;
-      }
-      return 0;
-    });
-  }, [cards, sort]);
-
-  const formatLastLesson = (d: Date | null) => {
-    if (!d) return null;
-    return d.toLocaleString(currentLocale(), {
+  const formatDateTime = (value: string | null) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString(currentLocale(), {
       day: "2-digit",
       month: "short",
       hour: "2-digit",
@@ -204,31 +101,40 @@ export function PracticeCandidatePicker({
     });
   };
 
-  const cycleSort = (field: SortField) => {
-    setSort((prev) => {
-      if (prev.field !== field) {
-        // Yeni alana geçiş: progress için default desc (en kalan üstte),
-        // diğerleri için asc.
-        return {
-          field,
-          direction: field === "progress" ? "desc" : "asc",
-        };
-      }
-      return {
-        field,
-        direction: prev.direction === "asc" ? "desc" : "asc",
-      };
+  const tabLabel = (value: PracticeCandidateTab) => {
+    if (value === "all") return t("training.picker.stage.all");
+    if (value === "havuz") return t("training.picker.stage.havuz");
+    if (value === "basarisiz") return t("training.picker.stage.failed");
+    return t("training.picker.stage.randevulu");
+  };
+
+  const currentColumns = useMemo(() => {
+    return [
+      t("training.picker.col.name"),
+      t("training.picker.col.licenseClass"),
+      t("training.picker.col.group"),
+      t("training.picker.col.attempt"),
+      t("training.picker.col.progress"),
+      t("training.picker.col.lastLesson"),
+    ];
+  }, [t]);
+
+  const openCandidate = (candidateId: string) => {
+    navigate(`/candidates/${candidateId}`, {
+      state: {
+        returnLabel: "← Direksiyon sayfasına dön",
+        returnTo: "/training/uygulama",
+      },
     });
   };
 
-  const sortIndicator = (field: SortField) => {
-    if (sort.field !== field) return "";
-    return sort.direction === "asc" ? " ▲" : " ▼";
+  const assignCandidate = (event: MouseEvent, candidateId: string) => {
+    event.stopPropagation();
+    onAssign(candidateId);
   };
 
-  const ariaSort = (field: SortField): "ascending" | "descending" | "none" => {
-    if (sort.field !== field) return "none";
-    return sort.direction === "asc" ? "ascending" : "descending";
+  const formatHours = (value: number) => {
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
   };
 
   return (
@@ -239,7 +145,7 @@ export function PracticeCandidatePicker({
           <span className="practice-picker-subtitle">
             {loading
               ? t("training.picker.loading")
-              : t("training.picker.subtitle", { count: sortedCards.length })}
+              : t("training.picker.subtitle", { count: totalCount })}
           </span>
         </div>
         <div className="practice-picker-header-actions">
@@ -271,15 +177,6 @@ export function PracticeCandidatePicker({
               ☰
             </button>
           </div>
-          {scopeActive && onClearScope ? (
-            <button
-              className="practice-picker-clear"
-              onClick={onClearScope}
-              type="button"
-            >
-              {t("training.quick.scopeClear")}
-            </button>
-          ) : null}
         </div>
       </header>
 
@@ -292,25 +189,25 @@ export function PracticeCandidatePicker({
           value={searchInput}
         />
         <div className="practice-picker-stage-tabs" role="tablist">
-          {(["all", "fresh", "failed"] as const).map((value) => (
+          {tabs.map((value) => (
             <button
-              aria-pressed={stageFilter === value}
+              aria-pressed={tab === value}
               className={
-                stageFilter === value
+                tab === value
                   ? "practice-picker-stage-tab is-active"
                   : "practice-picker-stage-tab"
               }
               key={value}
-              onClick={() => setStageFilter(value)}
+              onClick={() => setTab(value)}
               type="button"
             >
-              {t(`training.picker.stage.${value}`)}
+              {tabLabel(value)}
             </button>
           ))}
         </div>
       </div>
 
-      {sortedCards.length === 0 ? (
+      {items.length === 0 ? (
         <div className="practice-picker-empty">
           {loading ? t("training.picker.loading") : t("training.picker.empty")}
         </div>
@@ -318,197 +215,167 @@ export function PracticeCandidatePicker({
         <table className="practice-picker-table">
           <thead>
             <tr>
-              <th
-                aria-sort={ariaSort("name")}
-                className="practice-picker-th-sort"
-                onClick={() => cycleSort("name")}
-              >
-                {t("training.picker.col.name")}
-                {sortIndicator("name")}
-              </th>
-              <th
-                aria-sort={ariaSort("licenseClass")}
-                className="practice-picker-th-sort"
-                onClick={() => cycleSort("licenseClass")}
-              >
-                {t("training.picker.col.licenseClass")}
-                {sortIndicator("licenseClass")}
-              </th>
-              <th
-                aria-sort={ariaSort("groupTitle")}
-                className="practice-picker-th-sort"
-                onClick={() => cycleSort("groupTitle")}
-              >
-                {t("training.picker.col.group")}
-                {sortIndicator("groupTitle")}
-              </th>
-              <th
-                aria-sort={ariaSort("progress")}
-                className="practice-picker-th-sort"
-                onClick={() => cycleSort("progress")}
-              >
-                {t("training.picker.col.progress")}
-                {sortIndicator("progress")}
-              </th>
-              <th
-                aria-sort={ariaSort("lastLesson")}
-                className="practice-picker-th-sort"
-                onClick={() => cycleSort("lastLesson")}
-              >
-                {t("training.picker.col.lastLesson")}
-                {sortIndicator("lastLesson")}
-              </th>
-              <th>{t("training.picker.col.phone")}</th>
+              {currentColumns.map((column) => (
+                <th key={column}>{column}</th>
+              ))}
+              <th>{t("training.picker.col.assign")}</th>
             </tr>
           </thead>
           <tbody>
-            {sortedCards.map(({ candidate, hours, target, lastLessonAt }) => {
-              const remaining = Math.max(0, target - hours);
-              const ratio = target > 0 ? Math.min(1, hours / target) : 0;
-              const done = remaining <= 0;
-              const almost = !done && remaining <= 4;
-              return (
-                <tr
-                  className="practice-picker-row"
-                  key={candidate.id}
-                  onClick={() => onPick(candidate.id, candidate)}
-                >
-                  <td className="practice-picker-row-name">
-                    <CandidateAvatar
-                      candidate={candidate}
-                      className="practice-picker-card-avatar"
-                    />
-                    <span>
-                      {candidate.firstName} {candidate.lastName}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="license-class-badge">
-                      {candidate.licenseClass}
-                    </span>
-                  </td>
-                  <td className="practice-picker-row-muted">
-                    {candidate.currentGroup?.title ?? "—"}
-                  </td>
-                  <td>
-                    <div className="practice-picker-row-progress">
-                      <div
-                        aria-hidden="true"
-                        className={
-                          done
-                            ? "practice-picker-bar practice-picker-bar-done"
-                            : almost
-                              ? "practice-picker-bar practice-picker-bar-almost"
-                              : "practice-picker-bar"
-                        }
-                      >
-                        <div
-                          className="practice-picker-bar-fill"
-                          style={{ width: `${ratio * 100}%` }}
-                        />
-                      </div>
-                      <span
-                        className={
-                          done
-                            ? "practice-picker-progress-text practice-picker-progress-text-done"
-                            : "practice-picker-progress-text"
-                        }
-                      >
-                        {Math.round(hours * 10) / 10} / {target}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="practice-picker-row-muted">
-                    {lastLessonAt ? formatLastLesson(lastLessonAt) : "—"}
-                  </td>
-                  <td className="practice-picker-row-muted">
-                    {candidate.phoneNumber ?? "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      ) : (
-        <ul className="practice-picker-grid">
-          {sortedCards.map(({ candidate, hours, target, lastLessonAt }) => {
-            const remaining = Math.max(0, target - hours);
-            const ratio = target > 0 ? Math.min(1, hours / target) : 0;
-            const done = remaining <= 0;
-            const almost = !done && remaining <= 4;
-            return (
-              <li key={candidate.id}>
-                <button
-                  className="practice-picker-card"
-                  onClick={() => onPick(candidate.id, candidate)}
-                  type="button"
-                >
-                  <div className="practice-picker-card-head">
-                    <CandidateAvatar
-                      candidate={candidate}
-                      className="practice-picker-card-avatar"
-                    />
-                    <div className="practice-picker-card-name">
-                      <strong>
-                        {candidate.firstName} {candidate.lastName}
-                      </strong>
-                      <span className="license-class-badge">
-                        {candidate.licenseClass}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="practice-picker-card-progress">
+            {items.map((candidate) => (
+              <tr
+                className="practice-picker-row"
+                key={candidate.candidateId}
+                onClick={() => openCandidate(candidate.candidateId)}
+              >
+                <td className="practice-picker-row-name">
+                  <span>
+                    {candidate.fullName}
+                    <small>{candidate.registrationNumber}</small>
+                  </span>
+                </td>
+                <td>
+                  <span className="license-class-badge">
+                    {candidate.licenseClass}
+                  </span>
+                </td>
+                <td className="practice-picker-row-muted">
+                  {candidate.groupTitle ?? "—"}
+                </td>
+                <td>
+                  <span className="practice-picker-attempt-badge">
+                    {candidate.attemptSlotLabel}
+                  </span>
+                </td>
+                <td>
+                  <div className="practice-picker-row-progress">
                     <div
                       aria-hidden="true"
                       className={
-                        done
+                        candidate.remainingPracticeHours <= 0
                           ? "practice-picker-bar practice-picker-bar-done"
-                          : almost
+                          : candidate.remainingPracticeHours <= 4
                             ? "practice-picker-bar practice-picker-bar-almost"
                             : "practice-picker-bar"
                       }
                     >
                       <div
                         className="practice-picker-bar-fill"
-                        style={{ width: `${ratio * 100}%` }}
+                        style={{
+                          width: `${
+                            candidate.targetPracticeHours > 0
+                              ? Math.min(
+                                  100,
+                                  (candidate.completedPracticeHours / candidate.targetPracticeHours) * 100
+                                )
+                              : 0
+                          }%`,
+                        }}
                       />
                     </div>
-                    <span
-                      className={
-                        done
-                          ? "practice-picker-progress-text practice-picker-progress-text-done"
-                          : "practice-picker-progress-text"
-                      }
-                    >
-                      {Math.round(hours * 10) / 10} / {target}
+                    <span className="practice-picker-progress-text">
+                      {formatHours(candidate.completedPracticeHours)} / {formatHours(candidate.targetPracticeHours)}
                     </span>
                   </div>
-
-                  <div className="practice-picker-card-meta">
-                    {lastLessonAt ? (
-                      <span>
-                        {t("training.picker.lastLesson", {
-                          at: formatLastLesson(lastLessonAt) ?? "",
-                        })}
-                      </span>
-                    ) : (
-                      <span className="practice-picker-card-meta-muted">
-                        {t("training.picker.noLessonsYet")}
-                      </span>
-                    )}
-                    {almost ? (
-                      <span className="practice-picker-card-tag">
-                        {t("training.picker.almostDone", { remaining })}
-                      </span>
-                    ) : null}
+                </td>
+                <td className="practice-picker-row-muted">
+                  {formatDateTime(candidate.lastPracticeLessonAt)}
+                </td>
+                <td className="practice-picker-action-cell">
+                  <button
+                    aria-label={t("training.picker.assignCandidate", {
+                      name: candidate.fullName,
+                    })}
+                    className="practice-picker-assign-btn"
+                    onClick={(event) => assignCandidate(event, candidate.candidateId)}
+                    type="button"
+                  >
+                    <MebIcon size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <ul className="practice-picker-grid">
+          {items.map((candidate) => (
+            <li key={candidate.candidateId}>
+              <div
+                className="practice-picker-card"
+                onClick={() => openCandidate(candidate.candidateId)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openCandidate(candidate.candidateId);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="practice-picker-card-head">
+                  <div className="practice-picker-card-name">
+                    <strong>{candidate.fullName}</strong>
+                    <span className="license-class-badge">
+                      {candidate.licenseClass}
+                    </span>
                   </div>
-                </button>
-              </li>
-            );
-          })}
+                  <button
+                    aria-label={t("training.picker.assignCandidate", {
+                      name: candidate.fullName,
+                    })}
+                    className="practice-picker-assign-btn"
+                    onClick={(event) => assignCandidate(event, candidate.candidateId)}
+                    type="button"
+                  >
+                    <MebIcon size={16} />
+                  </button>
+                </div>
+
+                <div className="practice-picker-card-progress">
+                  <span>
+                    {candidate.completedPracticeHours} / {candidate.targetPracticeHours}
+                  </span>
+                  <span>{candidate.attemptSlotLabel}</span>
+                </div>
+
+                <div className="practice-picker-card-meta">
+                  <span>{candidate.groupTitle ?? "—"}</span>
+                  <span>
+                    {candidate.lastPracticeLessonAt
+                      ? t("training.picker.lastLesson", {
+                          at: formatDateTime(candidate.lastPracticeLessonAt),
+                        })
+                      : t("training.picker.noLessonsYet")}
+                  </span>
+                </div>
+              </div>
+            </li>
+          ))}
         </ul>
       )}
+
+      {totalPages > 1 ? (
+        <div className="practice-picker-pagination">
+          <button
+            disabled={page <= 1 || loading}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            type="button"
+          >
+            {t("common.prev")}
+          </button>
+          <span>
+            {page} / {totalPages}
+          </span>
+          <button
+            disabled={page >= totalPages || loading}
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+            type="button"
+          >
+            {t("common.next")}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

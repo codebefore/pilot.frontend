@@ -29,14 +29,13 @@ export function ExamUygulamaPage() {
         examType: "uygulama",
         field: "drivingExamDate",
         showLicenseClassInHeader: true,
-        showLicenseClassTotalSummary: true,
         showTime: false,
         summaryMode: "capacity",
         title: t("candidates.col.drivingExamDate"),
       }}
       groupColumnMode="term"
       showBulkGroupAction={false}
-      showBulkStatusAction={false}
+      showBulkStatusAction={true}
       showCreateCandidateAction={false}
       showFiltersAction={false}
       tabConfig={{

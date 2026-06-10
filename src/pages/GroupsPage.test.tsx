@@ -361,7 +361,7 @@ describe("GroupsPage", () => {
             name: null,
           },
           capacity: 20,
-          assignedCandidateCount: 4,
+          assignedCandidateCount: 5,
           activeCandidateCount: 4,
           startDate: "2026-04-10",
           mebStatus: "sent",
@@ -379,7 +379,7 @@ describe("GroupsPage", () => {
             name: null,
           },
           capacity: 10,
-          assignedCandidateCount: 2,
+          assignedCandidateCount: 3,
           activeCandidateCount: 2,
           startDate: "2026-04-12",
           mebStatus: "not_sent",
@@ -423,11 +423,18 @@ describe("GroupsPage", () => {
     const primarySectionQueries = within(primarySection);
 
     expect(screen.getByRole("heading", { name: "NİSAN 2026 / 2 - EK DÖNEM" })).toBeInTheDocument();
-    expect(primarySectionQueries.getByText("Toplam Kontenjan")).toBeInTheDocument();
-    expect(primarySectionQueries.getByText("Aktif Aday")).toBeInTheDocument();
-    expect(primarySectionQueries.getByText("30")).toBeInTheDocument();
-    expect(primarySectionQueries.getByText("6")).toBeInTheDocument();
-    expect(primarySectionQueries.getByText("2")).toBeInTheDocument();
+    const primarySectionStats = primarySection.querySelector(".group-term-section-stats") as HTMLElement | null;
+    expect(primarySectionStats).not.toBeNull();
+    if (!primarySectionStats) {
+      throw new Error("Expected primary section stats");
+    }
+    expect(within(primarySectionStats).getByText("Kontenjan")).toBeInTheDocument();
+    expect(within(primarySectionStats).getByText("Doluluk")).toBeInTheDocument();
+    expect(within(primarySectionStats).queryByText("Aktif Aday")).not.toBeInTheDocument();
+    expect(primarySectionQueries.getByText("30/8")).toBeInTheDocument();
+    expect(primarySectionQueries.getByText("%27")).toBeInTheDocument();
+    expect(primarySectionQueries.getByText("2 grup")).toBeInTheDocument();
+    expect(primarySectionQueries.queryByText("Grup")).not.toBeInTheDocument();
     expect(screen.getByText("NİSAN 2026 - 1A")).toBeInTheDocument();
     expect(screen.getByText("NİSAN 2026 - 1B")).toBeInTheDocument();
     expect(screen.getByText("NİSAN 2026 / 2 - 2A")).toBeInTheDocument();

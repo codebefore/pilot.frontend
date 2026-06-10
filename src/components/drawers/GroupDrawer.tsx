@@ -25,7 +25,7 @@ import {
   GROUP_MEB_STATUS_OPTIONS,
   normalizeGroupMebStatusValue,
 } from "../../lib/status-maps";
-import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import type {
   GroupDetailResponse,
@@ -38,7 +38,6 @@ import { PageLoadError } from "../ui/PageLoadError";
 import { CustomSelect } from "../ui/CustomSelect";
 import { EditableRow } from "../ui/EditableRow";
 import { PanelListSkeleton } from "../ui/Skeleton";
-import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
 type GroupDrawerProps = {
@@ -142,18 +141,6 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   }, [groupId]);
 
   const sortedTerms = useMemo(() => [...terms].sort(compareTermsDesc), [terms]);
-
-  const termOptions: SelectOption[] = useMemo(() => {
-    if (sortedTerms.length === 0 && group) {
-      // Ensure the current term is always selectable even before the catalog
-      // finishes loading.
-      return [{ value: group.term.id, label: buildTermLabel(group.term, [group.term], lang) }];
-    }
-    return sortedTerms.map((term) => ({
-      value: term.id,
-      label: buildTermLabel(term, sortedTerms, lang),
-    }));
-  }, [sortedTerms, group, lang]);
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -381,15 +368,6 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                   groupBranch,
                 })
               }
-            />
-            <EditableRow
-              displayValue={buildTermLabel(group.term, sortedTerms, lang)}
-              inputValue={group.term.id}
-              label={t("groupDrawer.field.term")}
-              disabled={!canManageGroups}
-              disabledTitle={noPermissionTitle}
-              options={termOptions}
-              onSave={(v) => saveField({ termId: v })}
             />
             <EditableRow
               displayValue={String(group.capacity)}

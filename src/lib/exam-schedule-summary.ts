@@ -1,7 +1,6 @@
-import type { ExamScheduleLicenseClassCount, ExamScheduleOption } from "./types";
+import type { ExamScheduleOption } from "./types";
 
 const LICENSE_CLASS_ORDER = ["B", "A2", "C", "D", "E"];
-const DRIVING_SUMMARY_LICENSE_CLASSES = ["B", "A2"];
 
 function getLicenseClassSortIndex(licenseClass: string): number {
   const index = LICENSE_CLASS_ORDER.findIndex(
@@ -14,6 +13,17 @@ function getLicenseClassSortIndex(licenseClass: string): number {
 function compareLicenseClasses(left: string, right: string): number {
   const sortIndex = getLicenseClassSortIndex(left) - getLicenseClassSortIndex(right);
   return sortIndex !== 0 ? sortIndex : left.localeCompare(right, "tr");
+}
+
+function formatLicenseClassHeaderCode(licenseClass: string): string {
+  return licenseClass
+    .split("-")
+    .map((part, index) => {
+      const trimmed = part.trim();
+      return index === 0 || trimmed.length <= 2 ? trimmed : trimmed[0] ?? trimmed;
+    })
+    .filter(Boolean)
+    .join("-");
 }
 
 export function formatExamScheduleLicenseClassSummary(option: ExamScheduleOption): string {
@@ -34,37 +44,6 @@ export function formatExamScheduleLicenseClassHeader(option: ExamScheduleOption)
     .filter((entry) => entry.count > 0)
     .slice()
     .sort((left, right) => compareLicenseClasses(left.licenseClass, right.licenseClass))
-    .map((entry) => entry.licenseClass)
+    .map((entry) => formatLicenseClassHeaderCode(entry.licenseClass))
     .join(" - ");
-}
-
-export function formatLicenseClassTotalSummary(
-  licenseClassCounts: ExamScheduleLicenseClassCount[]
-): string {
-  return buildLicenseClassTotalSummaryItems(licenseClassCounts)
-    .map((entry) => `${entry.licenseClass}(${entry.count})`)
-    .join(" ");
-}
-
-export function buildLicenseClassTotalSummaryItems(
-  licenseClassCounts: ExamScheduleLicenseClassCount[]
-): ExamScheduleLicenseClassCount[] {
-  const totals = new Map<string, number>();
-
-  for (const entry of licenseClassCounts) {
-    totals.set(entry.licenseClass, (totals.get(entry.licenseClass) ?? 0) + entry.count);
-  }
-
-  for (const licenseClass of DRIVING_SUMMARY_LICENSE_CLASSES) {
-    if (!totals.has(licenseClass)) {
-      totals.set(licenseClass, 0);
-    }
-  }
-
-  return Array.from(totals.entries())
-    .map<ExamScheduleLicenseClassCount>(([licenseClass, count]) => ({ licenseClass, count }))
-    .filter(
-      (entry) => entry.count > 0 || DRIVING_SUMMARY_LICENSE_CLASSES.includes(entry.licenseClass)
-    )
-    .sort((left, right) => compareLicenseClasses(left.licenseClass, right.licenseClass));
 }

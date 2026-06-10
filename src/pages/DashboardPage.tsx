@@ -8,7 +8,7 @@ import { PanelListSkeleton } from "../components/ui/Skeleton";
 import { TaskItem } from "../components/ui/TaskItem";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
-import { getCandidates, type GetCandidatesParams } from "../lib/candidates-api";
+import { getCandidates, type CandidateExamTabValue } from "../lib/candidates-api";
 import { getDashboardOverview } from "../lib/stats-api";
 import {
   mergeLicenseClassOptionsWithValues,
@@ -29,8 +29,9 @@ const DASHBOARD_ACTIVE_MEB_JOB_REFRESH_MS = 5000;
 type DashboardSummaryCard = {
   key: string;
   label: string;
-  value: string;
-  meta: string;
+  value: ReactNode;
+  valueVariant?: "single" | "stats";
+  countLabel: string;
   icon: ReactNode;
   tone: "brand" | "orange" | "blue" | "purple";
 };
@@ -38,6 +39,14 @@ type DashboardSummaryCard = {
 const DASHBOARD_CANDIDATE_SUMMARY_PAGE_SIZE = 1000;
 
 type DashboardCandidateSummaryKey = "preRegistered" | "active" | "eSinav" | "driving";
+type DashboardExamSummaryKey = "eSinav" | "driving";
+type DashboardExamTabCounts = Record<CandidateExamTabValue, number>;
+type DashboardCandidateSummaryData = {
+  preRegistered?: PagedResponse<CandidateResponse>;
+  active?: PagedResponse<CandidateResponse>;
+  eSinav?: DashboardExamTabCounts;
+  driving?: DashboardExamTabCounts;
+};
 
 const DASHBOARD_CANDIDATE_SUMMARY_CONFIG: {
   key: DashboardCandidateSummaryKey;
@@ -46,80 +55,116 @@ const DASHBOARD_CANDIDATE_SUMMARY_CONFIG: {
     | "dashboard.candidateSummary.active"
     | "dashboard.candidateSummary.eSinav"
     | "dashboard.candidateSummary.driving";
-  params: GetCandidatesParams;
 }[] = [
   {
     key: "preRegistered",
     labelKey: "dashboard.candidateSummary.preRegistered",
-    params: { status: "pre_registered" },
   },
   {
     key: "active",
     labelKey: "dashboard.candidateSummary.active",
-    params: { status: "active" },
   },
   {
     key: "eSinav",
     labelKey: "dashboard.candidateSummary.eSinav",
-    params: { eSinavTab: "havuz" },
   },
   {
     key: "driving",
     labelKey: "dashboard.candidateSummary.driving",
-    params: { drivingExamTab: "havuz" },
   },
 ];
 
-function formatCountSummary(
-  items: { label: string; count: number }[],
-  emptyLabel: string
-): string {
-  if (items.length === 0) return emptyLabel;
-  return items.map((item) => `${item.count} ${item.label}`).join(" · ");
-}
+const DASHBOARD_EXAM_TABS: CandidateExamTabValue[] = ["havuz", "basarisiz", "randevulu"];
 
 function buildLicenseClassSummary(
   response: PagedResponse<CandidateResponse> | undefined,
   licenseClassLabelByCode: Map<string, string>,
   emptyLabel: string
-): string {
+): ReactNode {
   const licenseCounts = new Map<string, number>();
-  const licenseClassCounts = response?.licenseClassCounts ?? [];
 
-  if (licenseClassCounts.length > 0) {
-    for (const item of licenseClassCounts) {
-      const licenseLabel =
-        licenseClassLabelByCode.get(item.licenseClass) ?? item.licenseClass;
-      licenseCounts.set(licenseLabel, (licenseCounts.get(licenseLabel) ?? 0) + item.count);
-    }
-  } else {
-    for (const candidate of response?.items ?? []) {
-      const licenseLabel =
-        licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass;
-      licenseCounts.set(licenseLabel, (licenseCounts.get(licenseLabel) ?? 0) + 1);
-    }
+  for (const candidate of response?.items ?? []) {
+    const licenseLabel =
+      licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass;
+    const displayLabel = formatDashboardLicenseClassLabel(licenseLabel);
+    licenseCounts.set(displayLabel, (licenseCounts.get(displayLabel) ?? 0) + 1);
   }
 
   const items = Array.from(licenseCounts, ([label, count]) => ({ label, count }))
     .filter((item) => item.count > 0)
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "tr"));
 
-  return formatCountSummary(items, emptyLabel);
+  if (items.length === 0) return emptyLabel;
+  return (
+    <>
+      {items.map((item) => (
+        <span className="stat-card-value-stat" key={item.label}>
+          <strong>{item.count}</strong>
+          <span>{item.label}</span>
+        </span>
+      ))}
+    </>
+  );
+}
+
+function formatDashboardLicenseClassLabel(label: string): string {
+  const parts = label
+    .split("-")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return label;
+  return [parts[0], ...parts.slice(1).map((part) => part.charAt(0))]
+    .filter(Boolean)
+    .join("-");
+}
+
+function buildExamStatusSummary(counts: DashboardExamTabCounts | undefined): ReactNode {
+  if (!counts) return "—";
+  return (
+    <>
+      <span className="stat-card-value-stat">
+        <strong>{counts.havuz ?? 0}</strong>
+        <span>Havuz</span>
+      </span>
+      <span className="stat-card-value-stat">
+        <strong>{counts.basarisiz ?? 0}</strong>
+        <span>Başarısız</span>
+      </span>
+      <span className="stat-card-value-stat">
+        <strong>{counts.randevulu ?? 0}</strong>
+        <span>Randevulu</span>
+      </span>
+    </>
+  );
+}
+
+function dashboardExamTotal(counts: DashboardExamTabCounts | undefined): number {
+  if (!counts) return 0;
+  return counts.havuz + counts.randevulu + counts.basarisiz;
 }
 
 function buildDashboardCandidateSummaryCards({
-  responses,
+  data,
   loading,
   licenseClassLabelByCode,
   t,
 }: {
-  responses: Partial<Record<DashboardCandidateSummaryKey, PagedResponse<CandidateResponse>>>;
+  data: DashboardCandidateSummaryData;
   loading: boolean;
   licenseClassLabelByCode: Map<string, string>;
   t: ReturnType<typeof useT>;
 }): DashboardSummaryCard[] {
   return DASHBOARD_CANDIDATE_SUMMARY_CONFIG.map((config) => {
-    const response = responses[config.key];
+    const response = config.key === "preRegistered" || config.key === "active"
+      ? data[config.key]
+      : undefined;
+    const examCounts = config.key === "eSinav" || config.key === "driving"
+      ? data[config.key]
+      : undefined;
+    const isExamSummary = config.key === "eSinav" || config.key === "driving";
+    const count = isExamSummary
+      ? dashboardExamTotal(examCounts)
+      : response?.totalCount ?? response?.items.length ?? 0;
     return {
       key: config.key,
       label: t(config.labelKey),
@@ -137,18 +182,37 @@ function buildDashboardCandidateSummaryCards({
             : "purple",
       value: loading
         ? "..."
-        : buildLicenseClassSummary(
-            response,
-            licenseClassLabelByCode,
-            t("dashboard.candidateSummary.empty")
-          ),
-      meta: loading
-        ? t("dashboard.candidateSummary.loading")
-        : t("dashboard.candidateSummary.recordCount", {
-            count: response?.totalCount ?? response?.items.length ?? 0,
-          }),
+        : isExamSummary
+          ? buildExamStatusSummary(examCounts)
+          : buildLicenseClassSummary(
+              response,
+              licenseClassLabelByCode,
+              t("dashboard.candidateSummary.empty")
+            ),
+      valueVariant: "stats",
+      countLabel: loading ? "..." : String(count),
     };
   });
+}
+
+async function getDashboardExamTabCounts(
+  key: DashboardExamSummaryKey,
+  signal?: AbortSignal
+): Promise<DashboardExamTabCounts> {
+  const entries = await Promise.all(
+    DASHBOARD_EXAM_TABS.map(async (tab) => {
+      const response = await getCandidates(
+        {
+          page: 1,
+          pageSize: 1,
+          ...(key === "eSinav" ? { eSinavTab: tab } : { drivingExamTab: tab }),
+        },
+        signal
+      );
+      return [tab, response.totalCount ?? response.items.length] as const;
+    })
+  );
+  return Object.fromEntries(entries) as DashboardExamTabCounts;
 }
 
 export function DashboardPage({ userName }: DashboardPageProps) {
@@ -170,54 +234,52 @@ export function DashboardPage({ userName }: DashboardPageProps) {
     },
   });
   const candidateSummaryQuery = useQuery({
-    queryKey: ["dashboard", "candidateSummary", "licenseClasses", activeInstitutionId],
+    queryKey: ["dashboard", "candidateSummary", "statusCounts", activeInstitutionId],
     queryFn: async ({ signal }) => {
-      const entries = await Promise.all(
-        DASHBOARD_CANDIDATE_SUMMARY_CONFIG.map(async (config) => {
-          const response = await getCandidates(
-            {
-              page: 1,
-              pageSize: DASHBOARD_CANDIDATE_SUMMARY_PAGE_SIZE,
-              ...config.params,
-            },
-            signal
-          );
-          return [config.key, response] as const;
-        })
-      );
-      return Object.fromEntries(entries) as Record<
-        DashboardCandidateSummaryKey,
-        PagedResponse<CandidateResponse>
-      >;
+      const [preRegistered, active, eSinav, driving] = await Promise.all([
+        getCandidates(
+          {
+            page: 1,
+            pageSize: DASHBOARD_CANDIDATE_SUMMARY_PAGE_SIZE,
+            status: "pre_registered",
+          },
+          signal
+        ),
+        getCandidates(
+          {
+            page: 1,
+            pageSize: DASHBOARD_CANDIDATE_SUMMARY_PAGE_SIZE,
+            status: "active",
+          },
+          signal
+        ),
+        getDashboardExamTabCounts("eSinav", signal),
+        getDashboardExamTabCounts("driving", signal),
+      ]);
+      return { preRegistered, active, eSinav, driving } satisfies DashboardCandidateSummaryData;
     },
   });
-  const candidateSummaryResponses: Partial<
-    Record<DashboardCandidateSummaryKey, PagedResponse<CandidateResponse>>
-  > = candidateSummaryQuery.data ?? {};
+  const candidateSummaryData: DashboardCandidateSummaryData = candidateSummaryQuery.data ?? {};
   const licenseClassLabelByCode = useMemo(() => {
-    const responses: PagedResponse<CandidateResponse>[] = Object.values(
-      candidateSummaryResponses
-    );
+    const responses = [candidateSummaryData.preRegistered, candidateSummaryData.active]
+      .filter((response): response is PagedResponse<CandidateResponse> => response !== undefined);
     const mergedOptions = mergeLicenseClassOptionsWithValues(
       licenseClassOptions,
-      responses.flatMap((response) => [
-        ...response.items.map((candidate) => candidate.licenseClass),
-        ...(response.licenseClassCounts ?? []).map((item) => item.licenseClass),
-      ])
+      responses.flatMap((response) => response.items.map((candidate) => candidate.licenseClass))
     );
     return new Map(mergedOptions.map((option) => [option.value, option.label]));
-  }, [candidateSummaryResponses, licenseClassOptions]);
+  }, [candidateSummaryData.active, candidateSummaryData.preRegistered, licenseClassOptions]);
   const candidateSummaryCards = useMemo(
     () =>
       buildDashboardCandidateSummaryCards({
-        responses: candidateSummaryResponses,
+        data: candidateSummaryData,
         loading: candidateSummaryQuery.isLoading,
         licenseClassLabelByCode,
         t,
       }),
     [
       candidateSummaryQuery.isLoading,
-      candidateSummaryResponses,
+      candidateSummaryData,
       licenseClassLabelByCode,
       t,
     ]
@@ -229,19 +291,29 @@ export function DashboardPage({ userName }: DashboardPageProps) {
     <>
       <div className="dash-header">
         <h1>{t("dashboard.greeting", { name: displayName })}</h1>
+        <img alt="" aria-hidden="true" className="dash-header-pattern" src="/pattern.png" />
       </div>
 
       <div className="dash-stats" aria-label={t("dashboard.candidateSummary.aria")}>
         {candidateSummaryCards.map((card) => (
           <div className="stat-card" key={card.key}>
             <div className="stat-card-header">
-              <span className="stat-card-label">{card.label}</span>
+              <span className="stat-card-label">
+                <span>{card.label}</span>
+                <span className="stat-card-count-badge">{card.countLabel}</span>
+              </span>
               <div className={`stat-card-icon tone-${card.tone}`}>
                 {card.icon}
               </div>
             </div>
-            <div className="stat-card-value">{card.value}</div>
-            <div className="stat-card-sub">{card.meta}</div>
+            <div
+              className={[
+                "stat-card-value",
+                card.valueVariant === "stats" ? "is-stat-list" : "",
+              ].filter(Boolean).join(" ")}
+            >
+              {card.value}
+            </div>
           </div>
         ))}
       </div>

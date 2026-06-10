@@ -11,9 +11,6 @@ type QuickPracticeAssignmentProps = {
   /** Seçim değişikliğini parent'a (TrainingPage) iletiyor. */
   onSettingsChange: (params: { candidateId: string }) => void;
   isLoading?: boolean;
-  /** Adaylar sayfasından bulk yönlendirme veya picker seçimi ile kurulan
-   *  scope. Boş → panel render edilmez; dolu → sadece bu adaylar listelenir. */
-  scopedCandidateIds?: readonly string[];
 };
 
 export function QuickPracticeAssignment({
@@ -21,27 +18,20 @@ export function QuickPracticeAssignment({
   candidateId,
   onSettingsChange,
   isLoading = false,
-  scopedCandidateIds,
 }: QuickPracticeAssignmentProps) {
   const t = useT();
-  const scopeActive = (scopedCandidateIds?.length ?? 0) > 0;
-  const [expanded, setExpanded] = useState(scopeActive);
+  const hasCandidate = candidateId !== "";
+  const [expanded, setExpanded] = useState(hasCandidate);
   const panelId = useId();
 
   useEffect(() => {
-    if (scopeActive) setExpanded(true);
-  }, [scopeActive]);
+    if (hasCandidate) setExpanded(true);
+  }, [hasCandidate]);
 
-  // Scope explicit kullanıcı seçimidir — durum filtresi uygulamadan
-  // scope'taki adayları geçir. Scope yokken sadece aktifler.
-  const scopeSet = useMemo(
-    () => new Set(scopedCandidateIds ?? []),
-    [scopedCandidateIds]
-  );
   const sortedCandidates = useMemo(
     () =>
       candidates
-        .filter((c) => scopeSet.has(c.id) || c.status === "active")
+        .filter((c) => c.id === candidateId || c.status === "active")
         .slice()
         .sort((a, b) =>
           `${a.firstName} ${a.lastName}`.localeCompare(
@@ -49,22 +39,21 @@ export function QuickPracticeAssignment({
             "tr"
           )
         ),
-    [candidates, scopeSet]
+    [candidates, candidateId]
   );
 
   const visibleCandidates = useMemo(() => {
-    if (scopeActive) {
-      return sortedCandidates.filter((c) => scopeSet.has(c.id));
-    }
-    return sortedCandidates;
-  }, [sortedCandidates, scopeActive, scopeSet]);
+    return candidateId
+      ? sortedCandidates.filter((c) => c.id === candidateId)
+      : sortedCandidates;
+  }, [sortedCandidates, candidateId]);
 
   const toggle = (id: string) => {
     if (isLoading) return;
     onSettingsChange({ candidateId: id === candidateId ? "" : id });
   };
 
-  if (!scopeActive) return null;
+  if (!hasCandidate) return null;
 
   return (
     <div className="training-quick-assign">

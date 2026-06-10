@@ -31,8 +31,7 @@ export function ExamESinavPage() {
       }}
       groupColumnMode="term"
       showBulkGroupAction={false}
-      showBulkPracticeTrainingAction={false}
-      showBulkStatusAction={false}
+      showBulkStatusAction={true}
       showCreateCandidateAction={false}
       showFiltersAction={false}
       tabConfig={{
