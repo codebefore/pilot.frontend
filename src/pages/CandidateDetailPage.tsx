@@ -182,8 +182,8 @@ type TabKey =
 const TABS: { key: TabKey; labelKey: TranslationKey }[] = [
   { key: "general", labelKey: "candidateDetail.tab.general" },
   { key: "license", labelKey: "candidateDetail.tab.license" },
-  { key: "training", labelKey: "candidateDetail.tab.training" },
   { key: "documents", labelKey: "candidateDetail.tab.documents" },
+  { key: "training", labelKey: "candidateDetail.tab.training" },
   { key: "payments", labelKey: "candidateDetail.tab.payments" },
 ];
 
@@ -5522,7 +5522,7 @@ function CandidateExamAttemptsSection({
   const [feeTouched, setFeeTouched] = useState(false);
   const theoryAttempts = attempts.filter((attempt) => attempt.examType === "theory");
   const practiceAttempts = attempts.filter((attempt) => attempt.examType === "practice");
-  const editingFeeLocked = Boolean(editingAttempt);
+  const editingFeeLocked = Boolean(editingAttempt && editingAttempt.fee !== 0);
   const theoryRightsExpiryDate = addDaysToISODate(
     candidate.currentGroup?.startDate,
     THEORY_RIGHTS_EXPIRY_DAYS
@@ -5702,7 +5702,7 @@ function CandidateExamAttemptsSection({
 
   const saveAttempt = async () => {
     if (!canManageCandidates) return;
-    const fee = editingAttempt ? editingAttempt.fee : parseMoneyInput(form.fee) ?? 0;
+    const fee = editingFeeLocked ? editingAttempt?.fee ?? 0 : parseMoneyInput(form.fee) ?? 0;
     const maxAttemptNumber = candidateExamAttemptLimit(attempts, form.examType, form.examAttendanceStatus);
     const attemptNumber = editingAttempt?.attemptNumber ?? nextAttemptNumber(form.examType, form.examAttendanceStatus);
     if (attemptNumber > maxAttemptNumber) {
@@ -6370,7 +6370,7 @@ function CandidateExamAttemptsSection({
                 setForm((current) => ({ ...current, fee: event.target.value }));
               }}
             />
-            {editingFeeLocked ? <em>Düzenlenen sınavlarda tutar değiştirilemez.</em> : null}
+            {editingFeeLocked ? <em>Ücreti olan sınavlarda tutar değiştirilemez.</em> : null}
           </label>
           {form.examType === "theory" ? (
             <label>

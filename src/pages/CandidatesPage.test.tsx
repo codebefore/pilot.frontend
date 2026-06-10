@@ -22,6 +22,7 @@ const listCandidateExamAttemptsMock = vi.fn();
 const createCandidateExamAttemptMock = vi.fn();
 const updateCandidateExamAttemptMock = vi.fn();
 const chargeCandidateExamAttemptMock = vi.fn();
+const getLicenseClassFeeMatrixMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -137,6 +138,18 @@ vi.mock("../lib/candidate-exam-attempts-api", async () => {
   };
 });
 
+vi.mock("../lib/license-class-fee-matrix-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/license-class-fee-matrix-api")>(
+    "../lib/license-class-fee-matrix-api"
+  );
+  return {
+    ...actual,
+    getLicenseClassFeeMatrix: (
+      ...args: Parameters<typeof actual.getLicenseClassFeeMatrix>
+    ) => getLicenseClassFeeMatrixMock(...args),
+  };
+});
+
 function examScheduleOption(
   date: string,
   overrides: Partial<{
@@ -200,6 +213,7 @@ describe("CandidatesPage tabs", () => {
     createCandidateExamAttemptMock.mockReset();
     updateCandidateExamAttemptMock.mockReset();
     chargeCandidateExamAttemptMock.mockReset();
+    getLicenseClassFeeMatrixMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
     getExamCodesMock.mockResolvedValue([]);
@@ -207,6 +221,7 @@ describe("CandidatesPage tabs", () => {
     createCandidateExamAttemptMock.mockResolvedValue({});
     updateCandidateExamAttemptMock.mockResolvedValue({});
     chargeCandidateExamAttemptMock.mockResolvedValue({});
+    getLicenseClassFeeMatrixMock.mockResolvedValue({ year: 2026, vatRate: 20, rows: [] });
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "cand-1",
@@ -577,6 +592,32 @@ describe("CandidatesPage tabs", () => {
     expect(groups.findIndex((group) => group.contains(movedDivider))).toBe(1);
   });
 
+  it("renders only one divider when multiple exam schedules share the divider date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T12:00:00"));
+
+    const view = renderWithProviders(
+      <CandidateExamDateSidebar
+        onSelect={vi.fn()}
+        options={[
+          examScheduleOption("2026-06-13", { id: "future", time: "09:00", candidateCount: 2 }),
+          examScheduleOption("2026-06-10", { id: "today-late", time: "06:30", candidateCount: 0 }),
+          examScheduleOption("2026-06-10", { id: "today-mid", time: "02:00", candidateCount: 0 }),
+          examScheduleOption("2026-06-10", { id: "today-early", time: "00:00", candidateCount: 1 }),
+          examScheduleOption("2026-06-07", { id: "past", time: "09:00", candidateCount: 1 }),
+        ]}
+        title="E-Sınav Tarihi"
+      />
+    );
+
+    const sidebar = view.container.querySelector(".exam-date-sidebar-list") as HTMLElement;
+    const dividers = within(sidebar).getAllByTestId("exam-date-divider");
+    expect(dividers).toHaveLength(1);
+
+    const groups = Array.from(sidebar.querySelectorAll(".exam-date-option-group"));
+    expect(groups.findIndex((group) => group.contains(dividers[0]))).toBe(1);
+  });
+
   it("keeps exam schedule row mutations disabled when management is not allowed", () => {
     const onEdit = vi.fn();
     const onDelete = vi.fn();
@@ -635,6 +676,34 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
+  it("does not pass the hidden time when editing an uygulama date without the time field", async () => {
+    const onEdit = vi.fn();
+
+    renderWithProviders(
+      <CandidateExamDateSidebar
+        onEdit={onEdit}
+        onSelect={vi.fn()}
+        options={[examScheduleOption("2026-06-13", { examType: "uygulama", time: "09:05", candidateCount: 1 })]}
+        showTime={false}
+        title="Direksiyon Sınav Tarihi"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /13\.06\.2026 sınav tarihini düzenle/i }));
+    fireEvent.change(screen.getByLabelText("Sınav tarihi"), {
+      target: { value: "14.06.2026" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /13\.06\.2026 sınav tarihini kaydet/i }));
+
+    await waitFor(() => {
+      expect(onEdit).toHaveBeenCalledWith(
+        expect.objectContaining({ date: "2026-06-13", time: "09:05" }),
+        "2026-06-14",
+        undefined
+      );
+    });
+  });
+
   it("filters e-sinav by date without applying a tab filter", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-06-12", { candidateCount: 3 }),
@@ -686,6 +755,42 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByRole("button", { name: "Havuz" })).not.toHaveClass("active");
     expect(screen.getByRole("button", { name: "Başarısız" })).not.toHaveClass("active");
     expect(screen.getByRole("button", { name: "Randevulu" })).not.toHaveClass("active");
+  });
+
+  it("clears the selected e-sinav date filter when an exam tab is selected", async () => {
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-05-12", { candidateCount: 3 }),
+    ]);
+
+    renderESinavPage();
+
+    const dateButton = await screen.findByRole("button", { name: /12\.05\.2026/i, pressed: false });
+    fireEvent.click(dateButton);
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eSinavDate: "2026-05-12",
+          eSinavScheduleId: "e_sinav-2026-05-12",
+        })
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Başarısız" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: "active",
+          eSinavTab: "basarisiz",
+          page: 1,
+          pageSize: 10,
+        })
+      );
+    });
+    const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+    expect(lastCall.eSinavDate).toBeUndefined();
+    expect(lastCall.eSinavScheduleId).toBeUndefined();
   });
 
   it("uses the new e-sinav column storage key so old visibility state is ignored", async () => {
@@ -759,7 +864,53 @@ describe("CandidatesPage tabs", () => {
     expect(getExamScheduleOptionsMock).toHaveBeenCalledTimes(scheduleOptionCallCount);
   });
 
-  it("renders the uygulama sidebar summary without license class counts", async () => {
+  it("clears the selected uygulama date filter when an exam tab is selected", async () => {
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-06-13", {
+        examType: "uygulama",
+        candidateCount: 2,
+      }),
+    ]);
+
+    renderUygulamaPage();
+
+    const sidebar = document.querySelector(".exam-date-sidebar-list") as HTMLElement | null;
+    expect(sidebar).not.toBeNull();
+    if (!sidebar) {
+      throw new Error("exam date sidebar not found");
+    }
+
+    fireEvent.click(
+      await within(sidebar).findByRole("button", { name: /13\.06\.2026/i, pressed: false })
+    );
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          drivingExamDate: "2026-06-13",
+          drivingExamScheduleId: "uygulama-2026-06-13",
+        })
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Randevulu" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: "active",
+          drivingExamTab: "randevulu",
+          page: 1,
+          pageSize: 10,
+        })
+      );
+    });
+    const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
+    expect(lastCall.drivingExamDate).toBeUndefined();
+    expect(lastCall.drivingExamScheduleId).toBeUndefined();
+  });
+
+  it("renders the uygulama sidebar license class beside the date without time", async () => {
     getExamScheduleOptionsMock.mockResolvedValue([
       examScheduleOption("2026-06-03", {
         examType: "uygulama",
@@ -781,7 +932,7 @@ describe("CandidatesPage tabs", () => {
 
     expect(
       await within(sidebar).findByRole("button", {
-        name: /03\.06\.2026\s*4\/12/i,
+        name: /03\.06\.2026\s*B\s*-\s*A2\s*4\/12/i,
       })
     ).toBeInTheDocument();
     expect(within(sidebar).queryByText("09:00")).not.toBeInTheDocument();
@@ -1148,6 +1299,8 @@ describe("CandidatesPage tabs", () => {
     await screen.findByRole("columnheader", { name: "Direksiyon Sınav Ücreti Durumu" });
     expect(screen.queryByRole("columnheader", { name: "Tarih" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Hak" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sınav Durumu" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Sınav Sonucu" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
     const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
@@ -1158,10 +1311,12 @@ describe("CandidatesPage tabs", () => {
 
     expect(within(picker).queryByText(/^Tarih$/)).not.toBeInTheDocument();
     expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
+    expect(within(picker).queryByText(/^Sınav Durumu$/)).not.toBeInTheDocument();
+    expect(within(picker).queryByText(/^Sınav Sonucu$/)).not.toBeInTheDocument();
     expect(within(picker).queryByText("Direksiyon Sınav Ücreti Durumu")).not.toBeInTheDocument();
   });
 
-  it("shows last exam date after fee status on the uygulama failed tab", async () => {
+  it("shows driving exam status columns after attempt count on the uygulama failed tab", async () => {
     renderUygulamaPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
@@ -1171,15 +1326,242 @@ describe("CandidatesPage tabs", () => {
     const headers = screen.getAllByRole("columnheader").map((header) => header.textContent?.trim());
     expect(headers).toEqual(
       expect.arrayContaining([
+        "Hak",
+        "Sınav Durumu",
+        "Sınav Sonucu",
         "Direksiyon Sınav Ücreti Durumu",
         "Son Sınav Tarihi",
         "Son Sınav Kodu",
       ])
     );
-    expect(headers.indexOf("Son Sınav Tarihi")).toBe(
-      headers.indexOf("Direksiyon Sınav Ücreti Durumu") + 1
-    );
+    expect(headers.indexOf("Sınav Durumu")).toBe(headers.indexOf("Hak") + 1);
+    expect(headers.indexOf("Sınav Sonucu")).toBe(headers.indexOf("Sınav Durumu") + 1);
+    expect(headers.indexOf("Direksiyon Sınav Ücreti Durumu")).toBe(headers.indexOf("Sınav Sonucu") + 1);
+    expect(headers.indexOf("Son Sınav Tarihi")).toBe(headers.indexOf("Direksiyon Sınav Ücreti Durumu") + 1);
     expect(headers.indexOf("Son Sınav Kodu")).toBe(headers.indexOf("Son Sınav Tarihi") + 1);
+  });
+
+  it("updates driving exam attendance status from the exam list and clears result when not attended", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "20000000114",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamResult: "passed",
+      drivingExamDate: "2026-06-12",
+      drivingExamAttemptId: "attempt-1",
+      drivingExamScheduleId: "schedule-1",
+      drivingExamScheduledAt: "2026-06-12T06:00:00.000Z",
+      drivingExamAttendanceStatus: "attended",
+      drivingExamResultStatus: "passed",
+      drivingExamAttemptCount: 1,
+      drivingExamFee: 1500,
+      drivingExamFeeStatus: "pending",
+      drivingExamAttemptRowVersion: 7,
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: [candidate],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    listCandidateExamAttemptsMock.mockResolvedValue([{
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "practice",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "schedule-1",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: "attended",
+      examResultStatus: "passed",
+      fee: 1500,
+      feeStatus: "paid",
+      paidAt: "2026-06-08T08:00:00.000Z",
+      accountingMovementId: "movement-1",
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 9,
+    }]);
+    updateCandidateExamAttemptMock.mockResolvedValue({
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "practice",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "schedule-1",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: "absent",
+      examResultStatus: null,
+      fee: 1500,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 8,
+    });
+
+    renderUygulamaPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Girdi" }));
+    fireEvent.change(screen.getByLabelText("Sınav durumu"), {
+      target: { value: "absent" },
+    });
+
+    await waitFor(() => {
+      expect(updateCandidateExamAttemptMock).toHaveBeenCalledWith(
+        "cand-1",
+        "attempt-1",
+        expect.objectContaining({
+          examAttendanceStatus: "absent",
+          examResultStatus: null,
+          feeStatus: "paid",
+          rowVersion: 9,
+        })
+      );
+    });
+    expect(await screen.findByRole("button", { name: "Girmedi" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Başarılı" })).not.toBeInTheDocument();
+  });
+
+  it("updates driving exam result status from the exam list", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "20000000114",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamResult: "passed",
+      drivingExamDate: "2026-06-12",
+      drivingExamAttemptId: "attempt-1",
+      drivingExamScheduleId: "schedule-1",
+      drivingExamScheduledAt: "2026-06-12T06:00:00.000Z",
+      drivingExamAttendanceStatus: "attended",
+      drivingExamResultStatus: "passed",
+      drivingExamAttemptCount: 1,
+      drivingExamFee: 1500,
+      drivingExamFeeStatus: "pending",
+      drivingExamAttemptRowVersion: 7,
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: [candidate],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    listCandidateExamAttemptsMock.mockResolvedValue([{
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "practice",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "schedule-1",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: "attended",
+      examResultStatus: "passed",
+      fee: 1500,
+      feeStatus: "paid",
+      paidAt: "2026-06-08T08:00:00.000Z",
+      accountingMovementId: "movement-1",
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 9,
+    }]);
+    updateCandidateExamAttemptMock.mockResolvedValue({
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "practice",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "schedule-1",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: "attended",
+      examResultStatus: "failed",
+      fee: 1500,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 8,
+    });
+
+    renderUygulamaPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Başarılı" }));
+    fireEvent.change(screen.getByLabelText("Sınav sonucu"), {
+      target: { value: "failed" },
+    });
+
+    await waitFor(() => {
+      expect(updateCandidateExamAttemptMock).toHaveBeenCalledWith(
+        "cand-1",
+        "attempt-1",
+        expect.objectContaining({
+          examAttendanceStatus: "attended",
+          examResultStatus: "failed",
+          feeStatus: "paid",
+          rowVersion: 9,
+        })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Başarısız" }).length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   it("renders the group column with the term month in the same cell", async () => {
@@ -1275,6 +1657,356 @@ describe("CandidatesPage tabs", () => {
     expect(screen.queryByRole("columnheader", { name: "Grup" })).not.toBeInTheDocument();
     expect(await screen.findByText("NİSAN 2026 / 2")).toBeInTheDocument();
     expect(screen.queryByText("NİSAN 2026 - 1B")).not.toBeInTheDocument();
+  });
+
+  it("updates e-sinav score from the exam list", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "20000000114",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: "2026-06-12",
+      mebExamResult: "failed",
+      eSinavAttemptCount: 1,
+      eSinavAttemptId: "attempt-1",
+      eSinavScore: 65,
+      currentGroup: null,
+      documentSummary: {
+        completedCount: 1,
+        missingCount: 0,
+        totalRequiredCount: 1,
+      },
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+    const attempt = {
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "theory" as const,
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: 65,
+      expiresAt: null,
+      examScheduleId: "e_sinav-2026-06-12",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 900,
+      feeStatus: "pending" as const,
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 7,
+    };
+
+    getCandidatesMock
+      .mockResolvedValueOnce({
+        items: [candidate],
+        page: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+      })
+      .mockResolvedValue({
+        items: [candidate],
+        page: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+      });
+    listCandidateExamAttemptsMock.mockResolvedValue([attempt]);
+    updateCandidateExamAttemptMock.mockResolvedValue({ ...attempt, score: 72, rowVersion: 8 });
+    updateCandidateMock.mockResolvedValue({
+      ...candidate,
+      mebExamResult: "passed",
+      eSinavScore: 72,
+      updatedAtUtc: "2026-04-03T10:00:00Z",
+    });
+
+    renderESinavPage();
+
+    await screen.findByRole("columnheader", { name: "Puan" });
+    expect(await screen.findByRole("button", { name: /65\s*Kaldı/ })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /65\s*Kaldı/ }));
+    const input = document.querySelector(".candidate-exam-score-input") as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    if (!input) {
+      throw new Error("score input not found");
+    }
+    fireEvent.change(input, { target: { value: "72" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(updateCandidateExamAttemptMock).toHaveBeenCalledWith(
+        "cand-1",
+        "attempt-1",
+        expect.objectContaining({
+          score: 72,
+          rowVersion: 7,
+        })
+      );
+    });
+    expect(updateCandidateMock).toHaveBeenCalledWith(
+      "cand-1",
+      expect.objectContaining({
+        mebExamDate: "2026-06-12",
+        mebExamResult: "passed",
+        eSinavAttemptCount: 1,
+      })
+    );
+    expect(await screen.findByRole("button", { name: /72\s*Geçti/ })).toBeInTheDocument();
+  });
+
+  it("keeps the edited historical e-sinav score visible while candidate summary follows latest attempt", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "20000000114",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: "2026-05-10",
+      mebExamResult: "failed",
+      eSinavAttemptCount: 1,
+      eSinavAttemptId: "attempt-old",
+      eSinavScore: 55,
+      currentGroup: null,
+      documentSummary: {
+        completedCount: 1,
+        missingCount: 0,
+        totalRequiredCount: 1,
+      },
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+    const oldAttempt = {
+      id: "attempt-old",
+      candidateId: "cand-1",
+      examType: "theory" as const,
+      scheduledAt: "2026-05-10T06:00:00.000Z",
+      attemptNumber: 1,
+      score: 55,
+      expiresAt: null,
+      examScheduleId: "e_sinav-2026-05-10",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 900,
+      feeStatus: "pending" as const,
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-05-07T08:00:00.000Z",
+      rowVersion: 4,
+    };
+    const latestAttempt = {
+      ...oldAttempt,
+      id: "attempt-latest",
+      scheduledAt: "2026-05-20T06:00:00.000Z",
+      attemptNumber: 2,
+      score: 80,
+      examScheduleId: "e_sinav-2026-05-20",
+      rowVersion: 5,
+    };
+
+    getCandidatesMock
+      .mockResolvedValueOnce({
+        items: [candidate],
+        page: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+      })
+      .mockResolvedValue({
+        items: [{ ...candidate, eSinavScore: 60 }],
+        page: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+      });
+    listCandidateExamAttemptsMock.mockResolvedValue([oldAttempt, latestAttempt]);
+    updateCandidateExamAttemptMock.mockResolvedValue({ ...oldAttempt, score: 60, rowVersion: 6 });
+    updateCandidateMock.mockResolvedValue({
+      ...candidate,
+      mebExamDate: "2026-05-20",
+      mebExamResult: "passed",
+      eSinavAttemptCount: 2,
+      updatedAtUtc: "2026-04-03T10:00:00Z",
+    });
+
+    renderESinavPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /55\s*Kaldı/ }));
+    const input = document.querySelector(".candidate-exam-score-input") as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    if (!input) {
+      throw new Error("score input not found");
+    }
+    fireEvent.change(input, { target: { value: "60" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(updateCandidateExamAttemptMock).toHaveBeenCalledWith(
+        "cand-1",
+        "attempt-old",
+        expect.objectContaining({
+          score: 60,
+          rowVersion: 4,
+        })
+      );
+    });
+    expect(updateCandidateMock).toHaveBeenCalledWith(
+      "cand-1",
+      expect.objectContaining({
+        mebExamDate: "2026-05-20",
+        mebExamResult: "passed",
+        eSinavAttemptCount: 2,
+      })
+    );
+    expect(await screen.findByRole("button", { name: /60\s*Kaldı/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /80\s*Geçti/ })).not.toBeInTheDocument();
+    expect(screen.getByText("1/4")).toBeInTheDocument();
+    expect(screen.queryByText("2/4")).not.toBeInTheDocument();
+  });
+
+  it("clears e-sinav score from the exam list", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "20000000114",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: "2026-06-12",
+      mebExamResult: "passed",
+      eSinavAttemptCount: 1,
+      eSinavAttemptId: "attempt-1",
+      eSinavScore: 72,
+      currentGroup: null,
+      documentSummary: {
+        completedCount: 1,
+        missingCount: 0,
+        totalRequiredCount: 1,
+      },
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+    const attempt = {
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "theory" as const,
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: 72,
+      expiresAt: null,
+      examScheduleId: "e_sinav-2026-06-12",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 900,
+      feeStatus: "pending" as const,
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 7,
+    };
+
+    getCandidatesMock
+      .mockResolvedValueOnce({
+        items: [candidate],
+        page: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+      })
+      .mockResolvedValue({
+        items: [{ ...candidate, mebExamResult: null, eSinavScore: null }],
+        page: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+      });
+    listCandidateExamAttemptsMock.mockResolvedValue([attempt]);
+    updateCandidateExamAttemptMock.mockResolvedValue({ ...attempt, score: null, rowVersion: 8 });
+    updateCandidateMock.mockResolvedValue({
+      ...candidate,
+      mebExamResult: null,
+      eSinavScore: null,
+      updatedAtUtc: "2026-04-03T10:00:00Z",
+    });
+
+    renderESinavPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /72\s*Geçti/ }));
+    const input = document.querySelector(".candidate-exam-score-input") as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    if (!input) {
+      throw new Error("score input not found");
+    }
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(updateCandidateExamAttemptMock).toHaveBeenCalledWith(
+        "cand-1",
+        "attempt-1",
+        expect.objectContaining({
+          score: null,
+          rowVersion: 7,
+        })
+      );
+    });
+    expect(updateCandidateMock).toHaveBeenCalledWith(
+      "cand-1",
+      expect.objectContaining({
+        mebExamDate: "2026-06-12",
+        mebExamResult: null,
+        eSinavAttemptCount: 1,
+      })
+    );
+    expect(await screen.findByRole("button", { name: "—" })).toBeInTheDocument();
+    expect(screen.queryByText("Geçti")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kaldı")).not.toBeInTheDocument();
   });
 
   it("renders biometric photo when present and initials fallback otherwise", async () => {
@@ -2110,8 +2842,51 @@ describe("CandidatesPage tabs", () => {
     ]);
     updateCandidateMock.mockResolvedValue({ ...candidates[0], mebExamDate: "2026-06-12" });
     createCandidateExamAttemptMock.mockResolvedValue(attempt);
-    updateCandidateExamAttemptMock.mockResolvedValue({ ...attempt, fee: 900, rowVersion: 2 });
+    listCandidateExamAttemptsMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...attempt, rowVersion: 3 }]);
+    updateCandidateExamAttemptMock.mockResolvedValue({ ...attempt, fee: 900, rowVersion: 4 });
     chargeCandidateExamAttemptMock.mockResolvedValue({ ...attempt, fee: 900, feeStatus: "charged" });
+    getLicenseClassFeeMatrixMock.mockResolvedValue({
+      year: 2026,
+      vatRate: 20,
+      rows: [
+        {
+          id: "fee-row-1",
+          year: 2026,
+          program: {
+            id: "license-b",
+            code: "B",
+            sourceLicenseClass: "",
+            sourceLicenseDisplayName: "",
+            sourceLicensePre2016: false,
+            targetLicenseClass: "B",
+            targetLicenseDisplayName: "B",
+            minimumAge: 18,
+            theoryLessonHours: 34,
+            practiceLessonHours: 16,
+            courseFee: null,
+            mebbisFee: null,
+            failureRetryFee: null,
+            privateLessonFee: null,
+            educationFee: null,
+            otherFee1: null,
+            yearFeeRowVersion: null,
+          },
+          lessonType: "theory",
+          lessonHours: 34,
+          vatIncludedHourlyRate: null,
+          vatExcludedHourlyRate: null,
+          lessonFee: null,
+          vatAmount: null,
+          contractTheoryExamFee: null,
+          contractPracticeExamFee: null,
+          institutionTheoryExamFee: 900,
+          institutionPracticeExamFee: null,
+          rowVersion: null,
+        },
+      ],
+    });
 
     renderESinavPage();
 
@@ -2124,8 +2899,8 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Evet" }));
-    const feeInput = screen.getByLabelText("Ayse Demir sınav ücreti");
-    fireEvent.change(feeInput, { target: { value: "900" } });
+    const feeInput = screen.getByLabelText("Ayse Demir sınav ücreti") as HTMLInputElement;
+    expect(feeInput.value).toBe("900");
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
@@ -2135,11 +2910,246 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           fee: 900,
           feeStatus: "pending",
-          rowVersion: 1,
+          rowVersion: 3,
         })
       );
     });
     expect(chargeCandidateExamAttemptMock).toHaveBeenCalledWith("cand-1", "attempt-1");
+  });
+
+  it("keeps exam attempt uncharged when bulk exam charge fee is empty", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Eren",
+      lastName: "Test",
+      nationalId: "52925238938",
+      phoneNumber: "55533322112213",
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: null,
+      drivingExamDate: null,
+      eSinavAttemptCount: 1,
+      drivingExamAttemptCount: 1,
+      currentGroup: null,
+      documentSummary: null,
+      mebExamResult: null,
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+    const attempt = {
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "theory",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "e_sinav-2026-06-12",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 0,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 1,
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: [candidate],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-06-12", { time: "09:00" }),
+    ]);
+    updateCandidateMock.mockResolvedValue({ ...candidate, mebExamDate: "2026-06-12" });
+    createCandidateExamAttemptMock.mockResolvedValue(attempt);
+    listCandidateExamAttemptsMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...attempt, rowVersion: 3 }]);
+    updateCandidateExamAttemptMock.mockResolvedValue({ ...attempt, fee: 0, rowVersion: 4 });
+    getLicenseClassFeeMatrixMock.mockResolvedValue({ year: 2026, vatRate: 20, rows: [] });
+
+    renderESinavPage();
+
+    await screen.findByText("Eren Test");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sınav Tarihi Belirle" }));
+    fireEvent.change(screen.getByLabelText("Toplu sınav tarihi seç"), {
+      target: { value: "e_sinav-2026-06-12" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Evet" }));
+    const feeInput = screen.getByLabelText("Eren Test sınav ücreti") as HTMLInputElement;
+    expect(feeInput.value).toBe("0");
+    fireEvent.change(feeInput, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateExamAttemptMock).toHaveBeenCalledWith(
+        "cand-1",
+        "attempt-1",
+        expect.objectContaining({
+          fee: 0,
+          feeStatus: "pending",
+          rowVersion: 3,
+        })
+      );
+    });
+    expect(chargeCandidateExamAttemptMock).not.toHaveBeenCalled();
+  });
+
+  it("prefills driving exam charge with institution practice exam fee", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "20000000114",
+      phoneNumber: "0555 111 22 33",
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: null,
+      drivingExamDate: null,
+      eSinavAttemptCount: 1,
+      drivingExamAttemptCount: 1,
+      currentGroup: null,
+      documentSummary: null,
+      mebExamResult: null,
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+    const attempt = {
+      id: "attempt-1",
+      candidateId: "cand-1",
+      examType: "practice",
+      scheduledAt: "2026-06-12T06:00:00.000Z",
+      attemptNumber: 1,
+      score: null,
+      expiresAt: null,
+      examScheduleId: "uygulama-2026-06-12",
+      examCode: null,
+      vehicleId: null,
+      vehiclePlate: null,
+      instructorId: null,
+      instructorFullName: null,
+      examAttendanceStatus: null,
+      examResultStatus: null,
+      fee: 0,
+      feeStatus: "pending",
+      paidAt: null,
+      accountingMovementId: null,
+      createdAt: "2026-06-07T08:00:00.000Z",
+      rowVersion: 1,
+    };
+    const program = {
+      id: "license-b",
+      code: "B",
+      sourceLicenseClass: "",
+      sourceLicenseDisplayName: "",
+      sourceLicensePre2016: false,
+      targetLicenseClass: "B",
+      targetLicenseDisplayName: "B",
+      minimumAge: 18,
+      theoryLessonHours: 34,
+      practiceLessonHours: 16,
+      courseFee: null,
+      mebbisFee: null,
+      failureRetryFee: null,
+      privateLessonFee: null,
+      educationFee: null,
+      otherFee1: null,
+      yearFeeRowVersion: null,
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: [candidate],
+      page: 1,
+      pageSize: 10,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-06-12", { examType: "uygulama", time: "09:00" }),
+    ]);
+    updateCandidateMock.mockResolvedValue({ ...candidate, drivingExamDate: "2026-06-12" });
+    createCandidateExamAttemptMock.mockResolvedValue(attempt);
+    getLicenseClassFeeMatrixMock.mockResolvedValue({
+      year: 2026,
+      vatRate: 20,
+      rows: [
+        {
+          id: "fee-row-theory",
+          year: 2026,
+          program,
+          lessonType: "theory",
+          lessonHours: 34,
+          vatIncludedHourlyRate: null,
+          vatExcludedHourlyRate: null,
+          lessonFee: null,
+          vatAmount: null,
+          contractTheoryExamFee: null,
+          contractPracticeExamFee: null,
+          institutionTheoryExamFee: 900,
+          institutionPracticeExamFee: null,
+          rowVersion: null,
+        },
+        {
+          id: "fee-row-practice",
+          year: 2026,
+          program,
+          lessonType: "practice",
+          lessonHours: 16,
+          vatIncludedHourlyRate: null,
+          vatExcludedHourlyRate: null,
+          lessonFee: null,
+          vatAmount: null,
+          contractTheoryExamFee: null,
+          contractPracticeExamFee: null,
+          institutionTheoryExamFee: null,
+          institutionPracticeExamFee: 1500,
+          rowVersion: null,
+        },
+      ],
+    });
+
+    renderUygulamaPage();
+
+    await screen.findByText("Ayse Demir");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sınav Tarihi Belirle" }));
+    fireEvent.change(screen.getByLabelText("Toplu sınav tarihi seç"), {
+      target: { value: "uygulama-2026-06-12" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Evet" }));
+    const feeInput = screen.getByLabelText("Ayse Demir sınav ücreti") as HTMLInputElement;
+    expect(feeInput.value).toBe("1500");
   });
 
   it("renames a tag from the global tag manager", async () => {

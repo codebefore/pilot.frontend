@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,10 +103,50 @@ function renderFinancePage() {
   );
 }
 
+function renderBalancesPage() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/payments/balances"]}>
+      <PaymentsPage mode="balances" />
+    </MemoryRouter>,
+    {
+      auth: {
+        user: {
+          id: "payments-viewer",
+          phone: "5073737262",
+          name: "Finans Viewer",
+          roleName: "Finans",
+          isSuperAdmin: false,
+        },
+        permissions: { payments: "view" },
+      },
+    }
+  );
+}
+
 function renderCollectionsPage() {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/payments/collections"]}>
       <PaymentsPage mode="collections" />
+    </MemoryRouter>,
+    {
+      auth: {
+        user: {
+          id: "payments-viewer",
+          phone: "5073737262",
+          name: "Finans Viewer",
+          roleName: "Finans",
+          isSuperAdmin: false,
+        },
+        permissions: { payments: "view" },
+      },
+    }
+  );
+}
+
+function renderStatisticsPage() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={["/payments/statistics"]}>
+      <PaymentsPage mode="statistics" />
     </MemoryRouter>,
     {
       auth: {
@@ -128,6 +168,21 @@ function todayDateOnly() {
   const month = `${today.getMonth() + 1}`.padStart(2, "0");
   const day = `${today.getDate()}`.padStart(2, "0");
   return `${today.getFullYear()}-${month}-${day}`;
+}
+
+function paymentCandidate(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "candidate-1",
+    firstName: "Aday",
+    lastName: "Bir",
+    nationalId: "11111111111",
+    licenseClass: "B",
+    isDeleted: false,
+    createdAtUtc: "2026-05-10T00:00:00Z",
+    currentGroup: null,
+    photo: null,
+    ...overrides,
+  };
 }
 
 describe("PaymentsPage permissions", () => {
@@ -169,6 +224,43 @@ describe("PaymentsPage permissions", () => {
     renderFinancePage();
 
     expect(await screen.findByRole("heading", { name: "Finans" })).toBeInTheDocument();
+  });
+
+  it("shows remaining balance in the installments table", async () => {
+    const today = todayDateOnly();
+    const candidate = paymentCandidate({
+      id: "candidate-installment",
+      firstName: "Vadeli",
+      lastName: "Aday",
+    });
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      installments: [
+        {
+          id: "installment-balance",
+          candidate,
+          type: "kurs",
+          sequence: 1,
+          dueDate: today,
+          amount: 1000,
+          paidAmount: 600,
+          remainingAmount: 400,
+          description: "Kurs vadesi",
+          status: "active",
+          paymentStatus: "partial",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+      ],
+    });
+
+    renderBalancesPage();
+
+    expect(await screen.findByRole("columnheader", { name: /Kalan Bakiye/ })).toBeInTheDocument();
+    const installmentRow = screen.getByRole("row", { name: /Vadeli Aday/ });
+    expect(within(installmentRow).getByText("₺1.000")).toBeInTheDocument();
+    expect(within(installmentRow).getByText("₺400")).toBeInTheDocument();
   });
 
   it("hides deleted candidate accounting rows from cash movements", async () => {
@@ -331,5 +423,264 @@ describe("PaymentsPage permissions", () => {
     expect(await screen.findByText("Aktif tahsilat")).toBeInTheDocument();
     expect(screen.queryByText("Silinen tahsilat")).not.toBeInTheDocument();
     expect(screen.queryByText("Hatalı tahsilat")).not.toBeInTheDocument();
+  });
+
+  it("filters statistics by candidate registration date and includes candidates without finance rows", async () => {
+    const noFinanceCandidate = paymentCandidate({
+      id: "candidate-no-finance",
+      firstName: "Bos",
+      lastName: "Aday",
+      createdAtUtc: "2026-05-10T00:00:00Z",
+    });
+    const financeCandidate = paymentCandidate({
+      id: "candidate-finance",
+      firstName: "Finansli",
+      lastName: "Aday",
+      createdAtUtc: "2026-05-15T00:00:00Z",
+    });
+    const outsideCandidate = paymentCandidate({
+      id: "candidate-outside",
+      firstName: "Dis",
+      lastName: "Aday",
+      licenseClass: "C",
+      createdAtUtc: "2026-04-20T00:00:00Z",
+    });
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      candidates: [noFinanceCandidate, financeCandidate, outsideCandidate],
+      installments: [
+        {
+          id: "installment-finance",
+          candidate: financeCandidate,
+          type: "kurs",
+          sequence: 1,
+          dueDate: "2026-01-15",
+          amount: 100,
+          paidAmount: 50,
+          remainingAmount: 50,
+          description: "Kurs",
+          status: "active",
+          paymentStatus: "partial",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+        {
+          id: "installment-outside",
+          candidate: outsideCandidate,
+          type: "kurs",
+          sequence: 1,
+          dueDate: "2026-05-15",
+          amount: 300,
+          paidAmount: 300,
+          remainingAmount: 0,
+          description: "Kurs",
+          status: "active",
+          paymentStatus: "paid",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+      ],
+      payments: [
+        {
+          id: "payment-finance",
+          candidate: financeCandidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-1",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 50,
+          paymentMethod: "cash",
+          paidAtUtc: "2026-04-01T09:00:00Z",
+          note: null,
+          status: "active",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+        {
+          id: "payment-outside",
+          candidate: outsideCandidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-2",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 300,
+          paymentMethod: "cash",
+          paidAtUtc: "2026-05-15T09:00:00Z",
+          note: null,
+          status: "active",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+      ],
+      refunds: [
+        {
+          id: "refund-finance",
+          paymentId: "payment-finance",
+          candidate: financeCandidate,
+          type: "kurs",
+          number: "IAD-1",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 15,
+          refundedAtUtc: "2026-06-01T09:00:00Z",
+          note: null,
+        },
+      ],
+    });
+
+    renderStatisticsPage();
+
+    expect(await screen.findByRole("heading", { name: "İstatistik" })).toBeInTheDocument();
+    fireEvent.change(await screen.findByPlaceholderText("Kayıt başlangıç tarihi"), {
+      target: { value: "01.05.2026" },
+    });
+    fireEvent.change(await screen.findByPlaceholderText("Kayıt bitiş tarihi"), {
+      target: { value: "31.05.2026" },
+    });
+
+    const rows = screen.getAllByRole("row");
+    const licenseBRow = rows.find((row) => within(row).queryByText("B"));
+    expect(licenseBRow?.textContent).toContain("2");
+    expect(licenseBRow?.textContent).toContain("100");
+    expect(licenseBRow?.textContent).toContain("35");
+    expect(screen.queryByText("C")).not.toBeInTheDocument();
+  });
+
+  it("keeps statistics month and registration date filters mutually exclusive", async () => {
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      candidates: [
+        paymentCandidate({
+          currentGroup: {
+            groupId: "group-1",
+            title: "Mayıs",
+            startDate: "2026-05-20",
+            term: { id: "term-1", name: "Mayıs 2026", monthDate: "2026-05-01" },
+            assignedAtUtc: "2026-05-10T08:00:00Z",
+          },
+        }),
+      ],
+    });
+
+    renderStatisticsPage();
+
+    expect(await screen.findByRole("heading", { name: "İstatistik" })).toBeInTheDocument();
+    const monthInput = await screen.findByPlaceholderText("Dönem") as HTMLInputElement;
+    const startInput = await screen.findByPlaceholderText("Kayıt başlangıç tarihi") as HTMLInputElement;
+
+    fireEvent.change(monthInput, { target: { value: "05.2026" } });
+    fireEvent.blur(monthInput);
+    expect(monthInput.value).toContain("Mayıs");
+
+    fireEvent.change(startInput, { target: { value: "01.05.2026" } });
+    fireEvent.blur(startInput);
+    expect(startInput.value).toBe("01.05.2026");
+    expect(monthInput.value).toBe("");
+
+    fireEvent.change(monthInput, { target: { value: "05.2026" } });
+    fireEvent.blur(monthInput);
+    expect(monthInput.value).toContain("Mayıs");
+    expect(startInput.value).toBe("");
+  });
+
+  it("filters statistics month by candidate current group and includes candidates without finance rows", async () => {
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      candidates: [
+        paymentCandidate({
+          id: "candidate-may-no-finance",
+          currentGroup: {
+            groupId: "group-may",
+            title: "Mayıs",
+            startDate: "2026-05-20",
+            term: { id: "term-may", name: "Mayıs 2026", monthDate: "2026-05-01", sequence: 1 },
+            assignedAtUtc: "2026-05-10T08:00:00Z",
+          },
+        }),
+        paymentCandidate({
+          id: "candidate-june",
+          licenseClass: "C",
+          currentGroup: {
+            groupId: "group-june",
+            title: "Haziran",
+            startDate: "2026-06-20",
+            term: { id: "term-june", name: "Haziran 2026", monthDate: "2026-06-01", sequence: 1 },
+            assignedAtUtc: "2026-06-10T08:00:00Z",
+          },
+        }),
+      ],
+      installments: [],
+      payments: [],
+      refunds: [],
+    });
+
+    renderStatisticsPage();
+
+    expect(await screen.findByRole("heading", { name: "İstatistik" })).toBeInTheDocument();
+    const monthInput = await screen.findByPlaceholderText("Dönem") as HTMLInputElement;
+    fireEvent.change(monthInput, { target: { value: "05.2026" } });
+    fireEvent.blur(monthInput);
+
+    const rows = screen.getAllByRole("row");
+    const licenseBRow = rows.find((row) => within(row).queryByText("B"));
+    expect(licenseBRow?.textContent).toContain("1");
+    expect(licenseBRow?.textContent).toContain("0");
+    expect(screen.queryByText("C")).not.toBeInTheDocument();
+  });
+
+  it("keeps overview candidate scope fields when finance rows carry partial candidates", async () => {
+    const scopedCandidate = paymentCandidate({
+      id: "candidate-scoped",
+      currentGroup: {
+        groupId: "group-may",
+        title: "Mayıs",
+        startDate: "2026-05-20",
+        term: { id: "term-may", name: "Mayıs 2026", monthDate: "2026-05-01", sequence: 1 },
+        assignedAtUtc: "2026-05-10T08:00:00Z",
+      },
+    });
+    const partialMovementCandidate = paymentCandidate({
+      id: "candidate-scoped",
+      currentGroup: null,
+      createdAtUtc: undefined,
+    });
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      candidates: [scopedCandidate],
+      installments: [
+        {
+          id: "installment-scoped",
+          candidate: partialMovementCandidate,
+          type: "kurs",
+          sequence: 1,
+          dueDate: "2026-01-15",
+          amount: 100,
+          paidAmount: 0,
+          remainingAmount: 100,
+          description: "Kurs",
+          status: "active",
+          paymentStatus: "unpaid",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+      ],
+      payments: [],
+      refunds: [],
+    });
+
+    renderStatisticsPage();
+
+    expect(await screen.findByRole("heading", { name: "İstatistik" })).toBeInTheDocument();
+    const monthInput = await screen.findByPlaceholderText("Dönem") as HTMLInputElement;
+    fireEvent.change(monthInput, { target: { value: "05.2026" } });
+    fireEvent.blur(monthInput);
+
+    const rows = screen.getAllByRole("row");
+    const licenseBRow = rows.find((row) => within(row).queryByText("B"));
+    expect(licenseBRow?.textContent).toContain("1");
+    expect(licenseBRow?.textContent).toContain("100");
   });
 });

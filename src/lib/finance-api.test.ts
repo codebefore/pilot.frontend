@@ -152,6 +152,43 @@ describe("finance api routing", () => {
     });
   });
 
+  it("does not request document checklist for overview-only statistics candidates", async () => {
+    applyRuntimeConfig({
+      financeApiBaseUrl: "http://127.0.0.1:5093",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          summary: {},
+          candidates: [
+            {
+              id: "candidate-stat-only",
+              firstName: "Stats",
+              lastName: "Only",
+              licenseClass: "B",
+              currentGroup: null,
+              photo: null,
+            },
+          ],
+          payments: [],
+          refunds: [],
+          invoices: [],
+          installments: [],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+
+    const result = await getPaymentsOverview({ fromDate: "2026-06-01" });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(result.candidates?.[0].id).toBe("candidate-stat-only");
+  });
+
   it("routes cash register calls to the runtime finance base url", async () => {
     applyRuntimeConfig({ financeApiBaseUrl: "http://127.0.0.1:5093" });
 

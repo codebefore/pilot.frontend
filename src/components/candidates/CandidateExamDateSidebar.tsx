@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { CheckIcon, PencilIcon, TrashIcon, XIcon } from "../icons";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../ui/LocalizedTimeInput";
-import { formatExamScheduleLicenseClassSummary } from "../../lib/exam-schedule-summary";
+import {
+  formatExamScheduleLicenseClassHeader,
+  formatExamScheduleLicenseClassSummary,
+} from "../../lib/exam-schedule-summary";
 import { useT } from "../../lib/i18n";
 import { formatDateTR } from "../../lib/status-maps";
 import type { ExamCodeOption, ExamScheduleOption } from "../../lib/types";
@@ -29,6 +32,7 @@ type CandidateExamDateSidebarProps = {
   editingOptionId?: string | null;
   editingCodeId?: string | null;
   showTime?: boolean;
+  showLicenseClassInHeader?: boolean;
   summaryMode?: "capacity" | "candidateCount" | "licenseClass";
 };
 
@@ -83,6 +87,7 @@ export function CandidateExamDateSidebar({
   editingOptionId,
   editingCodeId,
   showTime = true,
+  showLicenseClassInHeader = false,
   summaryMode = "capacity",
 }: CandidateExamDateSidebarProps) {
   const [today, setToday] = useState(getTodayDateOnly);
@@ -174,6 +179,9 @@ export function CandidateExamDateSidebar({
 
   const t = useT();
   const todayDividerDate = findTodayDividerDate(options, today);
+  const todayDividerOptionId = todayDividerDate
+    ? options.find((option) => option.date === todayDividerDate)?.id ?? null
+    : null;
   const showCodeTab = codeOptions !== undefined && onCodeSelect !== undefined;
   const noPermissionTitle = t("common.noPermission");
   const startDateEdit = (option: ExamScheduleOption) => {
@@ -186,9 +194,9 @@ export function CandidateExamDateSidebar({
   const submitDateEdit = (option: ExamScheduleOption) => {
     if (!canManageMutations) return;
     const trimmedTime = editingTimeValue.trim();
-    const nextTime = showTime ? trimmedTime : option.time;
+    const nextTime = showTime ? trimmedTime : undefined;
     const dateUnchanged = editingDateValue === option.date;
-    const timeUnchanged = nextTime === option.time;
+    const timeUnchanged = !showTime || nextTime === option.time;
     if (!editingDateValue || (dateUnchanged && timeUnchanged)) {
       setEditingDateId(null);
       return;
@@ -429,9 +437,12 @@ export function CandidateExamDateSidebar({
       {options.map((option) => {
         const isDeleting = deletingOptionId === option.id;
         const isEditing = editingDateId === option.id;
+        const licenseClassHeader = showLicenseClassInHeader
+          ? formatExamScheduleLicenseClassHeader(option)
+          : "";
         return (
           <div className="exam-date-option-group" key={option.id}>
-            {option.date === todayDividerDate ? (
+            {option.id === todayDividerOptionId ? (
               <div aria-hidden="true" className="exam-date-divider" data-testid="exam-date-divider" />
             ) : null}
             <div className="exam-date-option-shell">
@@ -469,6 +480,9 @@ export function CandidateExamDateSidebar({
                 >
                   <span className="exam-date-option-head">
                     <span className="exam-date-option-date">{formatDateTR(option.date)}</span>
+                    {licenseClassHeader ? (
+                      <span className="exam-date-option-license">{licenseClassHeader}</span>
+                    ) : null}
                     {showTime && option.time ? (
                       <span className="exam-date-option-time">{option.time}</span>
                     ) : null}

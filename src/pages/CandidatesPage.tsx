@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
@@ -42,17 +42,20 @@ import {
   assignCandidatesToExamDate,
   applyStatusToCandidates,
   applyTagsToCandidates,
+  buildCandidateUpdatePayload,
 } from "../lib/candidate-bulk";
 import {
   assignCandidateGroup,
   getCandidateById,
   createCandidateTag,
+  updateCandidate,
   type GetCandidatesParams,
   type CandidateSortField,
   type SortDirection,
 } from "../lib/candidates-api";
 import {
   chargeCandidateExamAttempt,
+  listCandidateExamAttempts,
   updateCandidateExamAttempt,
 } from "../lib/candidate-exam-attempts-api";
 import { getGroups } from "../lib/groups-api";
@@ -66,6 +69,7 @@ import {
   type CandidateExamDateType,
 } from "../lib/exam-schedules-api";
 import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-api";
+import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
   buildLicenseClassTotalSummaryItems,
@@ -100,6 +104,7 @@ import type {
   CandidateExamFeeStatus,
   CandidateExamAttemptResponse,
   CandidateExamAttemptUpsertRequest,
+  CandidateExamType,
   CandidateResponse,
   CandidateTag,
   ExamCodeOption,
@@ -108,6 +113,7 @@ import type {
   GroupResponse,
   InstructorResponse,
   LicenseClass,
+  LicenseClassFeeMatrixResponse,
   PagedResponse,
   VehicleResponse,
 } from "../lib/types";
@@ -159,6 +165,7 @@ export type CandidateColumnId =
   | "groupStartDate"
   | "eSinavDate"
   | "eSinavAttemptCount"
+  | "eSinavScore"
   | "eSinavTheoryExamFeeStatus"
   | "eSinavRightsExpiryDate"
   | "eSinavPoolStatus"
@@ -168,6 +175,8 @@ export type CandidateColumnId =
   | "drivingExamVehiclePlate"
   | "drivingExamInstructor"
   | "drivingExamAttemptCount"
+  | "drivingExamAttendanceStatus"
+  | "drivingExamResultStatus"
   | "drivingExamFeeStatus"
   | "graduationDate"
   | "terminationReason"
@@ -209,6 +218,7 @@ type CandidateColumnDef = {
     | "candidates.col.groupStartDate"
     | "candidates.col.eSinavDate"
     | "candidates.col.eSinavAttemptCount"
+    | "candidates.col.eSinavScore"
     | "candidates.col.eSinavTheoryExamFeeStatus"
     | "candidates.col.eSinavRightsExpiryDate"
     | "candidates.col.eSinavPoolStatus"
@@ -218,6 +228,8 @@ type CandidateColumnDef = {
     | "candidates.col.drivingExamVehiclePlate"
     | "candidates.col.drivingExamInstructor"
     | "candidates.col.drivingExamAttemptCount"
+    | "candidates.col.drivingExamAttendanceStatus"
+    | "candidates.col.drivingExamResultStatus"
     | "candidates.col.drivingExamFeeStatus"
     | "candidates.col.graduationDate"
     | "candidates.col.terminationReason"
@@ -269,19 +281,48 @@ function examChargeTitle(examType: CandidateExamDateType): string {
   return examType === "e_sinav" ? "E-Sınav borçlandırması" : "Direksiyon sınav borçlandırması";
 }
 
+function examChargeFeeYear(date: string): number {
+  const year = Number(date.slice(0, 4));
+  return Number.isFinite(year) && year > 0 ? year : new Date().getFullYear();
+}
+
+function normalizeLicenseClassCode(value: string | null | undefined): string {
+  return (value ?? "").trim().toLocaleUpperCase("tr-TR");
+}
+
+function defaultExamChargeFee(
+  candidate: CandidateResponse,
+  examType: CandidateExamDateType,
+  feeMatrix: LicenseClassFeeMatrixResponse | null | undefined,
+  fallbackFee: number | null | undefined
+): number {
+  const candidateLicenseClass = normalizeLicenseClassCode(candidate.licenseClass);
+  const matchingRows = feeMatrix?.rows.filter(
+    (item) =>
+      normalizeLicenseClassCode(item.program.targetLicenseClass) === candidateLicenseClass ||
+      normalizeLicenseClassCode(item.program.targetLicenseDisplayName) === candidateLicenseClass
+  ) ?? [];
+  const matrixFee = examType === "e_sinav"
+    ? matchingRows.find((row) => row.institutionTheoryExamFee != null)?.institutionTheoryExamFee
+    : matchingRows.find((row) => row.institutionPracticeExamFee != null)?.institutionPracticeExamFee;
+
+  return matrixFee ?? fallbackFee ?? 0;
+}
+
 function candidateFullName(candidate: CandidateResponse): string {
   return `${candidate.firstName} ${candidate.lastName}`.trim();
 }
 
 function buildExamAttemptPayload(
   attempt: CandidateExamAttemptResponse,
-  fee: number
+  fee: number,
+  score = attempt.score
 ): CandidateExamAttemptUpsertRequest {
   return {
     examType: attempt.examType,
     scheduledAt: attempt.scheduledAt,
     attemptNumber: attempt.attemptNumber,
-    score: attempt.score,
+    score,
     expiresAt: attempt.expiresAt,
     examScheduleId: attempt.examScheduleId,
     examCode: attempt.examCode,
@@ -474,7 +515,7 @@ function DrivingExamSelectCell({
   onSave,
 }: {
   value: string;
-  label: string;
+  label: ReactNode;
   options: { value: string; label: string }[];
   editing: boolean;
   disabled: boolean;
@@ -540,6 +581,62 @@ function CandidateExamFeeStatusPill({ status }: { status: CandidateExamFeeStatus
   );
 }
 
+function drivingExamAttendanceLabel(status: CandidateResponse["drivingExamAttendanceStatus"]): string {
+  if (status === "attended") return "Girdi";
+  if (status === "absent") return "Girmedi";
+  if (status === "reported") return "Raporlu";
+  return "—";
+}
+
+function drivingExamAttendancePill(status: CandidateResponse["drivingExamAttendanceStatus"]): JobStatus {
+  if (status === "attended") return "success";
+  if (status === "reported") return "manual";
+  if (status === "absent") return "failed";
+  return "queued";
+}
+
+function DrivingExamAttendancePill({
+  status,
+}: {
+  status: CandidateResponse["drivingExamAttendanceStatus"];
+}) {
+  return (
+    <StatusPill
+      label={drivingExamAttendanceLabel(status)}
+      status={drivingExamAttendancePill(status)}
+    />
+  );
+}
+
+function drivingExamResultLabel(
+  status: CandidateResponse["drivingExamResultStatus"],
+  t: ReturnType<typeof useT>
+): string {
+  if (status === "passed") return t("candidateDetail.exam.passed");
+  if (status === "failed") return t("candidateDetail.exam.failed");
+  return "—";
+}
+
+function drivingExamResultPill(status: CandidateResponse["drivingExamResultStatus"]): JobStatus {
+  if (status === "passed") return "success";
+  if (status === "failed") return "failed";
+  return "queued";
+}
+
+function DrivingExamResultPill({
+  status,
+}: {
+  status: CandidateResponse["drivingExamResultStatus"];
+}) {
+  const t = useT();
+  return (
+    <StatusPill
+      label={drivingExamResultLabel(status, t)}
+      status={drivingExamResultPill(status)}
+    />
+  );
+}
+
 function hasFailedExamResult(value: string | null | undefined): boolean {
   if (!value) return false;
   const normalized = value.trim().toLocaleLowerCase("tr-TR");
@@ -554,6 +651,35 @@ function hasPassedExamResult(value: string | null | undefined): boolean {
   return normalized.includes("passed") ||
     normalized.includes("basarili") ||
     normalized.includes("başarılı");
+}
+
+function theoryExamResultFromScore(score: number | null | undefined): "passed" | "failed" | null {
+  if (score == null) return null;
+  return score >= 70 ? "passed" : "failed";
+}
+
+function eSinavScoreStatus(score: number | null | undefined): {
+  labelKey: "candidateDetail.exam.result.pass" | "candidateDetail.exam.result.fail";
+  kind: "success" | "danger";
+} | null {
+  if (score == null) return null;
+  return score >= 70
+    ? { labelKey: "candidateDetail.exam.result.pass", kind: "success" }
+    : { labelKey: "candidateDetail.exam.result.fail", kind: "danger" };
+}
+
+function latestExamAttempt(
+  attempts: CandidateExamAttemptResponse[],
+  examType: CandidateExamType
+): CandidateExamAttemptResponse | undefined {
+  return attempts
+    .filter((attempt) => attempt.examType === examType)
+    .sort((left, right) => {
+      if (right.attemptNumber !== left.attemptNumber) {
+        return right.attemptNumber - left.attemptNumber;
+      }
+      return Date.parse(right.scheduledAt) - Date.parse(left.scheduledAt);
+    })[0];
 }
 
 type CandidateExamStage = "eSinav" | "practice";
@@ -659,6 +785,103 @@ function ExamAttemptPill({ value }: { value: number | null | undefined }) {
   const attempt = Math.min(Math.max(value ?? 1, 1), 4);
   const status = attempt >= 4 ? "failed" : attempt >= 2 ? "manual" : "success";
   return <StatusPill label={`${attempt}/4`} status={status} />;
+}
+
+function EditableESinavScoreCell({
+  disabled,
+  disabledTitle,
+  score,
+  onSave,
+}: {
+  disabled: boolean;
+  disabledTitle?: string;
+  score: number | null | undefined;
+  onSave: (nextScore: number | null) => Promise<boolean>;
+}) {
+  const t = useT();
+  const { showToast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(score == null ? "" : String(score));
+  const scoreStatus = eSinavScoreStatus(score);
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(score == null ? "" : String(score));
+    }
+  }, [editing, score]);
+
+  const commit = async () => {
+    const raw = draft.trim();
+    let nextScore: number | null;
+    if (raw === "") {
+      nextScore = null;
+    } else if (!/^\d{1,3}$/.test(raw)) {
+      showToast(t("candidateDetail.exam.toast.scoreInteger"), "error");
+      setDraft(score == null ? "" : String(score));
+      setEditing(false);
+      return;
+    } else {
+      const parsed = Number.parseInt(raw, 10);
+      if (parsed > 100) {
+        showToast(t("candidateDetail.exam.toast.scoreRange"), "error");
+        setDraft(score == null ? "" : String(score));
+        setEditing(false);
+        return;
+      }
+      nextScore = parsed;
+    }
+
+    if (nextScore === (score ?? null)) {
+      setEditing(false);
+      return;
+    }
+
+    const ok = await onSave(nextScore);
+    if (ok) {
+      setEditing(false);
+    } else {
+      setDraft(score == null ? "" : String(score));
+      setEditing(false);
+    }
+  };
+
+  return (
+    <div className="cand-inline-edit-cell" onClick={(event) => event.stopPropagation()}>
+      {editing ? (
+        <input
+          autoFocus
+          className="candidate-exam-score-input"
+          inputMode="numeric"
+          onBlur={() => void commit()}
+          onChange={(event) => setDraft(event.target.value.replace(/[^\d]/g, "").slice(0, 3))}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            } else if (event.key === "Escape") {
+              setDraft(score == null ? "" : String(score));
+              setEditing(false);
+            }
+          }}
+          placeholder="—"
+          type="text"
+          value={draft}
+        />
+      ) : (
+        <button
+          className="cand-inline-edit-trigger candidate-exam-score-cell candidate-exam-score-cell--button"
+          disabled={disabled}
+          onClick={() => setEditing(true)}
+          title={disabled ? disabledTitle : t("candidateDetail.exam.scoreEditTooltip")}
+          type="button"
+        >
+          <span>{score ?? "—"}</span>
+          {scoreStatus ? (
+            <span className={`candidate-exam-pill ${scoreStatus.kind}`}>{t(scoreStatus.labelKey)}</span>
+          ) : null}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function sortExamDateOptionsNewestFirst(options: ExamScheduleOption[]): ExamScheduleOption[] {
@@ -798,6 +1021,13 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     skeletonWidth: 104,
   },
   {
+    id: "eSinavScore",
+    pageScope: "eSinav",
+    labelKey: "candidates.col.eSinavScore",
+    renderCell: (c) => c.eSinavScore == null ? "—" : String(c.eSinavScore),
+    skeletonWidth: 48,
+  },
+  {
     id: "eSinavTheoryExamFeeStatus",
     pageScope: "eSinav",
     labelKey: "candidates.col.eSinavTheoryExamFeeStatus",
@@ -860,6 +1090,20 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     labelKey: "candidates.col.drivingExamAttemptCount",
     renderCell: (c) => <ExamAttemptPill value={c.drivingExamAttemptCount} />,
     skeletonWidth: 64,
+  },
+  {
+    id: "drivingExamAttendanceStatus",
+    pageScope: "uygulama",
+    labelKey: "candidates.col.drivingExamAttendanceStatus",
+    renderCell: (c) => <DrivingExamAttendancePill status={c.drivingExamAttendanceStatus} />,
+    skeletonWidth: 88,
+  },
+  {
+    id: "drivingExamResultStatus",
+    pageScope: "uygulama",
+    labelKey: "candidates.col.drivingExamResultStatus",
+    renderCell: (c) => <DrivingExamResultPill status={c.drivingExamResultStatus} />,
+    skeletonWidth: 88,
   },
   {
     id: "drivingExamFeeStatus",
@@ -1087,6 +1331,7 @@ const ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId[
     "licenseClass",
     "group",
     "eSinavAttemptCount",
+    "eSinavScore",
     "eSinavTheoryExamFeeStatus",
     "eSinavRightsExpiryDate",
   ],
@@ -1096,6 +1341,7 @@ const ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId[
     "licenseClass",
     "group",
     "eSinavAttemptCount",
+    "eSinavScore",
     "eSinavTheoryExamFeeStatus",
     "eSinavDate",
     "eSinavRightsExpiryDate",
@@ -1106,6 +1352,7 @@ const ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId[
     "licenseClass",
     "group",
     "eSinavAttemptCount",
+    "eSinavScore",
     "eSinavTheoryExamFeeStatus",
     "eSinavDate",
     "eSinavRightsExpiryDate",
@@ -1128,6 +1375,8 @@ const DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId
     "licenseClass",
     "group",
     "drivingExamAttemptCount",
+    "drivingExamAttendanceStatus",
+    "drivingExamResultStatus",
     "drivingExamFeeStatus",
   ],
   basarisiz: [
@@ -1136,6 +1385,8 @@ const DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId
     "licenseClass",
     "group",
     "drivingExamAttemptCount",
+    "drivingExamAttendanceStatus",
+    "drivingExamResultStatus",
     "drivingExamFeeStatus",
     "drivingExamDate",
     "drivingExamCode",
@@ -1146,6 +1397,8 @@ const DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId
     "licenseClass",
     "group",
     "drivingExamAttemptCount",
+    "drivingExamAttendanceStatus",
+    "drivingExamResultStatus",
     "drivingExamFeeStatus",
     "drivingExamTime",
     "drivingExamVehiclePlate",
@@ -1176,6 +1429,7 @@ type ExamDateSidebarConfig = {
   examType: CandidateExamDateType;
   field: "eSinavDate" | "drivingExamDate";
   showTime?: boolean;
+  showLicenseClassInHeader?: boolean;
   showLicenseClassTotalSummary?: boolean;
   summaryMode?: "capacity" | "candidateCount" | "licenseClass";
 };
@@ -1366,8 +1620,9 @@ export function CandidatesPage({
   const [examSidebarTab, setExamSidebarTab] = useState<"dates" | "codes">("dates");
   const [editingPracticeCell, setEditingPracticeCell] = useState<{
     candidateId: string;
-    field: "time" | "vehicle" | "instructor";
+    field: "time" | "vehicle" | "instructor" | "attendance" | "result";
   } | null>(null);
+  const [savingESinavScoreCandidateId, setSavingESinavScoreCandidateId] = useState<string | null>(null);
   const [savingPracticeCandidateId, setSavingPracticeCandidateId] = useState<string | null>(null);
 
   /* ── React Query — side data (independent of candidate list query) ── */
@@ -1478,12 +1733,92 @@ export function CandidatesPage({
     return map;
   }, [licenseClassOptions]);
 
+  const saveESinavScore = async (
+    candidate: CandidateResponse,
+    nextScore: number | null
+  ): Promise<boolean> => {
+    if (!canManageCandidates) return false;
+    if (!candidate.eSinavAttemptId) {
+      showToast("E-sınav kaydı bulunamadı.", "error");
+      return false;
+    }
+
+    setSavingESinavScoreCandidateId(candidate.id);
+    try {
+      const attempts = await listCandidateExamAttempts(candidate.id);
+      const latestAttempt = attempts.find((attempt) => attempt.id === candidate.eSinavAttemptId);
+      if (!latestAttempt) {
+        showToast("E-sınav kaydı bulunamadı.", "error");
+        return false;
+      }
+
+      const updated = await updateCandidateExamAttempt(
+        candidate.id,
+        latestAttempt.id,
+        buildExamAttemptPayload(latestAttempt, latestAttempt.fee, nextScore)
+      );
+      const nextAttempts = attempts.map((attempt) => attempt.id === updated.id ? updated : attempt);
+      const latestTheory = latestExamAttempt(nextAttempts, "theory");
+      const nextSummary = {
+        mebExamDate: latestTheory?.scheduledAt.slice(0, 10) ?? null,
+        mebExamResult: theoryExamResultFromScore(latestTheory?.score),
+        eSinavAttemptCount: latestTheory?.attemptNumber ?? 1,
+      };
+      const updatedCandidate = await updateCandidate(
+        candidate.id,
+        buildCandidateUpdatePayload(candidate, nextSummary)
+      );
+
+      queryClient.setQueriesData<PagedResponse<CandidateResponse>>(
+        { queryKey: candidateKeys.lists() },
+        (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.id === candidate.id
+                    ? {
+                        ...item,
+                        ...updatedCandidate,
+                        mebExamDate: updated.scheduledAt.slice(0, 10),
+                        mebExamResult: theoryExamResultFromScore(updated.score),
+                        eSinavAttemptCount: updated.attemptNumber,
+                        eSinavAttemptId: updated.id,
+                        eSinavScore: updated.score ?? null,
+                      }
+                    : item
+                ),
+              }
+            : current
+      );
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.lists(), refetchType: "none" });
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidate.id) });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      showToast(nextScore == null ? "Puan silindi" : `Puan kaydedildi (${nextScore})`);
+      return true;
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 409
+        ? t("candidateDetail.exam.toast.conflictRefresh")
+        : "Puan kaydedilemedi.";
+      showToast(message, "error");
+      return false;
+    } finally {
+      setSavingESinavScoreCandidateId(null);
+    }
+  };
+
   const savePracticeAttemptField = async (
     candidate: CandidateResponse,
-    patch: { time?: string; vehicleId?: string; instructorId?: string }
+    patch: {
+      time?: string;
+      vehicleId?: string;
+      instructorId?: string;
+      attendanceStatus?: CandidateResponse["drivingExamAttendanceStatus"];
+      resultStatus?: CandidateResponse["drivingExamResultStatus"];
+    }
   ) => {
     if (!canManageCandidates) return;
-    if (!candidate.drivingExamAttemptId || !candidate.drivingExamAttemptRowVersion) {
+    if (!candidate.drivingExamAttemptId) {
       showToast(t("candidates.toast.appointmentNotFound"), "error");
       return;
     }
@@ -1497,31 +1832,44 @@ export function CandidatesPage({
     const scheduledAt = patch.time
       ? drivingExamDateTimeIso(candidate.drivingExamDate, patch.time)
       : candidate.drivingExamScheduledAt;
-    if (!scheduledAt) {
+    if (patch.time && !scheduledAt) {
       showToast(t("candidates.toast.examTimeUpdateFailed"), "error");
       return;
     }
 
     setSavingPracticeCandidateId(candidate.id);
     try {
+      const attempts = await listCandidateExamAttempts(candidate.id);
+      const latestAttempt = attempts.find((attempt) => attempt.id === candidate.drivingExamAttemptId);
+      if (!latestAttempt) {
+        showToast(t("candidates.toast.appointmentNotFound"), "error");
+        return;
+      }
+      const nextScheduledAt = patch.time ? scheduledAt ?? latestAttempt.scheduledAt : latestAttempt.scheduledAt;
+      const nextAttendanceStatus = patch.attendanceStatus !== undefined
+        ? patch.attendanceStatus
+        : latestAttempt.examAttendanceStatus;
+      const nextResultStatus = patch.resultStatus !== undefined
+        ? patch.resultStatus
+        : latestAttempt.examResultStatus;
       const updated = await updateCandidateExamAttempt(candidate.id, candidate.drivingExamAttemptId, {
         examType: "practice",
-        scheduledAt,
-        attemptNumber: candidate.drivingExamAttemptCount ?? 1,
+        scheduledAt: nextScheduledAt,
+        attemptNumber: latestAttempt.attemptNumber,
         score: null,
-        expiresAt: null,
-        examScheduleId: candidate.drivingExamScheduleId ?? null,
+        expiresAt: latestAttempt.expiresAt,
+        examScheduleId: latestAttempt.examScheduleId ?? candidate.drivingExamScheduleId ?? null,
         vehicleId: patch.vehicleId !== undefined ? patch.vehicleId || null : candidate.drivingExamVehicleId ?? null,
         vehiclePlate: patch.vehicleId !== undefined ? vehicle?.plateNumber ?? null : candidate.drivingExamVehiclePlate ?? null,
         instructorId: patch.instructorId !== undefined ? patch.instructorId || null : candidate.drivingExamInstructorId ?? null,
         instructorFullName: patch.instructorId !== undefined
           ? instructor ? instructorFullName(instructor) : null
           : candidate.drivingExamInstructorFullName ?? null,
-        examAttendanceStatus: candidate.drivingExamAttendanceStatus ?? null,
-        examResultStatus: candidate.drivingExamResultStatus ?? null,
-        fee: candidate.drivingExamFee ?? 0,
-        feeStatus: candidate.drivingExamFeeStatus ?? "pending",
-        rowVersion: candidate.drivingExamAttemptRowVersion,
+        examAttendanceStatus: nextAttendanceStatus,
+        examResultStatus: nextAttendanceStatus === "attended" ? nextResultStatus : null,
+        fee: latestAttempt.fee,
+        feeStatus: latestAttempt.feeStatus,
+        rowVersion: latestAttempt.rowVersion,
       });
 
       queryClient.setQueriesData<PagedResponse<CandidateResponse>>(
@@ -1551,6 +1899,7 @@ export function CandidatesPage({
               }
             : current
       );
+      void queryClient.invalidateQueries({ queryKey: candidateKeys.lists(), refetchType: "none" });
       void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidate.id) });
       void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
       void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
@@ -1598,6 +1947,29 @@ export function CandidatesPage({
                 : formatDateTR(candidate.mebExamDate),
           };
         }
+        if (columnPageScope === "eSinav" && col.id === "eSinavScore") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) => (
+              <EditableESinavScoreCell
+                disabled={
+                  savingESinavScoreCandidateId === candidate.id ||
+                  !canManageCandidates ||
+                  !candidate.eSinavAttemptId
+                }
+                disabledTitle={
+                  !canManageCandidates
+                    ? noPermissionTitle
+                    : !candidate.eSinavAttemptId
+                      ? "E-sınav kaydı bulunamadı"
+                      : undefined
+                }
+                onSave={(nextScore) => saveESinavScore(candidate, nextScore)}
+                score={candidate.eSinavScore}
+              />
+            ),
+          };
+        }
         if (columnPageScope === "uygulama" && col.id === "drivingExamTime") {
           return {
             ...col,
@@ -1610,6 +1982,78 @@ export function CandidatesPage({
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "time" })}
                 onCancel={() => setEditingPracticeCell(null)}
                 onSave={(time) => savePracticeAttemptField(candidate, { time })}
+              />
+            ),
+          };
+        }
+        if (columnPageScope === "uygulama" && col.id === "drivingExamAttendanceStatus") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) => (
+              <DrivingExamSelectCell
+                value={candidate.drivingExamAttendanceStatus ?? ""}
+                label={
+                  <StatusPill
+                    label={drivingExamAttendanceLabel(candidate.drivingExamAttendanceStatus)}
+                    status={drivingExamAttendancePill(candidate.drivingExamAttendanceStatus)}
+                  />
+                }
+                options={[
+                  { value: "attended", label: "Girdi" },
+                  { value: "absent", label: "Girmedi" },
+                  { value: "reported", label: "Raporlu" },
+                ]}
+                editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "attendance"}
+                disabled={
+                  savingPracticeCandidateId === candidate.id ||
+                  !canManageCandidates ||
+                  !candidate.drivingExamAttemptId
+                }
+                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
+                ariaLabel={t("candidateDetail.exam.aria.examStatus")}
+                onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "attendance" })}
+                onCancel={() => setEditingPracticeCell(null)}
+                onSave={(value) =>
+                  savePracticeAttemptField(candidate, {
+                    attendanceStatus: (value || null) as CandidateResponse["drivingExamAttendanceStatus"],
+                  })
+                }
+              />
+            ),
+          };
+        }
+        if (columnPageScope === "uygulama" && col.id === "drivingExamResultStatus") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) => (
+              <DrivingExamSelectCell
+                value={candidate.drivingExamResultStatus ?? ""}
+                label={
+                  <StatusPill
+                    label={drivingExamResultLabel(candidate.drivingExamResultStatus, t)}
+                    status={drivingExamResultPill(candidate.drivingExamResultStatus)}
+                  />
+                }
+                options={[
+                  { value: "passed", label: t("candidateDetail.exam.passed") },
+                  { value: "failed", label: t("candidateDetail.exam.failed") },
+                ]}
+                editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "result"}
+                disabled={
+                  savingPracticeCandidateId === candidate.id ||
+                  !canManageCandidates ||
+                  !candidate.drivingExamAttemptId ||
+                  candidate.drivingExamAttendanceStatus !== "attended"
+                }
+                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
+                ariaLabel={t("candidateDetail.exam.aria.examResult")}
+                onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "result" })}
+                onCancel={() => setEditingPracticeCell(null)}
+                onSave={(value) =>
+                  savePracticeAttemptField(candidate, {
+                    resultStatus: (value || null) as CandidateResponse["drivingExamResultStatus"],
+                  })
+                }
               />
             ),
           };
@@ -1667,11 +2111,15 @@ export function CandidatesPage({
       groupColumnMode,
       lang,
       licenseClassLabelByCode,
+      noPermissionTitle,
       practiceInstructors,
       practiceVehicles,
+      saveESinavScore,
       savePracticeAttemptField,
+      savingESinavScoreCandidateId,
       savingPracticeCandidateId,
       tab,
+      t,
     ]
   );
   const visibleColumnOrder = useMemo(() => {
@@ -1994,7 +2442,16 @@ export function CandidatesPage({
   };
 
   const examScheduleMutationErrorMessage = (error: unknown, fallback: string) => {
-    const errorCode = error instanceof ApiError ? error.errorCode : undefined;
+    if (!(error instanceof ApiError)) {
+      return fallback;
+    }
+
+    const firstValidationMessage = Object.values(error.validationErrors ?? {})[0]?.[0];
+    if (firstValidationMessage) {
+      return firstValidationMessage;
+    }
+
+    const errorCode = error.errorCode;
     if (errorCode === "examScheduleDatePassed") {
       return t("candidates.toast.examScheduleDeletePastDate");
     }
@@ -2087,9 +2544,10 @@ export function CandidatesPage({
 
   const handleTabChange = (value: CandidateListTabKey) => {
     setExamDateTabNeutral(false);
-    if (examDateSidebar && value === "havuz") {
+    if (examDateSidebar) {
       setSelectedExamDate("");
       setSelectedExamScheduleId("");
+      setSelectedDrivingExamCode("");
     }
     setTab(value);
     setPage(1);
@@ -2580,8 +3038,21 @@ export function CandidatesPage({
         );
       }
 
+      const feeYear = examChargeFeeYear(assignedExamDate);
+      const feeMatrix = await queryClient.fetchQuery({
+        queryKey: ["finance", "license-class-fee-matrix", feeYear],
+        queryFn: ({ signal }) => getLicenseClassFeeMatrix(feeYear, undefined, signal),
+        staleTime: 5 * 60 * 1000,
+      }).catch(() => null);
+
       const chargeRows = result.assignedCandidates.flatMap(({ candidate, attempt }) =>
-        attempt ? [{ candidate, attempt, fee: String(attempt.fee ?? 0) }] : []
+        attempt
+          ? [{
+              candidate,
+              attempt,
+              fee: String(defaultExamChargeFee(candidate, examDateSidebar.examType, feeMatrix, attempt.fee)),
+            }]
+          : []
       );
       if (chargeRows.length > 0) {
         setExamChargePrompt({
@@ -2636,7 +3107,7 @@ export function CandidatesPage({
     if (!examChargePrompt || examChargeSaving) return;
     const prepared = examChargePrompt.rows.map((row) => ({
       ...row,
-      amount: Number(row.fee),
+      amount: row.fee.trim() === "" ? 0 : Number(row.fee),
     }));
     if (prepared.some((row) => !Number.isFinite(row.amount) || row.amount < 0)) {
       showToast("Sınav ücreti 0 veya daha büyük olmalı", "error");
@@ -2647,15 +3118,24 @@ export function CandidatesPage({
     try {
       await Promise.all(
         prepared.map(async (row) => {
+          const latestAttempts = await listCandidateExamAttempts(row.candidate.id);
+          const latestAttempt = latestAttempts.find((attempt) => attempt.id === row.attempt.id) ?? row.attempt;
           const updatedAttempt = await updateCandidateExamAttempt(
             row.candidate.id,
-            row.attempt.id,
-            buildExamAttemptPayload(row.attempt, row.amount)
+            latestAttempt.id,
+            buildExamAttemptPayload(latestAttempt, row.amount)
           );
-          await chargeCandidateExamAttempt(row.candidate.id, updatedAttempt.id);
+          if (row.amount > 0) {
+            await chargeCandidateExamAttempt(row.candidate.id, updatedAttempt.id);
+          }
         })
       );
-      showToast(`${prepared.length} aday için sınav borçlandırması yapıldı`);
+      const chargedCount = prepared.filter((row) => row.amount > 0).length;
+      showToast(
+        chargedCount > 0
+          ? `${chargedCount} aday için sınav borçlandırması yapıldı`
+          : "Sınav ücreti kaydedildi"
+      );
       setExamChargePrompt(null);
       setExamChargeModalOpen(false);
       refreshAll();
@@ -3245,6 +3725,7 @@ export function CandidatesPage({
             options={displayedExamDateOptions}
             selectedCode={selectedDrivingExamCode}
             selectedOptionId={selectedExamScheduleId}
+            showLicenseClassInHeader={examDateSidebar.showLicenseClassInHeader}
             showTime={examDateSidebar.showTime}
             summaryMode={examDateSidebar.summaryMode}
             title={examDateSidebar.title}
@@ -3376,7 +3857,7 @@ export function CandidatesPage({
       </Modal>
       {examDateSidebar ? (
         <NewExamScheduleModal
-          canManage={canManageCandidates}
+          canManage={canManageGroups}
           examCodes={examDateSidebar.examType === "uygulama" ? examCodeOptions : undefined}
           examType={examDateSidebar.examType}
           onClose={() => setExamScheduleModalOpen(false)}
@@ -3389,7 +3870,7 @@ export function CandidatesPage({
       ) : null}
       {examDateSidebar?.examType === "uygulama" ? (
         <NewExamCodeModal
-          canManage={canManageCandidates}
+          canManage={canManageGroups}
           onClose={() => setExamCodeModalOpen(false)}
           onSaved={() => {
             setExamCodeModalOpen(false);

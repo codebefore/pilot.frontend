@@ -114,6 +114,7 @@ type InstallmentColumnId =
   | "type"
   | "dueDate"
   | "amount"
+  | "remainingAmount"
   | "description";
 type InstallmentSortField = Exclude<InstallmentColumnId, "photo">;
 type DebtColumnId =
@@ -390,6 +391,7 @@ const INSTALLMENT_COLUMNS: {
   { id: "type", labelKey: "payments.col.paymentType", sortable: true, filterable: true },
   { id: "dueDate", labelKey: "payments.col.dueDate", sortable: true },
   { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
+  { id: "remainingAmount", labelKey: "payments.col.remainingBalance", sortable: true, numeric: true },
   { id: "description", labelKey: "payments.col.description", sortable: true },
 ];
 
@@ -667,6 +669,7 @@ function installmentSortValue(
   if (field === "type") return paymentTypeLabel(installment.type);
   if (field === "dueDate") return installment.dueDate;
   if (field === "amount") return installment.amount;
+  if (field === "remainingAmount") return installment.remainingAmount;
   return installmentDescription(installment);
 }
 
@@ -683,6 +686,7 @@ function installmentFilterValue(
   if (field === "type") return paymentTypeLabel(installment.type);
   if (field === "dueDate") return dateKey(installment.dueDate);
   if (field === "amount") return String(installment.amount);
+  if (field === "remainingAmount") return String(installment.remainingAmount);
   return installmentDescription(installment);
 }
 
@@ -693,6 +697,7 @@ function installmentFilterLabel(
 ): string {
   if (field === "dueDate") return formatDateTR(installment.dueDate);
   if (field === "amount") return money(installment.amount);
+  if (field === "remainingAmount") return money(installment.remainingAmount);
   return installmentFilterValue(installment, field, licenseClassLabelByCode);
 }
 
@@ -721,6 +726,19 @@ function candidateMatchesPeriod(
   const candidateMonth = candidate.currentGroup?.term.monthDate;
   if (!candidateMonth) return false;
   return dateKey(candidateMonth).slice(0, 7) === periodMonth.slice(0, 7);
+}
+
+function candidateMatchesRegistrationDateRange(
+  candidate: PaymentCandidateSummaryResponse,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  if (!fromDate && !toDate) return true;
+  const registeredAt = dateKey(candidate.createdAtUtc);
+  if (!registeredAt) return false;
+  if (fromDate && registeredAt < fromDate) return false;
+  if (toDate && registeredAt > toDate) return false;
+  return true;
 }
 
 function debtSortValue(
@@ -2222,6 +2240,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     const rows = new Map<string, PeriodStatsRow>();
     const candidatesById = new Map<string, PaymentCandidateSummaryResponse>();
     const countedCandidatesByLicense = new Map<string, Set<string>>();
+    const selectedCandidateIds = new Set<string>();
 
     const ensureRow = (candidate: PaymentCandidateSummaryResponse) => {
       const licenseClass = licenseClassLabel(
@@ -2243,33 +2262,64 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       return next;
     };
 
+    const mergeCandidate = (
+      existing: PaymentCandidateSummaryResponse,
+      incoming: PaymentCandidateSummaryResponse,
+    ): PaymentCandidateSummaryResponse => ({
+      ...incoming,
+      createdAtUtc: incoming.createdAtUtc ?? existing.createdAtUtc,
+      currentGroup: incoming.currentGroup ?? existing.currentGroup,
+      photo: incoming.photo ?? existing.photo,
+    });
+
+    const addCandidate = (candidate: PaymentCandidateSummaryResponse | null | undefined) => {
+      if (!candidate || !isActivePaymentCandidate(candidate)) return;
+      const existing = candidatesById.get(candidate.id);
+      candidatesById.set(candidate.id, existing ? mergeCandidate(existing, candidate) : candidate);
+    };
+
+    const canonicalCandidate = (candidate: PaymentCandidateSummaryResponse) => {
+      return candidatesById.get(candidate.id) ?? candidate;
+    };
+
+    (overview?.candidates ?? []).forEach(addCandidate);
+    (overview?.installments ?? []).forEach((installment) => addCandidate(installment.candidate));
+    (overview?.payments ?? []).forEach((payment) => addCandidate(payment.candidate));
+    (overview?.refunds ?? []).forEach((refund) => addCandidate(refund.candidate));
+
+    for (const candidate of candidatesById.values()) {
+      if (statsMonth && !candidateMatchesPeriod(candidate, statsMonth)) {
+        continue;
+      }
+      if (!statsMonth && !candidateMatchesRegistrationDateRange(candidate, statsFromDate, statsToDate)) {
+        continue;
+      }
+
+      selectedCandidateIds.add(candidate.id);
+      const row = ensureRow(candidate);
+      countedCandidatesByLicense.get(row.key)?.add(candidate.id);
+    }
+
     (overview?.installments ?? [])
       .filter((installment) => installment.status === "active")
-      .filter((installment) => candidateMatchesPeriod(installment.candidate, statsMonth))
-      .filter((installment) => isInDateRange(installment.dueDate, statsFromDate, statsToDate))
+      .filter((installment) => selectedCandidateIds.has(installment.candidate.id))
       .forEach((installment) => {
-        candidatesById.set(installment.candidate.id, installment.candidate);
-        const row = ensureRow(installment.candidate);
+        const row = ensureRow(canonicalCandidate(installment.candidate));
         row.revenue += installment.amount;
-        countedCandidatesByLicense.get(row.key)?.add(installment.candidate.id);
       });
 
     (overview?.payments ?? [])
       .filter((payment) => payment.status === "active")
-      .filter((payment) => candidateMatchesPeriod(payment.candidate, statsMonth))
-      .filter((payment) => isInDateRange(payment.paidAtUtc, statsFromDate, statsToDate))
+      .filter((payment) => selectedCandidateIds.has(payment.candidate.id))
       .forEach((payment) => {
-        candidatesById.set(payment.candidate.id, payment.candidate);
-        const row = ensureRow(payment.candidate);
+        const row = ensureRow(canonicalCandidate(payment.candidate));
         row.collected += payment.amount;
       });
 
     (overview?.refunds ?? [])
-      .filter((refund) => candidateMatchesPeriod(refund.candidate, statsMonth))
-      .filter((refund) => isInDateRange(refund.refundedAtUtc, statsFromDate, statsToDate))
+      .filter((refund) => selectedCandidateIds.has(refund.candidate.id))
       .forEach((refund) => {
-        candidatesById.set(refund.candidate.id, refund.candidate);
-        const row = ensureRow(refund.candidate);
+        const row = ensureRow(canonicalCandidate(refund.candidate));
         row.collected -= refund.amount;
       });
 
@@ -2287,9 +2337,10 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       { count: 0, revenue: 0, collected: 0 },
     );
 
-    return { items, total, candidateCount: candidatesById.size };
+    return { items, total, candidateCount: selectedCandidateIds.size };
   }, [
     licenseClassLabelByCode,
+    overview?.candidates,
     overview?.installments,
     overview?.payments,
     overview?.refunds,
@@ -2841,7 +2892,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     columnId: CashMovementColumnId,
   ) => {
     if (columnId === "date") return renderFinanceDateTime(row.date);
-    if (columnId === "amount") return money(row.amount);
+    if (columnId === "amount") return row.type === "Çıkış" ? `-${money(row.amount)}` : money(row.amount);
     return row[columnId];
   };
 
@@ -2872,6 +2923,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (columnId === "type") return t(PAYMENT_TYPE_KEY[installment.type]);
     if (columnId === "dueDate") return formatDateTR(installment.dueDate);
     if (columnId === "amount") return money(installment.amount);
+    if (columnId === "remainingAmount") return money(installment.remainingAmount);
     return installmentDescription(installment);
   };
 
@@ -3020,21 +3072,21 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             </div>
             <div className="payments-filter-field">
               <LocalizedDateInput
-                ariaLabel={t("common.field.startDate")}
+                ariaLabel={t("payments.filter.registrationStartDate")}
                 className="form-input"
                 name="payments-stats-from-date"
                 onChange={applyStatsFromDate}
-                placeholder={t("common.field.startDate")}
+                placeholder={t("payments.filter.registrationStartDate")}
                 value={statsFromDate}
               />
             </div>
             <div className="payments-filter-field">
               <LocalizedDateInput
-                ariaLabel={t("common.field.endDate")}
+                ariaLabel={t("payments.filter.registrationEndDate")}
                 className="form-input"
                 name="payments-stats-to-date"
                 onChange={applyStatsToDate}
-                placeholder={t("common.field.endDate")}
+                placeholder={t("payments.filter.registrationEndDate")}
                 value={statsToDate}
               />
             </div>
@@ -4030,7 +4082,12 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               className={[
                                 column.id === "name" ? "job-type" : "",
                                 column.numeric ? "finance-matrix-amount" : "",
-                                column.id === "balance" ||
+                                column.id === "balance" && row.balance >= 0
+                                  ? "cash-movement-inflow"
+                                  : "",
+                                column.id === "balance" && row.balance < 0
+                                  ? "cash-movement-outflow"
+                                  : "",
                                 column.id === "selectedInflow"
                                   ? "payment-credit"
                                   : "",
@@ -4269,7 +4326,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 ? "finance-detail-description-cell"
                                 : "",
                               column.numeric
-                                ? "finance-matrix-amount payment-credit"
+                                ? `finance-matrix-amount ${
+                                    row.type === "Giriş"
+                                      ? "cash-movement-inflow"
+                                      : "cash-movement-outflow"
+                                  }`
                                 : "",
                               `finance-col-${column.id}`,
                             ]

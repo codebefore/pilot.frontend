@@ -17,9 +17,10 @@ export function ExamESinavPage() {
 
   return (
     <CandidatesPage
-      columnStorageKey="exams.e-sinav.columns.v8"
+      columnStorageKey="exams.e-sinav.columns.v9"
       columnLabelOverrides={{
         eSinavAttemptCount: "Hak",
+        eSinavScore: "Puan",
       }}
       defaultVisibleColumnIds={defaultVisibleColumnIds}
       examDateSidebar={{

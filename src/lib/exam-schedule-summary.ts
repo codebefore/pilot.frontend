@@ -29,6 +29,15 @@ export function formatExamScheduleLicenseClassSummary(option: ExamScheduleOption
     : `(${option.candidateCount}/${option.capacity})`;
 }
 
+export function formatExamScheduleLicenseClassHeader(option: ExamScheduleOption): string {
+  return (option.licenseClassCounts ?? [])
+    .filter((entry) => entry.count > 0)
+    .slice()
+    .sort((left, right) => compareLicenseClasses(left.licenseClass, right.licenseClass))
+    .map((entry) => entry.licenseClass)
+    .join(" - ");
+}
+
 export function formatLicenseClassTotalSummary(
   licenseClassCounts: ExamScheduleLicenseClassCount[]
 ): string {

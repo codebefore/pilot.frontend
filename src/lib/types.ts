@@ -106,6 +106,8 @@ export interface CandidateResponse {
   graduationDate?: string | null;
   mebExamResult?: string | null;
   eSinavAttemptCount?: number | null;
+  eSinavScore?: number | null;
+  eSinavAttemptId?: string | null;
   eSinavTheoryExamFeeStatus?: CandidateExamFeeStatus | null;
   drivingExamAttemptCount?: number | null;
   drivingExamFeeStatus?: CandidateExamFeeStatus | null;
@@ -432,6 +434,7 @@ type PaymentInstallmentPaymentStatus =
 export interface PaymentsOverviewResponse {
   summary: PaymentsOverviewSummaryResponse;
   cashRegisters?: AccountingCashRegisterSummaryResponse[];
+  candidates?: PaymentCandidateSummaryResponse[];
   payments: PaymentMovementResponse[];
   refunds?: PaymentRefundMovementResponse[];
   cashMovements?: CashRegisterMovementResponse[];
@@ -454,6 +457,7 @@ export interface PaymentCandidateSummaryResponse {
   nationalId: string;
   licenseClass: string;
   isDeleted?: boolean;
+  createdAtUtc?: string;
   currentGroup: CandidateGroupSummary | null;
   photo: CandidatePhotoSummary | null;
 }

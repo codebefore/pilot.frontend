@@ -17,15 +17,18 @@ export function ExamUygulamaPage() {
 
   return (
     <CandidatesPage
-      columnStorageKey="exams.uygulama.columns.v8"
+      columnStorageKey="exams.uygulama.columns.v9"
       columnLabelOverrides={{
         drivingExamDate: "Tarih",
         drivingExamAttemptCount: "Hak",
+        drivingExamAttendanceStatus: "Sınav Durumu",
+        drivingExamResultStatus: "Sınav Sonucu",
       }}
       defaultVisibleColumnIds={defaultVisibleColumnIds}
       examDateSidebar={{
         examType: "uygulama",
         field: "drivingExamDate",
+        showLicenseClassInHeader: true,
         showLicenseClassTotalSummary: true,
         showTime: false,
         summaryMode: "capacity",

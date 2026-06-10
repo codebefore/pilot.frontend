@@ -204,12 +204,17 @@ export async function assignCandidatesToExamDate(
           ? { mebExamDate: examDate }
           : { drivingExamDate: examDate, drivingExamScheduleId: examScheduleId ?? null };
 
-      await updateCandidate(id, buildCandidateUpdatePayload(candidate, overrides));
       let attempt: CandidateExamAttemptResponse | null = null;
       if (examScheduleId) {
         attempt = await upsertCandidateExamAttemptForSchedule(id, examType, examDate, examScheduleId, examTime);
       }
-      return { candidate, attempt };
+      const summaryOverrides = attempt
+        ? examType === "e_sinav"
+          ? { ...overrides, eSinavAttemptCount: attempt.attemptNumber }
+          : { ...overrides, drivingExamAttemptCount: attempt.attemptNumber }
+        : overrides;
+      const updatedCandidate = await updateCandidate(id, buildCandidateUpdatePayload(candidate, summaryOverrides));
+      return { candidate: updatedCandidate, attempt };
     })
   );
 
@@ -233,12 +238,13 @@ async function upsertCandidateExamAttemptForSchedule(
   const attemptExamType: CandidateExamType = examType === "e_sinav" ? "theory" : "practice";
   const attempts = await listCandidateExamAttempts(candidateId);
   const existing = findScheduleAttempt(attempts, attemptExamType, examScheduleId, examDate);
+  const attemptNumber = existing?.attemptNumber ?? nextCandidateExamAttemptNumber(attempts, attemptExamType);
   const scheduledAt = examDateTimeUtc(examDate, examTime);
   const payload = {
     examType: attemptExamType,
     scheduledAt,
     examScheduleId,
-    attemptNumber: existing?.attemptNumber,
+    attemptNumber,
     score: attemptExamType === "theory" ? existing?.score ?? null : null,
     expiresAt: null,
     vehicleId: attemptExamType === "practice" ? existing?.vehicleId ?? null : null,
@@ -270,43 +276,31 @@ function findScheduleAttempt(
       attempt.examType === examType &&
       !attempt.examScheduleId &&
       applicationDateOnly(attempt.scheduledAt) === examDate
-    )
-    ?? latestOpenExamAttempt(attempts, examType);
+    );
 }
 
-function latestOpenExamAttempt(
+function nextCandidateExamAttemptNumber(
   attempts: CandidateExamAttemptResponse[],
   examType: CandidateExamType
-): CandidateExamAttemptResponse | undefined {
-  return attempts
-    .filter((attempt) => attempt.examType === examType && !isClosedExamAttempt(attempt))
-    .sort(compareCandidateExamAttemptRecency)[0];
-}
-
-function isClosedExamAttempt(attempt: CandidateExamAttemptResponse): boolean {
-  if (attempt.examType === "theory") {
-    return attempt.score !== null && attempt.score !== undefined;
-  }
-
-  return Boolean(attempt.examResultStatus)
-    || attempt.examAttendanceStatus === "absent"
-    || attempt.examAttendanceStatus === "reported";
-}
-
-function compareCandidateExamAttemptRecency(
-  left: CandidateExamAttemptResponse,
-  right: CandidateExamAttemptResponse
 ): number {
-  if (right.attemptNumber !== left.attemptNumber) {
-    return right.attemptNumber - left.attemptNumber;
+  const maxAttemptNumber = candidateExamAttemptLimit(attempts, examType);
+  const used = attempts
+    .filter((attempt) => attempt.examType === examType)
+    .map((attempt) => attempt.attemptNumber);
+  for (let number = 1; number <= maxAttemptNumber; number += 1) {
+    if (!used.includes(number)) return number;
   }
+  throw new Error(`No remaining ${examType} exam attempts.`);
+}
 
-  const scheduledDiff = Date.parse(right.scheduledAt) - Date.parse(left.scheduledAt);
-  if (scheduledDiff !== 0) {
-    return scheduledDiff;
-  }
-
-  return Date.parse(right.createdAt) - Date.parse(left.createdAt);
+function candidateExamAttemptLimit(
+  attempts: CandidateExamAttemptResponse[],
+  examType: CandidateExamType
+): number {
+  if (examType !== "practice") return 4;
+  return attempts.some((attempt) => attempt.examType === "practice" && attempt.examAttendanceStatus === "reported")
+    ? 5
+    : 4;
 }
 
 function examDateTimeUtc(examDate: string, examTime?: string | null): string {

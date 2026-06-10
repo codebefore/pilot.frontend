@@ -121,7 +121,14 @@ export function NewExamScheduleModal({
       showToast("Sinav tarihi eklendi");
       onSaved();
     } catch (error) {
-      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError);
+      const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
+        fieldMap: {
+          Date: "date",
+          ExamCodeId: "examCodeId",
+          Time: "time",
+          Capacity: "capacity",
+        },
+      });
       if (unmappedMessages[0]) {
         showToast(unmappedMessages[0], "error");
       } else if (error instanceof ApiError && error.message) {
