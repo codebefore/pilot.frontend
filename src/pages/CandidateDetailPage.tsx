@@ -7565,7 +7565,6 @@ function DocumentsTab({
   const noPermissionTitle = "Yetkiniz yok.";
   const t = useT();
   const [statusFilter, setStatusFilter] = useState<CandidateDocumentFilter>("all");
-  const [bulkMebbisLoading, setBulkMebbisLoading] = useState(false);
   const [candidateSyncQueuing, setCandidateSyncQueuing] = useState(false);
   const [candidateSyncRunning, setCandidateSyncRunning] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -7730,11 +7729,6 @@ function DocumentsTab({
   const filteredOptionalTypes = optionalTypes.filter(matchesFilter);
   const filteredA4DocumentTypes = a4DocumentTypes.filter(matchesFilter);
   const hasRequiredDocumentTypes = requiredTypes.length + a4DocumentTypes.length > 0;
-  const pendingMebbisTypes = sortedTypes.filter((type) => {
-    if (isNotApplicable(type)) return false;
-    const upload = uploadsByKey.get(type.key) ?? null;
-    return getCandidateDocumentStatus(upload) !== "missing" && upload?.isMebbisTransferred !== true;
-  });
   const contractFee = parseMoneyInput(
     getDocumentMetadataValue(uploadsByKey, "contract_back", "institution_mebbis_fee") ??
       contractBackMebbisFeeDefault ??
@@ -7749,33 +7743,6 @@ function DocumentsTab({
   });
   const completedChecklistCount = documentChecklistItems.filter((item) => item.status === "done").length;
   const actionableChecklistCount = documentChecklistItems.filter((item) => item.status !== "not_applicable").length;
-  const handleBulkMebbisTransfer = async () => {
-    if (!canManageDocuments) return;
-    if (bulkMebbisLoading || pendingMebbisTypes.length === 0) return;
-    setBulkMebbisLoading(true);
-    try {
-      const results = await Promise.allSettled(
-        pendingMebbisTypes.map((type) =>
-          updateCandidateDocumentMebbisTransfer(candidateId, type.id, true)
-        )
-      );
-      const successCount = results.filter((result) => result.status === "fulfilled").length;
-      const failureCount = results.length - successCount;
-      await onRefresh();
-      if (failureCount > 0 && successCount > 0) {
-        showToast(`${successCount} evrak Mebbis işaretlendi, ${failureCount} evrak işaretlenemedi`, "error");
-      } else if (failureCount > 0) {
-        showToast(t("candidateDetail.documents.toast.mebbisMarkFailed"), "error");
-      } else {
-        showToast(`${successCount} evrak Mebbis işaretlendi`);
-      }
-    } catch {
-      showToast(t("candidateDetail.documents.toast.mebbisMarkFailed"), "error");
-    } finally {
-      setBulkMebbisLoading(false);
-    }
-  };
-
   const handleQueueCandidateSync = async () => {
     if (!canManageMebJobs) return;
     if (candidateSyncQueuing || candidateSyncRunning) return;
