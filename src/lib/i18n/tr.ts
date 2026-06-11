@@ -722,7 +722,7 @@ export const tr = {
   "payments.col.remainingBalance": "Kalan Bakiye",
   "payments.col.kursBalance": "Kurs Bakiyesi",
   "payments.col.otherBalance": "Diğer Bakiye",
-  "payments.col.revenue": "Ciro",
+  "payments.col.revenue": "Kurs Ücreti",
   "payments.col.average": "Ortalama",
   "payments.col.collected": "Tahsilat",
   "payments.col.collectionRate": "%",

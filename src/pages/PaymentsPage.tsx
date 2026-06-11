@@ -2302,6 +2302,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
     (overview?.installments ?? [])
       .filter((installment) => installment.status === "active")
+      .filter((installment) => installment.type === "kurs")
       .filter((installment) => selectedCandidateIds.has(installment.candidate.id))
       .forEach((installment) => {
         const row = ensureRow(canonicalCandidate(installment.candidate));
@@ -2310,6 +2311,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
     (overview?.payments ?? [])
       .filter((payment) => payment.status === "active")
+      .filter((payment) => payment.type === "kurs")
       .filter((payment) => selectedCandidateIds.has(payment.candidate.id))
       .forEach((payment) => {
         const row = ensureRow(canonicalCandidate(payment.candidate));
@@ -2317,6 +2319,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       });
 
     (overview?.refunds ?? [])
+      .filter((refund) => refund.type === "kurs")
       .filter((refund) => selectedCandidateIds.has(refund.candidate.id))
       .forEach((refund) => {
         const row = ensureRow(canonicalCandidate(refund.candidate));
