@@ -11,6 +11,7 @@ vi.stubEnv("VITE_FINANCE_API_BASE_URL", "http://127.0.0.1:5080");
 vi.stubEnv("VITE_MEBBIS_API_BASE_URL", "http://127.0.0.1:5080");
 vi.stubEnv("VITE_PLATFORM_API_BASE_URL", "http://127.0.0.1:5080");
 vi.stubEnv("VITE_TRAINING_API_BASE_URL", "http://127.0.0.1:5080");
+vi.stubEnv("VITE_LOCAL_AGENT_BASE_URL", "http://127.0.0.1:37123");
 
 if (!URL.createObjectURL) {
   URL.createObjectURL = vi.fn(() => "blob:test-object-url");

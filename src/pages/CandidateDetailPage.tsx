@@ -10,6 +10,7 @@ import { todayLocalDateOnly } from "../lib/date-only";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
 import { CameraIcon, CheckIcon, PencilIcon, ScannerIcon, TrashIcon, UploadCloudIcon, XIcon } from "../components/icons";
+import { DocumentScannerModal } from "../components/modals/DocumentScannerModal";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
 import { EditableRow } from "../components/ui/EditableRow";
@@ -8504,18 +8505,20 @@ function isCropSupportedUpload(file: File): boolean {
 function CandidateDocumentUploadPopover({
   anchorRef,
   busy,
+  initialFile,
   inputId,
-  scannerInputId,
   onClose,
+  onRequestScanner,
   onUpload,
   open,
   uploading,
 }: {
   anchorRef: RefObject<HTMLElement | null>;
   busy: boolean;
+  initialFile?: File | null;
   inputId: string;
-  scannerInputId: string;
   onClose: () => void;
+  onRequestScanner: () => void;
   onUpload: (file: File) => Promise<void>;
   open: boolean;
   uploading: boolean;
@@ -8675,6 +8678,11 @@ function CandidateDocumentUploadPopover({
   }, [open, capturedUrl, mode]);
 
   useEffect(() => {
+    if (!open || !initialFile) return;
+    void handleSelectedFile(initialFile);
+  }, [initialFile, open]);
+
+  useEffect(() => {
     return () => {
       stopCamera();
       if (capturedUrl) URL.revokeObjectURL(capturedUrl);
@@ -8797,21 +8805,6 @@ function CandidateDocumentUploadPopover({
         }}
         type="file"
       />
-      <input
-        accept="application/pdf,image/*"
-        disabled={busy}
-        hidden
-        id={scannerInputId}
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          if (file) {
-            const uploaded = await handleSelectedFile(file);
-            if (uploaded) closeAll();
-          }
-          event.target.value = "";
-        }}
-        type="file"
-      />
       {mode === "menu" ? (
         <>
           <div className="candidate-doc-upload-popover-head">
@@ -8841,7 +8834,7 @@ function CandidateDocumentUploadPopover({
             <button
               className="candidate-doc-upload-option"
               disabled={busy}
-              onClick={() => document.getElementById(scannerInputId)?.click()}
+              onClick={onRequestScanner}
               type="button"
             >
               <span className="candidate-doc-upload-option-icon" aria-hidden="true">
@@ -9130,6 +9123,8 @@ function DocRow({
   const [metadataErrors, setMetadataErrors] = useState<Record<string, string>>({});
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [uploadPopoverOpen, setUploadPopoverOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannedFile, setScannedFile] = useState<File | null>(null);
   const uploadTriggerRef = useRef<HTMLButtonElement>(null);
 
   const metadataFields = useMemo(
@@ -9383,7 +9378,6 @@ function DocRow({
   };
 
   const inputId = `doc-upload-${type.id}`;
-  const scannerInputId = `doc-scanner-upload-${type.id}`;
   const busy = uploading || deleting || markingPhysical || markingMebbis || metadataSaving || ocrLoading;
   const canUploadFile = status !== "uploaded";
   const canDeleteFile = !!upload?.hasFile;
@@ -9610,15 +9604,32 @@ function DocRow({
             <CandidateDocumentUploadPopover
               anchorRef={uploadTriggerRef}
               busy={busy}
+              initialFile={scannedFile}
               inputId={inputId}
-              scannerInputId={scannerInputId}
-              onClose={() => setUploadPopoverOpen(false)}
+              onClose={() => {
+                setUploadPopoverOpen(false);
+                setScannedFile(null);
+              }}
+              onRequestScanner={() => {
+                setUploadPopoverOpen(false);
+                setScannerOpen(true);
+              }}
               onUpload={async (file) => {
                 const uploaded = await handleUpload(file);
                 if (!uploaded) throw new Error("upload-failed");
+                setScannedFile(null);
               }}
               open={uploadPopoverOpen}
               uploading={uploading}
+            />
+            <DocumentScannerModal
+              onClose={() => setScannerOpen(false)}
+              onScanned={(file) => {
+                setScannedFile(file);
+                setScannerOpen(false);
+                setUploadPopoverOpen(true);
+              }}
+              open={scannerOpen}
             />
           </div>
         ) : null}

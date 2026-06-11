@@ -18,6 +18,7 @@ runtimeConfig:
   mebbisApiBaseUrl: https://api.pilotyanimda.com/v1/mebbis
   platformApiBaseUrl: https://api.pilotyanimda.com/v1/platform
   trainingApiBaseUrl: https://api.pilotyanimda.com/v1/training
+  localAgentBaseUrl: http://127.0.0.1:37123
 
 resources:
   requests:

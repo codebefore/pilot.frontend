@@ -11,6 +11,7 @@ import {
   getCatalogApiBaseUrl,
   getDocumentApiBaseUrl,
   getFinanceApiBaseUrl,
+  getLocalAgentBaseUrl,
   getMebbisApiBaseUrl,
   getPlatformApiBaseUrl,
   getTrainingApiBaseUrl,
@@ -26,6 +27,7 @@ describe("service api base urls", () => {
     "VITE_MEBBIS_API_BASE_URL",
     "VITE_PLATFORM_API_BASE_URL",
     "VITE_TRAINING_API_BASE_URL",
+    "VITE_LOCAL_AGENT_BASE_URL",
   ];
 
   beforeEach(() => {
@@ -44,6 +46,7 @@ describe("service api base urls", () => {
     expect(getMebbisApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getPlatformApiBaseUrl()).toBe("http://127.0.0.1:5080");
     expect(getTrainingApiBaseUrl()).toBe("http://127.0.0.1:5080");
+    expect(getLocalAgentBaseUrl()).toBe("http://127.0.0.1:37123");
   });
 
   it("uses service-specific runtime config values when present", () => {
@@ -57,6 +60,7 @@ describe("service api base urls", () => {
       trainingApiBaseUrl: "http://127.0.0.1:5095",
       mebbisApiBaseUrl: "http://127.0.0.1:5096",
       platformApiBaseUrl: "http://127.0.0.1:5097",
+      localAgentBaseUrl: "http://127.0.0.1:37124",
     });
 
     expect(getAuthApiBaseUrl()).toBe("http://127.0.0.1:5091");
@@ -67,6 +71,7 @@ describe("service api base urls", () => {
     expect(getTrainingApiBaseUrl()).toBe("http://127.0.0.1:5095");
     expect(getMebbisApiBaseUrl()).toBe("http://127.0.0.1:5096");
     expect(getPlatformApiBaseUrl()).toBe("http://127.0.0.1:5097");
+    expect(getLocalAgentBaseUrl()).toBe("http://127.0.0.1:37124");
   });
 
   it("derives v1 service base urls from a gateway API base URL when service-specific config is not set", () => {
@@ -103,11 +108,16 @@ describe("service api base urls", () => {
       ["mebbisApiBaseUrl", "VITE_MEBBIS_API_BASE_URL"],
       ["platformApiBaseUrl", "VITE_PLATFORM_API_BASE_URL"],
       ["trainingApiBaseUrl", "VITE_TRAINING_API_BASE_URL"],
+      ["localAgentBaseUrl", "VITE_LOCAL_AGENT_BASE_URL"],
     ];
 
     for (const [runtimeKey, envVar] of expectedPairs) {
       expect(template).toContain(`"${runtimeKey}": "\${${envVar}}"`);
-      expect(entrypoint).toContain(`: "\${${envVar}:=$VITE_API_BASE_URL}"`);
+      if (envVar === "VITE_LOCAL_AGENT_BASE_URL") {
+        expect(entrypoint).toContain(`: "\${${envVar}:=http://127.0.0.1:37123}"`);
+      } else {
+        expect(entrypoint).toContain(`: "\${${envVar}:=$VITE_API_BASE_URL}"`);
+      }
       expect(entrypoint).toContain(`\${${envVar}}`);
     }
   });
@@ -123,6 +133,7 @@ describe("service api base urls", () => {
       "VITE_MEBBIS_API_BASE_URL",
       "VITE_PLATFORM_API_BASE_URL",
       "VITE_TRAINING_API_BASE_URL",
+      "VITE_LOCAL_AGENT_BASE_URL",
     ];
 
     for (const envVar of expectedEnvVars) {

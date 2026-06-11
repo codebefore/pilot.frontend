@@ -39,6 +39,7 @@ import { Modal } from "../ui/Modal";
 import { PanelListSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 import { CameraIcon, ScannerIcon } from "../icons";
+import { DocumentScannerModal } from "./DocumentScannerModal";
 import { MetadataFieldRow } from "./UploadDocumentModal";
 
 const manageDocumentFormSchema = z.object({
@@ -234,7 +235,6 @@ export function ManageDocumentModal({
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
   const noteFieldId = useId();
-  const scannerInputId = useId();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cropViewportRef = useRef<HTMLDivElement | null>(null);
@@ -263,6 +263,7 @@ export function ManageDocumentModal({
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
   const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
   const [cropSaving, setCropSaving] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [actionPending, setActionPending] = useState<
     "mebbis" | "delete" | "download" | "print" | null
   >(null);
@@ -951,7 +952,7 @@ export function ManageDocumentModal({
                   <button
                     className="candidate-doc-upload-option"
                     disabled={busy || !canManageDocuments}
-                    onClick={() => globalThis.document.getElementById(scannerInputId)?.click()}
+                    onClick={() => setScannerOpen(true)}
                     type="button"
                   >
                     <span className="candidate-doc-upload-option-icon" aria-hidden="true">
@@ -977,16 +978,10 @@ export function ManageDocumentModal({
                     </span>
                   </button>
                 </div>
-                <input
-                  accept="application/pdf,image/*"
-                  disabled={busy || !canManageDocuments}
-                  hidden
-                  id={scannerInputId}
-                  onChange={(event) => {
-                    handleSelectedFile(event.target.files?.[0] ?? null);
-                    event.target.value = "";
-                  }}
-                  type="file"
+                <DocumentScannerModal
+                  onClose={() => setScannerOpen(false)}
+                  onScanned={(file) => handleSelectedFile(file)}
+                  open={scannerOpen}
                 />
                 {cameraOpen ? (
                   <div className="candidate-doc-camera-panel upload-doc-camera-panel">

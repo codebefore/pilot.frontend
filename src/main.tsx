@@ -17,6 +17,7 @@ async function bootstrap() {
         catalogApiBaseUrl?: string;
         documentApiBaseUrl?: string;
         financeApiBaseUrl?: string;
+        localAgentBaseUrl?: string;
         mebbisApiBaseUrl?: string;
         platformApiBaseUrl?: string;
         publicUrl?: string;
