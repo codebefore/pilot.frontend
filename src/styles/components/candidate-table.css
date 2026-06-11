@@ -71,8 +71,22 @@
 .document-scanner-job {
   justify-content: space-between;
 }
+.document-scanner-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.document-scanner-manual-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
 @media (max-width: 560px) {
   .upload-doc-source-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .document-scanner-manual-row {
     grid-template-columns: minmax(0, 1fr);
   }
   .upload-doc-actions {

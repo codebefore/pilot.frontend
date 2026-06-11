@@ -57,6 +57,14 @@ export type LocalAgentScanSettings = {
   source?: string;
 };
 
+export type StoredLocalAgentScannerSettings = {
+  hostName?: string | null;
+  name?: string | null;
+  model?: string | null;
+  scannerId?: string | null;
+  resolution?: number | null;
+};
+
 export class LocalAgentError extends Error {
   status?: number;
 
@@ -79,6 +87,19 @@ export async function getLocalAgentHealth(signal?: AbortSignal): Promise<LocalAg
 export async function listLocalAgentScanners(signal?: AbortSignal): Promise<LocalAgentScannerResponse[]> {
   const response = await getLocalAgentJson<LocalAgentScannerListResponse>("/scanners", signal);
   return response.scanners;
+}
+
+export async function addLocalAgentManualScanner(
+  host: string,
+  signal?: AbortSignal
+): Promise<LocalAgentScannerResponse> {
+  const response = await fetch(getLocalAgentUrl("/scanners/manual"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ host }),
+    signal,
+  });
+  return handleLocalAgentJson<LocalAgentScannerResponse>(response);
 }
 
 export async function createLocalAgentScanJob(
@@ -130,4 +151,24 @@ async function handleLocalAgentJson<T>(response: Response): Promise<T> {
     throw new LocalAgentError(message, response.status);
   }
   return response.json() as Promise<T>;
+}
+
+const LOCAL_AGENT_SCANNER_SETTINGS_KEY = "pilot.localAgent.scannerSettings";
+
+export function readStoredLocalAgentScannerSettings(): StoredLocalAgentScannerSettings | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_AGENT_SCANNER_SETTINGS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as StoredLocalAgentScannerSettings;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStoredLocalAgentScannerSettings(settings: StoredLocalAgentScannerSettings): void {
+  try {
+    localStorage.setItem(LOCAL_AGENT_SCANNER_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // localStorage may be unavailable; scanning should still work for this session.
+  }
 }
