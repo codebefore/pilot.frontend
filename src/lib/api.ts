@@ -7,6 +7,7 @@ declare global {
       catalogApiBaseUrl?: string;
       documentApiBaseUrl?: string;
       financeApiBaseUrl?: string;
+      localAgentBaseUrl?: string;
       mebbisApiBaseUrl?: string;
       platformApiBaseUrl?: string;
       publicUrl?: string;
@@ -16,6 +17,7 @@ declare global {
 }
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:5080";
+const DEFAULT_LOCAL_AGENT_BASE_URL = "http://127.0.0.1:37123";
 const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export function applyRuntimeConfig(config: Window["__APP_CONFIG__"]): void {
@@ -62,6 +64,15 @@ export function getFinanceApiBaseUrl(): string {
 
 export function getTrainingApiBaseUrl(): string {
   return getServiceApiBaseUrl("trainingApiBaseUrl", "VITE_TRAINING_API_BASE_URL", "training");
+}
+
+export function getLocalAgentBaseUrl(): string {
+  return (
+    firstNonEmpty(
+      window.__APP_CONFIG__?.localAgentBaseUrl,
+      import.meta.env.VITE_LOCAL_AGENT_BASE_URL
+    ) ?? DEFAULT_LOCAL_AGENT_BASE_URL
+  ).replace(/\/+$/, "");
 }
 
 function getServiceApiBaseUrl(

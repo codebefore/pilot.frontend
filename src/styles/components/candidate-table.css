@@ -26,6 +26,51 @@
 .upload-doc-crop-panel {
   margin-bottom: 10px;
 }
+.document-scanner-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: min(420px, calc(100vw - 48px));
+}
+.document-scanner-toolbar,
+.document-scanner-summary,
+.document-scanner-job {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  padding: 10px;
+}
+.document-scanner-toolbar {
+  justify-content: space-between;
+}
+.document-scanner-toolbar strong,
+.document-scanner-summary strong,
+.document-scanner-job strong,
+.document-scanner-toolbar span,
+.document-scanner-summary span,
+.document-scanner-job span {
+  display: block;
+}
+.document-scanner-toolbar strong,
+.document-scanner-summary strong,
+.document-scanner-job strong {
+  color: var(--gray-900);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.document-scanner-toolbar span,
+.document-scanner-summary span,
+.document-scanner-job span {
+  color: var(--gray-500);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.document-scanner-job {
+  justify-content: space-between;
+}
 @media (max-width: 560px) {
   .upload-doc-source-actions {
     grid-template-columns: minmax(0, 1fr);

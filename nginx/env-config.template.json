@@ -8,5 +8,6 @@
   "mebbisApiBaseUrl": "${VITE_MEBBIS_API_BASE_URL}",
   "platformApiBaseUrl": "${VITE_PLATFORM_API_BASE_URL}",
   "trainingApiBaseUrl": "${VITE_TRAINING_API_BASE_URL}",
+  "localAgentBaseUrl": "${VITE_LOCAL_AGENT_BASE_URL}",
   "publicUrl": "${PILOT_FRONTEND_PUBLIC_URL}"
 }

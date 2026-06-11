@@ -29,6 +29,7 @@ runtimeConfig:
   mebbisApiBaseUrl: ""
   platformApiBaseUrl: ""
   trainingApiBaseUrl: ""
+  localAgentBaseUrl: http://127.0.0.1:37123
 
 resources: {}
 

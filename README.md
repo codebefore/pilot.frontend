@@ -29,6 +29,7 @@ Initial frontend scaffold for the pilot product.
 - `VITE_MEBBIS_API_BASE_URL`
 - `VITE_PLATFORM_API_BASE_URL`
 - `VITE_TRAINING_API_BASE_URL`
+- `VITE_LOCAL_AGENT_BASE_URL`
 
 The production image serves static files with Nginx on container port `8080`.
 Runtime configuration is exposed through `/env-config.json`, so the container can be reused across environments without rebuilding for every URL change.
