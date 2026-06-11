@@ -466,6 +466,21 @@ describe("PaymentsPage permissions", () => {
           cancellationReason: null,
         },
         {
+          id: "installment-finance-exam",
+          candidate: financeCandidate,
+          type: "teorik_sinav",
+          sequence: 2,
+          dueDate: "2026-01-20",
+          amount: 40,
+          paidAmount: 20,
+          remainingAmount: 20,
+          description: "E-Sınav",
+          status: "active",
+          paymentStatus: "partial",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+        {
           id: "installment-outside",
           candidate: outsideCandidate,
           type: "kurs",
@@ -493,6 +508,22 @@ describe("PaymentsPage permissions", () => {
           amount: 50,
           paymentMethod: "cash",
           paidAtUtc: "2026-04-01T09:00:00Z",
+          note: null,
+          status: "active",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+        {
+          id: "payment-finance-exam",
+          candidate: financeCandidate,
+          type: "teorik_sinav",
+          installmentDescription: null,
+          number: "TAH-EXAM",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 20,
+          paymentMethod: "cash",
+          paidAtUtc: "2026-04-02T09:00:00Z",
           note: null,
           status: "active",
           cancelledAtUtc: null,
@@ -543,9 +574,13 @@ describe("PaymentsPage permissions", () => {
 
     const rows = screen.getAllByRole("row");
     const licenseBRow = rows.find((row) => within(row).queryByText("B"));
-    expect(licenseBRow?.textContent).toContain("2");
-    expect(licenseBRow?.textContent).toContain("100");
-    expect(licenseBRow?.textContent).toContain("35");
+    expect(licenseBRow).toBeDefined();
+    const cells = within(licenseBRow!).getAllByRole("cell");
+    expect(cells[0]).toHaveTextContent("2");
+    expect(cells[1]).toHaveTextContent("₺100");
+    expect(cells[2]).toHaveTextContent("₺50");
+    expect(cells[3]).toHaveTextContent("₺35");
+    expect(cells[4]).toHaveTextContent("35%");
     expect(screen.queryByText("C")).not.toBeInTheDocument();
   });
 

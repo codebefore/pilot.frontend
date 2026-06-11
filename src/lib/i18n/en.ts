@@ -724,7 +724,7 @@ export const en: Record<TranslationKey, string> = {
   "payments.col.remainingBalance": "Remaining Balance",
   "payments.col.kursBalance": "Course Balance",
   "payments.col.otherBalance": "Other Balance",
-  "payments.col.revenue": "Revenue",
+  "payments.col.revenue": "Course Fee",
   "payments.col.average": "Average",
   "payments.col.collected": "Collected",
   "payments.col.collectionRate": "%",
