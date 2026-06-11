@@ -124,7 +124,37 @@ describe("auth storage", () => {
       roleName: "Personel",
       isSuperAdmin: true,
     });
+    expect(updated?.activeInstitution?.roleName).toBe("Personel");
+    expect(updated?.institutions[0]?.roleName).toBe("Personel");
+    expect(updated?.activeInstitution?.permissions).toEqual({});
+    expect(updated?.institutions[0]?.permissions).toEqual({});
     expect(readStoredAuthSession()?.user.name).toBe("Yeni Kullanici");
+  });
+
+  it("preserves the current user role when the profile update omits role name", () => {
+    writeStoredAuthSession(validSession);
+
+    const updated = updateStoredUserProfile("user-1", {
+      name: "Yeni Kullanici",
+    });
+
+    expect(updated?.user.roleName).toBe("Kurum Yöneticisi");
+    expect(updated?.activeInstitution?.roleName).toBe("Kurum Yöneticisi");
+    expect(updated?.activeInstitution?.permissions).toEqual(validSession.activeInstitution?.permissions);
+  });
+
+  it("clears the active institution role name when the current user's role is removed", () => {
+    writeStoredAuthSession(validSession);
+
+    const updated = updateStoredUserProfile("user-1", {
+      roleName: null,
+    });
+
+    expect(updated?.user.roleName).toBeNull();
+    expect(updated?.activeInstitution?.roleName).toBeNull();
+    expect(updated?.institutions[0]?.roleName).toBeNull();
+    expect(updated?.activeInstitution?.permissions).toEqual({});
+    expect(updated?.institutions[0]?.permissions).toEqual({});
   });
 
   it("updates the active institution role name in the stored session", () => {

@@ -23,10 +23,13 @@ import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
-import { updateStoredUserProfile } from "../lib/auth-storage";
+import {
+  updateStoredActiveInstitutionPermissions,
+  updateStoredUserProfile,
+} from "../lib/auth-storage";
 import { ApiError } from "../lib/http";
 import { canManageArea, canViewArea } from "../lib/permissions";
-import { getRoles } from "../lib/roles-api";
+import { getRolePermissions, getRoles } from "../lib/roles-api";
 import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
@@ -370,6 +373,20 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
         roleName: saved.roleName,
         isSuperAdmin: saved.isSuperAdmin,
       });
+      if (saved.roleId && saved.roleName) {
+        void getRolePermissions(saved.roleId)
+          .then((rolePermissions) => {
+            updateStoredActiveInstitutionPermissions(
+              saved.roleName,
+              Object.fromEntries(
+                rolePermissions.map((permission) => [permission.area, permission.level])
+              )
+            );
+          })
+          .catch(() => undefined);
+      } else {
+        updateStoredActiveInstitutionPermissions(saved.roleName, {});
+      }
     }
   };
 

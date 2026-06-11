@@ -109,7 +109,11 @@ export function updateStoredUserProfile(
   if (!session || session.user.id !== userId) return session;
 
   const normalizedName = profile.name?.trim();
-  const normalizedRoleName = profile.roleName?.trim() || null;
+  const normalizedRoleName =
+    profile.roleName === undefined
+      ? session.user.roleName
+      : profile.roleName?.trim() || null;
+  const activeInstitutionId = session.activeInstitution?.id ?? null;
   const nextUser = {
     ...session.user,
     name: normalizedName || session.user.name,
@@ -117,16 +121,30 @@ export function updateStoredUserProfile(
     roleName: normalizedRoleName,
     isSuperAdmin: profile.isSuperAdmin ?? session.user.isSuperAdmin,
   };
+  const shouldUpdateActiveInstitutionRole =
+    activeInstitutionId !== null && session.activeInstitution?.roleName !== normalizedRoleName;
+  const institutions = shouldUpdateActiveInstitutionRole
+    ? session.institutions.map((institution) =>
+        institution.id === activeInstitutionId
+          ? { ...institution, roleName: normalizedRoleName, permissions: {} }
+          : institution
+      )
+    : session.institutions;
+  const activeInstitution = shouldUpdateActiveInstitutionRole && session.activeInstitution
+    ? { ...session.activeInstitution, roleName: normalizedRoleName, permissions: {} }
+    : session.activeInstitution;
   if (
     nextUser.name === session.user.name &&
     nextUser.phone === session.user.phone &&
     nextUser.roleName === session.user.roleName &&
-    nextUser.isSuperAdmin === session.user.isSuperAdmin
+    nextUser.isSuperAdmin === session.user.isSuperAdmin &&
+    activeInstitution === session.activeInstitution &&
+    institutions === session.institutions
   ) {
     return session;
   }
 
-  const nextSession = { ...session, user: nextUser };
+  const nextSession = { ...session, user: nextUser, institutions, activeInstitution };
   writeStoredAuthSession(nextSession);
   notifySessionRefreshed(nextSession);
   return nextSession;

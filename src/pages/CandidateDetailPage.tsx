@@ -3028,6 +3028,10 @@ function addMonthsToISODate(value: string, months: number): string {
   return toDateOnlyValue(new Date(year, targetMonth, Math.min(day, lastDayOfTargetMonth)));
 }
 
+function defaultAccountingDueDate(): string {
+  return addMonthsToISODate(todayIsoDate(), 1);
+}
+
 function toDateOnlyValue(date: Date): string {
   const year = String(date.getFullYear());
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -3406,7 +3410,7 @@ function AccountingTab({
     open: false,
     type: "kurs",
     amount: "",
-    dueDate: todayIsoDate(),
+    dueDate: defaultAccountingDueDate(),
     description: "",
   });
   const [paymentPlanModal, setPaymentPlanModal] = useState<{
@@ -3420,7 +3424,7 @@ function AccountingTab({
     open: false,
     amount: "",
     installmentCount: "4",
-    dueDate: todayIsoDate(),
+    dueDate: defaultAccountingDueDate(),
     customDueDates: {},
     previewOpen: false,
   });
@@ -3607,7 +3611,7 @@ function AccountingTab({
       open: true,
       type,
       amount,
-      dueDate: todayIsoDate(),
+      dueDate: defaultAccountingDueDate(),
       description,
     });
   };
@@ -3621,7 +3625,7 @@ function AccountingTab({
       open: true,
       amount: defaultAmount > 0 ? String(defaultAmount) : "",
       installmentCount: "4",
-      dueDate: todayIsoDate(),
+      dueDate: defaultAccountingDueDate(),
       customDueDates: {},
       previewOpen: false,
     });
