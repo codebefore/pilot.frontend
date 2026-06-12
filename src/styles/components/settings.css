@@ -3579,9 +3579,75 @@
   font-size: 22px;
   font-weight: 800;
 }
+.modal.institution-members-modal {
+  max-width: min(980px, calc(100vw - 40px));
+}
+.institution-members-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.institution-members-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+.institution-members-table-wrap {
+  max-height: min(42vh, 420px);
+  overflow: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+}
+.institution-members-table {
+  min-width: 760px;
+}
+.institution-member-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-200);
+}
+.institution-member-active-field {
+  justify-content: flex-end;
+  min-height: 58px;
+}
+.institution-member-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.member-lookup-note {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.member-lookup-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: var(--blue-light);
+  color: #1e40af;
+  font-size: 12px;
+}
+.member-lookup-box.error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+.member-confirm-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
 @media (max-width: 720px) {
   .institutions-summary-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .modal.institution-members-modal {
+    max-width: calc(100vw - 24px);
   }
 }
 .settings-layout {

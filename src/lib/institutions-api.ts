@@ -42,6 +42,21 @@ export type InstitutionMemberCreateRequest = {
   isActive: boolean;
 };
 
+export type InstitutionMemberUpdateRequest = {
+  roleId: string | null;
+  isActive: boolean;
+};
+
+export type InstitutionMemberLookupResponse = {
+  exists: boolean;
+  userId: string | null;
+  fullName: string | null;
+  phone: string | null;
+  isMemberOfInstitution: boolean;
+  membershipId: string | null;
+  membershipIsActive: boolean | null;
+};
+
 export type InstitutionFounderCreateRequest = {
   fullName: string;
   phone: string;
@@ -101,6 +116,53 @@ export function deleteInstitution(id: string): Promise<void> {
   });
 }
 
+export function getInstitutionMembers(
+  institutionId: string,
+  params: { includeInactive?: boolean } = {},
+  signal?: AbortSignal
+): Promise<InstitutionMemberResponse[]> {
+  return httpGet<InstitutionMemberResponse[]>(
+    `/api/institutions/${institutionId}/members`,
+    { includeInactive: params.includeInactive ?? true },
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function lookupInstitutionMemberByPhone(
+  institutionId: string,
+  phone: string,
+  signal?: AbortSignal
+): Promise<InstitutionMemberLookupResponse> {
+  return httpGet<InstitutionMemberLookupResponse>(
+    `/api/institutions/${institutionId}/members/lookup`,
+    { phone },
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function lookupInstitutionUserByPhone(
+  phone: string,
+  signal?: AbortSignal
+): Promise<InstitutionMemberLookupResponse> {
+  return httpGet<InstitutionMemberLookupResponse>(
+    "/api/institutions/members/lookup",
+    { phone },
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function getInstitutionRoles(
+  institutionId: string,
+  params: { includeInactive?: boolean } = {},
+  signal?: AbortSignal
+): Promise<InstitutionRoleResponse[]> {
+  return httpGet<InstitutionRoleResponse[]>(
+    `/api/institutions/${institutionId}/roles`,
+    { includeInactive: params.includeInactive ?? false },
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
 export function createInstitutionRole(
   institutionId: string,
   body: InstitutionRoleCreateRequest
@@ -131,6 +193,29 @@ export function createInstitutionMember(
   return httpPost<InstitutionMemberResponse>(
     `/api/institutions/${institutionId}/members`,
     body,
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function updateInstitutionMember(
+  institutionId: string,
+  membershipId: string,
+  body: InstitutionMemberUpdateRequest
+): Promise<InstitutionMemberResponse> {
+  return httpPut<InstitutionMemberResponse>(
+    `/api/institutions/${institutionId}/members/${membershipId}`,
+    body,
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function deleteInstitutionMember(
+  institutionId: string,
+  membershipId: string
+): Promise<void> {
+  return httpDelete(
+    `/api/institutions/${institutionId}/members/${membershipId}`,
+    undefined,
     { baseUrl: getPlatformApiBaseUrl() }
   );
 }
