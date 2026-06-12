@@ -171,12 +171,12 @@ describe("VehiclesSettingsSection", () => {
     });
   });
 
-  it("loads only active vehicles on mount", async () => {
+  it("loads all vehicles on mount so inactive duplicates remain visible", async () => {
     renderSection();
 
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenCalledWith(
-        { activity: "active", page: 1, pageSize: 10, search: undefined },
+        { activity: "all", page: 1, pageSize: 10, search: undefined },
         expect.any(AbortSignal)
       );
     });
@@ -255,7 +255,7 @@ describe("VehiclesSettingsSection", () => {
 
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
-        { activity: "active", page: 2, pageSize: 10, search: undefined },
+        { activity: "all", page: 2, pageSize: 10, search: undefined },
         expect.any(AbortSignal)
       );
     });
@@ -285,7 +285,7 @@ describe("VehiclesSettingsSection", () => {
 
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
-        { activity: "active", page: 2, pageSize: 10, search: undefined },
+        { activity: "all", page: 2, pageSize: 10, search: undefined },
         expect.any(AbortSignal)
       );
     });
@@ -295,7 +295,7 @@ describe("VehiclesSettingsSection", () => {
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
         {
-          activity: "active",
+          activity: "all",
           page: 1,
           pageSize: 10,
           search: undefined,
@@ -311,7 +311,7 @@ describe("VehiclesSettingsSection", () => {
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
         {
-          activity: "active",
+          activity: "all",
           page: 1,
           pageSize: 10,
           search: undefined,
@@ -326,7 +326,7 @@ describe("VehiclesSettingsSection", () => {
 
     await waitFor(() => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
-        { activity: "active", page: 1, pageSize: 10, search: undefined },
+        { activity: "all", page: 1, pageSize: 10, search: undefined },
         expect.any(AbortSignal)
       );
     });

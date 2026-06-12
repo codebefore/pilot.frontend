@@ -181,6 +181,7 @@ function mergeSelectedLicenseOptions(
 }
 
 const CONCURRENCY_CODE = "vehicle.validation.concurrencyConflict";
+const PLATE_CONFLICT_MESSAGE = "A vehicle with this plate already exists.";
 
 function hasConcurrencyError(
   codes: Record<string, ApiValidationError[]> | undefined
@@ -191,6 +192,17 @@ function hasConcurrencyError(
   );
 }
 
+function translateVehicleValidationMessage(
+  message: string,
+  serverField: string,
+  t: ReturnType<typeof useT>
+): string {
+  if (serverField === "PlateNumber" && message === PLATE_CONFLICT_MESSAGE) {
+    return t("vehicle.validation.plateConflict");
+  }
+
+  return message;
+}
 
 export function VehicleFormModal({
   open,
@@ -322,6 +334,8 @@ export function VehicleFormModal({
       }
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
         translateCode: (code, params) => t(code as TranslationKey, params),
+        translateMessage: (message, serverField) =>
+          translateVehicleValidationMessage(message, serverField, t),
         fieldMap: VALIDATION_FIELD_MAP as Record<string, import("react-hook-form").Path<VehicleFormValues>>,
       });
       if (unmappedMessages[0]) {

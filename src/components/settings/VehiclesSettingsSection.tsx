@@ -190,7 +190,7 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
   ];
 }
 const DEFAULT_FILTERS: VehicleFilters = {
-  activity: "active",
+  activity: "all",
   status: "all",
   licenseClass: "all",
 };
