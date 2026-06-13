@@ -2780,8 +2780,8 @@ describe("CandidatesPage tabs", () => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
           status: "active",
-          eSinavTab: "randevulu",
           eSinavDate: "2026-06-12",
+          eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
           pageSize: 10,
         })
