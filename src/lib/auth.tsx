@@ -118,6 +118,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearQueryCacheForSessionChange(queryClient, session, nextSession);
     setSession(nextSession);
     setInstitutionRequired(!response.activeInstitution);
+    if (session?.activeInstitution?.id !== nextSession.activeInstitution?.id) {
+      writeStoredAuthSession(nextSession);
+      reloadCurrentPage();
+    }
   };
 
   const logout = () => {
@@ -162,6 +166,10 @@ function clearQueryCacheForSessionChange(
   ) {
     queryClient.clear();
   }
+}
+
+export function reloadCurrentPage() {
+  window.location.reload();
 }
 
 export function useAuth(): AuthContextValue {

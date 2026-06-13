@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { CandidatesIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from "../components/icons";
+import { CustomSelect } from "../components/ui/CustomSelect";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
@@ -81,6 +82,24 @@ export function InstitutionsPage() {
   });
 
   const institutions = institutionsQuery.data ?? [];
+  const memberCountQueries = useQueries({
+    queries: institutions.map((institution) => ({
+      queryKey: ["institutions", institution.id, "members", { includeInactive: false }],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        getInstitutionMembers(institution.id, { includeInactive: false }, signal),
+      enabled: user?.isSuperAdmin === true,
+    })),
+  });
+  const memberCountsByInstitutionId = useMemo(() => {
+    const counts = new Map<string, number>();
+    institutions.forEach((institution, index) => {
+      const members = memberCountQueries[index]?.data;
+      if (members) {
+        counts.set(institution.id, members.length);
+      }
+    });
+    return counts;
+  }, [institutions, memberCountQueries]);
   const filteredInstitutions = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
     if (!query) return institutions;
@@ -276,7 +295,7 @@ export function InstitutionsPage() {
                   <td>
                     <strong>{institution.name}</strong>
                   </td>
-                  <td>{institution.memberCount}</td>
+                  <td>{memberCountsByInstitutionId.get(institution.id) ?? institution.memberCount}</td>
                   <td>
                     <StatusPill
                       label={institution.isActive ? "Aktif" : "Pasif"}
@@ -722,11 +741,15 @@ function InstitutionMembersModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (body: MemberFormValues) =>
-      updateInstitutionMember(institutionId, editingMember!.id, {
+    mutationFn: (body: MemberFormValues) => {
+      const phone = body.phone.trim();
+      return updateInstitutionMember(institutionId, editingMember!.id, {
+        fullName: body.fullName.trim(),
+        phone: /^5\d{9}$/.test(phone) ? phone : null,
         roleId: body.roleId || null,
         isActive: body.isActive,
-      }),
+      });
+    },
     onSuccess: () => {
       setEditingMember(null);
       setValues(emptyMemberForm);
@@ -734,7 +757,14 @@ function InstitutionMembersModal({
       onMemberChanged();
       showToast("Üyelik güncellendi");
     },
-    onError: () => showToast("Üyelik güncellenemedi.", "error"),
+    onError: (error) => {
+      if (error instanceof ApiError) {
+        showToast(error.problemTitle ?? "Üyelik güncellenemedi.", "error");
+        setErrors(mapMemberApiErrors(error.validationErrors));
+        return;
+      }
+      showToast("Üyelik güncellenemedi.", "error");
+    },
   });
 
   const deleteMutation = useMutation({
@@ -872,7 +902,6 @@ function InstitutionMembersModal({
                 <label className="form-label" htmlFor="institution-member-phone">Telefon</label>
                 <input
                   className={errors.phone ? "form-input error" : "form-input"}
-                  disabled={Boolean(editingMember)}
                   id="institution-member-phone"
                   inputMode="numeric"
                   maxLength={10}
@@ -892,7 +921,6 @@ function InstitutionMembersModal({
                 <label className="form-label" htmlFor="institution-member-name">Ad soyad</label>
                 <input
                   className={errors.fullName ? "form-input error" : "form-input"}
-                  disabled={Boolean(editingMember)}
                   id="institution-member-name"
                   maxLength={128}
                   onChange={(event) =>
@@ -907,7 +935,7 @@ function InstitutionMembersModal({
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label" htmlFor="institution-member-role">Rol</label>
-                <select
+                <CustomSelect
                   className={errors.roleId ? "form-select error" : "form-select"}
                   id="institution-member-role"
                   onChange={(event) =>
@@ -919,7 +947,7 @@ function InstitutionMembersModal({
                   {roles.map((role: InstitutionRoleResponse) => (
                     <option key={role.id} value={role.id}>{role.name}</option>
                   ))}
-                </select>
+                </CustomSelect>
                 {errors.roleId ? <div className="form-error">{errors.roleId}</div> : null}
               </div>
               <div className="form-group institution-member-active-field">
@@ -1013,6 +1041,18 @@ function validateMember(
   lookupPhone: string | null
 ) {
   const errors: Partial<Record<keyof MemberFormValues, string>> = {};
+  if (editingMember) {
+    if (!values.fullName.trim()) {
+      errors.fullName = "Ad soyad zorunlu.";
+    } else if (values.fullName.trim().length > 128) {
+      errors.fullName = "Ad soyad 128 karakteri geçemez.";
+    }
+
+    const phone = values.phone.trim();
+    if (phone && !phone.includes("*") && !/^5\d{9}$/.test(phone)) {
+      errors.phone = "Telefon 5 ile başlayan 10 haneli olmalı.";
+    }
+  }
   if (!editingMember) {
     if (!values.fullName.trim()) {
       errors.fullName = "Ad soyad zorunlu.";

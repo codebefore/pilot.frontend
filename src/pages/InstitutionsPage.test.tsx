@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InstitutionsPage } from "./InstitutionsPage";
@@ -192,7 +192,10 @@ describe("InstitutionsPage", () => {
       );
     });
 
-    expect(await screen.findByText("Pilot Sürücü Kursu")).toBeInTheDocument();
+    const institutionName = await screen.findByText("Pilot Sürücü Kursu");
+    const row = institutionName.closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLTableRowElement).getByText("1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Yeni Kurum" })).toBeInTheDocument();
   });
 
@@ -333,19 +336,23 @@ describe("InstitutionsPage", () => {
     });
   });
 
-  it("updates only membership role and active state", async () => {
+  it("updates member profile, role and active state", async () => {
     renderWithProviders(<InstitutionsPage />);
     await screen.findByText("Pilot Sürücü Kursu");
     fireEvent.click(screen.getByRole("button", { name: /Pilot Sürücü Kursu üyeler/i }));
     await screen.findByText("Zekeriyya Sevim");
 
     fireEvent.click(screen.getByRole("button", { name: /Zekeriyya Sevim üyeliğini düzenle/i }));
+    fireEvent.change(screen.getByLabelText("Ad soyad"), { target: { value: "Zekeriyya Sevim Güncel" } });
+    fireEvent.change(screen.getByLabelText("Telefon"), { target: { value: "5073737265" } });
     fireEvent.change(screen.getByLabelText("Rol"), { target: { value: "role-manager" } });
     fireEvent.click(screen.getByLabelText(/Üyelik aktif/i));
     fireEvent.click(screen.getByRole("button", { name: "Üyeliği Kaydet" }));
 
     await waitFor(() => {
       expect(updateInstitutionMemberMock).toHaveBeenCalledWith("institution-1", "membership-1", {
+        fullName: "Zekeriyya Sevim Güncel",
+        phone: "5073737265",
         roleId: "role-manager",
         isActive: false,
       });

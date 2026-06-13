@@ -43,6 +43,8 @@ export type InstitutionMemberCreateRequest = {
 };
 
 export type InstitutionMemberUpdateRequest = {
+  fullName?: string;
+  phone?: string | null;
   roleId: string | null;
   isActive: boolean;
 };
