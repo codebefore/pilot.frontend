@@ -14,8 +14,12 @@ import {
   getInboxMessages,
   getOutboxMessages,
   getProjectionOutboxHealth,
+  getProjectionOutboxMessages,
+  ignoreProjectionOutboxMessage,
   retryInboxMessage,
   retryOutboxMessage,
+  retryProjectionOutboxDeadLetters,
+  retryProjectionOutboxMessage,
   type DomainEventStreamStatusResponse,
   type InboxMessageResponse,
   type InboxMessageStatus,
@@ -35,6 +39,7 @@ const OUTBOX_STATUS_OPTIONS: { value: "all" | OutboxMessageStatus; label: string
   { value: "failed", label: "Failed" },
   { value: "dead_letter", label: "Dead-letter" },
   { value: "published", label: "Published" },
+  { value: "ignored", label: "Ignored" },
 ];
 
 const INBOX_STATUS_OPTIONS: { value: "all" | InboxMessageStatus; label: string }[] = [
@@ -50,6 +55,7 @@ export function OutboxPage() {
   const [activeTab, setActiveTab] = useState<QueueTab>("outbox");
   const [outboxStatus, setOutboxStatus] = useState<"all" | OutboxMessageStatus>("dead_letter");
   const [inboxStatus, setInboxStatus] = useState<"all" | InboxMessageStatus>("dead_letter");
+  const [selectedProjectionService, setSelectedProjectionService] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const outboxStatusParam = outboxStatus === "all" ? undefined : outboxStatus;
@@ -65,6 +71,17 @@ export function OutboxPage() {
     queryKey: ["outbox", "health"],
     queryFn: ({ signal }) => getProjectionOutboxHealth(signal),
     enabled: activeTab === "outbox",
+  });
+
+  const projectionMessagesQuery = useQuery({
+    queryKey: ["outbox", "projection-messages", selectedProjectionService, outboxStatusParam ?? "all"],
+    queryFn: ({ signal }) =>
+      getProjectionOutboxMessages(
+        selectedProjectionService ?? "",
+        { status: outboxStatusParam, limit: 100 },
+        signal
+      ),
+    enabled: activeTab === "outbox" && selectedProjectionService !== null,
   });
 
   const inboxQuery = useQuery({
@@ -102,8 +119,47 @@ export function OutboxPage() {
     onError: () => showToast(t("outbox.toast.inboxRequeueFailed"), "error"),
   });
 
+  const retryProjectionMutation = useMutation({
+    mutationFn: retryProjectionOutboxMessage,
+    onSuccess: async () => {
+      showToast(t("outbox.toast.outboxRequeued"));
+      await queryClient.invalidateQueries({ queryKey: ["outbox", "projection-messages"] });
+      await queryClient.invalidateQueries({ queryKey: ["outbox", "health"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    },
+    onError: () => showToast(t("outbox.toast.outboxRequeueFailed"), "error"),
+  });
+
+  const ignoreProjectionMutation = useMutation({
+    mutationFn: ignoreProjectionOutboxMessage,
+    onSuccess: async () => {
+      showToast("Projection outbox mesajı ignore edildi");
+      await queryClient.invalidateQueries({ queryKey: ["outbox", "projection-messages"] });
+      await queryClient.invalidateQueries({ queryKey: ["outbox", "health"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    },
+    onError: () => showToast("Projection outbox mesajı ignore edilemedi", "error"),
+  });
+
+  const retryProjectionDeadLettersMutation = useMutation({
+    mutationFn: retryProjectionOutboxDeadLetters,
+    onSuccess: async () => {
+      showToast(t("outbox.toast.outboxRequeued"));
+      await queryClient.invalidateQueries({ queryKey: ["outbox", "projection-messages"] });
+      await queryClient.invalidateQueries({ queryKey: ["outbox", "health"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    },
+    onError: () => showToast(t("outbox.toast.outboxRequeueFailed"), "error"),
+  });
+
   const activeQuery =
-    activeTab === "outbox" ? outboxQuery : activeTab === "inbox" ? inboxQuery : streamStatusQuery;
+    activeTab === "outbox"
+      ? selectedProjectionService
+        ? projectionMessagesQuery
+        : outboxQuery
+      : activeTab === "inbox"
+        ? inboxQuery
+        : streamStatusQuery;
   const isRefreshing = activeQuery.isFetching || (activeTab === "outbox" && outboxHealthQuery.isFetching);
 
   return (
@@ -178,13 +234,41 @@ export function OutboxPage() {
 
           {activeTab === "outbox" ? (
             <>
-              <ProjectionOutboxHealth query={outboxHealthQuery} />
-              <OutboxTable
-                messages={outboxQuery.data?.items ?? []}
-                onRetry={(id) => retryOutboxMutation.mutate(id)}
-                query={outboxQuery}
-                retryingId={retryOutboxMutation.isPending ? retryOutboxMutation.variables : undefined}
+              <ProjectionOutboxHealth
+                onSelect={(service) => setSelectedProjectionService((current) => (current === service ? null : service))}
+                query={outboxHealthQuery}
+                selectedService={selectedProjectionService}
               />
+              {selectedProjectionService ? (
+                <OutboxTable
+                  actionLabel={`${selectedProjectionService.replace("pilot-", "")} Projection`}
+                  ignoringId={
+                    ignoreProjectionMutation.isPending
+                      ? `${ignoreProjectionMutation.variables.service}:${ignoreProjectionMutation.variables.id}`
+                      : undefined
+                  }
+                  messages={projectionMessagesQuery.data?.items ?? []}
+                  onIgnore={(id) => ignoreProjectionMutation.mutate({ service: selectedProjectionService, id })}
+                  onRetry={(id) => retryProjectionMutation.mutate({ service: selectedProjectionService, id })}
+                  onRetryEventType={(eventType) =>
+                    retryProjectionDeadLettersMutation.mutate({ service: selectedProjectionService, eventType })
+                  }
+                  query={projectionMessagesQuery}
+                  retryingId={
+                    retryProjectionMutation.isPending
+                      ? `${retryProjectionMutation.variables.service}:${retryProjectionMutation.variables.id}`
+                      : undefined
+                  }
+                  selectedService={selectedProjectionService}
+                />
+              ) : (
+                <OutboxTable
+                  messages={outboxQuery.data?.items ?? []}
+                  onRetry={(id) => retryOutboxMutation.mutate(id)}
+                  query={outboxQuery}
+                  retryingId={retryOutboxMutation.isPending ? retryOutboxMutation.variables : undefined}
+                />
+              )}
             </>
           ) : activeTab === "inbox" ? (
             <InboxTable
@@ -203,9 +287,13 @@ export function OutboxPage() {
 }
 
 function ProjectionOutboxHealth({
+  onSelect,
   query,
+  selectedService,
 }: {
+  onSelect: (service: string) => void;
   query: ReturnType<typeof useQuery<ProjectionOutboxHealthSummaryResponse>>;
+  selectedService: string | null;
 }) {
   if (query.isError) {
     return (
@@ -233,17 +321,35 @@ function ProjectionOutboxHealth({
       </div>
       <div className="projection-health-grid">
         {query.data.items.map((item) => (
-          <ProjectionOutboxHealthItem item={item} key={item.service} />
+          <ProjectionOutboxHealthItem
+            item={item}
+            key={item.service}
+            onSelect={onSelect}
+            selected={selectedService === item.service}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function ProjectionOutboxHealthItem({ item }: { item: ProjectionOutboxHealthItemResponse }) {
+function ProjectionOutboxHealthItem({
+  item,
+  onSelect,
+  selected,
+}: {
+  item: ProjectionOutboxHealthItemResponse;
+  onSelect: (service: string) => void;
+  selected: boolean;
+}) {
   const totalOpen = item.pendingCount + item.failedCount + item.deadLetterCount;
+  const age = item.oldestDueAtUtc ? formatRelativeAge(item.oldestDueAtUtc) : "-";
   return (
-    <div className={`projection-health-item ${projectionHealthTone(item.status)}`}>
+    <button
+      className={`projection-health-item projection-health-button ${projectionHealthTone(item.status)}${selected ? " active" : ""}`}
+      onClick={() => onSelect(item.service)}
+      type="button"
+    >
       <div className="projection-health-item-head">
         <span>{item.service.replace("pilot-", "")}</span>
         <StatusPill label={item.status} status={projectionStatusPillTone(item.status)} />
@@ -253,12 +359,16 @@ function ProjectionOutboxHealthItem({ item }: { item: ProjectionOutboxHealthItem
         <span>Due {item.dueCount}</span>
         <span>Dead {item.deadLetterCount}</span>
       </div>
+      <div className="projection-health-item-metrics projection-health-item-secondary">
+        <span>Oldest {age}</span>
+        <span>Last {item.lastPublishedAtUtc ? formatDateTime(item.lastPublishedAtUtc) : "-"}</span>
+      </div>
       {item.error ? (
         <div className="projection-health-item-error" title={item.error}>
           {item.error}
         </div>
       ) : null}
-    </div>
+    </button>
   );
 }
 
@@ -315,17 +425,28 @@ function DomainEventStreamStatus({
 }
 
 function OutboxTable({
+  actionLabel,
+  ignoringId,
   messages,
+  onIgnore,
   onRetry,
+  onRetryEventType,
   query,
   retryingId,
+  selectedService,
 }: {
+  actionLabel?: string;
+  ignoringId?: string;
   messages: OutboxMessageResponse[];
+  onIgnore?: (id: string) => void;
   onRetry: (id: string) => void;
+  onRetryEventType?: (eventType: string) => void;
   query: ReturnType<typeof useQuery<{ items: OutboxMessageResponse[] }>>;
   retryingId?: string;
+  selectedService?: string;
 }) {
   const t = useT();
+  const eventTypeCounts = summarizeEventTypes(messages);
   return query.isError ? (
     <PageLoadError
       description={t("outbox.outboxError")}
@@ -344,6 +465,20 @@ function OutboxTable({
     <div className="data-table-empty">{t("outbox.outboxEmpty")}</div>
   ) : (
     <div className="data-table-wrap outbox-table-wrap">
+      {actionLabel ? (
+        <div className="outbox-detail-heading">
+          <span>{actionLabel}</span>
+          {eventTypeCounts.length ? (
+            <div className="outbox-event-type-summary" aria-label="Event type distribution">
+              {eventTypeCounts.map((item) => (
+                <span key={item.eventType}>
+                  {item.eventType} {item.count}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <table className="data-table outbox-table">
         <colgroup>
           <col className="outbox-col-event" />
@@ -373,7 +508,10 @@ function OutboxTable({
               key={message.id}
               message={message}
               onRetry={onRetry}
-              retrying={retryingId === message.id}
+              onIgnore={onIgnore}
+              onRetryEventType={onRetryEventType}
+              ignoring={ignoringId === (selectedService ? `${selectedService}:${message.id}` : message.id)}
+              retrying={retryingId === (selectedService ? `${selectedService}:${message.id}` : message.id)}
             />
           ))}
         </tbody>
@@ -452,15 +590,25 @@ function InboxTable({
 
 function OutboxRow({
   message,
+  ignoring,
   onRetry,
+  onIgnore,
+  onRetryEventType,
   retrying,
 }: {
   message: OutboxMessageResponse;
+  ignoring: boolean;
   onRetry: (id: string) => void;
+  onIgnore?: (id: string) => void;
+  onRetryEventType?: (eventType: string) => void;
   retrying: boolean;
 }) {
   const t = useT();
   const canRetry = message.status === "dead_letter" || message.status === "failed";
+  const canIgnore = Boolean(onIgnore) && message.status === "dead_letter";
+  const canRetryEventType = Boolean(onRetryEventType) && message.status === "dead_letter";
+  const lastError = parseProjectionLastError(message.lastError);
+  const isRetrying = retrying;
 
   return (
     <tr>
@@ -479,17 +627,48 @@ function OutboxRow({
       <td className="outbox-cell-number">{message.attemptCount}</td>
       <td className="outbox-cell-date">{formatDateTime(message.createdAtUtc)}</td>
       <td className="outbox-cell-error">
-        <span title={message.lastError ?? undefined}>{message.lastError ?? "-"}</span>
+        <span title={message.lastError ?? undefined}>
+          {lastError ? (
+            <>
+              <strong>{lastError.errorClass}</strong>
+              {lastError.statusCode ? ` ${lastError.statusCode}` : ""}
+              {lastError.target ? ` ${lastError.target}` : message.targetService ? ` ${message.targetService}` : ""}
+              {lastError.message ? ` - ${lastError.message}` : ""}
+            </>
+          ) : (
+            message.lastError ?? "-"
+          )}
+        </span>
       </td>
       <td className="table-actions">
         {canRetry ? (
           <button
             className="btn btn-secondary btn-sm"
-            disabled={retrying}
+            disabled={isRetrying}
             onClick={() => onRetry(message.id)}
             type="button"
           >
-            {retrying ? t("outbox.retrying") : "Retry"}
+            {isRetrying ? t("outbox.retrying") : "Retry"}
+          </button>
+        ) : null}
+        {canRetryEventType ? (
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={isRetrying}
+            onClick={() => onRetryEventType?.(message.eventType)}
+            type="button"
+          >
+            Type
+          </button>
+        ) : null}
+        {canIgnore ? (
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={ignoring}
+            onClick={() => onIgnore?.(message.id)}
+            type="button"
+          >
+            {ignoring ? "..." : "Ignore"}
           </button>
         ) : null}
       </td>
@@ -545,6 +724,7 @@ function statusTone(status: OutboxMessageStatus | InboxMessageStatus): JobStatus
   switch (status) {
     case "published":
     case "processed":
+    case "ignored":
       return "success";
     case "pending":
     case "processing":
@@ -607,4 +787,50 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatRelativeAge(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return formatDateTime(value);
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "<1 dk";
+  if (minutes < 60) return `${minutes} dk`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} sa`;
+  return `${Math.floor(hours / 24)} gun`;
+}
+
+function parseProjectionLastError(value: string | null) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (parsed.schema !== "projection-dispatch-error.v1" && parsed.schema !== "projection-dispatch-ignore.v1") {
+      return null;
+    }
+
+    const targetService = typeof parsed.targetService === "string" ? parsed.targetService : "";
+    const targetPath = typeof parsed.targetPath === "string" ? parsed.targetPath : "";
+    return {
+      errorClass: typeof parsed.class === "string" ? parsed.class : "unknown",
+      statusCode: typeof parsed.statusCode === "number" ? parsed.statusCode : null,
+      target: [targetService, targetPath].filter(Boolean).join(" "),
+      message: typeof parsed.message === "string" ? parsed.message : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function summarizeEventTypes(messages: OutboxMessageResponse[]) {
+  const counts = new Map<string, number>();
+  for (const message of messages) {
+    counts.set(message.eventType, (counts.get(message.eventType) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .map(([eventType, count]) => ({ eventType, count }))
+    .sort((left, right) => right.count - left.count || left.eventType.localeCompare(right.eventType))
+    .slice(0, 5);
 }

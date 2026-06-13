@@ -1,7 +1,7 @@
 import { getPlatformApiBaseUrl } from "./api";
 import { httpGet, httpPost } from "./http";
 
-export type OutboxMessageStatus = "pending" | "published" | "failed" | "dead_letter";
+export type OutboxMessageStatus = "pending" | "published" | "failed" | "dead_letter" | "ignored";
 export type InboxMessageStatus = "processing" | "processed" | "failed" | "dead_letter";
 
 export interface OutboxMessageResponse {
@@ -19,6 +19,8 @@ export interface OutboxMessageResponse {
   lastAttemptAtUtc: string | null;
   publishedAtUtc: string | null;
   lastError: string | null;
+  targetService?: string | null;
+  targetPath?: string | null;
 }
 
 interface OutboxMessageListResponse {
@@ -76,7 +78,7 @@ export type ProjectionOutboxHealthStatus = "healthy" | "warning" | "danger" | "d
 
 export interface ProjectionOutboxHealthItemResponse {
   service: string;
-  component: "outbox";
+  component: "outbox" | "projection-outbox";
   status: ProjectionOutboxHealthStatus;
   message: string;
   enabled: boolean;
@@ -95,6 +97,11 @@ export interface ProjectionOutboxHealthSummaryResponse {
   status: "healthy" | "warning" | "danger";
   message: string;
   items: ProjectionOutboxHealthItemResponse[];
+}
+
+export interface ProjectionOutboxMessageListResponse {
+  service: string;
+  items: OutboxMessageResponse[];
 }
 
 export function getOutboxMessages(
@@ -141,4 +148,38 @@ export function getProjectionOutboxHealth(signal?: AbortSignal): Promise<Project
     baseUrl: getPlatformApiBaseUrl(),
     signal,
   });
+}
+
+export function getProjectionOutboxMessages(
+  service: string,
+  params: { status?: OutboxMessageStatus; eventType?: string; limit?: number },
+  signal?: AbortSignal
+): Promise<ProjectionOutboxMessageListResponse> {
+  return httpGet<ProjectionOutboxMessageListResponse>(`/api/outbox/projections/${service}/messages`, params, {
+    baseUrl: getPlatformApiBaseUrl(),
+    signal,
+  });
+}
+
+export function retryProjectionOutboxMessage(input: { service: string; id: string }): Promise<unknown> {
+  return httpPost(`/api/outbox/projections/${input.service}/messages/${input.id}/retry`, {}, {
+    baseUrl: getPlatformApiBaseUrl(),
+  });
+}
+
+export function ignoreProjectionOutboxMessage(input: { service: string; id: string }): Promise<unknown> {
+  return httpPost(`/api/outbox/projections/${input.service}/messages/${input.id}/ignore`, {}, {
+    baseUrl: getPlatformApiBaseUrl(),
+  });
+}
+
+export function retryProjectionOutboxDeadLetters(input: { service: string; eventType?: string }): Promise<unknown> {
+  const query = input.eventType ? `?eventType=${encodeURIComponent(input.eventType)}` : "";
+  return httpPost(
+    `/api/outbox/projections/${input.service}/messages/retry-dead-letter${query}`,
+    {},
+    {
+      baseUrl: getPlatformApiBaseUrl(),
+    }
+  );
 }

@@ -550,6 +550,16 @@
   border-radius: 8px;
   padding: 10px;
   background: var(--surface);
+  text-align: left;
+}
+.projection-health-button {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+}
+.projection-health-button.active {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 .projection-health-item.success {
   border-color: color-mix(in srgb, var(--success) 28%, var(--gray-100));
@@ -587,6 +597,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.projection-health-item-secondary {
+  margin-top: 4px;
 }
 .projection-health-item-error {
   margin-top: 8px;
@@ -660,17 +673,49 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+.outbox-cell-error strong {
+  font-weight: 600;
+}
 .outbox-cell-number,
 .outbox-table .table-actions {
   text-align: right;
   white-space: nowrap;
 }
 .outbox-table .table-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
   padding-right: 16px;
 }
 .outbox-table .table-actions .btn {
-  width: 76px;
+  min-width: 64px;
   justify-content: center;
+}
+.outbox-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 10px;
+  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 600;
+}
+.outbox-event-type-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 0;
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 500;
+}
+.outbox-event-type-summary span {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .job-row-actions {
   display: flex;
