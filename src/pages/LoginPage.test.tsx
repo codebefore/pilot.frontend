@@ -69,7 +69,7 @@ describe("LoginPage channel selection", () => {
     });
   });
 
-  it("shows the SMS-flavoured code label and hint after an SMS request", async () => {
+  it("shows the SMS-flavoured code label and generic registered-phone hint after an SMS request", async () => {
     const requestLoginCode = vi.fn().mockResolvedValue({
       phone: "5551112233",
       expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
@@ -85,7 +85,7 @@ describe("LoginPage channel selection", () => {
     await waitFor(() => {
       expect(screen.getByText("SMS Kodu")).toBeInTheDocument();
     });
-    expect(screen.getByText(/SMS olarak gönderildi/i)).toBeInTheDocument();
+    expect(screen.getByText(/Telefon kayıtlıysa kod SMS olarak gönderildi/i)).toBeInTheDocument();
     expect(screen.getByText(/0:59|1:00/i)).toBeInTheDocument();
   });
 
@@ -112,6 +112,39 @@ describe("LoginPage channel selection", () => {
       expect(requestLoginCode).toHaveBeenCalledTimes(2);
     });
     expect(requestLoginCode).toHaveBeenLastCalledWith("5551112233", "sms");
+  });
+
+  it("clears the requested code state when the phone changes", async () => {
+    const requestLoginCode = vi.fn().mockResolvedValue({
+      phone: "5551112233",
+      expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+    });
+
+    render(requestLoginCode);
+
+    fireEvent.change(screen.getByLabelText("Telefon"), {
+      target: { value: "5551112233" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /SMS/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("SMS Kodu")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByLabelText("SMS Kodu"), {
+      target: { value: "123456" },
+    });
+
+    fireEvent.change(screen.getByLabelText("Telefon"), {
+      target: { value: "5551112244" },
+    });
+
+    expect(screen.getByLabelText("Telefon")).toBeEnabled();
+    expect(screen.queryByText("SMS Kodu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /SMS/i })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /SMS/i }));
+    const codeInput = await screen.findByLabelText("SMS Kodu");
+    expect(codeInput).toHaveValue("");
   });
 
   it("disables verification when the SMS code is expired", async () => {

@@ -24,7 +24,6 @@ import { termKeys } from "../lib/queries/use-terms";
 import { normalizeTextQuery } from "../lib/search";
 import {
   formatDateTR,
-  GROUP_MEB_STATUS_OPTIONS,
   groupMebStatusLabel,
   groupMebStatusToPill,
 } from "../lib/status-maps";
@@ -138,14 +137,12 @@ const GROUP_SEARCH_DEBOUNCE_MS = 300;
 async function loadAllGroups(
   termId: string | undefined,
   search: string | undefined,
-  mebStatus: string | undefined,
   signal?: AbortSignal
 ): Promise<GroupResponse[]> {
   const baseParams = {
     pageSize: GROUP_FETCH_PAGE_SIZE,
     ...(termId ? { termId } : {}),
     ...(search ? { search } : {}),
-    ...(mebStatus ? { mebStatus } : {}),
   };
   const firstPageParams = {
     ...baseParams,
@@ -227,7 +224,6 @@ export function GroupsPage() {
 
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
   const [search, setSearch] = useState("");
-  const [selectedMebStatus, setSelectedMebStatus] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -333,13 +329,12 @@ export function GroupsPage() {
     queryKey: [
       ...groupKeys.lists(),
       "all-pages",
-      { termId: selectedTermId || undefined, search: effectiveSearch, mebStatus: selectedMebStatus || undefined },
+      { termId: selectedTermId || undefined, search: effectiveSearch },
     ],
     queryFn: ({ signal }) =>
       loadAllGroups(
         selectedTermId || undefined,
         effectiveSearch,
-        selectedMebStatus || undefined,
         signal
       ),
   });
@@ -767,20 +762,6 @@ export function GroupsPage() {
             value={search}
           />
         </div>
-
-        <CustomSelect
-          aria-label={t("groups.card.mebStatus")}
-          className="form-select term-bar-select"
-          onChange={(e) => setSelectedMebStatus(e.target.value)}
-          value={selectedMebStatus}
-        >
-          <option value="">{t("common.all")}</option>
-          {GROUP_MEB_STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </CustomSelect>
 
         <div className="view-toggle" role="group" aria-label={t("groups.view.label")}>
           <button

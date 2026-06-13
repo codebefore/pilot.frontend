@@ -1,5 +1,21 @@
-import { useLanguage } from "../../lib/i18n";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+
+import { getMebbisApiBaseUrl } from "../../lib/api";
+import { useLanguage, type TranslationKey } from "../../lib/i18n";
 import type { AuthInstitution } from "../../lib/auth-storage";
+import {
+  getLocalAgentHealth,
+  getLocalAgentMebbisSession,
+  pairLocalAgent,
+  readStoredLocalAgentToken,
+  startLocalAgentMebbisSession,
+  stopLocalAgentMebbisSession,
+  submitLocalAgentMebbisVerificationCode,
+  LocalAgentError,
+  type LocalAgentMebbisSessionResponse,
+  type LocalAgentMebbisSessionStatus,
+} from "../../lib/local-agent-api";
+import { pairMebbisExtensionClient } from "../../lib/mebbis-jobs-api";
 import { MenuIcon } from "../icons";
 import { InstitutionSelector } from "./InstitutionSelector";
 import { NotificationsMenu } from "./NotificationsMenu";
@@ -61,6 +77,7 @@ export function Header({
       </div>
 
       <div className="header-right">
+        <HeaderMebbisConnection />
         <button
           aria-label={t("header.languageToggle")}
           className="header-lang"
@@ -75,4 +92,268 @@ export function Header({
       </div>
     </header>
   );
+}
+
+function HeaderMebbisConnection() {
+  const { t } = useLanguage();
+  const [session, setSession] = useState<LocalAgentMebbisSessionResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const pollingInterval = useRef<number | null>(null);
+
+  useEffect(() => {
+    mounted.current = true;
+    const controller = new AbortController();
+    if (readStoredLocalAgentToken()) {
+      beginPolling(controller.signal);
+    }
+
+    return () => {
+      mounted.current = false;
+      controller.abort();
+      stopPolling();
+    };
+  }, []);
+
+  const status = normalizeMebbisStatus(session?.status);
+  const active = status === "starting" || status === "waiting_verification" || status === "connected" || status === "stopping";
+  const statusText = t(MEBBIS_STATUS_LABELS[status]);
+  const statusMessage = error ?? session?.error ?? session?.message ?? statusText;
+  const popoverTitle = status === "waiting_verification"
+    ? t("header.mebbis.verificationTitle")
+    : t("header.mebbis.errorTitle");
+
+  async function refreshSession(signal?: AbortSignal) {
+    try {
+      const next = await getLocalAgentMebbisSession(signal);
+      if (!mounted.current) return;
+      setSession(next);
+      setError(null);
+      if (next.status === "waiting_verification" || next.requiresVerificationCode) {
+        setPopoverOpen(true);
+      }
+    } catch {
+      if (!mounted.current) return;
+      setSession(null);
+    }
+  }
+
+  async function handleToggle() {
+    if (busy) return;
+    if (active) {
+      await stopSession();
+    } else {
+      await startSession();
+    }
+  }
+
+  async function startSession() {
+    setBusy(true);
+    setError(null);
+    setSession((current) => ({
+      status: "starting",
+      message: t("header.mebbis.status.starting"),
+      currentUrl: current?.currentUrl ?? null,
+      mebbisUser: current?.mebbisUser ?? null,
+      requiresVerificationCode: false,
+      updatedAtUtc: new Date().toISOString(),
+    }));
+
+    try {
+      const health = await getLocalAgentHealth();
+      if (!readStoredLocalAgentToken()) {
+        await pairLocalAgent();
+      }
+      beginPolling();
+
+      const startInput: { apiBaseUrl: string; extensionToken?: string | null; debugVisible: boolean } = {
+        apiBaseUrl: getMebbisApiBaseUrl(),
+        extensionToken: null,
+        debugVisible: false,
+      };
+      const pair = await pairMebbisExtensionClient(`Pilot LocalAgent - ${health.machineName}`);
+      startInput.extensionToken = pair.apiToken;
+      let next: LocalAgentMebbisSessionResponse;
+      try {
+        next = await startLocalAgentMebbisSession(startInput);
+      } catch (err) {
+        if (!(err instanceof LocalAgentError) || err.status !== 401) throw err;
+        await pairLocalAgent();
+        next = await startLocalAgentMebbisSession(startInput);
+      }
+      if (shouldPairExtensionToken(next)) {
+        const pair = await pairMebbisExtensionClient(`Pilot LocalAgent - ${health.machineName}`);
+        next = await startLocalAgentMebbisSession({
+          ...startInput,
+          extensionToken: pair.apiToken,
+        });
+      }
+      setSession(next);
+      if (next.status === "waiting_verification" || next.requiresVerificationCode) {
+        setPopoverOpen(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("header.mebbis.unavailable"));
+      setSession({
+        status: "failed",
+        message: t("header.mebbis.status.failed"),
+        requiresVerificationCode: false,
+        error: err instanceof Error ? err.message : t("header.mebbis.unavailable"),
+        updatedAtUtc: new Date().toISOString(),
+      });
+      setPopoverOpen(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function beginPolling(signal?: AbortSignal) {
+    if (pollingInterval.current !== null) return;
+    void refreshSession(signal);
+    pollingInterval.current = window.setInterval(() => {
+      void refreshSession(signal);
+    }, 5000);
+  }
+
+  function stopPolling() {
+    if (pollingInterval.current === null) return;
+    window.clearInterval(pollingInterval.current);
+    pollingInterval.current = null;
+  }
+
+  async function stopSession() {
+    setBusy(true);
+    setError(null);
+    setSession((current) => ({
+      status: "stopping",
+      message: t("header.mebbis.status.stopping"),
+      currentUrl: current?.currentUrl ?? null,
+      mebbisUser: current?.mebbisUser ?? null,
+      requiresVerificationCode: false,
+      updatedAtUtc: new Date().toISOString(),
+    }));
+
+    try {
+      const next = await stopLocalAgentMebbisSession();
+      setSession(next);
+      setVerificationCode("");
+      setPopoverOpen(false);
+      stopPolling();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("header.mebbis.stopFailed"));
+      setPopoverOpen(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const code = verificationCode.replace(/\D/g, "");
+    if (code.length !== 6 || busy) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await submitLocalAgentMebbisVerificationCode(code);
+      setSession(next);
+      if (next.status !== "waiting_verification" && !next.requiresVerificationCode) {
+        setVerificationCode("");
+        setPopoverOpen(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("header.mebbis.codeFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="header-mebbis">
+      <button
+        aria-expanded={popoverOpen}
+        aria-label={t("header.mebbisToggle")}
+        className={`header-mebbis-toggle is-${status}`}
+        disabled={busy && status === "starting"}
+        onClick={handleToggle}
+        type="button"
+      >
+        <span className="header-mebbis-switch" data-active={active} aria-hidden="true" />
+        <span className="header-mebbis-label">MEBBİS</span>
+        <span className="header-mebbis-pill">{statusText}</span>
+      </button>
+
+      {popoverOpen && (
+        <div className="header-mebbis-popover" role="dialog" aria-label={popoverTitle}>
+          <div className="header-mebbis-popover-head">
+            <strong>{popoverTitle}</strong>
+            <button
+              aria-label={t("common.close")}
+              className="header-mebbis-close"
+              onClick={() => setPopoverOpen(false)}
+              type="button"
+            >
+              ×
+            </button>
+          </div>
+          <p>{status === "waiting_verification" ? t("header.mebbis.verificationHint") : statusMessage}</p>
+          {status === "waiting_verification" && (
+            <form className="header-mebbis-code-form" onSubmit={submitCode}>
+              <input
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder={t("header.mebbis.verificationPlaceholder")}
+                value={verificationCode}
+              />
+              <button disabled={busy || verificationCode.length !== 6} type="submit">
+                {t("header.mebbis.submitCode")}
+              </button>
+            </form>
+          )}
+          {active && (
+            <button className="header-mebbis-stop" disabled={busy} onClick={stopSession} type="button">
+              {t("header.mebbis.stop")}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MEBBIS_STATUS_LABELS: Record<LocalAgentMebbisSessionStatus, TranslationKey> = {
+  inactive: "header.mebbis.status.inactive",
+  starting: "header.mebbis.status.starting",
+  waiting_verification: "header.mebbis.status.waitingVerification",
+  connected: "header.mebbis.status.connected",
+  failed: "header.mebbis.status.failed",
+  stopping: "header.mebbis.status.stopping",
+};
+
+function normalizeMebbisStatus(status: string | undefined): LocalAgentMebbisSessionStatus {
+  switch (status) {
+    case "starting":
+    case "waiting_verification":
+    case "connected":
+    case "failed":
+    case "stopping":
+      return status;
+    default:
+      return "inactive";
+  }
+}
+
+function shouldPairExtensionToken(session: LocalAgentMebbisSessionResponse): boolean {
+  if (session.status !== "failed") return false;
+  const message = `${session.error ?? ""} ${session.message ?? ""}`.toLocaleLowerCase("tr-TR");
+  return message.includes("extension token") ||
+    message.includes("token bulunamadı") ||
+    message.includes("token gecersiz") ||
+    message.includes("token geçersiz") ||
+    message.includes("iptal edilmiş");
 }

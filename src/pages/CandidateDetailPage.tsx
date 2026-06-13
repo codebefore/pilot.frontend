@@ -1804,6 +1804,14 @@ function contactInputType(type: CandidateContactType): "text" | "tel" | "textare
   return CONTACT_KINDS.find((kind) => kind.type === type)?.inputType ?? "text";
 }
 
+function normalizeContactPhone(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+function isValidContactPhone(value: string): boolean {
+  return /^5\d{9}$/.test(value);
+}
+
 function CandidateContactRow({
   contact,
   label,
@@ -1821,9 +1829,12 @@ function CandidateContactRow({
   const [value, setValue] = useState(contact.value);
   const [ownerName, setOwnerName] = useState(contact.ownerName ?? "");
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
   const isPhone = contact.type === "phone";
+  const isInvalidPhone = isPhone && trimmedValue.length > 0 && !isValidContactPhone(trimmedValue);
+  const validationMessage = error ?? (isInvalidPhone ? t("candidateDetail.contacts.error.phoneInvalid") : null);
   const noPermissionTitle = t("common.noPermission");
   const unchanged =
     trimmedValue === contact.value &&
@@ -1836,6 +1847,10 @@ function CandidateContactRow({
 
   const save = async () => {
     if (!canManageCandidates || !trimmedValue || saving || unchanged) return;
+    if (isInvalidPhone) {
+      setError(t("candidateDetail.contacts.error.phoneInvalid"));
+      return;
+    }
     setSaving(true);
     try {
       await onSave(trimmedValue, isPhone ? ownerName.trim() || null : null);
@@ -1879,7 +1894,12 @@ function CandidateContactRow({
               aria-label={label}
               className="form-input-sm"
               disabled={saving}
-              onChange={(event) => setValue(event.target.value)}
+              inputMode={isPhone ? "tel" : undefined}
+              maxLength={isPhone ? 10 : undefined}
+              onChange={(event) => {
+                setValue(isPhone ? normalizeContactPhone(event.target.value) : event.target.value);
+                if (error) setError(null);
+              }}
               placeholder={isPhone ? "5XX XXX XX XX" : undefined}
               type={contactInputType(contact.type)}
               value={value}
@@ -1895,7 +1915,7 @@ function CandidateContactRow({
             <button
               aria-label={t("common.save")}
               className="icon-btn icon-btn-confirm"
-              disabled={!trimmedValue || saving || unchanged || !canManageCandidates}
+              disabled={!trimmedValue || isInvalidPhone || saving || unchanged || !canManageCandidates}
               onClick={() => void save()}
               title={!canManageCandidates ? noPermissionTitle : t("common.save")}
               type="button"
@@ -1909,6 +1929,7 @@ function CandidateContactRow({
               onClick={() => {
                 setValue(contact.value);
                 setOwnerName(contact.ownerName ?? "");
+                setError(null);
                 setEditing(false);
               }}
               title={t("common.cancel")}
@@ -1940,6 +1961,7 @@ function CandidateContactRow({
           <TrashIcon size={12} />
         </button>
       </div>
+      {validationMessage ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
     </div>
   );
 }
@@ -1967,10 +1989,16 @@ function CandidateContactDraftRow({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
+  const isInvalidPhone = isPhone && trimmedValue.length > 0 && !isValidContactPhone(trimmedValue);
+  const validationMessage = error ?? (isInvalidPhone ? t("candidateDetail.contacts.error.phoneInvalid") : null);
   const noPermissionTitle = t("common.noPermission");
 
   const save = async () => {
     if (!canManageCandidates || !trimmedValue || saving) return;
+    if (isInvalidPhone) {
+      setError(t("candidateDetail.contacts.error.phoneInvalid"));
+      return;
+    }
 
     setSaving(true);
     try {
@@ -2013,8 +2041,10 @@ function CandidateContactDraftRow({
             aria-label={label}
             className="form-input-sm"
             disabled={saving}
+            inputMode={isPhone ? "tel" : undefined}
+            maxLength={isPhone ? 10 : undefined}
             onChange={(event) => {
-              setValue(event.target.value);
+              setValue(isPhone ? normalizeContactPhone(event.target.value) : event.target.value);
               if (error) setError(null);
             }}
             placeholder={isPhone ? "5XX XXX XX XX" : undefined}
@@ -2027,7 +2057,7 @@ function CandidateContactDraftRow({
         <button
           aria-label={t("common.save")}
           className="icon-btn icon-btn-confirm"
-          disabled={!trimmedValue || saving || !canManageCandidates}
+          disabled={!trimmedValue || isInvalidPhone || saving || !canManageCandidates}
           onClick={() => void save()}
           title={!canManageCandidates ? noPermissionTitle : t("common.save")}
           type="button"
@@ -2045,7 +2075,7 @@ function CandidateContactDraftRow({
           <XIcon size={13} />
         </button>
       </div>
-      {error ? <span className="candidate-contact-validation">{error}</span> : null}
+      {validationMessage ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
     </div>
   );
 }
@@ -8502,6 +8532,7 @@ function CandidateDocumentUploadPopover({
   anchorRef,
   busy,
   initialFile,
+  initialSource,
   inputId,
   onClose,
   onRequestScanner,
@@ -8512,6 +8543,7 @@ function CandidateDocumentUploadPopover({
   anchorRef: RefObject<HTMLElement | null>;
   busy: boolean;
   initialFile?: File | null;
+  initialSource?: "camera" | "scanner" | "file";
   inputId: string;
   onClose: () => void;
   onRequestScanner: () => void;
@@ -8537,6 +8569,7 @@ function CandidateDocumentUploadPopover({
   const [cameraLoading, setCameraLoading] = useState(false);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
+  const [captureSource, setCaptureSource] = useState<"camera" | "scanner" | "file">("camera");
   const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
   const [cropSaving, setCropSaving] = useState(false);
   const [position, setPosition] = useState<UploadPopoverPosition | null>(null);
@@ -8600,22 +8633,26 @@ function CandidateDocumentUploadPopover({
     }
   };
 
-  const openCropForFile = (file: File) => {
+  const openCropForFile = (file: File, source: "camera" | "scanner" | "file") => {
     stopCamera();
     clearCapture();
     const url = URL.createObjectURL(file);
     setCapturedFile(file);
     setCapturedUrl(url);
+    setCaptureSource(source);
     setCrop(defaultCropRect());
     setMode("crop");
   };
 
-  const handleSelectedFile = async (file: File): Promise<boolean> => {
+  const handleSelectedFile = async (
+    file: File,
+    source: "camera" | "scanner" | "file" = "file",
+  ): Promise<boolean> => {
     if (!isCropSupportedUpload(file)) {
       await onUpload(file);
       return true;
     }
-    openCropForFile(file);
+    openCropForFile(file, source);
     return false;
   };
 
@@ -8675,8 +8712,8 @@ function CandidateDocumentUploadPopover({
 
   useEffect(() => {
     if (!open || !initialFile) return;
-    void handleSelectedFile(initialFile);
-  }, [initialFile, open]);
+    void handleSelectedFile(initialFile, initialSource ?? "file");
+  }, [initialFile, initialSource, open]);
 
   useEffect(() => {
     return () => {
@@ -8694,6 +8731,7 @@ function CandidateDocumentUploadPopover({
       if (capturedUrl) URL.revokeObjectURL(capturedUrl);
       setCapturedFile(file);
       setCapturedUrl(url);
+      setCaptureSource("camera");
       setCrop(defaultCropRect());
       setMode("crop");
     } catch {
@@ -8708,6 +8746,13 @@ function CandidateDocumentUploadPopover({
   };
 
   const retryCamera = () => {
+    if (captureSource === "scanner") {
+      clearCapture();
+      setMode("menu");
+      onRequestScanner();
+      return;
+    }
+
     clearCapture();
     void startCamera(cameraFacing);
   };
@@ -8938,7 +8983,7 @@ function CandidateDocumentUploadPopover({
           </div>
           <div className="candidate-doc-camera-actions">
             <button className="btn btn-secondary btn-sm" onClick={retryCamera} type="button">
-              Tekrar Çek
+              {captureSource === "scanner" ? "Yeniden Tara" : "Tekrar Çek"}
             </button>
             <button
               className="btn btn-primary btn-sm"
@@ -9601,6 +9646,7 @@ function DocRow({
               anchorRef={uploadTriggerRef}
               busy={busy}
               initialFile={scannedFile}
+              initialSource={scannedFile ? "scanner" : undefined}
               inputId={inputId}
               onClose={() => {
                 setUploadPopoverOpen(false);

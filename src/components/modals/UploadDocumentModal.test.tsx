@@ -65,7 +65,7 @@ describe("UploadDocumentModal", () => {
       target: { value: "Aile Hekimi" },
     });
     fireEvent.click(screen.getByLabelText("Fiziksel evrak elde var"));
-    fireEvent.click(screen.getByRole("button", { name: "Yükle" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(uploadDocumentMock).toHaveBeenCalledWith({
@@ -113,7 +113,7 @@ describe("UploadDocumentModal", () => {
       />
     );
 
-    const submitButton = screen.getByRole("button", { name: "Yükle" });
+    const submitButton = screen.getByRole("button", { name: "Kaydet" });
     expect(submitButton).toBeDisabled();
     expect(submitButton).toHaveAttribute("title", "Yetkiniz yok.");
 
@@ -160,7 +160,7 @@ describe("UploadDocumentModal", () => {
 
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(fileInput, { target: { files: [oversizedFile] } });
-    fireEvent.click(screen.getByRole("button", { name: "Yükle" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     expect(await screen.findByText("Dosya 10 MB'tan büyük olamaz")).toBeInTheDocument();
     expect(uploadDocumentMock).not.toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe("UploadDocumentModal", () => {
     fireEvent.click(screen.getByLabelText("Fiziksel evrak elde var"));
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(fileInput, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Yükle" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(uploadDocumentMock).toHaveBeenCalledWith({

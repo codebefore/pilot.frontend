@@ -47,6 +47,7 @@ export function LoginPage() {
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [requestedPhone, setRequestedPhone] = useState<string | null>(null);
   // Which channel ("whatsapp" | "sms") the most recent request used. Drives the
   // resend button, code label, and "code sent" hint after the first request.
   const [selectedChannel, setSelectedChannel] = useState<LoginChannel | null>(null);
@@ -61,6 +62,7 @@ export function LoginPage() {
     register,
     setError,
     setFocus,
+    setValue,
     trigger,
     watch,
   } = useForm<LoginForm>({
@@ -86,6 +88,18 @@ export function LoginPage() {
     return () => window.clearInterval(timerId);
   }, [expiresAt]);
 
+  useEffect(() => {
+    if (!codeRequested || !requestedPhone || phoneValue === requestedPhone) return;
+
+    setCodeRequested(false);
+    setExpiresAt(null);
+    setRemainingSeconds(null);
+    setSelectedChannel(null);
+    setRequestedPhone(null);
+    setFormError(null);
+    setValue("code", "");
+  }, [codeRequested, phoneValue, requestedPhone, setValue]);
+
   if (user) {
     return <Navigate replace to={from} />;
   }
@@ -104,6 +118,7 @@ export function LoginPage() {
       const response = await requestLoginCode(getValues("phone"), channel);
       setSelectedChannel(channel);
       setCodeRequested(true);
+      setRequestedPhone(getValues("phone"));
       setExpiresAt(response.expiresAtUtc);
       setRemainingSeconds(remainingSecondsUntil(response.expiresAtUtc));
       setFocus("code");
@@ -156,7 +171,7 @@ export function LoginPage() {
             <label htmlFor="login-phone">{t("login.phone")}</label>
             <input
               autoComplete="tel"
-              disabled={submitting || codeRequested}
+              disabled={submitting}
               id="login-phone"
               inputMode="tel"
               maxLength={10}
