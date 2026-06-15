@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
@@ -1219,6 +1219,7 @@ function cashMovementTypeLabel(type: string, t: ReturnType<typeof useT>): string
 
 export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const { showToast } = useToast();
+  const location = useLocation();
   const { user, permissions } = useAuth();
   const canManagePayments = canManageArea(user, permissions, "payments");
   const t = useT();
@@ -1242,6 +1243,13 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const [statsToDate, setStatsToDate] = useState("");
   const [detailGroup, setDetailGroup] = useState<DetailGroup>(
     isCashPage ? "cashSummary" : "movements",
+  );
+  const detailReturnState = useMemo(
+    () => ({
+      returnLabel: "← Ödemeler sayfasına dön",
+      returnTo: `${location.pathname}${location.search}`,
+    }),
+    [location.pathname, location.search]
   );
   const [detailTab, setDetailTab] = useState<DetailTab>(
     isCollectionsPage ? "all" : "installment",
@@ -2790,6 +2798,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       return (
         <Link
           className="job-type"
+          state={detailReturnState}
           to={`/candidates/${candidate.id}?tab=payments`}
         >
           {candidate.firstName} {candidate.lastName}
@@ -2822,6 +2831,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       return (
         <Link
           className="job-type"
+          state={detailReturnState}
           to={`/candidates/${invoice.candidate.id}?tab=payments`}
         >
           {invoiceCandidateName(invoice)}
@@ -2859,6 +2869,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       return (
         <Link
           className="job-type"
+          state={detailReturnState}
           to={`/candidates/${row.candidate.id}?tab=payments`}
         >
           {paymentCandidateName(row.candidate)}
@@ -2910,6 +2921,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       return (
         <Link
           className="job-type"
+          state={detailReturnState}
           to={`/candidates/${installment.candidate.id}?tab=payments`}
         >
           {installmentCandidateName(installment)}
@@ -2938,6 +2950,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       return (
         <Link
           className="job-type"
+          state={detailReturnState}
           to={`/candidates/${row.candidate.id}?tab=payments`}
         >
           {paymentCandidateName(row.candidate)}

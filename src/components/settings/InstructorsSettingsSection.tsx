@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { InstructorFormModal } from "../modals/InstructorFormModal";
@@ -257,6 +257,7 @@ const DEFAULT_FILTERS: InstructorFilters = {
 export function InstructorsSettingsSection() {
   const t = useT();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
@@ -382,6 +383,13 @@ export function InstructorsSettingsSection() {
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
+  const detailReturnState = useMemo(
+    () => ({
+      returnLabel: `← ${t("settings.instructors.detail.backToList")}`,
+      returnTo: `${location.pathname}${location.search}`,
+    }),
+    [location.pathname, location.search, t]
+  );
 
   const handleSaved = (saved: InstructorResponse) => {
     const wasCreate = !editing;
@@ -391,7 +399,9 @@ export function InstructorsSettingsSection() {
     invalidateInstructorDependents();
     showToast(editing ? t("settings.instructors.toasts.updated") : t("settings.instructors.toasts.created"));
     if (wasCreate) {
-      navigate(`/settings/definitions/instructors/${saved.id}?newAssignment=1`);
+      navigate(`/settings/definitions/instructors/${saved.id}?newAssignment=1`, {
+        state: detailReturnState,
+      });
     }
   };
 
@@ -607,7 +617,11 @@ export function InstructorsSettingsSection() {
                     <tr
                       className="data-table-row-clickable"
                       key={item.id}
-                      onClick={() => navigate(`/settings/definitions/instructors/${item.id}`)}
+                      onClick={() =>
+                        navigate(`/settings/definitions/instructors/${item.id}`, {
+                          state: detailReturnState,
+                        })
+                      }
                     >
                       {visibleColumns.map((column) => (
                         <td key={column.id}>{column.renderCell(item)}</td>

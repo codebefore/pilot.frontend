@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
-import { CheckIcon, XIcon } from "../components/icons";
+import { CheckIcon, DownloadIcon, XIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { ManageDocumentModal } from "../components/modals/ManageDocumentModal";
@@ -18,7 +18,7 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { CheckboxListPopover } from "../components/ui/CheckboxListPopover";
 import { TableHeaderFilter } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
-import { applyTagsToCandidates } from "../lib/candidate-bulk";
+import { applyStatusToCandidates, applyTagsToCandidates } from "../lib/candidate-bulk";
 import { useAuth } from "../lib/auth";
 import {
   EMPTY_CANDIDATE_FILTERS,
@@ -30,15 +30,20 @@ import {
   assignCandidateGroup,
   createCandidateTag,
 } from "../lib/candidates-api";
-import { getDocumentChecklist, getDocumentTypes } from "../lib/documents-api";
+import { getDocumentChecklist, getDocumentChecklistByCandidateIds, getDocumentTypes } from "../lib/documents-api";
 import { isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
 import { candidateKeys, useCandidateTags } from "../lib/queries/use-candidates";
 import { groupKeys, useGroups } from "../lib/queries/use-groups";
+import { formatLocalDateOnly } from "../lib/date-only";
 import { buildWhatsAppUrl } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
+import {
+  CANDIDATE_STATUS_OPTIONS,
+  type CandidateStatusValue,
+} from "../lib/status-maps";
 import {
   mergeLicenseClassOptionsWithValues,
   useLicenseClassOptions,
@@ -69,7 +74,7 @@ type SortState = { field: DocumentSortField; direction: SortDirection } | null;
 type DocumentsTab = "all" | "missing" | "complete";
 const DEFAULT_TAB: DocumentsTab = "all";
 
-type BulkActionMode = "tags" | "group" | null;
+type BulkActionMode = "status" | "tags" | "export" | "group" | null;
 
 type UploadTarget = {
   candidateId?: string;
@@ -148,6 +153,7 @@ function compactDocumentColumnLabel(name: string): string {
 
 export function DocumentsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT();
   const { lang } = useLanguage();
   const { showToast } = useToast();
@@ -189,12 +195,21 @@ export function DocumentsPage() {
   const selectedId = searchParams.get("selected");
   const openDrawer = (id: string) => setSearchParams({ selected: id });
   const closeDrawer = () => setSearchParams({});
+  const detailReturnState = useMemo(
+    () => ({
+      returnLabel: "← Evrak kontrol sayfasına dön",
+      returnTo: `${location.pathname}${location.search}`,
+    }),
+    [location.pathname, location.search]
+  );
 
   const [bulkActionMode, setBulkActionMode] = useState<BulkActionMode>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
+  const [bulkStatusValue, setBulkStatusValue] = useState<"" | CandidateStatusValue>("");
   const [bulkTagValues, setBulkTagValues] = useState<string[]>([]);
   const [bulkGroupId, setBulkGroupId] = useState("");
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkExporting, setBulkExporting] = useState(false);
   const [hiddenDocumentColumnIds, setHiddenDocumentColumnIds] = useState<Set<string>>(new Set());
 
   // --- React Query: document types ---
@@ -517,6 +532,25 @@ export function DocumentsPage() {
     setBulkActionMode("tags");
   };
 
+  const openBulkStatusAction = () => {
+    if (!canManageCandidates) return;
+    if (selectedCount === 0) {
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
+      return;
+    }
+
+    setBulkActionMode("status");
+  };
+
+  const openBulkExportAction = () => {
+    if (selectedCount === 0) {
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
+      return;
+    }
+
+    setBulkActionMode("export");
+  };
+
   const openBulkGroupAction = () => {
     if (!canManageGroups) return;
     if (selectedCount === 0) {
@@ -530,8 +564,29 @@ export function DocumentsPage() {
 
   const cancelBulkAction = () => {
     setBulkActionMode(null);
+    setBulkStatusValue("");
     setBulkTagValues([]);
     setBulkGroupId("");
+  };
+
+  const applyBulkStatusChange = async () => {
+    if (!canManageCandidates) return;
+    if (!bulkStatusValue || selectedCount === 0) return;
+    setBulkSaving(true);
+    try {
+      const selectedIds = Array.from(selectedCandidateIds);
+      await applyStatusToCandidates(selectedIds, bulkStatusValue);
+      showToast(`${selectedIds.length} aday güncellendi`);
+      setBulkActionMode(null);
+      setSelectedCandidateIds(new Set());
+      setBulkStatusValue("");
+      invalidateDocumentChecklist();
+      invalidateCandidateAndGroupData();
+    } catch {
+      showToast(t("candidates.toast.bulkStatusFailed"), "error");
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const applyBulkTagChange = async () => {
@@ -552,6 +607,69 @@ export function DocumentsPage() {
       showToast(t("candidates.toast.bulkTagFailed"), "error");
     } finally {
       setBulkSaving(false);
+    }
+  };
+
+  const exportDocumentRowsToCsv = (rowsToExport: DocumentChecklistEntry[]) => {
+    const headers = [
+      t("documents.col.candidate"),
+      t("candidates.col.phoneNumber"),
+      "Ehliyet Tipi",
+      t("documentsPage.col.term"),
+      t("documentsPage.col.advancePayment"),
+      t("candidates.csv.completedDocuments"),
+      t("candidates.col.missingDocuments"),
+      "Eksik Evraklar",
+    ] as const;
+
+    const rows = rowsToExport.map((entry): readonly (string | number)[] => [
+      entry.fullName,
+      entry.phoneNumber ?? "",
+      entry.licenseClass,
+      renderDocumentTerm(entry, lang),
+      entry.hasAdvancePayment ? "Var" : "Yok",
+      entry.summary.completedCount,
+      entry.summary.missingCount,
+      entry.missingDocumentNames.join("; "),
+    ]);
+
+    const escapeCsvValue = (value: string | number) => {
+      const text = String(value);
+      if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+        return `"${text.replace(/"/g, "\"\"")}"`;
+      }
+      return text;
+    };
+
+    const csvLines = [
+      headers.join(","),
+      ...rows.map((row) => row.map((value) => escapeCsvValue(value)).join(",")),
+    ];
+    const blob = new Blob(["\uFEFF" + csvLines.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `evrak-kontrol-${formatLocalDateOnly(new Date())}.csv`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadSelectedDocumentsCsv = async () => {
+    if (selectedCount === 0) return;
+    setBulkExporting(true);
+    try {
+      const selectedIds = Array.from(selectedCandidateIds);
+      const rows = await getDocumentChecklistByCandidateIds(selectedIds);
+      exportDocumentRowsToCsv(rows);
+      setBulkActionMode(null);
+    } catch {
+      showToast(t("candidates.toast.bulkExportFailed"), "error");
+    } finally {
+      setBulkExporting(false);
     }
   };
 
@@ -593,7 +711,7 @@ export function DocumentsPage() {
   };
 
   const openCandidateAccounting = (candidateId: string) => {
-    navigate(`/candidates/${candidateId}?tab=payments`);
+    navigate(`/candidates/${candidateId}?tab=payments`, { state: detailReturnState });
   };
 
   const handleUploaded = () => {
@@ -687,25 +805,48 @@ export function DocumentsPage() {
       <PageToolbar
         actions={
           <>
-            <label className="switch-toggle cand-filters-switch">
-              <input
-                aria-controls="documents-filters-panel"
-                aria-label="Filtreler"
-                checked={filtersOpen}
-                onChange={(event) => setFiltersOpen(event.target.checked)}
-                type="checkbox"
-              />
-              <span className="switch-toggle-control" aria-hidden="true" />
-              <span>Filtreler</span>
-              {activeFilterCount > 0 && !filtersOpen && (
-                <span className="cand-filters-badge">{activeFilterCount}</span>
-              )}
-            </label>
             <div className="candidate-bulk-toolbar">
               {selectedCount > 0 ? (
                 <span className="candidate-bulk-count">{t("documentsPage.selectedCount", { count: selectedCount })}</span>
               ) : null}
-              {bulkActionMode === "tags" ? (
+              {bulkActionMode === "status" ? (
+                <>
+                  <CustomSelect
+                    aria-label={t("candidates.aria.bulkStatusSelect")}
+                    disabled={!canManageCandidates}
+                    onChange={(event) =>
+                      setBulkStatusValue(event.target.value as "" | CandidateStatusValue)
+                    }
+                    size="sm"
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
+                    value={bulkStatusValue}
+                  >
+                    <option value="">{t("candidates.bulk.statusPlaceholder")}</option>
+                    {CANDIDATE_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </CustomSelect>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={!canManageCandidates || selectedCount === 0 || !bulkStatusValue || bulkSaving}
+                    onClick={applyBulkStatusChange}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
+                    type="button"
+                  >
+                    {bulkSaving ? t("candidates.bulk.applying") : t("candidates.bulk.apply")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={bulkSaving}
+                    onClick={cancelBulkAction}
+                    type="button"
+                  >
+                    {t("candidates.bulk.cancel")}
+                  </button>
+                </>
+              ) : bulkActionMode === "tags" ? (
                 <>
                   <CandidateTagsInput
                     ariaLabel={t("candidates.aria.bulkTagSelect")}
@@ -732,6 +873,25 @@ export function DocumentsPage() {
                     type="button"
                   >
                     {t("candidates.bulk.cancel")}
+                  </button>
+                </>
+              ) : bulkActionMode === "export" ? (
+                <>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={selectedCount === 0 || bulkExporting}
+                    onClick={downloadSelectedDocumentsCsv}
+                    type="button"
+                  >
+                    {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={bulkExporting}
+                    onClick={cancelBulkAction}
+                    type="button"
+                  >
+                    {t("candidates.bulk.close")}
                   </button>
                 </>
               ) : bulkActionMode === "group" ? (
@@ -787,11 +947,40 @@ export function DocumentsPage() {
                   <button
                     className="btn btn-secondary btn-sm"
                     disabled={!canManageCandidates}
+                    onClick={openBulkStatusAction}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
+                    type="button"
+                  >
+                    {t("candidates.bulk.changeStatus")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={!canManageCandidates}
                     onClick={openBulkTagAction}
                     title={!canManageCandidates ? noPermissionTitle : undefined}
                     type="button"
                   >
                     {t("candidates.bulk.addTag")}
+                  </button>
+                  <button
+                    aria-controls="documents-filters-panel"
+                    aria-expanded={filtersOpen}
+                    className={filtersOpen ? "btn btn-secondary btn-sm active cand-filters-button" : "btn btn-secondary btn-sm cand-filters-button"}
+                    onClick={() => setFiltersOpen((current) => !current)}
+                    type="button"
+                  >
+                    <span>Filtreler</span>
+                    {activeFilterCount > 0 && !filtersOpen && (
+                      <span className="cand-filters-badge">{activeFilterCount}</span>
+                    )}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={openBulkExportAction}
+                    type="button"
+                  >
+                    <DownloadIcon size={14} />
+                    {t("candidates.bulk.export")}
                   </button>
                 </>
               )}

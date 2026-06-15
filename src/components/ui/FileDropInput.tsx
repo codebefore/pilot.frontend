@@ -10,6 +10,7 @@ type FileDropInputProps = {
   error?: boolean;
   disabled?: boolean;
   file?: File;
+  variant?: "dropzone" | "button";
   onChange: (files: FileList | null) => void;
   onClear: () => void;
   onBlur?: () => void;
@@ -23,7 +24,7 @@ function formatBytes(bytes: number): string {
 
 export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
   function FileDropInput(
-    { name, accept, hint, error, disabled, file, onChange, onClear, onBlur },
+    { name, accept, hint, error, disabled, file, variant = "dropzone", onChange, onClear, onBlur },
     ref
   ) {
     const t = useT();
@@ -65,7 +66,7 @@ export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
       );
     }
 
-    const className = `file-drop${dragging ? " dragging" : ""}${
+    const className = `${variant === "button" ? "file-button" : "file-drop"}${dragging ? " dragging" : ""}${
       error ? " error" : ""
     }${disabled ? " disabled" : ""}`;
 
@@ -76,13 +77,21 @@ export const FileDropInput = forwardRef<HTMLInputElement, FileDropInputProps>(
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        <div className="file-drop-icon">
+        <div className={variant === "button" ? "file-button-icon" : "file-drop-icon"}>
           <UploadCloudIcon size={18} />
         </div>
-        <div className="file-drop-main">
-          <strong>Seçmek için tıkla</strong> veya dosyayı buraya sürükle
-        </div>
-        {hint && <div className="file-drop-hint">{hint}</div>}
+        {variant === "button" ? (
+          <span>
+            <strong>Dosya yükle</strong>
+          </span>
+        ) : (
+          <>
+            <div className="file-drop-main">
+              <strong>Seçmek için tıkla</strong> veya dosyayı buraya sürükle
+            </div>
+            {hint && <div className="file-drop-hint">{hint}</div>}
+          </>
+        )}
         <input
           accept={accept}
           disabled={disabled}

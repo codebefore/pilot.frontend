@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
 import {
@@ -15,6 +15,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 export function NotificationsMenu() {
   const t = useT();
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const notificationsQuery = useQuery({
@@ -37,6 +38,16 @@ export function NotificationsMenu() {
   const items: NotificationResponse[] = notificationsQuery.data?.items ?? [];
   const unreadCount = notificationsQuery.data?.unreadCount ?? items.length;
   const visibleItems = items.slice(0, 5);
+  const openNotificationLink = (linkPath: string) => {
+    navigate(linkPath, linkPath.startsWith("/candidates/")
+      ? {
+          state: {
+            returnLabel: "← Önceki sayfaya dön",
+            returnTo: `${location.pathname}${location.search}`,
+          },
+        }
+      : undefined);
+  };
 
   return (
     <div className="notif-menu-wrap" ref={ref}>
@@ -70,7 +81,7 @@ export function NotificationsMenu() {
                   onClick={() => {
                     if (!n.linkPath) return;
                     setOpen(false);
-                    navigate(n.linkPath);
+                    openNotificationLink(n.linkPath);
                   }}
                   role={n.linkPath ? "button" : undefined}
                   style={n.linkPath ? { cursor: "pointer" } : undefined}

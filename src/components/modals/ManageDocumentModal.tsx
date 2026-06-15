@@ -977,6 +977,22 @@ export function ManageDocumentModal({
                       <small>{t("candidateDetail.documents.upload.cameraHint")}</small>
                     </span>
                   </button>
+                  <FileDropInput
+                    accept={ACCEPT}
+                    disabled={!canManageDocuments}
+                    error={!!fileError}
+                    file={replacementFile ?? undefined}
+                    hint={
+                      isPhysicallyAvailable
+                        ? t("uploadDoc.physicallyAvailableHint")
+                        : t("documents.manage.replaceHint")
+                    }
+                    name="replacementFile"
+                    onBlur={() => undefined}
+                    onChange={(list) => handleSelectedFile(list?.[0] ?? null)}
+                    onClear={() => handleSelectedFile(null)}
+                    variant="button"
+                  />
                 </div>
                 <DocumentScannerModal
                   onClose={() => setScannerOpen(false)}
@@ -1081,21 +1097,6 @@ export function ManageDocumentModal({
                     </div>
                   </div>
                 ) : null}
-                <FileDropInput
-                  accept={ACCEPT}
-                  disabled={!canManageDocuments}
-                  error={!!fileError}
-                  file={replacementFile ?? undefined}
-                  hint={
-                    isPhysicallyAvailable
-                      ? t("uploadDoc.physicallyAvailableHint")
-                      : t("documents.manage.replaceHint")
-                  }
-                  name="replacementFile"
-                  onBlur={() => undefined}
-                  onChange={(list) => handleSelectedFile(list?.[0] ?? null)}
-                  onClear={() => handleSelectedFile(null)}
-                />
                 <div className="form-hint">{t("uploadDoc.fileHint")}</div>
                 {fileError && <div className="form-error">{fileError}</div>}
               </div>

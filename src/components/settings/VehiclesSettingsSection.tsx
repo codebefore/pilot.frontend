@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { MebIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { VehicleFormModal } from "../modals/VehicleFormModal";
@@ -240,12 +240,20 @@ const DEFAULT_FILTERS: VehicleFilters = {
 
 export function VehiclesSettingsSection() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const t = useT();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const noPermissionTitle = t("common.noPermission");
+  const detailReturnState = useMemo(
+    () => ({
+      returnLabel: t("vehicle.detail.backToList"),
+      returnTo: `${location.pathname}${location.search}`,
+    }),
+    [location.pathname, location.search, t]
+  );
 
   const [items, setItems] = useState<VehicleResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -646,7 +654,11 @@ export function VehiclesSettingsSection() {
                     <tr
                       className="data-table-row-clickable"
                       key={item.id}
-                      onClick={() => navigate(`/settings/definitions/vehicles/${item.id}`)}
+                      onClick={() =>
+                        navigate(`/settings/definitions/vehicles/${item.id}`, {
+                          state: detailReturnState,
+                        })
+                      }
                     >
                       {visibleColumns.map((column) => (
                         <td key={column.id}>{column.renderCell(item)}</td>

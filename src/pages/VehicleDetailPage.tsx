@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
@@ -53,6 +53,7 @@ const DOCUMENT_TYPES: VehicleDocumentType[] = ["insurance", "inspection", "casco
 
 export function VehicleDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageDocuments = canManageArea(user, permissions, "documents");
@@ -60,6 +61,9 @@ export function VehicleDetailPage() {
   const noPermissionTitle = t("common.noPermission");
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const queryClient = useQueryClient();
+  const returnState = location.state as { returnLabel?: string; returnTo?: string } | null;
+  const breadcrumbLabel = returnState?.returnLabel ?? t("vehicle.detail.backToList");
+  const breadcrumbTarget = returnState?.returnTo ?? "/settings/definitions/vehicles";
 
   const vehicleQuery = useQuery({
     queryKey: ["vehicles", "detail", vehicleId],
@@ -207,10 +211,10 @@ export function VehicleDetailPage() {
       <div className="instructor-detail-breadcrumb">
         <button
           className="btn btn-secondary btn-sm"
-          onClick={() => navigate("/settings/definitions/vehicles")}
+          onClick={() => navigate(breadcrumbTarget)}
           type="button"
         >
-          {t("vehicle.detail.backToList")}
+          {breadcrumbLabel}
         </button>
       </div>
 

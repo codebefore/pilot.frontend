@@ -742,6 +742,28 @@ export function UploadDocumentModal({
                   <small>{t("candidateDetail.documents.upload.cameraHint")}</small>
                 </span>
               </button>
+              <Controller
+                control={control}
+                name="file"
+                render={({ field, fieldState }) => (
+                  <FileDropInput
+                    accept={ACCEPT}
+                    error={!!fieldState.error}
+                    file={field.value ?? undefined}
+                    hint={
+                      isPhysicallyAvailable
+                        ? t("uploadDoc.physicallyAvailableHint")
+                        : t("uploadDoc.fileHint")
+                    }
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    onChange={(list) => handleSelectedFile(list?.[0] ?? null)}
+                    onClear={() => handleSelectedFile(null)}
+                    ref={field.ref}
+                    variant="button"
+                  />
+                )}
+              />
             </div>
             <DocumentScannerModal
               onClose={() => setScannerOpen(false)}
@@ -846,27 +868,6 @@ export function UploadDocumentModal({
                 </div>
               </div>
             ) : null}
-            <Controller
-              control={control}
-              name="file"
-              render={({ field, fieldState }) => (
-                <FileDropInput
-                  accept={ACCEPT}
-                  error={!!fieldState.error}
-                  file={field.value ?? undefined}
-                  hint={
-                    isPhysicallyAvailable
-                      ? t("uploadDoc.physicallyAvailableHint")
-                      : t("uploadDoc.fileHint")
-                  }
-                  name={field.name}
-                  onBlur={field.onBlur}
-                  onChange={(list) => handleSelectedFile(list?.[0] ?? null)}
-                  onClear={() => handleSelectedFile(null)}
-                  ref={field.ref}
-                />
-              )}
-            />
             {errors.file && <div className="form-error">{errors.file.message}</div>}
           </div>
         </div>

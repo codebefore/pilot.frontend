@@ -759,7 +759,7 @@ export function CandidateDetailPage() {
                     queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
                   ]);
                 }}
-                onDeleted={() => navigate("/candidates")}
+                onDeleted={() => navigate(breadcrumbTarget)}
               />
             )}
             {activeTab === "payments" && (

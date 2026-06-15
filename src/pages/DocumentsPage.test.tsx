@@ -228,8 +228,20 @@ describe("DocumentsPage", () => {
     await screen.findByText("Ayse Demir");
 
     expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Gruba Aktar" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
+    const assignGroupButton = screen.getByRole("button", { name: "Gruba Aktar" });
+    const changeStatusButton = screen.getByRole("button", { name: "Durum Değiştir" });
+    const addTagButton = screen.getByRole("button", { name: "Etiket Ekle" });
+    const filtersButton = screen.getByRole("button", { name: "Filtreler" });
+    const exportButton = screen.getByRole("button", { name: /Dışa Aktar/i });
+    expect(assignGroupButton).toBeInTheDocument();
+    expect(changeStatusButton).toBeInTheDocument();
+    expect(addTagButton).toBeInTheDocument();
+    expect(filtersButton).toBeInTheDocument();
+    expect(exportButton).toBeInTheDocument();
+    expect(assignGroupButton.compareDocumentPosition(changeStatusButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(changeStatusButton.compareDocumentPosition(addTagButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(addTagButton.compareDocumentPosition(filtersButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(filtersButton.compareDocumentPosition(exportButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(
       screen.getByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })
     ).toBeInTheDocument();
@@ -242,6 +254,7 @@ describe("DocumentsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "İptal" }));
 
     expect(screen.getByRole("button", { name: "Gruba Aktar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
   });
 

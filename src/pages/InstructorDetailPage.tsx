@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PencilIcon, PlusIcon, TrashIcon } from "../components/icons";
@@ -48,6 +48,7 @@ function formatDate(iso: string | null): string {
 export function InstructorDetailPage() {
   const t = useT();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
@@ -56,6 +57,9 @@ export function InstructorDetailPage() {
   const { instructorId } = useParams<{ instructorId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const returnState = location.state as { returnLabel?: string; returnTo?: string } | null;
+  const breadcrumbLabel = returnState?.returnLabel ?? `← ${t("settings.instructors.detail.backToList")}`;
+  const breadcrumbTarget = returnState?.returnTo ?? "/settings/definitions/instructors";
 
   const instructorQuery = useQuery({
     queryKey: ["instructors", "detail", instructorId],
@@ -236,10 +240,10 @@ export function InstructorDetailPage() {
       <div className="instructor-detail-breadcrumb">
         <button
           className="btn btn-secondary btn-sm"
-          onClick={() => navigate("/settings/definitions/instructors")}
+          onClick={() => navigate(breadcrumbTarget)}
           type="button"
         >
-          ← {t("settings.instructors.detail.backToList")}
+          {breadcrumbLabel}
         </button>
       </div>
 

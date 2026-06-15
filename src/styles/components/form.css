@@ -672,6 +672,61 @@ textarea.form-input {
   color: var(--gray-500);
 }
 
+.file-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.file-button:hover,
+.file-button.dragging {
+  border-color: var(--brand);
+  background: var(--brand-subtle);
+  color: var(--brand-dark);
+}
+.file-button.error {
+  border-color: var(--red);
+  background: var(--red-light);
+}
+.file-button.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+.file-button-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--brand-light);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.file-button strong {
+  display: block;
+  color: var(--gray-900);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.file-button input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .file-selected {
   display: flex;
   align-items: center;

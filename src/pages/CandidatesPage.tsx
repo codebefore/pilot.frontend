@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
 import { groupKeys, useGroups } from "../lib/queries/use-groups";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
@@ -1493,6 +1493,7 @@ export function CandidatesPage({
   tabConfig,
 }: CandidatesPageProps = {}) {
   const t = useT();
+  const location = useLocation();
   const { lang } = useLanguage();
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
@@ -2740,6 +2741,13 @@ export function CandidatesPage({
 
   const openDrawer = (id: string) => setSearchParams({ selected: id });
   const closeDrawer = () => setSearchParams({});
+  const detailReturnState = useMemo(
+    () => ({
+      returnLabel: title ? `← ${title} sayfasına dön` : "← Aday listesine dön",
+      returnTo: `${location.pathname}${location.search}`,
+    }),
+    [location.pathname, location.search, title]
+  );
 
   const handleSubmitNew = () => {
     setModalOpen(false);
@@ -3365,7 +3373,9 @@ export function CandidatesPage({
                         }`}
                         key={col.id}
                         onClick={() =>
-                          opensDrawer ? openDrawer(c.id) : navigate(`/candidates/${c.id}`)
+                          opensDrawer
+                            ? openDrawer(c.id)
+                            : navigate(`/candidates/${c.id}`, { state: detailReturnState })
                         }
                         title={opensDrawer ? t("candidates.title.quickPreview") : t("candidates.title.goToDetail")}
                       >

@@ -13,12 +13,17 @@
 }
 .upload-doc-source-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 10px;
 }
-.upload-doc-source-actions .candidate-doc-upload-option {
+.upload-doc-source-actions .candidate-doc-upload-option,
+.upload-doc-source-actions .file-button,
+.upload-doc-source-actions .file-selected {
   min-height: 46px;
+}
+.upload-doc-source-actions .file-selected {
+  padding: 8px 10px;
 }
 .upload-doc-camera-panel {
   margin-bottom: 10px;

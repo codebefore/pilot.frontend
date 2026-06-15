@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
@@ -11,6 +11,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 export function NotificationsPage() {
   const t = useT();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const notificationsQuery = useQuery({
     queryKey: ["notifications", "list"],
@@ -19,6 +20,17 @@ export function NotificationsPage() {
   });
   const items = notificationsQuery.data?.items ?? [];
   const loading = notificationsQuery.isLoading;
+  const openNotificationLink = (linkPath: string | null) => {
+    if (!linkPath) return;
+    navigate(linkPath, linkPath.startsWith("/candidates/")
+      ? {
+          state: {
+            returnLabel: "← Bildirimlere dön",
+            returnTo: `${location.pathname}${location.search}`,
+          },
+        }
+      : undefined);
+  };
 
   return (
     <>
@@ -37,7 +49,7 @@ export function NotificationsPage() {
               <li
                 className="notif-page-item unread"
                 key={n.id}
-                onClick={() => n.linkPath && navigate(n.linkPath)}
+                onClick={() => openNotificationLink(n.linkPath)}
                 style={n.linkPath ? { cursor: "pointer" } : undefined}
               >
                 <span className={`notif-dot-tone tone-${notificationTone(n.severity)}`} />

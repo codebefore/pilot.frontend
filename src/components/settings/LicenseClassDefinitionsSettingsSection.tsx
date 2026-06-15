@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { FilterIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { LicenseClassDefinitionFormModal } from "../modals/LicenseClassDefinitionFormModal";
@@ -150,12 +150,20 @@ function resolveMebbisLicenseClassCodes(
 
 export function LicenseClassDefinitionsSettingsSection() {
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const { permissions, user } = useAuth();
   const canManageCatalog = user?.isSuperAdmin ?? false;
   const canManageActivity = canManageArea(user, permissions, "settings");
+  const detailReturnState = useMemo(
+    () => ({
+      returnLabel: "← Ehliyet tipleri listesine dön",
+      returnTo: `${location.pathname}${location.search}`,
+    }),
+    [location.pathname, location.search]
+  );
 
   const LICENSE_CLASS_DEFINITION_COLUMNS: LicenseClassDefinitionColumnDef[] = [
     {
@@ -565,7 +573,11 @@ export function LicenseClassDefinitionsSettingsSection() {
                     <tr
                       className="data-table-row-clickable"
                       key={item.id}
-                      onClick={() => navigate(`/settings/definitions/license-classes/${item.id}`)}
+                      onClick={() =>
+                        navigate(`/settings/definitions/license-classes/${item.id}`, {
+                          state: detailReturnState,
+                        })
+                      }
                     >
                       {visibleColumns.map((column) => (
                         <td key={column.id}>{column.renderCell(item)}</td>
