@@ -1,4 +1,12 @@
-import { httpDelete, httpGet, httpPostForm, httpPutForm, normalizeApiPathForBaseUrl } from "./http";
+import {
+  httpDelete,
+  httpGet,
+  httpPost,
+  httpPostForm,
+  httpPut,
+  httpPutForm,
+  normalizeApiPathForBaseUrl,
+} from "./http";
 import { getDocumentApiBaseUrl } from "./api";
 import type {
   VehicleDocumentResponse,
@@ -40,6 +48,14 @@ export function createVehicleDocument(
   vehicleId: string,
   body: VehicleDocumentUpsertRequest
 ): Promise<VehicleDocumentResponse> {
+  if (!body.file) {
+    return httpPost<VehicleDocumentResponse>(
+      `/api/vehicles/${vehicleId}/documents`,
+      body,
+      documentRequestOptions()
+    );
+  }
+
   return httpPostForm<VehicleDocumentResponse>(
     `/api/vehicles/${vehicleId}/documents`,
     toVehicleDocumentForm(body),
@@ -52,6 +68,14 @@ export function updateVehicleDocument(
   documentId: string,
   body: VehicleDocumentUpsertRequest
 ): Promise<VehicleDocumentResponse> {
+  if (!body.file) {
+    return httpPut<VehicleDocumentResponse>(
+      `/api/vehicles/${vehicleId}/documents/${documentId}`,
+      body,
+      documentRequestOptions()
+    );
+  }
+
   return httpPutForm<VehicleDocumentResponse>(
     `/api/vehicles/${vehicleId}/documents/${documentId}`,
     toVehicleDocumentForm(body),

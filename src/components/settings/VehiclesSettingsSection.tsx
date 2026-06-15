@@ -29,6 +29,7 @@ import {
   type MebbisJobResponse,
 } from "../../lib/mebbis-jobs-api";
 import {
+  createVehicleDocument,
   listVehicleDocuments,
   updateVehicleDocument,
 } from "../../lib/vehicle-documents-api";
@@ -292,8 +293,13 @@ export function VehiclesSettingsSection() {
     };
 
     getVehicles(query, controller.signal)
-      .then((response) => {
-        setItems(response.items);
+      .then(async (response) => {
+        const itemsWithDocumentSummaries = await enrichVehicleDocumentSummaries(
+          response.items,
+          controller.signal
+        );
+        if (controller.signal.aborted) return;
+        setItems(itemsWithDocumentSummaries);
         setTotalCount(response.totalCount);
         setTotalPages(response.totalPages);
         setSummary(response.summary);
@@ -910,6 +916,56 @@ function buildVehicleUpsertRequest(
   };
 }
 
+async function enrichVehicleDocumentSummaries(
+  vehicles: VehicleResponse[],
+  signal: AbortSignal
+): Promise<VehicleResponse[]> {
+  if (vehicles.length === 0) return vehicles;
+
+  return Promise.all(
+    vehicles.map(async (vehicle) => {
+      try {
+        const documents = await listVehicleDocuments(vehicle.id, signal);
+        return {
+          ...vehicle,
+          latestInsuranceEndDate:
+            selectLatestVehicleDocumentEndDate(documents, "insurance") ??
+            vehicle.latestInsuranceEndDate,
+          latestInspectionEndDate:
+            selectLatestVehicleDocumentEndDate(documents, "inspection") ??
+            vehicle.latestInspectionEndDate,
+          latestCascoEndDate:
+            selectLatestVehicleDocumentEndDate(documents, "casco") ??
+            vehicle.latestCascoEndDate,
+        };
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
+
+        return vehicle;
+      }
+    })
+  );
+}
+
+function selectLatestVehicleDocumentEndDate(
+  documents: VehicleDocumentResponse[],
+  documentType: "insurance" | "inspection" | "casco"
+): string | null {
+  return (
+    documents
+      .filter((document) => document.documentType === documentType)
+      .slice()
+      .sort((left, right) => {
+        const startComparison = right.startDate.localeCompare(left.startDate);
+        return startComparison !== 0
+          ? startComparison
+          : right.endDate.localeCompare(left.endDate);
+      })[0]?.endDate ?? null
+  );
+}
+
 async function upsertMebbisInspectionDocument(
   vehicle: VehicleResponse,
   row: MebbisVehicleInventoryRow,
@@ -943,7 +999,13 @@ async function upsertMebbisInspectionDocument(
     return true;
   }
 
-  return false;
+  await createVehicleDocument(vehicle.id, {
+    documentType: "inspection",
+    startDate,
+    endDate,
+    notes,
+  });
+  return true;
 }
 
 async function upsertMebbisInsuranceDocument(
@@ -976,7 +1038,13 @@ async function upsertMebbisInsuranceDocument(
     return true;
   }
 
-  return false;
+  await createVehicleDocument(vehicle.id, {
+    documentType: "insurance",
+    startDate,
+    endDate,
+    notes,
+  });
+  return true;
 }
 
 function selectInspectionDocument(
