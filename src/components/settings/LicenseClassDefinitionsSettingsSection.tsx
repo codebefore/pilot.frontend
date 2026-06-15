@@ -18,7 +18,13 @@ import {
   type LicenseClassDefinitionSortField,
 } from "../../lib/license-class-definitions-api";
 import { useAuth } from "../../lib/auth";
+import { ApiError } from "../../lib/http";
 import { useT } from "../../lib/i18n";
+import {
+  createLicenseClassInventoryImportJob,
+  getMebbisJob,
+  type MebbisJobResponse,
+} from "../../lib/mebbis-jobs-api";
 import { canManageArea } from "../../lib/permissions";
 import { candidateKeys } from "../../lib/queries/use-candidates";
 import type {
@@ -29,6 +35,8 @@ import { useColumnVisibility } from "../../lib/use-column-visibility";
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
+const MEBBIS_LICENSE_CLASS_POLL_INTERVAL_MS = 2000;
+const MEBBIS_LICENSE_CLASS_POLL_TIMEOUT_MS = 60_000;
 type SortState = {
   field: LicenseClassDefinitionSortField;
   direction: LicenseClassDefinitionSortDirection;
@@ -52,6 +60,13 @@ type LicenseClassDefinitionColumnDef = {
 
 const EMPTY_SUMMARY: LicenseClassDefinitionListSummaryResponse = {
   activeCount: 0,
+};
+
+type MebbisLicenseClassInventoryResult = {
+  programs?: Array<{
+    programName?: unknown;
+    licenseClassCode?: unknown;
+  }>;
 };
 
 function formatOptionalNumber(value: number | null, suffix = ""): string {
@@ -78,6 +93,59 @@ function invalidateLicenseClassDependentCaches(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["payments"] });
   void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
   void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
+function normalizeLicenseClassCode(value: string): string {
+  return value
+    .trim()
+    .toLocaleUpperCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[İI]/g, "I")
+    .replace(/Ğ/g, "G")
+    .replace(/Ü/g, "U")
+    .replace(/Ş/g, "S")
+    .replace(/Ö/g, "O")
+    .replace(/Ç/g, "C")
+    .replace(/\s+/g, "-");
+}
+
+function readMebbisLicenseClassCode(value: unknown): string {
+  return typeof value === "string" ? normalizeLicenseClassCode(value) : "";
+}
+
+function parseMebbisLicenseClassInventoryResult(
+  job: MebbisJobResponse
+): MebbisLicenseClassInventoryResult | null {
+  if (!job.resultJson) return null;
+  try {
+    const parsed = JSON.parse(job.resultJson) as MebbisLicenseClassInventoryResult;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function resolveMebbisLicenseClassCodes(
+  result: MebbisLicenseClassInventoryResult,
+  definitions: LicenseClassDefinitionResponse[]
+): Set<string> {
+  const availableCodes = new Set(definitions.map((item) => normalizeLicenseClassCode(item.code)));
+  const targetCodes = new Set<string>();
+
+  for (const program of result.programs ?? []) {
+    const code = readMebbisLicenseClassCode(program.licenseClassCode);
+    if (!code) continue;
+    if (availableCodes.has(code)) targetCodes.add(code);
+
+    const automaticCode = `${code}-OTOMATIK`;
+    if (availableCodes.has(automaticCode)) {
+      targetCodes.add(automaticCode);
+    }
+  }
+
+  return targetCodes;
 }
 
 export function LicenseClassDefinitionsSettingsSection() {
@@ -148,6 +216,7 @@ export function LicenseClassDefinitionsSettingsSection() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [importingMebbisLicenseClasses, setImportingMebbisLicenseClasses] = useState(false);
   const visibleColumns = LICENSE_CLASS_DEFINITION_COLUMNS.filter((column) =>
     isVisible(column.id)
   );
@@ -287,6 +356,82 @@ export function LicenseClassDefinitionsSettingsSection() {
     }
   };
 
+  const applyMebbisLicenseClassInventory = async (job: MebbisJobResponse) => {
+    const result = parseMebbisLicenseClassInventoryResult(job);
+    if (!result) {
+      showToast(t("settings.licenseClasses.mebbisImportCompleted"));
+      return;
+    }
+
+    const response = await getLicenseClassDefinitions({
+      activity: "all",
+      page: 1,
+      pageSize: 1000,
+    });
+    const targetCodes = resolveMebbisLicenseClassCodes(result, response.items);
+    const targetDefinitions = response.items.filter(
+      (item) => !item.existingLicenseType && targetCodes.has(normalizeLicenseClassCode(item.code))
+    );
+    const inactiveTargets = targetDefinitions.filter((item) => !item.isActive);
+
+    for (const definition of inactiveTargets) {
+      await updateLicenseClassDefinitionActivity(definition.id, {
+        isActive: true,
+        rowVersion: definition.rowVersion,
+      });
+    }
+
+    setRefreshKey((current) => current + 1);
+    invalidateLicenseClassDependentCaches(queryClient);
+    showToast(
+      t("settings.licenseClasses.mebbisImportApplied", {
+        count: String(inactiveTargets.length),
+        total: String(targetDefinitions.length),
+      })
+    );
+  };
+
+  const pollMebbisLicenseClassInventoryJob = async (jobId: string, startedAt = Date.now()) => {
+    while (Date.now() - startedAt < MEBBIS_LICENSE_CLASS_POLL_TIMEOUT_MS) {
+      await new Promise((resolve) => window.setTimeout(resolve, MEBBIS_LICENSE_CLASS_POLL_INTERVAL_MS));
+      const job = await getMebbisJob(jobId);
+      if (job.status === "succeeded") {
+        await applyMebbisLicenseClassInventory(job);
+        void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+        return;
+      }
+
+      if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) {
+        showToast(t("settings.licenseClasses.mebbisImportNeedsManualAction"), "error");
+        void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+        return;
+      }
+    }
+
+    showToast(t("settings.licenseClasses.mebbisImportStillRunning"));
+  };
+
+  const handleMebbisLicenseClassImport = async () => {
+    if (!canManageActivity || importingMebbisLicenseClasses) return;
+    setImportingMebbisLicenseClasses(true);
+    try {
+      const job = await createLicenseClassInventoryImportJob();
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      showToast(t("settings.licenseClasses.mebbisImportQueued"));
+      await pollMebbisLicenseClassInventoryJob(job.id);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("settings.licenseClasses.mebbisImportFailed")
+          : t("settings.licenseClasses.mebbisImportFailed");
+      showToast(message, "error");
+    } finally {
+      setImportingMebbisLicenseClasses(false);
+    }
+  };
+
   return (
     <>
       <div className="settings-section-stack">
@@ -329,6 +474,17 @@ export function LicenseClassDefinitionsSettingsSection() {
                   {t("settings.licenseClasses.button.clearFilters")}
                 </button>
               ) : null}
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={!canManageActivity || importingMebbisLicenseClasses}
+                onClick={handleMebbisLicenseClassImport}
+                title={!canManageActivity ? "Yetkiniz yok." : undefined}
+                type="button"
+              >
+                {importingMebbisLicenseClasses
+                  ? t("settings.licenseClasses.mebbisImportStarting")
+                  : t("settings.licenseClasses.mebbisImport")}
+              </button>
               {canManageCatalog ? (
                 <button
                   className="btn btn-primary btn-sm"

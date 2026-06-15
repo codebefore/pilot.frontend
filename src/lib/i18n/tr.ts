@@ -1688,6 +1688,8 @@ export const tr = {
   "settings.licenseClasses.button.new": "Yeni Kural",
   "settings.licenseClasses.button.clearFilters": "Temizle",
   "settings.licenseClasses.button.deleting": "Siliniyor...",
+  "settings.licenseClasses.mebbisImport": "Mebbis'ten getir",
+  "settings.licenseClasses.mebbisImportStarting": "Çekiliyor...",
   "settings.licenseClasses.columnPicker.title": "Sütunlar",
   "settings.licenseClasses.empty": "Ehliyet tipi kaydı bulunmuyor.",
   "settings.licenseClasses.filter.codeTitle": "Kod filtresi",
@@ -1701,6 +1703,12 @@ export const tr = {
   "settings.licenseClasses.toast.updateFailed": "Ehliyet tipi güncellenemedi",
   "settings.licenseClasses.toast.deleted": "Ehliyet kuralı silindi",
   "settings.licenseClasses.toast.deleteFailed": "Ehliyet kuralı silinemedi",
+  "settings.licenseClasses.mebbisImportQueued": "MEBBIS ehliyet tipi çekme işi kuyruğa alındı",
+  "settings.licenseClasses.mebbisImportCompleted": "MEBBIS ehliyet tipleri okundu",
+  "settings.licenseClasses.mebbisImportApplied": "MEBBIS'ten {total} ehliyet tipi eşleşti, {count} tanesi aktife alındı",
+  "settings.licenseClasses.mebbisImportNeedsManualAction": "MEBBIS ehliyet tipi çekme kontrol gerektiriyor",
+  "settings.licenseClasses.mebbisImportStillRunning": "MEBBIS ehliyet tipi çekme devam ediyor; durumu Meb Sync ekranından takip et",
+  "settings.licenseClasses.mebbisImportFailed": "MEBBIS ehliyet tipi çekme başlatılamadı",
 
   // Groups page
   "groups.title": "Gruplar",

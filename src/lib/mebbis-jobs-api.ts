@@ -230,6 +230,14 @@ export async function createInstitutionInventoryImportJob(): Promise<MebbisJobRe
   );
 }
 
+export async function createLicenseClassInventoryImportJob(): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    "/api/mebbis/jobs/license-classes/import",
+    {},
+    mebbisRequestOptions()
+  );
+}
+
 export function mapMebbisStatusToJobStatus(status: string): JobStatus {
   switch (status) {
     case "succeeded":

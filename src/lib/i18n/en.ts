@@ -1579,6 +1579,8 @@ export const en: Record<TranslationKey, string> = {
   "settings.licenseClasses.button.new": "New Rule",
   "settings.licenseClasses.button.clearFilters": "Clear",
   "settings.licenseClasses.button.deleting": "Deleting...",
+  "settings.licenseClasses.mebbisImport": "Import from MEBBIS",
+  "settings.licenseClasses.mebbisImportStarting": "Importing...",
   "settings.licenseClasses.columnPicker.title": "Columns",
   "settings.licenseClasses.empty": "No license class records found.",
   "settings.licenseClasses.filter.codeTitle": "Code filter",
@@ -1592,6 +1594,12 @@ export const en: Record<TranslationKey, string> = {
   "settings.licenseClasses.toast.updateFailed": "Failed to update license class",
   "settings.licenseClasses.toast.deleted": "License rule deleted",
   "settings.licenseClasses.toast.deleteFailed": "Failed to delete license rule",
+  "settings.licenseClasses.mebbisImportQueued": "MEBBIS license class import queued",
+  "settings.licenseClasses.mebbisImportCompleted": "MEBBIS license classes were read",
+  "settings.licenseClasses.mebbisImportApplied": "{total} MEBBIS license classes matched, {count} were activated",
+  "settings.licenseClasses.mebbisImportNeedsManualAction": "MEBBIS license class import needs review",
+  "settings.licenseClasses.mebbisImportStillRunning": "MEBBIS license class import is still running; track it on Meb Sync",
+  "settings.licenseClasses.mebbisImportFailed": "Could not start MEBBIS license class import",
 
   // Vehicles settings
   "settings.vehicles.title": "Vehicle List",

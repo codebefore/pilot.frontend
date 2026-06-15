@@ -11,6 +11,8 @@ const createLicenseClassDefinitionMock = vi.fn();
 const updateLicenseClassDefinitionMock = vi.fn();
 const updateLicenseClassDefinitionActivityMock = vi.fn();
 const deleteLicenseClassDefinitionMock = vi.fn();
+const createLicenseClassInventoryImportJobMock = vi.fn();
+const getMebbisJobMock = vi.fn();
 
 vi.mock("../../lib/license-class-definitions-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/license-class-definitions-api")>(
@@ -34,6 +36,20 @@ vi.mock("../../lib/license-class-definitions-api", async () => {
     deleteLicenseClassDefinition: (
       ...args: Parameters<typeof actual.deleteLicenseClassDefinition>
     ) => deleteLicenseClassDefinitionMock(...args),
+  };
+});
+
+vi.mock("../../lib/mebbis-jobs-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/mebbis-jobs-api")>(
+    "../../lib/mebbis-jobs-api"
+  );
+
+  return {
+    ...actual,
+    createLicenseClassInventoryImportJob: (
+      ...args: Parameters<typeof actual.createLicenseClassInventoryImportJob>
+    ) => createLicenseClassInventoryImportJobMock(...args),
+    getMebbisJob: (...args: Parameters<typeof actual.getMebbisJob>) => getMebbisJobMock(...args),
   };
 });
 
@@ -69,6 +85,8 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     updateLicenseClassDefinitionMock.mockReset();
     updateLicenseClassDefinitionActivityMock.mockReset();
     deleteLicenseClassDefinitionMock.mockReset();
+    createLicenseClassInventoryImportJobMock.mockReset();
+    getMebbisJobMock.mockReset();
 
     getLicenseClassDefinitionsMock.mockResolvedValue({
       items: [sampleLicenseClass],
@@ -96,6 +114,28 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
       rowVersion: 2,
     });
     deleteLicenseClassDefinitionMock.mockResolvedValue(undefined);
+    createLicenseClassInventoryImportJobMock.mockResolvedValue({
+      id: "job-1",
+      jobType: "license_class_inventory_import",
+      status: "pending",
+      payloadJson: "{}",
+      resultJson: null,
+      errorMessage: null,
+      createdAtUtc: "2026-01-01T00:00:00Z",
+      updatedAtUtc: "2026-01-01T00:00:00Z",
+    });
+    getMebbisJobMock.mockResolvedValue({
+      id: "job-1",
+      jobType: "license_class_inventory_import",
+      status: "succeeded",
+      payloadJson: "{}",
+      resultJson: JSON.stringify({
+        programs: [{ programName: "A1 SINIFI SERTİFİKA", licenseClassCode: "A1" }],
+      }),
+      errorMessage: null,
+      createdAtUtc: "2026-01-01T00:00:00Z",
+      updatedAtUtc: "2026-01-01T00:00:01Z",
+    });
   });
 
   it("loads all license classes on mount", async () => {
@@ -289,6 +329,80 @@ describe("LicenseClassDefinitionsSettingsSection", () => {
     expect(screen.getByRole("checkbox", { name: "B durumunu pasife al" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Sil" })).not.toBeInTheDocument();
   });
+
+  it("activates matching manual and automatic license classes from MEBBIS", async () => {
+    getLicenseClassDefinitionsMock
+      .mockResolvedValueOnce({
+        items: [sampleLicenseClass],
+        page: 1,
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+        summary: { activeCount: 1 },
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            ...sampleLicenseClass,
+            id: "lc-a1",
+            code: "A1",
+            name: "A1 Motosiklet",
+            isActive: false,
+            rowVersion: 4,
+          },
+          {
+            ...sampleLicenseClass,
+            id: "lc-a1-auto",
+            code: "A1-OTOMATIK",
+            name: "A1 Motosiklet - Otomatik",
+            isActive: false,
+            rowVersion: 5,
+          },
+          {
+            ...sampleLicenseClass,
+            id: "lc-a1-transition",
+            code: "A1",
+            name: "A1 Motosiklet",
+            existingLicenseType: "B",
+            isActive: false,
+            rowVersion: 6,
+          },
+        ],
+        page: 1,
+        pageSize: 1000,
+        totalCount: 3,
+        totalPages: 1,
+        summary: { activeCount: 0 },
+      });
+
+    renderSection();
+    await screen.findByText("B");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mebbis'ten getir" }));
+
+    await waitFor(
+      () => {
+        expect(updateLicenseClassDefinitionActivityMock).toHaveBeenCalledWith("lc-a1", {
+          isActive: true,
+          rowVersion: 4,
+        });
+        expect(updateLicenseClassDefinitionActivityMock).toHaveBeenCalledWith("lc-a1-auto", {
+          isActive: true,
+          rowVersion: 5,
+        });
+        expect(updateLicenseClassDefinitionActivityMock).not.toHaveBeenCalledWith(
+          "lc-a1-transition",
+          expect.anything()
+        );
+      },
+      { timeout: 4_000 }
+    );
+    expect(getLicenseClassDefinitionsMock).toHaveBeenCalledWith({
+      activity: "all",
+      page: 1,
+      pageSize: 1000,
+    });
+  }, 10_000);
 
   it("shows server validation errors as a toast", async () => {
     updateLicenseClassDefinitionMock.mockRejectedValueOnce(
