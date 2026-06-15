@@ -863,6 +863,7 @@ export const tr = {
   "mebbisJobType.instructorPermitCreate": "Eğitmen İzin Oluşturma",
   "mebbisJobType.theoryScheduleSync": "Teorik Ders Programı Aktarımı",
   "mebbisJobType.theoryScheduleImport": "Teorik Ders Programı Çekme",
+  "mebbisJobType.groupInventoryImport": "Dönem Grup Şube Çekme",
   "theme.pilot.label": "Pilot",
   "theme.pilot.description": "Pembe ve mavi kurumsal tema",
   "theme.emerald.label": "Mavi Açık",
@@ -1696,6 +1697,8 @@ export const tr = {
   // Groups page
   "groups.title": "Gruplar",
   "groups.newGroup": "Yeni Grup",
+  "groups.mebbisImport": "MEBBIS'ten Çek",
+  "groups.mebbisImportStarting": "Çekiliyor...",
   "groups.searchPlaceholder": "Grup ara...",
   "groups.view.label": "Görünüm",
   "groups.view.cards": "Kartlar",
@@ -1707,6 +1710,11 @@ export const tr = {
   "groups.empty.noTermSelected": "Başlamak için bir dönem seç.",
   "groups.loadFailed": "Gruplar yüklenemedi",
   "groups.created": "Grup başarıyla oluşturuldu",
+  "groups.mebbisImportQueued": "MEBBIS dönem/grup çekme işi kuyruğa alındı",
+  "groups.mebbisImportCompleted": "MEBBIS dönem/grup çekme tamamlandı",
+  "groups.mebbisImportNeedsManualAction": "MEBBIS dönem/grup çekme kontrol gerektiriyor",
+  "groups.mebbisImportStillRunning": "MEBBIS dönem/grup çekme devam ediyor; durumu Meb Sync ekranından takip et",
+  "groups.mebbisImportFailed": "MEBBIS dönem/grup çekme başlatılamadı",
 
   // Group card fields
   "groups.card.capacity": "Kontenjan",

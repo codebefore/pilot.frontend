@@ -865,6 +865,7 @@ export const en: Record<TranslationKey, string> = {
   "mebbisJobType.instructorPermitCreate": "Instructor Permit Creation",
   "mebbisJobType.theoryScheduleSync": "Theory Schedule Push",
   "mebbisJobType.theoryScheduleImport": "Theory Schedule Pull",
+  "mebbisJobType.groupInventoryImport": "Term Group Branch Import",
   "theme.pilot.label": "Pilot",
   "theme.pilot.description": "Pink and blue corporate theme",
   "theme.emerald.label": "Blue Light",
@@ -1699,6 +1700,8 @@ export const en: Record<TranslationKey, string> = {
   // Groups page
   "groups.title": "Groups",
   "groups.newGroup": "New Group",
+  "groups.mebbisImport": "Import from MEBBIS",
+  "groups.mebbisImportStarting": "Importing...",
   "groups.searchPlaceholder": "Search groups...",
   "groups.view.label": "View",
   "groups.view.cards": "Cards",
@@ -1710,6 +1713,11 @@ export const en: Record<TranslationKey, string> = {
   "groups.empty.noTermSelected": "Select a term to get started.",
   "groups.loadFailed": "Failed to load groups",
   "groups.created": "Group created successfully",
+  "groups.mebbisImportQueued": "MEBBIS term/group import queued",
+  "groups.mebbisImportCompleted": "MEBBIS term/group import completed",
+  "groups.mebbisImportNeedsManualAction": "MEBBIS term/group import needs review",
+  "groups.mebbisImportStillRunning": "MEBBIS term/group import is still running; track it on Meb Sync",
+  "groups.mebbisImportFailed": "Could not start MEBBIS term/group import",
 
   // Group card fields
   "groups.card.capacity": "Capacity",

@@ -214,6 +214,14 @@ export async function createTheoryScheduleImportJob(groupId: string): Promise<Me
   );
 }
 
+export async function createGroupInventoryImportJob(): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    "/api/mebbis/jobs/groups/import",
+    {},
+    mebbisRequestOptions()
+  );
+}
+
 export function mapMebbisStatusToJobStatus(status: string): JobStatus {
   switch (status) {
     case "succeeded":
@@ -243,6 +251,7 @@ export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>):
     instructor_permit_create: "mebbisJobType.instructorPermitCreate",
     theory_schedule_sync: "mebbisJobType.theoryScheduleSync",
     theory_schedule_import: "mebbisJobType.theoryScheduleImport",
+    group_inventory_import: "mebbisJobType.groupInventoryImport",
   };
   const key = keyMap[jobType];
   return key ? t(key) : jobType;

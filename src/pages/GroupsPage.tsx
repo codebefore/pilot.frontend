@@ -17,6 +17,10 @@ import { parseGroupTitle } from "../lib/group-code";
 import { getGroups } from "../lib/groups-api";
 import { ApiError, isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
+import {
+  createGroupInventoryImportJob,
+  getMebbisJob,
+} from "../lib/mebbis-jobs-api";
 import { canManageArea } from "../lib/permissions";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
@@ -221,6 +225,7 @@ export function GroupsPage() {
   const [termModalState, setTermModalState] = useState<{ mode: "create" | "edit"; term: TermResponse | null } | null>(null);
   const [confirmDeleteTermId, setConfirmDeleteTermId] = useState<string | null>(null);
   const [deletingTerm, setDeletingTerm] = useState(false);
+  const [isMebbisGroupImporting, setIsMebbisGroupImporting] = useState(false);
 
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
   const [search, setSearch] = useState("");
@@ -366,6 +371,68 @@ export function GroupsPage() {
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
+  };
+
+  const pollMebbisGroupImportJob = async (jobId: string, startedAt = Date.now()) => {
+    const timeoutAt = startedAt + 30 * 60 * 1000;
+    const invalidateGroupImportData = () => {
+      invalidateGroups();
+      invalidateCandidates();
+      setTermRefreshKey((k) => k + 1);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    };
+
+    while (Date.now() < timeoutAt) {
+      await new Promise((resolve) => window.setTimeout(resolve, 5000));
+      let job;
+      try {
+        job = await getMebbisJob(jobId);
+      } catch (error) {
+        console.error(error);
+        continue;
+      }
+
+      if (job.status === "succeeded") {
+        invalidateGroupImportData();
+        window.setTimeout(invalidateGroupImportData, 3000);
+        window.setTimeout(invalidateGroupImportData, 8000);
+        showToast(t("groups.mebbisImportCompleted"));
+        return;
+      }
+
+      if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) {
+        invalidateGroupImportData();
+        showToast(t("groups.mebbisImportNeedsManualAction"), "error");
+        return;
+      }
+    }
+
+    showToast(t("groups.mebbisImportStillRunning"));
+  };
+
+  const handleCreateMebbisGroupInventoryImportJob = async () => {
+    if (!canManageGroups || isMebbisGroupImporting) return;
+    setIsMebbisGroupImporting(true);
+    try {
+      const job = await createGroupInventoryImportJob();
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      showToast(t("groups.mebbisImportQueued"));
+      await pollMebbisGroupImportJob(job.id);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("groups.mebbisImportFailed")
+          : t("groups.mebbisImportFailed");
+      showToast(message, "error");
+    } finally {
+      setIsMebbisGroupImporting(false);
+    }
   };
 
   const termLabelContext = useMemo(() => {
@@ -681,6 +748,18 @@ export function GroupsPage() {
             >
               <PlusIcon size={14} />
               {t("groups.newGroup")}
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={!canManageGroups || isMebbisGroupImporting}
+              onClick={handleCreateMebbisGroupInventoryImportJob}
+              title={!canManageGroups ? noPermissionTitle : undefined}
+              type="button"
+            >
+              <GridIcon size={14} />
+              {isMebbisGroupImporting
+                ? t("groups.mebbisImportStarting")
+                : t("groups.mebbisImport")}
             </button>
             {selectedTerm && (
               confirmDeleteTermId === selectedTerm.id ? (
