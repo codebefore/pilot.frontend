@@ -299,9 +299,13 @@ function candidateExamAttemptLimit(
   examType: CandidateExamType
 ): number {
   if (examType !== "practice") return 4;
-  return attempts.some((attempt) => attempt.examType === "practice" && attempt.examAttendanceStatus === "reported")
+  return attempts.some((attempt) => attempt.examType === "practice" && isReportedAttendanceStatus(attempt.examAttendanceStatus))
     ? 5
     : 4;
+}
+
+function isReportedAttendanceStatus(status: string | null | undefined): boolean {
+  return status?.trim().toLowerCase() === "reported";
 }
 
 function examDateTimeUtc(examDate: string, examTime?: string | null): string {

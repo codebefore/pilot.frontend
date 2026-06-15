@@ -982,10 +982,14 @@ function examAttemptPillStatus(value: number | null | undefined, maxAttempt = 4)
 
 function candidateExamAttemptSummaryLimit(candidate: CandidateResponse): number {
   return candidate.hasReportedPracticeAttempt ||
-    candidate.drivingExamAttendanceStatus === "reported" ||
+    isReportedAttendanceStatus(candidate.drivingExamAttendanceStatus) ||
     (candidate.drivingExamAttemptCount ?? 0) > 4
     ? 5
     : 4;
+}
+
+function isReportedAttendanceStatus(status: string | null | undefined): boolean {
+  return status?.trim().toLowerCase() === "reported";
 }
 
 type AccountingStatus = {
@@ -2994,8 +2998,8 @@ function candidateExamAttemptLimit(
 ): number {
   if (examType !== "practice") return 4;
   const hasReportedAttempt =
-    attendanceStatus === "reported" ||
-    attempts.some((attempt) => attempt.examType === "practice" && attempt.examAttendanceStatus === "reported");
+    isReportedAttendanceStatus(attendanceStatus) ||
+    attempts.some((attempt) => attempt.examType === "practice" && isReportedAttendanceStatus(attempt.examAttendanceStatus));
   return hasReportedAttempt ? 5 : 4;
 }
 

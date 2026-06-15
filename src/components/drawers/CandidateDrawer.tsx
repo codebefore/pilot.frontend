@@ -118,10 +118,14 @@ function formatLessonHours(value: number | null | undefined): string {
 
 function drivingAttemptDisplayLimit(candidate: CandidateResponse): number {
   return candidate.hasReportedPracticeAttempt ||
-    candidate.drivingExamAttendanceStatus === "reported" ||
+    isReportedAttendanceStatus(candidate.drivingExamAttendanceStatus) ||
     (candidate.drivingExamAttemptCount ?? 0) > 4
     ? 5
     : 4;
+}
+
+function isReportedAttendanceStatus(status: string | null | undefined): boolean {
+  return status?.trim().toLowerCase() === "reported";
 }
 
 type ExistingLicenseDraft = {

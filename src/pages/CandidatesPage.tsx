@@ -578,15 +578,19 @@ function CandidateExamFeeStatusPill({ status }: { status: CandidateExamFeeStatus
 function drivingExamAttendanceLabel(status: CandidateResponse["drivingExamAttendanceStatus"]): string {
   if (status === "attended") return "Girdi";
   if (status === "absent") return "Girmedi";
-  if (status === "reported") return "Raporlu";
+  if (isReportedAttendanceStatus(status)) return "Raporlu";
   return "—";
 }
 
 function drivingExamAttendancePill(status: CandidateResponse["drivingExamAttendanceStatus"]): JobStatus {
   if (status === "attended") return "success";
-  if (status === "reported") return "manual";
+  if (isReportedAttendanceStatus(status)) return "manual";
   if (status === "absent") return "failed";
   return "queued";
+}
+
+function isReportedAttendanceStatus(status: string | null | undefined): boolean {
+  return status?.trim().toLowerCase() === "reported";
 }
 
 function DrivingExamAttendancePill({
@@ -794,7 +798,7 @@ function candidateExamAttemptDisplayLimit(
 ): number {
   if (stage !== "practice") return 4;
   return candidate.hasReportedPracticeAttempt ||
-    candidate.drivingExamAttendanceStatus === "reported" ||
+    isReportedAttendanceStatus(candidate.drivingExamAttendanceStatus) ||
     (candidate.drivingExamAttemptCount ?? 0) > 4
     ? 5
     : 4;
@@ -1935,7 +1939,7 @@ export function CandidatesPage({
                         drivingExamAttendanceStatus: updated.examAttendanceStatus,
                         drivingExamResultStatus: updated.examResultStatus,
                         hasReportedPracticeAttempt:
-                          item.hasReportedPracticeAttempt || updated.examAttendanceStatus === "reported",
+                          item.hasReportedPracticeAttempt || isReportedAttendanceStatus(updated.examAttendanceStatus),
                         drivingExamFee: updated.fee,
                         drivingExamFeeStatus: updated.feeStatus,
                         drivingExamAttemptRowVersion: updated.rowVersion,
