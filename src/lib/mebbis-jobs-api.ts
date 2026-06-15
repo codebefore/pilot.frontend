@@ -222,6 +222,14 @@ export async function createGroupInventoryImportJob(): Promise<MebbisJobResponse
   );
 }
 
+export async function createInstitutionInventoryImportJob(): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    "/api/mebbis/jobs/institution/import",
+    {},
+    mebbisRequestOptions()
+  );
+}
+
 export function mapMebbisStatusToJobStatus(status: string): JobStatus {
   switch (status) {
     case "succeeded":

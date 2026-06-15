@@ -15,6 +15,11 @@ import { useAuth } from "../../lib/auth";
 import { updateStoredInstitutionName } from "../../lib/auth-storage";
 import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey, currentLocale } from "../../lib/i18n";
+import {
+  createInstitutionInventoryImportJob,
+  getMebbisJob,
+  type MebbisJobResponse,
+} from "../../lib/mebbis-jobs-api";
 import { canManageArea } from "../../lib/permissions";
 import {
   getTurkeyDistrictOptions,
@@ -46,6 +51,26 @@ type GeneralFormValues = {
 
 type GeneralFormErrors = Partial<Record<keyof GeneralFormValues, string>>;
 type GeneralInstitutionTab = "institution" | "founder";
+type MebbisInstitutionInventoryResult = {
+  institution?: {
+    institutionCode?: unknown;
+    institutionName?: unknown;
+    institutionOfficialName?: unknown;
+    address?: unknown;
+    phone?: unknown;
+    email?: unknown;
+    city?: unknown;
+    district?: unknown;
+  };
+  founder?: {
+    type?: unknown;
+    name?: unknown;
+    taxId?: unknown;
+    taxOffice?: unknown;
+    address?: unknown;
+    phone?: unknown;
+  };
+};
 
 const EMPTY_VALUES: GeneralFormValues = {
   institutionName: "",
@@ -66,6 +91,8 @@ const EMPTY_VALUES: GeneralFormValues = {
 const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 const INSTITUTION_SETTINGS_QUERY_KEY = ["settings", "institution-settings"] as const;
 const PHONE_MAX_DIGITS = 10;
+const MEBBIS_INVENTORY_POLL_INTERVAL_MS = 2000;
+const MEBBIS_INVENTORY_POLL_TIMEOUT_MS = 60_000;
 
 function normalizeGeneralPhone(raw: string | null | undefined): string {
   return (raw ?? "").replace(/\D/g, "").replace(/^0+/, "").slice(0, PHONE_MAX_DIGITS);
@@ -148,6 +175,27 @@ function isValidTaxId(value: string): boolean {
   return /^\d{10,11}$/.test(value);
 }
 
+function readMebbisString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readMebbisFounderType(value: unknown): FounderType {
+  return readMebbisString(value) === "legal" ? "legal" : "real";
+}
+
+function parseMebbisInstitutionInventoryResult(
+  job: MebbisJobResponse
+): MebbisInstitutionInventoryResult | null {
+  if (!job.resultJson) return null;
+  try {
+    const parsed = JSON.parse(job.resultJson) as MebbisInstitutionInventoryResult;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function GeneralInstitutionSection() {
   const t = useT();
   const { showToast } = useToast();
@@ -172,6 +220,7 @@ export function GeneralInstitutionSection() {
   const noPermissionTitle = t("common.noPermission");
 
   const [saving, setSaving] = useState(false);
+  const [importingMebbisInventory, setImportingMebbisInventory] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removingLogo, setRemovingLogo] = useState(false);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
@@ -379,6 +428,90 @@ export function GeneralInstitutionSection() {
     }
   };
 
+  const pollMebbisInstitutionInventoryJob = async (jobId: string, startedAt = Date.now()) => {
+    while (Date.now() - startedAt < MEBBIS_INVENTORY_POLL_TIMEOUT_MS) {
+      await new Promise((resolve) => window.setTimeout(resolve, MEBBIS_INVENTORY_POLL_INTERVAL_MS));
+      const job = await getMebbisJob(jobId);
+      if (job.status === "succeeded") {
+        const result = parseMebbisInstitutionInventoryResult(job);
+        if (result) {
+          setValues((current) => {
+            const institution = result.institution ?? {};
+            const founder = result.founder ?? {};
+            const importedCity = resolveTurkeyProvinceValue(readMebbisString(institution.city));
+            return {
+              ...current,
+              institutionName:
+                readMebbisString(institution.institutionName) || current.institutionName,
+              institutionOfficialName:
+                readMebbisString(institution.institutionOfficialName) ||
+                readMebbisString(institution.institutionName) ||
+                current.institutionOfficialName,
+              institutionCode:
+                readMebbisString(institution.institutionCode) || current.institutionCode,
+              institutionAddress: readMebbisString(institution.address) || current.institutionAddress,
+              institutionPhone:
+                normalizeGeneralPhone(readMebbisString(institution.phone)) ||
+                current.institutionPhone,
+              institutionEmail: readMebbisString(institution.email) || current.institutionEmail,
+              city: importedCity || current.city,
+              district:
+                resolveTurkeyDistrictValue(
+                  importedCity || current.city,
+                  readMebbisString(institution.district)
+                ) || current.district,
+              founderType: readMebbisString(founder.type)
+                ? readMebbisFounderType(founder.type)
+                : current.founderType,
+              founderName: readMebbisString(founder.name) || current.founderName,
+              founderTaxId: readMebbisString(founder.taxId) || current.founderTaxId,
+              founderTaxOffice: readMebbisString(founder.taxOffice) || current.founderTaxOffice,
+              founderAddress: readMebbisString(founder.address) || current.founderAddress,
+              founderPhone:
+                normalizeGeneralPhone(readMebbisString(founder.phone)) || current.founderPhone,
+            };
+          });
+          setErrors({});
+          setActiveTab("institution");
+          showToast(t("settings.general.mebbisImportApplied"));
+        } else {
+          showToast(t("settings.general.mebbisImportCompleted"));
+        }
+        void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+        return;
+      }
+
+      if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) {
+        showToast(t("settings.general.mebbisImportNeedsManualAction"), "error");
+        void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+        return;
+      }
+    }
+
+    showToast(t("settings.general.mebbisImportStillRunning"));
+  };
+
+  const handleMebbisInstitutionInventoryImport = async () => {
+    if (!canManageSettings || importingMebbisInventory) return;
+    setImportingMebbisInventory(true);
+    try {
+      const job = await createInstitutionInventoryImportJob();
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      showToast(t("settings.general.mebbisImportQueued"));
+      await pollMebbisInstitutionInventoryJob(job.id);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("settings.general.mebbisImportFailed")
+          : t("settings.general.mebbisImportFailed");
+      showToast(message, "error");
+    } finally {
+      setImportingMebbisInventory(false);
+    }
+  };
+
   const handleLogoChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -487,13 +620,26 @@ export function GeneralInstitutionSection() {
     <form className="settings-section-stack" onSubmit={handleSubmit}>
       <div className="settings-tab-toolbar">
         <PageTabs active={activeTab} onChange={setActiveTab} tabs={tabs} />
-        <span className="settings-panel-note">
-          {serverState
-            ? t("settings.general.lastSaved", {
-                at: new Date(serverState.updatedAtUtc).toLocaleString(currentLocale()),
-              })
-            : t("settings.general.notSavedYet")}
-        </span>
+        <div className="settings-toolbar-actions">
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={!canManageSettings || importingMebbisInventory}
+            onClick={handleMebbisInstitutionInventoryImport}
+            title={!canManageSettings ? noPermissionTitle : undefined}
+            type="button"
+          >
+            {importingMebbisInventory
+              ? t("settings.general.mebbisImportStarting")
+              : t("settings.general.mebbisImport")}
+          </button>
+          <span className="settings-panel-note">
+            {serverState
+              ? t("settings.general.lastSaved", {
+                  at: new Date(serverState.updatedAtUtc).toLocaleString(currentLocale()),
+                })
+              : t("settings.general.notSavedYet")}
+          </span>
+        </div>
       </div>
 
       {activeTab === "institution" ? (
@@ -819,7 +965,7 @@ export function GeneralInstitutionSection() {
       <div className="settings-form-actions">
         <button
           className="btn btn-primary btn-sm"
-          disabled={!canManageSettings || !dirty || saving || uploading || removingLogo}
+          disabled={!canManageSettings || !dirty || saving || uploading || removingLogo || importingMebbisInventory}
           title={!canManageSettings ? noPermissionTitle : undefined}
           type="submit"
         >

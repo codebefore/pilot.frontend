@@ -8,6 +8,9 @@ import { renderWithProviders } from "../test/render-with-providers";
 const getGroupsMock = vi.fn();
 const getTermsMock = vi.fn();
 const deleteTermMock = vi.fn();
+const getClassroomsMock = vi.fn();
+const createGroupInventoryImportJobMock = vi.fn();
+const getMebbisJobMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -34,6 +37,24 @@ vi.mock("../lib/terms-api", async () => {
     createTerm: vi.fn(),
     updateTerm: vi.fn(),
     deleteTerm: (...args: Parameters<typeof actual.deleteTerm>) => deleteTermMock(...args),
+  };
+});
+
+vi.mock("../lib/classrooms-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/classrooms-api")>("../lib/classrooms-api");
+  return {
+    ...actual,
+    getClassrooms: (...args: Parameters<typeof actual.getClassrooms>) => getClassroomsMock(...args),
+  };
+});
+
+vi.mock("../lib/mebbis-jobs-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/mebbis-jobs-api")>("../lib/mebbis-jobs-api");
+  return {
+    ...actual,
+    createGroupInventoryImportJob: (...args: Parameters<typeof actual.createGroupInventoryImportJob>) =>
+      createGroupInventoryImportJobMock(...args),
+    getMebbisJob: (...args: Parameters<typeof actual.getMebbisJob>) => getMebbisJobMock(...args),
   };
 });
 
@@ -106,6 +127,21 @@ describe("GroupsPage", () => {
 
     deleteTermMock.mockReset();
     deleteTermMock.mockResolvedValue(undefined);
+
+    getClassroomsMock.mockReset();
+    getClassroomsMock.mockResolvedValue({
+      items: [{ id: "classroom-1", name: "Derslik 1", capacity: 20, isActive: true, notes: null, branches: [] }],
+      page: 1,
+      pageSize: 1,
+      totalCount: 1,
+      totalPages: 1,
+      summary: { activeCount: 1, inactiveCount: 0 },
+    });
+
+    createGroupInventoryImportJobMock.mockReset();
+    createGroupInventoryImportJobMock.mockResolvedValue({ id: "mebbis-job-1", status: "pending" });
+    getMebbisJobMock.mockReset();
+    getMebbisJobMock.mockResolvedValue({ id: "mebbis-job-1", status: "succeeded" });
   });
 
   it("loads terms and fetches all groups without a term filter by default", async () => {
@@ -701,5 +737,27 @@ describe("GroupsPage", () => {
     expect(
       await screen.findByText("Dönem silinemiyor. İçinde aktif adayları olan grup var.")
     ).toBeInTheDocument();
+  });
+
+  it("does not queue MEBBIS group import when no active classrooms exist", async () => {
+    getClassroomsMock.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      pageSize: 1,
+      totalCount: 0,
+      totalPages: 0,
+      summary: { activeCount: 0, inactiveCount: 0 },
+    });
+
+    renderWithProviders(<GroupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "MEBBIS'ten Çek" }));
+
+    expect(
+      await screen.findByText(
+        "Kontenjan için önce Ayarlar > Tanımlar > Derslikler sayfasından derslik eklemeniz lazım."
+      )
+    ).toBeInTheDocument();
+    expect(createGroupInventoryImportJobMock).not.toHaveBeenCalled();
   });
 });

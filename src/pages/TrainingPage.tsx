@@ -1715,79 +1715,82 @@ export function TrainingPage({ type }: TrainingPageProps) {
             <span>{activeMebbisStatusMessage}</span>
           </div>
         ) : null}
-        {loading ? <PageSkeleton /> : null}
-        <div className="training-layout">
-          <aside className="training-filters-sidebar">
-          {type === "teorik" ? (
-	              <QuickLessonAssignment
-		                groupId={quickSettings.groupId}
-		                groups={groups}
-                isLoading={isQuickAssignLoading || isBulkDeleteLoading}
-                onSettingsChange={(settings) =>
-                  setQuickSettings((prev) => ({ ...prev, ...settings }))
+        {loading ? (
+          <PageSkeleton />
+        ) : (
+          <div className="training-layout">
+            <aside className="training-filters-sidebar">
+              {type === "teorik" ? (
+                <QuickLessonAssignment
+                  groupId={quickSettings.groupId}
+                  groups={groups}
+                  isLoading={isQuickAssignLoading || isBulkDeleteLoading}
+                  onSettingsChange={(settings) =>
+                    setQuickSettings((prev) => ({ ...prev, ...settings }))
+                  }
+                />
+              ) : (
+                <QuickPracticeAssignment
+                  candidateId={quickSettings.candidateId}
+                  candidates={candidates}
+                  isLoading={isQuickAssignLoading}
+                  onSettingsChange={(settings) =>
+                    setQuickSettings((prev) => ({ ...prev, ...settings }))
+                  }
+                />
+              )}
+              <TrainingBranchSummary
+                branches={branches}
+                branchHelpers={branchHelpers}
+                candidateId={quickSettings.candidateId || undefined}
+                candidates={candidates}
+                events={events}
+                groupId={quickSettings.groupId || undefined}
+                kind={type}
+                overlayEvents={
+                  type === "teorik"
+                    ? practiceEventsForOverlay
+                    : theoryEventsForOverlay
                 }
               />
-            ) : (
-	              <QuickPracticeAssignment
-	                candidateId={quickSettings.candidateId}
-	                candidates={candidates}
-	                isLoading={isQuickAssignLoading}
-	                onSettingsChange={(settings) =>
-	                  setQuickSettings((prev) => ({ ...prev, ...settings }))
-	                }
-	              />
-            )}
-            <TrainingBranchSummary
-              branches={branches}
-              branchHelpers={branchHelpers}
-              candidateId={quickSettings.candidateId || undefined}
-              candidates={candidates}
-              events={events}
-              groupId={quickSettings.groupId || undefined}
-              kind={type}
-              overlayEvents={
-                type === "teorik"
-                  ? practiceEventsForOverlay
-                  : theoryEventsForOverlay
-              }
-            />
-            <TrainingFilters
-              allInstructors={instructors}
-              allVehiclesCatalog={vehicles}
-              events={events}
-              kind={type}
-              onResetFilters={resetFilters}
-              onSetGroupsVisibility={setGroupsVisibility}
-              onSetInstructorsVisibility={setInstructorsVisibility}
-              onToggleGroup={toggleGroup}
-              onToggleInstructor={toggleInstructor}
-              visibleGroups={visibleGroups}
-              visibleInstructors={visibleInstructors}
-            />
-          </aside>
-          {type === "uygulama" && !quickSettings.candidateId ? (
-	            <PracticeCandidatePicker
-	              onAssign={(id) => {
-	                setQuickSettings((prev) => ({ ...prev, candidateId: id }));
-	              }}
-	            />
-          ) : (
-            <div className="training-calendar-wrap">
-              <TrainingCalendar
-                branchHelpers={branchHelpers}
-                disabledBeforeDate={disabledBeforeDate}
-                events={visibleEvents}
-                focusDate={focusDate}
+              <TrainingFilters
+                allInstructors={instructors}
+                allVehiclesCatalog={vehicles}
+                events={events}
                 kind={type}
-                onEventDrop={handleEventDrop}
-                onEventResize={handleEventResize}
-                onSelectEvent={handleSelectEvent}
-                onSelectSlot={handleSelectSlot}
-                readOnly={!canManageTraining}
+                onResetFilters={resetFilters}
+                onSetGroupsVisibility={setGroupsVisibility}
+                onSetInstructorsVisibility={setInstructorsVisibility}
+                onToggleGroup={toggleGroup}
+                onToggleInstructor={toggleInstructor}
+                visibleGroups={visibleGroups}
+                visibleInstructors={visibleInstructors}
               />
-            </div>
-          )}
-        </div>
+            </aside>
+            {type === "uygulama" && !quickSettings.candidateId ? (
+              <PracticeCandidatePicker
+                onAssign={(id) => {
+                  setQuickSettings((prev) => ({ ...prev, candidateId: id }));
+                }}
+              />
+            ) : (
+              <div className="training-calendar-wrap">
+                <TrainingCalendar
+                  branchHelpers={branchHelpers}
+                  disabledBeforeDate={disabledBeforeDate}
+                  events={visibleEvents}
+                  focusDate={focusDate}
+                  kind={type}
+                  onEventDrop={handleEventDrop}
+                  onEventResize={handleEventResize}
+                  onSelectEvent={handleSelectEvent}
+                  onSelectSlot={handleSelectSlot}
+                  readOnly={!canManageTraining}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
 	        <NewTrainingPlanModal

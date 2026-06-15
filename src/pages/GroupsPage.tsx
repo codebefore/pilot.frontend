@@ -13,6 +13,7 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
+import { getClassrooms } from "../lib/classrooms-api";
 import { parseGroupTitle } from "../lib/group-code";
 import { getGroups } from "../lib/groups-api";
 import { ApiError, isAbortError } from "../lib/http";
@@ -416,6 +417,12 @@ export function GroupsPage() {
     if (!canManageGroups || isMebbisGroupImporting) return;
     setIsMebbisGroupImporting(true);
     try {
+      const classrooms = await getClassrooms({ activity: "active", pageSize: 1 });
+      if (classrooms.totalCount === 0) {
+        showToast(t("groups.mebbisImportClassroomsRequired"), "error");
+        return;
+      }
+
       const job = await createGroupInventoryImportJob();
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });

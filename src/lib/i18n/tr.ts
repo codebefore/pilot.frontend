@@ -1447,6 +1447,8 @@ export const tr = {
   "settings.nav.permissions.description": "Roller ve ekran yetkileri",
   "settings.general.lastSaved": "Son kayıt: {at}",
   "settings.general.notSavedYet": "Henüz kayıt yapılmadı",
+  "settings.general.mebbisImport": "MEBBIS'ten Kurum Bilgilerini Çek",
+  "settings.general.mebbisImportStarting": "Çekiliyor...",
   "settings.general.section.institution": "Kurum Bilgileri",
   "settings.general.section.founder": "Kurucu Bilgileri",
   "settings.general.section.theme": "Tema",
@@ -1499,6 +1501,12 @@ export const tr = {
   "settings.general.founder.phone": "Telefon",
   "settings.general.toast.loadError": "Kurum bilgileri yüklenemedi",
   "settings.general.toast.saved": "Kurum bilgileri kaydedildi",
+  "settings.general.mebbisImportQueued": "MEBBIS kurum bilgileri çekme işi kuyruğa alındı",
+  "settings.general.mebbisImportCompleted": "MEBBIS kurum bilgileri okundu",
+  "settings.general.mebbisImportApplied": "MEBBIS kurum ve kurucu bilgileri forma aktarıldı. Kontrol edip kaydedin.",
+  "settings.general.mebbisImportNeedsManualAction": "MEBBIS kurum bilgileri çekme kontrol gerektiriyor",
+  "settings.general.mebbisImportStillRunning": "MEBBIS kurum bilgileri çekme devam ediyor; durumu Meb Sync ekranından takip et",
+  "settings.general.mebbisImportFailed": "MEBBIS kurum bilgileri çekme başlatılamadı",
   "settings.general.toast.saveError": "Kurum bilgileri kaydedilemedi",
   "settings.general.toast.logoUploaded": "Logo yüklendi",
   "settings.general.toast.logoUploadError": "Logo yüklenemedi",
@@ -1715,6 +1723,8 @@ export const tr = {
   "groups.mebbisImportNeedsManualAction": "MEBBIS dönem/grup çekme kontrol gerektiriyor",
   "groups.mebbisImportStillRunning": "MEBBIS dönem/grup çekme devam ediyor; durumu Meb Sync ekranından takip et",
   "groups.mebbisImportFailed": "MEBBIS dönem/grup çekme başlatılamadı",
+  "groups.mebbisImportClassroomsRequired":
+    "Kontenjan için önce Ayarlar > Tanımlar > Derslikler sayfasından derslik eklemeniz lazım.",
 
   // Group card fields
   "groups.card.capacity": "Kontenjan",

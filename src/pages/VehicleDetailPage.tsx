@@ -13,9 +13,11 @@ import { useT, currentLocale, type TranslationKey } from "../lib/i18n";
 import {
   createVehicleDocument,
   deleteVehicleDocument,
+  getVehicleDocumentDownloadUrl,
   listVehicleDocuments,
   updateVehicleDocument,
 } from "../lib/vehicle-documents-api";
+import { downloadAuthorizedFile } from "../lib/authorized-files";
 import {
   VEHICLE_FUEL_LABEL_KEYS,
   VEHICLE_OWNERSHIP_LABEL_KEYS,
@@ -83,6 +85,7 @@ export function VehicleDetailPage() {
   const [modalStart, setModalStart] = useState("");
   const [modalEnd, setModalEnd] = useState("");
   const [modalNotes, setModalNotes] = useState("");
+  const [modalFile, setModalFile] = useState<File | null>(null);
   const [modalBusy, setModalBusy] = useState(false);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -123,6 +126,7 @@ export function VehicleDetailPage() {
     setModalStart(iso);
     setModalEnd("");
     setModalNotes("");
+    setModalFile(null);
   };
 
   const openEdit = (doc: VehicleDocumentResponse) => {
@@ -132,16 +136,22 @@ export function VehicleDetailPage() {
     setModalStart(doc.startDate.slice(0, 10));
     setModalEnd(doc.endDate.slice(0, 10));
     setModalNotes(doc.notes ?? "");
+    setModalFile(null);
   };
 
   const closeModal = () => {
     setModalType(null);
     setModalEditing(null);
+    setModalFile(null);
   };
 
   const submitModal = async () => {
     if (!canManageDocuments) return;
     if (!vehicleId || !modalType || !modalStart || !modalEnd) return;
+    if (!modalEditing && !modalFile) {
+      showToast("Dosya seçin.", "error");
+      return;
+    }
     if (modalEnd < modalStart) {
       showToast(t("vehicle.detail.toast.endBeforeStart"), "error");
       return;
@@ -154,6 +164,7 @@ export function VehicleDetailPage() {
           startDate: modalStart,
           endDate: modalEnd,
           notes: modalNotes.trim() || null,
+          file: modalFile,
           rowVersion: modalEditing.rowVersion,
         });
       } else {
@@ -162,6 +173,7 @@ export function VehicleDetailPage() {
           startDate: modalStart,
           endDate: modalEnd,
           notes: modalNotes.trim() || null,
+          file: modalFile,
         });
       }
       showToast(modalEditing ? t("vehicle.detail.toast.docUpdated") : t("vehicle.detail.toast.docCreated"));
@@ -360,6 +372,20 @@ export function VehicleDetailPage() {
                                   >
                                     Düzenle
                                   </button>
+                                  {doc.hasFile ? (
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      onClick={() => {
+                                        void downloadAuthorizedFile(
+                                          getVehicleDocumentDownloadUrl(vehicle.id, doc.id),
+                                          doc.originalFileName
+                                        );
+                                      }}
+                                      type="button"
+                                    >
+                                      Dosya
+                                    </button>
+                                  ) : null}
                                   <button
                                     className="btn btn-link btn-sm btn-link-danger"
                                     disabled={!canManageDocuments}
@@ -403,7 +429,13 @@ export function VehicleDetailPage() {
             </button>
             <button
               className="btn btn-primary"
-              disabled={modalBusy || !modalStart || !modalEnd || !canManageDocuments}
+              disabled={
+                modalBusy ||
+                !modalStart ||
+                !modalEnd ||
+                (!modalEditing && !modalFile) ||
+                !canManageDocuments
+              }
               onClick={submitModal}
               title={!canManageDocuments ? noPermissionTitle : undefined}
               type="button"
@@ -440,6 +472,20 @@ export function VehicleDetailPage() {
               onChange={(value) => setModalEnd(value)}
               value={modalEnd}
             />
+          </div>
+        </div>
+        <div className="form-row full">
+          <div className="form-group">
+            <label className="form-label">Dosya</label>
+            <input
+              accept="application/pdf,image/jpeg,image/png"
+              className="form-input"
+              onChange={(event) => setModalFile(event.target.files?.[0] ?? null)}
+              type="file"
+            />
+            <div className="form-hint">
+              PDF, JPG veya PNG yukleyin. Sistem JPEG olarak kaydeder.
+            </div>
           </div>
         </div>
         <div className="form-row full">

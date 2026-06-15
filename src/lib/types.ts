@@ -719,6 +719,10 @@ export interface VehicleDocumentResponse {
   startDate: string;
   endDate: string;
   notes: string | null;
+  originalFileName: string | null;
+  contentType: string | null;
+  fileSizeBytes: number | null;
+  hasFile: boolean;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -729,6 +733,7 @@ export interface VehicleDocumentUpsertRequest {
   startDate: string;
   endDate: string;
   notes?: string | null;
+  file?: File | null;
   rowVersion?: number;
 }
 

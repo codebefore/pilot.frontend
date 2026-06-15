@@ -1,4 +1,4 @@
-import { httpDelete, httpGet, httpPost, httpPut } from "./http";
+import { httpDelete, httpGet, httpPostForm, httpPutForm, normalizeApiPathForBaseUrl } from "./http";
 import { getDocumentApiBaseUrl } from "./api";
 import type {
   VehicleDocumentResponse,
@@ -7,6 +7,22 @@ import type {
 
 function documentRequestOptions(signal?: AbortSignal) {
   return { baseUrl: getDocumentApiBaseUrl(), signal };
+}
+
+function buildDocumentUrl(path: string): URL {
+  const base = getDocumentApiBaseUrl().replace(/\/+$/, "");
+  return new URL(`${base}${normalizeApiPathForBaseUrl(base, path)}`, window.location.origin);
+}
+
+function toVehicleDocumentForm(body: VehicleDocumentUpsertRequest): FormData {
+  const form = new FormData();
+  form.append("documentType", body.documentType);
+  form.append("startDate", body.startDate);
+  form.append("endDate", body.endDate);
+  if (body.notes) form.append("notes", body.notes);
+  if (body.rowVersion !== undefined) form.append("rowVersion", String(body.rowVersion));
+  if (body.file) form.append("file", body.file);
+  return form;
 }
 
 export function listVehicleDocuments(
@@ -24,9 +40,9 @@ export function createVehicleDocument(
   vehicleId: string,
   body: VehicleDocumentUpsertRequest
 ): Promise<VehicleDocumentResponse> {
-  return httpPost<VehicleDocumentResponse>(
+  return httpPostForm<VehicleDocumentResponse>(
     `/api/vehicles/${vehicleId}/documents`,
-    body,
+    toVehicleDocumentForm(body),
     documentRequestOptions()
   );
 }
@@ -36,9 +52,9 @@ export function updateVehicleDocument(
   documentId: string,
   body: VehicleDocumentUpsertRequest
 ): Promise<VehicleDocumentResponse> {
-  return httpPut<VehicleDocumentResponse>(
+  return httpPutForm<VehicleDocumentResponse>(
     `/api/vehicles/${vehicleId}/documents/${documentId}`,
-    body,
+    toVehicleDocumentForm(body),
     documentRequestOptions()
   );
 }
@@ -53,4 +69,12 @@ export function deleteVehicleDocument(
     undefined,
     documentRequestOptions()
   );
+}
+
+export function getVehicleDocumentDownloadUrl(
+  vehicleId: string,
+  documentId: string
+): string {
+  const path = `/api/vehicles/${vehicleId}/documents/${documentId}/download`;
+  return buildDocumentUrl(path).toString();
 }

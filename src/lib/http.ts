@@ -212,6 +212,20 @@ export async function httpPostForm<T>(
   return handleResponse<T>(response);
 }
 
+export async function httpPutForm<T>(
+  path: string,
+  form: FormData,
+  options?: RequestOptions
+): Promise<T> {
+  const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
+    method: "PUT",
+    headers: buildHeaders(undefined, options),
+    body: form,
+    signal: options?.signal,
+  });
+  return handleResponse<T>(response);
+}
+
 export async function httpPut<T>(
   path: string,
   body: unknown,

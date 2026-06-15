@@ -1449,6 +1449,8 @@ export const en: Record<TranslationKey, string> = {
   "settings.nav.permissions.description": "Roles and screen permissions",
   "settings.general.lastSaved": "Last saved: {at}",
   "settings.general.notSavedYet": "Not saved yet",
+  "settings.general.mebbisImport": "Import Institution Info from MEBBIS",
+  "settings.general.mebbisImportStarting": "Importing...",
   "settings.general.section.institution": "Institution Information",
   "settings.general.section.founder": "Founder Information",
   "settings.general.section.theme": "Theme",
@@ -1501,6 +1503,12 @@ export const en: Record<TranslationKey, string> = {
   "settings.general.founder.phone": "Phone",
   "settings.general.toast.loadError": "Failed to load institution settings",
   "settings.general.toast.saved": "Institution settings saved",
+  "settings.general.mebbisImportQueued": "MEBBIS institution info import queued",
+  "settings.general.mebbisImportCompleted": "MEBBIS institution info was read",
+  "settings.general.mebbisImportApplied": "MEBBIS institution and founder info was applied to the form. Review and save it.",
+  "settings.general.mebbisImportNeedsManualAction": "MEBBIS institution info import needs review",
+  "settings.general.mebbisImportStillRunning": "MEBBIS institution info import is still running; track it on Meb Sync",
+  "settings.general.mebbisImportFailed": "Could not start MEBBIS institution info import",
   "settings.general.toast.saveError": "Failed to save institution settings",
   "settings.general.toast.logoUploaded": "Logo uploaded",
   "settings.general.toast.logoUploadError": "Failed to upload logo",
@@ -1718,6 +1726,8 @@ export const en: Record<TranslationKey, string> = {
   "groups.mebbisImportNeedsManualAction": "MEBBIS term/group import needs review",
   "groups.mebbisImportStillRunning": "MEBBIS term/group import is still running; track it on Meb Sync",
   "groups.mebbisImportFailed": "Could not start MEBBIS term/group import",
+  "groups.mebbisImportClassroomsRequired":
+    "Add at least one classroom from Settings > Definitions > Classrooms before importing capacities.",
 
   // Group card fields
   "groups.card.capacity": "Capacity",
