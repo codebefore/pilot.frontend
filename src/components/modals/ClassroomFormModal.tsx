@@ -56,6 +56,7 @@ const VALIDATION_FIELD_MAP: Record<string, keyof ClassroomFormValues> = {
 };
 
 const CONCURRENCY_CODE = "classroom.validation.concurrencyConflict";
+const PRACTICE_BRANCH_CODE = "practice";
 
 function getEmptyValues(editing: ClassroomResponse | null): ClassroomFormValues {
   return editing
@@ -64,7 +65,9 @@ function getEmptyValues(editing: ClassroomResponse | null): ClassroomFormValues 
         capacity: String(editing.capacity),
         isActive: editing.isActive,
         notes: editing.notes ?? "",
-        branchIds: editing.branches.map((branch) => branch.id),
+        branchIds: editing.branches
+          .filter((branch) => branch.code !== PRACTICE_BRANCH_CODE)
+          .map((branch) => branch.id),
       }
     : {
         name: "",
@@ -158,7 +161,10 @@ export function ClassroomFormModal({
       capacity: Number.isFinite(capacityValue) ? capacityValue : 0,
       isActive: values.isActive,
       notes: values.notes.trim() || null,
-      branchIds: values.branchIds,
+      branchIds: values.branchIds.filter((branchId) => {
+        const branch = branches.find((item) => item.id === branchId);
+        return branch?.code !== PRACTICE_BRANCH_CODE;
+      }),
       ...(editing ? { rowVersion: editing.rowVersion } : {}),
     };
 
@@ -260,12 +266,15 @@ export function ClassroomFormModal({
                     <span className="form-subsection-note">—</span>
                   ) : (
                     branches.map((branch) => {
-                      const checked = field.value.includes(branch.id);
+                      const disabled = branch.code === PRACTICE_BRANCH_CODE;
+                      const checked = !disabled && field.value.includes(branch.id);
                       return (
                         <label className="switch-toggle" key={branch.id}>
                           <input
                             checked={checked}
+                            disabled={disabled}
                             onChange={(event) => {
+                              if (disabled) return;
                               if (event.target.checked) {
                                 field.onChange([...field.value, branch.id]);
                               } else {

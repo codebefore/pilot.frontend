@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { PencilIcon, PlusIcon } from "../icons";
+import { MebIcon, PencilIcon, PlusIcon } from "../icons";
 import { ClassroomFormModal } from "../modals/ClassroomFormModal";
 import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
@@ -14,12 +14,20 @@ import { useT, type TranslationKey } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
 import { candidateKeys } from "../../lib/queries/use-candidates";
 import {
+  createClassroom,
   getClassrooms,
+  updateClassroom,
   type ClassroomActivityFilter,
   type ClassroomSortDirection,
   type ClassroomSortField,
 } from "../../lib/classrooms-api";
+import { ApiError } from "../../lib/http";
 import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
+import {
+  createClassroomInventoryImportJob,
+  getMebbisJob,
+  type MebbisJobResponse,
+} from "../../lib/mebbis-jobs-api";
 import type {
   ClassroomListSummaryResponse,
   ClassroomResponse,
@@ -31,6 +39,9 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
 const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
+const MEBBIS_CLASSROOM_POLL_INTERVAL_MS = 2000;
+const MEBBIS_CLASSROOM_POLL_TIMEOUT_MS = 60_000;
+const PRACTICE_BRANCH_CODE = "practice";
 
 type SortState = { field: ClassroomSortField; direction: ClassroomSortDirection } | null;
 type ClassroomFilters = {
@@ -47,6 +58,18 @@ type ClassroomColumnDef = {
   skeletonKind?: "line" | "pill";
 };
 
+type MebbisClassroomInventoryRow = {
+  classroomType?: unknown;
+  classroomName?: unknown;
+  capacity?: unknown;
+  status?: unknown;
+  approvalStatus?: unknown;
+};
+
+type MebbisClassroomInventoryResult = {
+  classrooms?: MebbisClassroomInventoryRow[];
+};
+
 const EMPTY_SUMMARY: ClassroomListSummaryResponse = {
   activeCount: 0,
   inactiveCount: 0,
@@ -59,7 +82,10 @@ const DEFAULT_FILTERS: ClassroomFilters = {
   branchId: "all",
 };
 
-function buildColumns(t: ReturnType<typeof useT>): ClassroomColumnDef[] {
+function buildColumns(
+  t: ReturnType<typeof useT>,
+  branchMetadataById: Map<string, TrainingBranchDefinitionResponse>
+): ClassroomColumnDef[] {
   return [
     {
       id: "name",
@@ -78,12 +104,17 @@ function buildColumns(t: ReturnType<typeof useT>): ClassroomColumnDef[] {
     {
       id: "branches",
       labelKey: "settings.classrooms.columns.branches",
-      renderCell: (classroom) => (
-        <div className="settings-branch-chips">
-          {classroom.branches.length === 0 ? (
+      renderCell: (classroom) => {
+        const classroomBranches = classroom.branches
+          .map((branch) => branchMetadataById.get(branch.id) ?? branch)
+          .filter((branch) => branch.code !== PRACTICE_BRANCH_CODE);
+
+        return (
+          <div className="settings-branch-chips">
+          {classroomBranches.length === 0 ? (
             <span className="form-subsection-note">—</span>
           ) : (
-            classroom.branches.map((branch) => (
+            classroomBranches.map((branch) => (
               <span
                 className="settings-branch-chip"
                 key={branch.id}
@@ -98,7 +129,8 @@ function buildColumns(t: ReturnType<typeof useT>): ClassroomColumnDef[] {
             ))
           )}
         </div>
-      ),
+        );
+      },
       skeletonWidth: 200,
     },
     {
@@ -147,9 +179,7 @@ export function ClassroomsSettingsSection() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ClassroomResponse | null>(null);
   const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
-
-  const columns = buildColumns(t);
-  const visibleColumns = columns.filter((column) => isVisible(column.id));
+  const [importingMebbisClassrooms, setImportingMebbisClassrooms] = useState(false);
 
   const branchesQuery = useQuery({
     gcTime: SETTINGS_QUERY_CACHE_MS,
@@ -160,9 +190,20 @@ export function ClassroomsSettingsSection() {
 
   useEffect(() => {
     if (branchesQuery.data) {
-      setBranches(branchesQuery.data.items);
+      setBranches(branchesQuery.data.items.filter((branch) => branch.code !== PRACTICE_BRANCH_CODE));
     }
   }, [branchesQuery.data]);
+
+  const branchMetadataById = useMemo(
+    () =>
+      new Map(
+        (branchesQuery.data?.items ?? []).map((branch) => [branch.id, branch])
+      ),
+    [branchesQuery.data]
+  );
+
+  const columns = buildColumns(t, branchMetadataById);
+  const visibleColumns = columns.filter((column) => isVisible(column.id));
 
   const listQueryParams = useMemo(
     () => ({
@@ -262,6 +303,143 @@ export function ClassroomsSettingsSection() {
     );
   };
 
+  const invalidateClassroomDependentCaches = () => {
+    setRefreshKey((current) => current + 1);
+    void queryClient.invalidateQueries({ queryKey: ["settings", "classrooms"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const applyMebbisClassroomInventory = async (job: MebbisJobResponse) => {
+    const result = parseMebbisClassroomInventoryResult(job);
+    const importedRows = result?.classrooms?.filter(isReadableMebbisClassroomRow) ?? [];
+    if (importedRows.length === 0) {
+      showToast(t("settings.classrooms.mebbisImportCompleted"));
+      return;
+    }
+
+    const [classroomResponse, branchResponse] = await Promise.all([
+      getClassrooms({ activity: "all", page: 1, pageSize: 1000 }),
+      getTrainingBranchDefinitions({ activity: "all", page: 1, pageSize: 200 }),
+    ]);
+    const branchByName = buildTrainingBranchLookup(branchResponse.items);
+    const trafficEthicsBranch = resolveTrainingBranch("traffic_ethics", branchByName) ??
+      resolveTrainingBranch("Trafik Adabı", branchByName);
+    const existingByName = new Map(
+      classroomResponse.items.map((classroom) => [normalizeComparable(classroom.name), classroom])
+    );
+    const groupedRows = groupMebbisClassroomRows(importedRows);
+    let createdCount = 0;
+    let updatedCount = 0;
+    const missingTypes = new Set<string>();
+
+    for (const imported of groupedRows) {
+      const branchIds = imported.types
+        .map((typeName) => {
+          const branch = resolveTrainingBranch(typeName, branchByName);
+          if (!branch) missingTypes.add(typeName);
+          return branch?.id;
+        })
+        .filter((id): id is string => Boolean(id));
+      if (trafficEthicsBranch) {
+        branchIds.push(trafficEthicsBranch.id);
+      }
+      if (branchIds.length === 0) continue;
+
+      const existing = existingByName.get(imported.normalizedName);
+      if (!existing) {
+        await createClassroom({
+          name: formatMebbisClassroomName(imported.name),
+          capacity: imported.capacity,
+          isActive: true,
+          branchIds: uniqueStrings(branchIds),
+        });
+        createdCount += 1;
+        continue;
+      }
+
+      const existingBranchIds = existing.branches.map((branch) => branch.id);
+      const nextBranchIds = uniqueStrings([...existingBranchIds, ...branchIds]);
+      const needsUpdate =
+        !existing.isActive ||
+        existing.capacity !== imported.capacity ||
+        nextBranchIds.length !== existingBranchIds.length;
+
+      if (needsUpdate) {
+        await updateClassroom(existing.id, {
+          name: existing.name,
+          capacity: imported.capacity,
+          isActive: true,
+          notes: existing.notes,
+          branchIds: nextBranchIds,
+          rowVersion: existing.rowVersion,
+        });
+        updatedCount += 1;
+      }
+    }
+
+    invalidateClassroomDependentCaches();
+    if (missingTypes.size > 0) {
+      showToast(
+        t("settings.classrooms.mebbisImportMissingTypes", {
+          types: [...missingTypes].join(", "),
+        }),
+        "error"
+      );
+      return;
+    }
+
+    showToast(
+      t("settings.classrooms.mebbisImportApplied", {
+        created: String(createdCount),
+        updated: String(updatedCount),
+      })
+    );
+  };
+
+  const pollMebbisClassroomInventoryJob = async (jobId: string, startedAt = Date.now()) => {
+    while (Date.now() - startedAt < MEBBIS_CLASSROOM_POLL_TIMEOUT_MS) {
+      await new Promise((resolve) => window.setTimeout(resolve, MEBBIS_CLASSROOM_POLL_INTERVAL_MS));
+      const job = await getMebbisJob(jobId);
+      if (job.status === "succeeded") {
+        await applyMebbisClassroomInventory(job);
+        void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+        return;
+      }
+
+      if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) {
+        showToast(t("settings.classrooms.mebbisImportNeedsManualAction"), "error");
+        void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+        return;
+      }
+    }
+
+    showToast(t("settings.classrooms.mebbisImportStillRunning"));
+  };
+
+  const handleMebbisClassroomImport = async () => {
+    if (!canManageTraining || importingMebbisClassrooms) return;
+    setImportingMebbisClassrooms(true);
+    try {
+      const job = await createClassroomInventoryImportJob();
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      showToast(t("settings.classrooms.mebbisImportQueued"));
+      await pollMebbisClassroomInventoryJob(job.id);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("settings.classrooms.mebbisImportFailed")
+          : t("settings.classrooms.mebbisImportFailed");
+      showToast(message, "error");
+    } finally {
+      setImportingMebbisClassrooms(false);
+    }
+  };
+
   return (
     <>
       <div className="settings-section-stack">
@@ -322,6 +500,27 @@ export function ClassroomsSettingsSection() {
                   {t("common.clearFilters")}
                 </button>
               ) : null}
+              <label className="switch-toggle">
+                <input
+                  checked={filters.activity === "all"}
+                  onChange={(event) => setFilter("activity", event.target.checked ? "all" : "active")}
+                  type="checkbox"
+                />
+                <span className="switch-toggle-control" aria-hidden="true" />
+                <span>{t("settings.classrooms.showInactive")}</span>
+              </label>
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={!canManageTraining || importingMebbisClassrooms}
+                onClick={handleMebbisClassroomImport}
+                title={!canManageTraining ? noPermissionTitle : undefined}
+                type="button"
+              >
+                <MebIcon size={14} />
+                {importingMebbisClassrooms
+                  ? t("settings.classrooms.mebbisImportRunning")
+                  : t("settings.classrooms.mebbisImport")}
+              </button>
               {canCreateClassroom ? (
                 <button
                   className="btn btn-primary btn-sm"
@@ -547,4 +746,136 @@ function buildColumnFilterControl(
   }
 
   return null;
+}
+
+function parseMebbisClassroomInventoryResult(
+  job: MebbisJobResponse
+): MebbisClassroomInventoryResult | null {
+  if (!job.resultJson) return null;
+
+  try {
+    const parsed = JSON.parse(job.resultJson) as MebbisClassroomInventoryResult;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isReadableMebbisClassroomRow(
+  row: MebbisClassroomInventoryRow
+): row is Required<Pick<MebbisClassroomInventoryRow, "classroomName" | "classroomType" | "capacity">> &
+  MebbisClassroomInventoryRow {
+  return (
+    readMebbisString(row.classroomName).length > 0 &&
+    readMebbisString(row.classroomType).length > 0 &&
+    readMebbisNumber(row.capacity) > 0
+  );
+}
+
+function groupMebbisClassroomRows(rows: MebbisClassroomInventoryRow[]) {
+  const grouped = new Map<
+    string,
+    {
+      normalizedName: string;
+      name: string;
+      capacity: number;
+      types: string[];
+    }
+  >();
+
+  for (const row of rows) {
+    const name = readMebbisString(row.classroomName);
+    const type = readMebbisString(row.classroomType);
+    const capacity = readMebbisNumber(row.capacity);
+    const normalizedName = normalizeComparable(name);
+    if (!normalizedName || !type || capacity <= 0) continue;
+
+    const current = grouped.get(normalizedName);
+    if (!current) {
+      grouped.set(normalizedName, {
+        normalizedName,
+        name,
+        capacity,
+        types: [type],
+      });
+      continue;
+    }
+
+    current.capacity = Math.max(current.capacity, capacity);
+    current.types = uniqueStrings([...current.types, type]);
+  }
+
+  return [...grouped.values()];
+}
+
+function buildTrainingBranchLookup(branches: TrainingBranchDefinitionResponse[]) {
+  return branches.map((branch) => ({
+    branch,
+    normalizedName: normalizeBranchType(branch.name),
+    normalizedCode: normalizeBranchType(branch.code),
+  }));
+}
+
+function resolveTrainingBranch(
+  mebbisType: string,
+  lookup: ReturnType<typeof buildTrainingBranchLookup>
+): TrainingBranchDefinitionResponse | null {
+  const normalizedType = normalizeBranchType(mebbisType);
+  return (
+    lookup.find(
+      (item) =>
+        item.normalizedName === normalizedType ||
+        item.normalizedCode === normalizedType ||
+        normalizedType.includes(item.normalizedName) ||
+        item.normalizedName.includes(normalizedType)
+    )?.branch ?? null
+  );
+}
+
+function readMebbisString(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function readMebbisNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value !== "string") return 0;
+  const parsed = Number.parseInt(value.replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeBranchType(value: string): string {
+  return normalizeComparable(value)
+    .replace(/BILGISI$/u, "")
+    .replace(/DERSI$/u, "")
+    .replace(/DERS$/u, "");
+}
+
+function normalizeComparable(value: string): string {
+  return value
+    .replace(/[İIı]/g, "i")
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]/g, "")
+    .toLocaleUpperCase("en-US");
+}
+
+function formatMebbisClassroomName(name: string): string {
+  return name
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .split(" ")
+    .map((part) => (part ? `${part[0].toLocaleUpperCase("tr-TR")}${part.slice(1)}` : part))
+    .join(" ");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
 }
