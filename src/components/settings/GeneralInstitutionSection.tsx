@@ -618,20 +618,9 @@ export function GeneralInstitutionSection() {
 
   return (
     <form className="settings-section-stack" onSubmit={handleSubmit}>
-      <div className="settings-tab-toolbar">
-        <PageTabs active={activeTab} onChange={setActiveTab} tabs={tabs} />
-        <div className="settings-toolbar-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={!canManageSettings || importingMebbisInventory}
-            onClick={handleMebbisInstitutionInventoryImport}
-            title={!canManageSettings ? noPermissionTitle : undefined}
-            type="button"
-          >
-            {importingMebbisInventory
-              ? t("settings.general.mebbisImportStarting")
-              : t("settings.general.mebbisImport")}
-          </button>
+      <div className="settings-tab-toolbar settings-general-toolbar">
+        <div className="settings-general-toolbar-left">
+          <PageTabs active={activeTab} onChange={setActiveTab} tabs={tabs} />
           <span className="settings-panel-note">
             {serverState
               ? t("settings.general.lastSaved", {
@@ -640,6 +629,17 @@ export function GeneralInstitutionSection() {
               : t("settings.general.notSavedYet")}
           </span>
         </div>
+        <button
+          className="btn btn-secondary btn-sm"
+          disabled={!canManageSettings || importingMebbisInventory}
+          onClick={handleMebbisInstitutionInventoryImport}
+          title={!canManageSettings ? noPermissionTitle : undefined}
+          type="button"
+        >
+          {importingMebbisInventory
+            ? t("settings.general.mebbisImportStarting")
+            : t("settings.general.mebbisImport")}
+        </button>
       </div>
 
       {activeTab === "institution" ? (

@@ -3508,6 +3508,19 @@
   padding-bottom: 10px;
   white-space: nowrap;
 }
+.settings-general-toolbar-left {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.settings-general-toolbar-left .page-tabs {
+  flex: 0 0 auto;
+}
+.settings-general-toolbar-left .settings-panel-note {
+  margin-right: auto;
+}
 .settings-surface {
   display: flex;
   flex-direction: column;

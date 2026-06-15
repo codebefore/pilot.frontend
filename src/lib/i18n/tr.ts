@@ -1447,7 +1447,7 @@ export const tr = {
   "settings.nav.permissions.description": "Roller ve ekran yetkileri",
   "settings.general.lastSaved": "Son kayıt: {at}",
   "settings.general.notSavedYet": "Henüz kayıt yapılmadı",
-  "settings.general.mebbisImport": "MEBBIS'ten Kurum Bilgilerini Çek",
+  "settings.general.mebbisImport": "Mebbis'ten getir",
   "settings.general.mebbisImportStarting": "Çekiliyor...",
   "settings.general.section.institution": "Kurum Bilgileri",
   "settings.general.section.founder": "Kurucu Bilgileri",
