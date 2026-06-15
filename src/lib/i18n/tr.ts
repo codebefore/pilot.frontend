@@ -866,6 +866,7 @@ export const tr = {
   "mebbisJobType.groupInventoryImport": "Dönem Grup Şube Çekme",
   "mebbisJobType.classroomInventoryImport": "Derslikleri Çekme",
   "mebbisJobType.vehicleInventoryImport": "Araçları Çekme",
+  "mebbisJobType.instructorInventoryImport": "Eğitmenleri Çekme",
   "theme.pilot.label": "Pilot",
   "theme.pilot.description": "Pembe ve mavi kurumsal tema",
   "theme.emerald.label": "Mavi Açık",
@@ -1607,6 +1608,15 @@ export const tr = {
   "settings.vehicles.action.edit": "Düzenle",
   "settings.vehicles.action.delete": "Sil",
   "settings.vehicles.action.deleting": "Siliniyor...",
+
+  "settings.instructors.mebbisImportButton": "Mebbis'ten getir",
+  "settings.instructors.mebbisImportRunning": "Mebbis'ten getiriliyor",
+  "settings.instructors.mebbisImportQueued": "MEBBIS eğitmen çekme işi başlatıldı",
+  "settings.instructors.mebbisImportApplied": "{created} eğitmen eklendi, {updated} eğitmen güncellendi",
+  "settings.instructors.mebbisImportCompleted": "MEBBIS eğitmen çekme işi tamamlandı",
+  "settings.instructors.mebbisImportFailed": "MEBBIS eğitmenleri getirilemedi",
+  "settings.instructors.mebbisImportNeedsManualAction": "MEBBIS eğitmenleri okunamadı. MEBBIS bağlantısını kontrol edin.",
+  "settings.instructors.mebbisImportStillRunning": "MEBBIS eğitmen çekme işi devam ediyor",
 
   // Instructors settings
   "settings.instructors.title": "Ekip Listesi",

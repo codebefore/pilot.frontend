@@ -111,6 +111,7 @@ export interface CandidateResponse {
   eSinavTheoryExamFeeStatus?: CandidateExamFeeStatus | null;
   drivingExamAttemptCount?: number | null;
   drivingExamFeeStatus?: CandidateExamFeeStatus | null;
+  hasReportedPracticeAttempt?: boolean;
   isTheoryExempt?: boolean;
   totalFee: number;
   totalPaid: number;

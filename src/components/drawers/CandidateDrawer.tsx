@@ -98,15 +98,30 @@ type CandidateDrawerProps = {
 
 const STATUS_OPTIONS: SelectOption[] = CANDIDATE_STATUS_OPTIONS;
 const MEB_SYNC_STATUS_OPTIONS: SelectOption[] = CANDIDATE_MEB_SYNC_STATUS_OPTIONS;
-const EXAM_ATTEMPT_OPTIONS: SelectOption[] = [
+const E_SINAV_ATTEMPT_OPTIONS: SelectOption[] = [
   { value: "1", label: "1/4" },
   { value: "2", label: "2/4" },
   { value: "3", label: "3/4" },
   { value: "4", label: "4/4" },
 ];
+const DRIVING_ATTEMPT_OPTIONS: SelectOption[] = [
+  { value: "1", label: "1/5" },
+  { value: "2", label: "2/5" },
+  { value: "3", label: "3/5" },
+  { value: "4", label: "4/5" },
+  { value: "5", label: "5/5" },
+];
 
 function formatLessonHours(value: number | null | undefined): string {
   return value === null || value === undefined ? "-" : `${value} saat`;
+}
+
+function drivingAttemptDisplayLimit(candidate: CandidateResponse): number {
+  return candidate.hasReportedPracticeAttempt ||
+    candidate.drivingExamAttendanceStatus === "reported" ||
+    (candidate.drivingExamAttemptCount ?? 0) > 4
+    ? 5
+    : 4;
 }
 
 type ExistingLicenseDraft = {
@@ -1080,16 +1095,16 @@ export function CandidateDrawer({
               displayValue={`${candidate.eSinavAttemptCount ?? 1}/4`}
               inputValue={String(candidate.eSinavAttemptCount ?? 1)}
               label={t("candidateDrawer.field.eExamAttempts")}
-              options={EXAM_ATTEMPT_OPTIONS}
+              options={E_SINAV_ATTEMPT_OPTIONS}
               onSave={(value) => saveField({ eSinavAttemptCount: Number(value) })}
             />
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={candidateEditDisabledTitle}
-              displayValue={`${candidate.drivingExamAttemptCount ?? 1}/4`}
+              displayValue={`${candidate.drivingExamAttemptCount ?? 1}/${drivingAttemptDisplayLimit(candidate)}`}
               inputValue={String(candidate.drivingExamAttemptCount ?? 1)}
               label={t("candidateDrawer.field.drivingAttempts")}
-              options={EXAM_ATTEMPT_OPTIONS}
+              options={drivingAttemptDisplayLimit(candidate) === 5 ? DRIVING_ATTEMPT_OPTIONS : E_SINAV_ATTEMPT_OPTIONS}
               onSave={(value) => saveField({ drivingExamAttemptCount: Number(value) })}
             />
             <DrawerRow label={t("candidateDrawer.field.examResult")}>{candidateExamResultLabel(candidate.mebExamResult)}</DrawerRow>

@@ -849,13 +849,16 @@ function CandidateHero({
   const attemptValue = showDrivingExamAttempts
     ? candidate.drivingExamAttemptCount
     : candidate.eSinavAttemptCount;
+  const maxAttemptValue = showDrivingExamAttempts
+    ? candidateExamAttemptSummaryLimit(candidate)
+    : 4;
   const attemptPill = examStatusPill === "success"
     ? "success"
-    : examAttemptPillStatus(attemptValue);
+    : examAttemptPillStatus(attemptValue, maxAttemptValue);
   const attemptSummary = showDrivingExamAttempts
     ? {
         label: "Direksiyon",
-        value: `${candidate.drivingExamAttemptCount ?? 1}/4`,
+        value: `${candidate.drivingExamAttemptCount ?? 1}/${maxAttemptValue}`,
       }
     : {
         label: "E-Sınav Hakkı",
@@ -970,11 +973,19 @@ function examStatusPillStatus(label: string): JobStatus {
   return "queued";
 }
 
-function examAttemptPillStatus(value: number | null | undefined): JobStatus {
-  const attempt = Math.min(Math.max(value ?? 1, 1), 4);
-  if (attempt >= 4) return "failed";
+function examAttemptPillStatus(value: number | null | undefined, maxAttempt = 4): JobStatus {
+  const attempt = Math.min(Math.max(value ?? 1, 1), maxAttempt);
+  if (attempt >= maxAttempt) return "failed";
   if (attempt >= 2) return "manual";
   return "success";
+}
+
+function candidateExamAttemptSummaryLimit(candidate: CandidateResponse): number {
+  return candidate.hasReportedPracticeAttempt ||
+    candidate.drivingExamAttendanceStatus === "reported" ||
+    (candidate.drivingExamAttemptCount ?? 0) > 4
+    ? 5
+    : 4;
 }
 
 type AccountingStatus = {

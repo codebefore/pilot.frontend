@@ -742,11 +742,12 @@ function CandidateUnifiedExamAttemptPill({ candidate }: { candidate: CandidateRe
   const value = stage === "practice"
     ? candidate.drivingExamAttemptCount
     : candidate.eSinavAttemptCount;
-  const attempt = Math.min(Math.max(value ?? 1, 1), 4);
-  const status = attempt >= 4 ? "failed" : attempt >= 2 ? "manual" : "success";
+  const maxAttempt = candidateExamAttemptDisplayLimit(candidate, stage);
+  const attempt = Math.min(Math.max(value ?? 1, 1), maxAttempt);
+  const status = attempt >= maxAttempt ? "failed" : attempt >= 2 ? "manual" : "success";
   return (
     <StatusPill
-      label={`${examStageLabel(stage, t)} ${attempt}/4`}
+      label={`${examStageLabel(stage, t)} ${attempt}/${maxAttempt}`}
       status={status}
     />
   );
@@ -775,10 +776,28 @@ function CandidateUnifiedExamStatusPill({ candidate }: { candidate: CandidateRes
   );
 }
 
-function ExamAttemptPill({ value }: { value: number | null | undefined }) {
-  const attempt = Math.min(Math.max(value ?? 1, 1), 4);
-  const status = attempt >= 4 ? "failed" : attempt >= 2 ? "manual" : "success";
-  return <StatusPill label={`${attempt}/4`} status={status} />;
+function ExamAttemptPill({
+  value,
+  maxAttempt = 4,
+}: {
+  value: number | null | undefined;
+  maxAttempt?: number;
+}) {
+  const attempt = Math.min(Math.max(value ?? 1, 1), maxAttempt);
+  const status = attempt >= maxAttempt ? "failed" : attempt >= 2 ? "manual" : "success";
+  return <StatusPill label={`${attempt}/${maxAttempt}`} status={status} />;
+}
+
+function candidateExamAttemptDisplayLimit(
+  candidate: CandidateResponse,
+  stage: CandidateExamStage
+): number {
+  if (stage !== "practice") return 4;
+  return candidate.hasReportedPracticeAttempt ||
+    candidate.drivingExamAttendanceStatus === "reported" ||
+    (candidate.drivingExamAttemptCount ?? 0) > 4
+    ? 5
+    : 4;
 }
 
 function EditableESinavScoreCell({
@@ -1082,7 +1101,12 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "drivingExamAttemptCount",
     pageScope: "uygulama",
     labelKey: "candidates.col.drivingExamAttemptCount",
-    renderCell: (c) => <ExamAttemptPill value={c.drivingExamAttemptCount} />,
+    renderCell: (c) => (
+      <ExamAttemptPill
+        value={c.drivingExamAttemptCount}
+        maxAttempt={candidateExamAttemptDisplayLimit(c, "practice")}
+      />
+    ),
     skeletonWidth: 64,
   },
   {
@@ -1910,6 +1934,8 @@ export function CandidatesPage({
                         drivingExamInstructorFullName: updated.instructorFullName,
                         drivingExamAttendanceStatus: updated.examAttendanceStatus,
                         drivingExamResultStatus: updated.examResultStatus,
+                        hasReportedPracticeAttempt:
+                          item.hasReportedPracticeAttempt || updated.examAttendanceStatus === "reported",
                         drivingExamFee: updated.fee,
                         drivingExamFeeStatus: updated.feeStatus,
                         drivingExamAttemptRowVersion: updated.rowVersion,
@@ -2791,7 +2817,7 @@ export function CandidatesPage({
       formatDateTR(candidate.mebExamDate),
       `${candidate.eSinavAttemptCount ?? 1}/4`,
       formatDateTR(candidate.drivingExamDate),
-      `${candidate.drivingExamAttemptCount ?? 1}/4`,
+      `${candidate.drivingExamAttemptCount ?? 1}/${candidateExamAttemptDisplayLimit(candidate, "practice")}`,
       candidate.documentSummary?.completedCount ?? 0,
       candidate.documentSummary?.missingCount ?? 0,
       candidateMebSyncStatusLabel(candidate.mebSyncStatus),

@@ -1251,6 +1251,7 @@ describe("CandidatesPage tabs", () => {
           eSinavAttemptCount: 1,
           drivingExamDate: null,
           drivingExamAttemptCount: 3,
+          hasReportedPracticeAttempt: true,
           totalFee: 0,
           totalPaid: 0,
           totalDebt: 0,
@@ -1272,7 +1273,7 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByText("E-sınav randevulu")).toBeInTheDocument();
     expect(screen.getByText("Direksiyon 1/4")).toBeInTheDocument();
     expect(screen.getByText("Direksiyon havuz")).toBeInTheDocument();
-    expect(screen.getByText("Direksiyon 3/4")).toBeInTheDocument();
+    expect(screen.getByText("Direksiyon 3/5")).toBeInTheDocument();
     expect(screen.getByText("Direksiyon başarılı")).toBeInTheDocument();
   });
 
