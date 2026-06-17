@@ -32,24 +32,237 @@ type PermissionsPageProps = {
   embedded?: boolean;
 };
 
-const AREA_LABEL_KEY: Record<string, TranslationKey> = {
-  candidates: "nav.candidates",
-  groups: "nav.groups",
-  documents: "nav.documents",
-  documentTypes: "nav.documentTypes",
-  payments: "nav.payments",
-  training: "nav.training",
-  mebjobs: "nav.mebJobs",
-  users: "nav.users",
-  permissions: "nav.permissions",
-  settings: "nav.settings",
+type PermissionDisplayRow = {
+  id: string;
+  area: string;
+  labelKey: TranslationKey;
+  parentKey?: TranslationKey;
 };
+
+const PERMISSION_DISPLAY_ROWS: PermissionDisplayRow[] = [
+  {
+    id: "dashboard",
+    area: "dashboard",
+    labelKey: "nav.dashboard",
+  },
+  {
+    id: "notifications",
+    area: "dashboard",
+    labelKey: "notifPage.title",
+    parentKey: "nav.dashboard",
+  },
+  {
+    id: "candidates",
+    area: "candidates",
+    labelKey: "nav.candidates",
+  },
+  {
+    id: "candidateDetail",
+    area: "candidates",
+    labelKey: "permissions.page.candidateDetail",
+    parentKey: "nav.candidates",
+  },
+  {
+    id: "groups",
+    area: "groups",
+    labelKey: "nav.groups",
+  },
+  {
+    id: "trainingTeorik",
+    area: "training",
+    labelKey: "nav.trainingTeorik",
+    parentKey: "nav.training",
+  },
+  {
+    id: "trainingUygulama",
+    area: "training",
+    labelKey: "nav.trainingUygulama",
+    parentKey: "nav.training",
+  },
+  {
+    id: "examESinav",
+    area: "groups",
+    labelKey: "nav.examESinav",
+    parentKey: "nav.exams",
+  },
+  {
+    id: "examUygulama",
+    area: "groups",
+    labelKey: "nav.examUygulama",
+    parentKey: "nav.exams",
+  },
+  {
+    id: "documents",
+    area: "documents",
+    labelKey: "nav.documents",
+  },
+  {
+    id: "paymentsCollections",
+    area: "payments",
+    labelKey: "nav.paymentsCollections",
+    parentKey: "nav.payments",
+  },
+  {
+    id: "paymentsBalances",
+    area: "payments",
+    labelKey: "nav.paymentsBalances",
+    parentKey: "nav.payments",
+  },
+  {
+    id: "paymentsCash",
+    area: "payments",
+    labelKey: "nav.paymentsCash",
+    parentKey: "nav.payments",
+  },
+  {
+    id: "paymentsInvoices",
+    area: "payments",
+    labelKey: "nav.paymentsInvoices",
+    parentKey: "nav.payments",
+  },
+  {
+    id: "paymentsStatistics",
+    area: "payments",
+    labelKey: "nav.paymentsStatistics",
+    parentKey: "nav.payments",
+  },
+  {
+    id: "mebjobs",
+    area: "mebjobs",
+    labelKey: "nav.mebJobs",
+  },
+  {
+    id: "settingsGeneral",
+    area: "settings",
+    labelKey: "settings.nav.general.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsUsers",
+    area: "users",
+    labelKey: "settings.nav.users.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsPermissions",
+    area: "permissions",
+    labelKey: "settings.nav.permissions.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsRoleNew",
+    area: "permissions",
+    labelKey: "roleEditor.modalTitleNew",
+    parentKey: "settings.nav.permissions.label",
+  },
+  {
+    id: "settingsRoleEdit",
+    area: "permissions",
+    labelKey: "roleEditor.modalTitleEdit",
+    parentKey: "settings.nav.permissions.label",
+  },
+  {
+    id: "settingsInstructors",
+    area: "training",
+    labelKey: "settings.nav.instructors.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsInstructorDetail",
+    area: "training",
+    labelKey: "permissions.page.instructorDetail",
+    parentKey: "settings.nav.instructors.label",
+  },
+  {
+    id: "settingsVehicles",
+    area: "training",
+    labelKey: "settings.nav.vehicles.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsVehicleDetail",
+    area: "training",
+    labelKey: "permissions.page.vehicleDetail",
+    parentKey: "settings.nav.vehicles.label",
+  },
+  {
+    id: "settingsReferences",
+    area: "candidates",
+    labelKey: "settings.nav.references.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsLicenseClasses",
+    area: "settings",
+    labelKey: "settings.nav.licenseClasses.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsLicenseClassDetail",
+    area: "settings",
+    labelKey: "permissions.page.licenseClassDetail",
+    parentKey: "settings.nav.licenseClasses.label",
+  },
+  {
+    id: "settingsFees",
+    area: "payments",
+    labelKey: "settings.nav.fees.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsTrainingBranches",
+    area: "training",
+    labelKey: "settings.nav.trainingBranches.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsClassrooms",
+    area: "training",
+    labelKey: "settings.nav.classrooms.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsDocumentTypes",
+    area: "documentTypes",
+    labelKey: "settings.nav.documentTypes.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsCashRegisters",
+    area: "payments",
+    labelKey: "settings.nav.cashRegisters.label",
+    parentKey: "nav.settings",
+  },
+  {
+    id: "settingsIntegrations",
+    area: "settings",
+    labelKey: "settings.nav.integrations.label",
+    parentKey: "nav.settings",
+  },
+];
 
 const LEVEL_LABEL_KEY: Record<MatrixValue, TranslationKey> = {
   none: "permissions.level.none",
   view: "permissions.level.view",
   full: "permissions.level.full",
 };
+
+function buildPermissionRows(areaList: string[]): PermissionDisplayRow[] {
+  const supportedAreas = new Set(areaList);
+  const rows = PERMISSION_DISPLAY_ROWS.filter((row) => supportedAreas.has(row.area));
+  const coveredAreas = new Set(rows.map((row) => row.area));
+  const fallbackRows: PermissionDisplayRow[] = areaList
+    .filter((area) => !coveredAreas.has(area))
+    .sort((a, b) => a.localeCompare(b, "tr"))
+    .map((area) => ({
+      id: area,
+      area,
+      labelKey: area as TranslationKey,
+      parentKey: area as TranslationKey,
+    }));
+
+  return [...rows, ...fallbackRows];
+}
 
 export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
   const t = useT();
@@ -293,6 +506,10 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
 
   const hasRoles = roles.length > 0;
   const activeRoleCount = roles.filter((role) => role.isActive).length;
+  const displayRows = useMemo(
+    () => buildPermissionRows(areas?.areas ?? []),
+    [areas?.areas]
+  );
 
   const actions = (
     <button
@@ -478,14 +695,21 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                 </div>
               ) : (
                 <div className="permissions-row-list">
-                  {areas.areas.map((area) => {
-                    const labelKey = AREA_LABEL_KEY[area];
-                    const label = labelKey ? t(labelKey) : area;
-                    const value = matrix[area] ?? "none";
+                  {displayRows.map((row) => {
+                    const label = PERMISSION_DISPLAY_ROWS.includes(row)
+                      ? t(row.labelKey)
+                      : row.area;
+                    const parentLabel = PERMISSION_DISPLAY_ROWS.includes(row) && row.parentKey
+                      ? t(row.parentKey)
+                      : null;
+                    const value = matrix[row.area] ?? "none";
 
                     return (
-                      <div className="permissions-row" key={area}>
+                      <div className="permissions-row" key={row.id}>
                         <div className="permissions-row-copy">
+                          {parentLabel ? (
+                            <div className="permissions-row-parent">{parentLabel}</div>
+                          ) : null}
                           <div className="permissions-row-title">{label}</div>
                           <div className="permissions-row-value">
                             {t(LEVEL_LABEL_KEY[value])}
@@ -503,7 +727,7 @@ export function PermissionsPage({ embedded = false }: PermissionsPageProps) {
                               }
                               key={optionValue}
                               disabled={!canManagePermissions}
-                              onClick={() => handleLevelChange(area, optionValue)}
+                              onClick={() => handleLevelChange(row.area, optionValue)}
                               title={!canManagePermissions ? noPermissionTitle : undefined}
                               type="button"
                             >

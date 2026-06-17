@@ -1497,22 +1497,47 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
+  const loadAllGroupsForMebbisImport = async (): Promise<GroupResponse[]> => {
+    const firstPage = groupsQuery.data ?? (await getGroups({ page: 1, pageSize: 100 }));
+    const pageSize = firstPage.pageSize || 100;
+    const totalCount = firstPage.totalCount ?? firstPage.items.length;
+    const allGroups = [...firstPage.items];
+    let page = firstPage.page || 1;
+
+    while (allGroups.length < totalCount) {
+      const nextPage = page + 1;
+      const response = await getGroups({ page: nextPage, pageSize });
+      if (response.items.length === 0) break;
+      allGroups.push(...response.items);
+      page = response.page || nextPage;
+    }
+
+    return [...new Map(allGroups.map((group) => [group.id, group])).values()];
+  };
+
   const handleCreateTheoryScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
-    if (!selectedTheoryGroup) {
-      showToast(t("training.toast.selectGroupForMebbisImport"));
-      return;
-    }
 
     setIsMebbisImportLoading(true);
     try {
-      const job = await createTheoryScheduleImportJob(selectedTheoryGroup.id);
-      notifyMebbisJobQueued(job.id, job.jobType);
+      const groupsToImport = await loadAllGroupsForMebbisImport();
+      if (groupsToImport.length === 0) {
+        showToast(t("training.toast.noGroupsForMebbisImport"));
+        return;
+      }
+
+      const jobs = [];
+      for (const group of groupsToImport) {
+        const job = await createTheoryScheduleImportJob(group.id);
+        jobs.push({ job, groupId: group.id });
+        notifyMebbisJobQueued(job.id, job.jobType);
+      }
+
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      showToast(t("training.toast.mebbisImportQueued"));
-      scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id, job.jobType);
+      showToast(t("training.toast.mebbisImportQueuedForGroups", { count: jobs.length }));
+      jobs.forEach(({ job, groupId }) => scheduleMebbisJobPoll(job.id, groupId, job.jobType));
     } catch (error) {
       console.error(error);
       const message =
@@ -1612,7 +1637,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   className="btn btn-primary btn-sm"
                   disabled={
                     !canManageMebJobs ||
-                    !selectedTheoryGroup ||
                     isQuickAssignLoading ||
                     isBulkDeleteLoading ||
                     isMebbisTransferLoading ||
@@ -1633,7 +1657,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   className="btn btn-secondary btn-sm"
                   disabled={
                     !canManageMebJobs ||
-                    !selectedTheoryGroup ||
                     isQuickAssignLoading ||
                     isBulkDeleteLoading ||
                     isMebbisTransferLoading ||
@@ -1721,14 +1744,36 @@ export function TrainingPage({ type }: TrainingPageProps) {
           <div className="training-layout">
             <aside className="training-filters-sidebar">
               {type === "teorik" ? (
-                <QuickLessonAssignment
-                  groupId={quickSettings.groupId}
-                  groups={groups}
-                  isLoading={isQuickAssignLoading || isBulkDeleteLoading}
-                  onSettingsChange={(settings) =>
-                    setQuickSettings((prev) => ({ ...prev, ...settings }))
-                  }
-                />
+                <>
+                  <QuickLessonAssignment
+                    groupId={quickSettings.groupId}
+                    groups={groups}
+                    isLoading={isQuickAssignLoading || isBulkDeleteLoading}
+                    onSettingsChange={(settings) =>
+                      setQuickSettings((prev) => ({ ...prev, ...settings }))
+                    }
+                  />
+                  <div className="training-mebbis-actions">
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={
+                        !canManageMebJobs ||
+                        isQuickAssignLoading ||
+                        isBulkDeleteLoading ||
+                        isMebbisTransferLoading ||
+                        isMebbisImportLoading
+                      }
+                      onClick={handleCreateTheoryScheduleImportJob}
+                      title={!canManageMebJobs ? noPermissionTitle : undefined}
+                      type="button"
+                    >
+                      <MebIcon size={14} />
+                      {isMebbisImportLoading
+                        ? t("training.mebbis.importQueuing")
+                        : t("training.mebbis.import")}
+                    </button>
+                  </div>
+                </>
               ) : (
                 <QuickPracticeAssignment
                   candidateId={quickSettings.candidateId}

@@ -31,6 +31,7 @@ import {
 } from "../lib/institutions-api";
 
 const SEARCH_DEBOUNCE_MS = 250;
+const CANDIDATE_NATIONAL_IDS_STORAGE_KEY = "pilot.mebbis.candidateNationalIds";
 
 type InstitutionFormValues = {
   name: string;
@@ -74,6 +75,7 @@ export function InstitutionsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [membersInstitution, setMembersInstitution] = useState<InstitutionResponse | null>(null);
   const [deletingInstitutionId, setDeletingInstitutionId] = useState<string | null>(null);
+  const [candidateNationalIdsJson, setCandidateNationalIdsJson] = useState("");
 
   const institutionsQuery = useQuery({
     queryKey: ["institutions", "list", { includeInactive }],
@@ -197,6 +199,18 @@ export function InstitutionsPage() {
     );
     if (!confirmed) return;
     deleteMutation.mutate(institution.id);
+  };
+
+  const handleManualCandidateNationalIdsSave = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = parseCandidateNationalIdsJson(candidateNationalIdsJson);
+    if (!result.ok) {
+      showToast(result.message, "error");
+      return;
+    }
+
+    localStorage.setItem(CANDIDATE_NATIONAL_IDS_STORAGE_KEY, JSON.stringify(result.storageValue));
+    showToast(`${result.nationalIds.length} TC localStorage'a kaydedildi`);
   };
 
   if (!user?.isSuperAdmin) {
@@ -343,6 +357,32 @@ export function InstitutionsPage() {
           </tbody>
         </table>
       </div>
+
+      <section className="settings-surface spaced">
+        <div className="settings-surface-header">
+          <h2 className="settings-surface-title">MEBBİS aday TC listesi</h2>
+        </div>
+        <form className="settings-form" onSubmit={handleManualCandidateNationalIdsSave}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="candidate-national-ids-json">
+              Aday JSON listesi
+            </label>
+            <textarea
+              className="form-input"
+              id="candidate-national-ids-json"
+              onChange={(event) => setCandidateNationalIdsJson(event.target.value)}
+              placeholder='{"items":[{"nationalId":"10122067560"}]}'
+              rows={8}
+              value={candidateNationalIdsJson}
+            />
+          </div>
+          <div className="settings-form-actions">
+            <button className="btn btn-primary" type="submit">
+              TC Listesini Kaydet
+            </button>
+          </div>
+        </form>
+      </section>
 
       <InstitutionFormModal
         editing={editing}
@@ -1092,6 +1132,59 @@ function mapMemberApiErrors(validationErrors?: Record<string, string[]>) {
     phone: validationErrors.Phone?.[0] ?? validationErrors.phone?.[0],
     roleId: validationErrors.RoleId?.[0] ?? validationErrors.roleId?.[0],
   };
+}
+
+type CandidateNationalIdsParseResult =
+  | { ok: true; nationalIds: string[]; storageValue: Record<string, string[]> }
+  | { ok: false; message: string };
+
+const CANDIDATE_NATIONAL_ID_BUCKETS = [
+  "esinav_havuz",
+  "dosya_yakan",
+  "mezun",
+  "direksiyon_havuz",
+  "park",
+] as const;
+
+function parseCandidateNationalIdsJson(value: string): CandidateNationalIdsParseResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return { ok: false, message: "Geçerli JSON girin." };
+  }
+
+  const nationalIds: string[] = [];
+  const seen = new Set<string>();
+  const addNationalId = (candidate: unknown, target?: string[]) => {
+    const nationalId = String(candidate ?? "").replace(/\D/g, "");
+    if (!/^[1-9]\d{10}$/.test(nationalId) || seen.has(nationalId)) return;
+    seen.add(nationalId);
+    nationalIds.push(nationalId);
+    target?.push(nationalId);
+  };
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, message: "JSON beş kategori alanını içeren object formatında olmalı." };
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const bucketStorage: Record<string, string[]> = {};
+  for (const bucket of CANDIDATE_NATIONAL_ID_BUCKETS) {
+    const values = record[bucket];
+    if (!Array.isArray(values)) {
+      return { ok: false, message: `${bucket} alanı liste olmalı.` };
+    }
+
+    const bucketNationalIds: string[] = [];
+    values.forEach((item) => addNationalId(item, bucketNationalIds));
+    bucketStorage[bucket] = bucketNationalIds;
+  }
+
+  if (nationalIds.length === 0) {
+    return { ok: false, message: "JSON içinde geçerli TC bulunamadı." };
+  }
+  return { ok: true, nationalIds, storageValue: bucketStorage };
 }
 
 function sortByName(a: InstitutionResponse, b: InstitutionResponse) {

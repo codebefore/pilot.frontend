@@ -83,6 +83,26 @@ describe("Sidebar", () => {
     expect(document.querySelector(".sidebar-badge")).not.toBeInTheDocument();
   });
 
+  it("renders tenant navigation in workflow order", () => {
+    renderSidebar();
+
+    const labels = Array.from(document.querySelectorAll(".sidebar-link")).map((item) =>
+      item.textContent?.trim()
+    );
+
+    expect(labels).toEqual([
+      "Kokpit",
+      "Adaylar",
+      "Dönemler",
+      "Eğitim Planı",
+      "Sınavlar",
+      "Evrak Kontrol",
+      "Finans",
+      "Meb Sync",
+      "Kurum Ayarları",
+    ]);
+  });
+
   it("uses session institutions for tenant switching", async () => {
     const onInstitutionChange = vi.fn().mockResolvedValue(undefined);
 

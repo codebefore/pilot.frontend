@@ -33,6 +33,15 @@
   flex: 0 0 auto;
 }
 
+.training-mebbis-actions {
+  padding: 0;
+}
+
+.training-mebbis-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .training-layout {
   display: flex;
   gap: 12px;

@@ -68,7 +68,7 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
 const MEBBIS_INSTRUCTOR_POLL_INTERVAL_MS = 2000;
-const MEBBIS_INSTRUCTOR_POLL_TIMEOUT_MS = 60_000;
+const MEBBIS_INSTRUCTOR_POLL_TIMEOUT_MS = 10 * 60_000;
 type SortState = { field: InstructorSortField; direction: InstructorSortDirection } | null;
 type InstructorFilterValue<T extends string> = T | "all";
 type InstructorFilters = {
@@ -372,7 +372,7 @@ export function InstructorsSettingsSection() {
       .then((response) => {
         setItems(response.items);
         setTotalCount(response.totalCount);
-        setTotalPages(response.totalPages);
+        setTotalPages(response.totalPages ?? 1);
         setSummary(response.summary);
       })
       .catch((error) => {
@@ -540,9 +540,8 @@ export function InstructorsSettingsSection() {
     for (const imported of importedRows) {
       const nationalId = normalizeDigits(readMebbisString(imported.nationalId));
       const fullNameKey = normalizeComparable(readMebbisFullName(imported));
-      const existing =
-        (nationalId ? existingByNationalId.get(nationalId) : undefined) ??
-        existingByName.get(fullNameKey);
+      const existingByTc = nationalId ? existingByNationalId.get(nationalId) : undefined;
+      const existing = existingByTc ?? existingByName.get(fullNameKey);
       const request = buildInstructorUpsertRequest(imported, existing);
       if (!request) continue;
 
@@ -552,6 +551,8 @@ export function InstructorsSettingsSection() {
         createdCount += 1;
         if (saved.nationalId) existingByNationalId.set(normalizeDigits(saved.nationalId), saved);
         existingByName.set(normalizeComparable(`${saved.firstName} ${saved.lastName}`), saved);
+      } else if (existingByTc) {
+        await upsertMebbisInstructorAssignment(existing, imported);
       } else {
         const updateRequest: InstructorUpsertRequest = {
           firstName: request.firstName,
@@ -992,15 +993,9 @@ async function upsertMebbisInstructorAssignment(
 
   const assignments = await listAssignments(instructor.id);
   const permitNo = readMebbisString(row.mebbisPermitNo);
-  const matchingAssignment =
-    (permitNo
-      ? assignments.find((assignment) => assignment.mebPermitNo === permitNo)
-      : undefined) ??
-    assignments.find(
-      (assignment) =>
-        assignment.contractStartDate === request.contractStartDate &&
-        assignment.role === request.role
-    );
+  const matchingAssignment = permitNo
+    ? assignments.find((assignment) => assignment.mebPermitNo === permitNo)
+    : undefined;
 
   if (!matchingAssignment) {
     await createAssignment(instructor.id, request);

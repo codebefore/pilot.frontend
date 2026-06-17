@@ -65,7 +65,7 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
       .then((response) => {
         setItems(response.items);
         setTotalCount(response.totalCount);
-        setTotalPages(response.totalPages);
+        setTotalPages(response.totalPages ?? 1);
       })
       .catch((error) => {
         if (controller.signal.aborted) return;

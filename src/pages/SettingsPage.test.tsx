@@ -88,7 +88,7 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("link", { name: /Evrak Türleri/i }));
     expect(screen.getByText("Document Types Section Mock")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("link", { name: /Ekip/i }));
+    fireEvent.click(screen.getByRole("link", { name: /Personel/i }));
     expect(screen.getByText("Instructors Section Mock")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: /Kullanıcılar/i }));
@@ -130,7 +130,7 @@ describe("SettingsPage", () => {
     });
 
     expect(await screen.findByText("Instructors Section Mock")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Ekip/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Personel/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Araçlar/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Branşlar/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Derslikler/i })).toBeInTheDocument();

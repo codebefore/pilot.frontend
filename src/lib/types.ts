@@ -5,7 +5,7 @@ export interface PagedResponse<T> {
   page: number;
   pageSize: number;
   totalCount: number;
-  totalPages: number;
+  totalPages?: number;
 }
 
 export type LicenseClass = string;

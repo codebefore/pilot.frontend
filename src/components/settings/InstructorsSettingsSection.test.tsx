@@ -327,12 +327,12 @@ describe("InstructorsSettingsSection", () => {
     });
     await screen.findByText("HASAN KORKMAZ");
 
-    expect(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Yeni Personel/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Düzenle" })).toBeDisabled();
     const deleteButton = screen.getByRole("button", { name: "Sil" });
     expect(deleteButton).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Personel/i }));
     fireEvent.click(screen.getByRole("button", { name: "Düzenle" }));
     fireEvent.click(deleteButton);
 
@@ -347,7 +347,7 @@ describe("InstructorsSettingsSection", () => {
     renderSection();
     await waitFor(() => expect(getInstructorsMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole("button", { name: /Yeni Ekip Üyesi/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Personel/i }));
 
     fireEvent.change(screen.getByPlaceholderText("HASAN"), {
       target: { value: "ayse" },

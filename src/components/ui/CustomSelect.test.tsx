@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CustomSelect } from "./CustomSelect";
 
@@ -93,5 +93,20 @@ describe("CustomSelect", () => {
       expect(menu).toHaveStyle({ left: "252px", top: "16px" });
     });
     expect(menu).toHaveStyle({ maxHeight: "128px", position: "fixed", width: "60px" });
+  });
+
+  it("notifies callers when the portal menu scrolls", async () => {
+    const onMenuScroll = vi.fn();
+    render(
+      <CustomSelect aria-label="Dönem" onMenuScroll={onMenuScroll} value="">
+        <option value="">—</option>
+        <option value="term-1">2026 Nisan</option>
+      </CustomSelect>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "—" }));
+    fireEvent.scroll(await screen.findByRole("listbox"));
+
+    expect(onMenuScroll).toHaveBeenCalledTimes(1);
   });
 });

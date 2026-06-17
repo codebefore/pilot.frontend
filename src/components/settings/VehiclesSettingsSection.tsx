@@ -309,7 +309,7 @@ export function VehiclesSettingsSection() {
         if (controller.signal.aborted) return;
         setItems(itemsWithDocumentSummaries);
         setTotalCount(response.totalCount);
-        setTotalPages(response.totalPages);
+        setTotalPages(response.totalPages ?? 1);
         setSummary(response.summary);
       })
       .catch((error) => {

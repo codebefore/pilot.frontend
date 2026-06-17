@@ -106,6 +106,79 @@ describe("PermissionsPage", () => {
     expect(screen.queryByRole("button", { name: "Pasif Rol rolü" })).not.toBeInTheDocument();
   });
 
+  it("shows dashboard as Kokpit and renders subpages with their parent page", async () => {
+    getPermissionAreasMock.mockResolvedValue({
+      areas: ["payments", "dashboard", "documents", "groups", "candidates", "users"],
+      levels: ["view", "full"],
+    });
+    getRolePermissionsMock.mockResolvedValue([
+      { area: "dashboard", level: "view" },
+      { area: "payments", level: "full" },
+    ]);
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/settings/definitions/permissions"]}>
+        <PermissionsPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(document.querySelectorAll(".permissions-row-title").length).toBeGreaterThan(0);
+    });
+
+    const labels = Array.from(document.querySelectorAll(".permissions-row-title")).map(
+      (item) => item.textContent
+    );
+
+    expect(labels).toEqual([
+      "Kokpit",
+      "Bildirimler",
+      "Adaylar",
+      "Aday Detayı",
+      "Dönemler",
+      "E-Sınav",
+      "Direksiyon",
+      "Evrak Kontrol",
+      "Tahsilatlar",
+      "Bakiyeler",
+      "Kasalar",
+      "Faturalar",
+      "İstatistikler",
+      "Kullanıcılar",
+      "Referanslar",
+      "Varsayılan Ücretler",
+      "Kasalar",
+    ]);
+
+    const eSinavRow = Array.from(document.querySelectorAll(".permissions-row"))
+      .find((row) => row.querySelector(".permissions-row-title")?.textContent === "E-Sınav");
+    expect(eSinavRow?.querySelector(".permissions-row-parent")).toHaveTextContent("Sınavlar");
+
+    const dashboardRow = Array.from(document.querySelectorAll(".permissions-row"))
+      .find((row) => row.querySelector(".permissions-row-title")?.textContent === "Kokpit");
+    expect(dashboardRow?.querySelector(".permissions-row-parent")).toBeNull();
+
+    const candidatesRow = Array.from(document.querySelectorAll(".permissions-row"))
+      .find((row) => row.querySelector(".permissions-row-title")?.textContent === "Adaylar");
+    expect(candidatesRow?.querySelector(".permissions-row-parent")).toBeNull();
+
+    const candidateDetailRow = Array.from(document.querySelectorAll(".permissions-row"))
+      .find((row) => row.querySelector(".permissions-row-title")?.textContent === "Aday Detayı");
+    expect(candidateDetailRow?.querySelector(".permissions-row-parent")).toHaveTextContent("Adaylar");
+
+    const notificationsRow = Array.from(document.querySelectorAll(".permissions-row"))
+      .find((row) => row.querySelector(".permissions-row-title")?.textContent === "Bildirimler");
+    expect(notificationsRow?.querySelector(".permissions-row-parent")).toHaveTextContent("Kokpit");
+
+    const collectionsRow = Array.from(document.querySelectorAll(".permissions-row"))
+      .find((row) => row.querySelector(".permissions-row-title")?.textContent === "Tahsilatlar");
+    expect(collectionsRow?.querySelector(".permissions-row-parent")).toHaveTextContent("Finans");
+
+    const usersRow = Array.from(document.querySelectorAll(".permissions-row"))
+      .find((row) => row.querySelector(".permissions-row-title")?.textContent === "Kullanıcılar");
+    expect(usersRow?.querySelector(".permissions-row-parent")).toHaveTextContent("Kurum Ayarları");
+  });
+
   it("deletes the selected role with inline confirmation", async () => {
     renderWithProviders(
       <MemoryRouter initialEntries={["/settings/definitions/permissions"]}>

@@ -166,7 +166,7 @@ export function CashRegistersSettingsSection() {
     if (!listQuery.data) return;
     setItems(listQuery.data.items);
     setTotalCount(listQuery.data.totalCount);
-    setTotalPages(listQuery.data.totalPages);
+    setTotalPages(listQuery.data.totalPages ?? 1);
     setSummary(listQuery.data.summary);
   }, [listQuery.data]);
 

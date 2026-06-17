@@ -8,7 +8,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
-import { DownloadIcon, PlusIcon } from "../components/icons";
+import { DownloadIcon, MebIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
@@ -70,6 +70,9 @@ import {
 } from "../lib/exam-schedules-api";
 import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-api";
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
+import {
+  createCandidateSyncByNationalIdJob,
+} from "../lib/mebbis-jobs-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
   DRIVING_EXAM_TIME_SLOT_LABELS,
@@ -135,9 +138,46 @@ const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
+const MEBBIS_CANDIDATE_NATIONAL_IDS_STORAGE_KEY = "pilot.mebbis.candidateNationalIds";
+const MEBBIS_CANDIDATE_BUCKET_STATUS: Record<string, CandidateStatusValue> = {
+  esinav_havuz: "active",
+  dosya_yakan: "dropped",
+  mezun: "graduated",
+  direksiyon_havuz: "active",
+  park: "parked",
+};
 
 type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
+type MebbisCandidateNationalIdTarget = { nationalId: string; candidateStatusHint: CandidateStatusValue };
+
+function readMebbisCandidateNationalIds(): MebbisCandidateNationalIdTarget[] {
+  try {
+    const raw = localStorage.getItem(MEBBIS_CANDIDATE_NATIONAL_IDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    const targets: MebbisCandidateNationalIdTarget[] = [];
+    const seen = new Set<string>();
+    const add = (value: unknown, candidateStatusHint: CandidateStatusValue) => {
+      const nationalId = String(value ?? "").replace(/\D/g, "");
+      if (!/^[1-9]\d{10}$/.test(nationalId) || seen.has(nationalId)) return;
+      seen.add(nationalId);
+      targets.push({ nationalId, candidateStatusHint });
+    };
+
+    if (!parsed || typeof parsed !== "object") return [];
+    const record = parsed as Record<string, unknown>;
+    for (const [bucket, candidateStatusHint] of Object.entries(MEBBIS_CANDIDATE_BUCKET_STATUS)) {
+      const values = record[bucket];
+      if (!Array.isArray(values)) continue;
+      values.forEach((value) => add(value, candidateStatusHint));
+    }
+
+    return targets;
+  } catch {
+    return [];
+  }
+}
 
 function candidateListTabLabel(value: CandidateTab, t: ReturnType<typeof useT>): string {
   return value === "all" ? t("common.all") : candidateStatusLabel(value);
@@ -1637,6 +1677,7 @@ export function CandidatesPage({
   const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [mebbisSyncQueuing, setMebbisSyncQueuing] = useState(false);
   const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
   const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
   const [examChargeSaving, setExamChargeSaving] = useState(false);
@@ -2932,6 +2973,32 @@ export function CandidatesPage({
     setBulkActionMode("export");
   };
 
+  const queueSelectedCandidateMebbisSync = async () => {
+    if (!canManageCandidates) return;
+
+    const targets = readMebbisCandidateNationalIds();
+    if (targets.length === 0) {
+      showToast(t("candidates.toast.mebbisSyncNationalIdMissing"), "error");
+      return;
+    }
+
+    setMebbisSyncQueuing(true);
+    try {
+      for (const target of targets) {
+        await createCandidateSyncByNationalIdJob(target.nationalId, target.candidateStatusHint);
+      }
+
+      showToast(t("candidates.toast.mebbisSyncQueued", { count: targets.length }));
+      refreshAll();
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
+    } catch {
+      showToast(t("candidates.toast.mebbisSyncQueueFailed"), "error");
+    } finally {
+      setMebbisSyncQueuing(false);
+    }
+  };
+
   const openBulkGroupAction = async () => {
     if (!canManageGroups) return;
     if (selectedCandidateIds.size === 0) {
@@ -3683,6 +3750,16 @@ export function CandidatesPage({
                             {t("candidates.bulk.changeStatus")}
                           </button>
                         ) : null}
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={!canManageCandidates || mebbisSyncQueuing}
+                          onClick={queueSelectedCandidateMebbisSync}
+                          title={!canManageCandidates ? noPermissionTitle : undefined}
+                          type="button"
+                        >
+                          <MebIcon size={14} />
+                          {mebbisSyncQueuing ? t("candidates.bulk.mebbisQueuing") : t("candidates.bulk.mebbisPull")}
+                        </button>
                         <button
                           className="btn btn-secondary btn-sm"
                           disabled={!canManageCandidates}

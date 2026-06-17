@@ -14,10 +14,12 @@ import {
   type ReactNode,
   type CSSProperties,
   type SelectHTMLAttributes,
+  type UIEventHandler,
 } from "react";
 import { createPortal } from "react-dom";
 
 type CustomSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & {
+  onMenuScroll?: UIEventHandler<HTMLDivElement>;
   placeholder?: string;
   size?: "md" | "sm";
 };
@@ -64,6 +66,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     onBlur,
     onChange,
     onKeyDown,
+    onMenuScroll,
     placeholder,
     size = "md",
     title,
@@ -289,6 +292,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
         <div
           className={menuClassName}
           id={listboxId}
+          onScroll={onMenuScroll}
           ref={menuRef}
           role="listbox"
           style={menuStyle ?? undefined}

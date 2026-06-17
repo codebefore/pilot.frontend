@@ -148,7 +148,13 @@ describe("GroupsPage", () => {
     renderWithProviders(<GroupsPage />);
 
     await waitFor(() => {
-      expect(getTermsMock).toHaveBeenCalled();
+      expect(getTermsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 10,
+        }),
+        expect.any(AbortSignal)
+      );
     });
 
     await waitFor(() => {
@@ -190,9 +196,8 @@ describe("GroupsPage", () => {
           },
         ],
         page: 1,
-        pageSize: 100,
+        pageSize: 1,
         totalCount: 2,
-        totalPages: 2,
       })
       .mockResolvedValueOnce({
         items: [
@@ -216,9 +221,8 @@ describe("GroupsPage", () => {
           },
         ],
         page: 2,
-        pageSize: 100,
+        pageSize: 1,
         totalCount: 2,
-        totalPages: 2,
       });
 
     renderWithProviders(<GroupsPage />);

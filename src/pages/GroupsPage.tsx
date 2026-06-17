@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type UIEvent, type WheelEvent } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { GroupDrawer } from "../components/drawers/GroupDrawer";
 import { GridIcon, ListIcon, PlusIcon } from "../components/icons";
@@ -138,6 +138,9 @@ const DEFAULT_VISIBLE_GROUP_COLUMN_IDS: GroupColumnId[] = [
 const DEFAULT_LOADING_TERM_SECTION_COUNT = 2;
 const DEFAULT_LOADING_ROWS_PER_SECTION = 3;
 const GROUP_SEARCH_DEBOUNCE_MS = 300;
+const TERM_FETCH_PAGE_SIZE = 10;
+const TERM_MENU_SCROLL_THRESHOLD_PX = 32;
+const TERM_PAGE_SCROLL_THRESHOLD_PX = 1200;
 
 async function loadAllGroups(
   termId: string | undefined,
@@ -157,12 +160,13 @@ async function loadAllGroups(
     ? getGroups(firstPageParams, signal)
     : getGroups(firstPageParams));
 
-  if (firstPage.totalPages <= 1) {
+  const totalPages = Math.max(1, Math.ceil(firstPage.totalCount / firstPage.pageSize));
+  if (totalPages <= 1) {
     return firstPage.items;
   }
 
   const remainingPages = await Promise.all(
-    Array.from({ length: firstPage.totalPages - 1 }, (_, index) =>
+    Array.from({ length: totalPages - 1 }, (_, index) =>
       {
         const params = {
           ...baseParams,
@@ -233,6 +237,7 @@ export function GroupsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const termLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const visibleColumns = GROUP_COLUMNS.filter((column) => isVisible(column.id));
   const pickerOptions: ColumnOption[] = GROUP_COLUMNS.map((column) => ({
     id: column.id,
@@ -245,15 +250,42 @@ export function GroupsPage() {
 
   /* ── Terms ───────────────────────────────────────────── */
 
-  const termsQuery = useQuery({
-    queryKey: ["terms", "list", { pageSize: 200 }, termRefreshKey],
-    queryFn: ({ signal }) => getTerms({ pageSize: 200 }, signal),
+  const termsQuery = useInfiniteQuery({
+    queryKey: ["terms", "list", "infinite", { pageSize: TERM_FETCH_PAGE_SIZE }, termRefreshKey],
+    queryFn: ({ pageParam, signal }) =>
+      getTerms({ page: pageParam, pageSize: TERM_FETCH_PAGE_SIZE }, signal),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.pageSize < lastPage.totalCount
+        ? lastPage.page + 1
+        : undefined,
   });
   const sortedTerms = useMemo(
-    () => [...(termsQuery.data?.items ?? [])].sort(compareTermsDesc),
+    () => [...(termsQuery.data?.pages.flatMap((page) => page.items) ?? [])].sort(compareTermsDesc),
     [termsQuery.data]
   );
   const termsLoading = termsQuery.isLoading;
+  const termsFetchingNextPage = termsQuery.isFetchingNextPage;
+  const shouldPageLoadMoreTerms = !selectedTermId && termsQuery.hasNextPage;
+
+  const fetchNextTermPage = useCallback(() => {
+    if (!shouldPageLoadMoreTerms || termsQuery.isFetchingNextPage) return;
+    void termsQuery.fetchNextPage();
+  }, [shouldPageLoadMoreTerms, termsQuery]);
+
+  const handleTermMenuScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (!termsQuery.hasNextPage || termsQuery.isFetchingNextPage) return;
+    const target = event.currentTarget;
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (distanceToBottom <= TERM_MENU_SCROLL_THRESHOLD_PX) {
+      void termsQuery.fetchNextPage();
+    }
+  };
+
+  const handleGroupsPageWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY <= 0) return;
+    fetchNextTermPage();
+  };
 
   useEffect(() => {
     if (termsQuery.isError && !isAbortError(termsQuery.error)) {
@@ -271,6 +303,51 @@ export function GroupsPage() {
     () => sortedTerms.find((t) => t.id === selectedTermId) ?? null,
     [sortedTerms, selectedTermId]
   );
+
+  useEffect(() => {
+    if (!shouldPageLoadMoreTerms || typeof IntersectionObserver === "undefined") return;
+    const node = termLoadMoreRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        fetchNextTermPage();
+      }
+    }, { rootMargin: "240px" });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [shouldPageLoadMoreTerms, fetchNextTermPage]);
+
+  useEffect(() => {
+    if (!shouldPageLoadMoreTerms) return;
+
+    const handlePageScroll = (event?: Event) => {
+      const scrollTarget = event?.target;
+      const scrollElement =
+        scrollTarget instanceof HTMLElement &&
+        scrollTarget.scrollHeight > scrollTarget.clientHeight
+          ? scrollTarget
+          : document.scrollingElement ?? document.documentElement;
+      const distanceToBottom =
+        scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
+
+      if (distanceToBottom <= TERM_PAGE_SCROLL_THRESHOLD_PX) {
+        fetchNextTermPage();
+      }
+    };
+
+    handlePageScroll();
+    window.addEventListener("scroll", handlePageScroll, { capture: true, passive: true });
+    document.addEventListener("scroll", handlePageScroll, { capture: true, passive: true });
+    window.addEventListener("resize", handlePageScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handlePageScroll, { capture: true });
+      document.removeEventListener("scroll", handlePageScroll, { capture: true });
+      window.removeEventListener("resize", handlePageScroll);
+    };
+  }, [shouldPageLoadMoreTerms, fetchNextTermPage]);
 
   const invalidateGroups = () => {
     void queryClient.invalidateQueries({ queryKey: groupKeys.all });
@@ -486,6 +563,14 @@ export function GroupsPage() {
       }))
       .sort((a, b) => compareTermsDesc(a.term, b.term));
   }, [groups, lang]);
+  const visibleTermSections = useMemo(() => {
+    if (selectedTermId || effectiveSearch) {
+      return termSections;
+    }
+
+    const loadedTermIds = new Set(sortedTerms.map((term) => term.id));
+    return termSections.filter((section) => loadedTermIds.has(section.term.id));
+  }, [effectiveSearch, selectedTermId, sortedTerms, termSections]);
   const loadingTermSections = useMemo<(GroupTermLabelItem | null)[]>(() => {
     if (selectedTerm) {
       return [selectedTerm];
@@ -732,7 +817,7 @@ export function GroupsPage() {
   };
 
   return (
-    <>
+    <div onWheelCapture={handleGroupsPageWheel}>
       <PageToolbar
         actions={
           <>
@@ -828,6 +913,7 @@ export function GroupsPage() {
             setSelectedTermId(e.target.value);
             setConfirmDeleteTermId(null);
           }}
+          onMenuScroll={handleTermMenuScroll}
           value={selectedTermId}
         >
           <option value="">{t("terms.selector.none")}</option>
@@ -838,6 +924,11 @@ export function GroupsPage() {
               {t("terms.groupCount", { count: term.groupCount })}
             </option>
           ))}
+          {termsFetchingNextPage && (
+            <option disabled value="__loading-more-terms">
+              {t("common.loading")}
+            </option>
+          )}
         </CustomSelect>
 
         <div className="search-box">
@@ -903,13 +994,13 @@ export function GroupsPage() {
             ))}
           </div>
         )
-      ) : groups.length === 0 ? (
+      ) : visibleTermSections.length === 0 ? (
         <div className="data-table-empty" style={{ padding: "48px 0", textAlign: "center" }}>
           {emptyMessage}
         </div>
       ) : viewMode === "cards" ? (
         <div className="group-term-sections">
-          {termSections.map((section) => (
+          {visibleTermSections.map((section) => (
             <section className="group-term-section" key={section.term.id}>
               {renderTermSectionHeader(section)}
 
@@ -921,12 +1012,25 @@ export function GroupsPage() {
         </div>
       ) : (
         <div className="group-term-sections">
-          {termSections.map((section, index) => (
+          {visibleTermSections.map((section, index) => (
             <section className="group-term-section" key={section.term.id}>
               {renderTermSectionHeader(section)}
               {renderGroupTable(section.groups, index === 0)}
             </section>
           ))}
+        </div>
+      )}
+
+      {!selectedTermId && !effectiveSearch && termsQuery.hasNextPage && (
+        <div ref={termLoadMoreRef} style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={termsQuery.isFetchingNextPage}
+            onClick={fetchNextTermPage}
+            type="button"
+          >
+            {termsQuery.isFetchingNextPage ? t("common.loading") : t("common.loadMore")}
+          </button>
         </div>
       )}
 
@@ -953,6 +1057,6 @@ export function GroupsPage() {
         onDeleted={handleGroupDeleted}
         onUpdated={handleGroupUpdated}
       />
-    </>
+    </div>
   );
 }
