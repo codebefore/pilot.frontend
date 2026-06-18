@@ -17,6 +17,7 @@ import {
 } from "../../lib/training-calendar";
 import { useLanguage } from "../../lib/i18n";
 import type { BranchHelpers } from "../../lib/training-branches";
+import { ClassroomIcon, UserIcon, VehicleIcon } from "../icons";
 import {
   RollingFourWeeksView,
   RollingThreeWeeksView,
@@ -286,6 +287,38 @@ export function TrainingCalendar({
 
   const EventComponent = useMemo(
     () => ({ event }: { event: TrainingCalendarEvent }) => {
+      const BusyIcons = () => {
+        const reasons = event.busyReasons ?? [];
+        const hasInstructor = reasons.includes("instructor");
+        const hasClassroom = reasons.includes("classroom");
+        const hasVehicle = reasons.includes("vehicle");
+        return (
+          <div className="training-event-busy-icons" aria-hidden="true">
+            {hasInstructor ? (
+              <span className="training-event-busy-icon">
+                <UserIcon size={14} stroke={2.4} />
+              </span>
+            ) : null}
+            {hasClassroom ? (
+              <span className="training-event-busy-icon">
+                <ClassroomIcon size={14} stroke={2.4} />
+              </span>
+            ) : null}
+            {hasVehicle ? (
+              <span className="training-event-busy-icon">
+                <VehicleIcon size={14} stroke={2.4} />
+              </span>
+            ) : null}
+          </div>
+        );
+      };
+      if (event.busyMarker && event.busyReasons?.length) {
+        return (
+          <div className="training-event-content training-event-busy-content">
+            <BusyIcons />
+          </div>
+        );
+      }
       const isUygulama = event.kind === "uygulama";
       // Teorik takvimde quick-assign `notes`'a branş adı yazıyor (T067'ye
       // kadar geçici) — varsa üst satırda göster. Sayfa zaten teorik
@@ -295,6 +328,7 @@ export function TrainingCalendar({
         : event.notes?.trim() || null;
       return (
         <div className="training-event-content">
+          {event.busyReasons?.length ? <BusyIcons /> : null}
           {topLine ? (
             <div className="training-event-type">{topLine}</div>
           ) : null}
@@ -318,6 +352,16 @@ export function TrainingCalendar({
       // farklı stil, etkileşim yok. Renk inline override yok, CSS'ten gelir.
       if (event.preview) {
         return { className: "training-event training-event-preview" };
+      }
+      if (event.busyMarker && event.busyReasons?.length) {
+        return {
+          className: "training-event training-event-busy",
+          style: {
+            zIndex: 100,
+            pointerEvents: "none",
+            overflow: "visible",
+          },
+        };
       }
       // Renk öncelik sırası: branş > kind fallback. Branş şu anda
       // `notes`'tan tespit ediliyor (T067 sonrası entity'den gelecek).
@@ -381,11 +425,11 @@ export function TrainingCalendar({
       onSelectSlot?.({ start: toDate(slot.start), end: toDate(slot.end) }),
     onView: setView,
     resizable: !readOnly,
-    // Preview ve dimmed (görünmez eğitmenin dersi) etkileşimsiz.
+    // Preview, busy ve dimmed event'ler etkileşimsiz.
     draggableAccessor: (event: TrainingCalendarEvent) =>
-      !readOnly && !event.preview && !event.dimmed,
+      !readOnly && !event.preview && !event.dimmed && !event.busyMarker,
     resizableAccessor: (event: TrainingCalendarEvent) =>
-      !readOnly && !event.preview && !event.dimmed,
+      !readOnly && !event.preview && !event.dimmed && !event.busyMarker,
     min: minTime,
     max: maxTime,
     scrollToTime,

@@ -22,6 +22,10 @@ import { NotificationsMenu } from "./NotificationsMenu";
 import { UserMenu } from "./UserMenu";
 
 const BRAND_LOGO_SRC = "/pilot.png?v=20260605";
+const MEBBIS_DEBUG_VISIBLE_STORAGE_KEY = "pilot.localAgent.mebbisDebugVisible";
+const MEBBIS_SESSION_ACTIVE_POLL_MS = 5_000;
+const MEBBIS_SESSION_CONNECTED_POLL_MS = 30_000;
+const MEBBIS_SESSION_IDLE_POLL_MS = 15_000;
 
 type HeaderProps = {
   activeInstitutionId: string;
@@ -102,7 +106,8 @@ function HeaderMebbisConnection() {
   const [verificationCode, setVerificationCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
-  const pollingInterval = useRef<number | null>(null);
+  const pollingTimer = useRef<number | null>(null);
+  const latestSession = useRef<LocalAgentMebbisSessionResponse | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -130,6 +135,7 @@ function HeaderMebbisConnection() {
     try {
       const next = await getLocalAgentMebbisSession(signal);
       if (!mounted.current) return;
+      latestSession.current = next;
       setSession(next);
       setError(null);
       if (next.status === "waiting_verification" || next.requiresVerificationCode) {
@@ -137,6 +143,7 @@ function HeaderMebbisConnection() {
       }
     } catch {
       if (!mounted.current) return;
+      latestSession.current = null;
       setSession(null);
     }
   }
@@ -153,14 +160,16 @@ function HeaderMebbisConnection() {
   async function startSession() {
     setBusy(true);
     setError(null);
-    setSession((current) => ({
+    const startingSession = {
       status: "starting",
       message: t("header.mebbis.status.starting"),
-      currentUrl: current?.currentUrl ?? null,
-      mebbisUser: current?.mebbisUser ?? null,
+      currentUrl: session?.currentUrl ?? null,
+      mebbisUser: session?.mebbisUser ?? null,
       requiresVerificationCode: false,
       updatedAtUtc: new Date().toISOString(),
-    }));
+    };
+    latestSession.current = startingSession;
+    setSession(startingSession);
 
     try {
       const health = await getLocalAgentHealth();
@@ -172,7 +181,7 @@ function HeaderMebbisConnection() {
       const startInput: { apiBaseUrl: string; extensionToken?: string | null; debugVisible: boolean } = {
         apiBaseUrl: getMebbisApiBaseUrl(),
         extensionToken: null,
-        debugVisible: false,
+        debugVisible: window.localStorage.getItem(MEBBIS_DEBUG_VISIBLE_STORAGE_KEY) === "true",
       };
       const pair = await pairMebbisExtensionClient(`Pilot LocalAgent - ${health.machineName}`);
       startInput.extensionToken = pair.apiToken;
@@ -191,19 +200,22 @@ function HeaderMebbisConnection() {
           extensionToken: pair.apiToken,
         });
       }
+      latestSession.current = next;
       setSession(next);
       if (next.status === "waiting_verification" || next.requiresVerificationCode) {
         setPopoverOpen(true);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("header.mebbis.unavailable"));
-      setSession({
+      const failedSession = {
         status: "failed",
         message: t("header.mebbis.status.failed"),
         requiresVerificationCode: false,
         error: err instanceof Error ? err.message : t("header.mebbis.unavailable"),
         updatedAtUtc: new Date().toISOString(),
-      });
+      };
+      latestSession.current = failedSession;
+      setSession(failedSession);
       setPopoverOpen(true);
     } finally {
       setBusy(false);
@@ -211,33 +223,52 @@ function HeaderMebbisConnection() {
   }
 
   function beginPolling(signal?: AbortSignal) {
-    if (pollingInterval.current !== null) return;
+    if (pollingTimer.current !== null) return;
     void refreshSession(signal);
-    pollingInterval.current = window.setInterval(() => {
-      void refreshSession(signal);
-    }, 5000);
+    scheduleNextPoll(signal);
   }
 
   function stopPolling() {
-    if (pollingInterval.current === null) return;
-    window.clearInterval(pollingInterval.current);
-    pollingInterval.current = null;
+    if (pollingTimer.current === null) return;
+    window.clearTimeout(pollingTimer.current);
+    pollingTimer.current = null;
+  }
+
+  function scheduleNextPoll(signal?: AbortSignal) {
+    const currentStatus = normalizeMebbisStatus(latestSession.current?.status);
+    const delay = currentStatus === "connected"
+      ? MEBBIS_SESSION_CONNECTED_POLL_MS
+      : currentStatus === "starting" || currentStatus === "waiting_verification" || currentStatus === "stopping"
+        ? MEBBIS_SESSION_ACTIVE_POLL_MS
+        : MEBBIS_SESSION_IDLE_POLL_MS;
+
+    pollingTimer.current = window.setTimeout(() => {
+      pollingTimer.current = null;
+      void refreshSession(signal).finally(() => {
+        if (mounted.current && pollingTimer.current === null) {
+          scheduleNextPoll(signal);
+        }
+      });
+    }, delay);
   }
 
   async function stopSession() {
     setBusy(true);
     setError(null);
-    setSession((current) => ({
+    const stoppingSession = {
       status: "stopping",
       message: t("header.mebbis.status.stopping"),
-      currentUrl: current?.currentUrl ?? null,
-      mebbisUser: current?.mebbisUser ?? null,
+      currentUrl: session?.currentUrl ?? null,
+      mebbisUser: session?.mebbisUser ?? null,
       requiresVerificationCode: false,
       updatedAtUtc: new Date().toISOString(),
-    }));
+    };
+    latestSession.current = stoppingSession;
+    setSession(stoppingSession);
 
     try {
       const next = await stopLocalAgentMebbisSession();
+      latestSession.current = next;
       setSession(next);
       setVerificationCode("");
       setPopoverOpen(false);
@@ -259,6 +290,7 @@ function HeaderMebbisConnection() {
     setError(null);
     try {
       const next = await submitLocalAgentMebbisVerificationCode(code);
+      latestSession.current = next;
       setSession(next);
       if (next.status !== "waiting_verification" && !next.requiresVerificationCode) {
         setVerificationCode("");

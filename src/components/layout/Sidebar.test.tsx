@@ -93,10 +93,10 @@ describe("Sidebar", () => {
     expect(labels).toEqual([
       "Kokpit",
       "Adaylar",
-      "Dönemler",
-      "Eğitim Planı",
-      "Sınavlar",
       "Evrak Kontrol",
+      "Dönemler",
+      "Sınavlar",
+      "Eğitim Planı",
       "Finans",
       "Meb Sync",
       "Kurum Ayarları",

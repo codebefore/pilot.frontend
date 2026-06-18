@@ -89,6 +89,12 @@ export type MebbisJobQueueRetryResponse = {
   retriedAtUtc: string;
 };
 
+export type MebbisJobBulkRetryResponse = {
+  createdCount: number;
+  jobs: MebbisJobResponse[];
+  retriedAtUtc: string;
+};
+
 export type MebbisExtensionClientResponse = {
   id: string;
   institutionId: string;
@@ -178,6 +184,30 @@ export async function cancelMebbisJob(jobId: string): Promise<MebbisJobResponse>
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/${jobId}/cancel`,
     {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function retryMebbisJob(jobId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/${jobId}/retry`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function retryMebbisJobs(input: {
+  statuses?: string[];
+  jobType?: string;
+  limit?: number;
+} = {}): Promise<MebbisJobBulkRetryResponse> {
+  return httpPost<MebbisJobBulkRetryResponse>(
+    "/api/mebbis/jobs/retry",
+    {
+      statuses: input.statuses ?? ["needs_manual_action"],
+      jobType: input.jobType,
+      limit: input.limit ?? 100,
+    },
     mebbisRequestOptions()
   );
 }

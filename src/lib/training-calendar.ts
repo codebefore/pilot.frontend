@@ -83,6 +83,7 @@ export function getTrainingCalendarMessages(lang: "tr" | "en"): Messages {
 export const trainingCalendarMessages = trainingCalendarMessagesTr;
 
 export type TrainingEventKind = "teorik" | "uygulama";
+export type TrainingBusyReason = "instructor" | "classroom" | "vehicle";
 
 export type TrainingCalendarEvent = {
   id: string;
@@ -115,6 +116,13 @@ export type TrainingCalendarEvent = {
    * görsel; etkileşim devre dışı (drag/resize/select kapalı).
    */
   preview?: boolean;
+  /**
+   * Takvim tarih aralığında seçili eğitmen/derslik için dolu slot
+   * göstergesi. Persistent ders gibi düzenlenmez; sadece bilgi ve
+   * çakışma uyarısı için çizilir.
+   */
+  busyReasons?: TrainingBusyReason[];
+  busyMarker?: boolean;
   /**
    * Uygulama eğitiminde bir event 1 aday + 1 araç + 1 eğitmen birleşimi
    * olduğundan aday adı ve plaka burada tutulur. Teorik takvimde

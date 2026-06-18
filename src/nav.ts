@@ -59,22 +59,18 @@ export const navSections: NavSection[] = [
         permissionAreas: ["candidates"],
       },
       {
+        key: "documents",
+        path: "/documents",
+        labelKey: "nav.documents",
+        Icon: DocumentsIcon,
+        permissionAreas: ["documents"],
+      },
+      {
         key: "groups",
         path: "/groups",
         labelKey: "nav.groups",
         Icon: GroupsIcon,
         permissionAreas: ["groups"],
-      },
-      {
-        key: "training",
-        path: "/training",
-        labelKey: "nav.training",
-        Icon: TrainingIcon,
-        permissionAreas: ["training"],
-        children: [
-          { key: "trainingTeorik", path: "/training/teorik", labelKey: "nav.trainingTeorik" },
-          { key: "trainingUygulama", path: "/training/uygulama", labelKey: "nav.trainingUygulama" },
-        ],
       },
       {
         key: "exams",
@@ -88,11 +84,15 @@ export const navSections: NavSection[] = [
         ],
       },
       {
-        key: "documents",
-        path: "/documents",
-        labelKey: "nav.documents",
-        Icon: DocumentsIcon,
-        permissionAreas: ["documents"],
+        key: "training",
+        path: "/training",
+        labelKey: "nav.training",
+        Icon: TrainingIcon,
+        permissionAreas: ["training"],
+        children: [
+          { key: "trainingTeorik", path: "/training/teorik", labelKey: "nav.trainingTeorik" },
+          { key: "trainingUygulama", path: "/training/uygulama", labelKey: "nav.trainingUygulama" },
+        ],
       },
       {
         key: "payments",

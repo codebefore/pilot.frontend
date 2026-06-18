@@ -122,7 +122,11 @@ export async function pairLocalAgent(signal?: AbortSignal): Promise<LocalAgentPa
 export async function getLocalAgentMebbisSession(
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisSessionResponse> {
-  return getLocalAgentJson<LocalAgentMebbisSessionResponse>("/mebbis/session", signal, true);
+  const token = readStoredLocalAgentToken();
+  const path = token
+    ? `/mebbis/session?token=${encodeURIComponent(token)}`
+    : "/mebbis/session";
+  return getLocalAgentJson<LocalAgentMebbisSessionResponse>(path, signal);
 }
 
 export async function startLocalAgentMebbisSession(

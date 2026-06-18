@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+import { getClassrooms } from "../../lib/classrooms-api";
 import { createGroup, getGroups } from "../../lib/groups-api";
 import { todayLocalDateOnly } from "../../lib/date-only";
 import {
@@ -111,6 +112,26 @@ export function NewGroupModal({
       setGroupTitles([]);
     }
   }, [open, initialTermId, reset]);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    getClassrooms({ activity: "active", page: 1, pageSize: 200 }, controller.signal)
+      .then((result) => {
+        const maxCapacity = Math.max(
+          0,
+          ...(result.items ?? [])
+            .filter((classroom) => classroom.isActive && classroom.capacity > 0)
+            .map((classroom) => classroom.capacity)
+        );
+        if (maxCapacity <= 0 || getFieldState("capacity").isDirty) return;
+        setValue("capacity", maxCapacity, { shouldDirty: false, shouldValidate: true });
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, [getFieldState, open, setValue]);
 
   useEffect(() => {
     if (!open) return;

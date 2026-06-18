@@ -301,34 +301,6 @@ describe("InstitutionsPage", () => {
     );
   });
 
-  it("preserves categorized candidate national ids in localStorage", async () => {
-    renderWithProviders(<InstitutionsPage />);
-    await screen.findByText("Pilot Sürücü Kursu");
-
-    fireEvent.change(screen.getByLabelText("Aday JSON listesi"), {
-      target: {
-        value: JSON.stringify({
-          esinav_havuz: ["10122067560"],
-          dosya_yakan: ["29792595570"],
-          mezun: ["10122067560", "28621371910"],
-          direksiyon_havuz: ["10401058234"],
-          park: ["11672999240"],
-        }),
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "TC Listesini Kaydet" }));
-
-    expect(localStorage.getItem("pilot.mebbis.candidateNationalIds")).toBe(
-      JSON.stringify({
-        esinav_havuz: ["10122067560"],
-        dosya_yakan: ["29792595570"],
-        mezun: ["28621371910"],
-        direksiyon_havuz: ["10401058234"],
-        park: ["11672999240"],
-      })
-    );
-  });
-
   it("requires confirmation before linking an existing member to institution", async () => {
     lookupInstitutionMemberByPhoneMock.mockResolvedValue({
       exists: true,

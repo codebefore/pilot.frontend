@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { useT } from "../../lib/i18n";
-import type { GroupResponse } from "../../lib/types";
+import type { ClassroomResponse, GroupResponse } from "../../lib/types";
 
 type QuickLessonAssignmentProps = {
   groups: GroupResponse[];
@@ -19,15 +19,11 @@ export function QuickLessonAssignment({
   isLoading = false,
 }: QuickLessonAssignmentProps) {
   const t = useT();
-  const [search, setSearch] = useState("");
 
-  // Aktif aday'ı 0 olan gruplar atlanır (assignedCandidateCount
-  // kontenjan sayacı, gerçek atama değil). Sıralama: startDate desc
-  // (en güncel grup en üstte), tarih yoksa en sonda.
+  // Sıralama: startDate desc (en güncel grup en üstte), tarih yoksa en sonda.
   const sortedGroups = useMemo(
     () =>
       groups
-        .filter((g) => g.activeCandidateCount > 0)
         .slice()
         .sort((a, b) => {
           if (!a.startDate && !b.startDate) {
@@ -36,17 +32,10 @@ export function QuickLessonAssignment({
           if (!a.startDate) return 1;
           if (!b.startDate) return -1;
           return b.startDate.localeCompare(a.startDate);
-        }),
+        })
+        .slice(0, 10),
     [groups]
   );
-
-  const filteredGroups = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase("tr");
-    if (!q) return sortedGroups;
-    return sortedGroups.filter((g) =>
-      g.title.toLocaleLowerCase("tr").includes(q)
-    );
-  }, [sortedGroups, search]);
 
   const toggle = (id: string) => {
     if (isLoading) return;
@@ -55,15 +44,8 @@ export function QuickLessonAssignment({
 
   return (
     <div className="training-quick-assign">
-      <input
-        className="training-filters-search"
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t("training.quick.groupPlaceholder")}
-        type="search"
-        value={search}
-      />
       <ul className="training-filters-list training-filters-list-scroll">
-        {filteredGroups.map((group) => {
+        {sortedGroups.map((group) => {
           const checked = group.id === groupId;
           const isMebbisSent = group.mebStatus?.trim().toLowerCase() === "sent";
           return (
@@ -92,9 +74,74 @@ export function QuickLessonAssignment({
             </li>
           );
         })}
-        {filteredGroups.length === 0 ? (
+        {sortedGroups.length === 0 ? (
           <li className="training-filters-empty">
             {t("training.filter.noMatches")}
+          </li>
+        ) : null}
+      </ul>
+    </div>
+  );
+}
+
+type QuickClassroomAssignmentProps = {
+  classrooms: ClassroomResponse[];
+  classroomId: string;
+  onSettingsChange: (params: { classroomId?: string }) => void;
+  isLoading?: boolean;
+};
+
+export function QuickClassroomAssignment({
+  classrooms,
+  classroomId,
+  onSettingsChange,
+  isLoading = false,
+}: QuickClassroomAssignmentProps) {
+  const t = useT();
+  const sortedClassrooms = useMemo(
+    () =>
+      classrooms
+        .filter((classroom) => classroom.isActive)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, "tr")),
+    [classrooms]
+  );
+
+  const toggleClassroom = (id: string) => {
+    if (isLoading) return;
+    onSettingsChange({ classroomId: id === classroomId ? "" : id });
+  };
+
+  return (
+    <div className="training-quick-assign">
+      <ul className="training-filters-list training-filters-list-scroll">
+        {sortedClassrooms.map((classroom) => {
+          const checked = classroom.id === classroomId;
+          return (
+            <li key={classroom.id}>
+              <label
+                className={[
+                  "training-filters-item switch-toggle switch-toggle-sm",
+                  checked ? "training-filters-item-selected" : "",
+                ].filter(Boolean).join(" ")}
+              >
+                <input
+                  checked={checked}
+                  disabled={isLoading}
+                  onChange={() => toggleClassroom(classroom.id)}
+                  type="checkbox"
+                />
+                <span className="switch-toggle-control" />
+                <span className="training-filters-name">
+                  {classroom.name} ({classroom.capacity})
+                </span>
+              </label>
+            </li>
+          );
+        })}
+        {sortedClassrooms.length === 0 ? (
+          <li className="training-filters-empty">
+            {t("settings.classrooms.empty")}
           </li>
         ) : null}
       </ul>

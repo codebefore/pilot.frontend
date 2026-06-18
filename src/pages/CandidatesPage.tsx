@@ -73,6 +73,7 @@ import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import {
   createCandidateSyncByNationalIdJob,
 } from "../lib/mebbis-jobs-api";
+import { getLocalAgentMebbisSession } from "../lib/local-agent-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
   DRIVING_EXAM_TIME_SLOT_LABELS,
@@ -2984,6 +2985,12 @@ export function CandidatesPage({
 
     setMebbisSyncQueuing(true);
     try {
+      const session = await getLocalAgentMebbisSession();
+      if (session.status !== "connected") {
+        showToast(t("candidates.bulk.mebbisDisabled"), "error");
+        return;
+      }
+
       for (const target of targets) {
         await createCandidateSyncByNationalIdJob(target.nationalId, target.candidateStatusHint);
       }

@@ -33,6 +33,10 @@ vi.mock("../components/settings/ReferencesSettingsSection", () => ({
   ReferencesSettingsSection: () => <div>References Section Mock</div>,
 }));
 
+vi.mock("../components/settings/MigrationSettingsSection", () => ({
+  MigrationSettingsSection: () => <div>Migration Section Mock</div>,
+}));
+
 vi.mock("./DocumentTypesPage", () => ({
   DocumentTypesPage: () => <div>Document Types Section Mock</div>,
 }));
@@ -93,6 +97,9 @@ describe("SettingsPage", () => {
 
     fireEvent.click(screen.getByRole("link", { name: /Kullanıcılar/i }));
     expect(screen.getByText("Users Section Mock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: /Migration/i }));
+    expect(screen.getByText("Migration Section Mock")).toBeInTheDocument();
   });
 
   it("redirects the legacy permissions route to the users permissions tab", async () => {

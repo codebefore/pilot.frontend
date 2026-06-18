@@ -19,6 +19,9 @@ interface GetTrainingLessonsOptions {
   toUtc?: string;
   candidateId?: string;
   groupId?: string;
+  instructorId?: string;
+  classroomId?: string;
+  vehicleId?: string;
 }
 
 export function getTrainingLessons(
@@ -31,6 +34,9 @@ export function getTrainingLessons(
     toUtc: options?.toUtc,
     candidateId: options?.candidateId,
     groupId: options?.groupId,
+    instructorId: options?.instructorId,
+    classroomId: options?.classroomId,
+    vehicleId: options?.vehicleId,
   };
 
   return httpGet<TrainingLessonListResponse>(

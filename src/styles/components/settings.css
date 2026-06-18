@@ -3955,11 +3955,30 @@
   font-size: 14px;
   color: var(--gray-900);
 }
+.settings-module-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
 .settings-info-note,
 .settings-module-item span {
   font-size: 13px;
   line-height: 1.55;
   color: var(--gray-500);
+}
+.settings-module-item .settings-module-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 

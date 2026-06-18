@@ -9,6 +9,7 @@ import { GeneralInstitutionSection } from "../components/settings/GeneralInstitu
 import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
 import { IntegrationsSettingsSection } from "../components/settings/IntegrationsSettingsSection";
 import { LicenseClassDefinitionsSettingsSection } from "../components/settings/LicenseClassDefinitionsSettingsSection";
+import { MigrationSettingsSection } from "../components/settings/MigrationSettingsSection";
 import { ReferencesSettingsSection } from "../components/settings/ReferencesSettingsSection";
 import { TrainingBranchesSettingsSection } from "../components/settings/TrainingBranchesSettingsSection";
 import { VehiclesSettingsSection } from "../components/settings/VehiclesSettingsSection";
@@ -115,6 +116,12 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         descriptionKey: "settings.nav.integrations.description",
         to: "/settings/definitions/integrations",
         permissionAreas: ["settings", "mebjobs"],
+      },
+      {
+        labelKey: "settings.nav.migration.label",
+        descriptionKey: "settings.nav.migration.description",
+        to: "/settings/definitions/migration",
+        permissionAreas: ["settings", "mebjobs", "training"],
       },
     ],
   },
@@ -248,6 +255,10 @@ export function SettingsPage() {
               <Route
                 element={requireSettingsPermission(["settings", "mebjobs"], <IntegrationsSettingsSection />)}
                 path="definitions/integrations"
+              />
+              <Route
+                element={requireSettingsPermission(["settings", "mebjobs", "training"], <MigrationSettingsSection />)}
+                path="definitions/migration"
               />
               <Route
                 element={requireSettingsPermission(["training"], <InstructorsSettingsSection />)}

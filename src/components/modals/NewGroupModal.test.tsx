@@ -6,8 +6,17 @@ import { renderWithProviders } from "../../test/render-with-providers";
 import { NewGroupModal } from "./NewGroupModal";
 
 const createGroupMock = vi.fn();
+const getClassroomsMock = vi.fn();
 const getGroupsMock = vi.fn();
 const getTermsMock = vi.fn();
+
+vi.mock("../../lib/classrooms-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/classrooms-api")>("../../lib/classrooms-api");
+  return {
+    ...actual,
+    getClassrooms: (...args: Parameters<typeof actual.getClassrooms>) => getClassroomsMock(...args),
+  };
+});
 
 vi.mock("../../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/groups-api")>("../../lib/groups-api");
@@ -29,8 +38,20 @@ vi.mock("../../lib/terms-api", async () => {
 describe("NewGroupModal", () => {
   beforeEach(() => {
     createGroupMock.mockReset();
+    getClassroomsMock.mockReset();
     getGroupsMock.mockReset();
     getTermsMock.mockReset();
+    getClassroomsMock.mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 200,
+      totalCount: 0,
+      totalPages: 0,
+      summary: {
+        activeCount: 0,
+        inactiveCount: 0,
+      },
+    });
     getGroupsMock.mockResolvedValue({
       items: [],
       page: 1,
@@ -69,6 +90,117 @@ describe("NewGroupModal", () => {
     const groupBranchSelect = document.querySelector('select[name="groupBranch"]');
     expect((groupNumberSelect as HTMLSelectElement).value).toBe("1");
     expect((groupBranchSelect as HTMLSelectElement).value).toBe("A");
+  });
+
+  it("defaults capacity to the highest active classroom capacity", async () => {
+    getClassroomsMock.mockResolvedValue({
+      items: [
+        {
+          id: "classroom-1",
+          name: "Derslik 1",
+          capacity: 18,
+          isActive: true,
+          notes: null,
+          branches: [],
+          createdAtUtc: "2026-04-01T00:00:00Z",
+          updatedAtUtc: "2026-04-01T00:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "classroom-2",
+          name: "Derslik 2",
+          capacity: 24,
+          isActive: true,
+          notes: null,
+          branches: [],
+          createdAtUtc: "2026-04-01T00:00:00Z",
+          updatedAtUtc: "2026-04-01T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 200,
+      totalCount: 2,
+      totalPages: 1,
+      summary: {
+        activeCount: 2,
+        inactiveCount: 0,
+      },
+    });
+
+    renderWithProviders(
+      <NewGroupModal
+        initialTermId={null}
+        onClose={() => {}}
+        onSubmit={() => {}}
+        open
+      />
+    );
+
+    await waitFor(() => {
+      const capacityInput = document.querySelector('input[name="capacity"]');
+      expect((capacityInput as HTMLInputElement).value).toBe("24");
+    });
+
+    expect(getClassroomsMock).toHaveBeenCalledWith(
+      {
+        activity: "active",
+        page: 1,
+        pageSize: 200,
+      },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("does not override a manually entered capacity when classrooms load later", async () => {
+    let resolveClassrooms: ((value: Record<string, unknown>) => void) | undefined;
+    getClassroomsMock.mockReturnValue(
+      new Promise<Record<string, unknown>>((resolve) => {
+        resolveClassrooms = resolve;
+      })
+    );
+
+    renderWithProviders(
+      <NewGroupModal
+        initialTermId={null}
+        onClose={() => {}}
+        onSubmit={() => {}}
+        open
+      />
+    );
+
+    const capacityInput = document.querySelector('input[name="capacity"]');
+    expect(capacityInput).not.toBeNull();
+    fireEvent.change(capacityInput!, { target: { value: "16" } });
+
+    expect(resolveClassrooms).toBeDefined();
+    resolveClassrooms!({
+      items: [
+        {
+          id: "classroom-1",
+          name: "Derslik 1",
+          capacity: 24,
+          isActive: true,
+          notes: null,
+          branches: [],
+          createdAtUtc: "2026-04-01T00:00:00Z",
+          updatedAtUtc: "2026-04-01T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 200,
+      totalCount: 1,
+      totalPages: 1,
+      summary: {
+        activeCount: 1,
+        inactiveCount: 0,
+      },
+    });
+
+    await waitFor(() => {
+      expect((capacityInput as HTMLInputElement).value).toBe("16");
+    });
   });
 
   it("shows a clear field error when start date is outside the selected term month", async () => {

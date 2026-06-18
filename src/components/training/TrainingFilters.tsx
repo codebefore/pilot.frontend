@@ -233,31 +233,35 @@ export function TrainingFilters({
       ) : null}
 
       <section className="training-filters-section">
-        <div className="training-filters-section-header">
-          <h4 className="training-filters-section-title">
-            {t("training.filter.instructorsTitle")}
-          </h4>
-          <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
-            <input
-              checked={allInstructorsChecked}
-              onChange={() =>
-                onSetInstructorsVisibility(
-                  filteredInstructors.map((i) => i.id),
-                  !allInstructorsChecked
-                )
-              }
-              type="checkbox"
-            />
-            <span className="switch-toggle-control" />
-          </label>
-        </div>
-        <input
-          className="training-filters-search"
-          onChange={(e) => setInstructorSearch(e.target.value)}
-          placeholder={t("training.filter.searchPlaceholder")}
-          type="search"
-          value={instructorSearch}
-        />
+        {kind === "uygulama" ? (
+          <div className="training-filters-section-header">
+            <h4 className="training-filters-section-title">
+              {t("training.filter.instructorsTitle")}
+            </h4>
+            <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
+              <input
+                checked={allInstructorsChecked}
+                onChange={() =>
+                  onSetInstructorsVisibility(
+                    filteredInstructors.map((i) => i.id),
+                    !allInstructorsChecked
+                  )
+                }
+                type="checkbox"
+              />
+              <span className="switch-toggle-control" />
+            </label>
+          </div>
+        ) : null}
+        {kind === "uygulama" ? (
+          <input
+            className="training-filters-search"
+            onChange={(e) => setInstructorSearch(e.target.value)}
+            placeholder={t("training.filter.searchPlaceholder")}
+            type="search"
+            value={instructorSearch}
+          />
+        ) : null}
         <ul className="training-filters-list training-filters-list-scroll">
           {filteredInstructors.map((instructor) => {
             const checked = visibleInstructors.has(instructor.id);

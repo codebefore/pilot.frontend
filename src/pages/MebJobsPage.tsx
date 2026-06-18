@@ -15,7 +15,6 @@ import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
-import { getCandidates } from "../lib/candidates-api";
 import {
   cancelMebbisJob,
   createCandidateLookupJob,
@@ -25,6 +24,8 @@ import {
   mebbisJobTypeLabel,
   pairMebbisExtensionClient,
   parseJobPayload,
+  retryMebbisJob,
+  retryMebbisJobs,
   retryMebbisJobQueuePublishes,
   type MebbisExtensionPairResponse,
   type MebbisJobResponse,
@@ -198,8 +199,6 @@ function applyFilter(
   });
 }
 
-type CandidateLite = { id: string; firstName: string; lastName: string; nationalId: string };
-
 export function MebJobsPage() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [jobTypeFilter, setJobTypeFilter] = useState<string>("all");
@@ -212,6 +211,7 @@ export function MebJobsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
   const [queueRetrying, setQueueRetrying] = useState(false);
+  const [manualRetrying, setManualRetrying] = useState(false);
   const [extensionDisplayName, setExtensionDisplayName] = useState("Office Chrome");
   const [extensionPairing, setExtensionPairing] = useState(false);
   const [extensionPairResult, setExtensionPairResult] = useState<MebbisExtensionPairResponse | null>(null);
@@ -224,35 +224,6 @@ export function MebJobsPage() {
   const selectedId = searchParams.get("selected");
   const queryClient = useQueryClient();
 
-  const candidatesQuery = useQuery({
-    queryKey: ["candidates", "list", { pageSize: 500 }],
-    queryFn: ({ signal }) => getCandidates({ pageSize: 500 }, signal),
-  });
-
-  const candidatesById = useMemo<Map<string, CandidateLite>>(() => {
-    if (!candidatesQuery.data) return new Map();
-    return new Map(
-      candidatesQuery.data.items.map((c) => [
-        c.id,
-        { id: c.id, firstName: c.firstName, lastName: c.lastName, nationalId: c.nationalId },
-      ])
-    );
-  }, [candidatesQuery.data]);
-
-  const candidatesByNationalId = useMemo<Map<string, CandidateLite>>(() => {
-    if (!candidatesQuery.data) return new Map();
-    return new Map(
-      candidatesQuery.data.items.map((c) => [
-        c.nationalId,
-        { id: c.id, firstName: c.firstName, lastName: c.lastName, nationalId: c.nationalId },
-      ])
-    );
-  }, [candidatesQuery.data]);
-
-  // Raw jobs from the server. Mapping to candidate-enriched MebJob[] is done
-  // below in a useMemo so it re-runs when the candidate maps resolve later —
-  // putting it in `select` captures the maps via closure and React Query
-  // would not re-invoke `select` just because an unrelated query updated.
   const jobsQuery = useQuery<MebbisJobResponse[]>({
     queryKey: ["mebbisJobs", "list"],
     queryFn: ({ signal }) => listMebbisJobs(100, signal),
@@ -273,9 +244,9 @@ export function MebJobsPage() {
   const jobs = useMemo<MebJob[]>(
     () =>
       (jobsQuery.data ?? []).map((item) =>
-        mapBackendJob(item, candidatesById, candidatesByNationalId, t)
+        mapBackendJob(item, t)
       ),
-    [jobsQuery.data, candidatesById, candidatesByNationalId, t]
+    [jobsQuery.data, t]
   );
   const loading = jobsQuery.isPending;
   const loadError = jobsQuery.isError;
@@ -416,6 +387,38 @@ export function MebJobsPage() {
     }
   };
 
+  const handleRetryJob = async (job: MebJob) => {
+    if (!canManageMebJobs) return;
+    setActionPendingId(job.id);
+    try {
+      await retryMebbisJob(job.id);
+      showToast("MEB işi tekrar kuyruğa alındı");
+      invalidateMebbisJobData();
+    } catch {
+      showToast("MEB işi tekrar başlatılamadı", "error");
+    } finally {
+      setActionPendingId(null);
+    }
+  };
+
+  const handleRetryManualJobs = async () => {
+    if (!canManageMebJobs) return;
+    setManualRetrying(true);
+    try {
+      const result = await retryMebbisJobs({
+        statuses: ["needs_manual_action"],
+        jobType: jobTypeFilter !== "all" ? jobTypeFilter : undefined,
+        limit: 100,
+      });
+      showToast(`${result.createdCount} manuel MEB işi tekrar kuyruğa alındı`);
+      invalidateMebbisJobData();
+    } catch {
+      showToast("Manuel kalan MEB işleri tekrar başlatılamadı", "error");
+    } finally {
+      setManualRetrying(false);
+    }
+  };
+
   const handleQueueRetry = async () => {
     if (!canManageMebJobs) return;
     setQueueRetrying(true);
@@ -465,6 +468,15 @@ export function MebJobsPage() {
             >
               <RefreshIcon size={14} />
               Yenile
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={!canManageMebJobs || manualRetrying}
+              onClick={() => void handleRetryManualJobs()}
+              title={!canManageMebJobs ? noPermissionTitle : undefined}
+              type="button"
+            >
+              {manualRetrying ? "Başlatılıyor..." : "Manuel Kalanları Tekrar Başlat"}
             </button>
             <button
               className="btn btn-primary btn-sm"
@@ -694,6 +706,17 @@ export function MebJobsPage() {
                           İptal
                         </button>
                       )}
+                      {!ACTIVE_STATUSES.includes(job.status) && job.status !== "success" && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={actionPendingId === job.id || !canManageMebJobs}
+                          onClick={() => void handleRetryJob(job)}
+                          title={!canManageMebJobs ? noPermissionTitle : undefined}
+                          type="button"
+                        >
+                          Tekrar Başlat
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -776,19 +799,15 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
 
 function mapBackendJob(
   job: MebbisJobResponse,
-  candidatesById: Map<string, CandidateLite>,
-  candidatesByNationalId: Map<string, CandidateLite>,
   t: ReturnType<typeof useT>,
 ): MebJob {
   const payload = parseJobPayload(job);
   const nationalId = typeof payload.nationalId === "string" ? payload.nationalId : null;
-
-  const candidate =
-    (job.entityId ? candidatesById.get(job.entityId) : undefined) ??
-    (nationalId ? candidatesByNationalId.get(nationalId) : undefined);
-
-  const candidateName = candidate ? `${candidate.firstName} ${candidate.lastName}` : null;
-  const targetSecondary = candidate?.nationalId ?? nationalId ?? job.entityId ?? "-";
+  const candidateName =
+    typeof payload.candidateName === "string" && payload.candidateName.trim().length > 0
+      ? payload.candidateName.trim()
+      : null;
+  const targetSecondary = nationalId ?? job.entityId ?? "-";
 
   return {
     id: job.id,

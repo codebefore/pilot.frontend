@@ -9,19 +9,16 @@ import { NewTermModal } from "../components/modals/NewTermModal";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
+import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
-import { getClassrooms } from "../lib/classrooms-api";
 import { parseGroupTitle } from "../lib/group-code";
 import { getGroups } from "../lib/groups-api";
 import { ApiError, isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
-import {
-  createGroupInventoryImportJob,
-  getMebbisJob,
-} from "../lib/mebbis-jobs-api";
+import { getInstitutionSettings } from "../lib/institution-settings-api";
 import { canManageArea } from "../lib/permissions";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
@@ -38,7 +35,7 @@ import {
   compareTermsDesc,
 } from "../lib/term-label";
 import { deleteTerm, getTerms } from "../lib/terms-api";
-import type { GroupResponse, TermResponse } from "../lib/types";
+import type { GroupResponse, PagedResponse, TermResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
 type GroupViewMode = "cards" | "list";
@@ -142,44 +139,6 @@ const TERM_FETCH_PAGE_SIZE = 10;
 const TERM_MENU_SCROLL_THRESHOLD_PX = 32;
 const TERM_PAGE_SCROLL_THRESHOLD_PX = 1200;
 
-async function loadAllGroups(
-  termId: string | undefined,
-  search: string | undefined,
-  signal?: AbortSignal
-): Promise<GroupResponse[]> {
-  const baseParams = {
-    pageSize: GROUP_FETCH_PAGE_SIZE,
-    ...(termId ? { termId } : {}),
-    ...(search ? { search } : {}),
-  };
-  const firstPageParams = {
-    ...baseParams,
-    page: 1,
-  };
-  const firstPage = await (signal
-    ? getGroups(firstPageParams, signal)
-    : getGroups(firstPageParams));
-
-  const totalPages = Math.max(1, Math.ceil(firstPage.totalCount / firstPage.pageSize));
-  if (totalPages <= 1) {
-    return firstPage.items;
-  }
-
-  const remainingPages = await Promise.all(
-    Array.from({ length: totalPages - 1 }, (_, index) =>
-      {
-        const params = {
-          ...baseParams,
-          page: index + 2,
-        };
-        return signal ? getGroups(params, signal) : getGroups(params);
-      }
-    )
-  );
-
-  return [firstPage, ...remainingPages].flatMap((pageResult) => pageResult.items);
-}
-
 function compareGroupsByTitle(
   a: GroupResponse,
   b: GroupResponse,
@@ -230,10 +189,10 @@ export function GroupsPage() {
   const [termModalState, setTermModalState] = useState<{ mode: "create" | "edit"; term: TermResponse | null } | null>(null);
   const [confirmDeleteTermId, setConfirmDeleteTermId] = useState<string | null>(null);
   const [deletingTerm, setDeletingTerm] = useState(false);
-  const [isMebbisGroupImporting, setIsMebbisGroupImporting] = useState(false);
 
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
   const [search, setSearch] = useState("");
+  const [groupPage, setGroupPage] = useState(1);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -408,20 +367,36 @@ export function GroupsPage() {
 
   /* ── Groups ───────────────────────────────────────────── */
 
-  const groupsQuery = useQuery<GroupResponse[]>({
+  useEffect(() => {
+    setGroupPage(1);
+  }, [effectiveSearch, selectedTermId]);
+
+  const groupsQuery = useQuery<PagedResponse<GroupResponse>>({
     queryKey: [
       ...groupKeys.lists(),
-      "all-pages",
-      { termId: selectedTermId || undefined, search: effectiveSearch },
+      { termId: selectedTermId || undefined, search: effectiveSearch, page: groupPage, pageSize: GROUP_FETCH_PAGE_SIZE },
     ],
     queryFn: ({ signal }) =>
-      loadAllGroups(
-        selectedTermId || undefined,
-        effectiveSearch,
+      getGroups(
+        {
+          page: groupPage,
+          pageSize: GROUP_FETCH_PAGE_SIZE,
+          ...(selectedTermId ? { termId: selectedTermId } : {}),
+          ...(effectiveSearch ? { search: effectiveSearch } : {}),
+        },
         signal
       ),
   });
-  const groups = useMemo<GroupResponse[]>(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const groups = useMemo<GroupResponse[]>(() => groupsQuery.data?.items ?? [], [groupsQuery.data]);
+  const institutionSettingsQuery = useQuery({
+    queryKey: ["settings", "institution-settings"],
+    queryFn: ({ signal }) => getInstitutionSettings(signal),
+    retry: false,
+  });
+  const buildingCapacity = institutionSettingsQuery.data?.buildingCapacity ?? null;
+  const groupTotalPages = groupsQuery.data
+    ? groupsQuery.data.totalPages ?? Math.max(1, Math.ceil(groupsQuery.data.totalCount / groupsQuery.data.pageSize))
+    : 1;
   const loading = groupsQuery.isLoading;
 
   useEffect(() => {
@@ -449,74 +424,6 @@ export function GroupsPage() {
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
-  };
-
-  const pollMebbisGroupImportJob = async (jobId: string, startedAt = Date.now()) => {
-    const timeoutAt = startedAt + 30 * 60 * 1000;
-    const invalidateGroupImportData = () => {
-      invalidateGroups();
-      invalidateCandidates();
-      setTermRefreshKey((k) => k + 1);
-      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
-      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    };
-
-    while (Date.now() < timeoutAt) {
-      await new Promise((resolve) => window.setTimeout(resolve, 5000));
-      let job;
-      try {
-        job = await getMebbisJob(jobId);
-      } catch (error) {
-        console.error(error);
-        continue;
-      }
-
-      if (job.status === "succeeded") {
-        invalidateGroupImportData();
-        window.setTimeout(invalidateGroupImportData, 3000);
-        window.setTimeout(invalidateGroupImportData, 8000);
-        showToast(t("groups.mebbisImportCompleted"));
-        return;
-      }
-
-      if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) {
-        invalidateGroupImportData();
-        showToast(t("groups.mebbisImportNeedsManualAction"), "error");
-        return;
-      }
-    }
-
-    showToast(t("groups.mebbisImportStillRunning"));
-  };
-
-  const handleCreateMebbisGroupInventoryImportJob = async () => {
-    if (!canManageGroups || isMebbisGroupImporting) return;
-    setIsMebbisGroupImporting(true);
-    try {
-      const classrooms = await getClassrooms({ activity: "active", pageSize: 1 });
-      if (classrooms.totalCount === 0) {
-        showToast(t("groups.mebbisImportClassroomsRequired"), "error");
-        return;
-      }
-
-      const job = await createGroupInventoryImportJob();
-      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
-      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      showToast(t("groups.mebbisImportQueued"));
-      await pollMebbisGroupImportJob(job.id);
-    } catch (error) {
-      console.error(error);
-      const message =
-        error instanceof ApiError
-          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
-            t("groups.mebbisImportFailed")
-          : t("groups.mebbisImportFailed");
-      showToast(message, "error");
-    } finally {
-      setIsMebbisGroupImporting(false);
-    }
   };
 
   const termLabelContext = useMemo(() => {
@@ -660,8 +567,9 @@ export function GroupsPage() {
   const renderTermSectionHeader = (section: GroupTermSection) => {
     const fullTerm = sortedTerms.find((term) => term.id === section.term.id);
     const licenseClassCounts = fullTerm?.licenseClassCounts ?? [];
-    const occupancyRate = section.totalCapacity > 0
-      ? Math.round((section.assignedCandidateCount / section.totalCapacity) * 100)
+    const sectionCapacity = buildingCapacity ?? section.totalCapacity;
+    const occupancyRate = sectionCapacity > 0
+      ? Math.round((section.assignedCandidateCount / sectionCapacity) * 100)
       : 0;
     return (
       <div className="group-term-section-header">
@@ -675,7 +583,7 @@ export function GroupsPage() {
         </div>
         <div className="group-term-section-stats">
           <div className="group-term-section-stat">
-            <strong>{section.totalCapacity}/{section.assignedCandidateCount}</strong>
+            <strong>{sectionCapacity}/{section.assignedCandidateCount}</strong>
             <span>{t("groups.section.totalCapacity")}</span>
           </div>
           <div className="group-term-section-stat">
@@ -840,18 +748,6 @@ export function GroupsPage() {
             >
               <PlusIcon size={14} />
               {t("groups.newGroup")}
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              disabled={!canManageGroups || isMebbisGroupImporting}
-              onClick={handleCreateMebbisGroupInventoryImportJob}
-              title={!canManageGroups ? noPermissionTitle : undefined}
-              type="button"
-            >
-              <GridIcon size={14} />
-              {isMebbisGroupImporting
-                ? t("groups.mebbisImportStarting")
-                : t("groups.mebbisImport")}
             </button>
             {selectedTerm && (
               confirmDeleteTermId === selectedTerm.id ? (
@@ -1020,6 +916,13 @@ export function GroupsPage() {
           ))}
         </div>
       )}
+
+      <Pagination
+        disabled={groupsQuery.isFetching}
+        onChange={setGroupPage}
+        page={groupPage}
+        totalPages={groupTotalPages}
+      />
 
       {!selectedTermId && !effectiveSearch && termsQuery.hasNextPage && (
         <div ref={termLoadMoreRef} style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>

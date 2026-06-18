@@ -41,6 +41,7 @@ const institutionSettings = {
   institutionEmail: null,
   city: null,
   district: null,
+  buildingCapacity: 60,
   logo: null,
   founder: {
     type: "real" as const,

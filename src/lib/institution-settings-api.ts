@@ -30,6 +30,7 @@ export interface InstitutionSettingsResponse {
   institutionEmail: string | null;
   city: string | null;
   district: string | null;
+  buildingCapacity: number | null;
   logo: InstitutionLogoResponse | null;
   founder: InstitutionFounderResponse;
   createdAtUtc: string;
@@ -55,6 +56,7 @@ export interface InstitutionSettingsUpsertRequest {
   institutionEmail: string | null;
   city: string | null;
   district: string | null;
+  buildingCapacity: number | null;
   founder: InstitutionFounderUpsertRequest;
   authorizedPersons: [];
   rowVersion: number | null;

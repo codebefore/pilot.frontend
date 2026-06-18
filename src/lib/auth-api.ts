@@ -19,6 +19,15 @@ export type LoginCodeResponse = {
   expiresAtUtc: string;
 };
 
+export type MigrationAccessCodeResponse = {
+  expiresAtUtc: string;
+  recipientCount: number;
+};
+
+export type MigrationAccessVerifyResponse = {
+  expiresAtUtc: string;
+};
+
 type RefreshTokenRequest = {
   refreshToken: string;
 };
@@ -74,4 +83,20 @@ export function refreshSession(body: RefreshTokenRequest): Promise<LoginResponse
 
 export function logoutSession(body: LogoutRequest): Promise<void> {
   return httpPost<void>("/api/auth/logout", body, authRequestOptions());
+}
+
+export function requestMigrationAccessCode(): Promise<MigrationAccessCodeResponse> {
+  return httpPost<MigrationAccessCodeResponse>(
+    "/api/auth/migration-access/request-code",
+    {},
+    authRequestOptions()
+  );
+}
+
+export function verifyMigrationAccessCode(code: string): Promise<MigrationAccessVerifyResponse> {
+  return httpPost<MigrationAccessVerifyResponse>(
+    "/api/auth/migration-access/verify-code",
+    { code },
+    authRequestOptions()
+  );
 }

@@ -1,16 +1,17 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { useT, type TranslationKey } from "../../lib/i18n";
 import type {
-	  CandidateResponse,
-	  GroupResponse,
-	  InstructorResponse,
-	  TrainingBranchDefinitionResponse,
-	  TrainingLessonKind,
-	  VehicleResponse,
+  CandidateResponse,
+  ClassroomResponse,
+  GroupResponse,
+  InstructorResponse,
+  TrainingBranchDefinitionResponse,
+  TrainingLessonKind,
+  VehicleResponse,
 } from "../../lib/types";
 import { CustomSelect } from "../ui/CustomSelect";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
@@ -29,6 +30,7 @@ const trainingPlanSchema = z.object({
   instructorId: z.string().min(1, "training.modal.required.instructor" as TranslationKey),
   groupId: z.string().optional(),
   branchCode: z.string().optional(),
+  classroomId: z.string().optional(),
   candidateId: z.string().optional(),
   vehicleId: z.string().optional(),
   notes: z.string().optional(),
@@ -39,6 +41,9 @@ const trainingPlanSchema = z.object({
     }
     if (!data.branchCode) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "training.modal.required.branch" as TranslationKey, path: ["branchCode"] });
+    }
+    if (!data.classroomId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "training.modal.required.classroom" as TranslationKey, path: ["classroomId"] });
     }
   }
   if (data.type === "uygulama") {
@@ -59,9 +64,10 @@ type NewTrainingPlanModalProps = {
   defaultType?: PlanType;
   initialSlot?: { start: Date; end: Date } | null;
   instructors: InstructorResponse[];
-	  groups: GroupResponse[];
-	  branches: TrainingBranchDefinitionResponse[];
-	  candidates: CandidateResponse[];
+  groups: GroupResponse[];
+  classrooms: ClassroomResponse[];
+  branches: TrainingBranchDefinitionResponse[];
+  candidates: CandidateResponse[];
   vehicles: VehicleResponse[];
   onClose: () => void;
   onSubmit: (values: TrainingLessonSubmitValues) => void;
@@ -111,6 +117,7 @@ const buildDefaultValues = (
 	    instructorId: "",
 	    groupId: "",
 	    branchCode: "",
+    classroomId: "",
     candidateId: "",
     vehicleId: "",
     notes: "",
@@ -131,9 +138,10 @@ export function NewTrainingPlanModal({
   canManage = true,
   defaultType = "teorik",
   initialSlot = null,
-	  instructors,
-	  groups,
-	  branches,
+  instructors,
+  groups,
+  classrooms,
+  branches,
   candidates,
   vehicles,
   onClose,
@@ -150,6 +158,7 @@ export function NewTrainingPlanModal({
   const durationId = useId();
   const instructorId = useId();
   const groupId = useId();
+  const classroomId = useId();
   const candidateId = useId();
   const branchId = useId();
   const vehicleId = useId();
@@ -174,9 +183,15 @@ export function NewTrainingPlanModal({
   const type = watch("type");
   const date = watch("date");
   const startTime = watch("startTime");
+  const selectedInstructorId = watch("instructorId");
+  const selectedBranchCode = watch("branchCode");
   const needsPracticeFields = type === "uygulama";
   const dateRegistration = register("date");
   const startTimeRegistration = register("startTime");
+  const selectedInstructor = useMemo(
+    () => instructors.find((instructor) => instructor.id === selectedInstructorId),
+    [instructors, selectedInstructorId]
+  );
 
   const submit = handleSubmit((values) => {
     if (!canManage) return;
@@ -414,30 +429,63 @@ export function NewTrainingPlanModal({
 	          )}
 	        </div>
 
-	        {type === "teorik" ? (
-	          <div className="form-row">
-	            <div className="form-group">
-	              <label className="form-label" htmlFor={branchId}>{t("training.modal.field.branch")}<RequiredMark /></label>
-	              <CustomSelect
-	                id={branchId}
-	                className={fieldClass("branchCode", !!errors.branchCode, "form-select")}
-	                disabled={!canManage}
-	                {...register("branchCode")}
-	              >
-	                <option value="">{t("training.modal.placeholder.select")}</option>
+        {type === "teorik" ? (
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor={branchId}>{t("training.modal.field.branch")}<RequiredMark /></label>
+              <CustomSelect
+                id={branchId}
+                className={fieldClass("branchCode", !!errors.branchCode, "form-select")}
+                disabled={!canManage}
+                {...register("branchCode")}
+              >
+                <option value="">{t("training.modal.placeholder.select")}</option>
 	                {branches
 	                  .filter((branch) => branch.isActive)
+	                  .filter((branch) =>
+	                    !selectedInstructor ||
+	                    selectedInstructor.branches.includes(branch.code)
+	                  )
 	                  .map((branch) => (
 	                    <option key={branch.id} value={branch.code}>
 	                      {branch.name}
+                    </option>
+                  ))}
+              </CustomSelect>
+              {errors.branchCode && (
+                <div className="form-error">{t((errors.branchCode.message ?? "") as TranslationKey)}</div>
+              )}
+              {!errors.branchCode && serverErr("branchCode") ? (
+	                <div className="form-error">{serverErr("branchCode")}</div>
+	              ) : null}
+	            </div>
+	            <div className="form-group">
+	              <label className="form-label" htmlFor={classroomId}>{t("training.modal.field.classroom")}<RequiredMark /></label>
+	              <CustomSelect
+	                id={classroomId}
+	                className={fieldClass("classroomId", !!errors.classroomId, "form-select")}
+	                disabled={!canManage}
+	                {...register("classroomId")}
+	              >
+	                <option value="">{t("training.modal.placeholder.select")}</option>
+	                {classrooms
+	                  .filter((classroom) => classroom.isActive)
+	                  .filter((classroom) =>
+	                    !selectedBranchCode ||
+	                    classroom.branches.length === 0 ||
+	                    classroom.branches.some((branch) => branch.code === selectedBranchCode)
+	                  )
+	                  .map((classroom) => (
+	                    <option key={classroom.id} value={classroom.id}>
+	                      {classroom.name} ({classroom.capacity})
 	                    </option>
 	                  ))}
 	              </CustomSelect>
-	              {errors.branchCode && (
-	                <div className="form-error">{t((errors.branchCode.message ?? "") as TranslationKey)}</div>
+	              {errors.classroomId && (
+	                <div className="form-error">{t((errors.classroomId.message ?? "") as TranslationKey)}</div>
 	              )}
-	              {!errors.branchCode && serverErr("branchCode") ? (
-	                <div className="form-error">{serverErr("branchCode")}</div>
+	              {!errors.classroomId && serverErr("classroomId") ? (
+	                <div className="form-error">{serverErr("classroomId")}</div>
 	              ) : null}
 	            </div>
           </div>

@@ -16,7 +16,10 @@ import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { TrainingEventDetailModal } from "../components/training/TrainingEventDetailModal";
 import { TrainingBranchSummary } from "../components/training/TrainingBranchSummary";
 import { TrainingFilters } from "../components/training/TrainingFilters";
-import { QuickLessonAssignment } from "../components/training/QuickLessonAssignment";
+import {
+  QuickClassroomAssignment,
+  QuickLessonAssignment,
+} from "../components/training/QuickLessonAssignment";
 import { QuickPracticeAssignment } from "../components/training/QuickPracticeAssignment";
 import { PracticeCandidatePicker } from "../components/training/PracticeCandidatePicker";
 import { useToast } from "../components/ui/Toast";
@@ -28,8 +31,10 @@ import {
   calendarEventToTrainingLessonRequest,
   trainingLessonToCalendarEvent,
   type TrainingCalendarEvent,
+  type TrainingBusyReason,
 } from "../lib/training-calendar";
 import { getCandidates, getCandidateById } from "../lib/candidates-api";
+import { getClassrooms } from "../lib/classrooms-api";
 import { getGroupById, getGroups } from "../lib/groups-api";
 import { getInstructors } from "../lib/instructors-api";
 import { candidateKeys } from "../lib/queries/use-candidates";
@@ -50,6 +55,7 @@ import {
 } from "../lib/training-lessons-api";
 import type {
   CandidateResponse,
+  ClassroomResponse,
   GroupResponse,
   InstructorResponse,
   PracticeEducationType,
@@ -75,6 +81,7 @@ const SERVER_FIELD_MAP: Record<string, string> = {
   GroupId: "groupId",
   CandidateId: "candidateId",
   VehicleId: "vehicleId",
+  ClassroomId: "classroomId",
   BranchCode: "branchCode",
 };
 
@@ -89,10 +96,25 @@ type ActiveMebbisTrainingJob = {
   jobType: string;
 };
 
+const EMPTY_BRANCHES: TrainingBranchDefinitionResponse[] = [];
+const EMPTY_CLASSROOMS: ClassroomResponse[] = [];
+const EMPTY_GROUPS: GroupResponse[] = [];
+const EMPTY_INSTRUCTORS: InstructorResponse[] = [];
+const EMPTY_VEHICLES: VehicleResponse[] = [];
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function rangesOverlap(
+  start: Date,
+  end: Date,
+  otherStart: Date,
+  otherEnd: Date
+): boolean {
+  return otherStart.getTime() < end.getTime() && otherEnd.getTime() > start.getTime();
 }
 
 function getMebbisImportExpectedLessonCount(resultJson: string | null): number | null {
@@ -202,19 +224,25 @@ export function TrainingPage({ type }: TrainingPageProps) {
     queryKey: ["training", "instructors"],
     queryFn: ({ signal }) => getInstructors({ activity: "active", page: 1, pageSize: 100 }, signal),
   });
-  const instructors: InstructorResponse[] = instructorsQuery.data?.items ?? [];
+  const instructors: InstructorResponse[] = instructorsQuery.data?.items ?? EMPTY_INSTRUCTORS;
 
   const groupsQuery = useQuery({
     queryKey: ["training", "groups"],
     queryFn: ({ signal }) => getGroups({ page: 1, pageSize: 100 }, signal),
   });
-  const groups: GroupResponse[] = groupsQuery.data?.items ?? [];
+  const groups: GroupResponse[] = groupsQuery.data?.items ?? EMPTY_GROUPS;
 
   const vehiclesQuery = useQuery({
     queryKey: ["training", "vehicles"],
     queryFn: ({ signal }) => getVehicles({ activity: "active", page: 1, pageSize: 100 }, signal),
   });
-  const vehicles: VehicleResponse[] = vehiclesQuery.data?.items ?? [];
+  const vehicles: VehicleResponse[] = vehiclesQuery.data?.items ?? EMPTY_VEHICLES;
+
+  const classroomsQuery = useQuery({
+    queryKey: ["training", "classrooms"],
+    queryFn: ({ signal }) => getClassrooms({ activity: "active", page: 1, pageSize: 100 }, signal),
+  });
+  const classrooms: ClassroomResponse[] = classroomsQuery.data?.items ?? EMPTY_CLASSROOMS;
 
   // Branş kataloğu DB'den geliyor (Ayarlar > Tanımlar > Branşlar). Renk,
   // toplam saat limiti ve label hepsi burada — popover/calendar/summary
@@ -223,7 +251,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     queryKey: ["training", "branches"],
     queryFn: ({ signal }) => getTrainingBranchDefinitions({ activity: "active", pageSize: 100 }, signal),
   });
-  const branches: TrainingBranchDefinitionResponse[] = branchesQuery.data?.items ?? [];
+  const branches: TrainingBranchDefinitionResponse[] = branchesQuery.data?.items ?? EMPTY_BRANCHES;
   const [selectedEvent, setSelectedEvent] = useState<TrainingCalendarEvent | null>(null);
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
   const [isMebbisTransferLoading, setIsMebbisTransferLoading] = useState(false);
@@ -238,9 +266,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [quickSettings, setQuickSettings] = useState<{
     instructorId: string;
     groupId: string;
+    classroomId: string;
     candidateId: string;
     vehicleId: string;
-  }>({ instructorId: "", groupId: "", candidateId: "", vehicleId: "" });
+  }>({ instructorId: "", groupId: "", classroomId: "", candidateId: "", vehicleId: "" });
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -387,7 +416,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     const nextId = quickSettings.groupId;
     if (!nextId) {
       prevQuickGroupRef.current = "";
-      setVisibleGroups(new Set());
+      setVisibleGroups((prev) => (prev.size === 0 ? prev : new Set()));
       setMebbisImportedFocusDate(null);
       return;
     }
@@ -419,28 +448,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
     () => new Map(groups.map((g) => [g.id, g.title])),
     [groups]
   );
-  const groupTermIdById = useMemo(
-    () => new Map(groups.map((g) => [g.id, g.term.id])),
-    [groups]
-  );
-  const visibleTheoryTermIds = useMemo(() => {
-    if (type !== "teorik" || visibleGroups.size === 0) return new Set<string>();
-    return new Set(
-      groups
-        .filter((group) => visibleGroups.has(group.title))
-        .map((group) => group.term.id)
-    );
-  }, [groups, type, visibleGroups]);
   const visibleTheoryLessonGroupKey = useMemo(() => {
     if (type !== "teorik" || visibleGroups.size === 0) return "";
-    const selectedTermIds = new Set(
-      groups
-        .filter((group) => visibleGroups.has(group.title))
-        .map((group) => group.term.id)
-    );
-    if (selectedTermIds.size === 0) return "";
     return groups
-      .filter((group) => selectedTermIds.has(group.term.id))
+      .filter((group) => visibleGroups.has(group.title))
       .map((group) => group.id)
       .sort()
       .join("|");
@@ -526,6 +537,112 @@ export function TrainingPage({ type }: TrainingPageProps) {
     setMebbisImportedFocusDate(firstImportedEvent?.start ?? null);
   }
 
+  const selectedTheoryInstructorId = useMemo(() => {
+    if (type === "teorik" && visibleInstructors.size === 1) {
+      return visibleInstructors.values().next().value ?? "";
+    }
+    return "";
+  }, [type, visibleInstructors]);
+
+  const instructorAvailabilityQuery = useQuery({
+    queryKey: ["training", "lessons", "availability", "instructor", selectedTheoryInstructorId, overlayWindow],
+    queryFn: ({ signal }) =>
+      getTrainingLessons(
+        {
+          kind: "teorik",
+          fromUtc: overlayWindow.fromUtc,
+          toUtc: overlayWindow.toUtc,
+          instructorId: selectedTheoryInstructorId,
+        },
+        signal
+      ),
+    enabled: type === "teorik" && Boolean(selectedTheoryInstructorId),
+  });
+  const classroomAvailabilityQuery = useQuery({
+    queryKey: ["training", "lessons", "availability", "classroom", quickSettings.classroomId, overlayWindow],
+    queryFn: ({ signal }) =>
+      getTrainingLessons(
+        {
+          kind: "teorik",
+          fromUtc: overlayWindow.fromUtc,
+          toUtc: overlayWindow.toUtc,
+          classroomId: quickSettings.classroomId,
+        },
+        signal
+      ),
+    enabled: type === "teorik" && Boolean(quickSettings.classroomId),
+  });
+  const theoryAvailabilityEvents = useMemo<TrainingCalendarEvent[]>(() => {
+    if (type !== "teorik") return [];
+    const next = new Map<string, TrainingCalendarEvent>();
+    for (const lesson of instructorAvailabilityQuery.data?.items ?? []) {
+      const event = trainingLessonToCalendarEvent(lesson);
+      next.set(event.id, event);
+    }
+    for (const lesson of classroomAvailabilityQuery.data?.items ?? []) {
+      const event = trainingLessonToCalendarEvent(lesson);
+      next.set(event.id, event);
+    }
+    return Array.from(next.values());
+  }, [classroomAvailabilityQuery.data, instructorAvailabilityQuery.data, type]);
+
+  const selectedPracticeInstructorId = useMemo(() => {
+    if (type === "uygulama" && visibleInstructors.size === 1) {
+      return visibleInstructors.values().next().value ?? "";
+    }
+    return "";
+  }, [type, visibleInstructors]);
+
+  const selectedPracticeVehicleId = useMemo(() => {
+    if (type === "uygulama" && visibleGroups.size === 1) {
+      const plate = visibleGroups.values().next().value;
+      return vehicles.find((vehicle) => vehicle.plateNumber === plate)?.id ?? "";
+    }
+    return "";
+  }, [type, vehicles, visibleGroups]);
+
+  const practiceInstructorAvailabilityQuery = useQuery({
+    queryKey: ["training", "lessons", "availability", "practice-instructor", selectedPracticeInstructorId, overlayWindow],
+    queryFn: ({ signal }) =>
+      getTrainingLessons(
+        {
+          kind: "uygulama",
+          fromUtc: overlayWindow.fromUtc,
+          toUtc: overlayWindow.toUtc,
+          instructorId: selectedPracticeInstructorId,
+        },
+        signal
+      ),
+    enabled: type === "uygulama" && Boolean(selectedPracticeInstructorId),
+  });
+  const practiceVehicleAvailabilityQuery = useQuery({
+    queryKey: ["training", "lessons", "availability", "practice-vehicle", selectedPracticeVehicleId, overlayWindow],
+    queryFn: ({ signal }) =>
+      getTrainingLessons(
+        {
+          kind: "uygulama",
+          fromUtc: overlayWindow.fromUtc,
+          toUtc: overlayWindow.toUtc,
+          vehicleId: selectedPracticeVehicleId,
+        },
+        signal
+      ),
+    enabled: type === "uygulama" && Boolean(selectedPracticeVehicleId),
+  });
+  const practiceAvailabilityEvents = useMemo<TrainingCalendarEvent[]>(() => {
+    if (type !== "uygulama") return [];
+    const next = new Map<string, TrainingCalendarEvent>();
+    for (const lesson of practiceInstructorAvailabilityQuery.data?.items ?? []) {
+      const event = trainingLessonToCalendarEvent(lesson);
+      next.set(event.id, event);
+    }
+    for (const lesson of practiceVehicleAvailabilityQuery.data?.items ?? []) {
+      const event = trainingLessonToCalendarEvent(lesson);
+      next.set(event.id, event);
+    }
+    return Array.from(next.values());
+  }, [practiceInstructorAvailabilityQuery.data, practiceVehicleAvailabilityQuery.data, type]);
+
   // QA seçimi takvimi otomatik bir tarihe odaklar:
   //  - Teorik: seçili grubun startDate'i; seçim yoksa bugün.
   //  - Uygulama: seçili adayın ilk uygulama dersi varsa onun start'ı,
@@ -539,12 +656,22 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return mebbisImportedFocusDate;
     }
     if (type === "teorik") {
-      if (!quickSettings.groupId) return new Date();
+      if (!quickSettings.groupId) {
+        const firstBusy = theoryAvailabilityEvents
+          .slice()
+          .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+        return firstBusy?.start ?? null;
+      }
       const group = groups.find((g) => g.id === quickSettings.groupId);
-      if (!group?.startDate) return new Date();
+      if (!group?.startDate) return null;
       return new Date(group.startDate);
     }
-    if (!quickSettings.candidateId) return new Date();
+    if (!quickSettings.candidateId) {
+      const firstBusy = practiceAvailabilityEvents
+        .slice()
+        .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+      return firstBusy?.start ?? null;
+    }
     const earliest = events
       .filter(
         (e) => e.kind === "uygulama" && e.candidateId === quickSettings.candidateId
@@ -553,7 +680,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         (acc, e) => (acc && acc < e.start ? acc : e.start),
         null
       );
-    return earliest ?? new Date();
+    return earliest ?? null;
   }, [
     type,
     quickSettings.groupId,
@@ -561,6 +688,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
     mebbisImportedFocusDate,
     groups,
     events,
+    theoryAvailabilityEvents,
+    practiceAvailabilityEvents,
   ]);
 
   // Teorik tarafta: seçili grubun startDate'inden önceki günler takvimde
@@ -594,7 +723,13 @@ export function TrainingPage({ type }: TrainingPageProps) {
         const plate = e.vehiclePlate || t("training.filter.noVehicle");
         const vehicleMatches = visibleGroups.has(plate);
         const instructorMatches = visibleInstructors.has(e.instructorId);
-        if (vehicleMatches || instructorMatches) filtered.push(e);
+        if (
+          (vehicleMatches || instructorMatches) &&
+          !(selectedPracticeInstructorId && e.instructorId === selectedPracticeInstructorId) &&
+          !(selectedPracticeVehicleId && e.vehicleId === selectedPracticeVehicleId)
+        ) {
+          filtered.push(e);
+        }
         continue;
       }
       // Teorik
@@ -608,17 +743,66 @@ export function TrainingPage({ type }: TrainingPageProps) {
           if (titleFromState && visibleGroups.has(titleFromState)) {
             matchesGroup = true;
           }
-          const termIdFromState = groupTermIdById.get(e.groupId);
-          if (termIdFromState && visibleTheoryTermIds.has(termIdFromState)) {
-            matchesGroup = true;
-          }
         }
         if (matchesGroup) filtered.push(e);
         continue;
       }
       // Grup seçili değil → eğitmen ekseni: işaretli eğitmen(ler)in
       // dersleri görünür.
-      if (visibleInstructors.has(e.instructorId)) filtered.push(e);
+      if (
+        visibleInstructors.has(e.instructorId) &&
+        !(visibleInstructors.size === 1 && selectedTheoryInstructorId)
+      ) {
+        filtered.push(e);
+      }
+    }
+    if (type === "teorik" && (selectedTheoryInstructorId || quickSettings.classroomId)) {
+      const busyMarkers = new Map<string, TrainingCalendarEvent>();
+      for (const event of theoryAvailabilityEvents) {
+        if (event.kind !== "teorik") continue;
+        if (quickSettings.groupId && event.groupId === quickSettings.groupId) continue;
+
+        const busyReasons: TrainingBusyReason[] = [];
+        if (selectedTheoryInstructorId && event.instructorId === selectedTheoryInstructorId) {
+          busyReasons.push("instructor");
+        }
+        if (quickSettings.classroomId && event.classroomId === quickSettings.classroomId) {
+          busyReasons.push("classroom");
+        }
+        if (busyReasons.length === 0) continue;
+
+        busyMarkers.set(event.id, {
+          ...event,
+          id: `__busy__${event.id}`,
+          busyMarker: true,
+          busyReasons,
+        });
+      }
+      filtered.push(...busyMarkers.values());
+    }
+    if (type === "uygulama" && (selectedPracticeInstructorId || selectedPracticeVehicleId)) {
+      const busyMarkers = new Map<string, TrainingCalendarEvent>();
+      for (const event of practiceAvailabilityEvents) {
+        if (event.kind !== "uygulama") continue;
+        if (quickSettings.candidateId && event.candidateId === quickSettings.candidateId) continue;
+
+        const busyReasons: TrainingBusyReason[] = [];
+        if (selectedPracticeInstructorId && event.instructorId === selectedPracticeInstructorId) {
+          busyReasons.push("instructor");
+        }
+        if (selectedPracticeVehicleId && event.vehicleId === selectedPracticeVehicleId) {
+          busyReasons.push("vehicle");
+        }
+        if (busyReasons.length === 0) continue;
+
+        busyMarkers.set(event.id, {
+          ...event,
+          id: `__busy__${event.id}`,
+          busyMarker: true,
+          busyReasons,
+        });
+      }
+      filtered.push(...busyMarkers.values());
     }
     // Quick-assign popover açıksa seçilen aralığı görsel önizleme
     // event'i olarak ekle — kullanıcı hangi slotu işaretlediğini görür.
@@ -674,20 +858,44 @@ export function TrainingPage({ type }: TrainingPageProps) {
         }
       }
     }
-    return filtered;
+    return filtered.map((event) => {
+      if (event.preview || event.dimmed || event.busyMarker) return event;
+
+      const busyReasons: TrainingBusyReason[] = [];
+      if (type === "teorik") {
+        if (selectedTheoryInstructorId && event.instructorId === selectedTheoryInstructorId) {
+          busyReasons.push("instructor");
+        }
+        if (quickSettings.classroomId && event.classroomId === quickSettings.classroomId) {
+          busyReasons.push("classroom");
+        }
+      } else {
+        if (selectedPracticeInstructorId && event.instructorId === selectedPracticeInstructorId) {
+          busyReasons.push("instructor");
+        }
+        if (selectedPracticeVehicleId && event.vehicleId === selectedPracticeVehicleId) {
+          busyReasons.push("vehicle");
+        }
+      }
+
+      return busyReasons.length > 0 ? { ...event, busyReasons } : event;
+    });
   }, [
     events,
     visibleGroups,
     visibleInstructors,
     type,
     groupTitleById,
-    groupTermIdById,
-    visibleTheoryTermIds,
     isBranchPickerOpen,
     newLessonSlot,
-    quickSettings.instructorId,
     quickSettings.groupId,
+    quickSettings.classroomId,
     quickSettings.candidateId,
+    selectedTheoryInstructorId,
+    theoryAvailabilityEvents,
+    selectedPracticeInstructorId,
+    selectedPracticeVehicleId,
+    practiceAvailabilityEvents,
     candidates,
     theoryEventsForOverlay,
     practiceEventsForOverlay,
@@ -701,6 +909,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // kuralını taşır.
   const toggleInstructor = (id: string) => {
     setVisibleInstructors((prev) => {
+      if (type === "teorik" || type === "uygulama") {
+        return prev.has(id) ? new Set() : new Set([id]);
+      }
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -711,6 +922,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // Uygulama'da plaka (visibleGroups Set'inde plaka tutuluyor) toggle.
   const toggleGroup = (plate: string) => {
     setVisibleGroups((prev) => {
+      if (type === "uygulama") {
+        return prev.has(plate) ? new Set() : new Set([plate]);
+      }
       const next = new Set(prev);
       if (next.has(plate)) next.delete(plate);
       else next.add(plate);
@@ -723,13 +937,18 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const resetFilters = () => {
     setVisibleGroups(new Set());
     setVisibleInstructors(new Set());
-    setQuickSettings({ groupId: "", instructorId: "", candidateId: "", vehicleId: "" });
+    setQuickSettings({ groupId: "", instructorId: "", classroomId: "", candidateId: "", vehicleId: "" });
   };
 
   // Bulk toggle: yalnızca filter listesinde görünen kayıtları etkiler.
   // Parent state diğer (görünmeyen) ID'leri korur.
   const setGroupsVisibility = (plates: string[], visible: boolean) => {
     setVisibleGroups((prev) => {
+      if (type === "uygulama") {
+        if (!visible) return new Set();
+        const firstPlate = plates[0];
+        return firstPlate ? new Set([firstPlate]) : new Set();
+      }
       const next = new Set(prev);
       plates.forEach((p) => (visible ? next.add(p) : next.delete(p)));
       return next;
@@ -738,6 +957,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const setInstructorsVisibility = (ids: string[], visible: boolean) => {
     setVisibleInstructors((prev) => {
+      if (type === "teorik" || type === "uygulama") {
+        if (!visible) return new Set();
+        const firstId = ids[0];
+        return firstId ? new Set([firstId]) : new Set();
+      }
       const next = new Set(prev);
       ids.forEach((id) => (visible ? next.add(id) : next.delete(id)));
       return next;
@@ -772,7 +996,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       groupId: values.type === "teorik" ? values.groupId || null : null,
       candidateId: values.type === "uygulama" ? values.candidateId || null : null,
       vehicleId: values.type === "uygulama" ? values.vehicleId || null : null,
-      classroomId: null,
+      classroomId: values.type === "teorik" ? values.classroomId || null : null,
       branchCode: values.type === "teorik" ? values.branchCode || null : null,
       licenseClass: values.type === "uygulama" ? candidate?.licenseClass ?? null : null,
       notes: values.notes?.trim() || null,
@@ -816,7 +1040,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const handleQuickAssign = async (branch: string) => {
     if (!canManageTraining || !newLessonSlot) return;
-    const { instructorId, groupId } = quickSettings;
+    const { groupId, classroomId } = quickSettings;
+    const instructorId = selectedTheoryInstructorId;
     const startTime = newLessonSlot!.start;
     // Süre takvimden seçilen slot'tan türetiliyor — drag ile 4 saat
     // seçildiyse 4 adet 1 saatlik ders oluşturulur. En az 1 saat.
@@ -840,7 +1065,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           groupId,
           candidateId: null,
           vehicleId: null,
-          classroomId: null,
+          classroomId,
           branchCode: branch,
           licenseClass: null,
           notes,
@@ -1067,7 +1292,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast(t("training.toast.outsideHours"));
       return;
     }
-    setNewLessonSlot({ start: snappedStart, end: snappedEnd });
 
     if (type === "uygulama") {
       // Uygulama'da branş seçimi yok (`practice` tek branş). Aday QA
@@ -1101,6 +1325,43 @@ export function TrainingPage({ type }: TrainingPageProps) {
         showToast(t("training.toast.selectExactlyOneVehicle"));
         return;
       }
+      if (
+        practiceInstructorAvailabilityQuery.isFetching ||
+        practiceVehicleAvailabilityQuery.isFetching
+      ) {
+        showToast(t("training.toast.availabilityLoading"));
+        return;
+      }
+      const instructorConflictEvents = practiceInstructorAvailabilityQuery.data
+        ? practiceInstructorAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
+        : events;
+      const vehicleConflictEvents = practiceVehicleAvailabilityQuery.data
+        ? practiceVehicleAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
+        : events;
+      const instructorBusy = instructorConflictEvents.some(
+        (event) =>
+          event.kind === "uygulama" &&
+          event.instructorId === derivedInstructorId &&
+          rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
+      );
+      const vehicleBusy = vehicleConflictEvents.some(
+        (event) =>
+          event.kind === "uygulama" &&
+          event.vehicleId === derivedVehicle.id &&
+          rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
+      );
+      if (instructorBusy && vehicleBusy) {
+        showToast(t("training.toast.instructorAndVehicleBusy"));
+        return;
+      }
+      if (instructorBusy) {
+        showToast(t("training.toast.instructorBusy"));
+        return;
+      }
+      if (vehicleBusy) {
+        showToast(t("training.toast.vehicleBusy"));
+        return;
+      }
       // Aday'ın grubunun teorik dersi planlanan aralıkla çakışıyorsa
       // backend zaten reddeder; ama kullanıcı dene-fail döngüsü görmesin
       // diye burada da blokla.
@@ -1131,6 +1392,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         instructorId: derivedInstructorId,
         vehicleId: derivedVehicle.id,
       };
+      setNewLessonSlot({ start: snappedStart, end: snappedEnd });
       setPracticePopoverPos({
         x: lastClickPos.current.x,
         y: lastClickPos.current.y,
@@ -1145,6 +1407,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast(t("training.toast.selectGroupAndInstructorFirst"));
       return;
     }
+    if (!quickSettings.classroomId) {
+      showToast(t("training.toast.selectClassroomFirst"));
+      return;
+    }
     if (visibleInstructors.size !== 1) {
       showToast(t("training.toast.selectExactlyOneInstructor"));
       return;
@@ -1152,6 +1418,40 @@ export function TrainingPage({ type }: TrainingPageProps) {
     const derivedInstructorId = visibleInstructors.values().next().value;
     if (!derivedInstructorId) {
       showToast(t("training.toast.selectExactlyOneInstructor"));
+      return;
+    }
+    if (instructorAvailabilityQuery.isFetching || classroomAvailabilityQuery.isFetching) {
+      showToast(t("training.toast.availabilityLoading"));
+      return;
+    }
+    const instructorConflictEvents = instructorAvailabilityQuery.data
+      ? instructorAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
+      : events;
+    const classroomConflictEvents = classroomAvailabilityQuery.data
+      ? classroomAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
+      : events;
+    const instructorBusy = instructorConflictEvents.some(
+      (event) =>
+        event.kind === "teorik" &&
+        event.instructorId === derivedInstructorId &&
+        rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
+    );
+    const classroomBusy = classroomConflictEvents.some(
+      (event) =>
+        event.kind === "teorik" &&
+        event.classroomId === quickSettings.classroomId &&
+        rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
+    );
+    if (instructorBusy && classroomBusy) {
+      showToast(t("training.toast.instructorAndClassroomBusy"));
+      return;
+    }
+    if (instructorBusy) {
+      showToast(t("training.toast.instructorBusy"));
+      return;
+    }
+    if (classroomBusy) {
+      showToast(t("training.toast.classroomBusy"));
       return;
     }
     // Grup başlangıç tarihinden önceye ders atanamaz (backend de
@@ -1198,6 +1498,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     // anında yaz ve popover'ı aç — handleQuickAssign closure'ını
     // tetikleyen branş seçimi sırasında doğru değer state'te olur.
     setQuickSettings((prev) => ({ ...prev, instructorId: derivedInstructorId }));
+    setNewLessonSlot({ start: snappedStart, end: snappedEnd });
     setPopoverPos({
       x: lastClickPos.current.x,
       y: lastClickPos.current.y,
@@ -1206,6 +1507,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   };
 
   const handleSelectEvent = (event: TrainingCalendarEvent) => {
+    if (event.busyMarker) return;
     setSelectedEvent(event);
   };
 
@@ -1296,13 +1598,13 @@ export function TrainingPage({ type }: TrainingPageProps) {
     });
   };
 
-  const selectedInstructor = useMemo(() => 
-    instructors.find(i => i.id === quickSettings.instructorId),
-    [instructors, quickSettings.instructorId]
+  const selectedInstructor = useMemo(
+    () => instructors.find((instructor) => instructor.id === selectedTheoryInstructorId),
+    [instructors, selectedTheoryInstructorId]
   );
 
-  const availableBranches = useMemo(() => 
-    selectedInstructor?.branches.filter(b => b !== "practice") || [],
+  const availableBranches = useMemo(
+    () => selectedInstructor?.branches.filter((branch) => branch !== "practice") || [],
     [selectedInstructor]
   );
 
@@ -1497,47 +1799,22 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
-  const loadAllGroupsForMebbisImport = async (): Promise<GroupResponse[]> => {
-    const firstPage = groupsQuery.data ?? (await getGroups({ page: 1, pageSize: 100 }));
-    const pageSize = firstPage.pageSize || 100;
-    const totalCount = firstPage.totalCount ?? firstPage.items.length;
-    const allGroups = [...firstPage.items];
-    let page = firstPage.page || 1;
-
-    while (allGroups.length < totalCount) {
-      const nextPage = page + 1;
-      const response = await getGroups({ page: nextPage, pageSize });
-      if (response.items.length === 0) break;
-      allGroups.push(...response.items);
-      page = response.page || nextPage;
-    }
-
-    return [...new Map(allGroups.map((group) => [group.id, group])).values()];
-  };
-
   const handleCreateTheoryScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
+    if (!selectedTheoryGroup) {
+      showToast(t("training.toast.selectGroupForMebbisImport"));
+      return;
+    }
 
     setIsMebbisImportLoading(true);
     try {
-      const groupsToImport = await loadAllGroupsForMebbisImport();
-      if (groupsToImport.length === 0) {
-        showToast(t("training.toast.noGroupsForMebbisImport"));
-        return;
-      }
-
-      const jobs = [];
-      for (const group of groupsToImport) {
-        const job = await createTheoryScheduleImportJob(group.id);
-        jobs.push({ job, groupId: group.id });
-        notifyMebbisJobQueued(job.id, job.jobType);
-      }
-
+      const job = await createTheoryScheduleImportJob(selectedTheoryGroup.id);
+      notifyMebbisJobQueued(job.id, job.jobType);
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      showToast(t("training.toast.mebbisImportQueuedForGroups", { count: jobs.length }));
-      jobs.forEach(({ job, groupId }) => scheduleMebbisJobPoll(job.id, groupId, job.jobType));
+      showToast(t("training.toast.mebbisImportQueued"));
+      scheduleMebbisJobPoll(job.id, selectedTheoryGroup.id, job.jobType);
     } catch (error) {
       console.error(error);
       const message =
@@ -1639,8 +1916,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     !canManageMebJobs ||
                     isQuickAssignLoading ||
                     isBulkDeleteLoading ||
-                    isMebbisTransferLoading ||
-                    isMebbisImportLoading
+                    isMebbisImportLoading ||
+                    isMebbisTransferLoading
                   }
                   onClick={handleCreateTheoryScheduleSyncJob}
                   title={!canManageMebJobs ? noPermissionTitle : undefined}
@@ -1659,8 +1936,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     !canManageMebJobs ||
                     isQuickAssignLoading ||
                     isBulkDeleteLoading ||
-                    isMebbisTransferLoading ||
-                    isMebbisImportLoading
+                    isMebbisImportLoading ||
+                    isMebbisTransferLoading
                   }
                   onClick={handleCreateTheoryScheduleImportJob}
                   title={!canManageMebJobs ? noPermissionTitle : undefined}
@@ -1753,26 +2030,19 @@ export function TrainingPage({ type }: TrainingPageProps) {
                       setQuickSettings((prev) => ({ ...prev, ...settings }))
                     }
                   />
-                  <div className="training-mebbis-actions">
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      disabled={
-                        !canManageMebJobs ||
-                        isQuickAssignLoading ||
-                        isBulkDeleteLoading ||
-                        isMebbisTransferLoading ||
-                        isMebbisImportLoading
+                  <section className="training-filters-section training-filters-section-panel">
+                    <h3 className="training-filters-section-title">
+                      {t("training.modal.field.classroom")}
+                    </h3>
+                    <QuickClassroomAssignment
+                      classroomId={quickSettings.classroomId}
+                      classrooms={classrooms}
+                      isLoading={isQuickAssignLoading || isBulkDeleteLoading}
+                      onSettingsChange={(settings) =>
+                        setQuickSettings((prev) => ({ ...prev, ...settings }))
                       }
-                      onClick={handleCreateTheoryScheduleImportJob}
-                      title={!canManageMebJobs ? noPermissionTitle : undefined}
-                      type="button"
-                    >
-                      <MebIcon size={14} />
-                      {isMebbisImportLoading
-                        ? t("training.mebbis.importQueuing")
-                        : t("training.mebbis.import")}
-                    </button>
-                  </div>
+                    />
+                  </section>
                 </>
               ) : (
                 <QuickPracticeAssignment
@@ -1845,6 +2115,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         initialSlot={newLessonSlot}
         instructors={instructors}
         groups={groups}
+        classrooms={classrooms}
         candidates={candidates}
 	        vehicles={vehicles}
 	        onClose={() => {

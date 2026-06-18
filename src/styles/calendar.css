@@ -111,6 +111,12 @@
   border-top: 1px solid var(--gray-100);
 }
 
+.training-filters-section-panel {
+  padding: 10px 0;
+  border-top: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--gray-100);
+}
+
 .training-filters-section-title {
   margin: 0 0 6px 0;
   font-size: 10px;
@@ -1134,6 +1140,34 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   z-index: 1;
 }
 
+.training-calendar .rbc-event.training-event-busy {
+  background: transparent !important;
+  border: 0 !important;
+  color: #d97706 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  left: 0 !important;
+  min-height: 18px;
+  overflow: visible !important;
+  padding: 0 !important;
+  pointer-events: none;
+  position: absolute !important;
+  right: 0 !important;
+  width: 100% !important;
+  z-index: 100 !important;
+}
+
+.training-calendar .rbc-event.training-event-busy .rbc-event-content {
+  height: 100%;
+  overflow: visible !important;
+}
+
+.training-calendar .rbc-event.training-event-busy:hover,
+.training-calendar .rbc-event.training-event-busy:active {
+  transform: none;
+  box-shadow: none !important;
+}
+
 /* Preview event — quick-assign popover açıkken çizilen geçici slot
  * görselleştirmesi. Brand-tonlu zemin, dashed border, hafif transparan.
  * Hover/click etkisi yok; etkileşim devre dışı. */
@@ -1209,8 +1243,51 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   font-weight: 500;
   line-height: 1.0;
   overflow: hidden;
+  position: relative;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.training-event-content:has(.training-event-busy-icons) {
+  padding-right: 38px;
+}
+
+.training-event-busy-content {
+  display: flex;
+  height: 100%;
+  justify-content: flex-end;
+  padding: 0;
+  overflow: visible !important;
+  position: relative;
+  width: 100%;
+}
+
+.training-event-busy-icons {
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  justify-content: flex-end;
+  min-height: 18px;
+  overflow: visible;
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  z-index: 21;
+}
+
+.training-event-busy-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: transparent;
+  color: #d97706;
+  filter:
+    drop-shadow(0 1px 1px rgba(255, 255, 255, 0.95))
+    drop-shadow(0 0 1px rgba(120, 53, 15, 0.45));
 }
 
 .training-event-type {

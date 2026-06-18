@@ -44,6 +44,31 @@ export const CandidatesIcon = (p?: IconProps) =>
     p
   );
 
+export const ClassroomIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M3 21h18" />,
+      <path key="2" d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />,
+      <path key="3" d="M9 8h6" />,
+      <path key="4" d="M9 12h6" />,
+      <path key="5" d="M9 16h2" />,
+    ],
+    p
+  );
+
+export const VehicleIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M5 17h14l-1.5-5.5A2 2 0 0 0 15.57 10H8.43a2 2 0 0 0-1.93 1.5L5 17Z" />,
+      <path key="2" d="M7 17v2" />,
+      <path key="3" d="M17 17v2" />,
+      <path key="4" d="M7.5 14h.01" />,
+      <path key="5" d="M16.5 14h.01" />,
+      <path key="6" d="M8 10l1-3h6l1 3" />,
+    ],
+    p
+  );
+
 export const GroupsIcon = (p?: IconProps) =>
   svg(
     [
