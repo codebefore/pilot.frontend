@@ -247,6 +247,14 @@ export async function createCandidateNationalIdImportJob(): Promise<MebbisJobRes
   );
 }
 
+export async function createCandidatePhotoImportJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/photo/import`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
 export async function createTheoryScheduleSyncJob(groupId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/groups/${groupId}/theory-schedule-sync`,
@@ -337,6 +345,7 @@ export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>):
     candidate_lookup: "mebbisJobType.candidateLookup",
     candidate_sync: "mebbisJobType.candidateSync",
     candidate_national_id_import: "mebbisJobType.candidateNationalIdImport",
+    candidate_photo_import: "mebbisJobType.candidatePhotoImport",
     candidate_exam_result_sync: "mebbisJobType.candidateExamResultSync",
     instructor_permit_create: "mebbisJobType.instructorPermitCreate",
     theory_schedule_sync: "mebbisJobType.theoryScheduleSync",

@@ -17,11 +17,14 @@ import {
   createInstitutionInventoryImportJob,
   createInstructorInventoryImportJob,
   createLicenseClassInventoryImportJob,
+  createCandidatePhotoImportJob,
+  createCandidateSyncByNationalIdJob,
   createTheoryScheduleImportJob,
   createVehicleInventoryImportJob,
   getMebbisJob,
   type MebbisJobResponse,
 } from "../../lib/mebbis-jobs-api";
+import { getCandidates } from "../../lib/candidates-api";
 import { getGroups } from "../../lib/groups-api";
 import { applyMebbisClassroomInventory } from "../../lib/mebbis-classroom-import";
 import { applyMebbisInstitutionInventory } from "../../lib/mebbis-institution-import";
@@ -49,6 +52,16 @@ const CANDIDATE_NATIONAL_ID_BUCKETS = [
   "direksiyon_havuz",
   "park",
 ] as const;
+const CANDIDATE_NATIONAL_ID_BUCKET_STATUS: Record<
+  (typeof CANDIDATE_NATIONAL_ID_BUCKETS)[number],
+  string
+> = {
+  esinav_havuz: "active",
+  dosya_yakan: "dropped",
+  mezun: "graduated",
+  direksiyon_havuz: "active",
+  park: "parked",
+};
 
 type MigrationActionKey =
   | "general"
@@ -56,6 +69,8 @@ type MigrationActionKey =
   | "classrooms"
   | "vehicles"
   | "instructors"
+  | "candidateSync"
+  | "candidatePhotos"
   | "groups"
   | "theorySchedule";
 
@@ -120,6 +135,18 @@ const MIGRATION_GROUPS: MigrationGroup[] = [
         key: "theorySchedule",
         titleKey: "settings.migration.action.theorySchedule.title",
         descriptionKey: "settings.migration.action.theorySchedule.description",
+        enabled: true,
+      },
+      {
+        key: "candidateSync",
+        titleKey: "settings.migration.action.candidateSync.title",
+        descriptionKey: "settings.migration.action.candidateSync.description",
+        enabled: true,
+      },
+      {
+        key: "candidatePhotos",
+        titleKey: "settings.migration.action.candidatePhotos.title",
+        descriptionKey: "settings.migration.action.candidatePhotos.description",
         enabled: true,
       },
     ],
@@ -263,6 +290,24 @@ export function MigrationSettingsSection() {
     void queryClient.invalidateQueries({ queryKey: ["settings", "instructors"] });
     void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
     void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const invalidateCandidatePhotoImportData = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["documents", "candidate-checklist"] });
+    void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const invalidateCandidateSyncImportData = () => {
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
@@ -611,6 +656,105 @@ export function MigrationSettingsSection() {
     return [...new Map(allGroups.map((group) => [group.id, group])).values()];
   };
 
+  const loadCandidatesMissingPhoto = async () => {
+    const firstPage = await getCandidates({ page: 1, pageSize: 100, hasPhoto: false });
+    const pageSize = firstPage.pageSize || 100;
+    const totalCount = firstPage.totalCount ?? firstPage.items.length;
+    const allCandidates = [...firstPage.items];
+    let page = firstPage.page || 1;
+
+    while (allCandidates.length < totalCount) {
+      const nextPage = page + 1;
+      const response = await getCandidates({ page: nextPage, pageSize, hasPhoto: false });
+      if (response.items.length === 0) break;
+      allCandidates.push(...response.items);
+      page = response.page || nextPage;
+    }
+
+    return [...new Map(allCandidates.map((candidate) => [candidate.id, candidate])).values()]
+      .filter((candidate) => Boolean(candidate.id && candidate.nationalId));
+  };
+
+  const runCandidatePhotoImport = async () => {
+    setRunningAction("candidatePhotos");
+    try {
+      const candidates = await loadCandidatesMissingPhoto();
+      if (candidates.length === 0) {
+        showToast(t("settings.migration.action.candidatePhotos.empty"));
+        return;
+      }
+
+      let queuedCount = 0;
+      for (const candidate of candidates) {
+        await createCandidatePhotoImportJob(candidate.id);
+        queuedCount += 1;
+      }
+
+      invalidateCandidatePhotoImportData();
+      showToast(
+        t("settings.migration.action.candidatePhotos.queued", {
+          count: String(queuedCount),
+        })
+      );
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("settings.migration.action.candidatePhotos.failed")
+          : t("settings.migration.action.candidatePhotos.failed");
+      showToast(message, "error");
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
+  const runCandidateSyncImport = async () => {
+    setRunningAction("candidateSync");
+    try {
+      const raw = localStorage.getItem(CANDIDATE_NATIONAL_IDS_STORAGE_KEY);
+      if (!raw) {
+        showToast(t("settings.migration.action.candidateSync.empty"), "error");
+        return;
+      }
+
+      const parsed = parseCandidateNationalIdsJson(raw);
+      if (!parsed.ok) {
+        showToast(parsed.message, "error");
+        return;
+      }
+
+      const targets = buildCandidateSyncTargets(parsed.storageValue);
+      if (targets.length === 0) {
+        showToast(t("settings.migration.action.candidateSync.empty"), "error");
+        return;
+      }
+
+      let queuedCount = 0;
+      for (const target of targets) {
+        await createCandidateSyncByNationalIdJob(target.nationalId, target.candidateStatusHint);
+        queuedCount += 1;
+      }
+
+      invalidateCandidateSyncImportData();
+      showToast(
+        t("settings.migration.action.candidateSync.queued", {
+          count: String(queuedCount),
+        })
+      );
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("settings.migration.action.candidateSync.failed")
+          : t("settings.migration.action.candidateSync.failed");
+      showToast(message, "error");
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
   const runTheoryScheduleImport = async () => {
     setRunningAction("theorySchedule");
     try {
@@ -666,6 +810,16 @@ export function MigrationSettingsSection() {
 
     if (action.key === "instructors") {
       await runInstructorInventoryImport();
+      return;
+    }
+
+    if (action.key === "candidatePhotos") {
+      await runCandidatePhotoImport();
+      return;
+    }
+
+    if (action.key === "candidateSync") {
+      await runCandidateSyncImport();
       return;
     }
 
@@ -878,6 +1032,28 @@ function readMigrationAccessExpiresAt(storageKey: string): string | null {
 type CandidateNationalIdsParseResult =
   | { ok: true; nationalIds: string[]; storageValue: Record<string, string[]> }
   | { ok: false; message: string };
+
+type CandidateSyncTarget = {
+  nationalId: string;
+  candidateStatusHint: string;
+};
+
+function buildCandidateSyncTargets(storageValue: Record<string, string[]>): CandidateSyncTarget[] {
+  const targets: CandidateSyncTarget[] = [];
+  const seen = new Set<string>();
+
+  for (const bucket of CANDIDATE_NATIONAL_ID_BUCKETS) {
+    const candidateStatusHint = CANDIDATE_NATIONAL_ID_BUCKET_STATUS[bucket];
+    for (const value of storageValue[bucket] ?? []) {
+      const nationalId = String(value ?? "").replace(/\D/g, "");
+      if (!/^[1-9]\d{10}$/.test(nationalId) || seen.has(nationalId)) continue;
+      seen.add(nationalId);
+      targets.push({ nationalId, candidateStatusHint });
+    }
+  }
+
+  return targets;
+}
 
 function parseCandidateNationalIdsJson(value: string): CandidateNationalIdsParseResult {
   let parsed: unknown;
