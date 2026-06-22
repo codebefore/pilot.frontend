@@ -128,8 +128,8 @@ import {
 } from "../lib/status-maps";
 import { toTurkishUpperCase } from "../lib/text-format";
 import {
-  buildCandidateContractPrintHtml,
-  printCandidateContractHtml,
+  buildCandidateContractDocxBlob,
+  downloadCandidateContractDocx,
 } from "../lib/candidate-contract-print";
 import { StatusPill } from "../components/ui/StatusPill";
 import type {
@@ -832,6 +832,7 @@ function CandidateHero({
     currentUrl: string | null;
   } | null>(null);
   const [printFormsOpen, setPrintFormsOpen] = useState(false);
+  const [contractGenerating, setContractGenerating] = useState(false);
   const printFormsRef = useRef<HTMLDivElement>(null);
   const contractFeeMatrixYear = candidateFeeMatrixYear(candidate);
   const institutionSettingsQuery = useQuery({
@@ -930,8 +931,8 @@ function CandidateHero({
     }
   };
 
-  const handlePrintForm = (label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]) => {
-    if (label !== "Kayıt sözleşmesi") return;
+  const handlePrintForm = async (label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]) => {
+    if (label !== "Kayıt sözleşmesi" || contractGenerating) return;
     setPrintFormsOpen(false);
 
     if (
@@ -965,18 +966,26 @@ function CandidateHero({
           (row) => row.program.id === matchedProgramId && row.lessonType === "practice"
         ) ?? null
       : null;
-    const html = buildCandidateContractPrintHtml({
-      candidate,
-      accounting,
-      contractYear: contractFeeMatrixYear,
-      theoryFeeRow,
-      practiceFeeRow,
-      institution: institutionSettingsQuery.data ?? null,
-      managerName,
-    });
 
-    if (!printCandidateContractHtml(html)) {
-      showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+    setContractGenerating(true);
+    try {
+      const blob = await buildCandidateContractDocxBlob({
+        candidate,
+        accounting,
+        contractYear: contractFeeMatrixYear,
+        theoryFeeRow,
+        practiceFeeRow,
+        institution: institutionSettingsQuery.data ?? null,
+        managerName,
+      });
+      downloadCandidateContractDocx(blob, candidate);
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : "Sözleşme dosyası hazırlanamadı.";
+      showToast(message, "error");
+    } finally {
+      setContractGenerating(false);
     }
   };
 
@@ -1018,20 +1027,21 @@ function CandidateHero({
                 aria-expanded={printFormsOpen}
                 aria-haspopup="menu"
                 className="btn btn-secondary btn-sm candidate-detail-hero-action"
+                disabled={contractGenerating}
                 onClick={() => setPrintFormsOpen((open) => !open)}
                 type="button"
               >
                 <PrintIcon size={15} />
-                <span>Form Yazdır</span>
+                <span>{contractGenerating ? "Hazırlanıyor..." : "Form Yazdır"}</span>
               </button>
               {printFormsOpen ? (
                 <div className="candidate-detail-print-popover" role="menu" aria-label="Form yazdır">
                   {CANDIDATE_PRINT_FORM_OPTIONS.map((label) => (
                     <button
                       className="candidate-detail-print-popover-item"
-                      disabled={label !== "Kayıt sözleşmesi"}
+                      disabled={contractGenerating || label !== "Kayıt sözleşmesi"}
                       key={label}
-                      onClick={() => handlePrintForm(label)}
+                      onClick={() => void handlePrintForm(label)}
                       role="menuitem"
                       type="button"
                     >
