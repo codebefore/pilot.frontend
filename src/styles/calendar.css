@@ -47,6 +47,9 @@
   gap: 12px;
   align-items: flex-start;
   padding: 0 14px;
+  max-height: calc(100vh - 180px);
+  min-height: 480px;
+  overflow: hidden;
 }
 
 .training-layout > .training-calendar,
@@ -83,22 +86,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--gray-500);
-}
-
-.training-filters-reset {
-  background: transparent;
-  border: none;
-  color: var(--brand-dark);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 2px 4px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.training-filters-reset:hover {
-  color: var(--brand);
 }
 
 .training-filters-section {
@@ -197,6 +184,36 @@
   text-decoration: underline;
 }
 
+.training-quick-group-search {
+  width: 100%;
+  height: 30px;
+  min-width: 0;
+  margin: -2px 0 2px;
+  padding: 0 9px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.training-quick-group-search::placeholder {
+  color: var(--gray-400);
+  font-weight: 500;
+}
+
+.training-quick-group-search:focus {
+  border-color: var(--brand);
+  background: var(--white);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
 .training-filters-search {
   width: 100%;
   margin: 4px 0 6px;
@@ -213,16 +230,31 @@
   border-color: var(--gray-400);
 }
 
-/* Sidebar listeleri max ~5 satır gösterir, fazlası içeride kayar.
- * Scrollbar gizli — temiz görünüm için tarayıcıya göre fallback. */
+/* Sidebar listeleri max ~5 satır gösterir, fazlası içeride kayar. */
 .training-filters-list-scroll {
   max-height: 150px;
   overflow-y: auto;
-  scrollbar-width: none;
+  padding-right: 8px;
+  scrollbar-color: var(--gray-400) var(--gray-100);
+  scrollbar-width: thin;
 }
 
 .training-filters-list-scroll::-webkit-scrollbar {
-  display: none;
+  width: 5px;
+}
+
+.training-filters-list-scroll::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: 999px;
+}
+
+.training-filters-list-scroll::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: 999px;
+}
+
+.training-filters-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
 }
 
 .training-filters-empty {
@@ -230,6 +262,12 @@
   font-size: 12px;
   color: var(--gray-500);
   font-style: italic;
+}
+
+.training-filters-scroll-sentinel {
+  height: 1px;
+  min-height: 1px;
+  pointer-events: none;
 }
 
 .training-filters-item {
@@ -310,6 +348,31 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 
 .training-filters-name {
   flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-filters-group-name {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.training-filters-group-year {
+  display: block;
+  overflow: hidden;
+  color: var(--gray-500);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.training-filters-group-title {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1520,10 +1583,8 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 }
 
 /* ─── Sol panel sarmalı (Hızlı atama + Filtreler) ──────────── */
-/* Sticky sarmalı viewport'a yapışır; içerideki tüm panel (quick-assign +
- * filters) tek scroll alanı. İçeride 100vh - 160px sığmıyorsa sidebar
- * scroll eder. Inner `.training-filters` kendi sticky/scroll'unu
- * devreder; tek scrollbar = sidebar'ın. */
+/* Sticky sarmalı viewport'a yapışır; içerideki uzun listeler kendi içinde
+ * scroll eder. Sidebar'ın ayrıca bir scroll alanı olmasına gerek yok. */
 .training-filters-sidebar {
   flex: 0 0 200px;
   display: flex;
@@ -1531,8 +1592,8 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   gap: 12px;
   position: sticky;
   top: 0;
-  max-height: calc(100vh - 160px);
-  /* Scroll fonksiyonu açık ama bar görünmesin (Firefox + WebKit + IE). */
+  align-self: flex-start;
+  max-height: calc(100vh - 180px);
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;

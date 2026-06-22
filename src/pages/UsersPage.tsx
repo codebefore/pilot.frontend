@@ -62,7 +62,7 @@ const DEFAULT_FILTERS: UserFilters = {
   phone: "",
   mebbisUsername: "",
   roleId: "all",
-  activity: "all",
+  activity: "active",
 };
 
 const USER_COLUMN_IDS: UserColumnId[] = [
@@ -169,13 +169,18 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
 
   const queryClient = useQueryClient();
   const includeSuperAdmins = user?.isSuperAdmin === true;
-  const usersListQueryKey = ["users", "list", { includeSuperAdmins }] as const;
+  const [includeInactiveUsers, setIncludeInactiveUsers] = useState(false);
+  const usersListQueryKey = [
+    "users",
+    "list",
+    { includeInactive: includeInactiveUsers, includeSuperAdmins },
+  ] as const;
   const superAdminProtectedTitle = t("users.superAdminProtected");
 
   const usersQuery = useQuery<AppUserResponse[]>({
     queryKey: usersListQueryKey,
     queryFn: ({ signal }) =>
-      getUsers({ includeInactive: true, includeSuperAdmins }, signal),
+      getUsers({ includeInactive: includeInactiveUsers, includeSuperAdmins }, signal),
   });
 
   const rolesQuery = useQuery<RoleResponse[]>({
@@ -240,8 +245,11 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   );
 
   const filtersActive = useMemo(
-    () => search.trim().length > 0 || JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS),
-    [filters, search]
+    () =>
+      includeInactiveUsers ||
+      search.trim().length > 0 ||
+      JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS),
+    [filters, includeInactiveUsers, search]
   );
 
   const filteredUsers = useMemo(() => {
@@ -355,6 +363,9 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
     setEditing(null);
     // Optimistic update: merge saved user into cache immediately
     queryClient.setQueryData<AppUserResponse[]>(usersListQueryKey, (prev) => {
+      if (!includeInactiveUsers && !saved.isActive) {
+        return prev ? prev.filter((p) => p.id !== saved.id) : [];
+      }
       if (!prev) return [saved];
       const idx = prev.findIndex((p) => p.id === saved.id);
       if (idx === -1) return [...prev, saved];
@@ -394,13 +405,26 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   };
 
   const setFilter = <K extends keyof UserFilters>(field: K, value: UserFilters[K]) => {
+    if (field === "activity") {
+      setIncludeInactiveUsers(value !== "active");
+    }
     setFilters((current) => ({ ...current, [field]: value }));
+    setPage(1);
+  };
+
+  const handleIncludeInactiveChange = (includeInactive: boolean) => {
+    setIncludeInactiveUsers(includeInactive);
+    setFilters((current) => ({
+      ...current,
+      activity: includeInactive ? "all" : "active",
+    }));
     setPage(1);
   };
 
   const clearFilters = () => {
     setSearch("");
     setSearchResetKey((current) => current + 1);
+    setIncludeInactiveUsers(false);
     setFilters(DEFAULT_FILTERS);
     setPage(1);
   };
@@ -440,6 +464,15 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
           Filtreleri Temizle
         </button>
       ) : null}
+      <label className="switch-toggle toolbar-switch-toggle">
+        <input
+          checked={includeInactiveUsers}
+          onChange={(event) => handleIncludeInactiveChange(event.target.checked)}
+          type="checkbox"
+        />
+        <span className="switch-toggle-control" aria-hidden="true" />
+        <span>{t("users.showInactive")}</span>
+      </label>
       <button
         className="btn btn-primary btn-sm"
         disabled={!canManageUsers}

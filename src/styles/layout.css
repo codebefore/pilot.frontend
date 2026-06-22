@@ -507,8 +507,8 @@
   flex: 0 0 auto;
 }
 .candidate-bulk-toolbar .custom-select {
-  width: 140px;
-  flex: 0 0 140px;
+  width: 220px;
+  flex: 0 0 220px;
 }
 .candidate-bulk-toolbar .custom-select-trigger {
   width: 100%;
@@ -616,6 +616,39 @@
   position: relative;
   z-index: 1;
 }
+.dash-header-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.dash-header-content h1 {
+  margin: 0;
+}
+.dash-header-mebbis-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--hero-fg) 24%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--hero-fg) 10%, transparent);
+  color: var(--hero-fg);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dash-header-mebbis-btn:hover {
+  background: color-mix(in srgb, var(--hero-fg) 16%, transparent);
+  border-color: color-mix(in srgb, var(--hero-fg) 38%, transparent);
+}
+.dash-header-mebbis-btn:disabled {
+  cursor: default;
+  opacity: .65;
+}
 .dash-header h1 span { color: var(--brand); }
 .dash-header p {
   font-size: 14px; color: color-mix(in srgb, var(--hero-fg) 78%, transparent);
@@ -701,6 +734,9 @@
   .dash-stats,
   .settings-page { padding-left: var(--page-shell-gutter); padding-right: var(--page-shell-gutter); }
   .dash-header { padding-top: 24px; padding-bottom: 20px; }
+  .dash-header-content {
+    flex-direction: column;
+  }
   .dash-header-pattern {
     width: 320px;
     max-height: 42vh;

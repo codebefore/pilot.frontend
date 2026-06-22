@@ -212,8 +212,8 @@ export function CandidateExamDateSidebar({
   };
   const submitCodeEdit = (option: ExamCodeOption) => {
     if (!canManageMutations) return;
-    const cleaned = editingCodeValue.replace(/\D/g, "").slice(0, 9);
-    if (cleaned.length !== 9) {
+    const cleaned = editingCodeValue.trim();
+    if (cleaned.length === 0 || cleaned.length > 15) {
       setEditingCodeError(t("examDateSidebar.error.codeLength"));
       return;
     }
@@ -282,10 +282,9 @@ export function CandidateExamDateSidebar({
                       autoFocus
                       className="exam-date-option-edit-input"
                       disabled={!canManageMutations}
-                      inputMode="numeric"
-                      maxLength={9}
+                      maxLength={15}
                       onChange={(event) => {
-                        setEditingCodeValue(event.currentTarget.value.replace(/\D/g, "").slice(0, 9));
+                        setEditingCodeValue(event.currentTarget.value.slice(0, 15));
                         setEditingCodeError("");
                       }}
                       onKeyDown={(event) => {
@@ -479,7 +478,12 @@ export function CandidateExamDateSidebar({
                   type="button"
                 >
                   <span className="exam-date-option-head">
-                    <span className="exam-date-option-date">{formatDateTR(option.date)}</span>
+                    <span className="exam-date-option-date">
+                      {formatDateTR(option.date)}
+                      {summaryMode === "capacity" ? (
+                        <span className="exam-date-option-capacity">({option.capacity})</span>
+                      ) : null}
+                    </span>
                     {licenseClassHeader ? (
                       <span className="exam-date-option-license">{licenseClassHeader}</span>
                     ) : null}

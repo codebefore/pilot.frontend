@@ -177,12 +177,84 @@
   flex: 1;
   min-width: 0;
 }
+.candidate-detail-hero-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 .candidate-detail-hero-name {
   margin: 0 0 2px;
   font-size: 22px;
   font-weight: 700;
   color: var(--gray-900);
   letter-spacing: -0.01em;
+}
+.candidate-detail-hero-action {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.candidate-detail-hero-action svg {
+  flex-shrink: 0;
+}
+.candidate-detail-hero-actions {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.candidate-detail-print-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  min-width: 240px;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--gray-300) 75%, transparent);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+}
+.candidate-detail-print-popover-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-800);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 10px;
+  text-align: left;
+}
+.candidate-detail-print-popover-item:disabled {
+  cursor: default;
+  color: var(--gray-700);
+  opacity: 1;
+}
+.candidate-detail-print-popover-item:not(:disabled):hover {
+  background: var(--gray-100);
+}
+.candidate-mebbis-status-snapshot {
+  width: min(1240px, calc(100vw - 80px));
+  height: min(720px, calc(100vh - 190px));
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+}
+.candidate-mebbis-status-snapshot iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--white);
 }
 .candidate-detail-hero-meta {
   display: flex;
@@ -3201,6 +3273,18 @@
   }
   .candidate-detail-hero {
     flex-direction: column;
+  }
+  .candidate-detail-hero-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .candidate-detail-hero-actions {
+    width: 100%;
+  }
+  .candidate-detail-print-popover {
+    left: 0;
+    right: auto;
+    width: min(100%, 280px);
   }
   .candidate-finance-action-bar {
     align-items: stretch;

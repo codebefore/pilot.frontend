@@ -7,6 +7,7 @@ import { SettingsTableSkeleton } from "../ui/Skeleton";
 import { StatusPill } from "../ui/StatusPill";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
+import { canManageArea } from "../../lib/permissions";
 import { useT } from "../../lib/i18n";
 import { getTrainingBranchDefinitions } from "../../lib/training-branch-definitions-api";
 import type { TrainingBranchDefinitionResponse } from "../../lib/types";
@@ -17,8 +18,9 @@ export function TrainingBranchesSettingsSection() {
   const { showToast } = useToast();
   const t = useT();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const canManage = user?.isSuperAdmin ?? false;
+  const { user, permissions } = useAuth();
+  const canManage = canManageArea(user, permissions, "settings");
+  const canEditSystemFields = user?.isSuperAdmin === true;
   const [items, setItems] = useState<TrainingBranchDefinitionResponse[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editing, setEditing] = useState<TrainingBranchDefinitionResponse | null>(null);
@@ -165,6 +167,7 @@ export function TrainingBranchesSettingsSection() {
 
       <TrainingBranchFormModal
         canManage={canManage}
+        canEditSystemFields={canEditSystemFields}
         editing={editing}
         onClose={closeForm}
         onSaved={handleSaved}

@@ -315,6 +315,17 @@ export function CashRegistersSettingsSection() {
                   {t("common.clearFilters")}
                 </button>
               ) : null}
+              <label className="switch-toggle toolbar-switch-toggle">
+                <input
+                  checked={filters.activity === "all"}
+                  onChange={(event) =>
+                    setFilter("activity", event.target.checked ? "all" : "active")
+                  }
+                  type="checkbox"
+                />
+                <span className="switch-toggle-control" aria-hidden="true" />
+                <span>{t("settings.cashRegisters.showInactive")}</span>
+              </label>
               <button
                 className="btn btn-primary btn-sm"
                 disabled={!canManagePayments}

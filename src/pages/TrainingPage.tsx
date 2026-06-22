@@ -108,6 +108,28 @@ function delay(ms: number): Promise<void> {
   });
 }
 
+async function fetchAllTrainingGroups(signal?: AbortSignal) {
+  const pageSize = 100;
+  const firstPage = await getGroups({ page: 1, pageSize }, signal);
+  const allItems = [...firstPage.items];
+  const totalCount = firstPage.totalCount ?? allItems.length;
+  const pageCount = Math.ceil(totalCount / pageSize);
+
+  for (let page = 2; page <= pageCount; page += 1) {
+    const nextPage = await getGroups({ page, pageSize }, signal);
+    if (nextPage.items.length === 0) break;
+    allItems.push(...nextPage.items);
+  }
+
+  return {
+    ...firstPage,
+    items: allItems,
+    page: 1,
+    pageSize: allItems.length || pageSize,
+    totalCount: Math.max(totalCount, allItems.length),
+  };
+}
+
 function rangesOverlap(
   start: Date,
   end: Date,
@@ -228,7 +250,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const groupsQuery = useQuery({
     queryKey: ["training", "groups"],
-    queryFn: ({ signal }) => getGroups({ page: 1, pageSize: 100 }, signal),
+    queryFn: ({ signal }) => fetchAllTrainingGroups(signal),
   });
   const groups: GroupResponse[] = groupsQuery.data?.items ?? EMPTY_GROUPS;
 
@@ -930,14 +952,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
       else next.add(plate);
       return next;
     });
-  };
-
-  // Sıfırla → tüm filtreler false (her şey gizli) + QA seçimleri de
-  // temizlenir. Kullanıcı tekrar toggle/dropdown ile istediğini seçer.
-  const resetFilters = () => {
-    setVisibleGroups(new Set());
-    setVisibleInstructors(new Set());
-    setQuickSettings({ groupId: "", instructorId: "", classroomId: "", candidateId: "", vehicleId: "" });
   };
 
   // Bulk toggle: yalnızca filter listesinde görünen kayıtları etkiler.
@@ -2031,9 +2045,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     }
                   />
                   <section className="training-filters-section training-filters-section-panel">
-                    <h3 className="training-filters-section-title">
-                      {t("training.modal.field.classroom")}
-                    </h3>
                     <QuickClassroomAssignment
                       classroomId={quickSettings.classroomId}
                       classrooms={classrooms}
@@ -2054,26 +2065,22 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   }
                 />
               )}
-              <TrainingBranchSummary
-                branches={branches}
-                branchHelpers={branchHelpers}
-                candidateId={quickSettings.candidateId || undefined}
-                candidates={candidates}
-                events={events}
-                groupId={quickSettings.groupId || undefined}
-                kind={type}
-                overlayEvents={
-                  type === "teorik"
-                    ? practiceEventsForOverlay
-                    : theoryEventsForOverlay
-                }
-              />
+              {type === "teorik" ? (
+                <TrainingBranchSummary
+                  branches={branches}
+                  branchHelpers={branchHelpers}
+                  candidates={candidates}
+                  events={events}
+                  groupId={quickSettings.groupId || undefined}
+                  kind={type}
+                  overlayEvents={practiceEventsForOverlay}
+                />
+              ) : null}
               <TrainingFilters
                 allInstructors={instructors}
                 allVehiclesCatalog={vehicles}
                 events={events}
                 kind={type}
-                onResetFilters={resetFilters}
                 onSetGroupsVisibility={setGroupsVisibility}
                 onSetInstructorsVisibility={setInstructorsVisibility}
                 onToggleGroup={toggleGroup}

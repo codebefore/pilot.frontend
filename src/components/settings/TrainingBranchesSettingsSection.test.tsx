@@ -49,7 +49,7 @@ describe("TrainingBranchesSettingsSection", () => {
     });
   });
 
-  it("disables global catalog mutations for non-super-admin users", async () => {
+  it("allows settings managers to edit institution branch colors", async () => {
     renderWithProviders(<TrainingBranchesSettingsSection />, {
       auth: {
         user: {
@@ -59,7 +59,7 @@ describe("TrainingBranchesSettingsSection", () => {
           roleName: "Eğitim",
           isSuperAdmin: false,
         },
-        permissions: { training: "full" },
+        permissions: { settings: "full" },
       },
     });
 
@@ -70,6 +70,6 @@ describe("TrainingBranchesSettingsSection", () => {
       );
     });
     expect(await screen.findByText("Direksiyon")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Düzenle" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Düzenle" })).toBeEnabled();
   });
 });

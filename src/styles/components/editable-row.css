@@ -298,6 +298,61 @@
   color: #b91c1c;
 }
 
+.candidate-contact-delete-popover-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.candidate-contact-delete-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: max-content;
+  min-width: 176px;
+  padding: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+  white-space: nowrap;
+}
+
+.candidate-contact-delete-popover::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  border-top: 1px solid var(--gray-200);
+  border-left: 1px solid var(--gray-200);
+  background: var(--white);
+  transform: rotate(45deg);
+}
+
+.candidate-contact-delete-popover span {
+  color: var(--gray-600);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.candidate-contact-delete-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.candidate-contact-delete-popover .btn {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 @media (max-width: 640px) {
   .candidate-contact-row,
   .candidate-contact-draft-row {

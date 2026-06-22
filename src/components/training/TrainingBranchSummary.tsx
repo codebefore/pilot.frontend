@@ -54,10 +54,8 @@ export function TrainingBranchSummary({
   //  - Teorik: practice hariç hepsi (eğitim verilen branşlar).
   //  - Uygulama: sadece practice satırı.
   const visibleBranches = useMemo(() => {
-    return branches.filter((b) =>
-      kind === "uygulama" ? b.code === "practice" : b.code !== "practice"
-    );
-  }, [branches, kind]);
+    return branches.filter((b) => b.code !== "practice");
+  }, [branches]);
 
   // İlgili event'leri filtrele:
   //  - Teorik: kind === teorik && groupId match.
@@ -129,6 +127,7 @@ export function TrainingBranchSummary({
   const ghostBranches = useMemo(() => {
     const ownCodes = new Set(visibleBranches.map((b) => b.code));
     return Array.from(ghostHoursByCode.keys())
+      .filter((code) => code !== "practice")
       .filter((code) => !ownCodes.has(code))
       .map((code) => branchHelpers.byCode(code))
       .filter((b): b is TrainingBranchDefinitionResponse => Boolean(b));

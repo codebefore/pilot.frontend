@@ -108,6 +108,7 @@ function HeaderMebbisConnection() {
   const mounted = useRef(true);
   const pollingTimer = useRef<number | null>(null);
   const latestSession = useRef<LocalAgentMebbisSessionResponse | null>(null);
+  const operationInFlight = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -125,6 +126,7 @@ function HeaderMebbisConnection() {
 
   const status = normalizeMebbisStatus(session?.status);
   const active = status === "starting" || status === "waiting_verification" || status === "connected" || status === "stopping";
+  const transitionLocked = busy || status === "starting" || status === "stopping";
   const statusText = t(MEBBIS_STATUS_LABELS[status]);
   const statusMessage = error ?? session?.error ?? session?.message ?? statusText;
   const popoverTitle = status === "waiting_verification"
@@ -149,7 +151,11 @@ function HeaderMebbisConnection() {
   }
 
   async function handleToggle() {
-    if (busy) return;
+    if (operationInFlight.current || transitionLocked) return;
+    if (status === "waiting_verification") {
+      setPopoverOpen(true);
+      return;
+    }
     if (active) {
       await stopSession();
     } else {
@@ -157,8 +163,23 @@ function HeaderMebbisConnection() {
     }
   }
 
-  async function startSession() {
+  function beginOperation() {
+    if (operationInFlight.current) {
+      return false;
+    }
+
+    operationInFlight.current = true;
     setBusy(true);
+    return true;
+  }
+
+  function endOperation() {
+    operationInFlight.current = false;
+    setBusy(false);
+  }
+
+  async function startSession() {
+    if (!beginOperation()) return;
     setError(null);
     const startingSession = {
       status: "starting",
@@ -218,7 +239,7 @@ function HeaderMebbisConnection() {
       setSession(failedSession);
       setPopoverOpen(true);
     } finally {
-      setBusy(false);
+      endOperation();
     }
   }
 
@@ -253,7 +274,7 @@ function HeaderMebbisConnection() {
   }
 
   async function stopSession() {
-    setBusy(true);
+    if (!beginOperation()) return;
     setError(null);
     const stoppingSession = {
       status: "stopping",
@@ -277,16 +298,16 @@ function HeaderMebbisConnection() {
       setError(err instanceof Error ? err.message : t("header.mebbis.stopFailed"));
       setPopoverOpen(true);
     } finally {
-      setBusy(false);
+      endOperation();
     }
   }
 
   async function submitCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = verificationCode.replace(/\D/g, "");
-    if (code.length !== 6 || busy) return;
+    if (code.length !== 6 || operationInFlight.current || busy) return;
 
-    setBusy(true);
+    if (!beginOperation()) return;
     setError(null);
     try {
       const next = await submitLocalAgentMebbisVerificationCode(code);
@@ -299,7 +320,7 @@ function HeaderMebbisConnection() {
     } catch (err) {
       setError(err instanceof Error ? err.message : t("header.mebbis.codeFailed"));
     } finally {
-      setBusy(false);
+      endOperation();
     }
   }
 
@@ -309,7 +330,7 @@ function HeaderMebbisConnection() {
         aria-expanded={popoverOpen}
         aria-label={t("header.mebbisToggle")}
         className={`header-mebbis-toggle is-${status}`}
-        disabled={busy && status === "starting"}
+        disabled={transitionLocked}
         onClick={handleToggle}
         type="button"
       >

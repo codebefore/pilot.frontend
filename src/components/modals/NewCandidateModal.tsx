@@ -19,6 +19,7 @@ import { isPhoneStartingWith5 } from "../../lib/phone";
 import { candidateKeys } from "../../lib/queries/use-candidates";
 import { toTurkishUpperCase } from "../../lib/text-format";
 import type {
+  CandidateResponse,
   CandidateReuseSourceResponse,
 } from "../../lib/types";
 import {
@@ -74,7 +75,7 @@ type NewCandidateModalProps = {
   open: boolean;
   canManage?: boolean;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: (candidate: CandidateResponse) => void;
 };
 
 function buildReuseSourceAvatarCandidate(source: CandidateReuseSourceResponse) {
@@ -286,7 +287,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
     try {
       const selectedLicenseClassDefinitionId =
         licenseClassOptions.find((option) => option.value === data.className)?.licenseClassDefinitionId ?? null;
-      await createCandidate({
+      const candidate = await createCandidate({
         firstName: data.firstName,
         lastName: data.lastName,
         nationalId: data.tc,
@@ -321,7 +322,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
       invalidateNewCandidateDependents();
       showToast(t("newCandidate.toast.success"));
-      onSubmit();
+      onSubmit(candidate);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError("tc", {

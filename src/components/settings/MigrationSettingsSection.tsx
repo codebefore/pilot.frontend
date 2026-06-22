@@ -45,23 +45,6 @@ const LICENSE_CLASS_IMPORT_POLL_TIMEOUT_MS = 60 * 1000;
 const INSTITUTION_IMPORT_POLL_TIMEOUT_MS = 60 * 1000;
 const MIGRATION_ACCESS_STORAGE_PREFIX = "pilot.migration.access";
 const CANDIDATE_NATIONAL_IDS_STORAGE_KEY = "pilot.mebbis.candidateNationalIds";
-const CANDIDATE_NATIONAL_ID_BUCKETS = [
-  "esinav_havuz",
-  "dosya_yakan",
-  "mezun",
-  "direksiyon_havuz",
-  "park",
-] as const;
-const CANDIDATE_NATIONAL_ID_BUCKET_STATUS: Record<
-  (typeof CANDIDATE_NATIONAL_ID_BUCKETS)[number],
-  string
-> = {
-  esinav_havuz: "active",
-  dosya_yakan: "dropped",
-  mezun: "graduated",
-  direksiyon_havuz: "active",
-  park: "parked",
-};
 
 type MigrationActionKey =
   | "general"
@@ -732,7 +715,7 @@ export function MigrationSettingsSection() {
 
       let queuedCount = 0;
       for (const target of targets) {
-        await createCandidateSyncByNationalIdJob(target.nationalId, target.candidateStatusHint);
+        await createCandidateSyncByNationalIdJob(target.nationalId);
         queuedCount += 1;
       }
 
@@ -1001,7 +984,7 @@ export function MigrationSettingsSection() {
                   className="form-input"
                   id="candidate-national-ids-json"
                   onChange={(event) => setCandidateNationalIdsJson(event.target.value)}
-                  placeholder='{"items":[{"nationalId":"10122067560"}]}'
+                  placeholder='["10122067560","29792595570"]'
                   rows={8}
                   value={candidateNationalIdsJson}
                 />
@@ -1030,26 +1013,22 @@ function readMigrationAccessExpiresAt(storageKey: string): string | null {
 }
 
 type CandidateNationalIdsParseResult =
-  | { ok: true; nationalIds: string[]; storageValue: Record<string, string[]> }
+  | { ok: true; nationalIds: string[]; storageValue: string[] }
   | { ok: false; message: string };
 
 type CandidateSyncTarget = {
   nationalId: string;
-  candidateStatusHint: string;
 };
 
-function buildCandidateSyncTargets(storageValue: Record<string, string[]>): CandidateSyncTarget[] {
+function buildCandidateSyncTargets(storageValue: string[]): CandidateSyncTarget[] {
   const targets: CandidateSyncTarget[] = [];
   const seen = new Set<string>();
 
-  for (const bucket of CANDIDATE_NATIONAL_ID_BUCKETS) {
-    const candidateStatusHint = CANDIDATE_NATIONAL_ID_BUCKET_STATUS[bucket];
-    for (const value of storageValue[bucket] ?? []) {
-      const nationalId = String(value ?? "").replace(/\D/g, "");
-      if (!/^[1-9]\d{10}$/.test(nationalId) || seen.has(nationalId)) continue;
-      seen.add(nationalId);
-      targets.push({ nationalId, candidateStatusHint });
-    }
+  for (const value of storageValue) {
+    const nationalId = String(value ?? "").replace(/\D/g, "");
+    if (!/^[1-9]\d{10}$/.test(nationalId) || seen.has(nationalId)) continue;
+    seen.add(nationalId);
+    targets.push({ nationalId });
   }
 
   return targets;
@@ -1065,33 +1044,20 @@ function parseCandidateNationalIdsJson(value: string): CandidateNationalIdsParse
 
   const nationalIds: string[] = [];
   const seen = new Set<string>();
-  const addNationalId = (candidate: unknown, target?: string[]) => {
+  const addNationalId = (candidate: unknown) => {
     const nationalId = String(candidate ?? "").replace(/\D/g, "");
     if (!/^[1-9]\d{10}$/.test(nationalId) || seen.has(nationalId)) return;
     seen.add(nationalId);
     nationalIds.push(nationalId);
-    target?.push(nationalId);
   };
 
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, message: "JSON beş kategori alanını içeren object formatında olmalı." };
+  if (!Array.isArray(parsed)) {
+    return { ok: false, message: "JSON TC listesini içeren array formatında olmalı." };
   }
 
-  const record = parsed as Record<string, unknown>;
-  const bucketStorage: Record<string, string[]> = {};
-  for (const bucket of CANDIDATE_NATIONAL_ID_BUCKETS) {
-    const values = record[bucket];
-    if (!Array.isArray(values)) {
-      return { ok: false, message: `${bucket} alanı liste olmalı.` };
-    }
-
-    const bucketNationalIds: string[] = [];
-    values.forEach((item) => addNationalId(item, bucketNationalIds));
-    bucketStorage[bucket] = bucketNationalIds;
-  }
-
+  parsed.forEach(addNationalId);
   if (nationalIds.length === 0) {
     return { ok: false, message: "JSON içinde geçerli TC bulunamadı." };
   }
-  return { ok: true, nationalIds, storageValue: bucketStorage };
+  return { ok: true, nationalIds, storageValue: nationalIds };
 }

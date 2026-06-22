@@ -23,8 +23,8 @@ type DocumentScannerModalProps = {
   onScanned: (file: File) => Promise<void> | void;
 };
 
-const DEFAULT_RESOLUTION = 300;
-const PREFERRED_RESOLUTIONS = [300, 400, 600];
+const DEFAULT_RESOLUTION = 150;
+const FALLBACK_RESOLUTION = 200;
 const POLL_DELAY_MS = 1200;
 
 type ScannerLoadMode = "stored" | "discovery";
@@ -51,12 +51,28 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-function supportedResolutions(scanner: LocalAgentScannerResponse | null): number[] {
+export function supportedResolutions(scanner: Pick<LocalAgentScannerResponse, "resolutions"> | null): number[] {
   if (!scanner) return [DEFAULT_RESOLUTION];
-  const deviceResolutions = scanner.resolutions.filter((value) => value > 0);
-  const preferred = PREFERRED_RESOLUTIONS.filter((value) => deviceResolutions.includes(value));
-  if (preferred.length > 0) return preferred;
+  const deviceResolutions = [...new Set(scanner.resolutions.filter((value) => value > 0))]
+    .sort((left, right) => left - right);
   return deviceResolutions.length > 0 ? deviceResolutions : [DEFAULT_RESOLUTION];
+}
+
+export function pickScannerResolution(
+  scanner: Pick<LocalAgentScannerResponse, "resolutions"> | null,
+  storedResolution?: number | null
+): number {
+  const resolutions = supportedResolutions(scanner);
+  if (
+    storedResolution &&
+    storedResolution <= FALLBACK_RESOLUTION &&
+    resolutions.includes(storedResolution)
+  ) {
+    return storedResolution;
+  }
+  if (resolutions.includes(DEFAULT_RESOLUTION)) return DEFAULT_RESOLUTION;
+  if (resolutions.includes(FALLBACK_RESOLUTION)) return FALLBACK_RESOLUTION;
+  return resolutions[0] ?? DEFAULT_RESOLUTION;
 }
 
 function isScannerEligible(scanner: LocalAgentScannerResponse): boolean {
@@ -99,7 +115,7 @@ function storedScannerPlaceholder(stored: StoredLocalAgentScannerSettings): Loca
     supportsScan: false,
     supportsJpeg: false,
     supportsPdf: false,
-    resolutions: stored.resolution ? [stored.resolution] : [DEFAULT_RESOLUTION],
+    resolutions: [pickScannerResolution(null, stored.resolution)],
     colorModes: [],
     supportsFlatbed: false,
     supportsFeeder: false,
@@ -140,18 +156,14 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         if (placeholder) {
           setScanners([placeholder]);
           setSelectedScannerId(placeholder.scannerId);
-          if (stored.resolution) {
-            setSelectedResolution(stored.resolution);
-          }
+          setSelectedResolution(pickScannerResolution(placeholder, stored.resolution));
         }
         try {
           const scanner = await addLocalAgentManualScanner(stored.hostName, signal);
           setScanners([scanner]);
           if (isScannerEligible(scanner)) {
             setSelectedScannerId(scanner.scannerId);
-            if (stored.resolution && supportedResolutions(scanner).includes(stored.resolution)) {
-              setSelectedResolution(stored.resolution);
-            }
+            setSelectedResolution(pickScannerResolution(scanner, stored.resolution));
           } else {
             setSelectedScannerId("");
           }
@@ -173,9 +185,10 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       const firstReadyScanner = storedScanner
         ?? nextScanners.find(isScannerEligible)
         ?? null;
-      if (stored?.resolution && supportedResolutions(firstReadyScanner).includes(stored.resolution)) {
-        setSelectedResolution(stored.resolution);
-      }
+      const selectedReadyScanner = selectedScannerId
+        ? nextScanners.find((scanner) => scanner.scannerId === selectedScannerId && isScannerEligible(scanner)) ?? null
+        : null;
+      setSelectedResolution(pickScannerResolution(selectedReadyScanner ?? firstReadyScanner, stored?.resolution));
       setSelectedScannerId((current) => {
         if (current && nextScanners.some((scanner) => scanner.scannerId === current && isScannerEligible(scanner))) {
           return current;
@@ -205,9 +218,9 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
 
   useEffect(() => {
     if (!resolutionOptions.includes(selectedResolution)) {
-      setSelectedResolution(resolutionOptions[0] ?? DEFAULT_RESOLUTION);
+      setSelectedResolution(pickScannerResolution(selectedScanner));
     }
-  }, [resolutionOptions, selectedResolution]);
+  }, [resolutionOptions, selectedResolution, selectedScanner]);
 
   const startScan = async () => {
     if (!selectedScanner || !isScannerEligible(selectedScanner) || scanning) return;
@@ -287,9 +300,8 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         return [...withoutDuplicate, scanner].sort((a, b) => a.name.localeCompare(b.name, "tr"));
       });
       setSelectedScannerId(scanner.scannerId);
-      const nextResolutions = supportedResolutions(scanner);
-      if (!nextResolutions.includes(selectedResolution)) {
-        setSelectedResolution(nextResolutions[0] ?? DEFAULT_RESOLUTION);
+      if (!supportedResolutions(scanner).includes(selectedResolution)) {
+        setSelectedResolution(pickScannerResolution(scanner));
       }
       setManualHost("");
     } catch (manualAddError) {

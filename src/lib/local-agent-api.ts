@@ -88,6 +88,23 @@ export type LocalAgentMebbisSessionResponse = {
   updatedAtUtc: string;
 };
 
+export type LocalAgentMebbisCandidateStatusViewResponse = {
+  status: string;
+  message: string;
+  nationalId: string;
+  currentUrl?: string | null;
+  submitted: boolean;
+  error?: string | null;
+  htmlSnapshot?: string | null;
+};
+
+export type LocalAgentMebbisPageViewResponse = {
+  status: string;
+  message: string;
+  currentUrl?: string | null;
+  error?: string | null;
+};
+
 export class LocalAgentError extends Error {
   status?: number;
 
@@ -171,6 +188,33 @@ export async function stopLocalAgentMebbisSession(
   return handleLocalAgentJson<LocalAgentMebbisSessionResponse>(response);
 }
 
+export async function openLocalAgentMebbisCandidateStatusView(
+  nationalId: string,
+  signal?: AbortSignal
+): Promise<LocalAgentMebbisCandidateStatusViewResponse> {
+  const response = await fetch(getLocalAgentUrl("/mebbis/candidate-status/view"), {
+    method: "POST",
+    headers: buildLocalAgentHeaders(true),
+    body: JSON.stringify({ nationalId }),
+    signal,
+  });
+  const body = await handleLocalAgentJson<Record<string, unknown>>(response);
+  return normalizeMebbisCandidateStatusViewResponse(body);
+}
+
+export async function openLocalAgentMebbisHomeView(
+  signal?: AbortSignal
+): Promise<LocalAgentMebbisPageViewResponse> {
+  const response = await fetch(getLocalAgentUrl("/mebbis/home/view"), {
+    method: "POST",
+    headers: buildLocalAgentHeaders(true),
+    body: JSON.stringify({}),
+    signal,
+  });
+  const body = await handleLocalAgentJson<Record<string, unknown>>(response);
+  return normalizeMebbisPageViewResponse(body);
+}
+
 export async function listLocalAgentScanners(signal?: AbortSignal): Promise<LocalAgentScannerResponse[]> {
   const response = await getLocalAgentJson<LocalAgentScannerListResponse>("/scanners", signal);
   return response.scanners;
@@ -250,6 +294,43 @@ async function handleLocalAgentJson<T>(response: Response): Promise<T> {
     throw new LocalAgentError(message, response.status);
   }
   return response.json() as Promise<T>;
+}
+
+function normalizeMebbisCandidateStatusViewResponse(
+  body: Record<string, unknown>
+): LocalAgentMebbisCandidateStatusViewResponse {
+  return {
+    status: readString(body.status ?? body.Status),
+    message: readString(body.message ?? body.Message),
+    nationalId: readString(body.nationalId ?? body.NationalId),
+    currentUrl: readNullableString(body.currentUrl ?? body.CurrentUrl),
+    submitted: readBoolean(body.submitted ?? body.Submitted),
+    error: readNullableString(body.error ?? body.Error),
+    htmlSnapshot: readNullableString(body.htmlSnapshot ?? body.HtmlSnapshot),
+  };
+}
+
+function normalizeMebbisPageViewResponse(
+  body: Record<string, unknown>
+): LocalAgentMebbisPageViewResponse {
+  return {
+    status: readString(body.status ?? body.Status),
+    message: readString(body.message ?? body.Message),
+    currentUrl: readNullableString(body.currentUrl ?? body.CurrentUrl),
+    error: readNullableString(body.error ?? body.Error),
+  };
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function readNullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function readBoolean(value: unknown): boolean {
+  return typeof value === "boolean" ? value : false;
 }
 
 const LOCAL_AGENT_SCANNER_SETTINGS_KEY = "pilot.localAgent.scannerSettings";

@@ -1,6 +1,5 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { ChevronDownIcon } from "../icons";
 import { useT } from "../../lib/i18n";
 import type { CandidateResponse } from "../../lib/types";
 
@@ -21,12 +20,6 @@ export function QuickPracticeAssignment({
 }: QuickPracticeAssignmentProps) {
   const t = useT();
   const hasCandidate = candidateId !== "";
-  const [expanded, setExpanded] = useState(hasCandidate);
-  const panelId = useId();
-
-  useEffect(() => {
-    if (hasCandidate) setExpanded(true);
-  }, [hasCandidate]);
 
   const sortedCandidates = useMemo(
     () =>
@@ -57,53 +50,32 @@ export function QuickPracticeAssignment({
 
   return (
     <div className="training-quick-assign">
-      <button
-        type="button"
-        className={`training-quick-assign-header${expanded ? " is-open" : ""}`}
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        aria-controls={panelId}
-      >
-        <span className="training-quick-assign-chevron" aria-hidden="true">
-          <ChevronDownIcon size={14} />
-        </span>
-        <span>{t("training.quick.candidateListTitle")}</span>
-        <span className="training-quick-assign-count">
-          {visibleCandidates.length}
-        </span>
-      </button>
-      <div id={panelId} hidden={!expanded}>
-        {expanded ? (
-          <>
-            <ul className="training-filters-list training-filters-list-scroll">
-              {visibleCandidates.map((c) => {
-                const checked = c.id === candidateId;
-                return (
-                  <li key={c.id}>
-                    <label className="training-filters-item switch-toggle switch-toggle-sm">
-                      <input
-                        checked={checked}
-                        disabled={isLoading}
-                        onChange={() => toggle(c.id)}
-                        type="checkbox"
-                      />
-                      <span className="switch-toggle-control" />
-                      <span className="training-filters-name">
-                        {c.firstName} {c.lastName} ({c.licenseClass})
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-              {visibleCandidates.length === 0 ? (
-                <li className="training-filters-empty">
-                  {t("training.filter.noMatches")}
-                </li>
-              ) : null}
-            </ul>
-          </>
+      <ul className="training-filters-list training-filters-list-scroll">
+        {visibleCandidates.map((c) => {
+          const checked = c.id === candidateId;
+          return (
+            <li key={c.id}>
+              <label className="training-filters-item switch-toggle switch-toggle-sm">
+                <input
+                  checked={checked}
+                  disabled={isLoading}
+                  onChange={() => toggle(c.id)}
+                  type="checkbox"
+                />
+                <span className="switch-toggle-control" />
+                <span className="training-filters-name">
+                  {c.firstName} {c.lastName} ({c.licenseClass})
+                </span>
+              </label>
+            </li>
+          );
+        })}
+        {visibleCandidates.length === 0 ? (
+          <li className="training-filters-empty">
+            {t("training.filter.noMatches")}
+          </li>
         ) : null}
-      </div>
+      </ul>
     </div>
   );
 }

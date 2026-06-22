@@ -1,7 +1,7 @@
 /* ─── EXAM DATE SIDEBAR (exam candidate pages) ─── */
 .candidates-layout {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
   padding: 0 var(--page-shell-gutter);
@@ -119,6 +119,12 @@
 .exam-date-option-action:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.exam-date-option-capacity {
+  margin-left: 4px;
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
 }
 .exam-date-option-confirm {
   position: absolute;

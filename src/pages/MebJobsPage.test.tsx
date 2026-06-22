@@ -1,6 +1,6 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../test/render-with-providers";
 import { MebJobsPage } from "./MebJobsPage";
@@ -9,6 +9,7 @@ const getCandidatesMock = vi.fn();
 const listMebbisJobsMock = vi.fn();
 const listMebbisJobStepsMock = vi.fn();
 const cancelMebbisJobMock = vi.fn();
+const cancelAllMebbisJobsMock = vi.fn();
 const createCandidateLookupJobMock = vi.fn();
 
 vi.mock("../lib/candidates-api", async () => {
@@ -35,6 +36,8 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
       listMebbisJobStepsMock(...args),
     cancelMebbisJob: (...args: Parameters<typeof actual.cancelMebbisJob>) =>
       cancelMebbisJobMock(...args),
+    cancelAllMebbisJobs: (...args: Parameters<typeof actual.cancelAllMebbisJobs>) =>
+      cancelAllMebbisJobsMock(...args),
     createCandidateLookupJob: (...args: Parameters<typeof actual.createCandidateLookupJob>) =>
       createCandidateLookupJobMock(...args),
   };
@@ -66,7 +69,7 @@ const runningJob = {
   rowVersion: 1,
 };
 
-function renderPage() {
+function renderPage(permissions: Record<string, "view" | "full"> = { mebjobs: "view" }) {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/meb-jobs"]}>
       <MebJobsPage />
@@ -80,7 +83,7 @@ function renderPage() {
           roleName: "MEB İzleme",
           isSuperAdmin: false,
         },
-        permissions: { mebjobs: "view" },
+        permissions,
       },
     }
   );
@@ -92,7 +95,9 @@ describe("MebJobsPage", () => {
     listMebbisJobsMock.mockReset();
     listMebbisJobStepsMock.mockReset();
     cancelMebbisJobMock.mockReset();
+    cancelAllMebbisJobsMock.mockReset();
     createCandidateLookupJobMock.mockReset();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     getCandidatesMock.mockResolvedValue({
       items: [
@@ -106,6 +111,14 @@ describe("MebJobsPage", () => {
     });
     listMebbisJobsMock.mockResolvedValue([runningJob]);
     listMebbisJobStepsMock.mockResolvedValue([]);
+    cancelAllMebbisJobsMock.mockResolvedValue({
+      cancelledCount: 1,
+      cancelledAtUtc: "2026-05-30T10:01:00Z",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("shows MEB jobs to view-only users but disables mutating actions", async () => {
@@ -122,10 +135,39 @@ describe("MebJobsPage", () => {
     expect(rowCancelButton).toBeDisabled();
     expect(rowCancelButton).toHaveAttribute("title", "Yetkiniz yok.");
 
+    const cancelAllButton = screen.getByRole("button", { name: "Tüm Jobları İptal Et" });
+    expect(cancelAllButton).toBeDisabled();
+    expect(cancelAllButton).toHaveAttribute("title", "Yetkiniz yok.");
+
     fireEvent.click(rowCancelButton);
     fireEvent.click(newJobButton);
+    fireEvent.click(cancelAllButton);
 
     expect(cancelMebbisJobMock).not.toHaveBeenCalled();
+    expect(cancelAllMebbisJobsMock).not.toHaveBeenCalled();
     expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
+  });
+
+  it("confirms and cancels all active jobs for full access users", async () => {
+    renderPage({ mebjobs: "full" });
+
+    const cancelAllButton = await screen.findByRole("button", { name: "Tüm Jobları İptal Et" });
+    fireEvent.click(cancelAllButton);
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Bu kurumdaki tüm aktif MEBBIS joblarını iptal etmek istiyor musun?"
+    );
+    await waitFor(() => expect(cancelAllMebbisJobsMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("1 iş iptal edildi")).toBeInTheDocument();
+  });
+
+  it("does not cancel all jobs when confirmation is rejected", async () => {
+    vi.mocked(window.confirm).mockReturnValue(false);
+    renderPage({ mebjobs: "full" });
+
+    const cancelAllButton = await screen.findByRole("button", { name: "Tüm Jobları İptal Et" });
+    fireEvent.click(cancelAllButton);
+
+    expect(cancelAllMebbisJobsMock).not.toHaveBeenCalled();
   });
 });

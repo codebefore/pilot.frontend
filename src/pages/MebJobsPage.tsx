@@ -16,6 +16,7 @@ import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/u
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import {
+  cancelAllMebbisJobs,
   cancelMebbisJob,
   createCandidateLookupJob,
   getMebbisJobQueueStatus,
@@ -210,6 +211,7 @@ export function MebJobsPage() {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [modalOpen, setModalOpen] = useState(false);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
+  const [bulkCancelling, setBulkCancelling] = useState(false);
   const [queueRetrying, setQueueRetrying] = useState(false);
   const [manualRetrying, setManualRetrying] = useState(false);
   const [extensionDisplayName, setExtensionDisplayName] = useState("Office Chrome");
@@ -387,6 +389,22 @@ export function MebJobsPage() {
     }
   };
 
+  const handleCancelAll = async () => {
+    if (!canManageMebJobs || bulkCancelling) return;
+    if (!window.confirm(t("mebJobs.confirm.cancelAll"))) return;
+    setBulkCancelling(true);
+    try {
+      const result = await cancelAllMebbisJobs();
+      showToast(t("mebJobs.toast.bulkCancelled", { count: result.cancelledCount }));
+      invalidateMebbisJobData();
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
+    } catch {
+      showToast(t("mebJobs.toast.bulkCancelFailed"), "error");
+    } finally {
+      setBulkCancelling(false);
+    }
+  };
+
   const handleRetryJob = async (job: MebJob) => {
     if (!canManageMebJobs) return;
     setActionPendingId(job.id);
@@ -477,6 +495,15 @@ export function MebJobsPage() {
               type="button"
             >
               {manualRetrying ? "Başlatılıyor..." : "Manuel Kalanları Tekrar Başlat"}
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={!canManageMebJobs || bulkCancelling}
+              onClick={() => void handleCancelAll()}
+              title={!canManageMebJobs ? noPermissionTitle : undefined}
+              type="button"
+            >
+              {bulkCancelling ? t("mebJobs.action.cancellingAll") : t("mebJobs.action.cancelAll")}
             </button>
             <button
               className="btn btn-primary btn-sm"

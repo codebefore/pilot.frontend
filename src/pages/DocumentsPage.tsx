@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
-import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
 import { CheckIcon, DownloadIcon, XIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
@@ -191,10 +190,6 @@ export function DocumentsPage() {
   const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
   const [manageTarget, setManageTarget] = useState<ManageTarget>(null);
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedId = searchParams.get("selected");
-  const openDrawer = (id: string) => setSearchParams({ selected: id });
-  const closeDrawer = () => setSearchParams({});
   const detailReturnState = useMemo(
     () => ({
       returnLabel: "← Evrak kontrol sayfasına dön",
@@ -712,6 +707,10 @@ export function DocumentsPage() {
 
   const openCandidateAccounting = (candidateId: string) => {
     navigate(`/candidates/${candidateId}?tab=payments`, { state: detailReturnState });
+  };
+
+  const openCandidateDetail = (candidateId: string) => {
+    navigate(`/candidates/${candidateId}`, { state: detailReturnState });
   };
 
   const handleUploaded = () => {
@@ -1236,7 +1235,7 @@ export function DocumentsPage() {
               ) : (
                 sortedEntries.map((entry) => {
                   return (
-                    <tr key={entry.candidateId} onClick={() => openDrawer(entry.candidateId)}>
+                    <tr key={entry.candidateId} onClick={() => openCandidateDetail(entry.candidateId)}>
                       <td
                         className="cand-select-td"
                         onClick={(event) => event.stopPropagation()}
@@ -1409,20 +1408,6 @@ export function DocumentsPage() {
         tags={allTags}
       />
 
-      <CandidateDrawer
-        candidateId={selectedId}
-        canManageCandidates={canManageCandidates}
-        onClose={closeDrawer}
-        onDeleted={() => {
-          closeDrawer();
-          invalidateDocumentChecklist();
-          invalidateCandidateAndGroupData();
-        }}
-        onUpdated={() => {
-          invalidateDocumentChecklist();
-          invalidateCandidateAndGroupData();
-        }}
-      />
     </>
   );
 }

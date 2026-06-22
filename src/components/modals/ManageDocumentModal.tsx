@@ -76,6 +76,8 @@ function formatBytes(bytes: number): string {
 const ACCEPT = "image/jpeg,image/png,application/pdf";
 const MAX_BYTES = 10 * 1024 * 1024;
 const MIN_CROP_SIZE = 12;
+const CROP_MAX_OUTPUT_DIMENSION = 1800;
+const CROP_JPEG_QUALITIES = [0.84, 0.74, 0.64, 0.54] as const;
 const PRINTABLE_DOCUMENT_TYPE_KEYS = new Set([
   "signature_sample",
   "contract_front",
@@ -103,7 +105,7 @@ function clampNumber(value: number, min: number, max: number): number {
 }
 
 function defaultCropRect(): CropRect {
-  return { x: 10, y: 10, width: 80, height: 80 };
+  return { x: 0, y: 0, width: 100, height: 100 };
 }
 
 function createCapturedFileName(): string {
@@ -159,11 +161,21 @@ function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect): Pro
     return Promise.reject(new Error("invalid-crop"));
   }
 
+  const scale = Math.min(
+    1,
+    CROP_MAX_OUTPUT_DIMENSION / sourceWidth,
+    CROP_MAX_OUTPUT_DIMENSION / sourceHeight
+  );
+  const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+
   const canvas = document.createElement("canvas");
-  canvas.width = sourceWidth;
-  canvas.height = sourceHeight;
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
   const context = canvas.getContext("2d");
   if (!context) return Promise.reject(new Error("canvas-not-supported"));
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
   context.drawImage(
     image,
     sourceX,
@@ -172,22 +184,48 @@ function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect): Pro
     sourceHeight,
     0,
     0,
-    sourceWidth,
-    sourceHeight
+    outputWidth,
+    outputHeight
   );
 
+  const fileName = toJpegFileName(file.name);
+  return createCompressedJpegFile(canvas, fileName);
+}
+
+function createCompressedJpegFile(canvas: HTMLCanvasElement, fileName: string): Promise<File> {
+  let qualityIndex = 0;
+
   return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error("crop-failed"));
-          return;
-        }
-        resolve(new File([blob], toJpegFileName(file.name), { type: "image/jpeg" }));
-      },
-      "image/jpeg",
-      0.92
-    );
+    const encode = () => {
+      const quality =
+        CROP_JPEG_QUALITIES[qualityIndex] ??
+        CROP_JPEG_QUALITIES[CROP_JPEG_QUALITIES.length - 1];
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("crop-failed"));
+            return;
+          }
+
+          if (blob.size > MAX_BYTES && qualityIndex < CROP_JPEG_QUALITIES.length - 1) {
+            qualityIndex += 1;
+            encode();
+            return;
+          }
+
+          if (blob.size > MAX_BYTES) {
+            reject(new Error("crop-too-large"));
+            return;
+          }
+
+          resolve(new File([blob], fileName, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    encode();
   });
 }
 

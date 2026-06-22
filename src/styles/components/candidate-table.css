@@ -286,6 +286,16 @@
   text-align: right;
   white-space: nowrap;
 }
+.cand-driving-exam-date-th,
+.cand-driving-exam-date-td {
+  min-width: 116px;
+  white-space: nowrap;
+}
+.cand-driving-exam-code-th,
+.cand-driving-exam-code-td {
+  min-width: 150px;
+  white-space: nowrap;
+}
 .cand-debt {
   font-weight: 600;
 }

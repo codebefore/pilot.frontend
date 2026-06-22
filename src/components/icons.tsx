@@ -91,6 +91,16 @@ export const GridIcon = (p?: IconProps) =>
     p
   );
 
+export const ExternalLinkIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M15 3h6v6" />,
+      <path key="2" d="M10 14 21 3" />,
+      <path key="3" d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />,
+    ],
+    p
+  );
+
 export const ListIcon = (p?: IconProps) =>
   svg(
     [
@@ -109,6 +119,18 @@ export const DocumentsIcon = (p?: IconProps) =>
     [
       <path key="1" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />,
       <polyline key="2" points="14 2 14 8 20 8" />,
+    ],
+    p
+  );
+
+export const PrintIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M6 9V2h12v7" />,
+      <path key="2" d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />,
+      <path key="3" d="M6 14h12v8H6z" />,
+      <path key="4" d="M8 6h8" />,
+      <path key="5" d="M18 12h.01" />,
     ],
     p
   );

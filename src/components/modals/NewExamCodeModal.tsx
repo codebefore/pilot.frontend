@@ -15,8 +15,9 @@ import { useT, type TranslationKey } from "../../lib/i18n";
 const examCodeSchema = z.object({
   code: z
     .string()
+    .trim()
     .min(1, "examCode.error.required")
-    .regex(/^\d{9}$/, "examCode.error.digits9"),
+    .max(15, "examCode.error.max15"),
 });
 type NewExamCodeForm = z.infer<typeof examCodeSchema>;
 
@@ -120,12 +121,11 @@ export function NewExamCodeModal({
               className={errors.code ? "form-input error" : "form-input"}
               disabled={!canManage}
               id={inputId}
-              inputMode="numeric"
-              maxLength={9}
+              maxLength={15}
               value={code}
               {...register("code")}
               onChange={(event) =>
-                setValue("code", event.target.value.replace(/\D/g, "").slice(0, 9), {
+                setValue("code", event.target.value.slice(0, 15), {
                   shouldDirty: true,
                   shouldValidate: true,
                 })

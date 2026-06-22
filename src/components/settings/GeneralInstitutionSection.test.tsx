@@ -42,6 +42,8 @@ const institutionSettings = {
   city: null,
   district: null,
   buildingCapacity: 60,
+  bankName: "Ziraat Bankası",
+  iban: "TR000000000000000000000000",
   logo: null,
   founder: {
     type: "real" as const,
@@ -51,6 +53,7 @@ const institutionSettings = {
     address: null,
     phone: null,
   },
+  authorizedPersons: [],
   createdAtUtc: "2026-01-01T00:00:00Z",
   updatedAtUtc: "2026-01-01T00:00:00Z",
   rowVersion: 7,
@@ -118,12 +121,16 @@ describe("GeneralInstitutionSection", () => {
 
     const nameInput = await screen.findByPlaceholderText("Örn. Pilot Sürücü Kursu");
     fireEvent.change(nameInput, { target: { value: "Pilot Kurs Güncel" } });
+    fireEvent.change(screen.getByLabelText("Banka Adı"), { target: { value: "Halkbank" } });
+    fireEvent.change(screen.getByLabelText("IBAN"), { target: { value: "TR111111111111111111111111" } });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(upsertInstitutionSettingsMock).toHaveBeenCalledWith(
         expect.objectContaining({
           institutionName: "Pilot Kurs Güncel",
+          bankName: "Halkbank",
+          iban: "TR111111111111111111111111",
           rowVersion: 7,
         })
       );

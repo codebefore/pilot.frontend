@@ -35,12 +35,16 @@ type NewExamScheduleModalProps = {
   onSaved: () => void;
 };
 
-function defaultValues(): NewExamScheduleForm {
+function defaultCapacity(examType: NewExamScheduleModalProps["examType"]): number {
+  return examType === "uygulama" ? 10 : 20;
+}
+
+function defaultValues(examType: NewExamScheduleModalProps["examType"]): NewExamScheduleForm {
   return {
     date: todayLocalDateOnly(),
     examCodeId: "",
     time: "09:00",
-    capacity: 20,
+    capacity: defaultCapacity(examType),
   };
 }
 
@@ -72,7 +76,10 @@ export function NewExamScheduleModal({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<NewExamScheduleForm>({ defaultValues: defaultValues(), resolver: zodResolver(newExamScheduleSchema) });
+  } = useForm<NewExamScheduleForm>({
+    defaultValues: defaultValues(examType),
+    resolver: zodResolver(newExamScheduleSchema),
+  });
   const date = watch("date");
   const examCodeId = watch("examCodeId");
   const time = watch("time");
@@ -94,11 +101,11 @@ export function NewExamScheduleModal({
   useEffect(() => {
     if (open) {
       reset({
-        ...defaultValues(),
+        ...defaultValues(examType),
         examCodeId: firstExamCodeId,
       });
     }
-  }, [firstExamCodeId, open, reset]);
+  }, [examType, firstExamCodeId, open, reset]);
 
   const submit = handleSubmit(async (data) => {
     if (!canManage) return;

@@ -25,6 +25,9 @@
 .modal:has(.candidate-detail-doc-checklist-modal) {
   max-width: min(820px, calc(100vw - 40px));
 }
+.modal:has(.candidate-mebbis-status-snapshot) {
+  max-width: min(1320px, calc(100vw - 32px));
+}
 .modal:has(.exam-charge-table-wrap) {
   max-width: min(940px, calc(100vw - 40px));
 }

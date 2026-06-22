@@ -9,7 +9,7 @@ import { todayLocalDateOnly } from "../lib/date-only";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
-import { CameraIcon, CheckIcon, PencilIcon, ScannerIcon, TrashIcon, UploadCloudIcon, XIcon } from "../components/icons";
+import { CameraIcon, CheckIcon, MebIcon, PencilIcon, PrintIcon, ScannerIcon, TrashIcon, UploadCloudIcon, XIcon } from "../components/icons";
 import { DocumentScannerModal } from "../components/modals/DocumentScannerModal";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
@@ -70,6 +70,7 @@ import {
 import { getCashRegisters } from "../lib/cash-registers-api";
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
+import { getInstitutionSettings } from "../lib/institution-settings-api";
 import { getInstructors } from "../lib/instructors-api";
 import { getGroupById, getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
@@ -101,6 +102,7 @@ import {
   useCandidateLicenseClassOptions,
   useExistingLicenseTypeOptions,
 } from "../lib/use-license-class-options";
+import { openLocalAgentMebbisCandidateStatusView } from "../lib/local-agent-api";
 import {
   analyzeCandidateDocumentOcr,
   deleteCandidateDocument,
@@ -125,6 +127,10 @@ import {
   normalizeCandidateGender,
 } from "../lib/status-maps";
 import { toTurkishUpperCase } from "../lib/text-format";
+import {
+  buildCandidateContractPrintHtml,
+  printCandidateContractHtml,
+} from "../lib/candidate-contract-print";
 import { StatusPill } from "../components/ui/StatusPill";
 import type {
   CandidateResponse,
@@ -190,6 +196,14 @@ const TABS: { key: TabKey; labelKey: TranslationKey }[] = [
 
 const HERO_DOCUMENT_KEYS = ["application_form", "identity_card", "existing_license_copy"] as const;
 type HeroDocumentKey = (typeof HERO_DOCUMENT_KEYS)[number];
+const CANDIDATE_PRINT_FORM_OPTIONS = [
+  "Müracaat formu",
+  "Kayıt sözleşmesi",
+  "İmza örneği",
+  "Ücretsiz kursiyer formu",
+  "Direksiyon takip çizelgesi",
+  "100 ceza puanı belgesi",
+] as const;
 
 const candidateTargetFeeMatrixKey = (year: number, targetLicenseClass: string) =>
   ["finance", "license-class-fee-matrix", year, targetLicenseClass] as const;
@@ -811,6 +825,35 @@ function CandidateHero({
   accounting: CandidateAccountingSummaryResponse | null;
 }) {
   const t = useT();
+  const { showToast } = useToast();
+  const [openingMebbisStatus, setOpeningMebbisStatus] = useState(false);
+  const [mebbisStatusSnapshot, setMebbisStatusSnapshot] = useState<{
+    html: string;
+    currentUrl: string | null;
+  } | null>(null);
+  const [printFormsOpen, setPrintFormsOpen] = useState(false);
+  const printFormsRef = useRef<HTMLDivElement>(null);
+  const contractFeeMatrixYear = candidateFeeMatrixYear(candidate);
+  const institutionSettingsQuery = useQuery({
+    queryKey: ["settings", "institution-settings"],
+    queryFn: ({ signal }) => getInstitutionSettings(signal),
+    staleTime: 5 * 60 * 1000,
+  });
+  const managerQuery = useQuery({
+    queryKey: ["training", "instructors", "manager", "active"],
+    queryFn: ({ signal }) => getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 2 }, signal),
+    staleTime: 5 * 60 * 1000,
+  });
+  const contractFeeMatrixQuery = useQuery({
+    queryKey: candidateTargetFeeMatrixKey(contractFeeMatrixYear, candidate.licenseClass),
+    queryFn: ({ signal }) =>
+      getLicenseClassFeeMatrix(
+        contractFeeMatrixYear,
+        { targetLicenseClass: candidate.licenseClass },
+        signal
+      ),
+    staleTime: 5 * 60 * 1000,
+  });
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
@@ -864,72 +907,212 @@ function CandidateHero({
         label: "E-Sınav Hakkı",
         value: `${candidate.eSinavAttemptCount ?? 1}/4`,
       };
+  const handleOpenMebbisStatus = async () => {
+    if (openingMebbisStatus) return;
+    setOpeningMebbisStatus(true);
+    try {
+      const response = await openLocalAgentMebbisCandidateStatusView(candidate.nationalId);
+      if (!response.htmlSnapshot) {
+        showToast("MEBBIS aday durum ekranı okunamadı.", "error");
+        return;
+      }
+      setMebbisStatusSnapshot({
+        html: response.htmlSnapshot,
+        currentUrl: response.currentUrl ?? null,
+      });
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : "MEBBIS aday durum ekranı açılamadı.";
+      showToast(message, "error");
+    } finally {
+      setOpeningMebbisStatus(false);
+    }
+  };
+
+  const handlePrintForm = (label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]) => {
+    if (label !== "Kayıt sözleşmesi") return;
+    setPrintFormsOpen(false);
+
+    if (
+      !accounting ||
+      institutionSettingsQuery.isLoading ||
+      managerQuery.isLoading ||
+      contractFeeMatrixQuery.isLoading ||
+      institutionSettingsQuery.isError ||
+      managerQuery.isError ||
+      contractFeeMatrixQuery.isError
+    ) {
+      showToast("Sözleşme için kurum, personel veya finans bilgileri yüklenemedi.", "error");
+      return;
+    }
+
+    const managers = managerQuery.data?.items.filter((item) => item.isActive && item.role === "manager") ?? [];
+    const managerName = managers.length === 1
+      ? `${managers[0].firstName} ${managers[0].lastName}`.trim()
+      : null;
+    const matchedFeeRow = contractFeeMatrixQuery.data
+      ? findCandidateFeeMatrixRow(contractFeeMatrixQuery.data.rows, candidate)
+      : undefined;
+    const matchedProgramId = matchedFeeRow?.program.id ?? null;
+    const theoryFeeRow = matchedProgramId && contractFeeMatrixQuery.data
+      ? contractFeeMatrixQuery.data.rows.find(
+          (row) => row.program.id === matchedProgramId && row.lessonType === "theory"
+        ) ?? null
+      : null;
+    const practiceFeeRow = matchedProgramId && contractFeeMatrixQuery.data
+      ? contractFeeMatrixQuery.data.rows.find(
+          (row) => row.program.id === matchedProgramId && row.lessonType === "practice"
+        ) ?? null
+      : null;
+    const html = buildCandidateContractPrintHtml({
+      candidate,
+      accounting,
+      contractYear: contractFeeMatrixYear,
+      theoryFeeRow,
+      practiceFeeRow,
+      institution: institutionSettingsQuery.data ?? null,
+      managerName,
+    });
+
+    if (!printCandidateContractHtml(html)) {
+      showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+    }
+  };
+
+  useEffect(() => {
+    if (!printFormsOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && printFormsRef.current?.contains(target)) return;
+      setPrintFormsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [printFormsOpen]);
 
   return (
-    <header className="candidate-detail-hero">
-      <CandidateAvatar
-        candidate={candidate}
-        className="candidate-detail-hero-avatar"
-        size={96}
-      />
+    <>
+      <header className="candidate-detail-hero">
+        <CandidateAvatar
+          candidate={candidate}
+          className="candidate-detail-hero-avatar"
+          size={96}
+        />
 
-      <div className="candidate-detail-hero-body">
-        <h2 className="candidate-detail-hero-name">{fullName}</h2>
-        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--identity">
-          <span>{formatNationalId(candidate.nationalId)}</span>
-          <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
-          {age != null ? (
-            <>
-              <span>{t("candidateDetail.hero.ageSuffix", { age })}</span>
-              <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
-            </>
-          ) : null}
-          {candidate.gender ? (
-            <>
-              <span>{candidateGenderLabel(candidate.gender)}</span>
-              <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
-            </>
-          ) : null}
-          <span>İstanbul</span>
-        </div>
-        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--group">
-          <span>{groupLine || "—"}</span>
-          {candidate.tags?.length ? (
-            <span className="candidate-detail-hero-tags">
-              {candidate.tags.map((tag) => `#${tag.name}`).join(" ")}
+        <div className="candidate-detail-hero-body">
+          <div className="candidate-detail-hero-title-row">
+            <h2 className="candidate-detail-hero-name">{fullName}</h2>
+            <div className="candidate-detail-hero-actions" ref={printFormsRef}>
+              <button
+                className="btn btn-secondary btn-sm candidate-detail-hero-action"
+                disabled={openingMebbisStatus}
+                onClick={() => void handleOpenMebbisStatus()}
+                type="button"
+              >
+                <MebIcon size={15} />
+                <span>{openingMebbisStatus ? "Açılıyor..." : "Aday Durum Görüntüle"}</span>
+              </button>
+              <button
+                aria-expanded={printFormsOpen}
+                aria-haspopup="menu"
+                className="btn btn-secondary btn-sm candidate-detail-hero-action"
+                onClick={() => setPrintFormsOpen((open) => !open)}
+                type="button"
+              >
+                <PrintIcon size={15} />
+                <span>Form Yazdır</span>
+              </button>
+              {printFormsOpen ? (
+                <div className="candidate-detail-print-popover" role="menu" aria-label="Form yazdır">
+                  {CANDIDATE_PRINT_FORM_OPTIONS.map((label) => (
+                    <button
+                      className="candidate-detail-print-popover-item"
+                      disabled={label !== "Kayıt sözleşmesi"}
+                      key={label}
+                      onClick={() => handlePrintForm(label)}
+                      role="menuitem"
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="candidate-detail-hero-meta candidate-detail-hero-meta--identity">
+            <span>{formatNationalId(candidate.nationalId)}</span>
+            <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
+            {age != null ? (
+              <>
+                <span>{t("candidateDetail.hero.ageSuffix", { age })}</span>
+                <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
+              </>
+            ) : null}
+            {candidate.gender ? (
+              <>
+                <span>{candidateGenderLabel(candidate.gender)}</span>
+                <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
+              </>
+            ) : null}
+            <span>İstanbul</span>
+          </div>
+          <div className="candidate-detail-hero-meta candidate-detail-hero-meta--group">
+            <span>{groupLine || "—"}</span>
+            {candidate.tags?.length ? (
+              <span className="candidate-detail-hero-tags">
+                {candidate.tags.map((tag) => `#${tag.name}`).join(" ")}
+              </span>
+            ) : null}
+          </div>
+          <div className="candidate-detail-hero-meta candidate-detail-hero-meta--status">
+            <StatusPill label={statusLabel} status={statusPill} />
+            <span className={`candidate-detail-hero-mini-pill job-status-pill pill-${attemptPill}`}>
+              <span className="dot" />
+              <span>{attemptSummary.label}</span>
+              <strong>{attemptSummary.value}</strong>
             </span>
-          ) : null}
-        </div>
-        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--status">
-          <StatusPill label={statusLabel} status={statusPill} />
-          <span className={`candidate-detail-hero-mini-pill job-status-pill pill-${attemptPill}`}>
-            <span className="dot" />
-            <span>{attemptSummary.label}</span>
-            <strong>{attemptSummary.value}</strong>
-          </span>
-          <span className={`candidate-detail-hero-mini-pill job-status-pill pill-${examStatusPill}`}>
-            <span className="dot" />
-            <strong>{examStatusLabel}</strong>
-          </span>
-          {heroStageLabel ? (
-            <span className={`candidate-detail-hero-stage-pill tone-${stageTone}`}>
-              {heroStageLabel}
+            <span className={`candidate-detail-hero-mini-pill job-status-pill pill-${examStatusPill}`}>
+              <span className="dot" />
+              <strong>{examStatusLabel}</strong>
             </span>
-          ) : null}
-          {candidate.appointmentStatusLabel ? (
-            <span className={`candidate-detail-hero-stage-pill tone-${appointmentTone}`}>
-              {candidate.appointmentStatusLabel}
+            {heroStageLabel ? (
+              <span className={`candidate-detail-hero-stage-pill tone-${stageTone}`}>
+                {heroStageLabel}
+              </span>
+            ) : null}
+            {candidate.appointmentStatusLabel ? (
+              <span className={`candidate-detail-hero-stage-pill tone-${appointmentTone}`}>
+                {candidate.appointmentStatusLabel}
+              </span>
+            ) : null}
+            <HeroBadges candidate={candidate} />
+          </div>
+          <div className="candidate-detail-hero-meta candidate-detail-hero-meta--accounting">
+            <span className={`candidate-detail-hero-accounting-pill tone-${accountingStatus.tone}`}>
+              {t(accountingStatus.labelKey)}
             </span>
-          ) : null}
-          <HeroBadges candidate={candidate} />
+          </div>
         </div>
-        <div className="candidate-detail-hero-meta candidate-detail-hero-meta--accounting">
-          <span className={`candidate-detail-hero-accounting-pill tone-${accountingStatus.tone}`}>
-            {t(accountingStatus.labelKey)}
-          </span>
-        </div>
-      </div>
-    </header>
+      </header>
+      <Modal
+        onClose={() => setMebbisStatusSnapshot(null)}
+        open={Boolean(mebbisStatusSnapshot)}
+        title="MEBBIS Aday Durumu"
+      >
+        {mebbisStatusSnapshot ? (
+          <div className="candidate-mebbis-status-snapshot">
+            <iframe
+              sandbox="allow-popups allow-popups-to-escape-sandbox"
+              srcDoc={mebbisStatusSnapshot.html}
+              title="MEBBIS Aday Durumu"
+            />
+          </div>
+        ) : null}
+      </Modal>
+    </>
   );
 }
 
@@ -1846,6 +2029,7 @@ function CandidateContactRow({
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const trimmedValue = value.trim();
   const isPhone = contact.type === "phone";
   const isInvalidPhone = isPhone && trimmedValue.length > 0 && !isValidContactPhone(trimmedValue);
@@ -1858,6 +2042,7 @@ function CandidateContactRow({
   useEffect(() => {
     setValue(contact.value);
     setOwnerName(contact.ownerName ?? "");
+    setDeleteConfirmOpen(false);
   }, [contact.ownerName, contact.value]);
 
   const save = async () => {
@@ -1870,6 +2055,18 @@ function CandidateContactRow({
     try {
       await onSave(trimmedValue, isPhone ? ownerName.trim() || null : null);
       setEditing(false);
+      setDeleteConfirmOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!canManageCandidates || saving) return;
+    setSaving(true);
+    try {
+      await onDelete();
+      setDeleteConfirmOpen(false);
     } finally {
       setSaving(false);
     }
@@ -1946,6 +2143,7 @@ function CandidateContactRow({
                 setOwnerName(contact.ownerName ?? "");
                 setError(null);
                 setEditing(false);
+                setDeleteConfirmOpen(false);
               }}
               title={t("common.cancel")}
               type="button"
@@ -1958,23 +2156,54 @@ function CandidateContactRow({
             aria-label={t("common.edit")}
             className="icon-btn candidate-contact-edit-trigger"
             disabled={!canManageCandidates}
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              setDeleteConfirmOpen(false);
+              setEditing(true);
+            }}
             title={!canManageCandidates ? noPermissionTitle : t("common.edit")}
             type="button"
           >
             <PencilIcon size={12} />
           </button>
         )}
-        <button
-          aria-label={t("common.delete")}
-          className="icon-btn candidate-contact-delete-trigger"
-          disabled={saving || !canManageCandidates}
-          onClick={() => void onDelete()}
-          title={!canManageCandidates ? noPermissionTitle : t("common.delete")}
-          type="button"
-        >
-          <TrashIcon size={12} />
-        </button>
+        <div className="candidate-contact-delete-popover-anchor">
+          <button
+            aria-label={t("common.delete")}
+            className="icon-btn candidate-contact-delete-trigger"
+            disabled={saving || !canManageCandidates}
+            onClick={() => {
+              setEditing(false);
+              setDeleteConfirmOpen(true);
+            }}
+            title={!canManageCandidates ? noPermissionTitle : t("common.delete")}
+            type="button"
+          >
+            <TrashIcon size={12} />
+          </button>
+          {deleteConfirmOpen ? (
+            <div className="candidate-contact-delete-popover" role="dialog" aria-label={t("candidateDetail.contacts.deleteConfirm")}>
+              <span>{t("candidateDetail.contacts.deleteConfirm")}</span>
+              <div className="candidate-contact-delete-popover-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={saving}
+                  onClick={() => setDeleteConfirmOpen(false)}
+                  type="button"
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  disabled={saving || !canManageCandidates}
+                  onClick={() => void confirmDelete()}
+                  type="button"
+                >
+                  {t("common.delete")}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
       {validationMessage ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
     </div>
@@ -2882,7 +3111,14 @@ function formatCurrencyTRY(amount: number): string {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
     currency: "TRY",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatMoneyInputValue(amount: number): string {
+  return new Intl.NumberFormat("tr-TR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
@@ -3665,7 +3901,7 @@ function AccountingTab({
       (candidate.totalFee > 0 ? candidate.totalFee : courseFeeSummary.totalAmount);
     setPaymentPlanModal({
       open: true,
-      amount: defaultAmount > 0 ? String(defaultAmount) : "",
+      amount: defaultAmount > 0 ? formatMoneyInputValue(defaultAmount) : "",
       installmentCount: "4",
       dueDate: todayIsoDate(),
       customDueDates: {},

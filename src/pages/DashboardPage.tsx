@@ -1,14 +1,16 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { DashboardNotesPanel } from "../components/dashboard/DashboardNotesPanel";
-import { AlertIcon, CandidatesIcon, ExamsIcon, GridIcon } from "../components/icons";
+import { AlertIcon, CandidatesIcon, ExamsIcon, ExternalLinkIcon, GridIcon } from "../components/icons";
 import { Panel } from "../components/ui/Panel";
 import { PanelListSkeleton } from "../components/ui/Skeleton";
 import { TaskItem } from "../components/ui/TaskItem";
+import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import { getCandidates, type CandidateExamTabValue } from "../lib/candidates-api";
+import { LocalAgentError, openLocalAgentMebbisHomeView } from "../lib/local-agent-api";
 import { getDashboardOverview } from "../lib/stats-api";
 import {
   mergeLicenseClassOptionsWithValues,
@@ -217,7 +219,9 @@ async function getDashboardExamTabCounts(
 
 export function DashboardPage({ userName }: DashboardPageProps) {
   const t = useT();
+  const { showToast } = useToast();
   const { activeInstitution } = useAuth();
+  const [openingMebbis, setOpeningMebbis] = useState(false);
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const activeInstitutionId = activeInstitution?.id ?? "";
   const {
@@ -287,10 +291,39 @@ export function DashboardPage({ userName }: DashboardPageProps) {
 
   const displayName = userName?.trim() || "Pilot";
 
+  const openMebbisHome = async () => {
+    if (openingMebbis) return;
+    setOpeningMebbis(true);
+    try {
+      const result = await openLocalAgentMebbisHomeView();
+      showToast(result.message || t("dashboard.toast.mebbisOpened"));
+    } catch (err) {
+      const message = err instanceof LocalAgentError && err.status === 401
+        ? t("dashboard.toast.mebbisLocalAgentNotPaired")
+        : err instanceof Error
+          ? err.message
+          : t("dashboard.toast.mebbisOpenFailed");
+      showToast(message, "error");
+    } finally {
+      setOpeningMebbis(false);
+    }
+  };
+
   return (
     <>
       <div className="dash-header">
-        <h1>{t("dashboard.greeting", { name: displayName })}</h1>
+        <div className="dash-header-content">
+          <h1>{t("dashboard.greeting", { name: displayName })}</h1>
+          <button
+            className="dash-header-mebbis-btn"
+            disabled={openingMebbis}
+            onClick={() => void openMebbisHome()}
+            type="button"
+          >
+            <ExternalLinkIcon size={15} />
+            <span>{openingMebbis ? t("dashboard.action.openingMebbis") : "MEBBİS"}</span>
+          </button>
+        </div>
         <img alt="" aria-hidden="true" className="dash-header-pattern" src="/pattern.png" />
       </div>
 

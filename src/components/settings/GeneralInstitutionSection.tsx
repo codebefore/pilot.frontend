@@ -37,6 +37,8 @@ type GeneralFormValues = {
   city: string;
   district: string;
   buildingCapacity: string;
+  bankName: string;
+  iban: string;
   founderType: FounderType;
   founderName: string;
   founderTaxId: string;
@@ -58,6 +60,8 @@ const EMPTY_VALUES: GeneralFormValues = {
   city: "",
   district: "",
   buildingCapacity: "",
+  bankName: "",
+  iban: "",
   founderType: "real",
   founderName: "",
   founderTaxId: "",
@@ -97,6 +101,8 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     city,
     district: resolveTurkeyDistrictValue(city, response.district),
     buildingCapacity: response.buildingCapacity == null ? "" : String(response.buildingCapacity),
+    bankName: response.bankName ?? "",
+    iban: response.iban ?? "",
     founderType: (response.founder.type as FounderType | null) ?? "real",
     founderName: response.founder.name ?? "",
     founderTaxId: response.founder.taxId ?? "",
@@ -108,7 +114,8 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
 
 function toUpsertRequest(
   values: GeneralFormValues,
-  rowVersion: number | null
+  rowVersion: number | null,
+  authorizedPersons: InstitutionSettingsResponse["authorizedPersons"] = []
 ): InstitutionSettingsUpsertRequest {
   return {
     institutionName: values.institutionName.trim() || null,
@@ -122,6 +129,8 @@ function toUpsertRequest(
     buildingCapacity: values.buildingCapacity.trim()
       ? Number.parseInt(values.buildingCapacity.trim(), 10)
       : null,
+    bankName: values.bankName.trim() || null,
+    iban: values.iban.trim() || null,
     founder: {
       type: values.founderType,
       name: values.founderName.trim() || null,
@@ -130,7 +139,7 @@ function toUpsertRequest(
       address: values.founderAddress.trim() || null,
       phone: normalizeGeneralPhone(values.founderPhone) || null,
     },
-    authorizedPersons: [],
+    authorizedPersons,
     rowVersion,
   };
 }
@@ -167,6 +176,8 @@ export function GeneralInstitutionSection() {
   const institutionPhoneId = useId();
   const institutionEmailId = useId();
   const buildingCapacityId = useId();
+  const bankNameId = useId();
+  const ibanId = useId();
   const cityId = useId();
   const districtId = useId();
   const addressId = useId();
@@ -361,7 +372,11 @@ export function GeneralInstitutionSection() {
 
     setSaving(true);
     try {
-      const request = toUpsertRequest(values, serverState?.rowVersion ?? null);
+      const request = toUpsertRequest(
+        values,
+        serverState?.rowVersion ?? null,
+        serverState?.authorizedPersons ?? []
+      );
       const response = await upsertInstitutionSettings(request);
       if (activeInstitution && response.institutionName) {
         updateStoredInstitutionName(activeInstitution.id, response.institutionName);
@@ -662,6 +677,37 @@ export function GeneralInstitutionSection() {
                 {errors.buildingCapacity ? (
                   <div className="form-error">{errors.buildingCapacity}</div>
                 ) : null}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label" htmlFor={bankNameId}>
+                  {t("settings.general.field.bankName")}
+                </label>
+                <input
+                  id={bankNameId}
+                  className={errors.bankName ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
+                  onChange={handleInput("bankName")}
+                  placeholder={t("settings.general.placeholder.bankName")}
+                  value={values.bankName}
+                />
+                {errors.bankName ? <div className="form-error">{errors.bankName}</div> : null}
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor={ibanId}>
+                  {t("settings.general.field.iban")}
+                </label>
+                <input
+                  id={ibanId}
+                  className={errors.iban ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
+                  onChange={handleInput("iban")}
+                  placeholder={t("settings.general.placeholder.iban")}
+                  value={values.iban}
+                />
+                {errors.iban ? <div className="form-error">{errors.iban}</div> : null}
               </div>
             </div>
 

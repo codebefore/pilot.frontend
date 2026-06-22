@@ -95,6 +95,11 @@ export type MebbisJobBulkRetryResponse = {
   retriedAtUtc: string;
 };
 
+export type MebbisJobBulkCancelResponse = {
+  cancelledCount: number;
+  cancelledAtUtc: string;
+};
+
 export type MebbisExtensionClientResponse = {
   id: string;
   institutionId: string;
@@ -183,6 +188,14 @@ export async function pairMebbisExtensionClient(
 export async function cancelMebbisJob(jobId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/${jobId}/cancel`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function cancelAllMebbisJobs(): Promise<MebbisJobBulkCancelResponse> {
+  return httpPost<MebbisJobBulkCancelResponse>(
+    "/api/mebbis/jobs/cancel",
     {},
     mebbisRequestOptions()
   );

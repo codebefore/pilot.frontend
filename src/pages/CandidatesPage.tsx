@@ -131,7 +131,7 @@ const TAB_KEYS: CandidateTab[] = [
 ];
 const DEFAULT_TAB: CandidateTab = "active";
 
-const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
@@ -250,6 +250,19 @@ type CandidateColumnDef = {
 function formatOptionalText(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed ? trimmed : "—";
+}
+
+function formatDrivingExamCodeWithCapacity(
+  candidate: CandidateResponse,
+  examScheduleById: Map<string, ExamScheduleOption>
+): string {
+  const code = candidate.drivingExamCode?.trim();
+  if (!code) return "—";
+
+  const schedule = candidate.drivingExamScheduleId
+    ? examScheduleById.get(candidate.drivingExamScheduleId)
+    : undefined;
+  return schedule ? `${code} (${schedule.candidateCount}/${schedule.capacity})` : code;
 }
 
 function formatCurrencyTRY(amount: number | null | undefined): string {
@@ -1070,15 +1083,19 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "drivingExamDate",
     pageScope: "uygulama",
     labelKey: "candidates.col.drivingExamDate",
+    headerClassName: "cand-driving-exam-date-th",
+    cellClassName: "cand-driving-exam-date-td",
     renderCell: (c) => formatDateTR(c.drivingExamDate),
-    skeletonWidth: 88,
+    skeletonWidth: 112,
   },
   {
     id: "drivingExamCode",
     pageScope: "uygulama",
     labelKey: "candidates.col.drivingExamCode",
+    headerClassName: "cand-driving-exam-code-th",
+    cellClassName: "cand-driving-exam-code-td",
     renderCell: (c) => formatOptionalText(c.drivingExamCode),
-    skeletonWidth: 88,
+    skeletonWidth: 132,
   },
   {
     id: "drivingExamTime",
@@ -1640,7 +1657,6 @@ export function CandidatesPage({
   const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
   const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
   const [examChargeSaving, setExamChargeSaving] = useState(false);
-  const [bulkSelectionEnabled, setBulkSelectionEnabled] = useState(false);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -1718,6 +1734,10 @@ export function CandidatesPage({
   const examDateOptions: ExamScheduleOption[] = useMemo(
     () => sortExamDateOptionsNewestFirst(examDateOptionsQuery.data ?? []),
     [examDateOptionsQuery.data]
+  );
+  const examScheduleById = useMemo(
+    () => new Map(examDateOptions.map((option) => [option.id, option])),
+    [examDateOptions]
   );
   const examDateOptionsLoading = !!examScheduleOptionsParams && examDateOptionsQuery.isFetching;
 
@@ -2036,6 +2056,13 @@ export function CandidatesPage({
             ),
           };
         }
+        if (columnPageScope === "uygulama" && col.id === "drivingExamCode") {
+          return {
+            ...col,
+            renderCell: (candidate: CandidateResponse) =>
+              formatDrivingExamCodeWithCapacity(candidate, examScheduleById),
+          };
+        }
         if (columnPageScope === "uygulama" && col.id === "drivingExamAttendanceStatus") {
           return {
             ...col,
@@ -2158,6 +2185,7 @@ export function CandidatesPage({
       availableColumnIds,
       columnPageScope,
       editingPracticeCell,
+      examScheduleById,
       groupColumnMode,
       lang,
       licenseClassLabelByCode,
@@ -2256,8 +2284,7 @@ export function CandidatesPage({
       label: getColumnLabel(col),
     }));
   const selectedCount = selectedCandidateIds.size;
-  const canToggleBulkSelection = columnPageScope === "all";
-  const selectionColumnVisible = !canToggleBulkSelection || bulkSelectionEnabled;
+  const selectionColumnVisible = true;
   const isDrivingExamCodeTabActive =
     examDateSidebar?.examType === "uygulama" && examSidebarTab === "codes";
   const shouldDimBlockedLatestCodeRows =
@@ -2781,10 +2808,11 @@ export function CandidatesPage({
     [location.pathname, location.search, title]
   );
 
-  const handleSubmitNew = () => {
+  const handleSubmitNew = (candidate: CandidateResponse) => {
     setModalOpen(false);
     setPage(1);
     refreshAll();
+    navigate(`/candidates/${candidate.id}?tab=documents`, { state: detailReturnState });
   };
 
   const exportCandidatesToCsv = (rowsToExport: CandidateResponse[]) => {
@@ -2947,7 +2975,7 @@ export function CandidatesPage({
 
     setBulkGroupLoading(true);
     try {
-      const result = await getGroups({ pageSize: 100 });
+      const result = await getGroups({ pageSize: 200 });
       setBulkGroupOptions(result.items);
     } catch {
       showToast(t("candidates.toast.bulkGroupFailed"), "error");
@@ -2986,17 +3014,6 @@ export function CandidatesPage({
     setBulkTagValues([]);
     setBulkExamDateValue("");
     setBulkGroupId("");
-  };
-
-  const toggleBulkSelectionMode = () => {
-    setBulkSelectionEnabled((current) => {
-      const next = !current;
-      if (!next) {
-        setSelectedCandidateIds(new Set());
-        cancelBulkAction();
-      }
-      return next;
-    });
   };
 
   const applyBulkStatusChange = async () => {
@@ -3556,7 +3573,14 @@ export function CandidatesPage({
                     >
                       <option value="">{t("candidates.bulk.datePlaceholder")}</option>
                       {displayedExamDateOptions.map((option) => (
-                        <option data-secondary={option.examCode ?? undefined} key={option.id} value={option.id}>
+                        <option
+                          data-secondary={[
+                            option.examCode,
+                            `(${option.candidateCount}/${option.capacity})`,
+                          ].filter(Boolean).join(" ")}
+                          key={option.id}
+                          value={option.id}
+                        >
                           {formatBulkExamDateOptionLabel(option, examDateSidebar?.showTime)}
                         </option>
                       ))}
@@ -3696,16 +3720,6 @@ export function CandidatesPage({
                             {activeFilterCount > 0 && !filtersOpen && (
                               <span className="cand-filters-badge">{activeFilterCount}</span>
                             )}
-                          </button>
-                        ) : null}
-                        {canToggleBulkSelection ? (
-                          <button
-                            aria-pressed={bulkSelectionEnabled}
-                            className={bulkSelectionEnabled ? "btn btn-secondary btn-sm active" : "btn btn-secondary btn-sm"}
-                            onClick={toggleBulkSelectionMode}
-                            type="button"
-                          >
-                            {t("candidates.bulk.selection")}
                           </button>
                         ) : null}
                       </>

@@ -72,7 +72,8 @@ describe("NewExamScheduleModal", () => {
 
     expect(screen.queryByLabelText(/^Saat/)).not.toBeInTheDocument();
 
-    const capacityInput = screen.getByLabelText(/^Kontenjan/);
+    const capacityInput = screen.getByLabelText(/^Kontenjan/) as HTMLInputElement;
+    expect(capacityInput.value).toBe("10");
     fireEvent.change(capacityInput, { target: { value: "24" } });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 

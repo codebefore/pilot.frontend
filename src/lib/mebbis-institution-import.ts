@@ -43,6 +43,8 @@ type InstitutionImportValues = {
   city: string;
   district: string;
   buildingCapacity: number | null;
+  bankName: string;
+  iban: string;
   founderType: FounderType;
   founderName: string;
   founderTaxId: string;
@@ -73,7 +75,11 @@ export async function applyMebbisInstitutionInventory(
   const currentValues = currentSettings ? fromResponse(currentSettings) : EMPTY_VALUES;
   const importedValues = mergeMebbisInstitutionValues(currentValues, result);
   const saved = await upsertInstitutionSettings(
-    toUpsertRequest(importedValues, currentSettings?.rowVersion ?? null)
+    toUpsertRequest(
+      importedValues,
+      currentSettings?.rowVersion ?? null,
+      currentSettings?.authorizedPersons ?? []
+    )
   );
 
   return {
@@ -92,6 +98,8 @@ const EMPTY_VALUES: InstitutionImportValues = {
   city: "",
   district: "",
   buildingCapacity: null,
+  bankName: "",
+  iban: "",
   founderType: "real",
   founderName: "",
   founderTaxId: "",
@@ -116,6 +124,8 @@ function fromResponse(response: InstitutionSettingsResponse): InstitutionImportV
     city,
     district: resolveTurkeyDistrictValue(city, response.district),
     buildingCapacity: response.buildingCapacity ?? null,
+    bankName: response.bankName ?? "",
+    iban: response.iban ?? "",
     founderType: (response.founder.type as FounderType | null) ?? "real",
     founderName: response.founder.name ?? "",
     founderTaxId: response.founder.taxId ?? "",
@@ -127,7 +137,8 @@ function fromResponse(response: InstitutionSettingsResponse): InstitutionImportV
 
 function toUpsertRequest(
   values: InstitutionImportValues,
-  rowVersion: number | null
+  rowVersion: number | null,
+  authorizedPersons: InstitutionSettingsResponse["authorizedPersons"] = []
 ): InstitutionSettingsUpsertRequest {
   return {
     institutionName: values.institutionName.trim() || null,
@@ -139,6 +150,8 @@ function toUpsertRequest(
     city: values.city.trim() || null,
     district: values.district.trim() || null,
     buildingCapacity: values.buildingCapacity,
+    bankName: values.bankName.trim() || null,
+    iban: values.iban.trim() || null,
     founder: {
       type: values.founderType,
       name: values.founderName.trim() || null,
@@ -147,7 +160,7 @@ function toUpsertRequest(
       address: values.founderAddress.trim() || null,
       phone: normalizeGeneralPhone(values.founderPhone) || null,
     },
-    authorizedPersons: [],
+    authorizedPersons,
     rowVersion,
   };
 }

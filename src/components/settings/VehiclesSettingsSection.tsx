@@ -192,7 +192,7 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
   ];
 }
 const DEFAULT_FILTERS: VehicleFilters = {
-  activity: "all",
+  activity: "active",
   status: "all",
   licenseClass: "all",
 };
@@ -407,6 +407,17 @@ export function VehiclesSettingsSection() {
                   {t("common.clearFilters")}
                 </button>
               ) : null}
+              <label className="switch-toggle toolbar-switch-toggle">
+                <input
+                  checked={filters.activity === "all"}
+                  onChange={(event) =>
+                    setFilter("activity", event.target.checked ? "all" : "active")
+                  }
+                  type="checkbox"
+                />
+                <span className="switch-toggle-control" aria-hidden="true" />
+                <span>{t("settings.vehicles.showInactive")}</span>
+              </label>
               <button
                 className="btn btn-primary btn-sm"
                 disabled={!canManageTraining}

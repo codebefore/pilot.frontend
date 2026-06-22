@@ -27,6 +27,7 @@ type TrainingBranchFormValues = z.infer<typeof trainingBranchSchema>;
 type TrainingBranchFormModalProps = {
   open: boolean;
   canManage?: boolean;
+  canEditSystemFields?: boolean;
   editing: TrainingBranchDefinitionResponse | null;
   onClose: () => void;
   onSaved: (saved: TrainingBranchDefinitionResponse) => void;
@@ -66,6 +67,7 @@ function buildPayload(
 export function TrainingBranchFormModal({
   open,
   canManage = true,
+  canEditSystemFields = false,
   editing,
   onClose,
   onSaved,
@@ -169,6 +171,7 @@ export function TrainingBranchFormModal({
             <input
               id={nameInputId}
               className={fieldClass(errors.name?.message)}
+              disabled={!canEditSystemFields}
               placeholder={t("trainingBranchForm.placeholder.example")}
               {...register("name")}
             />

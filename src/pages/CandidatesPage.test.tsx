@@ -181,7 +181,7 @@ function renderPage() {
 }
 
 function showBulkSelection() {
-  fireEvent.click(screen.getByRole("button", { name: "Toplu Seçim" }));
+  // Bulk selection controls are visible by default on the candidate list.
 }
 
 function renderESinavPage() {
@@ -267,7 +267,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 0,
       totalPages: 1,
     });
@@ -285,7 +285,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ status: "active", page: 1, pageSize: 10 });
+    expect(callArgs).toMatchObject({ status: "active", page: 1, pageSize: 100 });
     expect(callArgs.candidateTab).toBeUndefined();
   });
 
@@ -297,7 +297,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ page: 1, pageSize: 10 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.eSinavTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
 
@@ -320,7 +320,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "basarisiz",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -333,7 +333,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "randevulu",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -347,7 +347,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ page: 1, pageSize: 10 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.drivingExamTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
 
@@ -370,7 +370,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "basarisiz",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -383,7 +383,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "randevulu",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -416,7 +416,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           drivingExamCode: "100000001",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -432,7 +432,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "havuz",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -725,7 +725,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-06-12",
           eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -750,7 +750,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-05-12",
           eSinavScheduleId: "e_sinav-2026-05-12",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -788,7 +788,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "basarisiz",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -859,7 +859,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamDate: "2026-06-13",
           drivingExamScheduleId: "uygulama-2026-06-13",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -905,7 +905,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "randevulu",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -947,7 +947,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 8,
       totalPages: 1,
     });
@@ -1027,7 +1027,7 @@ describe("CandidatesPage tabs", () => {
       expect(lastCall.candidateTab).toBeUndefined();
       expect(lastCall.status).toBeUndefined();
       expect(lastCall.page).toBe(1);
-      expect(lastCall.pageSize).toBe(10);
+      expect(lastCall.pageSize).toBe(100);
     });
   });
 
@@ -1066,7 +1066,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           status: "graduated",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -1261,7 +1261,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 3,
       totalPages: 1,
     });
@@ -1382,7 +1382,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -1493,7 +1493,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -1604,7 +1604,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -1650,7 +1650,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -1722,14 +1722,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 10,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [candidate],
         page: 1,
-        pageSize: 10,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       });
@@ -1844,14 +1844,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 10,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [{ ...candidate, eSinavScore: 60 }],
         page: 1,
-        pageSize: 10,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       });
@@ -1959,14 +1959,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 10,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [{ ...candidate, mebExamResult: null, eSinavScore: null }],
         page: 1,
-        pageSize: 10,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       });
@@ -2073,7 +2073,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2139,7 +2139,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2153,7 +2153,7 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByText("Senkronize")).toBeInTheDocument();
   });
 
-  it("keeps bulk selection hidden until toggled from the toolbar", async () => {
+  it("shows bulk selection controls on the candidate list", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [
         {
@@ -2180,7 +2180,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2189,18 +2189,13 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Ayse Demir");
 
-    expect(screen.getByRole("button", { name: "Toplu Seçim" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Yeni Aday" })).toBeInTheDocument();
     expect(screen.queryByText("0 seçili")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Ayse Demir seç" })).not.toBeInTheDocument();
-
-    showBulkSelection();
-
     expect(
       screen.getByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })
     ).toBeInTheDocument();
@@ -2234,7 +2229,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2286,7 +2281,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2327,7 +2322,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2370,7 +2365,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2438,7 +2433,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2487,7 +2482,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2576,7 +2571,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2590,7 +2585,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Gruba Aktar" }));
 
     await waitFor(() => {
-      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 100 });
+      expect(getGroupsMock).toHaveBeenCalledWith({ pageSize: 200 });
     });
 
     fireEvent.change(screen.getByLabelText("Toplu grup seç"), {
@@ -2634,7 +2629,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2695,7 +2690,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2784,7 +2779,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-06-12",
           eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
-          pageSize: 10,
+          pageSize: 100,
         })
       );
     });
@@ -2849,7 +2844,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2987,7 +2982,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3105,7 +3100,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3248,7 +3243,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3288,7 +3283,7 @@ describe("CandidatesPage sorting", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 0,
       totalPages: 1,
     });
@@ -3371,7 +3366,7 @@ describe("CandidatesPage sorting", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 2,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 25,
       totalPages: 3,
     });
@@ -3419,7 +3414,7 @@ describe("CandidatesPage filter panel", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 0,
       totalPages: 1,
     });
@@ -3512,7 +3507,7 @@ describe("CandidatesPage filter panel", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 2,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 25,
       totalPages: 3,
     });
@@ -3690,7 +3685,7 @@ describe("CandidatesPage gender rendering", () => {
         },
       ],
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 3,
       totalPages: 1,
     });
@@ -3750,7 +3745,7 @@ describe("CandidatesPage bulk status update", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 10,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });

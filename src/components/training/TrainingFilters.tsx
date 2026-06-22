@@ -21,7 +21,6 @@ type TrainingFiltersProps = {
   onToggleInstructor: (instructorId: string) => void;
   /** Uygulama'da plaka toggle'ı için. Teorik'te tetiklenmez. */
   onToggleGroup?: (plate: string) => void;
-  onResetFilters: () => void;
   /** Bulk toggle — yalnız listede görünen kayıtları etkiler. */
   onSetInstructorsVisibility: (ids: string[], visible: boolean) => void;
   /** Uygulama plaka bulk toggle. */
@@ -37,9 +36,6 @@ export function TrainingFilters({
   visibleGroups,
   onToggleInstructor,
   onToggleGroup,
-  onResetFilters,
-  onSetInstructorsVisibility,
-  onSetGroupsVisibility,
 }: TrainingFiltersProps) {
   const t = useT();
   // Filter listesi sadece bu sayfanın kind'ına ait event'lerden türer.
@@ -134,60 +130,10 @@ export function TrainingFilters({
     return vehicles.filter((v) => v.toLocaleLowerCase("tr").includes(q));
   }, [vehicles, vehicleSearch]);
 
-  const filteredInstructorsCheckedCount = filteredInstructors.filter((i) =>
-    visibleInstructors.has(i.id)
-  ).length;
-  const allInstructorsChecked =
-    filteredInstructors.length > 0 &&
-    filteredInstructorsCheckedCount === filteredInstructors.length;
-
-  const filteredVehiclesCheckedCount = filteredVehicles.filter((v) =>
-    visibleGroups?.has(v) ?? false
-  ).length;
-  const allVehiclesChecked =
-    filteredVehicles.length > 0 &&
-    filteredVehiclesCheckedCount === filteredVehicles.length;
-
-  const visibleVehiclesInList =
-    kind === "uygulama"
-      ? vehicles.filter((v) => visibleGroups?.has(v) ?? false).length
-      : 0;
-  const visibleInstructorsInList = instructors.filter((i) =>
-    visibleInstructors.has(i.id)
-  ).length;
-  const anyVisible = visibleInstructorsInList > 0 || visibleVehiclesInList > 0;
-
   return (
     <aside className="training-filters">
-      {anyVisible ? (
-        <div className="training-filters-header">
-          <button
-            className="training-filters-reset"
-            onClick={onResetFilters}
-            type="button"
-          >
-            {t("training.filter.reset")}
-          </button>
-        </div>
-      ) : null}
-
       {kind === "uygulama" ? (
         <section className="training-filters-section">
-          <div className="training-filters-section-header">
-            <h4 className="training-filters-section-title">
-              {t("training.filter.vehiclesTitle")}
-            </h4>
-            <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
-              <input
-                checked={allVehiclesChecked}
-                onChange={() =>
-                  onSetGroupsVisibility?.(filteredVehicles, !allVehiclesChecked)
-                }
-                type="checkbox"
-              />
-              <span className="switch-toggle-control" />
-            </label>
-          </div>
           <input
             className="training-filters-search"
             onChange={(e) => setVehicleSearch(e.target.value)}
@@ -233,26 +179,6 @@ export function TrainingFilters({
       ) : null}
 
       <section className="training-filters-section">
-        {kind === "uygulama" ? (
-          <div className="training-filters-section-header">
-            <h4 className="training-filters-section-title">
-              {t("training.filter.instructorsTitle")}
-            </h4>
-            <label className="training-filters-master-toggle switch-toggle switch-toggle-sm">
-              <input
-                checked={allInstructorsChecked}
-                onChange={() =>
-                  onSetInstructorsVisibility(
-                    filteredInstructors.map((i) => i.id),
-                    !allInstructorsChecked
-                  )
-                }
-                type="checkbox"
-              />
-              <span className="switch-toggle-control" />
-            </label>
-          </div>
-        ) : null}
         {kind === "uygulama" ? (
           <input
             className="training-filters-search"

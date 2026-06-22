@@ -20,6 +20,14 @@ interface InstitutionFounderResponse {
   phone: string | null;
 }
 
+export interface InstitutionAuthorizedPersonResponse {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  title: string | null;
+  sortOrder: number;
+}
+
 export interface InstitutionSettingsResponse {
   id: string;
   institutionName: string | null;
@@ -31,8 +39,11 @@ export interface InstitutionSettingsResponse {
   city: string | null;
   district: string | null;
   buildingCapacity: number | null;
+  bankName: string | null;
+  iban: string | null;
   logo: InstitutionLogoResponse | null;
   founder: InstitutionFounderResponse;
+  authorizedPersons: InstitutionAuthorizedPersonResponse[];
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -47,6 +58,13 @@ interface InstitutionFounderUpsertRequest {
   phone: string | null;
 }
 
+interface InstitutionAuthorizedPersonUpsertRequest {
+  id: string | null;
+  fullName: string | null;
+  phone: string | null;
+  title: string | null;
+}
+
 export interface InstitutionSettingsUpsertRequest {
   institutionName: string | null;
   institutionOfficialName: string | null;
@@ -57,8 +75,10 @@ export interface InstitutionSettingsUpsertRequest {
   city: string | null;
   district: string | null;
   buildingCapacity: number | null;
+  bankName: string | null;
+  iban: string | null;
   founder: InstitutionFounderUpsertRequest;
-  authorizedPersons: [];
+  authorizedPersons: InstitutionAuthorizedPersonUpsertRequest[];
   rowVersion: number | null;
 }
 
