@@ -34,6 +34,7 @@ type CandidateFilterPanelProps = {
   open: boolean;
   filters: CandidateFilterState;
   activeFilterCount: number;
+  hasExamResultLabel?: string;
   /**
    * True when any filter (form or tag) is active; drives the "Filtreleri
    * Temizle" button visibility inside the panel.
@@ -60,6 +61,7 @@ export function CandidateFilterPanel({
   open,
   filters,
   activeFilterCount,
+  hasExamResultLabel,
   hasAnyActiveFilter,
   onClose,
   onChange,
@@ -67,6 +69,7 @@ export function CandidateFilterPanel({
 }: CandidateFilterPanelProps) {
   const t = useT();
   const { lang } = useLanguage();
+  const examResultFilterLabel = hasExamResultLabel ?? t("candidates.filters.hasExamResult");
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const wasOpenRef = useRef(false);
@@ -353,14 +356,14 @@ export function CandidateFilterPanel({
           </div>
           <div className="form-group">
             <CustomSelect
-              aria-label={t("candidates.filters.hasExamResult")}
+              aria-label={examResultFilterLabel}
               className="form-select"
               onChange={(event) =>
                 onChange("hasExamResult", event.target.value as TriState)
               }
               value={filters.hasExamResult}
             >
-              <option value="">{t("candidates.filters.hasExamResult")}</option>
+              <option value="">{examResultFilterLabel}</option>
               <option value="true">{t("candidates.filters.yes")}</option>
               <option value="false">{t("candidates.filters.no")}</option>
             </CustomSelect>

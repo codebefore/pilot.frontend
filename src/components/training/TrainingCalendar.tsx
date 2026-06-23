@@ -440,7 +440,7 @@ export function TrainingCalendar({
     // pozisyon yok (görsel ve davranış birebir).
     step: 60,
     timeslots: 1,
-    style: { height: "calc(100vh - 180px)", minHeight: 480 },
+    style: { height: "100%", minHeight: 0 },
     view,
     views: {
       rolling: RollingWeekView,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countActiveCandidateFilters, EMPTY_CANDIDATE_FILTERS } from "./candidate-filters";
+import { countActiveCandidateFilters, EMPTY_CANDIDATE_FILTERS, filtersToQuery } from "./candidate-filters";
 
 describe("countActiveCandidateFilters", () => {
   it("ignores single-character text filters that are dropped from the query", () => {
@@ -20,5 +20,18 @@ describe("countActiveCandidateFilters", () => {
         hasPhoto: "true",
       })
     ).toBe(2);
+  });
+
+  it("maps exam result filters to backend query params", () => {
+    expect(
+      filtersToQuery({
+        ...EMPTY_CANDIDATE_FILTERS,
+        hasExamResult: "true",
+        mebExamResult: "passed",
+      })
+    ).toMatchObject({
+      hasExamResult: true,
+      mebExamResult: "passed",
+    });
   });
 });

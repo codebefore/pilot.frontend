@@ -21,7 +21,7 @@ type NewMebJobModalProps = {
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
-const RESULT_LIMIT = 20;
+const RESULT_LIMIT = 100;
 
 type CandidateLite = Pick<CandidateResponse, "id" | "firstName" | "lastName" | "nationalId" | "licenseClass">;
 

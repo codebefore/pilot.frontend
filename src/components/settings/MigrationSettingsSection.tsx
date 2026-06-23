@@ -24,7 +24,7 @@ import {
   getMebbisJob,
   type MebbisJobResponse,
 } from "../../lib/mebbis-jobs-api";
-import { getCandidates } from "../../lib/candidates-api";
+import { deleteInstitutionCandidates, getCandidates } from "../../lib/candidates-api";
 import { getGroups } from "../../lib/groups-api";
 import { applyMebbisClassroomInventory } from "../../lib/mebbis-classroom-import";
 import { applyMebbisInstitutionInventory } from "../../lib/mebbis-institution-import";
@@ -54,6 +54,7 @@ type MigrationActionKey =
   | "instructors"
   | "candidateSync"
   | "candidatePhotos"
+  | "deleteCandidates"
   | "groups"
   | "theorySchedule";
 
@@ -62,6 +63,9 @@ type MigrationAction = {
   titleKey: TranslationKey;
   descriptionKey: TranslationKey;
   enabled: boolean;
+  buttonLabelKey?: TranslationKey;
+  runningLabelKey?: TranslationKey;
+  tone?: "secondary" | "danger";
 };
 
 type MigrationGroup = {
@@ -131,6 +135,20 @@ const MIGRATION_GROUPS: MigrationGroup[] = [
         titleKey: "settings.migration.action.candidatePhotos.title",
         descriptionKey: "settings.migration.action.candidatePhotos.description",
         enabled: true,
+      },
+    ],
+  },
+  {
+    titleKey: "settings.migration.group.cleanup",
+    actions: [
+      {
+        key: "deleteCandidates",
+        titleKey: "settings.migration.action.deleteCandidates.title",
+        descriptionKey: "settings.migration.action.deleteCandidates.description",
+        enabled: true,
+        buttonLabelKey: "settings.migration.action.deleteCandidates.button",
+        runningLabelKey: "settings.migration.action.deleteCandidates.running",
+        tone: "danger",
       },
     ],
   },
@@ -768,6 +786,42 @@ export function MigrationSettingsSection() {
     }
   };
 
+  const runDeleteCandidates = async () => {
+    if (!activeInstitution) {
+      showToast(t("settings.migration.action.deleteCandidates.noInstitution"), "error");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      t("settings.migration.action.deleteCandidates.confirm", {
+        institution: activeInstitution.name,
+      })
+    );
+    if (!confirmed) return;
+
+    setRunningAction("deleteCandidates");
+    try {
+      const result = await deleteInstitutionCandidates();
+      invalidateCandidateSyncImportData();
+      showToast(
+        t("settings.migration.action.deleteCandidates.completed", {
+          count: String(result.deletedCount),
+        })
+      );
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            error.problemTitle ??
+            t("settings.migration.action.deleteCandidates.failed")
+          : t("settings.migration.action.deleteCandidates.failed");
+      showToast(message, "error");
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
   const runMigrationAction = async (action: MigrationAction) => {
     if (!action.enabled || runningAction) return;
 
@@ -813,6 +867,11 @@ export function MigrationSettingsSection() {
 
     if (action.key === "theorySchedule") {
       await runTheoryScheduleImport();
+      return;
+    }
+
+    if (action.key === "deleteCandidates") {
+      await runDeleteCandidates();
     }
   };
 
@@ -930,16 +989,16 @@ export function MigrationSettingsSection() {
                         </div>
                       </div>
                       <button
-                        className="btn btn-secondary btn-sm"
+                        className={`btn btn-${action.tone ?? "secondary"} btn-sm`}
                         disabled={!action.enabled || Boolean(runningAction)}
                         onClick={() => void runMigrationAction(action)}
                         type="button"
                       >
                         <MebIcon size={14} />
                         {runningAction === action.key
-                          ? t("settings.migration.action.running")
+                          ? t(action.runningLabelKey ?? "settings.migration.action.running")
                           : action.enabled
-                            ? t("settings.migration.action.run")
+                            ? t(action.buttonLabelKey ?? "settings.migration.action.run")
                             : t("settings.migration.action.pending")}
                       </button>
                     </div>

@@ -8,10 +8,40 @@
 /* ─── Konteyner ───────────────────────────────────────────── */
 .training-calendar {
   padding: 14px;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
 }
 
 /* ─── Sayfa layout: sidebar + takvim ──────────────────────── */
+.main:has(.training-page-shell) {
+  height: calc(100dvh - var(--header-h));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.training-page-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--header-h));
+  min-height: 0;
+  overflow: hidden;
+  overflow-anchor: none;
+}
+
+.training-page-shell > .page-toolbar {
+  flex: 0 0 auto;
+}
+
 .training-layout-wrap {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  overflow-anchor: none;
   padding-top: 12px;
 }
 
@@ -45,11 +75,14 @@
 .training-layout {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: stretch;
   padding: 0 14px;
-  max-height: calc(100vh - 180px);
-  min-height: 480px;
+  flex: 1 1 auto;
+  height: auto;
+  max-height: none;
+  min-height: 0;
   overflow: hidden;
+  overflow-anchor: none;
 }
 
 .training-layout > .training-calendar,
@@ -62,6 +95,8 @@
 .training-calendar-wrap {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 /* ─── Filtre paneli ───────────────────────────────────────── */
@@ -234,6 +269,9 @@
 .training-filters-list-scroll {
   max-height: 150px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  contain: layout paint;
   padding-right: 8px;
   scrollbar-color: var(--gray-400) var(--gray-100);
   scrollbar-width: thin;
@@ -1583,30 +1621,24 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 }
 
 /* ─── Sol panel sarmalı (Hızlı atama + Filtreler) ──────────── */
-/* Sticky sarmalı viewport'a yapışır; içerideki uzun listeler kendi içinde
- * scroll eder. Sidebar'ın ayrıca bir scroll alanı olmasına gerek yok. */
+/* Sidebar kendi scroll'unu üretmez; scroll sadece iç listelerde olur. */
 .training-filters-sidebar {
   flex: 0 0 200px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  max-height: calc(100vh - 180px);
-  overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.training-filters-sidebar::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+  align-self: stretch;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: clip;
+  overflow-anchor: none;
 }
 
 .training-filters-sidebar .training-filters {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ─── Hızlı Teorik Ders Atama paneli ───────────────────────── */
@@ -1618,6 +1650,9 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .training-quick-assign-header {

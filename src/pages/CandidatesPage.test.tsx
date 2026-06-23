@@ -1183,7 +1183,7 @@ describe("CandidatesPage tabs", () => {
           mebExamResult: null,
           eSinavAttemptCount: 2,
           drivingExamDate: null,
-          drivingExamAttemptCount: 1,
+          drivingExamAttemptCount: 0,
           totalFee: 0,
           totalPaid: 0,
           totalDebt: 0,
@@ -1204,12 +1204,12 @@ describe("CandidatesPage tabs", () => {
           birthDate: null,
           gender: null,
           licenseClass: "B",
-          existingLicenseType: null,
+          existingLicenseType: "B",
+          hasExistingLicense: false,
           existingLicenseIssuedAt: null,
           existingLicenseNumber: null,
           existingLicenseIssuedProvince: null,
           existingLicensePre2016: false,
-          educationPlan: { requiresTheoryExam: false },
           status: "active",
           currentGroup: null,
           documentSummary: null,
@@ -1259,22 +1259,192 @@ describe("CandidatesPage tabs", () => {
           updatedAtUtc: "2026-04-02T10:00:00Z",
           rowVersion: 1,
         },
+        {
+          id: "cand-4",
+          firstName: "Dosya",
+          lastName: "Yakan",
+          nationalId: "12345678904",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "dropped",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: null,
+          eSinavAttemptCount: 1,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 0,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "cand-5",
+          firstName: "Park",
+          lastName: "Aday",
+          nationalId: "12345678905",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "parked",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: null,
+          eSinavAttemptCount: 1,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 0,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "cand-6",
+          firstName: "Direksiyon",
+          lastName: "Sonuc",
+          nationalId: "12345678906",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: "passed",
+          eSinavAttemptCount: 1,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 1,
+          drivingExamResultStatus: "failed",
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "cand-7",
+          firstName: "Sinav",
+          lastName: "Basarisiz",
+          nationalId: "12345678907",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: "failed",
+          eSinavAttemptCount: 2,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 0,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "cand-8",
+          firstName: "Direksiyon",
+          lastName: "Randevu",
+          nationalId: "12345678908",
+          motherName: null,
+          fatherName: null,
+          referenceName: null,
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: "passed",
+          eSinavAttemptCount: 1,
+          drivingExamDate: "2026-06-03",
+          drivingExamAttemptCount: 1,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+          rowVersion: 1,
+        },
       ],
       page: 1,
       pageSize: 100,
-      totalCount: 3,
+      totalCount: 8,
       totalPages: 1,
     });
 
     renderPage();
     await screen.findByText("Ayse Demir");
 
-    expect(await screen.findByText("E-sınav 2/4")).toBeInTheDocument();
+    expect((await screen.findAllByText("E-sınav 2/4")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("E-sınav randevulu")).toBeInTheDocument();
-    expect(screen.getByText("Direksiyon 1/4")).toBeInTheDocument();
+    expect(screen.getAllByText("Direksiyon 1/4").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Direksiyon havuz")).toBeInTheDocument();
-    expect(screen.getByText("Direksiyon 3/5")).toBeInTheDocument();
-    expect(screen.getByText("Direksiyon başarılı")).toBeInTheDocument();
+    expect(screen.getByText("E-sınav başarısız")).toBeInTheDocument();
+    expect(screen.getByText("Direksiyon randevulu")).toBeInTheDocument();
+    expect(screen.getAllByText("Mezun").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Dosya Yakan / Ayrılan").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Park").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Direksiyon başarısız")).toBeInTheDocument();
   });
 
   it("keeps e-sinav date hidden and attempt visible but out of the picker", async () => {
@@ -2223,7 +2393,9 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           currentGroup: null,
           documentSummary: null,
-          mebExamResult: null,
+          mebExamResult: "passed",
+          drivingExamResultStatus: "failed",
+          drivingExamAttemptCount: 2,
           createdAtUtc: "2026-04-01T10:00:00Z",
           updatedAtUtc: "2026-04-02T10:00:00Z",
         },
@@ -2252,6 +2424,32 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getByRole("button", { name: "Yeni Aday" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "CSV İndir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kapat" })).toBeInTheDocument();
+
+    let exportedBlob: Blob | null = null;
+    const createObjectUrlSpy = vi
+      .spyOn(window.URL, "createObjectURL")
+      .mockImplementation((value) => {
+        exportedBlob = value as Blob;
+        return "blob:adaylar";
+      });
+    const revokeObjectUrlSpy = vi
+      .spyOn(window.URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+    const anchorClickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+
+    fireEvent.click(screen.getByRole("button", { name: "CSV İndir" }));
+
+    await waitFor(() => expect(createObjectUrlSpy).toHaveBeenCalled());
+    expect(exportedBlob).not.toBeNull();
+    const csv = await exportedBlob!.text();
+    expect(csv).toContain("Direksiyon başarısız");
+    expect(csv).not.toContain(",Başarılı,active");
+
+    createObjectUrlSpy.mockRestore();
+    revokeObjectUrlSpy.mockRestore();
+    anchorClickSpy.mockRestore();
   });
 
   it("shows a toast when a bulk action is clicked without selecting a candidate", async () => {

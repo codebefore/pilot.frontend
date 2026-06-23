@@ -80,7 +80,7 @@ export function NewPaymentModal({ open, canManage = true, onClose, onSubmit }: N
     }
 
     const controller = new AbortController();
-    getCandidates({ pageSize: 500 }, controller.signal)
+    getCandidates({ page: 1, pageSize: 100 }, controller.signal)
       .then((result) => {
         const withDebt = result.items.filter((candidate) => candidate.totalDebt > 0);
         setDebtors(withDebt);

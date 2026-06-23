@@ -34,6 +34,15 @@ type BulkCandidateUpdateResult = {
   }[];
 };
 
+function hasExistingLicenseValue(value: string | null | undefined): boolean {
+  const normalized = value?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  return normalized !== "" && normalized !== "-" && normalized !== "yok" && normalized !== "none" && normalized !== "exempt";
+}
+
+function candidateHasExistingLicense(candidate: Pick<CandidateResponse, "hasExistingLicense" | "existingLicenseType">): boolean {
+  return candidate.hasExistingLicense === true || hasExistingLicenseValue(candidate.existingLicenseType);
+}
+
 /**
  * Round-trip a CandidateResponse back into an upsert payload. Optional
  * overrides let callers swap a subset of fields (e.g. bulk status change)
@@ -76,7 +85,7 @@ export function buildCandidateUpdatePayload(
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
     licenseClassDefinitionId: candidate.licenseClassDefinitionId ?? null,
-    hasExistingLicense: candidate.hasExistingLicense ?? Boolean(candidate.existingLicenseType),
+    hasExistingLicense: candidateHasExistingLicense(candidate),
     existingLicenseType: candidate.existingLicenseType,
     existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
     existingLicenseNumber: candidate.existingLicenseNumber,

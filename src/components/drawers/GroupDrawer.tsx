@@ -155,7 +155,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       setSearchLoading(true);
       try {
         const result = await getCandidates(
-          { search: normalizedSearchQuery, pageSize: 20 },
+          { search: normalizedSearchQuery, pageSize: 100 },
           controller.signal
         );
         const activeCandidateIds = new Set(group?.activeCandidates.map((c) => c.candidateId) ?? []);

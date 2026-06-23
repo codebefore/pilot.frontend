@@ -6,6 +6,10 @@ export function hasExistingLicenseValue(value: string | null | undefined): boole
   return normalized !== "" && normalized !== "-" && normalized !== "yok" && normalized !== "none" && normalized !== "exempt";
 }
 
+export function candidateHasExistingLicense(candidate: Pick<CandidateResponse, "hasExistingLicense" | "existingLicenseType">): boolean {
+  return candidate.hasExistingLicense === true || hasExistingLicenseValue(candidate.existingLicenseType);
+}
+
 export function isExistingLicenseCopyType(type: DocumentTypeResponse): boolean {
   const normalizedName = type.name.trim().toLocaleLowerCase("tr-TR");
   return (

@@ -51,6 +51,32 @@ describe("buildCandidateUpdatePayload", () => {
     expect(payload.existingLicenseType).toBe("B");
   });
 
+  it("does not treat existing license placeholders as a license", () => {
+    const candidate = {
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "12345678910",
+      referenceName: null,
+      phoneNumber: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      licenseClassDefinitionId: "rule-b",
+      hasExistingLicense: false,
+      existingLicenseType: "Yok",
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      rowVersion: 3,
+    } as CandidateResponse;
+
+    const payload = buildCandidateUpdatePayload(candidate, { status: "active" });
+
+    expect(payload.hasExistingLicense).toBe(false);
+  });
+
   it("creates a new theory attempt when assigning a candidate to another e-exam schedule", async () => {
     const candidate = {
       id: "candidate-1",

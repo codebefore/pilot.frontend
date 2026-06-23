@@ -469,6 +469,52 @@ describe("CandidateDrawer", () => {
     });
   });
 
+  it("shows the unified exam result instead of only the theory result", async () => {
+    getCandidateByIdMock.mockResolvedValue({
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "10000000078",
+      phoneNumber: null,
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebSyncStatus: "synced",
+      mebExamResult: "passed",
+      drivingExamResultStatus: "failed",
+      drivingExamAttemptCount: 2,
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+      />
+    );
+
+    await screen.findByRole("heading", { name: "Ada Yilmaz" });
+
+    const resultLabel = screen
+      .getAllByText("Sınav Sonucu")
+      .find((node) => node.classList.contains("label"));
+    const resultRow = resultLabel?.closest(".drawer-row");
+    expect(resultRow).not.toBeNull();
+    expect(resultRow).toHaveTextContent("Direksiyon Başarısız");
+    expect(resultRow).not.toHaveTextContent("Başarılı");
+  });
+
   it("disables e-sinav date editing after the fourth failed attempt", async () => {
     getCandidateByIdMock.mockResolvedValue({
       id: "candidate-1",

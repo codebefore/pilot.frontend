@@ -78,7 +78,7 @@ describe("GroupDrawer", () => {
     updateGroupMock.mockReset();
     assignCandidateGroupMock.mockReset();
     removeActiveGroupAssignmentMock.mockReset();
-    getCandidatesMock.mockResolvedValue({ items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 0 });
+    getCandidatesMock.mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 });
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "candidate-transfer",
@@ -224,7 +224,7 @@ describe("GroupDrawer", () => {
       expect(getCandidatesMock).toHaveBeenCalledWith(
         expect.objectContaining({
           search: "Ay",
-          pageSize: 20,
+          pageSize: 100,
         }),
         expect.any(AbortSignal)
       );
@@ -282,7 +282,7 @@ describe("GroupDrawer", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });

@@ -193,6 +193,25 @@ export async function httpPost<T>(
   return handleResponse<T>(response);
 }
 
+export async function httpPostBlob(
+  path: string,
+  body: unknown,
+  options?: RequestOptions
+): Promise<Blob> {
+  const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
+    method: "POST",
+    headers: buildHeaders({ "Content-Type": "application/json" }, options),
+    body: JSON.stringify(body),
+    signal: options?.signal,
+  });
+
+  if (!response.ok) {
+    await handleResponse<never>(response);
+  }
+
+  return response.blob();
+}
+
 /**
  * POST a multipart/form-data request. The browser sets the Content-Type header
  * (including the multipart boundary) automatically from the FormData body, so

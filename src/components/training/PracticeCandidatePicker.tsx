@@ -14,7 +14,7 @@ type PracticeCandidatePickerProps = {
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 
 const tabs: PracticeCandidateTab[] = ["all", "havuz", "basarisiz", "randevulu"];
 

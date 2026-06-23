@@ -62,7 +62,7 @@ const INITIAL_FILTERS: Filters = {
   search: "",
 };
 
-const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 
@@ -992,6 +992,7 @@ export function DocumentsPage() {
       <CandidateFilterPanel
         activeFilterCount={activeFilterCount}
         filters={candidateFilters}
+        hasExamResultLabel={t("documents.filters.hasTheoryExamScore")}
         hasAnyActiveFilter={activeFilterCount > 0 || activeTags.length > 0}
         onChange={handleCandidateFilterChange}
         onClearAll={clearAllCandidateFilters}

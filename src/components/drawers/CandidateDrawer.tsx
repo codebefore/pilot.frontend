@@ -23,7 +23,6 @@ import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
 import {
   CANDIDATE_MEB_SYNC_STATUS_OPTIONS,
-  candidateExamResultLabel,
   candidateGenderLabel,
   CANDIDATE_GENDER_OPTIONS,
   candidateMebSyncStatusLabel,
@@ -128,6 +127,48 @@ function isReportedAttendanceStatus(status: string | null | undefined): boolean 
   return status?.trim().toLowerCase() === "reported";
 }
 
+function hasExistingLicenseValue(value: string | null | undefined): boolean {
+  const normalized = value?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  return normalized !== "" && normalized !== "-" && normalized !== "yok" && normalized !== "none" && normalized !== "exempt";
+}
+
+function candidateHasExistingLicenseSignal(candidate: Pick<CandidateResponse, "hasExistingLicense" | "existingLicenseType">): boolean {
+  return candidate.hasExistingLicense === true || hasExistingLicenseValue(candidate.existingLicenseType);
+}
+
+function candidateDrawerExamResultLabel(candidate: CandidateResponse): string {
+  if (candidate.status === "dropped" || candidate.status === "parked" || candidate.status === "graduated") {
+    return candidateStatusLabel(candidate.status);
+  }
+
+  const theoryResult = normalizeCandidateExamResultValue(candidate.mebExamResult);
+  const usesPracticeStage =
+    candidate.isTheoryExempt === true ||
+    candidateHasExistingLicenseSignal(candidate) ||
+    candidate.educationPlan?.requiresTheoryExam === false ||
+    theoryResult === "passed" ||
+    Boolean(candidate.drivingExamDate) ||
+    Boolean(candidate.drivingExamResultStatus) ||
+    (candidate.drivingExamAttemptCount ?? 0) > 0;
+
+  if (!usesPracticeStage) {
+    if (theoryResult === "failed") return "E-Sınav Başarısız";
+    return candidate.mebExamDate ? "E-Sınav Randevulu" : "E-Sınav Havuz";
+  }
+
+  switch (candidate.drivingExamResultStatus) {
+    case "passed":
+      return "Direksiyon Başarılı";
+    case "failed":
+      return "Direksiyon Başarısız";
+    default:
+      if (!candidate.drivingExamDate && (candidate.drivingExamAttemptCount ?? 1) > 1) {
+        return "Direksiyon Başarısız";
+      }
+      return candidate.drivingExamDate ? "Direksiyon Randevulu" : "Direksiyon Havuz";
+  }
+}
+
 type ExistingLicenseDraft = {
   enabled: boolean;
   type: string;
@@ -155,7 +196,7 @@ function pickFirstCodedMessage(
 }
 
 function buildExistingLicenseDraft(candidate: CandidateResponse | null): ExistingLicenseDraft {
-  const enabled = candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType;
+  const enabled = candidate ? candidateHasExistingLicenseSignal(candidate) : false;
   return {
     enabled,
     type: candidate?.existingLicenseType ?? "",
@@ -181,9 +222,11 @@ export function CandidateDrawer({
   const licenseNumberInputId = useId();
   const issuedProvinceSelectId = useId();
   const [candidate, setCandidate] = useState<CandidateResponse | null>(null);
+  const candidateHasExistingLicense =
+    candidate ? candidateHasExistingLicenseSignal(candidate) : false;
   const { options: licenseClassOptions } = useCandidateLicenseClassOptions(
     candidate?.existingLicenseType ?? "",
-    candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType
+    candidateHasExistingLicense
   );
   const { items: activeLicenseClassDefinitions } = useActiveLicenseClassDefinitions(!!candidate);
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
@@ -216,8 +259,6 @@ export function CandidateDrawer({
   const [existingLicenseSaving, setExistingLicenseSaving] = useState(false);
   const [existingLicenseError, setExistingLicenseError] = useState<string | null>(null);
   const educationPlan = candidate?.educationPlan ?? null;
-  const candidateHasExistingLicense =
-    candidate?.hasExistingLicense ?? !!candidate?.existingLicenseType;
   const noPermissionTitle = t("common.noPermission");
   const candidateEditDisabledTitle = !canManageCandidates ? noPermissionTitle : undefined;
 
@@ -328,7 +369,7 @@ export function CandidateDrawer({
         gender: normalizeCandidateGender(candidate.gender),
         licenseClass: candidate.licenseClass,
         licenseClassDefinitionId: candidate.licenseClassDefinitionId ?? null,
-        hasExistingLicense: candidate.hasExistingLicense ?? !!candidate.existingLicenseType,
+        hasExistingLicense: candidateHasExistingLicenseSignal(candidate),
         existingLicenseType: candidate.existingLicenseType,
         existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
         existingLicenseNumber: candidate.existingLicenseNumber,
@@ -401,7 +442,7 @@ export function CandidateDrawer({
         : candidate.existingLicenseType;
     const nextType = nextTypeRaw && nextTypeRaw.trim().length > 0 ? nextTypeRaw : null;
     const nextHasExistingLicense =
-      patch.hasExistingLicense ?? candidate.hasExistingLicense ?? !!candidate.existingLicenseType;
+      patch.hasExistingLicense ?? candidateHasExistingLicenseSignal(candidate);
     const nextLicenseClass = patch.licenseClass ?? candidate.licenseClass;
     const licenseSelectionChanged =
       patch.licenseClass !== undefined ||
@@ -1111,7 +1152,7 @@ export function CandidateDrawer({
               options={drivingAttemptDisplayLimit(candidate) === 5 ? DRIVING_ATTEMPT_OPTIONS : E_SINAV_ATTEMPT_OPTIONS}
               onSave={(value) => saveField({ drivingExamAttemptCount: Number(value) })}
             />
-            <DrawerRow label={t("candidateDrawer.field.examResult")}>{candidateExamResultLabel(candidate.mebExamResult)}</DrawerRow>
+            <DrawerRow label={t("candidateDrawer.field.examResult")}>{candidateDrawerExamResultLabel(candidate)}</DrawerRow>
           </DrawerSection>
 
           <DrawerSection title={t("candidateDrawer.section.documents")}>

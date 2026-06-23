@@ -38,7 +38,7 @@ type DashboardSummaryCard = {
   tone: "brand" | "orange" | "blue" | "purple";
 };
 
-const DASHBOARD_CANDIDATE_SUMMARY_PAGE_SIZE = 1000;
+const DASHBOARD_CANDIDATE_SUMMARY_PAGE_SIZE = 100;
 
 type DashboardCandidateSummaryKey = "preRegistered" | "active" | "eSinav" | "driving";
 type DashboardExamSummaryKey = "eSinav" | "driving";

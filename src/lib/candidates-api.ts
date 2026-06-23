@@ -38,6 +38,10 @@ export type SortDirection = "asc" | "desc";
 export type CandidateExamTabValue = "havuz" | "basarisiz" | "randevulu";
 export type ESinavTabValue = CandidateExamTabValue;
 
+export type DeleteInstitutionCandidatesResponse = {
+  deletedCount: number;
+};
+
 export interface GetCandidatesParams extends QueryParams {
   search?: string;
   status?: string;
@@ -249,6 +253,14 @@ export function setCandidateSecondPracticeRound(
 
 export function deleteCandidate(id: string): Promise<void> {
   return httpDelete(`/api/candidates/${id}`, undefined, candidateRequestOptions());
+}
+
+export function deleteInstitutionCandidates(): Promise<DeleteInstitutionCandidatesResponse> {
+  return httpDelete<DeleteInstitutionCandidatesResponse>(
+    "/api/candidates",
+    undefined,
+    candidateRequestOptions()
+  );
 }
 
 export function removeActiveGroupAssignment(candidateId: string): Promise<void> {

@@ -79,7 +79,6 @@ import { useLanguage, useT } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
 import { canManageArea } from "../lib/permissions";
 import {
-  candidateExamResultLabel,
   candidateGenderLabel,
   candidateMebSyncStatusLabel,
   candidateMebSyncStatusToPill,
@@ -116,6 +115,7 @@ import {
   useLicenseClassOptions,
 } from "../lib/use-license-class-options";
 import { useColumnVisibility } from "../lib/use-column-visibility";
+import { candidateHasExistingLicense } from "./CandidateDetailPage.helpers";
 
 type CandidateTab = "all" | CandidateStatusValue;
 type BulkActionMode = "status" | "tags" | "export" | "examDate" | "group" | null;
@@ -694,7 +694,7 @@ function latestExamAttempt(
 }
 
 type CandidateExamStage = "eSinav" | "practice";
-type CandidateUnifiedExamStatus = "havuz" | "randevulu" | "basarisiz" | "basarili";
+type CandidateUnifiedExamStatus = "havuz" | "randevulu" | "basarisiz" | "basarili" | "parked" | "graduated" | "dropped";
 
 function todayISO(): string {
   return todayLocalDateOnly();
@@ -710,9 +710,14 @@ function omitExamTabFilter(params: Partial<GetCandidatesParams>): Partial<GetCan
 }
 
 function candidateUsesPracticeStage(candidate: CandidateResponse): boolean {
-  return candidate.educationPlan?.requiresTheoryExam === false ||
+  return candidate.isTheoryExempt === true ||
+    candidateHasExistingLicense(candidate) ||
+    candidate.educationPlan?.requiresTheoryExam === false ||
     hasPassedExamResult(candidate.mebExamResult) ||
-    candidate.status === "graduated";
+    candidate.status === "graduated" ||
+    Boolean(candidate.drivingExamDate) ||
+    Boolean(candidate.drivingExamResultStatus) ||
+    (candidate.drivingExamAttemptCount ?? 0) > 0;
 }
 
 function candidateUnifiedExamStage(candidate: CandidateResponse): CandidateExamStage {
@@ -724,12 +729,17 @@ function candidateUnifiedExamStatus(candidate: CandidateResponse): {
   status: CandidateUnifiedExamStatus;
 } {
   const stage = candidateUnifiedExamStage(candidate);
+  if (candidate.status === "dropped" || candidate.status === "parked" || candidate.status === "graduated") {
+    return { stage, status: candidate.status };
+  }
+
   if (stage === "eSinav") {
     if (hasFailedExamResult(candidate.mebExamResult)) return { stage, status: "basarisiz" };
     return { stage, status: candidate.mebExamDate ? "randevulu" : "havuz" };
   }
 
-  if (candidate.status === "graduated") return { stage, status: "basarili" };
+  if (candidate.drivingExamResultStatus === "passed") return { stage, status: "basarili" };
+  if (candidate.drivingExamResultStatus === "failed") return { stage, status: "basarisiz" };
   if (candidate.drivingExamDate) return { stage, status: "randevulu" };
   if ((candidate.drivingExamAttemptCount ?? 1) > 1) return { stage, status: "basarisiz" };
   return { stage, status: "havuz" };
@@ -740,13 +750,17 @@ function examStageLabel(stage: CandidateExamStage, t: ReturnType<typeof useT>): 
 }
 
 function examStatusLabel(status: CandidateUnifiedExamStatus, t: ReturnType<typeof useT>): string {
+  if (status === "dropped") return candidateStatusLabel("dropped");
+  if (status === "parked") return candidateStatusLabel("parked");
+  if (status === "graduated") return candidateStatusLabel("graduated");
   if (status === "randevulu") return t("candidatesPage.examStatus.scheduled");
   if (status === "basarisiz") return t("candidatesPage.examStatus.failed");
   if (status === "basarili") return t("candidatesPage.examStatus.passed");
   return t("candidatesPage.examStatus.pool");
 }
 
-function examStatusPill(status: CandidateUnifiedExamStatus): "queued" | "running" | "failed" | "success" {
+function examStatusPill(status: CandidateUnifiedExamStatus): JobStatus {
+  if (status === "dropped" || status === "parked" || status === "graduated") return candidateStatusToPill(status);
   if (status === "randevulu") return "running";
   if (status === "basarisiz") return "failed";
   if (status === "basarili") return "success";
@@ -755,6 +769,15 @@ function examStatusPill(status: CandidateUnifiedExamStatus): "queued" | "running
 
 function CandidateUnifiedExamAttemptPill({ candidate }: { candidate: CandidateResponse }) {
   const t = useT();
+  if (candidate.status === "dropped" || candidate.status === "parked" || candidate.status === "graduated") {
+    return (
+      <StatusPill
+        label={candidateStatusLabel(candidate.status)}
+        status={candidateStatusToPill(candidate.status)}
+      />
+    );
+  }
+
   const stage = candidateUnifiedExamStage(candidate);
   const value = stage === "practice"
     ? candidate.drivingExamAttemptCount
@@ -775,6 +798,17 @@ function CandidateUnifiedExamStatusPill({ candidate }: { candidate: CandidateRes
   const { stage, status } = candidateUnifiedExamStatus(candidate);
   const stageLabel = examStageLabel(stage, t);
   const statusLabel = examStatusLabel(status, t);
+  if (status === "dropped" || status === "parked" || status === "graduated") {
+    return (
+      <span title={statusLabel}>
+        <StatusPill
+          label={statusLabel}
+          status={examStatusPill(status)}
+        />
+      </span>
+    );
+  }
+
   const title =
     status === "randevulu"
       ? t("candidatesPage.examTitle.scheduled", { stage: stageLabel })
@@ -791,6 +825,13 @@ function CandidateUnifiedExamStatusPill({ candidate }: { candidate: CandidateRes
       />
     </span>
   );
+}
+
+function candidateUnifiedExamStatusExportLabel(candidate: CandidateResponse, t: ReturnType<typeof useT>): string {
+  const { stage, status } = candidateUnifiedExamStatus(candidate);
+  const statusLabel = examStatusLabel(status, t);
+  if (status === "dropped" || status === "parked" || status === "graduated") return statusLabel;
+  return `${examStageLabel(stage, t)} ${statusLabel}`;
 }
 
 function ExamAttemptPill({
@@ -2855,7 +2896,7 @@ export function CandidatesPage({
       candidate.documentSummary?.completedCount ?? 0,
       candidate.documentSummary?.missingCount ?? 0,
       candidateMebSyncStatusLabel(candidate.mebSyncStatus),
-      candidateExamResultLabel(candidate.mebExamResult),
+      candidateUnifiedExamStatusExportLabel(candidate, t),
       candidateStatusLabel(candidate.status),
       formatDateTR(candidate.createdAtUtc),
     ]);

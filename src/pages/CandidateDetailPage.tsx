@@ -128,8 +128,11 @@ import {
 } from "../lib/status-maps";
 import { toTurkishUpperCase } from "../lib/text-format";
 import {
-  buildCandidateContractDocxBlob,
-  downloadCandidateContractDocx,
+  buildCandidateContractRenderPdfRequest,
+  buildCandidateSignatureSampleRenderPdfRequest,
+  openCandidateContractPrintWindow,
+  printCandidateContractPdf,
+  renderCandidateContractPdf,
 } from "../lib/candidate-contract-print";
 import { StatusPill } from "../components/ui/StatusPill";
 import type {
@@ -167,9 +170,9 @@ import {
   addHours,
   buildFutureStages,
   calculateAge,
+  candidateHasExistingLicense,
   dateOnlyAt,
   formatTimelineDate,
-  hasExistingLicenseValue,
   isExistingLicenseCopyType,
   normalizeLicenseOptionKey,
   nowDateTimeLocal,
@@ -247,7 +250,7 @@ function buildCandidateUpdatePayload(
     birthPlace: candidate.birthPlace,
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
-    hasExistingLicense: candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType),
+    hasExistingLicense: candidateHasExistingLicense(candidate),
     existingLicenseType: candidate.existingLicenseType,
     existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
     existingLicenseNumber: candidate.existingLicenseNumber,
@@ -842,7 +845,7 @@ function CandidateHero({
   });
   const managerQuery = useQuery({
     queryKey: ["training", "instructors", "manager", "active"],
-    queryFn: ({ signal }) => getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 2 }, signal),
+    queryFn: ({ signal }) => getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 1 }, signal),
     staleTime: 5 * 60 * 1000,
   });
   const contractFeeMatrixQuery = useQuery({
@@ -858,9 +861,8 @@ function CandidateHero({
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
-  const candidateHasExistingLicense =
-    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
-  const existingLicense = candidateHasExistingLicense && candidate.existingLicenseType
+  const hasExistingLicenseInfo = candidateHasExistingLicense(candidate);
+  const existingLicense = hasExistingLicenseInfo && candidate.existingLicenseType
     ? existingLicenseTypeLabel(candidate.existingLicenseType)
     : null;
   const licenseTransitionLabel = existingLicense
@@ -896,10 +898,21 @@ function CandidateHero({
   const maxAttemptValue = showDrivingExamAttempts
     ? candidateExamAttemptSummaryLimit(candidate)
     : 4;
-  const attemptPill = examStatusPill === "success"
+  const hasTerminalCandidateStatus =
+    candidate.status === "dropped" ||
+    candidate.status === "parked" ||
+    candidate.status === "graduated";
+  const attemptPill = hasTerminalCandidateStatus
+    ? candidateStatusToPill(candidate.status)
+    : examStatusPill === "success"
     ? "success"
     : examAttemptPillStatus(attemptValue, maxAttemptValue);
-  const attemptSummary = showDrivingExamAttempts
+  const attemptSummary = hasTerminalCandidateStatus
+    ? {
+        label: "Aday Durumu",
+        value: candidateStatusLabel(candidate.status),
+      }
+    : showDrivingExamAttempts
     ? {
         label: "Direksiyon",
         value: `${candidate.drivingExamAttemptCount ?? 1}/${maxAttemptValue}`,
@@ -932,8 +945,33 @@ function CandidateHero({
   };
 
   const handlePrintForm = async (label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]) => {
-    if (label !== "Kayıt sözleşmesi" || contractGenerating) return;
+    if ((label !== "Kayıt sözleşmesi" && label !== "İmza örneği") || contractGenerating) return;
     setPrintFormsOpen(false);
+
+    if (label === "İmza örneği") {
+      setContractGenerating(true);
+      const printWindow = openCandidateContractPrintWindow("Kursiyer İmza Örneği");
+      if (!printWindow) {
+        setContractGenerating(false);
+        showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+        return;
+      }
+
+      try {
+        const request = buildCandidateSignatureSampleRenderPdfRequest(candidate);
+        const blob = await renderCandidateContractPdf(request);
+        printCandidateContractPdf(printWindow, blob);
+      } catch (error) {
+        printWindow.close();
+        const message = error instanceof Error
+          ? error.message
+          : "İmza örneği dosyası hazırlanamadı.";
+        showToast(message, "error");
+      } finally {
+        setContractGenerating(false);
+      }
+      return;
+    }
 
     if (
       !accounting ||
@@ -948,9 +986,9 @@ function CandidateHero({
       return;
     }
 
-    const managers = managerQuery.data?.items.filter((item) => item.isActive && item.role === "manager") ?? [];
-    const managerName = managers.length === 1
-      ? `${managers[0].firstName} ${managers[0].lastName}`.trim()
+    const manager = managerQuery.data?.items.find((item) => item.isActive && item.role === "manager") ?? null;
+    const managerName = manager
+      ? `${manager.firstName} ${manager.lastName}`.trim()
       : null;
     const matchedFeeRow = contractFeeMatrixQuery.data
       ? findCandidateFeeMatrixRow(contractFeeMatrixQuery.data.rows, candidate)
@@ -968,8 +1006,15 @@ function CandidateHero({
       : null;
 
     setContractGenerating(true);
+    const printWindow = openCandidateContractPrintWindow("Kursiyer Kayıt Sözleşmesi");
+    if (!printWindow) {
+      setContractGenerating(false);
+      showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+      return;
+    }
+
     try {
-      const blob = await buildCandidateContractDocxBlob({
+      const request = buildCandidateContractRenderPdfRequest({
         candidate,
         accounting,
         contractYear: contractFeeMatrixYear,
@@ -978,8 +1023,10 @@ function CandidateHero({
         institution: institutionSettingsQuery.data ?? null,
         managerName,
       });
-      downloadCandidateContractDocx(blob, candidate);
+      const blob = await renderCandidateContractPdf(request);
+      printCandidateContractPdf(printWindow, blob);
     } catch (error) {
+      printWindow.close();
       const message = error instanceof Error
         ? error.message
         : "Sözleşme dosyası hazırlanamadı.";
@@ -1039,7 +1086,7 @@ function CandidateHero({
                   {CANDIDATE_PRINT_FORM_OPTIONS.map((label) => (
                     <button
                       className="candidate-detail-print-popover-item"
-                      disabled={contractGenerating || label !== "Kayıt sözleşmesi"}
+                      disabled={contractGenerating || (label !== "Kayıt sözleşmesi" && label !== "İmza örneği")}
                       key={label}
                       onClick={() => void handlePrintForm(label)}
                       role="menuitem"
@@ -1130,7 +1177,8 @@ function isCandidateInDrivingStage(candidate: CandidateResponse): boolean {
   const theoryResult = normalizeCandidateExamResultValue(candidate.mebExamResult);
   return (
     candidate.isTheoryExempt === true ||
-    (candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)) ||
+    candidateHasExistingLicense(candidate) ||
+    candidate.educationPlan?.requiresTheoryExam === false ||
     theoryResult === "passed" ||
     Boolean(candidate.drivingExamDate) ||
     Boolean(candidate.drivingExamResultStatus) ||
@@ -1139,6 +1187,10 @@ function isCandidateInDrivingStage(candidate: CandidateResponse): boolean {
 }
 
 function candidateHeroExamStatusLabel(candidate: CandidateResponse): string {
+  if (candidate.status === "dropped" || candidate.status === "parked" || candidate.status === "graduated") {
+    return candidateStatusLabel(candidate.status);
+  }
+
   if (isCandidateInDrivingStage(candidate)) {
     switch (candidate.drivingExamResultStatus) {
       case "passed":
@@ -1146,6 +1198,9 @@ function candidateHeroExamStatusLabel(candidate: CandidateResponse): string {
       case "failed":
         return "Direksiyon Başarısız";
       default:
+        if (!candidate.drivingExamDate && (candidate.drivingExamAttemptCount ?? 1) > 1) {
+          return "Direksiyon Başarısız";
+        }
         return candidate.drivingExamDate ? "Direksiyon Randevulu" : "Direksiyon Havuz";
     }
   }
@@ -1260,7 +1315,7 @@ function HeroBadges({ candidate }: { candidate: CandidateResponse }) {
   // MebExamResult üzerinden değerlendirilir, hero'da ayrı rozet yok.
   if (candidate.isTheoryExempt) {
     badges.push({ key: "exempt", label: t("candidateDetail.hero.badge.exempt"), tone: "info" });
-  } else if (candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)) {
+  } else if (candidateHasExistingLicense(candidate)) {
     badges.push({
       key: "existing-license",
       label: candidate.existingLicenseType
@@ -2530,7 +2585,7 @@ function LicenseInfoTab({
   const noPermissionTitle = t("common.noPermission");
   const { options: licenseClassOptions } = useCandidateLicenseClassOptions(
     candidate.existingLicenseType ?? "",
-    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)
+    candidateHasExistingLicense(candidate)
   );
   const { items: activeLicenseClassDefinitions } = useActiveLicenseClassDefinitions();
   const licenseClassLabel = useMemo(
@@ -2577,7 +2632,7 @@ function LicenseInfoTab({
     }
   };
   const { options: configuredExistingLicenseTypeOptions } = useExistingLicenseTypeOptions();
-  const hasLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const hasLicense = candidateHasExistingLicense(candidate);
   const [licenseType, setLicenseType] = useState(
     encodeExistingLicenseSelection(
       candidate.existingLicenseType,
@@ -2592,7 +2647,7 @@ function LicenseInfoTab({
     candidate.existingLicenseIssuedProvince ?? ""
   );
   const [licenseFieldsOpen, setLicenseFieldsOpen] = useState(
-    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType)
+    candidateHasExistingLicense(candidate)
   );
   const [existingLicenseToggleSaving, setExistingLicenseToggleSaving] = useState(false);
 
@@ -2608,7 +2663,7 @@ function LicenseInfoTab({
       candidate.existingLicenseIssuedAt ?? (hasLicense ? "" : todayIsoDate())
     );
     setIssuedProvince(candidate.existingLicenseIssuedProvince ?? "");
-    setLicenseFieldsOpen(candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType));
+    setLicenseFieldsOpen(candidateHasExistingLicense(candidate));
   }, [candidate]);
 
   // ── Fetch 5: license class definitions (for existing-license options) ───
@@ -2672,7 +2727,7 @@ function LicenseInfoTab({
   };
 
   const [exemptSaving, setExemptSaving] = useState(false);
-  const hasExistingLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const hasExistingLicense = candidateHasExistingLicense(candidate);
   const hasExistingLicenseDraft = hasExistingLicense || licenseFieldsOpen;
   const isTheoryExempt = hasExistingLicenseDraft || (candidate.isTheoryExempt ?? false);
   const toggleTheoryExempt = async () => {
@@ -2702,7 +2757,7 @@ function LicenseInfoTab({
           );
     const { existingLicenseType: nextType } = decodeExistingLicenseSelection(nextTypeRaw ?? "");
     const nextHasExistingLicense =
-      patch.hasExistingLicense ?? candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+      patch.hasExistingLicense ?? candidateHasExistingLicense(candidate);
     const licenseSelectionChanged =
       patch.licenseClass !== undefined ||
       patch.hasExistingLicense !== undefined ||
@@ -5900,7 +5955,7 @@ function CandidateExamAttemptsSection({
   const noPermissionTitle = t("common.noPermission");
   const [exemptSaving, setExemptSaving] = useState(false);
   const isTheoryExempt = candidate.isTheoryExempt ?? false;
-  const hasExistingLicense = candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+  const hasExistingLicense = candidateHasExistingLicense(candidate);
   const toggleTheoryExempt = async () => {
     if (!canManageCandidates) return;
     if (hasExistingLicense) return;
@@ -7676,7 +7731,7 @@ function buildCandidateDocumentChecklistItems({
   uploadsByKey: Map<string, DocumentResponse>;
 }): CandidateDocumentChecklistItem[] {
   const hasExistingLicense =
-    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+    candidateHasExistingLicense(candidate);
   const valueItem = (label: string, value: string | null | undefined): CandidateDocumentChecklistItem => ({
     label,
     status: value?.trim() ? "done" : "missing",
@@ -7811,7 +7866,7 @@ function findCandidateFeeMatrixRow(
   }
 
   const hasExistingLicense =
-    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+    candidateHasExistingLicense(candidate);
   const targetKey = normalizeFeeProgramLicenseKey(candidate.licenseClass);
   const sourceKey =
     hasExistingLicense && candidate.existingLicenseType
@@ -7950,7 +8005,7 @@ function DocumentsTab({
 
   const sortedTypes = [...documentTypes].sort((a, b) => a.sortOrder - b.sortOrder);
   const hasExistingLicenseInfo =
-    candidate.hasExistingLicense ?? hasExistingLicenseValue(candidate.existingLicenseType);
+    candidateHasExistingLicense(candidate);
   const isNotApplicable = (type: DocumentTypeResponse) =>
     isExistingLicenseCopyType(type) && !hasExistingLicenseInfo;
   const heroTypes = HERO_DOCUMENT_KEYS

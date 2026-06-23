@@ -108,6 +108,33 @@ function delay(ms: number): Promise<void> {
   });
 }
 
+function containTrainingFilterWheel(event: WheelEvent) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+
+  const scrollable = target.closest<HTMLElement>(".training-filters-list-scroll");
+  if (!scrollable) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  const maxScrollTop = scrollable.scrollHeight - scrollable.clientHeight;
+  if (maxScrollTop <= 0) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  const nextScrollTop = Math.max(
+    0,
+    Math.min(maxScrollTop, scrollable.scrollTop + event.deltaY)
+  );
+  scrollable.scrollTop = nextScrollTop;
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 async function fetchAllTrainingGroups(signal?: AbortSignal) {
   const pageSize = 100;
   const firstPage = await getGroups({ page: 1, pageSize }, signal);
@@ -179,6 +206,7 @@ function notifyMebbisJobQueued(jobId: string, jobType: string): void {
 export function TrainingPage({ type }: TrainingPageProps) {
   const { showToast } = useToast();
   const t = useT();
+  const filtersSidebarRef = useRef<HTMLElement | null>(null);
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
@@ -282,6 +310,19 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
+
+  useEffect(() => {
+    const sidebar = filtersSidebarRef.current;
+    if (!sidebar) return;
+
+    sidebar.addEventListener("wheel", containTrainingFilterWheel, {
+      capture: true,
+      passive: false,
+    });
+    return () => {
+      sidebar.removeEventListener("wheel", containTrainingFilterWheel, { capture: true });
+    };
+  }, []);
   // Hızlı atama ayarları. Süre artık takvimde drag ile seçilen slot'tan
   // türetiliyor (newLessonSlot.end - start). N saatlik blok = N adet
   // 1 saatlik ayrı ders olarak yaratılır (handleQuickAssign loop).
@@ -1919,7 +1960,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   return (
     <>
-      <PageToolbar
+      <div className="training-page-shell">
+        <PageToolbar
         actions={
           type === "teorik" || showBackToCandidateList || selectedTheoryGroup || selectedPracticeCandidate ? (
             <>
@@ -2020,9 +2062,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
           ) : undefined
         }
         title={title}
-      />
+        />
 
-      <div className="training-layout-wrap">
+        <div className="training-layout-wrap">
         {type === "teorik" && activeMebbisStatusMessage ? (
           <div className="training-mebbis-status" role="status" aria-live="polite">
             <MebIcon size={16} />
@@ -2033,7 +2075,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
           <PageSkeleton />
         ) : (
           <div className="training-layout">
-            <aside className="training-filters-sidebar">
+            <aside className="training-filters-sidebar" ref={filtersSidebarRef}>
               {type === "teorik" ? (
                 <>
                   <QuickLessonAssignment
@@ -2113,6 +2155,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
             )}
           </div>
         )}
+        </div>
       </div>
 
 	        <NewTrainingPlanModal
