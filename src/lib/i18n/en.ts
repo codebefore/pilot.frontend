@@ -2382,7 +2382,7 @@ export const en: Record<TranslationKey, string> = {
   "trainingLesson.validation.groupDailyLimitExceeded":
     "A group can have at most 6 theory lesson hours per day",
   "trainingLesson.validation.branchTotalLimitExceeded":
-    "Branch total lesson hour limit exceeded",
+    "{branch} cannot exceed {maxHours} total lesson hours for this group. Current: {currentHours}, added: {addedHours}.",
   "trainingLesson.validation.instructorConflict":
     "This instructor already has a lesson at the same time",
   "trainingLesson.validation.vehicleConflict":
@@ -2526,6 +2526,7 @@ export const en: Record<TranslationKey, string> = {
   "training.picker.col.lastLesson": "Last Lesson",
   "training.picker.col.assign": "Assign Lesson",
   "training.picker.assignCandidate": "Assign lesson for {name}",
+  "training.picker.openCandidate": "Open candidate details for {name}",
   "training.picker.stage.all": "All",
   "training.picker.stage.havuz": "Pool",
   "training.picker.stage.failed": "Failed Candidates",

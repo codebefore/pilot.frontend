@@ -135,6 +135,7 @@ export type TrainingCalendarEvent = {
   classroomId?: string | null;
   licenseClassCounts?: TrainingLessonResponse["licenseClassCounts"];
   branchCode?: string | null;
+  displayLessonNumber?: number;
 };
 
 const joinLicenseClasses = (lesson: TrainingLessonResponse): string => {

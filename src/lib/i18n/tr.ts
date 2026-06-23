@@ -2374,7 +2374,7 @@ export const tr = {
   "trainingLesson.validation.groupDailyLimitExceeded":
     "Aynı şubeye bir günde en fazla 6 saat teorik ders yazılabilir",
   "trainingLesson.validation.branchTotalLimitExceeded":
-    "Branşın toplam ders saati limiti aşıldı",
+    "{branch} için bu grubun toplam ders saati {maxHours} saati aşamaz. Mevcut: {currentHours}, eklenen: {addedHours}.",
   "trainingLesson.validation.instructorConflict":
     "Bu eğitmenin aynı saatte başka bir dersi var",
   "trainingLesson.validation.vehicleConflict":
@@ -2517,6 +2517,7 @@ export const tr = {
   "training.picker.col.lastLesson": "Son Ders",
   "training.picker.col.assign": "Ders Atama",
   "training.picker.assignCandidate": "{name} için ders atama",
+  "training.picker.openCandidate": "{name} aday detayını aç",
   "training.picker.stage.all": "Tümü",
   "training.picker.stage.havuz": "Havuz",
   "training.picker.stage.failed": "Başarısız Adaylar",

@@ -72,6 +72,10 @@ type TrainingPageProps = {
   type: "teorik" | "uygulama";
 };
 
+function formatLessonHours(hours: number): string {
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(2).replace(/\.?0+$/, "");
+}
+
 // Backend `errorCodes` mapindeki PascalCase field adlarını
 // modal'ın camelCase form alanlarına eşleştiriyoruz.
 const SERVER_FIELD_MAP: Record<string, string> = {
@@ -707,9 +711,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
   }, [practiceInstructorAvailabilityQuery.data, practiceVehicleAvailabilityQuery.data, type]);
 
   // QA seçimi takvimi otomatik bir tarihe odaklar:
-  //  - Teorik: seçili grubun startDate'i; seçim yoksa bugün.
-  //  - Uygulama: seçili adayın ilk uygulama dersi varsa onun start'ı,
-  //    yoksa bugün.
+  //  - Teorik: sadece seçili grubun startDate'i.
+  //  - Uygulama: sadece seçili adayın ilk uygulama dersi.
+  // Eğitmen/derslik/araç availability sorguları yalnızca overlay içindir;
+  // tarih odağını değiştirmez.
   // Not: "bugün" her useMemo çalışmasında yeni Date olur — referans
   // değişimi TrainingCalendar effect'ini tetiklerse manuel navigate
   // bozulur. O yüzden "bugün" durumunda null dönüp, takvim tarafındaki
@@ -719,22 +724,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return mebbisImportedFocusDate;
     }
     if (type === "teorik") {
-      if (!quickSettings.groupId) {
-        const firstBusy = theoryAvailabilityEvents
-          .slice()
-          .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
-        return firstBusy?.start ?? null;
-      }
+      if (!quickSettings.groupId) return null;
       const group = groups.find((g) => g.id === quickSettings.groupId);
       if (!group?.startDate) return null;
       return new Date(group.startDate);
     }
-    if (!quickSettings.candidateId) {
-      const firstBusy = practiceAvailabilityEvents
-        .slice()
-        .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
-      return firstBusy?.start ?? null;
-    }
+    if (!quickSettings.candidateId) return null;
     const earliest = events
       .filter(
         (e) => e.kind === "uygulama" && e.candidateId === quickSettings.candidateId
@@ -750,9 +745,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
     quickSettings.candidateId,
     mebbisImportedFocusDate,
     groups,
-    events,
-    theoryAvailabilityEvents,
-    practiceAvailabilityEvents,
   ]);
 
   // Teorik tarafta: seçili grubun startDate'inden önceki günler takvimde
@@ -767,6 +759,49 @@ export function TrainingPage({ type }: TrainingPageProps) {
   }, [type, quickSettings.groupId, groups]);
 
   const visibleEvents = useMemo(() => {
+    const theoryLessonNumberById = new Map<string, number>();
+    const theoryEventsByGroupAndBranch = new Map<string, TrainingCalendarEvent[]>();
+    for (const event of events) {
+      if (event.kind !== "teorik") continue;
+      const branchCode = event.branchCode ?? branchHelpers.detectFromNotes(event.notes);
+      if (!event.groupId || !branchCode) continue;
+      const key = `${event.groupId}:${branchCode}`;
+      const branchEvents = theoryEventsByGroupAndBranch.get(key) ?? [];
+      branchEvents.push(event);
+      theoryEventsByGroupAndBranch.set(key, branchEvents);
+    }
+    for (const branchEvents of theoryEventsByGroupAndBranch.values()) {
+      branchEvents
+        .sort(
+          (left, right) =>
+            left.start.getTime() - right.start.getTime() ||
+            left.id.localeCompare(right.id)
+        )
+        .forEach((event, index) => {
+          theoryLessonNumberById.set(event.id, index + 1);
+        });
+    }
+
+    const practiceLessonNumberById = new Map<string, number>();
+    const practiceEventsByCandidate = new Map<string, TrainingCalendarEvent[]>();
+    for (const event of events) {
+      if (event.kind !== "uygulama" || !event.candidateId) continue;
+      const candidateEvents = practiceEventsByCandidate.get(event.candidateId) ?? [];
+      candidateEvents.push(event);
+      practiceEventsByCandidate.set(event.candidateId, candidateEvents);
+    }
+    for (const candidateEvents of practiceEventsByCandidate.values()) {
+      candidateEvents
+        .sort(
+          (left, right) =>
+            left.start.getTime() - right.start.getTime() ||
+            left.id.localeCompare(right.id)
+        )
+        .forEach((event, index) => {
+          practiceLessonNumberById.set(event.id, index + 1);
+        });
+    }
+
     // Görünürlük kuralı:
     //  - Teorik: grup seçili → o gruba ait tüm dersler eğitmen
     //    filtresinden bağımsız tam görünür. Grup seçili değil ama
@@ -820,9 +855,16 @@ export function TrainingPage({ type }: TrainingPageProps) {
       }
     }
     if (type === "teorik" && (selectedTheoryInstructorId || quickSettings.classroomId)) {
+      const visibleEventIds = new Set(filtered.map((event) => event.id));
+      const overlapsVisibleEvent = (event: TrainingCalendarEvent) =>
+        filtered.some((visibleEvent) =>
+          rangesOverlap(event.start, event.end, visibleEvent.start, visibleEvent.end)
+        );
       const busyMarkers = new Map<string, TrainingCalendarEvent>();
       for (const event of theoryAvailabilityEvents) {
         if (event.kind !== "teorik") continue;
+        if (visibleEventIds.has(event.id)) continue;
+        if (overlapsVisibleEvent(event)) continue;
         if (quickSettings.groupId && event.groupId === quickSettings.groupId) continue;
 
         const busyReasons: TrainingBusyReason[] = [];
@@ -844,9 +886,16 @@ export function TrainingPage({ type }: TrainingPageProps) {
       filtered.push(...busyMarkers.values());
     }
     if (type === "uygulama" && (selectedPracticeInstructorId || selectedPracticeVehicleId)) {
+      const visibleEventIds = new Set(filtered.map((event) => event.id));
+      const overlapsVisibleEvent = (event: TrainingCalendarEvent) =>
+        filtered.some((visibleEvent) =>
+          rangesOverlap(event.start, event.end, visibleEvent.start, visibleEvent.end)
+        );
       const busyMarkers = new Map<string, TrainingCalendarEvent>();
       for (const event of practiceAvailabilityEvents) {
         if (event.kind !== "uygulama") continue;
+        if (visibleEventIds.has(event.id)) continue;
+        if (overlapsVisibleEvent(event)) continue;
         if (quickSettings.candidateId && event.candidateId === quickSettings.candidateId) continue;
 
         const busyReasons: TrainingBusyReason[] = [];
@@ -932,19 +981,24 @@ export function TrainingPage({ type }: TrainingPageProps) {
         if (quickSettings.classroomId && event.classroomId === quickSettings.classroomId) {
           busyReasons.push("classroom");
         }
-      } else {
-        if (selectedPracticeInstructorId && event.instructorId === selectedPracticeInstructorId) {
-          busyReasons.push("instructor");
-        }
-        if (selectedPracticeVehicleId && event.vehicleId === selectedPracticeVehicleId) {
-          busyReasons.push("vehicle");
-        }
+      } else if (
+        selectedPracticeInstructorId &&
+        event.instructorId === selectedPracticeInstructorId
+      ) {
+        busyReasons.push("instructor");
       }
 
       return busyReasons.length > 0 ? { ...event, busyReasons } : event;
+    }).map((event) => {
+      const displayLessonNumber =
+        event.kind === "teorik"
+          ? theoryLessonNumberById.get(event.id)
+          : practiceLessonNumberById.get(event.id);
+      return displayLessonNumber ? { ...event, displayLessonNumber } : event;
     });
   }, [
     events,
+    branchHelpers,
     visibleGroups,
     visibleInstructors,
     type,
@@ -1103,6 +1157,36 @@ export function TrainingPage({ type }: TrainingPageProps) {
     const totalMs = newLessonSlot!.end.getTime() - startTime.getTime();
     const durationHours = Math.max(1, Math.round(totalMs / (60 * 60 * 1000)));
     const notes = branchHelpers.label(branch) ?? branch;
+    const branchDefinition = branchHelpers.byCode(branch);
+    if (!branchDefinition) {
+      showToast(t("trainingLesson.validation.branchNotFound"));
+      return;
+    }
+
+    if (branchDefinition.totalLessonHourLimit !== null) {
+      const currentHours = events
+        .filter((event) => {
+          if (event.kind !== "teorik" || event.groupId !== groupId) return false;
+          const eventBranch = event.branchCode ?? branchHelpers.detectFromNotes(event.notes);
+          return eventBranch === branch;
+        })
+        .reduce(
+          (sum, event) =>
+            sum + (event.end.getTime() - event.start.getTime()) / (60 * 60 * 1000),
+          0
+        );
+      if (currentHours + durationHours > branchDefinition.totalLessonHourLimit) {
+        showToast(
+          t("trainingLesson.validation.branchTotalLimitExceeded", {
+            branch: branchDefinition.name,
+            currentHours: formatLessonHours(currentHours),
+            addedHours: formatLessonHours(durationHours),
+            maxHours: String(branchDefinition.totalLessonHourLimit),
+          })
+        );
+        return;
+      }
+    }
 
     setIsQuickAssignLoading(true);
     let successCount = 0;

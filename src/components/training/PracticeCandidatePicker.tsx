@@ -128,9 +128,9 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
     });
   };
 
-  const assignCandidate = (event: MouseEvent, candidateId: string) => {
+  const openCandidateFromAction = (event: MouseEvent, candidateId: string) => {
     event.stopPropagation();
-    onAssign(candidateId);
+    openCandidate(candidateId);
   };
 
   const formatHours = (value: number) => {
@@ -226,7 +226,7 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
               <tr
                 className="practice-picker-row"
                 key={candidate.candidateId}
-                onClick={() => openCandidate(candidate.candidateId)}
+                onClick={() => onAssign(candidate.candidateId)}
               >
                 <td className="practice-picker-row-name">
                   <span>
@@ -283,11 +283,11 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
                 </td>
                 <td className="practice-picker-action-cell">
                   <button
-                    aria-label={t("training.picker.assignCandidate", {
+                    aria-label={t("training.picker.openCandidate", {
                       name: candidate.fullName,
                     })}
                     className="practice-picker-assign-btn"
-                    onClick={(event) => assignCandidate(event, candidate.candidateId)}
+                    onClick={(event) => openCandidateFromAction(event, candidate.candidateId)}
                     type="button"
                   >
                     <MebIcon size={16} />
@@ -303,11 +303,11 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
             <li key={candidate.candidateId}>
               <div
                 className="practice-picker-card"
-                onClick={() => openCandidate(candidate.candidateId)}
+                onClick={() => onAssign(candidate.candidateId)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    openCandidate(candidate.candidateId);
+                    onAssign(candidate.candidateId);
                   }
                 }}
                 role="button"
@@ -321,11 +321,11 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
                     </span>
                   </div>
                   <button
-                    aria-label={t("training.picker.assignCandidate", {
+                    aria-label={t("training.picker.openCandidate", {
                       name: candidate.fullName,
                     })}
                     className="practice-picker-assign-btn"
-                    onClick={(event) => assignCandidate(event, candidate.candidateId)}
+                    onClick={(event) => openCandidateFromAction(event, candidate.candidateId)}
                     type="button"
                   >
                     <MebIcon size={16} />

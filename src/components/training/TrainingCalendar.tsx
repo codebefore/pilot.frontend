@@ -320,6 +320,14 @@ export function TrainingCalendar({
         );
       }
       const isUygulama = event.kind === "uygulama";
+      if (event.displayLessonNumber) {
+        return (
+          <div className="training-event-content training-event-lesson-number">
+            {event.busyReasons?.length ? <BusyIcons /> : null}
+            <span>{event.displayLessonNumber}</span>
+          </div>
+        );
+      }
       // Teorik takvimde quick-assign `notes`'a branş adı yazıyor (T067'ye
       // kadar geçici) — varsa üst satırda göster. Sayfa zaten teorik
       // olduğu için "Teorik" tekrar yazmıyoruz.

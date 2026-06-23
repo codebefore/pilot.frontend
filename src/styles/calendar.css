@@ -265,9 +265,9 @@
   border-color: var(--gray-400);
 }
 
-/* Sidebar listeleri max ~5 satır gösterir, fazlası içeride kayar. */
+/* Sidebar listeleri max ~12 satır gösterir, fazlası içeride kayar. */
 .training-filters-list-scroll {
-  max-height: 150px;
+  max-height: 360px;
   overflow-y: auto;
   overscroll-behavior: contain;
   overflow-anchor: none;
@@ -1254,13 +1254,22 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   pointer-events: none;
   position: absolute !important;
   right: 0 !important;
+  transform: none !important;
   width: 100% !important;
-  z-index: 100 !important;
+  z-index: 1000 !important;
+}
+
+.training-calendar .rbc-event.training-event-busy .rbc-addons-dnd-resizable {
+  overflow: visible !important;
+  position: relative;
+  z-index: 1001;
 }
 
 .training-calendar .rbc-event.training-event-busy .rbc-event-content {
   height: 100%;
   overflow: visible !important;
+  position: relative;
+  z-index: 1002;
 }
 
 .training-calendar .rbc-event.training-event-busy:hover,
@@ -1347,10 +1356,21 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   position: relative;
   text-overflow: ellipsis;
   white-space: nowrap;
+  z-index: 1;
 }
 
 .training-event-content:has(.training-event-busy-icons) {
-  padding-right: 38px;
+  padding-right: 22px;
+}
+
+.training-event-lesson-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 24px;
+  font-weight: 700;
+  padding: 0;
 }
 
 .training-event-busy-content {
@@ -1361,6 +1381,7 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   overflow: visible !important;
   position: relative;
   width: 100%;
+  z-index: 1003;
 }
 
 .training-event-busy-icons {
@@ -1374,21 +1395,21 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   position: absolute;
   right: 1px;
   top: 1px;
-  z-index: 21;
+  z-index: 1004;
 }
 
 .training-event-busy-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 18px;
   width: 18px;
   height: 18px;
   border-radius: 999px;
   background: transparent;
-  color: #d97706;
-  filter:
-    drop-shadow(0 1px 1px rgba(255, 255, 255, 0.95))
-    drop-shadow(0 0 1px rgba(120, 53, 15, 0.45));
+  color: #111827;
+  position: relative;
+  z-index: 1005;
 }
 
 .training-event-type {
