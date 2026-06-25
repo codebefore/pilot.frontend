@@ -114,6 +114,15 @@ function scanJobStatusLabel(status: LocalAgentScanJobStatus, t: (key: Translatio
   return t(`documentScanner.jobStatus.${status}`);
 }
 
+function scannerActivityLabel(
+  scanner: LocalAgentScannerResponse,
+  job: LocalAgentScanJobResponse | null,
+  t: (key: TranslationKey) => string
+): string {
+  if (job) return scanJobStatusLabel(job.status, t);
+  return scannerStateLabel(scanner.state, t);
+}
+
 export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScannerModalProps) {
   const t = useT();
   const scanControllerRef = useRef<AbortController | null>(null);
@@ -313,7 +322,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
                   <span className="document-scanner-connection-badge">{selectedScannerConnection}</span>
                 ) : null}
               </div>
-              <span>{scannerStateLabel(selectedScanner.state, t)} · {t("documentScanner.format.colorJpeg")}</span>
+              <span>{scannerActivityLabel(selectedScanner, scanJob, t)} · {t("documentScanner.format.colorJpeg")}</span>
             </div>
           </div>
         ) : null}
