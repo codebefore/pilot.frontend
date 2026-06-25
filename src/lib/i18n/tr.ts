@@ -1196,7 +1196,7 @@ export const tr = {
   "documentScanner.refresh": "Yenile",
   "documentScanner.deviceLabel": "Tarayıcı",
   "documentScanner.searchingScanner": "Tarayıcı aranıyor...",
-  "documentScanner.noScannerFound": "Tarayıcı bulunamadı",
+  "documentScanner.noScannerFound": "Taranabilir cihaz bulunamadı",
   "documentScanner.readyHint": "Seçili cihaz hazırsa taramayı başlatabilirsiniz.",
   "documentScanner.emptyHint": "USB veya WiFi tarayıcılar burada görünür.",
   "documentScanner.state.idle": "Boşta",

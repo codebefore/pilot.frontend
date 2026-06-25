@@ -1198,7 +1198,7 @@ export const en: Record<TranslationKey, string> = {
   "documentScanner.refresh": "Refresh",
   "documentScanner.deviceLabel": "Scanner",
   "documentScanner.searchingScanner": "Searching for scanner...",
-  "documentScanner.noScannerFound": "No scanner found",
+  "documentScanner.noScannerFound": "No usable scanner found",
   "documentScanner.readyHint": "Start scanning when the selected device is ready.",
   "documentScanner.emptyHint": "USB and WiFi scanners appear here.",
   "documentScanner.state.idle": "Idle",

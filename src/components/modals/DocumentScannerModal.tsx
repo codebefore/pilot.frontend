@@ -93,9 +93,13 @@ function scannerConnectionBadge(scanner: LocalAgentScannerResponse): string | nu
 }
 
 function scannerOptionLabel(scanner: LocalAgentScannerResponse): string {
-  const label = `${scanner.name || scanner.model || scanner.scannerId}${scannerConnectionSuffix(scanner)}`;
+  return `${scanner.name || scanner.model || scanner.scannerId}${scannerConnectionSuffix(scanner)}`;
+}
+
+function scannerUnavailableLabel(scanner: LocalAgentScannerResponse): string {
+  const label = scannerOptionLabel(scanner);
   if (scanner.state === "Kontrol ediliyor") return `${label} (kontrol ediliyor)`;
-  return isScannerEligible(scanner) ? label : `${label} (uygun değil)`;
+  return `${label} (uygun değil)`;
 }
 
 function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
@@ -137,6 +141,8 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
     () => scanners.find((scanner) => scanner.scannerId === selectedScannerId) ?? null,
     [scanners, selectedScannerId]
   );
+  const readyScanners = useMemo(() => scanners.filter(isScannerEligible), [scanners]);
+  const unavailableScanners = useMemo(() => scanners.filter((scanner) => !isScannerEligible(scanner)), [scanners]);
   const selectedScannerEligible = selectedScanner ? isScannerEligible(selectedScanner) : false;
   const selectedScannerConnection = selectedScanner ? scannerConnectionBadge(selectedScanner) : null;
 
@@ -280,19 +286,18 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
             </label>
             <CustomSelect
               className="form-select"
-              disabled={loading || scanning || scanners.length === 0}
+              disabled={loading || scanning || readyScanners.length === 0}
               id="document-scanner-device"
               onChange={(event) => setSelectedScannerId(event.target.value)}
               value={selectedScannerId}
             >
-              {scanners.length === 0 ? (
+              {readyScanners.length === 0 ? (
                 <option value="">
                   {loading ? t("documentScanner.searchingScanner") : t("documentScanner.noScannerFound")}
                 </option>
               ) : null}
-              {scanners.map((scanner) => (
+              {readyScanners.map((scanner) => (
                 <option
-                  disabled={!isScannerEligible(scanner)}
                   key={scanner.scannerId}
                   value={scanner.scannerId}
                 >
@@ -310,8 +315,18 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
           </div>
         </div>
 
-        {selectedScanner ? (
-          <div className={selectedScannerEligible ? "document-scanner-device-card" : "document-scanner-device-card is-disabled"}>
+        {unavailableScanners.length > 0 ? (
+          <div className="document-scanner-unavailable-list">
+            {unavailableScanners.map((scanner) => (
+              <div className="document-scanner-unavailable-item" key={scanner.scannerId}>
+                <span>{scannerUnavailableLabel(scanner)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {selectedScanner && selectedScannerEligible ? (
+          <div className="document-scanner-device-card">
             <span className="document-scanner-device-icon" aria-hidden="true">
               <ScannerIcon size={15} />
             </span>

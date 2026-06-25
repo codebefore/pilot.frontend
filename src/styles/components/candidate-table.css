@@ -53,6 +53,20 @@
   font-size: 12px;
   line-height: 1.4;
 }
+.document-scanner-unavailable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.document-scanner-unavailable-item {
+  border: 1px dashed var(--gray-200);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--gray-50);
+  color: var(--gray-500);
+  font-size: 12px;
+  line-height: 1.35;
+}
 .document-scanner-device-card,
 .document-scanner-job {
   display: flex;
