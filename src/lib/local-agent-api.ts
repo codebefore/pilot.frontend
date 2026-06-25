@@ -32,6 +32,8 @@ export type LocalAgentScannerResponse = {
   supportsFlatbed: boolean;
   supportsFeeder: boolean;
   error?: string | null;
+  provider?: string | null;
+  source?: string | null;
 };
 
 export type LocalAgentScannerListResponse = {

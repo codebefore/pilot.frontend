@@ -67,14 +67,35 @@ function isScannerEligible(scanner: LocalAgentScannerResponse): boolean {
   );
 }
 
+function scannerConnectionLabel(scanner: LocalAgentScannerResponse): "USB" | "WIFI" | null {
+  const serviceHints = [
+    scanner.provider,
+    scanner.source,
+    scanner.preferredServiceType,
+    ...scanner.serviceTypes,
+    scanner.scannerId.split(":", 1)[0],
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLowerCase());
+
+  if (serviceHints.some((value) => value === "wia" || value === "twain")) return "USB";
+  if (scanner.hostName || serviceHints.some((value) => value === "escl" || value === "manual")) return "WIFI";
+  return null;
+}
+
+function scannerConnectionSuffix(scanner: LocalAgentScannerResponse): string {
+  const label = scannerConnectionLabel(scanner);
+  return label ? ` (${label})` : "";
+}
+
 function scannerOptionLabel(scanner: LocalAgentScannerResponse): string {
-  const label = scanner.name || scanner.model || scanner.scannerId;
+  const label = `${scanner.name || scanner.model || scanner.scannerId}${scannerConnectionSuffix(scanner)}`;
   if (scanner.state === "Kontrol ediliyor") return `${label} (kontrol ediliyor)`;
   return isScannerEligible(scanner) ? label : `${label} (uygun değil)`;
 }
 
 function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
-  return scanner.model || scanner.name || scanner.hostName || scanner.scannerId;
+  return `${scanner.model || scanner.name || scanner.hostName || scanner.scannerId}${scannerConnectionSuffix(scanner)}`;
 }
 
 function scannerStateLabel(state: string | null | undefined, t: (key: TranslationKey) => string): string {
