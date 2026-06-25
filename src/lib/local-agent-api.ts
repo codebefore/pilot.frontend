@@ -274,19 +274,6 @@ export async function listLocalAgentScanners(signal?: AbortSignal): Promise<Loca
   return response.scanners;
 }
 
-export async function addLocalAgentManualScanner(
-  host: string,
-  signal?: AbortSignal
-): Promise<LocalAgentScannerResponse> {
-  const response = await fetch(getLocalAgentUrl("/scanners/manual"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ host }),
-    signal,
-  });
-  return handleLocalAgentJson<LocalAgentScannerResponse>(response);
-}
-
 export async function createLocalAgentScanJob(
   scannerId: string,
   settings: LocalAgentScanSettings,

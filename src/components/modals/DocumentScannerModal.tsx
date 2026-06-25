@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  addLocalAgentManualScanner,
   createLocalAgentScanJob,
   getLocalAgentHealth,
   getLocalAgentScanJob,
@@ -11,7 +10,6 @@ import {
   type LocalAgentScannerResponse,
   type LocalAgentScanJobResponse,
   writeStoredLocalAgentScannerSettings,
-  type StoredLocalAgentScannerSettings,
 } from "../../lib/local-agent-api";
 import { RefreshIcon, ScannerIcon } from "../icons";
 import { CustomSelect } from "../ui/CustomSelect";
@@ -25,8 +23,6 @@ type DocumentScannerModalProps = {
 
 const FALLBACK_RESOLUTION = 400;
 const POLL_DELAY_MS = 1200;
-
-type ScannerLoadMode = "stored" | "discovery";
 
 function createScannedFileName(): string {
   const stamp = new Date()
@@ -79,32 +75,6 @@ function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
   return scanner.model || scanner.name || scanner.hostName || scanner.scannerId;
 }
 
-function storedScannerPlaceholder(stored: StoredLocalAgentScannerSettings): LocalAgentScannerResponse | null {
-  const scannerId = stored.scannerId ?? stored.hostName;
-  if (!scannerId) return null;
-  const name = stored.model ?? stored.name ?? stored.hostName ?? scannerId;
-  return {
-    scannerId,
-    name,
-    manufacturer: null,
-    model: stored.model ?? stored.name ?? null,
-    serviceTypes: ["manual"],
-    hostName: stored.hostName ?? null,
-    advertisedPort: null,
-    preferredServiceType: "manual",
-    state: "Kontrol ediliyor",
-    available: false,
-    supportsScan: false,
-    supportsJpeg: false,
-    supportsPdf: false,
-    resolutions: [FALLBACK_RESOLUTION],
-    colorModes: [],
-    supportsFlatbed: false,
-    supportsFeeder: false,
-    error: null,
-  };
-}
-
 export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScannerModalProps) {
   const scanControllerRef = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(false);
@@ -113,47 +83,18 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
   const [scanJob, setScanJob] = useState<LocalAgentScanJobResponse | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manualHost, setManualHost] = useState("");
-  const [manualAdding, setManualAdding] = useState(false);
-  const [manualError, setManualError] = useState<string | null>(null);
-  const [loadMode, setLoadMode] = useState<ScannerLoadMode>("discovery");
 
   const selectedScanner = useMemo(
     () => scanners.find((scanner) => scanner.scannerId === selectedScannerId) ?? null,
     [scanners, selectedScannerId]
   );
-  const loadScanners = async (signal?: AbortSignal, forceDiscovery = false) => {
+  const loadScanners = async (signal?: AbortSignal) => {
     const stored = readStoredLocalAgentScannerSettings();
     setLoading(true);
-    setLoadMode(!forceDiscovery && stored?.hostName ? "stored" : "discovery");
     setError(null);
     setScanJob(null);
     try {
       await getLocalAgentHealth(signal);
-      if (!forceDiscovery && stored?.hostName) {
-        const placeholder = storedScannerPlaceholder(stored);
-        if (placeholder) {
-          setScanners([placeholder]);
-          setSelectedScannerId(placeholder.scannerId);
-        }
-        try {
-          const scanner = await addLocalAgentManualScanner(stored.hostName, signal);
-          setScanners([scanner]);
-          if (isScannerEligible(scanner)) {
-            setSelectedScannerId(scanner.scannerId);
-          } else {
-            setSelectedScannerId("");
-          }
-          return;
-        } catch (storedError) {
-          if (storedError instanceof DOMException && storedError.name === "AbortError") return;
-          setScanners(placeholder ? [placeholder] : []);
-          setSelectedScannerId("");
-          setError("Son kullanılan tarayıcıya ulaşılamadı. Yenile ile ağdaki tarayıcıları arayabilirsin.");
-          return;
-        }
-      }
-      setLoadMode("discovery");
       const nextScanners = await listLocalAgentScanners(signal);
       setScanners(nextScanners);
       const storedScanner = stored?.scannerId
@@ -181,7 +122,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
-    void loadScanners(controller.signal, false);
+    void loadScanners(controller.signal);
     return () => {
       controller.abort();
       scanControllerRef.current?.abort();
@@ -251,33 +192,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
     onClose();
   };
 
-  const addManualScanner = async () => {
-    const host = manualHost.trim();
-    if (!host || manualAdding) return;
-
-    const controller = new AbortController();
-    setManualAdding(true);
-    setManualError(null);
-    setError(null);
-    try {
-      const scanner = await addLocalAgentManualScanner(host, controller.signal);
-      setScanners((current) => {
-        const withoutDuplicate = current.filter((item) => item.scannerId !== scanner.scannerId);
-        return [...withoutDuplicate, scanner].sort((a, b) => a.name.localeCompare(b.name, "tr"));
-      });
-      setSelectedScannerId(scanner.scannerId);
-      setManualHost("");
-    } catch (manualAddError) {
-      setManualError(
-        manualAddError instanceof Error
-          ? manualAddError.message
-          : "Bu adreste desteklenen tarayıcı bulunamadı."
-      );
-    } finally {
-      setManualAdding(false);
-    }
-  };
-
   const footer = (
     <>
       <button className="btn btn-secondary" onClick={closeModal} type="button">
@@ -300,18 +214,12 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         <div className="document-scanner-toolbar">
           <div>
             <strong>LocalAgent</strong>
-            <span>
-              {loading
-                ? loadMode === "stored"
-                  ? "Son tarayıcı kontrol ediliyor..."
-                  : "Tarayıcılar aranıyor..."
-                : `${scanners.length} cihaz bulundu`}
-            </span>
+            <span>{loading ? "Tarayıcılar aranıyor..." : `${scanners.length} cihaz bulundu`}</span>
           </div>
           <button
             className="icon-btn"
             disabled={loading || scanning}
-            onClick={() => void loadScanners(undefined, true)}
+            onClick={() => void loadScanners()}
             title="Yenile"
             type="button"
           >
@@ -320,39 +228,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         </div>
 
         {error ? <div className="form-error-banner">{error}</div> : null}
-
-        <div className="document-scanner-manual">
-          <label className="form-label" htmlFor="document-scanner-manual-host">IP / Host</label>
-          <div className="document-scanner-manual-row">
-            <input
-              className="form-input"
-              disabled={manualAdding || scanning}
-              id="document-scanner-manual-host"
-              onChange={(event) => {
-                setManualHost(event.target.value);
-                setManualError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void addManualScanner();
-                }
-              }}
-              placeholder="192.168.1.102"
-              type="text"
-              value={manualHost}
-            />
-            <button
-              className="btn btn-secondary btn-sm"
-              disabled={manualAdding || scanning || manualHost.trim() === ""}
-              onClick={() => void addManualScanner()}
-              type="button"
-            >
-              {manualAdding ? "Deneniyor..." : "Ekle"}
-            </button>
-          </div>
-          {manualError ? <div className="form-error">{manualError}</div> : null}
-        </div>
 
         <div className="form-row full">
           <div className="form-group">
