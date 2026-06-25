@@ -99,6 +99,7 @@ function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
 function scannerUnavailableReason(scanner: LocalAgentScannerResponse, t: Translate): string {
   const normalized = (scanner.state ?? "").trim().toLowerCase();
   if (normalized === "kontrol ediliyor") return t("documentScanner.unavailable.checking");
+  if (!scanner.available && normalized) return t("documentScanner.unavailable.notReady");
   if (!scanner.available) return t("documentScanner.unavailable.offline");
   if (!scanner.supportsScan) return t("documentScanner.unavailable.noScan");
   return t("documentScanner.unavailable.unsupported");
@@ -171,17 +172,26 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
     () => scanners.filter((scanner) => !isScannerEligible(scanner)),
     [scanners]
   );
+  const visibleUnavailableScanners = loading ? [] : unavailableScanners;
   const selectedScannerEligible = selectedScanner ? isScannerEligible(selectedScanner) : false;
   const selectedConnection = selectedScanner ? scannerConnectionKind(selectedScanner) : null;
   const status = resolveScanStatus(scanJob);
+  const hasDiscoveredScanners = scanners.length > 0;
 
   const hintText = loading
-    ? t("documentScanner.searchingScanner")
+    ? t("documentScanner.searchingHint")
     : scanning
       ? t("documentScanner.scanningHint")
       : readyScanners.length === 0
-        ? t("documentScanner.connectHint")
+        ? hasDiscoveredScanners
+          ? t("documentScanner.notReadyHint")
+          : t("documentScanner.connectHint")
         : t("documentScanner.readyHint");
+  const scannerPlaceholder = loading
+    ? t("documentScanner.searchingScanner")
+    : hasDiscoveredScanners
+      ? t("documentScanner.noUsableScannerFound")
+      : t("documentScanner.noScannerFound");
 
   const loadScanners = async (signal?: AbortSignal) => {
     const stored = readStoredLocalAgentScannerSettings();
@@ -329,7 +339,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
             disabled={loading || scanning || readyScanners.length === 0}
             id="document-scanner-device"
             onChange={(event) => setSelectedScannerId(event.target.value)}
-            placeholder={loading ? t("documentScanner.searchingScanner") : t("documentScanner.noScannerFound")}
+            placeholder={scannerPlaceholder}
             value={selectedScannerId}
           >
             {readyScanners.map((scanner) => {
@@ -373,11 +383,11 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
           </div>
         ) : null}
 
-        {unavailableScanners.length > 0 ? (
+        {visibleUnavailableScanners.length > 0 ? (
           <div className="document-scanner-unusable">
             <span className="document-scanner-unusable-title">{t("documentScanner.unavailable.title")}</span>
             <ul className="document-scanner-unusable-list">
-              {unavailableScanners.map((scanner) => {
+              {visibleUnavailableScanners.map((scanner) => {
                 const kind = scannerConnectionKind(scanner);
                 return (
                   <li className="document-scanner-unusable-item" key={scanner.scannerId}>
