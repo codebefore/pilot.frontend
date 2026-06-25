@@ -9,11 +9,10 @@ import {
   readStoredLocalAgentScannerSettings,
   type LocalAgentScannerResponse,
   type LocalAgentScanJobResponse,
-  type LocalAgentScanJobStatus,
   writeStoredLocalAgentScannerSettings,
 } from "../../lib/local-agent-api";
 import { useT, type TranslationKey } from "../../lib/i18n";
-import { ScannerIcon } from "../icons";
+import { AlertIcon, CheckIcon, ScannerIcon } from "../icons";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 
@@ -22,6 +21,12 @@ type DocumentScannerModalProps = {
   onClose: () => void;
   onScanned: (file: File) => Promise<void> | void;
 };
+
+type Translate = (key: TranslationKey) => string;
+
+type ConnectionKind = "wifi" | "usb";
+
+type ScanStatusTone = "ready" | "pending" | "scanning" | "completed" | "failed";
 
 const FALLBACK_RESOLUTION = 400;
 const POLL_DELAY_MS = 1200;
@@ -67,7 +72,7 @@ function isScannerEligible(scanner: LocalAgentScannerResponse): boolean {
   );
 }
 
-function scannerConnectionLabel(scanner: LocalAgentScannerResponse): "USB" | "WIFI" | null {
+function scannerConnectionKind(scanner: LocalAgentScannerResponse): ConnectionKind | null {
   const serviceHints = [
     scanner.provider,
     scanner.source,
@@ -78,53 +83,56 @@ function scannerConnectionLabel(scanner: LocalAgentScannerResponse): "USB" | "WI
     .filter((value): value is string => Boolean(value))
     .map((value) => value.toLowerCase());
 
-  if (serviceHints.some((value) => value === "wia" || value === "twain")) return "USB";
-  if (scanner.hostName || serviceHints.some((value) => value === "escl" || value === "manual")) return "WIFI";
+  if (serviceHints.some((value) => value === "wia" || value === "twain")) return "usb";
+  if (scanner.hostName || serviceHints.some((value) => value === "escl" || value === "manual")) return "wifi";
   return null;
 }
 
-function scannerConnectionSuffix(scanner: LocalAgentScannerResponse): string {
-  const label = scannerConnectionLabel(scanner);
-  return label ? ` (${label})` : "";
-}
-
-function scannerConnectionBadge(scanner: LocalAgentScannerResponse): string | null {
-  return scannerConnectionLabel(scanner);
-}
-
-function scannerOptionLabel(scanner: LocalAgentScannerResponse): string {
-  return `${scanner.name || scanner.model || scanner.scannerId}${scannerConnectionSuffix(scanner)}`;
-}
-
-function scannerUnavailableLabel(scanner: LocalAgentScannerResponse): string {
-  const label = scannerOptionLabel(scanner);
-  if (scanner.state === "Kontrol ediliyor") return `${label} (kontrol ediliyor)`;
-  return `${label} (uygun değil)`;
+function connectionLabel(kind: ConnectionKind, t: Translate): string {
+  return kind === "wifi" ? t("documentScanner.connection.wifi") : t("documentScanner.connection.usb");
 }
 
 function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
   return scanner.model || scanner.name || scanner.hostName || scanner.scannerId;
 }
 
-function scannerStateLabel(state: string | null | undefined, t: (key: TranslationKey) => string): string {
-  if (!state) return t("documentScanner.state.unknown");
-  const normalized = state.trim().toLowerCase();
-  if (normalized === "idle") return t("documentScanner.state.idle");
-  if (normalized === "kontrol ediliyor") return t("documentScanner.state.checking");
-  return state;
+function scannerUnavailableReason(scanner: LocalAgentScannerResponse, t: Translate): string {
+  const normalized = (scanner.state ?? "").trim().toLowerCase();
+  if (normalized === "kontrol ediliyor") return t("documentScanner.unavailable.checking");
+  if (!scanner.available) return t("documentScanner.unavailable.offline");
+  if (!scanner.supportsScan) return t("documentScanner.unavailable.noScan");
+  return t("documentScanner.unavailable.unsupported");
 }
 
-function scanJobStatusLabel(status: LocalAgentScanJobStatus, t: (key: TranslationKey) => string): string {
-  return t(`documentScanner.jobStatus.${status}`);
+function resolveScanStatus(
+  job: LocalAgentScanJobResponse | null
+): { tone: ScanStatusTone; labelKey: TranslationKey } {
+  if (!job) return { tone: "ready", labelKey: "documentScanner.status.ready" };
+  switch (job.status) {
+    case "pending":
+      return { tone: "pending", labelKey: "documentScanner.jobStatus.pending" };
+    case "scanning":
+      return { tone: "scanning", labelKey: "documentScanner.jobStatus.scanning" };
+    case "completed":
+      return { tone: "completed", labelKey: "documentScanner.jobStatus.completed" };
+    case "failed":
+      return { tone: "failed", labelKey: "documentScanner.jobStatus.failed" };
+    default:
+      return { tone: "ready", labelKey: "documentScanner.status.ready" };
+  }
 }
 
-function scannerActivityLabel(
-  scanner: LocalAgentScannerResponse,
-  job: LocalAgentScanJobResponse | null,
-  t: (key: TranslationKey) => string
-): string {
-  if (job) return scanJobStatusLabel(job.status, t);
-  return scannerStateLabel(scanner.state, t);
+function ScanStatusGlyph({ tone }: { tone: ScanStatusTone }) {
+  if (tone === "pending" || tone === "scanning") {
+    return <span className="document-scanner-spinner" aria-hidden="true" />;
+  }
+  if (tone === "completed") {
+    return <CheckIcon size={14} />;
+  }
+  if (tone === "failed") {
+    return <AlertIcon size={14} />;
+  }
+  return <span className="document-scanner-dot" aria-hidden="true" />;
 }
 
 export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScannerModalProps) {
@@ -142,9 +150,21 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
     [scanners, selectedScannerId]
   );
   const readyScanners = useMemo(() => scanners.filter(isScannerEligible), [scanners]);
-  const unavailableScanners = useMemo(() => scanners.filter((scanner) => !isScannerEligible(scanner)), [scanners]);
+  const unavailableScanners = useMemo(
+    () => scanners.filter((scanner) => !isScannerEligible(scanner)),
+    [scanners]
+  );
   const selectedScannerEligible = selectedScanner ? isScannerEligible(selectedScanner) : false;
-  const selectedScannerConnection = selectedScanner ? scannerConnectionBadge(selectedScanner) : null;
+  const selectedConnection = selectedScanner ? scannerConnectionKind(selectedScanner) : null;
+  const status = resolveScanStatus(scanJob);
+
+  const hintText = loading
+    ? t("documentScanner.searchingScanner")
+    : scanning
+      ? t("documentScanner.scanningHint")
+      : readyScanners.length === 0
+        ? t("documentScanner.connectHint")
+        : t("documentScanner.readyHint");
 
   const loadScanners = async (signal?: AbortSignal) => {
     const stored = readStoredLocalAgentScannerSettings();
@@ -171,7 +191,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       if (loadError instanceof DOMException && loadError.name === "AbortError") return;
       setScanners([]);
       setSelectedScannerId("");
-      setError("LocalAgent çalışmıyor veya tarayıcı listesi alınamadı.");
+      setError(t("documentScanner.error.unreachable"));
     } finally {
       setLoading(false);
     }
@@ -216,7 +236,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       }
 
       if (job.status === "failed") {
-        setError(job.error ?? "Tarama tamamlanamadı.");
+        setError(job.error ?? t("documentScanner.error.failed"));
         return;
       }
 
@@ -235,7 +255,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       onClose();
     } catch (scanError) {
       if (scanError instanceof DOMException && scanError.name === "AbortError") return;
-      setError(scanError instanceof Error ? scanError.message : "Tarama başlatılamadı.");
+      setError(t("documentScanner.error.start"));
     } finally {
       if (scanControllerRef.current === controller) {
         scanControllerRef.current = null;
@@ -252,8 +272,8 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
 
   const footer = (
     <>
-      <button className="btn btn-secondary" onClick={closeModal} type="button">
-        İptal
+      <button className="btn btn-secondary document-scanner-cancel" onClick={closeModal} type="button">
+        {t("common.cancel")}
       </button>
       <button
         className="btn btn-secondary"
@@ -265,92 +285,96 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       </button>
       <button
         className="btn btn-primary"
-        disabled={!selectedScanner || !isScannerEligible(selectedScanner) || loading || scanning}
+        disabled={!selectedScannerEligible || loading || scanning}
         onClick={() => void startScan()}
         type="button"
       >
-        {scanning ? "Taranıyor..." : "Tara"}
+        {scanning ? t("documentScanner.scanning") : t("documentScanner.scan")}
       </button>
     </>
   );
 
   return (
-    <Modal footer={footer} onClose={closeModal} open={open} title="Tarayıcı">
-      <div className="document-scanner-modal">
-        {error ? <div className="form-error-banner">{error}</div> : null}
+    <Modal footer={footer} onClose={closeModal} open={open} title={t("documentScanner.title")}>
+      <div className="document-scanner">
+        {error ? (
+          <div className="form-error-banner document-scanner-error" role="alert">
+            {error}
+          </div>
+        ) : null}
 
-        <div className="document-scanner-picker">
-          <div className="form-group">
-            <label className="form-label" htmlFor="document-scanner-device">
-              {t("documentScanner.deviceLabel")}
-            </label>
-            <CustomSelect
-              className="form-select"
-              disabled={loading || scanning || readyScanners.length === 0}
-              id="document-scanner-device"
-              onChange={(event) => setSelectedScannerId(event.target.value)}
-              value={selectedScannerId}
-            >
-              {readyScanners.length === 0 ? (
-                <option value="">
-                  {loading ? t("documentScanner.searchingScanner") : t("documentScanner.noScannerFound")}
-                </option>
-              ) : null}
-              {readyScanners.map((scanner) => (
+        <div className="document-scanner-field">
+          <label className="document-scanner-label" htmlFor="document-scanner-device">
+            {t("documentScanner.deviceLabel")}
+          </label>
+          <CustomSelect
+            className="form-select"
+            disabled={loading || scanning || readyScanners.length === 0}
+            id="document-scanner-device"
+            onChange={(event) => setSelectedScannerId(event.target.value)}
+            placeholder={loading ? t("documentScanner.searchingScanner") : t("documentScanner.noScannerFound")}
+            value={selectedScannerId}
+          >
+            {readyScanners.map((scanner) => {
+              const kind = scannerConnectionKind(scanner);
+              return (
                 <option
                   key={scanner.scannerId}
                   value={scanner.scannerId}
+                  data-secondary={kind ? connectionLabel(kind, t) : undefined}
                 >
-                  {scannerOptionLabel(scanner)}
+                  {scannerDisplayName(scanner)}
                 </option>
-              ))}
-            </CustomSelect>
-            <span className="document-scanner-picker-hint">
-              {loading
-                ? t("documentScanner.searchingScanner")
-                : selectedScanner
-                  ? t("documentScanner.readyHint")
-                  : t("documentScanner.emptyHint")}
-            </span>
-          </div>
+              );
+            })}
+          </CustomSelect>
+          <p className="document-scanner-hint">{hintText}</p>
         </div>
 
-        {unavailableScanners.length > 0 ? (
-          <div className="document-scanner-unavailable-list">
-            {unavailableScanners.map((scanner) => (
-              <div className="document-scanner-unavailable-item" key={scanner.scannerId}>
-                <span>{scannerUnavailableLabel(scanner)}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
         {selectedScanner && selectedScannerEligible ? (
-          <div className="document-scanner-device-card">
-            <span className="document-scanner-device-icon" aria-hidden="true">
-              <ScannerIcon size={15} />
-            </span>
-            <div>
-              <div className="document-scanner-device-title">
-                <strong>{scannerDisplayName(selectedScanner)}</strong>
-                {selectedScannerConnection ? (
-                  <span className="document-scanner-connection-badge">{selectedScannerConnection}</span>
-                ) : null}
-              </div>
-              <span>{scannerActivityLabel(selectedScanner, scanJob, t)} · {t("documentScanner.format.colorJpeg")}</span>
+          <div className={`document-scanner-card is-${status.tone}`}>
+            <div className="document-scanner-card-head">
+              <span className="document-scanner-card-icon" aria-hidden="true">
+                <ScannerIcon size={18} />
+              </span>
+              <strong className="document-scanner-card-name" title={scannerDisplayName(selectedScanner)}>
+                {scannerDisplayName(selectedScanner)}
+              </strong>
+              {selectedConnection ? (
+                <span className={`document-scanner-badge is-${selectedConnection}`}>
+                  {connectionLabel(selectedConnection, t)}
+                </span>
+              ) : null}
+            </div>
+            <div className="document-scanner-card-status" aria-live="polite">
+              <span className="document-scanner-card-state">
+                <ScanStatusGlyph tone={status.tone} />
+                {t(status.labelKey)}
+              </span>
+              <span className="document-scanner-card-format">{t("documentScanner.format.colorJpeg")}</span>
             </div>
           </div>
         ) : null}
 
-        {scanJob ? (
-          <div className={`document-scanner-job is-${scanJob.status}`}>
-            <div>
-              <span>{t("documentScanner.jobStatusLabel")}</span>
-              <strong>{scanJobStatusLabel(scanJob.status, t)}</strong>
-            </div>
-            {scanJob.status === "pending" || scanJob.status === "scanning" ? (
-              <span className="document-scanner-spinner" aria-hidden="true" />
-            ) : null}
+        {unavailableScanners.length > 0 ? (
+          <div className="document-scanner-unusable">
+            <span className="document-scanner-unusable-title">{t("documentScanner.unavailable.title")}</span>
+            <ul className="document-scanner-unusable-list">
+              {unavailableScanners.map((scanner) => {
+                const kind = scannerConnectionKind(scanner);
+                return (
+                  <li className="document-scanner-unusable-item" key={scanner.scannerId}>
+                    <span className="document-scanner-unusable-name">
+                      {scannerDisplayName(scanner)}
+                      {kind ? <em>{connectionLabel(kind, t)}</em> : null}
+                    </span>
+                    <span className="document-scanner-unusable-reason">
+                      {scannerUnavailableReason(scanner, t)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         ) : null}
       </div>

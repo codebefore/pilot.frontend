@@ -31,116 +31,219 @@
 .upload-doc-crop-panel {
   margin-bottom: 10px;
 }
-.document-scanner-modal {
+/* ─── Document scanner modal ─── */
+.document-scanner {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  min-width: min(460px, calc(100vw - 48px));
+  min-width: min(440px, calc(100vw - 48px));
 }
-.document-scanner-picker {
-  padding: 12px;
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--gray-50) 72%, var(--white));
-}
-.document-scanner-picker .form-group {
+.document-scanner-error {
   margin: 0;
 }
-.document-scanner-picker-hint {
-  display: block;
-  margin-top: 7px;
-  color: var(--gray-500);
-  font-size: 12px;
-  line-height: 1.4;
+.document-scanner-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
-.document-scanner-unavailable-list {
+.document-scanner-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--gray-700);
+}
+.document-scanner-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--gray-500);
+}
+
+/* Selected device — single clean card */
+.document-scanner-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  background: var(--white);
+  overflow: hidden;
+}
+.document-scanner-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+}
+.document-scanner-card-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--brand-light) 60%, var(--white));
+  color: var(--brand-dark);
+}
+.document-scanner-card-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.document-scanner-badge {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.document-scanner-badge.is-wifi {
+  color: var(--brand-dark);
+  background: color-mix(in srgb, var(--brand-light) 55%, var(--white));
+  border-color: color-mix(in srgb, var(--brand) 25%, transparent);
+}
+.document-scanner-badge.is-usb {
+  color: var(--gray-700);
+  background: var(--gray-100);
+  border-color: var(--gray-200);
+}
+
+/* Status row inside the card */
+.document-scanner-card-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 13px;
+  border-top: 1px solid var(--gray-100);
+  background: var(--gray-50);
+}
+.document-scanner-card-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.document-scanner-card-format {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+.document-scanner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--gray-400);
+}
+
+/* Status tones */
+.document-scanner-card.is-ready .document-scanner-dot {
+  background: var(--success, #16a34a);
+}
+.document-scanner-card.is-ready .document-scanner-card-state {
+  color: color-mix(in srgb, var(--success, #16a34a) 78%, var(--gray-800));
+}
+.document-scanner-card.is-pending .document-scanner-card-state,
+.document-scanner-card.is-scanning .document-scanner-card-state {
+  color: var(--brand-dark);
+}
+.document-scanner-card.is-pending .document-scanner-card-status,
+.document-scanner-card.is-scanning .document-scanner-card-status {
+  background: color-mix(in srgb, var(--brand-light) 28%, var(--white));
+  border-top-color: color-mix(in srgb, var(--brand) 18%, var(--gray-100));
+}
+.document-scanner-card.is-completed {
+  border-color: color-mix(in srgb, var(--success, #16a34a) 38%, var(--gray-200));
+}
+.document-scanner-card.is-completed .document-scanner-card-status {
+  background: color-mix(in srgb, var(--success, #16a34a) 12%, var(--white));
+  border-top-color: color-mix(in srgb, var(--success, #16a34a) 25%, var(--gray-100));
+}
+.document-scanner-card.is-completed .document-scanner-card-state {
+  color: color-mix(in srgb, var(--success, #16a34a) 72%, var(--gray-900));
+}
+.document-scanner-card.is-failed {
+  border-color: var(--danger-300, #fca5a5);
+}
+.document-scanner-card.is-failed .document-scanner-card-status {
+  background: color-mix(in srgb, var(--danger-100, #fee2e2) 45%, var(--white));
+  border-top-color: var(--danger-300, #fca5a5);
+}
+.document-scanner-card.is-failed .document-scanner-card-state {
+  color: var(--danger-600, #dc2626);
+}
+
+/* Unusable devices — passive, non-selectable list */
+.document-scanner-unusable {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.document-scanner-unusable-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-400);
+}
+.document-scanner-unusable-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.document-scanner-unavailable-item {
+.document-scanner-unusable-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   border: 1px dashed var(--gray-200);
   border-radius: 8px;
-  padding: 9px 10px;
+  padding: 8px 11px;
   background: var(--gray-50);
-  color: var(--gray-500);
-  font-size: 12px;
-  line-height: 1.35;
 }
-.document-scanner-device-card,
-.document-scanner-job {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  background: var(--white);
-  padding: 11px 12px;
-}
-.document-scanner-device-card.is-disabled {
-  opacity: 0.68;
-}
-.document-scanner-device-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+.document-scanner-unusable-name {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  background: color-mix(in srgb, var(--brand-light) 65%, var(--white));
-  color: var(--brand-dark);
-}
-.document-scanner-device-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
-}
-.document-scanner-device-card strong,
-.document-scanner-job strong,
-.document-scanner-device-card span,
-.document-scanner-job span {
-  display: block;
-}
-.document-scanner-device-card strong,
-.document-scanner-job strong {
-  color: var(--gray-900);
-  font-size: 13px;
-  line-height: 1.25;
-}
-.document-scanner-device-card span,
-.document-scanner-job span {
-  color: var(--gray-500);
-  font-size: 12px;
-  line-height: 1.35;
-}
-.document-scanner-device-card .document-scanner-connection-badge {
-  flex: 0 0 auto;
-  border: 1px solid var(--gray-200);
-  border-radius: 999px;
-  padding: 2px 6px;
+  font-size: 12.5px;
   color: var(--gray-600);
-  background: var(--gray-50);
-  font-size: 10px;
+}
+.document-scanner-unusable-name em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 10.5px;
   font-weight: 700;
-  line-height: 1.2;
+  letter-spacing: 0.03em;
+  color: var(--gray-400);
 }
-.document-scanner-job {
-  justify-content: space-between;
-  background: color-mix(in srgb, var(--brand-light) 25%, var(--white));
+.document-scanner-unusable-reason {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--gray-500);
 }
-.document-scanner-job.is-failed {
-  border-color: var(--danger-300, #fca5a5);
-  background: color-mix(in srgb, var(--danger-100, #fee2e2) 55%, var(--white));
+
+/* Footer — keep cancel separated from refresh/scan */
+.modal-footer .document-scanner-cancel {
+  margin-right: auto;
 }
-.document-scanner-job.is-completed {
-  border-color: color-mix(in srgb, var(--success, #16a34a) 35%, var(--gray-200));
-  background: color-mix(in srgb, var(--success, #16a34a) 10%, var(--white));
-}
+
+/* Spinner */
 .document-scanner-spinner {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border: 2px solid color-mix(in srgb, var(--brand) 22%, var(--white));
   border-top-color: var(--brand);
   border-radius: 999px;
@@ -149,6 +252,22 @@
 @keyframes document-scanner-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .document-scanner {
+    min-width: 0;
+    width: 100%;
+  }
+  .document-scanner-card-status {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  .document-scanner-unusable-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
   }
 }
 @media (max-width: 560px) {
