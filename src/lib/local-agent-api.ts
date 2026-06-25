@@ -105,6 +105,25 @@ export type LocalAgentMebbisPageViewResponse = {
   error?: string | null;
 };
 
+export type LocalAgentUpdateStatus =
+  | "upToDate"
+  | "checking"
+  | "downloading"
+  | "pendingIdle"
+  | "installing"
+  | "failed";
+
+export type LocalAgentUpdateStatusResponse = {
+  status: LocalAgentUpdateStatus | string;
+  currentVersion: string;
+  availableVersion?: string | null;
+  message: string;
+  error?: string | null;
+  updatedAtUtc: string;
+  releaseNotesUrl?: string | null;
+  sizeBytes?: number | null;
+};
+
 export class LocalAgentError extends Error {
   status?: number;
 
@@ -134,6 +153,41 @@ export async function pairLocalAgent(signal?: AbortSignal): Promise<LocalAgentPa
   const pair = await handleLocalAgentJson<LocalAgentPairResponse>(response);
   writeStoredLocalAgentToken(pair.token);
   return pair;
+}
+
+export async function pairLocalAgentInMemory(signal?: AbortSignal): Promise<LocalAgentPairResponse> {
+  const response = await fetch(getLocalAgentUrl("/pair"), {
+    method: "POST",
+    signal,
+  });
+  return handleLocalAgentJson<LocalAgentPairResponse>(response);
+}
+
+export async function checkLocalAgentUpdate(
+  token: string,
+  input: { apiBaseUrl: string; channel: string },
+  signal?: AbortSignal
+): Promise<LocalAgentUpdateStatusResponse> {
+  const response = await fetch(getLocalAgentUrl("/updates/check"), {
+    method: "POST",
+    headers: buildLocalAgentTokenHeaders(token, true),
+    body: JSON.stringify({
+      apiBaseUrl: input.apiBaseUrl,
+      channel: input.channel,
+    }),
+    signal,
+  });
+  return handleLocalAgentJson<LocalAgentUpdateStatusResponse>(response);
+}
+
+export function getLocalAgentUpdateStatus(
+  token: string,
+  signal?: AbortSignal
+): Promise<LocalAgentUpdateStatusResponse> {
+  return getLocalAgentJson<LocalAgentUpdateStatusResponse>(
+    `/updates/status?token=${encodeURIComponent(token)}`,
+    signal
+  );
 }
 
 export async function getLocalAgentMebbisSession(
@@ -279,6 +333,13 @@ function buildLocalAgentHeaders(json: boolean): HeadersInit {
   if (json) headers.set("Content-Type", "application/json");
   const token = readStoredLocalAgentToken();
   if (token) headers.set("X-Pilot-Local-Agent-Token", token);
+  return headers;
+}
+
+function buildLocalAgentTokenHeaders(token: string, json: boolean): HeadersInit {
+  const headers = new Headers();
+  if (json) headers.set("Content-Type", "application/json");
+  headers.set("X-Pilot-Local-Agent-Token", token);
   return headers;
 }
 

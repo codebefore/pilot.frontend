@@ -1,6 +1,7 @@
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { getPlatformApiBaseUrl } from "../../lib/api";
 import {
   getInstitutionIntegrations,
   upsertInstitutionIntegrations,
@@ -8,14 +9,36 @@ import {
 } from "../../lib/institution-settings-api";
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
+import {
+  checkLocalAgentUpdate,
+  getLocalAgentHealth,
+  getLocalAgentUpdateStatus,
+  pairLocalAgentInMemory,
+  type LocalAgentUpdateStatusResponse,
+} from "../../lib/local-agent-api";
 import { canManageArea } from "../../lib/permissions";
 import { EyeIcon, EyeOffIcon } from "../icons";
 import { SettingsFormSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 
-type IntegrationTab = "ocr" | "whatsapp";
+type IntegrationTab = "downloads" | "ocr" | "whatsapp";
 const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 const INTEGRATIONS_QUERY_KEY = ["settings", "integrations"] as const;
+const PILOT_ICON_SRC = "/icon.png?v=20260605";
+const LOCAL_AGENT_WINDOWS_DOWNLOAD_BASE_URL =
+  "https://pilotyanimda.com/downloads/localagent/PilotLocalAgentSetup-win-x64.exe";
+const LOCAL_AGENT_WINDOWS_DOWNLOAD_URL = `${LOCAL_AGENT_WINDOWS_DOWNLOAD_BASE_URL}?bust=${Date.now()}`;
+const LOCAL_AGENT_UPDATE_CHANNEL = "stable";
+const UPDATE_STATUS_POLL_MS = 2000;
+const INSTALLING_HEALTH_RETRY_MS = 5000;
+type UpdateCheckState =
+  | { status: "idle" }
+  | { status: "pairing" | "checking"; message: string }
+  | {
+      status: "status";
+      update: LocalAgentUpdateStatusResponse;
+    }
+  | { status: "error"; message: string };
 
 export function IntegrationsSettingsSection() {
   const t = useT();
@@ -30,11 +53,17 @@ export function IntegrationsSettingsSection() {
   const [state, setState] = useState<InstitutionIntegrationsResponse | null>(
     null,
   );
-  const [activeTab, setActiveTab] = useState<IntegrationTab>("ocr");
+  const [activeTab, setActiveTab] = useState<IntegrationTab>("downloads");
   const [ocrApiKey, setOcrApiKey] = useState("");
   const [showOcrApiKey, setShowOcrApiKey] = useState(false);
   const [whatsAppAccessToken, setWhatsAppAccessToken] = useState("");
   const [showWhatsAppAccessToken, setShowWhatsAppAccessToken] = useState(false);
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({
+    status: "idle",
+  });
+  const updateTokenRef = useRef<string | null>(null);
+  const updatePollTimerRef = useRef<number | null>(null);
+  const latestUpdateStatusRef = useRef<LocalAgentUpdateStatusResponse | null>(null);
 
   const integrationsQuery = useQuery({
     gcTime: SETTINGS_QUERY_CACHE_MS,
@@ -56,6 +85,12 @@ export function IntegrationsSettingsSection() {
       showToast(t("settings.integrations.toast.loadError"), "error");
     }
   }, [integrationsQuery.isError, showToast, t]);
+
+  useEffect(() => {
+    return () => {
+      clearUpdatePollTimer(updatePollTimerRef);
+    };
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -87,6 +122,126 @@ export function IntegrationsSettingsSection() {
     }
   };
 
+  const handleUpdateCheck = async () => {
+    if (updateCheck.status === "pairing" || updateCheck.status === "checking") {
+      return;
+    }
+
+    clearUpdatePollTimer(updatePollTimerRef);
+    latestUpdateStatusRef.current = null;
+    setUpdateCheck({
+      status: "pairing",
+      message: "LocalAgent bağlantısı kuruluyor...",
+    });
+    let pairToken: string;
+    try {
+      const pair = await pairLocalAgentInMemory();
+      pairToken = pair.token;
+    } catch {
+      updateTokenRef.current = null;
+      setUpdateCheck({
+        status: "error",
+        message: "LocalAgent çalışmıyor veya kurulu değil.",
+      });
+      return;
+    }
+
+    updateTokenRef.current = pairToken;
+    try {
+      setUpdateCheck({
+        status: "checking",
+        message: "Güncelleme kontrol ediliyor...",
+      });
+      const update = await checkLocalAgentUpdate(pairToken, {
+        apiBaseUrl: getPlatformApiBaseUrl(),
+        channel: LOCAL_AGENT_UPDATE_CHANNEL,
+      });
+      handleUpdateStatus(pairToken, update);
+    } catch {
+      setUpdateCheck({
+        status: "error",
+        message: "LocalAgent güncelleme kontrolü başlatılamadı.",
+      });
+    }
+  };
+
+  const handleUpdateStatus = (
+    token: string,
+    update: LocalAgentUpdateStatusResponse
+  ) => {
+    latestUpdateStatusRef.current = update;
+    setUpdateCheck({ status: "status", update });
+
+    if (update.status === "checking" || update.status === "downloading") {
+      scheduleUpdateStatusPoll(token);
+      return;
+    }
+
+    if (update.status === "installing") {
+      scheduleInstallingHealthRetry(update);
+    }
+  };
+
+  const scheduleUpdateStatusPoll = (token: string) => {
+    clearUpdatePollTimer(updatePollTimerRef);
+    updatePollTimerRef.current = window.setTimeout(async () => {
+      try {
+        const activeToken = updateTokenRef.current ?? token;
+        const update = await getLocalAgentUpdateStatus(activeToken);
+        handleUpdateStatus(activeToken, update);
+      } catch {
+        const latest = latestUpdateStatusRef.current;
+        if (
+          latest?.status === "checking" ||
+          latest?.status === "downloading" ||
+          latest?.status === "installing"
+        ) {
+          const installingUpdate = {
+            ...latest,
+            status: "installing",
+            message: "Güncelleme kuruluyor, LocalAgent yeniden başlayacak",
+          };
+          latestUpdateStatusRef.current = installingUpdate;
+          setUpdateCheck({ status: "status", update: installingUpdate });
+          scheduleInstallingHealthRetry(installingUpdate);
+          return;
+        }
+
+        setUpdateCheck({
+          status: "error",
+          message: "LocalAgent update durumu alınamadı.",
+        });
+      }
+    }, UPDATE_STATUS_POLL_MS);
+  };
+
+  const scheduleInstallingHealthRetry = (
+    update: LocalAgentUpdateStatusResponse
+  ) => {
+    clearUpdatePollTimer(updatePollTimerRef);
+    updatePollTimerRef.current = window.setTimeout(async () => {
+      try {
+        const health = await getLocalAgentHealth();
+        const completedUpdate = {
+          ...update,
+          status: "upToDate",
+          currentVersion: health.version,
+          availableVersion: update.availableVersion ?? update.currentVersion,
+          message: "LocalAgent güncellendi.",
+          error: null,
+          updatedAtUtc: health.timestampUtc,
+        };
+        latestUpdateStatusRef.current = completedUpdate;
+        setUpdateCheck({
+          status: "status",
+          update: completedUpdate,
+        });
+      } catch {
+        scheduleInstallingHealthRetry(update);
+      }
+    }, INSTALLING_HEALTH_RETRY_MS);
+  };
+
   if (loading) {
     return (
       <div className="settings-section-stack">
@@ -103,6 +258,17 @@ export function IntegrationsSettingsSection() {
           className="page-tabs"
           role="tablist"
         >
+          <button
+            aria-selected={activeTab === "downloads"}
+            className={
+              activeTab === "downloads" ? "page-tab active" : "page-tab"
+            }
+            onClick={() => setActiveTab("downloads")}
+            role="tab"
+            type="button"
+          >
+            Downloads
+          </button>
           <button
             aria-selected={activeTab === "ocr"}
             className={activeTab === "ocr" ? "page-tab active" : "page-tab"}
@@ -125,6 +291,52 @@ export function IntegrationsSettingsSection() {
           </button>
         </div>
       </div>
+
+      {activeTab === "downloads" ? (
+        <section className="settings-surface">
+          <div className="settings-surface-body">
+            <div className="settings-form">
+              <div className="form-row">
+                <div className="form-group">
+                  <span className="form-label settings-download-label">
+                    <img
+                      alt="Pilot Agent"
+                      className="settings-download-icon"
+                      src={PILOT_ICON_SRC}
+                    />
+                  </span>
+                  <div className="settings-inline-actions">
+                    <a
+                      className="btn btn-primary btn-sm"
+                      href={LOCAL_AGENT_WINDOWS_DOWNLOAD_URL}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Download
+                    </a>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={
+                        updateCheck.status === "pairing" ||
+                        updateCheck.status === "checking"
+                      }
+                      onClick={handleUpdateCheck}
+                      type="button"
+                    >
+                      {updateCheck.status === "pairing" ||
+                      updateCheck.status === "checking"
+                        ? "Kontrol ediliyor..."
+                        : "Güncellemeyi kontrol et"}
+                    </button>
+                  </div>
+                  <UpdateCheckResult state={updateCheck} />
+                </div>
+                <div className="form-group" />
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {activeTab === "ocr" ? (
         <>
@@ -285,4 +497,91 @@ export function IntegrationsSettingsSection() {
       ) : null}
     </form>
   );
+}
+
+function UpdateCheckResult({ state }: { state: UpdateCheckState }) {
+  if (state.status === "idle") return null;
+
+  if (state.status === "error") {
+    return <p className="settings-form-helper error">{state.message}</p>;
+  }
+
+  if (state.status === "pairing" || state.status === "checking") {
+    return (
+      <p className="settings-form-helper">
+        <span className="settings-inline-spinner" aria-hidden="true" />
+        {state.message}
+      </p>
+    );
+  }
+
+  if (state.status !== "status") return null;
+
+  const result = getUpdateStatusDisplay(state.update);
+
+  return (
+    <p className={result.error ? "settings-form-helper error" : "settings-form-helper"}>
+      {result.spinning ? (
+        <span className="settings-inline-spinner" aria-hidden="true" />
+      ) : null}
+      {result.message}
+    </p>
+  );
+}
+
+function getUpdateStatusDisplay(update: LocalAgentUpdateStatusResponse): {
+  error: boolean;
+  message: string;
+  spinning: boolean;
+} {
+  switch (update.status) {
+    case "upToDate":
+      return {
+        error: false,
+        message: "LocalAgent güncel",
+        spinning: false,
+      };
+    case "checking":
+      return {
+        error: false,
+        message: "Güncelleme kontrol ediliyor...",
+        spinning: true,
+      };
+    case "downloading":
+      return {
+        error: false,
+        message: "Güncelleme indiriliyor...",
+        spinning: true,
+      };
+    case "pendingIdle":
+      return {
+        error: false,
+        message: "Güncelleme hazır, işlem bitince kurulacak",
+        spinning: false,
+      };
+    case "installing":
+      return {
+        error: false,
+        message: "Güncelleme kuruluyor, LocalAgent yeniden başlayacak",
+        spinning: true,
+      };
+    case "failed":
+      return {
+        error: true,
+        message: update.error || update.message || "LocalAgent güncellemesi başarısız.",
+        spinning: false,
+      };
+    default:
+      return {
+        error: false,
+        message: update.message || `LocalAgent update durumu: ${update.status}`,
+        spinning: false,
+      };
+  }
+}
+
+function clearUpdatePollTimer(timerRef: { current: number | null }) {
+  if (timerRef.current === null) return;
+  window.clearTimeout(timerRef.current);
+  timerRef.current = null;
 }
