@@ -9,6 +9,7 @@ import {
   readStoredLocalAgentScannerSettings,
   type LocalAgentScannerResponse,
   type LocalAgentScanJobResponse,
+  type LocalAgentScanJobStatus,
   writeStoredLocalAgentScannerSettings,
 } from "../../lib/local-agent-api";
 import { useT, type TranslationKey } from "../../lib/i18n";
@@ -82,6 +83,10 @@ function scannerStateLabel(state: string | null | undefined, t: (key: Translatio
   if (normalized === "idle") return t("documentScanner.state.idle");
   if (normalized === "kontrol ediliyor") return t("documentScanner.state.checking");
   return state;
+}
+
+function scanJobStatusLabel(status: LocalAgentScanJobStatus, t: (key: TranslationKey) => string): string {
+  return t(`documentScanner.jobStatus.${status}`);
 }
 
 export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScannerModalProps) {
@@ -279,8 +284,8 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
 
         {scanJob ? (
           <div className="document-scanner-job">
-            <span>İş durumu</span>
-            <strong>{scanJob.status}</strong>
+            <span>{t("documentScanner.jobStatusLabel")}</span>
+            <strong>{scanJobStatusLabel(scanJob.status, t)}</strong>
           </div>
         ) : null}
       </div>
