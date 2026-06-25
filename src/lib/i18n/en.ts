@@ -1198,6 +1198,7 @@ export const en: Record<TranslationKey, string> = {
   "documentScanner.devicesTitle": "Devices",
   "documentScanner.searchingDevices": "Searching scanners...",
   "documentScanner.devicesFound": "{count} devices found",
+  "documentScanner.refresh": "Refresh",
   "documentScanner.state.idle": "Idle",
   "documentScanner.state.checking": "Checking",
   "documentScanner.state.unknown": "Status unknown",

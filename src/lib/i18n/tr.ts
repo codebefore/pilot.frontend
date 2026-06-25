@@ -1196,6 +1196,7 @@ export const tr = {
   "documentScanner.devicesTitle": "Cihazlar",
   "documentScanner.searchingDevices": "Tarayıcılar aranıyor...",
   "documentScanner.devicesFound": "{count} cihaz bulundu",
+  "documentScanner.refresh": "Yenile",
   "documentScanner.state.idle": "Boşta",
   "documentScanner.state.checking": "Kontrol ediliyor",
   "documentScanner.state.unknown": "Durum bilinmiyor",

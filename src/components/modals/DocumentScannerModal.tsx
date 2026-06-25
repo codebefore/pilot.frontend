@@ -13,7 +13,7 @@ import {
   writeStoredLocalAgentScannerSettings,
 } from "../../lib/local-agent-api";
 import { useT, type TranslationKey } from "../../lib/i18n";
-import { RefreshIcon, ScannerIcon } from "../icons";
+import { ScannerIcon } from "../icons";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
 
@@ -234,6 +234,14 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         İptal
       </button>
       <button
+        className="btn btn-secondary"
+        disabled={loading || scanning}
+        onClick={() => void loadScanners()}
+        type="button"
+      >
+        {t("documentScanner.refresh")}
+      </button>
+      <button
         className="btn btn-primary"
         disabled={!selectedScanner || !isScannerEligible(selectedScanner) || loading || scanning}
         onClick={() => void startScan()}
@@ -256,15 +264,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
                 : t("documentScanner.devicesFound", { count: scanners.length })}
             </span>
           </div>
-          <button
-            className="icon-btn"
-            disabled={loading || scanning}
-            onClick={() => void loadScanners()}
-            title="Yenile"
-            type="button"
-          >
-            <RefreshIcon size={14} />
-          </button>
         </div>
 
         {error ? <div className="form-error-banner">{error}</div> : null}
