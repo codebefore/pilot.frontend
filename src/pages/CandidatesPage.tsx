@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
@@ -8,7 +9,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
-import { DownloadIcon, PlusIcon } from "../components/icons";
+import { DownloadIcon, FilterIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
@@ -1085,6 +1086,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "eSinavAttemptCount",
     pageScope: "eSinav",
     labelKey: "candidates.col.eSinavAttemptCount",
+    sortField: "examAttemptCount",
     renderCell: (c, pageScope) =>
       pageScope === "eSinav"
         ? <ExamAttemptPill value={c.eSinavAttemptCount} />
@@ -1117,6 +1119,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "eSinavPoolStatus",
     labelKey: "candidates.col.eSinavPoolStatus",
+    sortField: "examStatus",
     renderCell: (c) => <CandidateUnifiedExamStatusPill candidate={c} />,
     skeletonWidth: 128,
   },
@@ -1163,6 +1166,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "drivingExamAttemptCount",
     pageScope: "uygulama",
     labelKey: "candidates.col.drivingExamAttemptCount",
+    sortField: "drivingExamAttemptCount",
     renderCell: (c) => (
       <ExamAttemptPill
         value={c.drivingExamAttemptCount}
@@ -1175,6 +1179,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "drivingExamAttendanceStatus",
     pageScope: "uygulama",
     labelKey: "candidates.col.drivingExamAttendanceStatus",
+    sortField: "drivingExamAttendanceStatus",
     renderCell: (c) => <DrivingExamAttendancePill status={c.drivingExamAttendanceStatus} />,
     skeletonWidth: 88,
   },
@@ -1221,6 +1226,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "totalFee",
     labelKey: "candidates.col.totalFee",
+    sortField: "totalFee",
     headerClassName: "cand-money-th",
     cellClassName: "cand-money-td",
     renderCell: (c) => <span className="cand-money">{formatCurrencyTRY(c.totalFee)}</span>,
@@ -1229,6 +1235,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "totalPaid",
     labelKey: "candidates.col.totalPaid",
+    sortField: "totalPaid",
     headerClassName: "cand-money-th",
     cellClassName: "cand-money-td",
     renderCell: (c) => <span className="cand-money">{formatCurrencyTRY(c.totalPaid)}</span>,
@@ -1237,6 +1244,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "totalDebt",
     labelKey: "candidates.col.totalDebt",
+    sortField: "totalDebt",
     headerClassName: "cand-money-th",
     cellClassName: "cand-money-td",
     renderCell: (c) => (
@@ -1249,7 +1257,6 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "documents",
     labelKey: "candidates.col.documents",
-    sortField: "missingDocumentCount",
     renderCell: (c) => (
       <CandidateDocumentBadge
         loadMissingDocumentNames={async (signal) => {
@@ -1269,7 +1276,6 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "missingDocuments",
     labelKey: "candidates.col.missingDocuments",
-    sortField: "missingDocumentCount",
     renderCell: (c) => c.documentSummary?.missingCount ?? 0,
     skeletonWidth: 48,
   },
@@ -2402,11 +2408,18 @@ export function CandidatesPage({
       : examDateTabNeutral
         ? omitExamTabFilter(builtTabParams)
         : builtTabParams;
+    const {
+      hasPhoto: _hasPhoto,
+      hasMissingDocuments: _hasMissingDocuments,
+      missingDocumentCountMin: _missingDocumentCountMin,
+      missingDocumentCountMax: _missingDocumentCountMax,
+      ...candidateFilterParams
+    } = filtersToQuery(debouncedFilters);
     return {
       search: normalizeTextQuery(debouncedSearch),
       ...tabParams,
       tags: activeTags.length > 0 ? activeTags : undefined,
-      ...filtersToQuery(debouncedFilters),
+      ...candidateFilterParams,
       ...examDateFilterParams,
       sortBy: sort?.field,
       sortDir: sort?.direction,
@@ -2452,7 +2465,8 @@ export function CandidatesPage({
       compactLicenseClassOptions,
       headerPeriodGroupOptions,
       t,
-      lang
+      getColumnLabel(col),
+      columnPageScope
     );
   useEffect(() => {
     if (candidatesQuery.isError && !isAbortError(candidatesQuery.error)) {
@@ -3805,6 +3819,7 @@ export function CandidatesPage({
           onClearAll={clearAllFilters}
           onClose={() => setFiltersOpen(false)}
           open={filtersOpen}
+          showDocumentFilters={false}
         />
       ) : null}
       {examDateSidebar ? (
@@ -4050,6 +4065,191 @@ function SortableTh({
   );
 }
 
+const FILTER_MENU_VIEWPORT_GAP = 8;
+const FILTER_MENU_TRIGGER_GAP = 6;
+
+function NumberRangeHeaderFilter({
+  active,
+  max,
+  maxPlaceholder = "Maks",
+  min,
+  minPlaceholder = "Min",
+  onApply,
+  onClear,
+  title,
+}: {
+  active: boolean;
+  max: string;
+  maxPlaceholder?: string;
+  min: string;
+  minPlaceholder?: string;
+  onApply: (min: string, max: string) => void;
+  onClear: () => void;
+  title: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftMin, setDraftMin] = useState(min);
+  const [draftMax, setDraftMax] = useState(max);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setDraftMin(min);
+      setDraftMax(max);
+    }
+  }, [max, min, open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const measuredWidth = menuRef.current?.offsetWidth ?? 220;
+      const measuredHeight = menuRef.current?.offsetHeight ?? 180;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      const maxLeft = Math.max(FILTER_MENU_VIEWPORT_GAP, viewportWidth - measuredWidth - FILTER_MENU_VIEWPORT_GAP);
+      const left = Math.min(
+        Math.max(triggerRect.right - measuredWidth, FILTER_MENU_VIEWPORT_GAP),
+        maxLeft
+      );
+
+      const preferredBelowTop = triggerRect.bottom + FILTER_MENU_TRIGGER_GAP;
+      const preferredAboveTop = triggerRect.top - measuredHeight - FILTER_MENU_TRIGGER_GAP;
+      const fitsBelow = preferredBelowTop + measuredHeight <= viewportHeight - FILTER_MENU_VIEWPORT_GAP;
+      const fitsAbove = preferredAboveTop >= FILTER_MENU_VIEWPORT_GAP;
+
+      let top = preferredBelowTop;
+      if (!fitsBelow && fitsAbove) {
+        top = preferredAboveTop;
+      } else if (!fitsBelow) {
+        top = Math.max(FILTER_MENU_VIEWPORT_GAP, viewportHeight - measuredHeight - FILTER_MENU_VIEWPORT_GAP);
+      }
+
+      setMenuPos({ top, left });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onApply(draftMin.trim(), draftMax.trim());
+    setOpen(false);
+  };
+
+  return (
+    <div className={open ? "table-header-filter open" : "table-header-filter"} ref={ref}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={title}
+        className={`table-header-filter-trigger${active ? " active" : ""}`}
+        onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
+        title={title}
+        type="button"
+      >
+        <FilterIcon size={12} />
+      </button>
+
+      {open
+        ? createPortal(
+            <div
+              className="table-header-filter-menu table-header-filter-text-menu"
+              ref={menuRef}
+              role="dialog"
+              style={menuPos ? { top: menuPos.top, left: menuPos.left } : undefined}
+            >
+              <div className="table-header-filter-title">{title}</div>
+              <form className="table-header-filter-form" onSubmit={submit}>
+                <input
+                  autoFocus
+                  className="table-header-filter-input"
+                  inputMode="decimal"
+                  onChange={(event) => setDraftMin(event.target.value)}
+                  placeholder={minPlaceholder}
+                  step="any"
+                  type="number"
+                  value={draftMin}
+                />
+                <input
+                  className="table-header-filter-input"
+                  inputMode="decimal"
+                  onChange={(event) => setDraftMax(event.target.value)}
+                  placeholder={maxPlaceholder}
+                  step="any"
+                  type="number"
+                  value={draftMax}
+                />
+                <div className="table-header-filter-actions">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      onClear();
+                      setOpen(false);
+                    }}
+                    type="button"
+                  >
+                    Temizle
+                  </button>
+                  <button className="btn btn-primary btn-sm" type="submit">
+                    Uygula
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
+
 function buildCandidateColumnFilterControl(
   columnId: CandidateColumnId,
   filters: CandidateFilterState,
@@ -4060,7 +4260,8 @@ function buildCandidateColumnFilterControl(
   licenseClassOptions: { value: string; label: string }[],
   periodGroupOptions: { value: string; label: string }[],
   t: ReturnType<typeof useT>,
-  lang: "tr" | "en"
+  columnLabel: string,
+  pageScope: CandidateColumnPageScope
 ) {
   if (columnId === "licenseClass") {
     return (
@@ -4113,20 +4314,84 @@ function buildCandidateColumnFilterControl(
     );
   }
 
-  if (columnId === "documents" || columnId === "missingDocuments") {
+  if (columnId === "eSinavAttemptCount" || columnId === "drivingExamAttemptCount") {
+    const attemptOptions =
+      pageScope === "eSinav" && columnId === "eSinavAttemptCount"
+        ? ["1", "2", "3", "4"]
+        : ["1", "2", "3", "4", "5"];
+    return (
+      <CheckboxListPopover
+        onChange={(next) => setFilter("examAttemptCount", next as CandidateFilterState["examAttemptCount"])}
+        options={attemptOptions.map((value) => ({ value, label: `${value}. Hak` }))}
+        placeholder={columnLabel}
+        triggerVariant="icon"
+        title={columnLabel}
+        values={filters.examAttemptCount}
+      />
+    );
+  }
+
+  if (columnId === "eSinavPoolStatus") {
+    return (
+      <CheckboxListPopover
+        onChange={(next) => setFilter("examStatus", next as CandidateFilterState["examStatus"])}
+        options={[
+          { value: "havuz", label: t("candidatesPage.examStatus.pool") },
+          { value: "e_sinav_randevulu", label: "E-Sınav randevulu" },
+          { value: "direksiyon_randevulu", label: "Direksiyon randevulu" },
+          { value: "basarisiz", label: t("candidatesPage.examStatus.failed") },
+          { value: "basarili", label: t("candidatesPage.examStatus.passed") },
+          { value: "parked", label: candidateStatusLabel("parked") },
+          { value: "graduated", label: candidateStatusLabel("graduated") },
+          { value: "dropped", label: candidateStatusLabel("dropped") },
+        ]}
+        placeholder={columnLabel}
+        triggerVariant="icon"
+        title={columnLabel}
+        values={filters.examStatus}
+      />
+    );
+  }
+
+  if (columnId === "drivingExamAttendanceStatus") {
     return (
       <TableHeaderFilter
-        active={filters.hasMissingDocuments !== ""}
+        active={filters.drivingExamAttendanceStatus !== ""}
         onChange={(value) =>
-          setFilter("hasMissingDocuments", value as CandidateFilterState["hasMissingDocuments"])
+          setFilter(
+            "drivingExamAttendanceStatus",
+            value as CandidateFilterState["drivingExamAttendanceStatus"]
+          )
         }
         options={[
           { value: "", label: t("common.all") },
-          { value: "true", label: lang === "tr" ? "Eksik var" : "Missing" },
-          { value: "false", label: lang === "tr" ? "Eksik yok" : "Complete" },
+          { value: "attended", label: "Girdi" },
+          { value: "absent", label: "Girmedi" },
+          { value: "reported", label: "Raporlu" },
         ]}
-        title={t("candidates.filters.hasMissingDocuments")}
-        value={filters.hasMissingDocuments}
+        title={columnLabel}
+        value={filters.drivingExamAttendanceStatus}
+      />
+    );
+  }
+
+  if (columnId === "totalFee" || columnId === "totalPaid" || columnId === "totalDebt") {
+    const minKey = `${columnId}Min` as "totalFeeMin" | "totalPaidMin" | "totalDebtMin";
+    const maxKey = `${columnId}Max` as "totalFeeMax" | "totalPaidMax" | "totalDebtMax";
+    return (
+      <NumberRangeHeaderFilter
+        active={filters[minKey] !== "" || filters[maxKey] !== ""}
+        max={filters[maxKey]}
+        min={filters[minKey]}
+        onApply={(min, max) => {
+          setFilter(minKey, min);
+          setFilter(maxKey, max);
+        }}
+        onClear={() => {
+          setFilter(minKey, "");
+          setFilter(maxKey, "");
+        }}
+        title={columnLabel}
       />
     );
   }

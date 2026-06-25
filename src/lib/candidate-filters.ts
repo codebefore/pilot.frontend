@@ -3,6 +3,17 @@ import { normalizeTextQuery } from "./search";
 
 /** Tri-state select value: empty (all), "true" (yes), "false" (no). */
 export type TriState = "" | "true" | "false";
+export type CandidateExamStatusFilterValue =
+  | "havuz"
+  | "randevulu"
+  | "e_sinav_randevulu"
+  | "direksiyon_randevulu"
+  | "basarisiz"
+  | "basarili"
+  | "parked"
+  | "graduated"
+  | "dropped";
+export type CandidateExamAttemptCountFilterValue = "1" | "2" | "3" | "4" | "5";
 
 /**
  * Extended filter state for the Filtreler sidebar. All fields are stored as
@@ -26,6 +37,10 @@ export type CandidateFilterState = {
   hasMissingDocuments: TriState;
   /** "" (Tümü) | "passed" | "failed" — backend tolerates synonyms. */
   mebExamResult: "" | "passed" | "failed";
+  /** Unified visible exam status in the candidates table. */
+  examStatus: CandidateExamStatusFilterValue[];
+  examAttemptCount: CandidateExamAttemptCountFilterValue[];
+  drivingExamAttendanceStatus: "" | "attended" | "absent" | "reported";
   /** Empty array = no filter; otherwise existing-license catalog codes. */
   existingLicenseTypes: string[];
   birthDateFrom: string;
@@ -38,6 +53,12 @@ export type CandidateFilterState = {
   createdAtTo: string;
   updatedAtFrom: string;
   updatedAtTo: string;
+  totalFeeMin: string;
+  totalFeeMax: string;
+  totalPaidMin: string;
+  totalPaidMax: string;
+  totalDebtMin: string;
+  totalDebtMax: string;
   missingDocumentCountMin: string;
   missingDocumentCountMax: string;
 };
@@ -57,6 +78,9 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   hasExamResult: "",
   hasMissingDocuments: "",
   mebExamResult: "",
+  examStatus: [],
+  examAttemptCount: [],
+  drivingExamAttendanceStatus: "",
   existingLicenseTypes: [],
   birthDateFrom: "",
   birthDateTo: "",
@@ -68,6 +92,12 @@ export const EMPTY_CANDIDATE_FILTERS: CandidateFilterState = {
   createdAtTo: "",
   updatedAtFrom: "",
   updatedAtTo: "",
+  totalFeeMin: "",
+  totalFeeMax: "",
+  totalPaidMin: "",
+  totalPaidMax: "",
+  totalDebtMin: "",
+  totalDebtMax: "",
   missingDocumentCountMin: "",
   missingDocumentCountMax: "",
 };
@@ -141,6 +171,14 @@ export function filtersToQuery(filters: CandidateFilterState) {
     hasExamResult: triToBool(filters.hasExamResult),
     hasMissingDocuments: triToBool(filters.hasMissingDocuments),
     mebExamResult: filters.mebExamResult || undefined,
+    examStatus: filters.examStatus.length > 0 ? filters.examStatus : undefined,
+    examAttemptCount:
+      filters.examAttemptCount.length > 0
+        ? filters.examAttemptCount
+            .map((value) => numericOrUndefined(value))
+            .filter((value): value is number => value !== undefined)
+        : undefined,
+    drivingExamAttendanceStatus: filters.drivingExamAttendanceStatus || undefined,
     existingLicenseTypes:
       filters.existingLicenseTypes.length > 0 ? filters.existingLicenseTypes : undefined,
     birthDateFrom: filters.birthDateFrom || undefined,
@@ -153,6 +191,12 @@ export function filtersToQuery(filters: CandidateFilterState) {
     createdAtTo: filters.createdAtTo || undefined,
     updatedAtFrom: filters.updatedAtFrom || undefined,
     updatedAtTo: filters.updatedAtTo || undefined,
+    totalFeeMin: numericOrUndefined(filters.totalFeeMin),
+    totalFeeMax: numericOrUndefined(filters.totalFeeMax),
+    totalPaidMin: numericOrUndefined(filters.totalPaidMin),
+    totalPaidMax: numericOrUndefined(filters.totalPaidMax),
+    totalDebtMin: numericOrUndefined(filters.totalDebtMin),
+    totalDebtMax: numericOrUndefined(filters.totalDebtMax),
     missingDocumentCountMin: numericOrUndefined(filters.missingDocumentCountMin),
     missingDocumentCountMax: numericOrUndefined(filters.missingDocumentCountMax),
   };

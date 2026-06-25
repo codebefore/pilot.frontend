@@ -936,7 +936,7 @@ describe("CandidatesPage tabs", () => {
 
     expect(
       await within(sidebar).findByRole("button", {
-        name: /03\.06\.2026\s*B\s*-\s*B-O\s*4\/12/i,
+        name: /03\.06\.2026\s*\(12\)\s*B\s*-\s*B-O\s*4\/12/i,
       })
     ).toBeInTheDocument();
     expect(within(sidebar).queryByText("09:00")).not.toBeInTheDocument();
@@ -1497,7 +1497,9 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Başarısız" }));
 
     await screen.findByRole("columnheader", { name: "Son Sınav Tarihi" });
-    const headers = screen.getAllByRole("columnheader").map((header) => header.textContent?.trim());
+    const headers = screen.getAllByRole("columnheader").map((header) =>
+      (header.textContent?.trim() ?? "").replace(/[↕▲▼]/g, "")
+    );
     expect(headers).toEqual(
       expect.arrayContaining([
         "Hak",
@@ -3560,6 +3562,101 @@ describe("CandidatesPage sorting", () => {
     });
   });
 
+  it("sends sort params for exam and financial columns", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    const examAttemptHeader = screen.getByRole("columnheader", { name: /Sınav Hakkı/ });
+    fireEvent.click(within(examAttemptHeader).getAllByRole("button", { name: /Sınav Hakkı/ })[0]);
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sortBy: "examAttemptCount",
+          sortDir: "asc",
+          page: 1,
+        })
+      );
+    });
+
+    fireEvent.click(within(examAttemptHeader).getByLabelText("Sınav Hakkı"));
+    const examAttemptMenu = await screen.findByRole("dialog");
+    fireEvent.click(within(examAttemptMenu).getByRole("checkbox", { name: "2. Hak" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          examAttemptCount: [2],
+          page: 1,
+        })
+      );
+    });
+
+    fireEvent.click(within(examAttemptMenu).getByRole("checkbox", { name: "3. Hak" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          examAttemptCount: [2, 3],
+          page: 1,
+        })
+      );
+    });
+
+    const totalDebtHeader = screen.getByRole("columnheader", { name: /Toplam Borç/ });
+    fireEvent.click(within(totalDebtHeader).getAllByRole("button", { name: /Toplam Borç/ })[0]);
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sortBy: "totalDebt",
+          sortDir: "asc",
+          page: 1,
+        })
+      );
+    });
+  });
+
+  it("uses page-specific attempt count filter labels and options", async () => {
+    renderESinavPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByLabelText("Hak"));
+
+    const menu = await screen.findByRole("dialog");
+    expect(within(menu).getByText("Hak")).toBeInTheDocument();
+    expect(within(menu).getByRole("checkbox", { name: "4. Hak" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("checkbox", { name: "5. Hak" })).not.toBeInTheDocument();
+  });
+
+  it("sends sort and filter params for driving exam attendance status", async () => {
+    renderUygulamaPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    const statusHeader = screen.getByRole("columnheader", { name: /Sınav Durumu/ });
+    fireEvent.click(within(statusHeader).getAllByRole("button", { name: /Sınav Durumu/ })[0]);
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sortBy: "drivingExamAttendanceStatus",
+          sortDir: "asc",
+          page: 1,
+        })
+      );
+    });
+
+    fireEvent.click(within(statusHeader).getByLabelText("Sınav Durumu"));
+    fireEvent.click(await screen.findByRole("button", { name: "Raporlu" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          drivingExamAttendanceStatus: "reported",
+          page: 1,
+        })
+      );
+    });
+  });
+
   it("resets page to 1 when a new sort is applied", async () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
@@ -3680,25 +3777,14 @@ describe("CandidatesPage filter panel", () => {
     });
   });
 
-  it("sends tri-state hasPhoto=true when selected from the filter dropdown", async () => {
+  it("does not show document-projection filters in the candidate list filter panel", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
 
-    const hasPhotoSelect = screen.getByLabelText(
-      "Fotoğrafı Var"
-    ) as HTMLSelectElement;
-    fireEvent.change(hasPhotoSelect, { target: { value: "true" } });
-
-    await waitFor(() => {
-      expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          hasPhoto: true,
-          page: 1,
-        })
-      );
-    });
+    expect(screen.queryByLabelText("Fotoğrafı Var")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Eksik Evrak Var")).not.toBeInTheDocument();
   });
 
   it("resets to page 1 when a filter changes after navigating to a later page", async () => {
@@ -3800,6 +3886,53 @@ describe("CandidatesPage filter panel", () => {
       const lastCall =
         getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
       expect(lastCall.gender).toBeUndefined();
+    });
+  });
+
+  it("sends exam status and financial range filters from table headers", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    const examStatusHeader = screen.getByRole("columnheader", { name: /Sınav Durumu/ });
+    fireEvent.click(within(examStatusHeader).getByLabelText("Sınav Durumu"));
+    const examStatusMenu = await screen.findByRole("dialog");
+    fireEvent.click(within(examStatusMenu).getByRole("checkbox", { name: "E-Sınav randevulu" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          examStatus: ["e_sinav_randevulu"],
+          page: 1,
+        })
+      );
+    });
+
+    fireEvent.click(within(examStatusMenu).getByRole("checkbox", { name: "Direksiyon randevulu" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
+          page: 1,
+        })
+      );
+    });
+
+    const totalFeeHeader = screen.getByRole("columnheader", { name: /Toplam Ücret/ });
+    fireEvent.click(within(totalFeeHeader).getByLabelText("Toplam Ücret"));
+    fireEvent.change(await screen.findByPlaceholderText("Min"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByPlaceholderText("Maks"), { target: { value: "5000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
+          totalFeeMin: 1000,
+          totalFeeMax: 5000,
+          page: 1,
+        })
+      );
     });
   });
 });

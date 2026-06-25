@@ -35,6 +35,7 @@ type CandidateFilterPanelProps = {
   filters: CandidateFilterState;
   activeFilterCount: number;
   hasExamResultLabel?: string;
+  showDocumentFilters?: boolean;
   /**
    * True when any filter (form or tag) is active; drives the "Filtreleri
    * Temizle" button visibility inside the panel.
@@ -62,6 +63,7 @@ export function CandidateFilterPanel({
   filters,
   activeFilterCount,
   hasExamResultLabel,
+  showDocumentFilters = true,
   hasAnyActiveFilter,
   onClose,
   onChange,
@@ -340,20 +342,22 @@ export function CandidateFilterPanel({
               values={termGroupValues}
             />
           </div>
-          <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.filters.hasPhoto")}
-              className="form-select"
-              onChange={(event) =>
-                onChange("hasPhoto", event.target.value as TriState)
-              }
-              value={filters.hasPhoto}
-            >
-              <option value="">{t("candidates.filters.hasPhoto")}</option>
-              <option value="true">{t("candidates.filters.yes")}</option>
-              <option value="false">{t("candidates.filters.no")}</option>
-            </CustomSelect>
-          </div>
+          {showDocumentFilters ? (
+            <div className="form-group">
+              <CustomSelect
+                aria-label={t("candidates.filters.hasPhoto")}
+                className="form-select"
+                onChange={(event) =>
+                  onChange("hasPhoto", event.target.value as TriState)
+                }
+                value={filters.hasPhoto}
+              >
+                <option value="">{t("candidates.filters.hasPhoto")}</option>
+                <option value="true">{t("candidates.filters.yes")}</option>
+                <option value="false">{t("candidates.filters.no")}</option>
+              </CustomSelect>
+            </div>
+          ) : null}
           <div className="form-group">
             <CustomSelect
               aria-label={examResultFilterLabel}
@@ -392,20 +396,22 @@ export function CandidateFilterPanel({
               values={filters.existingLicenseTypes}
             />
           </div>
-          <div className="form-group">
-            <CustomSelect
-              aria-label={t("candidates.filters.hasMissingDocuments")}
-              className="form-select"
-              onChange={(event) =>
-                onChange("hasMissingDocuments", event.target.value as TriState)
-              }
-              value={filters.hasMissingDocuments}
-            >
-              <option value="">{t("candidates.filters.hasMissingDocuments")}</option>
-              <option value="true">{t("candidates.filters.yes")}</option>
-              <option value="false">{t("candidates.filters.no")}</option>
-            </CustomSelect>
-          </div>
+          {showDocumentFilters ? (
+            <div className="form-group">
+              <CustomSelect
+                aria-label={t("candidates.filters.hasMissingDocuments")}
+                className="form-select"
+                onChange={(event) =>
+                  onChange("hasMissingDocuments", event.target.value as TriState)
+                }
+                value={filters.hasMissingDocuments}
+              >
+                <option value="">{t("candidates.filters.hasMissingDocuments")}</option>
+                <option value="true">{t("candidates.filters.yes")}</option>
+                <option value="false">{t("candidates.filters.no")}</option>
+              </CustomSelect>
+            </div>
+          ) : null}
           <div className="form-group">
             <LocalizedDateInput
               ariaLabel={`${t("candidates.col.birthDate")} ${t("candidates.filters.rangeFrom")}`}
@@ -496,34 +502,38 @@ export function CandidateFilterPanel({
               value={filters.updatedAtTo}
             />
           </div>
-          <div className="form-group">
-            <input
-              aria-label={`${t("candidates.col.missingDocuments")} ${t("candidates.filters.min")}`}
-              className="form-input"
-              inputMode="numeric"
-              min={0}
-              onChange={(event) =>
-                onChange("missingDocumentCountMin", event.target.value)
-              }
-              placeholder={`${t("candidates.col.missingDocuments")} (${t("candidates.filters.min")})`}
-              type="number"
-              value={filters.missingDocumentCountMin}
-            />
-          </div>
-          <div className="form-group">
-            <input
-              aria-label={`${t("candidates.col.missingDocuments")} ${t("candidates.filters.max")}`}
-              className="form-input"
-              inputMode="numeric"
-              min={0}
-              onChange={(event) =>
-                onChange("missingDocumentCountMax", event.target.value)
-              }
-              placeholder={`${t("candidates.col.missingDocuments")} (${t("candidates.filters.max")})`}
-              type="number"
-              value={filters.missingDocumentCountMax}
-            />
-          </div>
+          {showDocumentFilters ? (
+            <>
+              <div className="form-group">
+                <input
+                  aria-label={`${t("candidates.col.missingDocuments")} ${t("candidates.filters.min")}`}
+                  className="form-input"
+                  inputMode="numeric"
+                  min={0}
+                  onChange={(event) =>
+                    onChange("missingDocumentCountMin", event.target.value)
+                  }
+                  placeholder={`${t("candidates.col.missingDocuments")} (${t("candidates.filters.min")})`}
+                  type="number"
+                  value={filters.missingDocumentCountMin}
+                />
+              </div>
+              <div className="form-group">
+                <input
+                  aria-label={`${t("candidates.col.missingDocuments")} ${t("candidates.filters.max")}`}
+                  className="form-input"
+                  inputMode="numeric"
+                  min={0}
+                  onChange={(event) =>
+                    onChange("missingDocumentCountMax", event.target.value)
+                  }
+                  placeholder={`${t("candidates.col.missingDocuments")} (${t("candidates.filters.max")})`}
+                  type="number"
+                  value={filters.missingDocumentCountMax}
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       </aside>
     </>

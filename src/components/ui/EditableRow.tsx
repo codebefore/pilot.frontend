@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { useT } from "../../lib/i18n";
 import { CheckIcon, PencilIcon, XIcon } from "../icons";
@@ -46,6 +46,7 @@ export function EditableRow({
   const [saving, setSaving] = useState(false);
   const [options, setOptions] = useState<SelectOption[] | undefined>(staticOptions);
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const rowRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement & HTMLSelectElement>(null);
   const loadOptionsControllerRef = useRef<AbortController | null>(null);
 
@@ -58,6 +59,23 @@ export function EditableRow({
   useEffect(() => {
     return () => loadOptionsControllerRef.current?.abort();
   }, []);
+
+  const focusEditor = () => {
+    const target = rowRef.current?.querySelector<HTMLElement>(
+      [
+        ".localized-date-trigger-input",
+        ".custom-select-trigger",
+        "textarea",
+        "input:not(.localized-date-native-input)",
+        "select:not(.custom-select-native)",
+      ].join(", ")
+    );
+
+    target?.focus();
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      target.select();
+    }
+  };
 
   const startEdit = async () => {
     if (disabled) {
@@ -85,7 +103,7 @@ export function EditableRow({
         }
       }
     }
-    setTimeout(() => inputRef.current?.focus(), 0);
+    setTimeout(focusEditor, 0);
   };
 
   const cancel = () => {
@@ -97,28 +115,73 @@ export function EditableRow({
   };
 
   const save = async () => {
-    if (draft === inputValue) { setEditing(false); return; }
+    if (draft === inputValue) { setEditing(false); return true; }
     setSaving(true);
     try {
       await onSave(draft);
       setEditing(false);
+      return true;
     } finally {
       setSaving(false);
     }
   };
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") save();
+  const openAdjacentRow = (direction: 1 | -1) => {
+    const row = rowRef.current;
+    if (!row) return;
+
+    const scope =
+      row.closest(".candidate-detail-edit-list") ??
+      row.closest(".drawer-section") ??
+      row.closest(".profile-section") ??
+      row.parentElement;
+    if (!scope) return;
+
+    const rows = Array.from(scope.querySelectorAll<HTMLElement>(".editable-row"));
+    const currentIndex = rows.indexOf(row);
+    if (currentIndex === -1) return;
+
+    for (let index = currentIndex + direction; index >= 0 && index < rows.length; index += direction) {
+      const trigger = rows[index].querySelector<HTMLButtonElement>(".edit-trigger:not(:disabled)");
+      if (trigger) {
+        trigger.click();
+        return;
+      }
+    }
+  };
+
+  const saveAndOpenAdjacentRow = async (direction: 1 | -1) => {
+    const saved = await save();
+    if (saved) {
+      setTimeout(() => openAdjacentRow(direction), 0);
+    }
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      void save().catch(() => undefined);
+    }
     if (e.key === "Escape") cancel();
+  };
+
+  const onEditKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest(".localized-date-popover") || target.closest(".icon-btn")) return;
+
+    e.preventDefault();
+    void saveAndOpenAdjacentRow(e.shiftKey ? -1 : 1).catch(() => undefined);
   };
 
   const isSelect = !!(staticOptions || loadOptions);
 
   return (
-    <div className={["drawer-row editable-row", className].filter(Boolean).join(" ")}>
+    <div className={["drawer-row editable-row", className].filter(Boolean).join(" ")} ref={rowRef}>
       {!editing && <span className="label">{label}</span>}
       {editing ? (
-        <span className="editable-row-edit">
+        <span className="editable-row-edit" onKeyDown={onEditKeyDown}>
           {isSelect ? (
             <CustomSelect
               aria-label={label}
@@ -152,7 +215,7 @@ export function EditableRow({
                 onChange={(e) => setDraft(transform ? transform(e.target.value) : e.target.value)}
                 onKeyDown={(event) => {
                   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                    save();
+                    void save().catch(() => undefined);
                   }
                   if (event.key === "Escape") {
                     cancel();

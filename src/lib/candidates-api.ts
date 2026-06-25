@@ -32,7 +32,13 @@ export type CandidateSortField =
   | "licenseClass"
   | "status"
   | "groupTitle"
-  | "missingDocumentCount";
+  | "examAttemptCount"
+  | "drivingExamAttemptCount"
+  | "drivingExamAttendanceStatus"
+  | "examStatus"
+  | "totalFee"
+  | "totalPaid"
+  | "totalDebt";
 
 export type SortDirection = "asc" | "desc";
 export type CandidateExamTabValue = "havuz" | "basarisiz" | "randevulu";
@@ -55,28 +61,38 @@ export interface GetCandidatesParams extends QueryParams {
   groupIds?: readonly string[];
   termIds?: readonly string[];
   existingLicenseTypes?: readonly string[];
-  groupTitle?: string;
   groupStartDateFrom?: string;
   groupStartDateTo?: string;
-  hasMissingDocuments?: boolean;
-  hasPhoto?: boolean;
   hasExamResult?: boolean;
+  mebExamResult?: string;
+  examStatus?: readonly string[];
+  examAttemptCount?: readonly number[];
+  drivingExamAttendanceStatus?: string;
   licenseClasses?: readonly LicenseClass[];
   firstName?: string;
   lastName?: string;
   nationalId?: string;
+  motherName?: string;
+  fatherName?: string;
   phoneNumber?: string;
-  email?: string;
   /** Query param is strict canonical English — map legacy values first. */
   gender?: CandidateGenderValue;
   birthDateFrom?: string;
   birthDateTo?: string;
+  mebExamDateFrom?: string;
+  mebExamDateTo?: string;
+  drivingExamDateFrom?: string;
+  drivingExamDateTo?: string;
   createdAtFrom?: string;
   createdAtTo?: string;
   updatedAtFrom?: string;
   updatedAtTo?: string;
-  missingDocumentCountMin?: number;
-  missingDocumentCountMax?: number;
+  totalFeeMin?: number;
+  totalFeeMax?: number;
+  totalPaidMin?: number;
+  totalPaidMax?: number;
+  totalDebtMin?: number;
+  totalDebtMax?: number;
   /**
    * Filter candidates by one or more tag names. Sent as repeated query
    * params (?tags=A&tags=B) — backend reads as `string[] tags`.

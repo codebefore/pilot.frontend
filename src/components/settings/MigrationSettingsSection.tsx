@@ -658,7 +658,7 @@ export function MigrationSettingsSection() {
   };
 
   const loadCandidatesMissingPhoto = async () => {
-    const firstPage = await getCandidates({ page: 1, pageSize: 100, hasPhoto: false });
+    const firstPage = await getCandidates({ page: 1, pageSize: 100 });
     const pageSize = firstPage.pageSize || 100;
     const totalCount = firstPage.totalCount ?? firstPage.items.length;
     const allCandidates = [...firstPage.items];
@@ -666,14 +666,14 @@ export function MigrationSettingsSection() {
 
     while (allCandidates.length < totalCount) {
       const nextPage = page + 1;
-      const response = await getCandidates({ page: nextPage, pageSize, hasPhoto: false });
+      const response = await getCandidates({ page: nextPage, pageSize });
       if (response.items.length === 0) break;
       allCandidates.push(...response.items);
       page = response.page || nextPage;
     }
 
     return [...new Map(allCandidates.map((candidate) => [candidate.id, candidate])).values()]
-      .filter((candidate) => Boolean(candidate.id && candidate.nationalId));
+      .filter((candidate) => Boolean(candidate.id && candidate.nationalId && !candidate.photo));
   };
 
   const runCandidatePhotoImport = async () => {

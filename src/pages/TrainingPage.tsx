@@ -759,9 +759,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
   }, [type, quickSettings.groupId, groups]);
 
   const visibleEvents = useMemo(() => {
+    const uniqueEventsById = (source: TrainingCalendarEvent[]) => {
+      const byId = new Map<string, TrainingCalendarEvent>();
+      source.forEach((event) => {
+        if (!byId.has(event.id)) byId.set(event.id, event);
+      });
+      return [...byId.values()];
+    };
+
     const theoryLessonNumberById = new Map<string, number>();
     const theoryEventsByGroupAndBranch = new Map<string, TrainingCalendarEvent[]>();
-    for (const event of events) {
+    for (const event of uniqueEventsById([...events, ...theoryEventsForOverlay])) {
       if (event.kind !== "teorik") continue;
       const branchCode = event.branchCode ?? branchHelpers.detectFromNotes(event.notes);
       if (!event.groupId || !branchCode) continue;
@@ -784,7 +792,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
     const practiceLessonNumberById = new Map<string, number>();
     const practiceEventsByCandidate = new Map<string, TrainingCalendarEvent[]>();
-    for (const event of events) {
+    for (const event of uniqueEventsById([...events, ...practiceEventsForOverlay])) {
       if (event.kind !== "uygulama" || !event.candidateId) continue;
       const candidateEvents = practiceEventsByCandidate.get(event.candidateId) ?? [];
       candidateEvents.push(event);

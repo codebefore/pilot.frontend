@@ -186,9 +186,6 @@ export function InstructorAssignmentFormModal({
         next.weeklyLessonHours = t("settings.instructors.detail.assignments.errors.weeklyHoursInvalid");
 	      }
 	    }
-	    if (values.branches.length === 0) {
-	      next.branches = t("instructorAssignment.error.branchMin");
-	    }
 	    if (values.branches.includes("practice") && values.licenseClassCodes.length === 0) {
 	      next.licenseClassCodes = t("instructorAssignment.error.licenseClassMin");
 	    }
@@ -257,13 +254,11 @@ export function InstructorAssignmentFormModal({
         });
       } else if (err instanceof ApiError) {
         const licenseClassMessage = firstValidationMessage(err, "licenseClassCodes", "LicenseClassCodes");
-        const branchMessage = firstValidationMessage(err, "branches", "Branches");
-        if (licenseClassMessage || branchMessage) {
+        if (licenseClassMessage) {
           setErrors((prev) => ({
             ...prev,
-            ...(licenseClassMessage ? { _global: t("instructorAssignment.error.licenseClassMin") } : {}),
-            ...(licenseClassMessage ? { licenseClassCodes: t("instructorAssignment.error.licenseClassMin") } : {}),
-            ...(branchMessage ? { branches: branchMessage } : {}),
+            _global: t("instructorAssignment.error.licenseClassMin"),
+            licenseClassCodes: t("instructorAssignment.error.licenseClassMin"),
           }));
         } else {
           showToast(t("settings.instructors.detail.assignments.errors.saveFailed"), "error");

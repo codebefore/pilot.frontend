@@ -34,4 +34,25 @@ describe("countActiveCandidateFilters", () => {
       mebExamResult: "passed",
     });
   });
+
+  it("maps exam status and numeric ranges to backend query params", () => {
+    expect(
+      filtersToQuery({
+        ...EMPTY_CANDIDATE_FILTERS,
+        examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
+        examAttemptCount: ["2", "3"],
+        totalFeeMin: "1000",
+        totalFeeMax: "5000",
+        totalPaidMin: "300",
+        totalDebtMax: "2500",
+      })
+    ).toMatchObject({
+      examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
+      examAttemptCount: [2, 3],
+      totalFeeMin: 1000,
+      totalFeeMax: 5000,
+      totalPaidMin: 300,
+      totalDebtMax: 2500,
+    });
+  });
 });
