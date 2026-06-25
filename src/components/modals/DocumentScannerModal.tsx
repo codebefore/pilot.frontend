@@ -88,6 +88,10 @@ function scannerConnectionSuffix(scanner: LocalAgentScannerResponse): string {
   return label ? ` (${label})` : "";
 }
 
+function scannerConnectionBadge(scanner: LocalAgentScannerResponse): string | null {
+  return scannerConnectionLabel(scanner);
+}
+
 function scannerOptionLabel(scanner: LocalAgentScannerResponse): string {
   const label = `${scanner.name || scanner.model || scanner.scannerId}${scannerConnectionSuffix(scanner)}`;
   if (scanner.state === "Kontrol ediliyor") return `${label} (kontrol ediliyor)`;
@@ -95,7 +99,7 @@ function scannerOptionLabel(scanner: LocalAgentScannerResponse): string {
 }
 
 function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
-  return `${scanner.model || scanner.name || scanner.hostName || scanner.scannerId}${scannerConnectionSuffix(scanner)}`;
+  return scanner.model || scanner.name || scanner.hostName || scanner.scannerId;
 }
 
 function scannerStateLabel(state: string | null | undefined, t: (key: TranslationKey) => string): string {
@@ -124,6 +128,9 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
     () => scanners.find((scanner) => scanner.scannerId === selectedScannerId) ?? null,
     [scanners, selectedScannerId]
   );
+  const selectedScannerEligible = selectedScanner ? isScannerEligible(selectedScanner) : false;
+  const selectedScannerConnection = selectedScanner ? scannerConnectionBadge(selectedScanner) : null;
+
   const loadScanners = async (signal?: AbortSignal) => {
     const stored = readStoredLocalAgentScannerSettings();
     setLoading(true);
@@ -257,9 +264,11 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       <div className="document-scanner-modal">
         {error ? <div className="form-error-banner">{error}</div> : null}
 
-        <div className="form-row full">
+        <div className="document-scanner-picker">
           <div className="form-group">
-            <label className="form-label" htmlFor="document-scanner-device">Tarayıcı</label>
+            <label className="form-label" htmlFor="document-scanner-device">
+              {t("documentScanner.deviceLabel")}
+            </label>
             <CustomSelect
               className="form-select"
               disabled={loading || scanning || scanners.length === 0}
@@ -282,27 +291,42 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
                 </option>
               ))}
             </CustomSelect>
+            <span className="document-scanner-picker-hint">
+              {loading
+                ? t("documentScanner.searchingScanner")
+                : selectedScanner
+                  ? t("documentScanner.readyHint")
+                  : t("documentScanner.emptyHint")}
+            </span>
           </div>
         </div>
 
         {selectedScanner ? (
-          <div className="document-scanner-summary">
-            <span className="candidate-doc-upload-option-icon" aria-hidden="true">
+          <div className={selectedScannerEligible ? "document-scanner-device-card" : "document-scanner-device-card is-disabled"}>
+            <span className="document-scanner-device-icon" aria-hidden="true">
               <ScannerIcon size={15} />
             </span>
             <div>
-              <strong>{scannerDisplayName(selectedScanner)}</strong>
-              <span>
-                {scannerStateLabel(selectedScanner.state, t)} · {t("documentScanner.format.colorJpeg")}
-              </span>
+              <div className="document-scanner-device-title">
+                <strong>{scannerDisplayName(selectedScanner)}</strong>
+                {selectedScannerConnection ? (
+                  <span className="document-scanner-connection-badge">{selectedScannerConnection}</span>
+                ) : null}
+              </div>
+              <span>{scannerStateLabel(selectedScanner.state, t)} · {t("documentScanner.format.colorJpeg")}</span>
             </div>
           </div>
         ) : null}
 
         {scanJob ? (
-          <div className="document-scanner-job">
-            <span>{t("documentScanner.jobStatusLabel")}</span>
-            <strong>{scanJobStatusLabel(scanJob.status, t)}</strong>
+          <div className={`document-scanner-job is-${scanJob.status}`}>
+            <div>
+              <span>{t("documentScanner.jobStatusLabel")}</span>
+              <strong>{scanJobStatusLabel(scanJob.status, t)}</strong>
+            </div>
+            {scanJob.status === "pending" || scanJob.status === "scanning" ? (
+              <span className="document-scanner-spinner" aria-hidden="true" />
+            ) : null}
           </div>
         ) : null}
       </div>
