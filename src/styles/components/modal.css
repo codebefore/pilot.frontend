@@ -25,6 +25,18 @@
 .modal:has(.candidate-detail-doc-checklist-modal) {
   max-width: min(820px, calc(100vw - 40px));
 }
+.modal:has(.candidate-detail-doc-transfer-modal) {
+  max-width: min(920px, calc(100vw - 40px));
+  min-height: min(900px, calc(100vh - 80px));
+  display: flex;
+  flex-direction: column;
+}
+.modal:has(.candidate-detail-doc-transfer-modal) .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .modal:has(.candidate-mebbis-status-snapshot) {
   max-width: min(1320px, calc(100vw - 32px));
 }

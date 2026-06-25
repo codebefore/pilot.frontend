@@ -120,7 +120,7 @@ const POLL_INTERVAL_MS = 5000;
 const RECENT_DOMAIN_REFRESH_WINDOW_MS = 2 * 60 * 1000;
 
 function isDomainApplyMebbisJob(jobType: string): boolean {
-  return ["candidate_sync", "theory_schedule_sync", "theory_schedule_import"].includes(jobType);
+  return ["candidate_sync", "theory_schedule_sync", "theory_schedule_import", "practice_schedule_import"].includes(jobType);
 }
 
 function isRecentlyCompletedDomainJob(job: MebbisJobResponse): boolean {

@@ -284,6 +284,14 @@ export async function createTheoryScheduleImportJob(groupId: string): Promise<Me
   );
 }
 
+export async function createPracticeScheduleImportJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/practice-schedule-import`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
 export async function createGroupInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/groups/import",
@@ -363,6 +371,7 @@ export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>):
     instructor_permit_create: "mebbisJobType.instructorPermitCreate",
     theory_schedule_sync: "mebbisJobType.theoryScheduleSync",
     theory_schedule_import: "mebbisJobType.theoryScheduleImport",
+    practice_schedule_import: "mebbisJobType.practiceScheduleImport",
     group_inventory_import: "mebbisJobType.groupInventoryImport",
     classroom_inventory_import: "mebbisJobType.classroomInventoryImport",
     vehicle_inventory_import: "mebbisJobType.vehicleInventoryImport",

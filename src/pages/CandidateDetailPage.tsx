@@ -7616,6 +7616,11 @@ const PRINTABLE_DOCUMENT_TYPE_KEYS = [
   "contract_back",
   "application_form",
 ] as const;
+const MEBBIS_ONE_BY_ONE_EXCLUDED_DOCUMENT_KEYS = new Set([
+  "application_form",
+  "existing_license_copy",
+  "identity_card",
+]);
 
 const HEALTH_REPORT_FOREIGN_LANGUAGES: Array<{ value: string; labelKey: TranslationKey }> = [
   { value: "arabic", labelKey: "candidateDetail.documents.healthReport.language.arabic" },
@@ -7917,6 +7922,7 @@ function DocumentsTab({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
+  const [oneByOneTransferOpen, setOneByOneTransferOpen] = useState(false);
   const contractBackFeeMatrixYear = candidateFeeMatrixYear(candidate);
   const contractBackFeeMatrixQuery = useQuery({
     enabled: Boolean(candidate.licenseClass),
@@ -8093,6 +8099,7 @@ function DocumentsTab({
   const handleQueueCandidateSync = async () => {
     if (!canManageMebJobs) return;
     if (candidateSyncQueuing || candidateSyncRunning) return;
+    setOneByOneTransferOpen(false);
     setCandidateSyncQueuing(true);
     try {
       const job = await createCandidateSyncJob(candidateId);
@@ -8199,24 +8206,10 @@ function DocumentsTab({
                 <div className="candidate-detail-doc-actions-bar">
                   <button
                     className="btn btn-primary btn-sm"
-                    disabled={candidateSyncQueuing || candidateSyncRunning || !canManageMebJobs}
-                    onClick={handleQueueCandidateSync}
-                    title={!canManageMebJobs ? noPermissionTitle : undefined}
+                    onClick={() => setOneByOneTransferOpen(true)}
                     type="button"
                   >
-                    {candidateSyncQueuing
-                      ? t("candidateDetail.documents.button.queuing")
-                      : candidateSyncRunning
-                        ? t("candidateDetail.documents.button.syncing")
-                        : t("candidateDetail.documents.button.enrollTerm")}
-                  </button>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled
-                    type="button"
-                    title={t("common.comingSoon")}
-                  >
-                    Döneme Kaydet ve Aktar
+                    {t("candidateDetail.documents.button.mebbisActions")}
                   </button>
                   <button
                     className="btn btn-danger btn-sm"
@@ -8238,6 +8231,24 @@ function DocumentsTab({
         items={documentChecklistItems}
         onClose={() => setChecklistOpen(false)}
         open={checklistOpen}
+      />
+      <CandidateDocumentOneByOneTransferModal
+        canManageDocuments={canManageDocuments}
+        canManageMebJobs={canManageMebJobs}
+        candidateId={candidateId}
+        candidateSyncQueuing={candidateSyncQueuing}
+        candidateSyncRunning={candidateSyncRunning}
+        documentTypes={sortedTypes.filter(
+          (type) =>
+            !isNotApplicable(type) &&
+            !MEBBIS_ONE_BY_ONE_EXCLUDED_DOCUMENT_KEYS.has(type.key)
+        )}
+        noPermissionTitle={noPermissionTitle}
+        onClose={() => setOneByOneTransferOpen(false)}
+        onEnrollTerm={() => void handleQueueCandidateSync()}
+        onRefresh={onRefresh}
+        open={oneByOneTransferOpen}
+        uploadsByKey={uploadsByKey}
       />
 
       {heroTypes.length > 0 && (
@@ -8397,6 +8408,213 @@ function CandidateDocumentChecklistModal({
         </ul>
       </div>
     </Modal>
+  );
+}
+
+function CandidateDocumentOneByOneTransferModal({
+  canManageDocuments,
+  canManageMebJobs,
+  candidateId,
+  candidateSyncQueuing,
+  candidateSyncRunning,
+  documentTypes,
+  noPermissionTitle,
+  open,
+  uploadsByKey,
+  onClose,
+  onEnrollTerm,
+  onRefresh,
+}: {
+  canManageDocuments: boolean;
+  canManageMebJobs: boolean;
+  candidateId: string;
+  candidateSyncQueuing: boolean;
+  candidateSyncRunning: boolean;
+  documentTypes: DocumentTypeResponse[];
+  noPermissionTitle: string;
+  open: boolean;
+  uploadsByKey: Map<string, DocumentResponse>;
+  onClose: () => void;
+  onEnrollTerm: () => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const t = useT();
+  const { showToast } = useToast();
+  const [transferringTypeId, setTransferringTypeId] = useState<string | null>(null);
+  const noDocumentPermissionTitle = t("common.noPermission");
+
+  const handleTransfer = async (type: DocumentTypeResponse) => {
+    if (!canManageDocuments || transferringTypeId) return;
+    const upload = uploadsByKey.get(type.key) ?? null;
+    if (getCandidateDocumentStatus(upload) === "missing" || upload?.isMebbisTransferred) return;
+    setTransferringTypeId(type.id);
+    try {
+      await updateCandidateDocumentMebbisTransfer(candidateId, type.id, true);
+      await onRefresh();
+      showToast(t("candidateDetail.documents.row.toast.mebbisMarked", { name: type.name }));
+    } catch {
+      showToast(t("candidateDetail.documents.oneByOne.toast.transferFailed", { name: type.name }), "error");
+    } finally {
+      setTransferringTypeId(null);
+    }
+  };
+
+  return (
+    <Modal
+      footer={
+        <button className="btn btn-secondary" disabled={!!transferringTypeId} onClick={onClose} type="button">
+          {t("common.close")}
+        </button>
+      }
+      onClose={onClose}
+      open={open}
+      title={t("candidateDetail.documents.button.mebbisActions")}
+    >
+      <div className="candidate-detail-doc-transfer-modal">
+        <div className="candidate-detail-doc-transfer-actions">
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={candidateSyncQueuing || candidateSyncRunning || !canManageMebJobs}
+            onClick={onEnrollTerm}
+            title={!canManageMebJobs ? noPermissionTitle : undefined}
+            type="button"
+          >
+            {candidateSyncQueuing
+              ? t("candidateDetail.documents.button.queuing")
+              : candidateSyncRunning
+                ? t("candidateDetail.documents.button.syncing")
+                : t("candidateDetail.documents.button.enrollTerm")}
+          </button>
+          <button className="btn btn-primary btn-sm" type="button">
+            {t("candidateDetail.documents.button.enrollTermAndTransfer")}
+          </button>
+          <button className="btn btn-danger btn-sm" type="button">
+            {t("candidateDetail.documents.button.removeFromTerm")}
+          </button>
+        </div>
+        <ul className="candidate-detail-doc-transfer-list">
+          {documentTypes.map((type) => {
+            const upload = uploadsByKey.get(type.key) ?? null;
+            const status = getCandidateDocumentStatus(upload);
+            const isTransferred = upload?.isMebbisTransferred === true;
+            const isBusy = transferringTypeId === type.id;
+            return (
+              <li className={`candidate-detail-doc-transfer-row status-${status}`} key={type.id}>
+                <CandidateDocumentTransferPreview
+                  candidateId={candidateId}
+                  type={type}
+                  upload={upload}
+                />
+                <div className="candidate-detail-doc-transfer-info">
+                  <strong>{type.name}</strong>
+                  <div className="candidate-detail-doc-state-chips">
+                    <StateChip on={status !== "missing"} onLabel="Var" offLabel="Yok" />
+                    <StateChip
+                      on={isTransferred}
+                      onLabel={t("candidateDetail.documents.row.state.mebbisTransferred")}
+                      offLabel={t("candidateDetail.documents.row.state.mebbisNotTransferred")}
+                    />
+                  </div>
+                </div>
+                <div className="candidate-detail-doc-transfer-action">
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={
+                      !!transferringTypeId ||
+                      !canManageDocuments ||
+                      status === "missing" ||
+                      isTransferred
+                    }
+                    onClick={() => void handleTransfer(type)}
+                    title={!canManageDocuments ? noDocumentPermissionTitle : undefined}
+                    type="button"
+                  >
+                    {isBusy
+                      ? t("candidateDetail.documents.oneByOne.transferring")
+                      : isTransferred
+                        ? t("candidateDetail.documents.oneByOne.transferred")
+                        : t("candidateDetail.documents.oneByOne.transfer")}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </Modal>
+  );
+}
+
+function CandidateDocumentTransferPreview({
+  candidateId,
+  type,
+  upload,
+}: {
+  candidateId: string;
+  type: DocumentTypeResponse;
+  upload: DocumentResponse | null;
+}) {
+  const t = useT();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const fileUrl = upload?.hasFile ? getCandidateDocumentDownloadUrl(candidateId, upload.id) : null;
+
+  useEffect(() => {
+    if (!isPreviewableImage(upload) || !fileUrl) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+    createAuthorizedObjectUrl(fileUrl, controller.signal)
+      .then((url) => {
+        objectUrl = url;
+        if (!controller.signal.aborted) setPreviewUrl(url);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setPreviewUrl(null);
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setPreviewUrl(null);
+    };
+  }, [fileUrl, upload]);
+
+  if (previewUrl) {
+    return (
+      <>
+        <button
+          aria-label={`${type.name} büyük görüntüle`}
+          className="candidate-detail-doc-transfer-preview has-image"
+          onClick={() => setLightboxOpen(true)}
+          type="button"
+        >
+          <img alt={`${type.name} önizleme`} src={previewUrl} />
+        </button>
+        {lightboxOpen ? (
+          <DocLightbox
+            alt={type.name}
+            onClose={() => setLightboxOpen(false)}
+            src={previewUrl}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <div className="candidate-detail-doc-transfer-preview">
+      <span>
+        {upload?.hasFile
+          ? t("candidateDetail.documents.row.previewNotSupported")
+          : t("candidateDetail.documents.row.notUploaded")}
+      </span>
+    </div>
   );
 }
 
@@ -9472,7 +9690,6 @@ function DocRow({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [markingPhysical, setMarkingPhysical] = useState(false);
-  const [markingMebbis, setMarkingMebbis] = useState(false);
   const [metadataSaving, setMetadataSaving] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrSuggestion, setOcrSuggestion] = useState<CandidateDocumentOcrSuggestionResponse | null>(null);
@@ -9646,21 +9863,6 @@ function DocRow({
     }
   };
 
-  const handleMebbisToggle = async (checked: boolean) => {
-    if (!canManageDocuments) return;
-    if (markingMebbis || checked === isMebbisTransferred) return;
-    setMarkingMebbis(true);
-    try {
-      await updateCandidateDocumentMebbisTransfer(candidateId, type.id, checked);
-      await onRefresh();
-      showToast(checked ? t("candidateDetail.documents.row.toast.mebbisMarked", { name: type.name }) : t("candidateDetail.documents.row.toast.mebbisRemoved", { name: type.name }));
-    } catch {
-      showToast(`"${type.name}" Mebbis durumu kaydedilemedi`, "error");
-    } finally {
-      setMarkingMebbis(false);
-    }
-  };
-
   const handleDownloadFile = async () => {
     if (!fileUrl) return;
     try {
@@ -9735,7 +9937,7 @@ function DocRow({
   };
 
   const inputId = `doc-upload-${type.id}`;
-  const busy = uploading || deleting || markingPhysical || markingMebbis || metadataSaving || ocrLoading;
+  const busy = uploading || deleting || markingPhysical || metadataSaving || ocrLoading;
   const canUploadFile = status !== "uploaded";
   const canDeleteFile = !!upload?.hasFile;
   const hasDocumentAvailable = status !== "missing";
@@ -9896,18 +10098,6 @@ function DocRow({
         </div>
       </div>
       <div className="candidate-detail-doc-actions">
-        {!isMebbisTransferred ? (
-          <button
-            className="btn btn-sm btn-primary"
-            disabled={busy || status === "missing" || !canManageDocuments}
-            onClick={() => handleMebbisToggle(true)}
-            title={!canManageDocuments ? noPermissionTitle : undefined}
-            type="button"
-          >
-            {markingMebbis ? "Kaydediliyor..." : "Mebbis Aktar"}
-          </button>
-        ) : null}
-
         {fileUrl ? (
           <button
             className="btn btn-secondary btn-sm"

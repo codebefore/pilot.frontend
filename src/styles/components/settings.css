@@ -1647,6 +1647,131 @@
   color: var(--gray-700);
   margin-right: 4px;
 }
+.candidate-detail-doc-transfer-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.candidate-detail-doc-transfer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.candidate-detail-doc-transfer-actions .btn {
+  width: auto;
+  min-width: 132px;
+  min-height: 34px;
+  justify-content: center;
+  white-space: nowrap;
+}
+.candidate-detail-doc-transfer-actions .btn-danger {
+  margin-left: auto;
+}
+.candidate-detail-doc-transfer-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 112px;
+  gap: 12px;
+  align-items: center;
+}
+.candidate-detail-doc-transfer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.candidate-detail-doc-transfer-row {
+  min-height: 84px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--gray-200) 88%, transparent);
+  border-radius: 8px;
+  background: var(--white);
+}
+.candidate-detail-doc-transfer-row.status-missing {
+  background: color-mix(in srgb, var(--gray-50) 60%, var(--white));
+}
+.candidate-detail-doc-transfer-preview {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--gray-200) 80%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--gray-50, #f9fafb) 80%, var(--white));
+  color: var(--gray-500);
+  font-size: 11px;
+  text-align: center;
+}
+.candidate-detail-doc-transfer-preview.has-image {
+  padding: 0;
+  cursor: zoom-in;
+}
+.candidate-detail-doc-transfer-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.candidate-detail-doc-transfer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.candidate-detail-doc-transfer-info strong,
+.candidate-detail-doc-transfer-info > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate-detail-doc-transfer-info strong {
+  color: var(--gray-900);
+  font-size: 13px;
+}
+.candidate-detail-doc-transfer-info > span {
+  color: var(--gray-600);
+  font-size: 12px;
+}
+.candidate-detail-doc-transfer-action {
+  display: flex;
+  justify-content: flex-end;
+}
+.candidate-detail-doc-transfer-action .btn {
+  width: 92px;
+}
+@media (max-width: 640px) {
+  .candidate-detail-doc-transfer-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .candidate-detail-doc-transfer-actions .btn {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+  .candidate-detail-doc-transfer-actions .btn-danger {
+    margin-left: 0;
+  }
+  .candidate-detail-doc-transfer-row {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .candidate-detail-doc-transfer-action {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+  .candidate-detail-doc-transfer-action .btn {
+    width: 100%;
+  }
+}
 .candidate-detail-doc-checklist-button {
   display: inline-flex;
   align-items: center;

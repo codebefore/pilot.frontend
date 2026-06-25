@@ -40,6 +40,7 @@ import { getInstructors } from "../lib/instructors-api";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
 import {
+  createPracticeScheduleImportJob,
   createTheoryScheduleImportJob,
   createTheoryScheduleSyncJob,
   getMebbisJob,
@@ -96,7 +97,7 @@ const GENERAL_CODES = new Set<string>([
 ]);
 
 type ActiveMebbisTrainingJob = {
-  groupId: string;
+  entityId: string;
   jobType: string;
 };
 
@@ -310,6 +311,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [isQuickAssignLoading, setIsQuickAssignLoading] = useState(false);
   const [isMebbisTransferLoading, setIsMebbisTransferLoading] = useState(false);
   const [isMebbisImportLoading, setIsMebbisImportLoading] = useState(false);
+  const [isMebbisPracticeImportLoading, setIsMebbisPracticeImportLoading] = useState(false);
   const [mebbisImportedFocusDate, setMebbisImportedFocusDate] = useState<Date | null>(null);
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
@@ -602,6 +604,40 @@ export function TrainingPage({ type }: TrainingPageProps) {
       .filter((event) => event.groupId === groupId)
       .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
     setMebbisImportedFocusDate(firstImportedEvent?.start ?? null);
+  }
+
+  async function refreshPracticeLessonsAfterMebbisImport(
+    candidateId: string,
+    expectedLessonCount?: number | null
+  ): Promise<void> {
+    if (type !== "uygulama") return;
+
+    let importedEvents: TrainingCalendarEvent[] = [];
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (attempt > 0 || expectedLessonCount) {
+        await delay(attempt === 0 ? 1000 : 1500);
+      }
+
+      const result = await getTrainingLessons({ kind: "uygulama", candidateId });
+      importedEvents = result.items.map(trainingLessonToCalendarEvent);
+      setEvents((current) => {
+        const next = new Map(
+          current
+            .filter((event) => event.kind !== "uygulama" || event.candidateId !== candidateId)
+            .map((event) => [event.id, event])
+        );
+        for (const event of importedEvents) {
+          next.set(event.id, event);
+        }
+        return Array.from(next.values()).sort(
+          (a, b) => a.start.getTime() - b.start.getTime()
+        );
+      });
+
+      if (!expectedLessonCount || importedEvents.length >= expectedLessonCount) {
+        break;
+      }
+    }
   }
 
   const selectedTheoryInstructorId = useMemo(() => {
@@ -1833,7 +1869,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const scheduleMebbisJobPoll = (
     jobId: string,
-    groupId: string,
+    entityId: string,
     jobType: string,
     startedAt = Date.now()
   ) => {
@@ -1844,12 +1880,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
     mebbisPollingJobIdsRef.current.add(jobId);
     setActiveMebbisTrainingJobs((current) => ({
       ...current,
-      [jobId]: { groupId, jobType },
+      [jobId]: { entityId, jobType },
     }));
-    queueMebbisJobPoll(jobId, groupId, startedAt);
+    queueMebbisJobPoll(jobId, entityId, jobType, startedAt);
   };
 
-  const queueMebbisJobPoll = (jobId: string, groupId: string, startedAt: number) => {
+  const queueMebbisJobPoll = (
+    jobId: string,
+    entityId: string,
+    fallbackJobType: string,
+    startedAt: number
+  ) => {
     const timerId = window.setTimeout(async () => {
       mebbisPollTimersRef.current = mebbisPollTimersRef.current.filter((id) => id !== timerId);
       const controller = new AbortController();
@@ -1858,14 +1899,23 @@ export function TrainingPage({ type }: TrainingPageProps) {
         const job = await getMebbisJob(jobId, controller.signal);
         mebbisPollControllersRef.current.delete(jobId);
         if (job.status === "succeeded") {
-          const updatedGroup = await refreshGroupAfterMebbisTransfer(
-            groupId,
-            job.jobType === "theory_schedule_sync" ? "sent" : undefined
-          );
-          if (job.jobType === "theory_schedule_import") {
+          let updatedGroup: GroupResponse | null = null;
+          if (job.jobType === "theory_schedule_sync" || job.jobType === "theory_schedule_import") {
+            updatedGroup = await refreshGroupAfterMebbisTransfer(
+              entityId,
+              job.jobType === "theory_schedule_sync" ? "sent" : undefined
+            );
+          }
+          if (job.jobType === "theory_schedule_import" && updatedGroup) {
             await refreshTheoryLessonsAfterMebbisImport(
-              groupId,
+              entityId,
               updatedGroup,
+              getMebbisImportExpectedLessonCount(job.resultJson)
+            );
+          }
+          if (job.jobType === "practice_schedule_import") {
+            await refreshPracticeLessonsAfterMebbisImport(
+              entityId,
               getMebbisImportExpectedLessonCount(job.resultJson)
             );
           }
@@ -1877,7 +1927,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
           showToast(t(
             job.jobType === "theory_schedule_import"
               ? "training.toast.mebbisImportCompleted"
-              : "training.toast.mebbisTransferCompleted"
+              : job.jobType === "practice_schedule_import"
+                ? "training.toast.mebbisPracticeImportCompleted"
+                : "training.toast.mebbisTransferCompleted"
           ));
           return;
         }
@@ -1887,17 +1939,25 @@ export function TrainingPage({ type }: TrainingPageProps) {
           void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
           void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
           finishMebbisJobPoll(jobId);
-          showToast(t("training.toast.mebbisTransferNeedsManualAction"));
+          showToast(t(
+            job.jobType === "practice_schedule_import"
+              ? "training.toast.mebbisPracticeImportNeedsManualAction"
+              : "training.toast.mebbisTransferNeedsManualAction"
+          ));
           return;
         }
 
         if (Date.now() - startedAt < 30 * 60 * 1000) {
-          queueMebbisJobPoll(jobId, groupId, startedAt);
+          queueMebbisJobPoll(jobId, entityId, fallbackJobType, startedAt);
           return;
         }
 
         finishMebbisJobPoll(jobId);
-        showToast(t("training.toast.mebbisTransferStillRunning"));
+        showToast(t(
+          job.jobType === "practice_schedule_import"
+            ? "training.toast.mebbisPracticeImportStillRunning"
+            : "training.toast.mebbisTransferStillRunning"
+        ));
       } catch (error) {
         mebbisPollControllersRef.current.delete(jobId);
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -1905,12 +1965,16 @@ export function TrainingPage({ type }: TrainingPageProps) {
         }
         console.error(error);
         if (Date.now() - startedAt < 30 * 60 * 1000) {
-          queueMebbisJobPoll(jobId, groupId, startedAt);
+          queueMebbisJobPoll(jobId, entityId, fallbackJobType, startedAt);
           return;
         }
 
         finishMebbisJobPoll(jobId);
-        showToast(t("training.toast.mebbisTransferStillRunning"));
+        showToast(t(
+          fallbackJobType === "practice_schedule_import"
+            ? "training.toast.mebbisPracticeImportStillRunning"
+            : "training.toast.mebbisTransferStillRunning"
+        ));
       }
     }, 5000);
 
@@ -1975,6 +2039,35 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
+  const handleCreatePracticeScheduleImportJob = async () => {
+    if (!canManageMebJobs) return;
+    if (!selectedPracticeCandidate) {
+      showToast(t("training.toast.selectCandidateForMebbisPracticeImport"));
+      return;
+    }
+
+    setIsMebbisPracticeImportLoading(true);
+    try {
+      const job = await createPracticeScheduleImportJob(selectedPracticeCandidate.id);
+      notifyMebbisJobQueued(job.id, job.jobType);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      showToast(t("training.toast.mebbisPracticeImportQueued"));
+      scheduleMebbisJobPoll(job.id, selectedPracticeCandidate.id, job.jobType);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("training.toast.mebbisPracticeImportFailed")
+          : t("training.toast.mebbisPracticeImportFailed");
+      showToast(message);
+    } finally {
+      setIsMebbisPracticeImportLoading(false);
+    }
+  };
+
   const handleBulkDeleteGroupLessons = async () => {
     if (!canManageTraining) return;
     if (!bulkDeleteGroup) return;
@@ -2035,10 +2128,16 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const activeMebbisTransferJob = Object.values(activeMebbisTrainingJobs).find(
     (job) => job.jobType === "theory_schedule_sync"
   );
+  const activeMebbisPracticeImportJob = Object.values(activeMebbisTrainingJobs).find(
+    (job) => job.jobType === "practice_schedule_import"
+  );
   const activeMebbisStatusGroupId =
-    activeMebbisImportJob?.groupId ?? activeMebbisTransferJob?.groupId ?? null;
+    activeMebbisImportJob?.entityId ?? activeMebbisTransferJob?.entityId ?? null;
   const activeMebbisStatusGroup = activeMebbisStatusGroupId
     ? groups.find((group) => group.id === activeMebbisStatusGroupId)
+    : null;
+  const activeMebbisStatusCandidate = activeMebbisPracticeImportJob?.entityId
+    ? candidates.find((candidate) => candidate.id === activeMebbisPracticeImportJob.entityId)
     : null;
   const activeMebbisStatusMessage = activeMebbisImportJob
     ? t("training.mebbis.importRunning", {
@@ -2048,7 +2147,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
       ? t("training.mebbis.transferRunning", {
           group: activeMebbisStatusGroup?.title ?? "",
         })
-      : null;
+      : activeMebbisPracticeImportJob
+        ? t("training.mebbis.practiceImportRunning", {
+            candidate: activeMebbisStatusCandidate?.fullName ?? "",
+          })
+        : null;
 
   return (
     <>
@@ -2120,6 +2223,25 @@ export function TrainingPage({ type }: TrainingPageProps) {
               ) : null}
               {selectedPracticeCandidate ? (
                 <>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={
+                      !canManageMebJobs ||
+                      isQuickAssignLoading ||
+                      isBulkDeleteLoading ||
+                      isMebbisImportLoading ||
+                      isMebbisTransferLoading ||
+                      isMebbisPracticeImportLoading
+                    }
+                    onClick={handleCreatePracticeScheduleImportJob}
+                    title={!canManageMebJobs ? noPermissionTitle : undefined}
+                    type="button"
+                  >
+                    <MebIcon size={14} />
+                    {isMebbisPracticeImportLoading
+                      ? t("training.mebbis.importQueuing")
+                      : t("training.mebbis.import")}
+                  </button>
                   <span className="candidate-bulk-count">
                     {t("training.quick.deleteGroupLessonsHint", {
                       count: selectedCandidateLessonCount,
@@ -2157,7 +2279,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         />
 
         <div className="training-layout-wrap">
-        {type === "teorik" && activeMebbisStatusMessage ? (
+        {activeMebbisStatusMessage ? (
           <div className="training-mebbis-status" role="status" aria-live="polite">
             <MebIcon size={16} />
             <span>{activeMebbisStatusMessage}</span>
