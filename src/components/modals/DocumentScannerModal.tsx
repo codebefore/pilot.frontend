@@ -255,17 +255,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
   return (
     <Modal footer={footer} onClose={closeModal} open={open} title="Tarayıcı">
       <div className="document-scanner-modal">
-        <div className="document-scanner-toolbar">
-          <div>
-            <strong>{t("documentScanner.devicesTitle")}</strong>
-            <span>
-              {loading
-                ? t("documentScanner.searchingDevices")
-                : t("documentScanner.devicesFound", { count: scanners.length })}
-            </span>
-          </div>
-        </div>
-
         {error ? <div className="form-error-banner">{error}</div> : null}
 
         <div className="form-row full">
