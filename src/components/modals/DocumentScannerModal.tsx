@@ -11,6 +11,7 @@ import {
   type LocalAgentScanJobResponse,
   writeStoredLocalAgentScannerSettings,
 } from "../../lib/local-agent-api";
+import { useT, type TranslationKey } from "../../lib/i18n";
 import { RefreshIcon, ScannerIcon } from "../icons";
 import { CustomSelect } from "../ui/CustomSelect";
 import { Modal } from "../ui/Modal";
@@ -75,7 +76,16 @@ function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
   return scanner.model || scanner.name || scanner.hostName || scanner.scannerId;
 }
 
+function scannerStateLabel(state: string | null | undefined, t: (key: TranslationKey) => string): string {
+  if (!state) return t("documentScanner.state.unknown");
+  const normalized = state.trim().toLowerCase();
+  if (normalized === "idle") return t("documentScanner.state.idle");
+  if (normalized === "kontrol ediliyor") return t("documentScanner.state.checking");
+  return state;
+}
+
 export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScannerModalProps) {
+  const t = useT();
   const scanControllerRef = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(false);
   const [scanners, setScanners] = useState<LocalAgentScannerResponse[]>([]);
@@ -261,7 +271,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
             <div>
               <strong>{scannerDisplayName(selectedScanner)}</strong>
               <span>
-                {selectedScanner.state ?? "Durum bilinmiyor"} · Renkli JPEG
+                {scannerStateLabel(selectedScanner.state, t)} · {t("documentScanner.format.colorJpeg")}
               </span>
             </div>
           </div>
