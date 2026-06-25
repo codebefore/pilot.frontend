@@ -23,8 +23,7 @@ type DocumentScannerModalProps = {
   onScanned: (file: File) => Promise<void> | void;
 };
 
-const DEFAULT_RESOLUTION = 150;
-const FALLBACK_RESOLUTION = 200;
+const FALLBACK_RESOLUTION = 400;
 const POLL_DELAY_MS = 1200;
 
 type ScannerLoadMode = "stored" | "discovery";
@@ -52,27 +51,10 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 export function supportedResolutions(scanner: Pick<LocalAgentScannerResponse, "resolutions"> | null): number[] {
-  if (!scanner) return [DEFAULT_RESOLUTION];
+  if (!scanner) return [FALLBACK_RESOLUTION];
   const deviceResolutions = [...new Set(scanner.resolutions.filter((value) => value > 0))]
     .sort((left, right) => left - right);
-  return deviceResolutions.length > 0 ? deviceResolutions : [DEFAULT_RESOLUTION];
-}
-
-export function pickScannerResolution(
-  scanner: Pick<LocalAgentScannerResponse, "resolutions"> | null,
-  storedResolution?: number | null
-): number {
-  const resolutions = supportedResolutions(scanner);
-  if (
-    storedResolution &&
-    storedResolution <= FALLBACK_RESOLUTION &&
-    resolutions.includes(storedResolution)
-  ) {
-    return storedResolution;
-  }
-  if (resolutions.includes(DEFAULT_RESOLUTION)) return DEFAULT_RESOLUTION;
-  if (resolutions.includes(FALLBACK_RESOLUTION)) return FALLBACK_RESOLUTION;
-  return resolutions[0] ?? DEFAULT_RESOLUTION;
+  return deviceResolutions.length > 0 ? deviceResolutions : [FALLBACK_RESOLUTION];
 }
 
 function isScannerEligible(scanner: LocalAgentScannerResponse): boolean {
@@ -115,7 +97,7 @@ function storedScannerPlaceholder(stored: StoredLocalAgentScannerSettings): Loca
     supportsScan: false,
     supportsJpeg: false,
     supportsPdf: false,
-    resolutions: [pickScannerResolution(null, stored.resolution)],
+    resolutions: [FALLBACK_RESOLUTION],
     colorModes: [],
     supportsFlatbed: false,
     supportsFeeder: false,
@@ -128,7 +110,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
   const [loading, setLoading] = useState(false);
   const [scanners, setScanners] = useState<LocalAgentScannerResponse[]>([]);
   const [selectedScannerId, setSelectedScannerId] = useState("");
-  const [selectedResolution, setSelectedResolution] = useState(DEFAULT_RESOLUTION);
   const [scanJob, setScanJob] = useState<LocalAgentScanJobResponse | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,8 +122,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
     () => scanners.find((scanner) => scanner.scannerId === selectedScannerId) ?? null,
     [scanners, selectedScannerId]
   );
-  const resolutionOptions = useMemo(() => supportedResolutions(selectedScanner), [selectedScanner]);
-
   const loadScanners = async (signal?: AbortSignal, forceDiscovery = false) => {
     const stored = readStoredLocalAgentScannerSettings();
     setLoading(true);
@@ -156,14 +135,12 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         if (placeholder) {
           setScanners([placeholder]);
           setSelectedScannerId(placeholder.scannerId);
-          setSelectedResolution(pickScannerResolution(placeholder, stored.resolution));
         }
         try {
           const scanner = await addLocalAgentManualScanner(stored.hostName, signal);
           setScanners([scanner]);
           if (isScannerEligible(scanner)) {
             setSelectedScannerId(scanner.scannerId);
-            setSelectedResolution(pickScannerResolution(scanner, stored.resolution));
           } else {
             setSelectedScannerId("");
           }
@@ -185,10 +162,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       const firstReadyScanner = storedScanner
         ?? nextScanners.find(isScannerEligible)
         ?? null;
-      const selectedReadyScanner = selectedScannerId
-        ? nextScanners.find((scanner) => scanner.scannerId === selectedScannerId && isScannerEligible(scanner)) ?? null
-        : null;
-      setSelectedResolution(pickScannerResolution(selectedReadyScanner ?? firstReadyScanner, stored?.resolution));
       setSelectedScannerId((current) => {
         if (current && nextScanners.some((scanner) => scanner.scannerId === current && isScannerEligible(scanner))) {
           return current;
@@ -216,12 +189,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!resolutionOptions.includes(selectedResolution)) {
-      setSelectedResolution(pickScannerResolution(selectedScanner));
-    }
-  }, [resolutionOptions, selectedResolution, selectedScanner]);
-
   const startScan = async () => {
     if (!selectedScanner || !isScannerEligible(selectedScanner) || scanning) return;
 
@@ -235,7 +202,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       const created = await createLocalAgentScanJob(
         selectedScanner.scannerId,
         {
-          resolution: selectedResolution,
           documentFormat: "image/jpeg",
           source: selectedScanner.supportsFlatbed ? "platen" : undefined,
         },
@@ -264,7 +230,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         name: selectedScanner.name,
         model: selectedScanner.model,
         scannerId: selectedScanner.scannerId,
-        resolution: selectedResolution,
+        resolution: null,
       });
       await onScanned(file);
       onClose();
@@ -300,9 +266,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
         return [...withoutDuplicate, scanner].sort((a, b) => a.name.localeCompare(b.name, "tr"));
       });
       setSelectedScannerId(scanner.scannerId);
-      if (!supportedResolutions(scanner).includes(selectedResolution)) {
-        setSelectedResolution(pickScannerResolution(scanner));
-      }
       setManualHost("");
     } catch (manualAddError) {
       setManualError(
@@ -415,25 +378,6 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
           </div>
         </div>
 
-        <div className="form-row full">
-          <div className="form-group">
-            <label className="form-label" htmlFor="document-scanner-resolution">Çözünürlük</label>
-            <CustomSelect
-              className="form-select"
-              disabled={!selectedScanner || scanning}
-              id="document-scanner-resolution"
-              onChange={(event) => setSelectedResolution(Number(event.target.value))}
-              value={selectedResolution}
-            >
-              {resolutionOptions.map((resolution) => (
-                <option key={resolution} value={resolution}>
-                  {resolution} dpi
-                </option>
-              ))}
-            </CustomSelect>
-          </div>
-        </div>
-
         {selectedScanner ? (
           <div className="document-scanner-summary">
             <span className="candidate-doc-upload-option-icon" aria-hidden="true">
@@ -442,7 +386,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
             <div>
               <strong>{scannerDisplayName(selectedScanner)}</strong>
               <span>
-                {selectedScanner.state ?? "Durum bilinmiyor"} · {selectedResolution} dpi · Renkli JPEG
+                {selectedScanner.state ?? "Durum bilinmiyor"} · Renkli JPEG
               </span>
             </div>
           </div>
