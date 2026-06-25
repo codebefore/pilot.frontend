@@ -228,8 +228,12 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       <div className="document-scanner-modal">
         <div className="document-scanner-toolbar">
           <div>
-            <strong>LocalAgent</strong>
-            <span>{loading ? "Tarayıcılar aranıyor..." : `${scanners.length} cihaz bulundu`}</span>
+            <strong>{t("documentScanner.devicesTitle")}</strong>
+            <span>
+              {loading
+                ? t("documentScanner.searchingDevices")
+                : t("documentScanner.devicesFound", { count: scanners.length })}
+            </span>
           </div>
           <button
             className="icon-btn"
