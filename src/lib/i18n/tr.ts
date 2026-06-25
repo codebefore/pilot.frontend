@@ -1219,6 +1219,7 @@ export const tr = {
   "documentScanner.error.unreachable": "Tarayıcı servisine ulaşılamadı. Cihazların bağlı olduğundan emin olup tekrar deneyin.",
   "documentScanner.error.failed": "Tarama tamamlanamadı.",
   "documentScanner.error.start": "Tarama başlatılamadı. Lütfen tekrar deneyin.",
+  "documentScanner.error.networkRejected": "Ağ tarayıcısı tarama isteğini kabul etmedi. Cihaz panelinde uyarı olup olmadığını kontrol edin, cihaz meşgulse bekleyip tekrar deneyin.",
   "candidateDetail.documents.upload.camera": "Kamera",
   "candidateDetail.documents.upload.cameraHint": "Çek, kırp ve yükle",
   "candidateDetail.documents.upload.cameraLoading": "Kamera açılıyor...",

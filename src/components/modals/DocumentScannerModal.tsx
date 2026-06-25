@@ -135,6 +135,23 @@ function ScanStatusGlyph({ tone }: { tone: ScanStatusTone }) {
   return <span className="document-scanner-dot" aria-hidden="true" />;
 }
 
+function userFacingScanError(error: string | null | undefined, t: Translate): string {
+  if (!error) return t("documentScanner.error.failed");
+  const normalized = error.toLowerCase();
+  const isTechnicalEsclError =
+    normalized.includes("escl") ||
+    normalized.includes("scanjobs") ||
+    normalized.includes("<html") ||
+    normalized.includes("invalid status line") ||
+    normalized.includes("service unavailable");
+
+  if (isTechnicalEsclError) {
+    return t("documentScanner.error.networkRejected");
+  }
+
+  return error;
+}
+
 export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScannerModalProps) {
   const t = useT();
   const scanControllerRef = useRef<AbortController | null>(null);
@@ -236,7 +253,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       }
 
       if (job.status === "failed") {
-        setError(job.error ?? t("documentScanner.error.failed"));
+        setError(userFacingScanError(job.error, t));
         return;
       }
 

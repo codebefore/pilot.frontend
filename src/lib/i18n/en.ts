@@ -1221,6 +1221,7 @@ export const en: Record<TranslationKey, string> = {
   "documentScanner.error.unreachable": "Could not reach the scanner service. Make sure your devices are connected and try again.",
   "documentScanner.error.failed": "Scan could not be completed.",
   "documentScanner.error.start": "Could not start scanning. Please try again.",
+  "documentScanner.error.networkRejected": "The network scanner did not accept the scan request. Check the device panel for alerts, wait if the device is busy, then try again.",
   "candidateDetail.documents.upload.camera": "Camera",
   "candidateDetail.documents.upload.cameraHint": "Capture, crop and upload",
   "candidateDetail.documents.upload.cameraLoading": "Opening camera…",
