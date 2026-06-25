@@ -6,6 +6,7 @@ import {
   getLocalAgentScanJob,
   getLocalAgentScanJobResult,
   listLocalAgentScanners,
+  LocalAgentError,
   readStoredLocalAgentScannerSettings,
   type LocalAgentScannerResponse,
   type LocalAgentScanJobResponse,
@@ -99,6 +100,7 @@ function scannerDisplayName(scanner: LocalAgentScannerResponse): string {
 function scannerUnavailableReason(scanner: LocalAgentScannerResponse, t: Translate): string {
   const normalized = (scanner.state ?? "").trim().toLowerCase();
   if (normalized === "kontrol ediliyor") return t("documentScanner.unavailable.checking");
+  if (normalized === "processing") return t("documentScanner.unavailable.processing");
   if (!scanner.available && normalized) return t("documentScanner.unavailable.notReady");
   if (!scanner.available) return t("documentScanner.unavailable.offline");
   if (!scanner.supportsScan) return t("documentScanner.unavailable.noScan");
@@ -139,6 +141,10 @@ function ScanStatusGlyph({ tone }: { tone: ScanStatusTone }) {
 function userFacingScanError(error: string | null | undefined, t: Translate): string {
   if (!error) return t("documentScanner.error.failed");
   const normalized = error.toLowerCase();
+  if (normalized.includes("scan timed out")) {
+    return t("documentScanner.error.timeout");
+  }
+
   const isTechnicalEsclError =
     normalized.includes("escl") ||
     normalized.includes("scanjobs") ||
@@ -282,6 +288,11 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
       onClose();
     } catch (scanError) {
       if (scanError instanceof DOMException && scanError.name === "AbortError") return;
+      if (scanError instanceof LocalAgentError && scanError.status === 409) {
+        setError(t("documentScanner.error.activeJob"));
+        return;
+      }
+
       setError(t("documentScanner.error.start"));
     } finally {
       if (scanControllerRef.current === controller) {
