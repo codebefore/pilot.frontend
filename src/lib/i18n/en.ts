@@ -1196,6 +1196,8 @@ export const en: Record<TranslationKey, string> = {
   "candidateDetail.documents.upload.scanner": "Scanner",
   "candidateDetail.documents.upload.scannerHint": "Crop if an image is selected",
   "documentScanner.refresh": "Refresh",
+  "documentScanner.searchingScanner": "Searching for scanner...",
+  "documentScanner.noScannerFound": "No scanner found",
   "documentScanner.state.idle": "Idle",
   "documentScanner.state.checking": "Checking",
   "documentScanner.state.unknown": "Status unknown",

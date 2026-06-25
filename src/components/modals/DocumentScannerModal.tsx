@@ -267,7 +267,11 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
               onChange={(event) => setSelectedScannerId(event.target.value)}
               value={selectedScannerId}
             >
-              {scanners.length === 0 ? <option value="">Tarayıcı bulunamadı</option> : null}
+              {scanners.length === 0 ? (
+                <option value="">
+                  {loading ? t("documentScanner.searchingScanner") : t("documentScanner.noScannerFound")}
+                </option>
+              ) : null}
               {scanners.map((scanner) => (
                 <option
                   disabled={!isScannerEligible(scanner)}

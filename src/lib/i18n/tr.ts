@@ -1194,6 +1194,8 @@ export const tr = {
   "candidateDetail.documents.upload.scanner": "Tarayıcı",
   "candidateDetail.documents.upload.scannerHint": "Görsel seçilirse kırp",
   "documentScanner.refresh": "Yenile",
+  "documentScanner.searchingScanner": "Tarayıcı aranıyor...",
+  "documentScanner.noScannerFound": "Tarayıcı bulunamadı",
   "documentScanner.state.idle": "Boşta",
   "documentScanner.state.checking": "Kontrol ediliyor",
   "documentScanner.state.unknown": "Durum bilinmiyor",
