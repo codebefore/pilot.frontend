@@ -77,6 +77,10 @@ function formatLessonHours(hours: number): string {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(2).replace(/\.?0+$/, "");
 }
 
+function formatCandidateName(candidate: Pick<CandidateResponse, "firstName" | "lastName"> | null | undefined): string {
+  return `${candidate?.firstName ?? ""} ${candidate?.lastName ?? ""}`.trim();
+}
+
 // Backend `errorCodes` mapindeki PascalCase field adlarını
 // modal'ın camelCase form alanlarına eşleştiriyoruz.
 const SERVER_FIELD_MAP: Record<string, string> = {
@@ -2149,7 +2153,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         })
       : activeMebbisPracticeImportJob
         ? t("training.mebbis.practiceImportRunning", {
-            candidate: activeMebbisStatusCandidate?.fullName ?? "",
+            candidate: formatCandidateName(activeMebbisStatusCandidate),
           })
         : null;
 
