@@ -158,10 +158,10 @@ export function MigrationSettingsSection() {
   const t = useT();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const { activeInstitution } = useAuth();
+  const { activeInstitution, user } = useAuth();
   const [runningAction, setRunningAction] = useState<MigrationActionKey | null>(null);
-  const migrationAccessStorageKey = activeInstitution
-    ? `${MIGRATION_ACCESS_STORAGE_PREFIX}.${activeInstitution.id}`
+  const migrationAccessStorageKey = activeInstitution && user
+    ? `${MIGRATION_ACCESS_STORAGE_PREFIX}.${user.id}.${activeInstitution.id}`
     : MIGRATION_ACCESS_STORAGE_PREFIX;
   const [migrationAccessExpiresAtUtc, setMigrationAccessExpiresAtUtc] = useState<string | null>(
     () => readMigrationAccessExpiresAt(migrationAccessStorageKey)
@@ -175,9 +175,12 @@ export function MigrationSettingsSection() {
     new Date(migrationAccessExpiresAtUtc).getTime() > Date.now();
 
   useEffect(() => {
+    if (activeInstitution) {
+      clearMigrationAccessExpiresAt(`${MIGRATION_ACCESS_STORAGE_PREFIX}.${activeInstitution.id}`);
+    }
     setMigrationAccessExpiresAtUtc(readMigrationAccessExpiresAt(migrationAccessStorageKey));
     setAdminCode("");
-  }, [migrationAccessStorageKey]);
+  }, [activeInstitution, migrationAccessStorageKey]);
 
   const handleRequestAdminCode = async () => {
     if (requestingAdminCode) return;
@@ -212,7 +215,7 @@ export function MigrationSettingsSection() {
     setVerifyingAdminCode(true);
     try {
       const result = await verifyMigrationAccessCode(code);
-      sessionStorage.setItem(migrationAccessStorageKey, result.expiresAtUtc);
+      writeMigrationAccessExpiresAt(migrationAccessStorageKey, result.expiresAtUtc);
       setMigrationAccessExpiresAtUtc(result.expiresAtUtc);
       setAdminCode("");
       showToast(t("settings.migration.access.unlocked"));
@@ -1062,13 +1065,28 @@ export function MigrationSettingsSection() {
 }
 
 function readMigrationAccessExpiresAt(storageKey: string): string | null {
-  const value = sessionStorage.getItem(storageKey);
+  const value = localStorage.getItem(storageKey) ?? sessionStorage.getItem(storageKey);
   if (!value) return null;
-  if (new Date(value).getTime() <= Date.now()) {
-    sessionStorage.removeItem(storageKey);
+  const expiresAt = new Date(value).getTime();
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    clearMigrationAccessExpiresAt(storageKey);
     return null;
   }
+  if (!localStorage.getItem(storageKey)) {
+    localStorage.setItem(storageKey, value);
+    sessionStorage.removeItem(storageKey);
+  }
   return value;
+}
+
+function writeMigrationAccessExpiresAt(storageKey: string, expiresAtUtc: string): void {
+  localStorage.setItem(storageKey, expiresAtUtc);
+  sessionStorage.removeItem(storageKey);
+}
+
+function clearMigrationAccessExpiresAt(storageKey: string): void {
+  localStorage.removeItem(storageKey);
+  sessionStorage.removeItem(storageKey);
 }
 
 type CandidateNationalIdsParseResult =
