@@ -514,6 +514,7 @@ export const tr = {
   "common.field.mebbisUsername": "MEBBİS Kullanıcı Adı",
   "common.field.mebbisPassword": "MEBBİS Şifresi",
   "vehicleForm.field.plate": "Plaka",
+  "vehicleForm.field.simulator": "Simülatör",
   "vehicleForm.field.brand": "Marka",
   "vehicleForm.field.model": "Model",
   "vehicleForm.field.modelYear": "Model Yılı",

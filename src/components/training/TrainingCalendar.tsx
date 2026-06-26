@@ -112,6 +112,8 @@ type TrainingCalendarProps = {
   /** Parent'tan zorlanan navigasyon — değer değiştiğinde takvim o
    *  tarihe odaklanır. QA'da grup/aday seçilince kullanılır. */
   focusDate?: Date | null;
+  /** Import gibi açık bir aksiyon sonrası saat eksenini de ilgili saate kaydırır. */
+  focusScrollTime?: Date | null;
   /** Bu tarihten önceki günler "disabled" (filigran) olarak gösterilir.
    *  Backend zaten beforeGroupStartDate ile reddediyor; UI ipucu için. */
   disabledBeforeDate?: Date | null;
@@ -177,6 +179,7 @@ export function TrainingCalendar({
   durationHours,
   onDurationHoursChange,
   focusDate,
+  focusScrollTime,
   disabledBeforeDate,
   readOnly = false,
   initialView = ROLLING_2W_VIEW,
@@ -192,21 +195,9 @@ export function TrainingCalendar({
     return d;
   });
 
-  // Parent'tan focusDate gelince takvimi o tarihe götür. Pencere "2 gün
-  // önceden başla" kuralına sadık kalsın diye 2 gün geri çekiyoruz.
-  useEffect(() => {
-    if (!focusDate) return;
-    const d = new Date(focusDate);
-    d.setDate(d.getDate() - 2);
-    d.setHours(0, 0, 0, 0);
-    setDate(d);
-  }, [focusDate]);
-
   // Ders saatleri 07:00–23:00 aralığında. RBC `min`/`max` prop'ları
   // gün/hafta görünümlerinin görünür saat aralığını kısıtlar; bu
   // aralık dışındaki slotlar (07:00 öncesi, 23:00 sonrası) çizilmez.
-  // `scrollToTime` da aynı başlangıca alındı ki açılışta ilk ders
-  // saati ekranın üstünde olsun.
   const minTime = useMemo(() => {
     const d = new Date();
     d.setHours(7, 0, 0, 0);
@@ -217,7 +208,34 @@ export function TrainingCalendar({
     d.setHours(23, 0, 0, 0);
     return d;
   }, []);
-  const scrollToTime = minTime;
+  // Açılışta ilk ders saati ekranın üstünde olsun. Import sonrası parent
+  // focusScrollTime verirse sadece saat ekseni o değere taşınır.
+  const [scrollToTime, setScrollToTime] = useState<Date>(minTime);
+
+  // Parent'tan focusDate gelince takvimi o tarihe götür. Pencere "2 gün
+  // önceden başla" kuralına sadık kalsın diye 2 gün geri çekiyoruz.
+  useEffect(() => {
+    if (!focusDate) return;
+    const d = new Date(focusDate);
+    d.setDate(d.getDate() - 2);
+    d.setHours(0, 0, 0, 0);
+    setDate(d);
+  }, [focusDate]);
+
+  useEffect(() => {
+    if (!focusScrollTime) {
+      setScrollToTime(minTime);
+      return;
+    }
+
+    const minMinutes = minTime.getHours() * 60 + minTime.getMinutes();
+    const maxMinutes = maxTime.getHours() * 60 + maxTime.getMinutes();
+    const focusMinutes = focusScrollTime.getHours() * 60 + focusScrollTime.getMinutes();
+    const clampedMinutes = Math.min(Math.max(focusMinutes, minMinutes), maxMinutes);
+    const d = new Date();
+    d.setHours(Math.floor(clampedMinutes / 60), clampedMinutes % 60, 0, 0);
+    setScrollToTime(d);
+  }, [focusScrollTime, maxTime, minTime]);
 
   // Hafta sonu (Cmt/Paz) sütunlarına ayrı renk: gövde için
   // `dayPropGetter` (.rbc-day-bg + .rbc-day-slot), başlık için custom

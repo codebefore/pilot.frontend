@@ -35,6 +35,7 @@ type VehicleFormValues = {
   color: string;
   status: VehicleUpsertRequest["status"];
   isActive: boolean;
+  isSimulator: boolean;
   transmissionType: VehicleUpsertRequest["transmissionType"];
   vehicleType: VehicleUpsertRequest["vehicleType"];
   licenseClasses: VehicleUpsertRequest["licenseClasses"];
@@ -66,16 +67,17 @@ type VehicleFormModalProps = {
 };
 
 const vehicleFormSchema = z.object({
-  plateNumber: z.string().min(1, "Plaka zorunlu"),
-  brand: z.string().min(1, "Marka zorunlu"),
+  plateNumber: z.string(),
+  brand: z.string(),
   model: z.string(),
   modelYear: z.string(),
   color: z.string(),
   status: z.string(),
   isActive: z.boolean(),
+  isSimulator: z.boolean(),
   transmissionType: z.string(),
   vehicleType: z.string(),
-  licenseClasses: z.array(z.string()).min(1, "vehicleForm.error.licenseClassesMin"),
+  licenseClasses: z.array(z.string()),
   ownershipType: z.string(),
   fuelType: z.string().nullable().optional(),
   registrationDate: z.string(),
@@ -83,6 +85,21 @@ const vehicleFormSchema = z.object({
   accidentNotes: z.string(),
   otherDetails: z.string(),
   notes: z.string(),
+}).superRefine((values, ctx) => {
+  if (values.isSimulator) return;
+  if (!values.plateNumber.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["plateNumber"], message: "Plaka zorunlu" });
+  }
+  if (!values.brand.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["brand"], message: "Marka zorunlu" });
+  }
+  if (values.licenseClasses.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["licenseClasses"],
+      message: "vehicleForm.error.licenseClassesMin",
+    });
+  }
 });
 
 const VALIDATION_FIELD_MAP: Record<string, keyof VehicleFormValues> = {
@@ -98,6 +115,8 @@ const VALIDATION_FIELD_MAP: Record<string, keyof VehicleFormValues> = {
   Color: "color",
   status: "status",
   Status: "status",
+  isSimulator: "isSimulator",
+  IsSimulator: "isSimulator",
   transmissionType: "transmissionType",
   TransmissionType: "transmissionType",
   vehicleType: "vehicleType",
@@ -130,6 +149,7 @@ function getEmptyValues(editing: VehicleResponse | null): VehicleFormValues {
         color: editing.color ?? "",
         status: editing.status,
         isActive: editing.isActive,
+        isSimulator: editing.isSimulator,
         transmissionType: editing.transmissionType,
         vehicleType: editing.vehicleType,
         licenseClasses: editing.licenseClasses,
@@ -149,6 +169,7 @@ function getEmptyValues(editing: VehicleResponse | null): VehicleFormValues {
         color: "",
         status: "idle",
         isActive: true,
+        isSimulator: false,
         transmissionType: "manual",
         vehicleType: "automobile",
         licenseClasses: ["B"],
@@ -263,6 +284,7 @@ export function VehicleFormModal({
     resolver: zodResolver(vehicleFormSchema) as any,
   });
   const selectedLicenseClasses = watch("licenseClasses");
+  const isSimulator = watch("isSimulator");
   const visibleLicenseClassOptions = useMemo(
     () => mergeSelectedLicenseOptions(licenseClassOptions, selectedLicenseClasses ?? []),
     [licenseClassOptions, selectedLicenseClasses]
@@ -274,7 +296,12 @@ export function VehicleFormModal({
   }, [editing, open, reset]);
 
   useEffect(() => {
-    if (!open || editing || licenseClassOptions.length === 0) return;
+    if (!open || !isSimulator) return;
+    setValue("licenseClasses", [], { shouldDirty: true, shouldValidate: true });
+  }, [isSimulator, open, setValue]);
+
+  useEffect(() => {
+    if (!open || editing || isSimulator || licenseClassOptions.length === 0) return;
     const supported = new Set(licenseClassOptions.map((option) => option.value));
     const selected = selectedLicenseClasses ?? [];
     if (selected.length > 0 && selected.every((value) => supported.has(value))) {
@@ -286,7 +313,7 @@ export function VehicleFormModal({
       activeSelected.length > 0 ? activeSelected : [licenseClassOptions[0].value],
       { shouldDirty: false, shouldValidate: true },
     );
-  }, [editing, licenseClassOptions, open, selectedLicenseClasses, setValue]);
+  }, [editing, isSimulator, licenseClassOptions, open, selectedLicenseClasses, setValue]);
 
   const submit = handleSubmit(async (values) => {
     if (!canManage) return;
@@ -300,9 +327,10 @@ export function VehicleFormModal({
       color: values.color.trim() || null,
       status: values.status,
       isActive: values.isActive,
+      isSimulator: values.isSimulator,
       transmissionType: values.transmissionType,
       vehicleType: values.vehicleType,
-      licenseClasses: values.licenseClasses,
+      licenseClasses: values.isSimulator ? [] : values.licenseClasses,
       ownershipType: values.ownershipType,
       fuelType: values.fuelType || null,
       odometerValue: null,
@@ -374,9 +402,23 @@ export function VehicleFormModal({
       title={editing ? t("vehicleForm.modalTitleEdit") : t("vehicleForm.modalTitleNew")}
     >
       <form className="settings-form" onSubmit={submit}>
+        <div className="form-row full">
+          <div className="form-group">
+            <label className="form-label">{t("vehicleForm.field.simulator")}</label>
+            <label className="switch-toggle">
+              <input aria-label={t("vehicleForm.field.simulator")} type="checkbox" {...register("isSimulator")} />
+              <span className="switch-toggle-control" aria-hidden="true" />
+              <span>{isSimulator ? t("common.yes") : t("common.no")}</span>
+            </label>
+          </div>
+        </div>
+
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label" htmlFor={plateId}>{t("vehicleForm.field.plate")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={plateId}>
+              {t("vehicleForm.field.plate")}
+              {!isSimulator ? <RequiredMark /> : null}
+            </label>
             <Controller
               control={control}
               name="plateNumber"
@@ -398,7 +440,10 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor={brandId}>{t("vehicleForm.field.brand")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={brandId}>
+              {t("vehicleForm.field.brand")}
+              {!isSimulator ? <RequiredMark /> : null}
+            </label>
             <Controller
               control={control}
               name="brand"
@@ -484,7 +529,10 @@ export function VehicleFormModal({
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t("common.field.licenseClasses")}<RequiredMark /></label>
+            <label className="form-label">
+              {t("common.field.licenseClasses")}
+              {!isSimulator ? <RequiredMark /> : null}
+            </label>
             <Controller
               control={control}
               name="licenseClasses"

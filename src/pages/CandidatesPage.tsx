@@ -461,6 +461,14 @@ function instructorFullName(instructor: InstructorResponse): string {
   return `${instructor.firstName} ${instructor.lastName}`.trim();
 }
 
+function vehicleDisplayName(vehicle: VehicleResponse | null | undefined): string | null {
+  if (!vehicle) return null;
+  const primary = vehicle.plateNumber.trim();
+  if (primary) return primary;
+  const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ").trim();
+  return name || (vehicle.isSimulator ? "Simulator" : null);
+}
+
 function DrivingExamTimeCell({
   candidate,
   editing,
@@ -1975,7 +1983,7 @@ export function CandidatesPage({
         expiresAt: latestAttempt.expiresAt,
         examScheduleId: latestAttempt.examScheduleId ?? candidate.drivingExamScheduleId ?? null,
         vehicleId: patch.vehicleId !== undefined ? patch.vehicleId || null : candidate.drivingExamVehicleId ?? null,
-        vehiclePlate: patch.vehicleId !== undefined ? vehicle?.plateNumber ?? null : candidate.drivingExamVehiclePlate ?? null,
+        vehiclePlate: patch.vehicleId !== undefined ? vehicleDisplayName(vehicle) : candidate.drivingExamVehiclePlate ?? null,
         instructorId: patch.instructorId !== undefined ? patch.instructorId || null : candidate.drivingExamInstructorId ?? null,
         instructorFullName: patch.instructorId !== undefined
           ? instructor ? instructorFullName(instructor) : null
@@ -2191,7 +2199,7 @@ export function CandidatesPage({
                 label={candidate.drivingExamVehiclePlate ?? "—"}
                 options={practiceVehicles.map((vehicle) => ({
                   value: vehicle.id,
-                  label: vehicle.plateNumber,
+                  label: vehicleDisplayName(vehicle) ?? "—",
                 }))}
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "vehicle"}
                 disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}

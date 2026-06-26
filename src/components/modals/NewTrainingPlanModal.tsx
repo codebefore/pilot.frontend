@@ -127,8 +127,11 @@ const buildDefaultValues = (
 const candidateLabel = (candidate: CandidateResponse) =>
   `${candidate.firstName} ${candidate.lastName} — ${candidate.licenseClass}`;
 
-const vehicleLabel = (vehicle: VehicleResponse) =>
-  `${vehicle.plateNumber} — ${vehicle.brand}${vehicle.model ? ` ${vehicle.model}` : ""}`;
+const vehicleLabel = (vehicle: VehicleResponse, simulatorLabel: string) => {
+  const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ");
+  const primary = vehicle.plateNumber || (vehicle.isSimulator ? simulatorLabel : "");
+  return [primary, name].filter(Boolean).join(" — ") || "—";
+};
 
 const instructorLabel = (instructor: InstructorResponse) =>
   `${instructor.firstName} ${instructor.lastName}`;
@@ -505,11 +508,11 @@ export function NewTrainingPlanModal({
                 })}
               >
                 <option value="">{t("training.modal.placeholder.select")}</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicleLabel(vehicle)}
-                  </option>
-                ))}
+                  {vehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                    {vehicleLabel(vehicle, t("vehicleForm.field.simulator"))}
+                    </option>
+                  ))}
               </CustomSelect>
               {errors.vehicleId && (
                 <div className="form-error">{errors.vehicleId.message}</div>

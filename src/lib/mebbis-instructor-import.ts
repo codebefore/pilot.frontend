@@ -267,18 +267,21 @@ function buildMebbisInstructorAssignmentRequest(
     existing?.contractEndDate ??
     null;
   const branches = mapMebbisInstructorBranches(row.branch);
-  const licenseClassCodes = readMebbisLicenseClasses(row);
+  const hasPracticeBranch = branches.includes("practice");
+  const licenseClassCodes = hasPracticeBranch ? readMebbisLicenseClasses(row) : [];
 
   return {
     role: mapMebbisInstructorRole(row.role),
     employmentType: mapMebbisInstructorEmploymentType(row.employmentStatus),
     branches,
     licenseClassCodes:
-      licenseClassCodes.length > 0
-        ? licenseClassCodes
-        : existing?.licenseClassCodes.length
-          ? existing.licenseClassCodes
-          : ["B" as LicenseClass],
+      hasPracticeBranch
+        ? licenseClassCodes.length > 0
+          ? licenseClassCodes
+          : existing?.licenseClassCodes.length
+            ? existing.licenseClassCodes
+            : ["B" as LicenseClass]
+        : [],
     weeklyLessonHours: readMebbisNumber(row.weeklyLessonHours),
     mebPermitNo: readMebbisString(row.mebbisPermitNo) || null,
     contractStartDate,
@@ -429,12 +432,7 @@ function mapMebbisInstructorBranches(value: unknown): InstructorBranch[] {
     normalized.includes("MOTOR") ||
     normalized.includes("ARAC TEKNIGI") ||
     normalized.includes("ARAC TEKNIK");
-  const hasTheory =
-    hasTraffic ||
-    hasFirstAid ||
-    hasVehicleTechnique ||
-    normalized.includes("TRAFIK ADAB") ||
-    normalized.includes("TEORIK");
+  const hasTrafficEthics = hasTraffic || normalized.includes("TRAFIK ADAB");
   if (hasTraffic) {
     branches.add("traffic");
   }
@@ -444,10 +442,10 @@ function mapMebbisInstructorBranches(value: unknown): InstructorBranch[] {
   if (hasVehicleTechnique) {
     branches.add("vehicle_technique");
   }
-  if (hasTheory) {
+  if (hasTrafficEthics) {
     branches.add("traffic_ethics");
   }
-  return branches.size > 0 ? [...branches] : ["practice"];
+  return [...branches];
 }
 
 function mergeInstructorNotes(

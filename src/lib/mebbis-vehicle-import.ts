@@ -172,6 +172,7 @@ function buildVehicleUpsertRequest(
     color: existing?.color ?? null,
     status: existing?.status ?? "idle",
     isActive: isMebbisVehicleActive(readMebbisString(row.vehicleStatus)),
+    isSimulator: false,
     transmissionType: mapMebbisTransmission(row.transmission, existing?.transmissionType),
     vehicleType: mapMebbisVehicleType(licenseClass, existing?.vehicleType),
     licenseClasses,

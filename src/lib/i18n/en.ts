@@ -516,6 +516,7 @@ export const en: Record<TranslationKey, string> = {
   "common.field.mebbisUsername": "MEBBIS Username",
   "common.field.mebbisPassword": "MEBBIS Password",
   "vehicleForm.field.plate": "Plate",
+  "vehicleForm.field.simulator": "Simulator",
   "vehicleForm.field.brand": "Brand",
   "vehicleForm.field.model": "Model",
   "vehicleForm.field.modelYear": "Model Year",

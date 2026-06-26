@@ -239,9 +239,11 @@ export function VehicleDetailPage() {
         <>
           <header className="instructor-detail-card instructor-detail-header">
             <div className="instructor-detail-header-main">
-              <div className="instructor-detail-code">{vehicle.plateNumber}</div>
+              <div className="instructor-detail-code">
+                {vehicle.plateNumber || (vehicle.isSimulator ? t("vehicleForm.field.simulator") : "—")}
+              </div>
               <h2 className="instructor-detail-name">
-                {vehicle.brand}
+                {vehicle.brand || (vehicle.isSimulator ? t("vehicleForm.field.simulator") : "—")}
                 {vehicle.model ? ` ${vehicle.model}` : ""}
                 {vehicle.modelYear ? ` (${vehicle.modelYear})` : ""}
               </h2>
@@ -258,7 +260,10 @@ export function VehicleDetailPage() {
 
             <div className="instructor-detail-summary-grid">
               <Field label={t("vehicle.detail.field.type")} value={VEHICLE_TYPE_LABEL_KEYS[vehicle.vehicleType] ? t(VEHICLE_TYPE_LABEL_KEYS[vehicle.vehicleType]) : "—"} />
-              <Field label={t("common.field.licenseClasses")} value={vehicle.licenseClasses.join(", ") || "—"} />
+              <Field
+                label={t("common.field.licenseClasses")}
+                value={vehicle.isSimulator ? t("common.all") : vehicle.licenseClasses.join(", ") || "—"}
+              />
               <Field
                 label={t("vehicleForm.field.transmission")}
                 value={VEHICLE_TRANSMISSION_LABEL_KEYS[vehicle.transmissionType] ? t(VEHICLE_TRANSMISSION_LABEL_KEYS[vehicle.transmissionType]) : "—"}

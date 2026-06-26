@@ -656,6 +656,7 @@ export interface VehicleResponse {
   color: string | null;
   status: VehicleStatus;
   isActive: boolean;
+  isSimulator: boolean;
   transmissionType: VehicleTransmissionType;
   vehicleType: VehicleType;
   licenseClasses: LicenseClass[];
@@ -695,6 +696,7 @@ export interface VehicleUpsertRequest {
   color?: string | null;
   status: VehicleStatus;
   isActive: boolean;
+  isSimulator: boolean;
   transmissionType: VehicleTransmissionType;
   vehicleType: VehicleType;
   licenseClasses: LicenseClass[];

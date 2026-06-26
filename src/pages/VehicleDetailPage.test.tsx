@@ -49,6 +49,7 @@ const vehicle = {
   color: "Beyaz",
   status: "idle" as const,
   isActive: true,
+  isSimulator: false,
   transmissionType: "manual" as const,
   vehicleType: "automobile" as const,
   licenseClasses: ["B"] as const,

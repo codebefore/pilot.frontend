@@ -51,6 +51,7 @@ const sampleVehicle = {
   color: "Beyaz",
   status: "idle" as const,
   isActive: true,
+  isSimulator: false,
   transmissionType: "manual" as const,
   vehicleType: "automobile" as const,
   licenseClasses: ["B"] as const,
@@ -468,9 +469,44 @@ describe("VehiclesSettingsSection", () => {
         color: null,
         status: "idle",
         isActive: true,
+        isSimulator: false,
         transmissionType: "automatic",
         vehicleType: "motorcycle",
         licenseClasses: ["A2"],
+        ownershipType: "owned",
+        fuelType: "diesel",
+        odometerValue: null,
+        odometerUnit: "km",
+        registrationDate: null,
+        serviceStartDate: null,
+        accidentNotes: null,
+        otherDetails: null,
+        notes: null,
+      });
+    });
+  });
+
+  it("submits simulator vehicles without required vehicle identity fields", async () => {
+    renderSection();
+    await waitFor(() => expect(getVehiclesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Simülatör/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(createVehicleMock).toHaveBeenCalledWith({
+        plateNumber: "",
+        brand: "",
+        model: null,
+        modelYear: null,
+        color: null,
+        status: "idle",
+        isActive: true,
+        isSimulator: true,
+        transmissionType: "manual",
+        vehicleType: "automobile",
+        licenseClasses: [],
         ownershipType: "owned",
         fuelType: "diesel",
         odometerValue: null,

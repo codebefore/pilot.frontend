@@ -27,6 +27,23 @@ type TrainingFiltersProps = {
   onSetGroupsVisibility?: (plates: string[], visible: boolean) => void;
 };
 
+type VehicleFilterOption = {
+  key: string;
+  label: string;
+  licenseClass: string;
+};
+
+function getVehicleFilterKey(vehicle: VehicleResponse): string {
+  return vehicle.plateNumber || vehicle.id;
+}
+
+function getVehicleFilterLabel(vehicle: VehicleResponse, simulatorLabel: string, fallbackLabel: string): string {
+  const primary = vehicle.plateNumber.trim();
+  if (primary) return primary;
+  const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ").trim();
+  return name || (vehicle.isSimulator ? simulatorLabel : fallbackLabel);
+}
+
 export function TrainingFilters({
   events,
   kind,
@@ -94,23 +111,29 @@ export function TrainingFilters({
   const noVehicleLabel = t("training.filter.noVehicle");
   const vehicles = useMemo(() => {
     if (kind !== "uygulama") return [];
-    const set = new Set<string>();
-    ownEvents.forEach((e) => set.add(e.vehiclePlate || noVehicleLabel));
+    const map = new Map<string, VehicleFilterOption>();
+    ownEvents.forEach((e) => {
+      const key = e.vehicleId || e.vehiclePlate || noVehicleLabel;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: e.vehiclePlate || noVehicleLabel,
+          licenseClass: "",
+        });
+      }
+    });
     allVehiclesCatalog
       .filter((v) => v.isActive)
-      .forEach((v) => set.add(v.plateNumber));
-    return Array.from(set).sort();
+      .forEach((v) => {
+        const key = getVehicleFilterKey(v);
+        map.set(key, {
+          key,
+          label: getVehicleFilterLabel(v, t("vehicleForm.field.simulator"), noVehicleLabel),
+          licenseClass: v.isSimulator ? t("common.all") : v.licenseClasses.join(", "),
+        });
+      });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "tr"));
   }, [ownEvents, allVehiclesCatalog, kind, noVehicleLabel]);
-
-  // Plaka → ehliyet sınıfı/sınıfları map. "Araç seçilmedi" placeholder için
-  // sınıf yok.
-  const licenseClassByPlate = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const v of allVehiclesCatalog) {
-      map.set(v.plateNumber, v.licenseClasses.join(", "));
-    }
-    return map;
-  }, [allVehiclesCatalog]);
 
   // Search state'leri.
   const [instructorSearch, setInstructorSearch] = useState("");
@@ -127,7 +150,7 @@ export function TrainingFilters({
   const filteredVehicles = useMemo(() => {
     const q = vehicleSearch.trim().toLocaleLowerCase("tr");
     if (!q) return vehicles;
-    return vehicles.filter((v) => v.toLocaleLowerCase("tr").includes(q));
+    return vehicles.filter((v) => v.label.toLocaleLowerCase("tr").includes(q));
   }, [vehicles, vehicleSearch]);
 
   return (
@@ -142,25 +165,24 @@ export function TrainingFilters({
             value={vehicleSearch}
           />
           <ul className="training-filters-list training-filters-list-scroll">
-            {filteredVehicles.map((plate) => {
-              const checked = visibleGroups?.has(plate) ?? false;
-              const licenseClass = licenseClassByPlate.get(plate);
+            {filteredVehicles.map((vehicle) => {
+              const checked = visibleGroups?.has(vehicle.key) ?? false;
               return (
-                <li key={plate}>
+                <li key={vehicle.key}>
                   <label className="training-filters-item switch-toggle switch-toggle-sm">
                     <input
                       checked={checked}
-                      onChange={() => onToggleGroup?.(plate)}
+                      onChange={() => onToggleGroup?.(vehicle.key)}
                       type="checkbox"
                     />
                     <span className="switch-toggle-control" />
                     <span className="training-filters-name">
-                      {plate}
-                      {licenseClass ? (
+                      {vehicle.label}
+                      {vehicle.licenseClass ? (
                         <>
                           {" — "}
                           <span className="license-class-badge">
-                            {licenseClass}
+                            {vehicle.licenseClass}
                           </span>
                         </>
                       ) : null}

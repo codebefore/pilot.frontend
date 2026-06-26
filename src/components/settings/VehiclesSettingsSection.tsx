@@ -114,14 +114,14 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
       id: "plateNumber",
       labelKey: "settings.vehicles.columns.plateNumber",
       sortField: "plateNumber",
-      renderCell: (vehicle) => <strong>{vehicle.plateNumber}</strong>,
+      renderCell: (vehicle) => <strong>{vehicle.plateNumber || (vehicle.isSimulator ? t("vehicleForm.field.simulator") : "—")}</strong>,
       skeletonWidth: 84,
     },
     {
       id: "licenseClass",
       labelKey: "settings.vehicles.columns.licenseClass",
       sortField: "licenseClass",
-      renderCell: (vehicle) => vehicle.licenseClasses.join(", "),
+      renderCell: (vehicle) => vehicle.isSimulator ? t("common.all") : vehicle.licenseClasses.join(", ") || "—",
       skeletonWidth: 60,
     },
     {
@@ -179,6 +179,7 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
       labelKey: "settings.vehicles.columns.brandModel",
       renderCell: (vehicle) => {
         const parts = [vehicle.brand, vehicle.model].filter(Boolean).join(" ");
+        if (!parts && vehicle.isSimulator) return t("vehicleForm.field.simulator");
         return vehicle.modelYear ? `${parts} (${vehicle.modelYear})` : parts || "—";
       },
       skeletonWidth: 160,

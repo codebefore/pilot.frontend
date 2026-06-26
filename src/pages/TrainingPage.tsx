@@ -111,6 +111,10 @@ const EMPTY_GROUPS: GroupResponse[] = [];
 const EMPTY_INSTRUCTORS: InstructorResponse[] = [];
 const EMPTY_VEHICLES: VehicleResponse[] = [];
 
+function vehicleFilterKey(vehicle: VehicleResponse): string {
+  return vehicle.plateNumber || vehicle.id;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -514,6 +518,21 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // da aday seçince araç/eğitmen filter'larına dokunulmaz. Görünürlük
   // visibleEvents tarafında "aday seçiliyse filter yok say" kuralıyla
   // sağlanır. Filter listeleri yalnızca slot tıklarken anlamlı.
+  const prevQuickCandidateRef = useRef<string>("");
+  useEffect(() => {
+    if (type !== "uygulama") return;
+    const nextId = quickSettings.candidateId;
+    if (!nextId) {
+      prevQuickCandidateRef.current = "";
+      setMebbisImportedFocusDate(null);
+      return;
+    }
+    if (nextId === prevQuickCandidateRef.current) {
+      return;
+    }
+    prevQuickCandidateRef.current = nextId;
+    setMebbisImportedFocusDate(null);
+  }, [quickSettings.candidateId, type]);
 
   // Backend'den gelen event.groupName ile groups state'indeki group.title
   // genelde aynı olmalı; ama tutarsızlık olursa groupId üzerinden de eşleştir.
@@ -642,6 +661,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
         break;
       }
     }
+
+    const firstImportedEvent = importedEvents
+      .filter((event) => event.candidateId === candidateId)
+      .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+    setMebbisImportedFocusDate(firstImportedEvent?.start ?? null);
   }
 
   const selectedTheoryInstructorId = useMemo(() => {
@@ -702,8 +726,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const selectedPracticeVehicleId = useMemo(() => {
     if (type === "uygulama" && visibleGroups.size === 1) {
-      const plate = visibleGroups.values().next().value;
-      return vehicles.find((vehicle) => vehicle.plateNumber === plate)?.id ?? "";
+      const key = visibleGroups.values().next().value;
+      return vehicles.find((vehicle) => vehicleFilterKey(vehicle) === key)?.id ?? "";
     }
     return "";
   }, [type, vehicles, visibleGroups]);
@@ -768,6 +792,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
       const group = groups.find((g) => g.id === quickSettings.groupId);
       if (!group?.startDate) return null;
       return new Date(group.startDate);
+    }
+    if (type === "uygulama" && mebbisImportedFocusDate) {
+      return mebbisImportedFocusDate;
     }
     if (!quickSettings.candidateId) return null;
     const earliest = events
@@ -866,8 +893,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
           if (e.candidateId === focusedCandidate) filtered.push(e);
           continue;
         }
-        const plate = e.vehiclePlate || t("training.filter.noVehicle");
-        const vehicleMatches = visibleGroups.has(plate);
+        const vehicleKey = e.vehicleId || e.vehiclePlate || t("training.filter.noVehicle");
+        const vehicleMatches = visibleGroups.has(vehicleKey) || (e.vehiclePlate ? visibleGroups.has(e.vehiclePlate) : false);
         const instructorMatches = visibleInstructors.has(e.instructorId);
         if (
           (vehicleMatches || instructorMatches) &&
@@ -1029,11 +1056,13 @@ export function TrainingPage({ type }: TrainingPageProps) {
         if (quickSettings.classroomId && event.classroomId === quickSettings.classroomId) {
           busyReasons.push("classroom");
         }
-      } else if (
-        selectedPracticeInstructorId &&
-        event.instructorId === selectedPracticeInstructorId
-      ) {
-        busyReasons.push("instructor");
+      } else {
+        if (selectedPracticeInstructorId && event.instructorId === selectedPracticeInstructorId) {
+          busyReasons.push("instructor");
+        }
+        if (selectedPracticeVehicleId && event.vehicleId === selectedPracticeVehicleId) {
+          busyReasons.push("vehicle");
+        }
       }
 
       return busyReasons.length > 0 ? { ...event, busyReasons } : event;
@@ -1364,10 +1393,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
       // filter'larına araç plakası ve eğitmeni otomatik visible yap.
       if (successCount > 0) {
         if (vehicle) {
+          const key = vehicleFilterKey(vehicle);
           setVisibleGroups((prev) => {
-            if (prev.has(vehicle.plateNumber)) return prev;
+            if (prev.has(key)) return prev;
             const next = new Set(prev);
-            next.add(vehicle.plateNumber);
+            next.add(key);
             return next;
           });
         }
@@ -1498,15 +1528,13 @@ export function TrainingPage({ type }: TrainingPageProps) {
         return;
       }
       const derivedInstructorId = visibleInstructors.values().next().value;
-      const derivedPlate = visibleGroups.values().next().value;
-      if (!derivedInstructorId || !derivedPlate) {
+      const derivedVehicleKey = visibleGroups.values().next().value;
+      if (!derivedInstructorId || !derivedVehicleKey) {
         showToast(t("training.toast.selectCandidateFirst"));
         return;
       }
-      // Plaka → vehicle.id eşle. Plaka boşsa "araç yok" özel etiketi
-      // (oluşturmaya izin verme).
       const derivedVehicle = vehicles.find(
-        (v) => v.plateNumber === derivedPlate
+        (v) => vehicleFilterKey(v) === derivedVehicleKey
       );
       if (!derivedVehicle) {
         showToast(t("training.toast.selectExactlyOneVehicle"));
@@ -2362,6 +2390,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   disabledBeforeDate={disabledBeforeDate}
                   events={visibleEvents}
                   focusDate={focusDate}
+                  focusScrollTime={mebbisImportedFocusDate}
                   kind={type}
                   onEventDrop={handleEventDrop}
                   onEventResize={handleEventResize}

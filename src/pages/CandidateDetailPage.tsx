@@ -180,6 +180,14 @@ import {
   vehicleTypeForLicenseClass,
 } from "./CandidateDetailPage.helpers";
 
+function vehicleDisplayName(vehicle: VehicleResponse | null | undefined): string | null {
+  if (!vehicle) return null;
+  const primary = vehicle.plateNumber.trim();
+  if (primary) return primary;
+  const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ").trim();
+  return name || (vehicle.isSimulator ? "Simulator" : null);
+}
+
 const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
 
 type TabKey =
@@ -6223,7 +6231,7 @@ function CandidateExamAttemptsSection({
         score: scoreValue,
         expiresAt: null,
         vehicleId: isPractice ? vehicle?.id ?? null : null,
-        vehiclePlate: isPractice ? vehicle?.plateNumber ?? null : null,
+        vehiclePlate: isPractice ? vehicleDisplayName(vehicle) : null,
         instructorId: isPractice ? instructor?.id ?? null : null,
         instructorFullName: isPractice && instructor ? `${instructor.firstName} ${instructor.lastName}` : null,
         examAttendanceStatus: isPractice ? form.examAttendanceStatus || null : null,
@@ -6769,7 +6777,7 @@ function CandidateExamAttemptsSection({
                   <option value="">—</option>
                   {vehicles.map((vehicle) => (
                     <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plateNumber}
+                      {vehicleDisplayName(vehicle) ?? "—"}
                     </option>
                   ))}
                 </CustomSelect>
