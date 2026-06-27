@@ -1636,15 +1636,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast(t("training.toast.selectExactlyOneInstructor"));
       return;
     }
-    if (instructorAvailabilityQuery.isFetching || classroomAvailabilityQuery.isFetching) {
+    if (instructorAvailabilityQuery.isFetching) {
       showToast(t("training.toast.availabilityLoading"));
       return;
     }
     const instructorConflictEvents = instructorAvailabilityQuery.data
       ? instructorAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
-      : events;
-    const classroomConflictEvents = classroomAvailabilityQuery.data
-      ? classroomAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
       : events;
     const instructorBusy = instructorConflictEvents.some(
       (event) =>
@@ -1652,22 +1649,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
         event.instructorId === derivedInstructorId &&
         rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
     );
-    const classroomBusy = classroomConflictEvents.some(
-      (event) =>
-        event.kind === "teorik" &&
-        event.classroomId === quickSettings.classroomId &&
-        rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
-    );
-    if (instructorBusy && classroomBusy) {
-      showToast(t("training.toast.instructorAndClassroomBusy"));
-      return;
-    }
     if (instructorBusy) {
       showToast(t("training.toast.instructorBusy"));
-      return;
-    }
-    if (classroomBusy) {
-      showToast(t("training.toast.classroomBusy"));
       return;
     }
     // Grup başlangıç tarihinden önceye ders atanamaz (backend de
