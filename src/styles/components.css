@@ -337,6 +337,18 @@
   flex-wrap: wrap;
 }
 
+.meb-jobs-table-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--gray-600);
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--gray-200);
+}
+
 .instructor-contract-end {
   display: flex;
   flex-direction: column;
@@ -1220,6 +1232,35 @@
   gap: 8px;
   align-items: center;
 }
+.fee-matrix-tabs {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 3px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--gray-50);
+}
+.fee-matrix-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.fee-matrix-tab:hover {
+  color: var(--gray-900);
+  background: color-mix(in srgb, var(--gray-100) 75%, var(--white));
+}
+.fee-matrix-tab.is-active {
+  color: var(--brand-700);
+  background: var(--white);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
 .fee-matrix-year-field {
   display: inline-flex;
   align-items: center;
@@ -1753,6 +1794,12 @@
   background: color-mix(in srgb, var(--gray-100) 60%, var(--white));
   color: var(--gray-700);
   font-style: italic;
+}
+.fee-matrix-th--calculated {
+  text-align: right;
+}
+.fee-matrix-th--calculated .fee-matrix-th-label {
+  display: block;
 }
 .fee-matrix-th--editable {
   background: var(--gray-100);

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
-import { useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import {
   bulkApplyLicenseClassFeeMatrix,
@@ -249,6 +249,7 @@ function toUpsertRow(row: LicenseClassFeeRowResponse): LicenseClassFeeRowUpsertR
 
 type ColumnKind = "info" | "calculated" | "editable";
 type ColumnGroup = "contract" | "institution";
+export type FeeMatrixMode = ColumnGroup;
 type Column = {
   key: string;
   labelKey: TranslationKey | "";
@@ -498,76 +499,28 @@ const COLUMNS: Column[] = [
   },
 ];
 
-const GROUP_LABEL_KEYS: Record<ColumnGroup, TranslationKey> = {
-  contract: "feeMatrix.group.contract",
-  institution: "feeMatrix.group.institution",
-};
+const MODE_TABS: { mode: FeeMatrixMode; labelKey: TranslationKey; to: string }[] = [
+  {
+    mode: "institution",
+    labelKey: "feeMatrix.page.institution",
+    to: "/settings/definitions/fees/institution",
+  },
+  {
+    mode: "contract",
+    labelKey: "feeMatrix.page.contract",
+    to: "/settings/definitions/fees/contract",
+  },
+];
 
-const GROUP_COLLAPSED_WIDTH = 132;
-
-function countGroupColumns(columns: readonly Column[], group: ColumnGroup): number {
-  return columns.reduce((acc, column) => (column.group === group ? acc + 1 : acc), 0);
+function columnsForMode(mode: FeeMatrixMode): Column[] {
+  return COLUMNS.filter((column) => column.group == null || column.group === mode);
 }
 
-function countLeadingUngroupedColumns(columns: readonly Column[]): number {
-  let count = 0;
-  for (const column of columns) {
-    if (column.group) break;
-    count += 1;
-  }
-  return count;
-}
-
-function renderGroupHeaderCells(
-  collapsedGroups: Set<ColumnGroup>,
-  toggleGroup: (group: ColumnGroup) => void,
-  columns: readonly Column[],
-  t: ReturnType<typeof useT>,
-): React.ReactNode {
-  const leadingCount = countLeadingUngroupedColumns(columns);
-  const cells: React.ReactNode[] = [];
-
-  if (leadingCount > 0) {
-    cells.push(
-      <th
-        aria-hidden="true"
-        className="fee-matrix-group-th fee-matrix-group-th--spacer"
-        colSpan={leadingCount}
-        key="lead-spacer"
-      />
-    );
-  }
-
-  for (const group of ["contract", "institution"] as ColumnGroup[]) {
-    const isCollapsed = collapsedGroups.has(group);
-    const span = isCollapsed ? 1 : countGroupColumns(columns, group);
-    cells.push(
-      <th
-        className={`fee-matrix-group-th fee-matrix-group-th--${group}${
-          isCollapsed ? " is-collapsed" : ""
-        }`}
-        colSpan={span}
-        key={`group-${group}`}
-        scope="colgroup"
-        style={isCollapsed ? { minWidth: GROUP_COLLAPSED_WIDTH } : undefined}
-      >
-        <button
-          aria-expanded={!isCollapsed}
-          className="fee-matrix-group-toggle"
-          onClick={() => toggleGroup(group)}
-          title={isCollapsed ? t("feeMatrix.groupToggle.open") : t("feeMatrix.groupToggle.close")}
-          type="button"
-        >
-          <span aria-hidden="true" className="fee-matrix-group-toggle-chevron">
-            {isCollapsed ? "▸" : "▾"}
-          </span>
-          <span className="fee-matrix-group-toggle-label">{t(GROUP_LABEL_KEYS[group])}</span>
-        </button>
-      </th>
-    );
-  }
-
-  return cells;
+function editableFieldsForColumns(
+  columns: readonly Column[]
+): { value: EditableField; labelKey: TranslationKey }[] {
+  const visibleFields = new Set(columns.map((column) => column.editableField).filter(Boolean));
+  return EDITABLE_FIELDS.filter((field) => visibleFields.has(field.value));
 }
 
 /** Sticky `left` offsets per column key. The select-checkbox column appears
@@ -593,12 +546,18 @@ function countDistinctPrograms(rows: LicenseClassFeeRowResponse[]): number {
 }
 
 /** A row counts as "dolu" only when every editable field on it has a value. */
-function isRowFullyFilled(row: LicenseClassFeeRowResponse): boolean {
-  return EDITABLE_FIELDS.every((field) => readEditableValue(row, field.value) != null);
+function isRowFullyFilled(
+  row: LicenseClassFeeRowResponse,
+  fields: readonly { value: EditableField }[]
+): boolean {
+  return fields.every((field) => readEditableValue(row, field.value) != null);
 }
 
-function countFullyFilledRows(rows: LicenseClassFeeRowResponse[]): number {
-  return rows.reduce((acc, row) => (isRowFullyFilled(row) ? acc + 1 : acc), 0);
+function countFullyFilledRows(
+  rows: LicenseClassFeeRowResponse[],
+  fields: readonly { value: EditableField }[]
+): number {
+  return rows.reduce((acc, row) => (isRowFullyFilled(row, fields) ? acc + 1 : acc), 0);
 }
 
 /** Snapshot the editable fields of every row by key, so we can later
@@ -651,11 +610,12 @@ function collectDirtyProgramFees(
 
 function isRowDirty(
   row: LicenseClassFeeRowResponse,
-  baseline: Map<string, Partial<Record<EditableField, number | null>>>
+  baseline: Map<string, Partial<Record<EditableField, number | null>>>,
+  fields: readonly { value: EditableField }[]
 ): boolean {
   const original = baseline.get(rowKey(row));
-  if (!original) return EDITABLE_FIELDS.some((f) => readEditableValue(row, f.value) != null);
-  for (const field of EDITABLE_FIELDS) {
+  if (!original) return fields.some((f) => readEditableValue(row, f.value) != null);
+  for (const field of fields) {
     if ((original[field.value] ?? null) !== (readEditableValue(row, field.value) ?? null)) {
       return true;
     }
@@ -663,7 +623,7 @@ function isRowDirty(
   return false;
 }
 
-export function LicenseClassFeeMatrixSettingsSection() {
+export function LicenseClassFeeMatrixSettingsSection({ mode }: { mode: FeeMatrixMode }) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const { user, permissions } = useAuth();
@@ -677,7 +637,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedTargets, setExpandedTargets] = useState<Set<string>>(new Set());
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<ColumnGroup>>(new Set());
   const [selectedProgramIds, setSelectedProgramIds] = useState<Set<string>>(new Set());
   /** Values currently typed into the inline bulk-apply row.
    *  Key is either the EditableField name (e.g. "courseFee") for single-slot
@@ -686,7 +645,11 @@ export function LicenseClassFeeMatrixSettingsSection() {
   const [bulkValues, setBulkValues] = useState<Record<string, string>>({});
   const baselineRef = useRef<Map<string, Partial<Record<EditableField, number | null>>>>(new Map());
 
-  const visibleColumns = useMemo(() => COLUMNS, []);
+  const visibleColumns = useMemo(() => columnsForMode(mode), [mode]);
+  const visibleEditableFields = useMemo(
+    () => editableFieldsForColumns(visibleColumns),
+    [visibleColumns]
+  );
   const stickyOffsets = useMemo(() => buildStickyOffsets(true), []);
 
   const toggleProgramSelection = (programId: string) => {
@@ -732,10 +695,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
     if (!matrixQuery.data) return;
     setRows(matrixQuery.data.rows);
     baselineRef.current = snapshotEditableFields(matrixQuery.data.rows);
-    setExpandedTargets((current) => {
-      if (current.size > 0) return current;
-      return new Set(matrixQuery.data.rows.slice(0, 40).map((row) => row.program.targetLicenseClass));
-    });
   }, [matrixQuery.data]);
 
   useEffect(() => {
@@ -798,11 +757,18 @@ export function LicenseClassFeeMatrixSettingsSection() {
   const dirtyRowKeys = useMemo(() => {
     const set = new Set<string>();
     for (const row of rows) {
-      if (isRowDirty(row, baselineRef.current)) set.add(rowKey(row));
+      if (isRowDirty(row, baselineRef.current, visibleEditableFields)) set.add(rowKey(row));
+    }
+    return set;
+  }, [rows, visibleEditableFields]);
+  const allDirtyRowKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of rows) {
+      if (isRowDirty(row, baselineRef.current, EDITABLE_FIELDS)) set.add(rowKey(row));
     }
     return set;
   }, [rows]);
-  const dirtyCount = dirtyRowKeys.size;
+  const dirtyCount = allDirtyRowKeys.size;
   const isDirty = dirtyCount > 0;
 
   useEffect(() => {
@@ -858,18 +824,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
 
   const setAllExpanded = (expand: boolean) => {
     setExpandedTargets(expand ? new Set(sections.map((s) => s.target)) : new Set());
-  };
-
-  const toggleGroup = (group: ColumnGroup) => {
-    setCollapsedGroups((current) => {
-      const otherGroup: ColumnGroup = group === "contract" ? "institution" : "contract";
-      if (current.has(group)) {
-        // Opening this group → collapse the other one so only one stays open.
-        return new Set<ColumnGroup>([otherGroup]);
-      }
-      // Closing this group → open the other one.
-      return new Set<ColumnGroup>([group]);
-    });
   };
 
   const save = async () => {
@@ -991,7 +945,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
         queryClient.setQueryData(matrixQueryKey, lastResponse);
         invalidateCandidateFeeMatrixCaches();
       }
-      const fieldLabel = (EDITABLE_FIELDS.find((f) => f.value === field) ? t(EDITABLE_FIELDS.find((f) => f.value === field)!.labelKey) : field);
+      const fieldLabel = (visibleEditableFields.find((f) => f.value === field) ? t(visibleEditableFields.find((f) => f.value === field)!.labelKey) : field);
       const lessonSuffix =
         lessonType === "theory" ? t("feeMatrix.bulk.appliedSuffix.theory") : lessonType === "practice" ? t("feeMatrix.bulk.appliedSuffix.practice") : "";
       showToast(t("feeMatrix.bulk.applied", { count: appliedProgramCount, field: fieldLabel, suffix: lessonSuffix }));
@@ -1024,7 +978,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
   const applyAllBulkFields = async () => {
     if (!canManagePayments) return;
     const jobs: { field: EditableField; lessonType?: "theory" | "practice" }[] = [];
-    for (const f of EDITABLE_FIELDS) {
+    for (const f of visibleEditableFields) {
       if (isDualLessonBulkField(f.value)) {
         for (const lessonType of ["theory", "practice"] as const) {
           if (parseAmount(bulkValues[bulkValueKey(f.value, lessonType)] ?? "") != null) {
@@ -1073,7 +1027,11 @@ export function LicenseClassFeeMatrixSettingsSection() {
       <section className="settings-surface fee-matrix">
         <div className="settings-surface-header">
           <div>
-            <div className="settings-surface-title">{t("feeMatrix.title")}</div>
+            <div className="settings-surface-title">
+              {mode === "institution"
+                ? t("feeMatrix.title.institution")
+                : t("feeMatrix.title.contract")}
+            </div>
             <div className="form-subsection-note">{t("feeMatrix.hint.editableNote", {
               editable: t("feeMatrix.hint.editableTag"),
               calculated: t("feeMatrix.hint.calculatedTag"),
@@ -1131,6 +1089,23 @@ export function LicenseClassFeeMatrixSettingsSection() {
         </div>
 
         <div className="settings-surface-body fee-matrix-body">
+          <nav aria-label={t("feeMatrix.tabs.aria")} className="fee-matrix-tabs">
+            {MODE_TABS.map((tab) => (
+              <NavLink
+                className={({ isActive }) =>
+                  isActive
+                    ? "fee-matrix-tab is-active"
+                    : "fee-matrix-tab"
+                }
+                key={tab.mode}
+                state={location.state}
+                to={tab.to}
+              >
+                {t(tab.labelKey)}
+              </NavLink>
+            ))}
+          </nav>
+
           <div className="fee-matrix-bulk-hint" role="status">
               <span>
                 {selectionCount > 0
@@ -1154,7 +1129,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                     !canManagePayments ||
                     saving ||
                     selectionCount === 0 ||
-                    EDITABLE_FIELDS.every((f) => !bulkColumnHasValue(f.value))
+                    visibleEditableFields.every((f) => !bulkColumnHasValue(f.value))
                   }
                   onClick={applyAllBulkFields}
                   title={
@@ -1184,7 +1159,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                   visibleSectionRows.map((row) => row.lessonType)
                 );
                 const programCount = countDistinctPrograms(visibleSectionRows);
-                const filledRows = countFullyFilledRows(visibleSectionRows);
+                const filledRows = countFullyFilledRows(visibleSectionRows, visibleEditableFields);
                 const totalRows = visibleSectionRows.length;
                 const sectionSelection = (() => {
                   const programIds = Array.from(
@@ -1241,44 +1216,13 @@ export function LicenseClassFeeMatrixSettingsSection() {
                       <div className="fee-matrix-table-scroll">
                         <table className="data-table fee-matrix-table">
                           <thead>
-                            <tr className="fee-matrix-group-row">
-                              {renderGroupHeaderCells(
-                                collapsedGroups,
-                                toggleGroup,
-                                visibleColumns,
-                                t,
-                              )}
-                            </tr>
                             <tr>
-                              {visibleColumns.map((column, columnIndex) => {
-                                if (column.group && collapsedGroups.has(column.group)) {
-                                  return null;
-                                }
+                              {visibleColumns.map((column) => {
                                 const columnLabel = column.labelKey ? t(column.labelKey as TranslationKey) : "";
                                 const tooltip = column.fullLabelKey ? t(column.fullLabelKey) : columnLabel;
                                 const showTooltip = tooltip !== columnLabel;
-                                // Inject the collapsed-contract summary header
-                                // immediately before the first institution column
-                                // so it sits to the *left* of the Kurum group.
-                                const injectContractSummary =
-                                  collapsedGroups.has("contract") &&
-                                  column.group === "institution" &&
-                                  visibleColumns.findIndex((c) => c.group === "institution") ===
-                                    columnIndex;
                                 return (
                                   <Fragment key={column.key}>
-                                    {injectContractSummary ? (
-                                      <th
-                                        className="fee-matrix-th fee-matrix-th--calculated fee-matrix-th--group-summary fee-matrix-th--group-contract"
-                                        scope="col"
-                                        style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
-                                      >
-                                        <ColumnHeaderLabel
-                                          label={t("feeMatrix.col.contractTotal")}
-                                          tooltip={t("feeMatrix.col.contractTotalFull")}
-                                        />
-                                      </th>
-                                    ) : null}
                                     <th
                                       className={`fee-matrix-th fee-matrix-th--${column.kind} fee-matrix-th--key-${column.key}${
                                         column.sticky ? " fee-matrix-th--sticky" : ""
@@ -1350,68 +1294,28 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                   </Fragment>
                                 );
                               })}
-                              {/* Contract group fully collapsed AND institution group also collapsed:
-                                   the inject-before-institution branch above never fires (no institution
-                                   columns rendered), so fall back to appending the contract summary here. */}
-                              {collapsedGroups.has("contract") && collapsedGroups.has("institution") ? (
-                                <th
-                                  className="fee-matrix-th fee-matrix-th--calculated fee-matrix-th--group-summary fee-matrix-th--group-contract"
-                                  key="contract-summary-fallback"
-                                  scope="col"
-                                  style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
-                                >
-                                  <ColumnHeaderLabel
-                                    label={t("feeMatrix.col.contractTotal")}
-                                    tooltip={t("feeMatrix.col.contractTotalFull")}
-                                  />
-                                </th>
-                              ) : null}
                             </tr>
                             <tr className="fee-matrix-bulk-row">
                                 {visibleColumns.map((column) => {
-                                  if (column.group && collapsedGroups.has(column.group)) {
-                                    return null;
-                                  }
                                   const stickyLeft = column.sticky
                                     ? stickyOffsets.get(column.key)
                                     : undefined;
                                   const cellClass = `fee-matrix-th fee-matrix-bulk-cell fee-matrix-th--key-${column.key}${
                                     column.sticky ? " fee-matrix-th--sticky" : ""
                                   }${column.group ? ` fee-matrix-th--group-${column.group}` : ""}`;
-                                  const injectContractSummary =
-                                    collapsedGroups.has("contract") &&
-                                    column.group === "institution" &&
-                                    visibleColumns.findIndex((c) => c.group === "institution") ===
-                                      visibleColumns.indexOf(column);
-                                  const contractSummaryCell = injectContractSummary ? (
-                                    <th
-                                      aria-hidden="true"
-                                      className="fee-matrix-th fee-matrix-bulk-cell fee-matrix-th--group-summary fee-matrix-th--group-contract"
-                                      key="contract-summary-bulk"
-                                      style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
-                                    />
-                                  ) : null;
-                                  const withContractSummary = (cell: React.ReactNode) => (
-                                    <Fragment key={column.key}>
-                                      {contractSummaryCell}
-                                      {cell}
-                                    </Fragment>
-                                  );
 
                                   if (column.key === "select") {
-                                    return withContractSummary(
+                                    return (
                                       <th
+                                        aria-hidden="true"
                                         className={`${cellClass} fee-matrix-bulk-cell--label`}
                                         key={column.key}
-                                        scope="row"
                                         style={{ minWidth: column.width, left: stickyLeft }}
-                                      >
-                                        {t("feeMatrix.bulk.toplu")}
-                                      </th>
+                                      />
                                     );
                                   }
                                   if (column.key === "lessonType") {
-                                    return withContractSummary(
+                                    return (
                                       <th
                                         className={`${cellClass} fee-matrix-bulk-cell--lesson-types`}
                                         key={column.key}
@@ -1426,7 +1330,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                     );
                                   }
                                   if (!column.editableField) {
-                                    return withContractSummary(
+                                    return (
                                       <th
                                         aria-hidden="true"
                                         className={cellClass}
@@ -1437,9 +1341,9 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                   }
                                   const field = column.editableField;
                                   const fieldLabel =
-                                    (EDITABLE_FIELDS.find((f) => f.value === field) ? t(EDITABLE_FIELDS.find((f) => f.value === field)!.labelKey) : field);
+                                    (visibleEditableFields.find((f) => f.value === field) ? t(visibleEditableFields.find((f) => f.value === field)!.labelKey) : field);
                                   if (isDualLessonBulkField(field)) {
-                                    return withContractSummary(
+                                    return (
                                       <th
                                         className={`${cellClass} fee-matrix-bulk-cell--split`}
                                         key={column.key}
@@ -1495,7 +1399,7 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                     );
                                   }
                                   const value = bulkValues[bulkValueKey(field)] ?? "";
-                                  return withContractSummary(
+                                  return (
                                     <th
                                       className={cellClass}
                                       key={column.key}
@@ -1531,16 +1435,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                     </th>
                                   );
                                 })}
-                                {/* Mirror the contract-summary insertion in the header */}
-                                {collapsedGroups.has("contract") &&
-                                collapsedGroups.has("institution") ? (
-                                  <th
-                                    aria-hidden="true"
-                                    className="fee-matrix-th fee-matrix-bulk-cell fee-matrix-th--group-summary fee-matrix-th--group-contract"
-                                    key="contract-summary-bulk-fallback"
-                                    style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
-                                  />
-                                ) : null}
                             </tr>
                           </thead>
                           <tbody>
@@ -1557,39 +1451,13 @@ export function LicenseClassFeeMatrixSettingsSection() {
                               const dirty = dirtyRowKeys.has(key);
                               return (
                                 <tr className={dirty ? "is-dirty" : undefined} key={key}>
-                                  {visibleColumns.map((column, columnIndex) => {
-                                    if (column.group && collapsedGroups.has(column.group)) {
-                                      return null;
-                                    }
+                                  {visibleColumns.map((column) => {
                                     if (isMergedProgramColumn(column) && !firstProgramRow) {
                                       return null;
                                     }
-                                    // Mirror the header: inject the contract
-                                    // summary cell to the *left* of the first
-                                    // institution column.
-                                    const injectContractSummary =
-                                      collapsedGroups.has("contract") &&
-                                      firstProgramRow &&
-                                      column.group === "institution" &&
-                                      visibleColumns.findIndex((c) => c.group === "institution") ===
-                                        columnIndex;
 
                                     return (
                                       <Fragment key={column.key}>
-                                        {injectContractSummary ? (
-                                          <td
-                                            className="fee-matrix-td fee-matrix-td--calculated fee-matrix-td--group-summary fee-matrix-td--group-contract"
-                                            rowSpan={programRowSpan}
-                                            style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
-                                          >
-                                            {formatMoney(
-                                              calculateContractTotalByProgram(
-                                                visibleSectionRows,
-                                                row.program.id
-                                              )
-                                            )}
-                                          </td>
-                                        ) : null}
                                         <MatrixCell
                                           column={column}
                                           isBulkTarget={
@@ -1613,25 +1481,6 @@ export function LicenseClassFeeMatrixSettingsSection() {
                                       </Fragment>
                                     );
                                   })}
-                                  {/* Both groups collapsed: the inject-before-institution branch
-                                       above never runs; emit the contract summary here as a fallback. */}
-                                  {collapsedGroups.has("contract") &&
-                                  collapsedGroups.has("institution") &&
-                                  firstProgramRow ? (
-                                    <td
-                                      className="fee-matrix-td fee-matrix-td--calculated fee-matrix-td--group-summary fee-matrix-td--group-contract"
-                                      key="contract-summary-fallback"
-                                      rowSpan={programRowSpan}
-                                      style={{ minWidth: GROUP_COLLAPSED_WIDTH }}
-                                    >
-                                      {formatMoney(
-                                        calculateContractTotalByProgram(
-                                          visibleSectionRows,
-                                          row.program.id
-                                        )
-                                      )}
-                                    </td>
-                                  ) : null}
                                 </tr>
                               );
                             })}

@@ -4,6 +4,7 @@ import type { TranslationKey } from "./i18n";
 export type MebJob = {
   id: string;
   jobNo: string;
+  rawJobType: string;
   jobType: string;
   /** Aday adı (varsa). Yoksa null — TC kimlik no gösterilir. */
   candidateName: string | null;
@@ -32,6 +33,15 @@ type JobsSummary = {
 
 type JobsSummaryRow = JobsSummary & { count: number };
 
+export type MebbisJobSummaryCounts = {
+  succeeded: number;
+  running: number;
+  pending: number;
+  needsManualAction: number;
+  failed: number;
+  cancelled: number;
+};
+
 const SUMMARY_DEFS: JobsSummary[] = [
   { status: "success", labelKey: "jobStatus.success", tone: "brand" },
   { status: "running", labelKey: "jobStatus.running", tone: "blue" },
@@ -44,5 +54,23 @@ export function buildJobsSummary(jobs: MebJob[]): JobsSummaryRow[] {
   return SUMMARY_DEFS.map((def) => ({
     ...def,
     count: jobs.filter((j) => j.status === def.status).length,
+  }));
+}
+
+export function buildJobsSummaryFromCounts(summary?: MebbisJobSummaryCounts): JobsSummaryRow[] {
+  if (!summary) return buildJobsSummary([]);
+
+  const counts: Record<JobStatus, number> = {
+    success: summary.succeeded,
+    running: summary.running,
+    queued: summary.pending,
+    manual: summary.needsManualAction,
+    failed: summary.failed + summary.cancelled,
+    warning: 0,
+  };
+
+  return SUMMARY_DEFS.map((def) => ({
+    ...def,
+    count: counts[def.status] ?? 0,
   }));
 }

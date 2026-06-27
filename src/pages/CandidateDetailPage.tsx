@@ -1248,6 +1248,8 @@ function isReportedAttendanceStatus(status: string | null | undefined): boolean 
   return status?.trim().toLowerCase() === "reported";
 }
 
+const CANDIDATE_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+
 type AccountingStatus = {
   labelKey: TranslationKey;
   tone: "neutral" | "info" | "success" | "danger";
@@ -8978,7 +8980,7 @@ function clampNumber(value: number, min: number, max: number): number {
 }
 
 function defaultCropRect(): CropRect {
-  return { x: 10, y: 10, width: 80, height: 80 };
+  return { x: 0, y: 0, width: 100, height: 100 };
 }
 
 function createCapturedFileName(): string {
@@ -9799,6 +9801,11 @@ function DocRow({
   const handleUpload = async (file: File): Promise<boolean> => {
     if (!canManageDocuments) return false;
     if (uploading) return false;
+    if (file.size > CANDIDATE_DOCUMENT_MAX_BYTES) {
+      showToast(t("uploadDoc.errors.fileTooLarge"), "error");
+      return false;
+    }
+
     setUploading(true);
     try {
       await uploadDocument({
@@ -9810,8 +9817,11 @@ function DocRow({
       await onRefresh();
       showToast(t("candidateDetail.documents.row.toast.uploaded", { name: type.name }));
       return true;
-    } catch {
-      showToast(t("candidateDetail.documents.row.toast.uploadFailed", { name: type.name }), "error");
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 413
+        ? t("uploadDoc.errors.fileTooLarge")
+        : t("candidateDetail.documents.row.toast.uploadFailed", { name: type.name });
+      showToast(message, "error");
       return false;
     } finally {
       setUploading(false);

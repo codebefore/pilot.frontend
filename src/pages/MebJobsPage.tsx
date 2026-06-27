@@ -11,6 +11,7 @@ import { FilterChip } from "../components/ui/FilterChip";
 import { JobsSummaryCard } from "../components/ui/JobsSummaryCard";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { Panel } from "../components/ui/Panel";
+import { Pagination } from "../components/ui/Pagination";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TableHeaderFilter, type TableHeaderFilterOption } from "../components/ui/TableHeaderFilter";
 import { useToast } from "../components/ui/Toast";
@@ -20,6 +21,7 @@ import {
   cancelMebbisJob,
   createCandidateLookupJob,
   getMebbisJobQueueStatus,
+  listMebbisJobTypes,
   listMebbisJobs,
   mapMebbisStatusToJobStatus,
   mebbisJobTypeLabel,
@@ -28,8 +30,9 @@ import {
   retryMebbisJobs,
   retryMebbisJobQueuePublishes,
   type MebbisJobResponse,
+  type MebbisJobListResponse,
 } from "../lib/mebbis-jobs-api";
-import { buildJobsSummary, type MebJob } from "../lib/mebbis-jobs";
+import { buildJobsSummaryFromCounts, type MebJob } from "../lib/mebbis-jobs";
 import { canManageArea } from "../lib/permissions";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
@@ -118,6 +121,16 @@ const FILTERS: { key: StatusFilter; labelKey: TranslationKey }[] = [
 const ACTIVE_STATUSES: JobStatus[] = ["running", "queued"];
 const POLL_INTERVAL_MS = 5000;
 const RECENT_DOMAIN_REFRESH_WINDOW_MS = 2 * 60 * 1000;
+const DEFAULT_PAGE_SIZE = 100;
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200, 500];
+
+const SERVER_STATUS_FILTER: Record<Exclude<StatusFilter, "all">, string> = {
+  running: "leased,running,processing",
+  queued: "pending,retry",
+  manual: "needs_manual_action",
+  failed: "failed,cancelled",
+  success: "succeeded",
+};
 
 function isDomainApplyMebbisJob(jobType: string): boolean {
   return ["candidate_sync", "theory_schedule_sync", "theory_schedule_import", "practice_schedule_import"].includes(jobType);
@@ -189,7 +202,7 @@ function applyFilter(
 ): MebJob[] {
   return jobs.filter((j) => {
     if (statusFilter !== "all" && j.status !== statusFilter) return false;
-    if (jobTypeFilter !== "all" && j.jobType !== jobTypeFilter) return false;
+    if (jobTypeFilter !== "all" && j.rawJobType !== jobTypeFilter) return false;
     if (candidateFilter !== "all" && getCandidateFilterValue(j) !== candidateFilter) return false;
     if (stepFilter !== "all" && j.step !== stepFilter) return false;
     if (startedAtFilter !== "all" && getStartedAtFilterValue(j) !== startedAtFilter) return false;
@@ -205,6 +218,8 @@ export function MebJobsPage() {
   const [stepFilter, setStepFilter] = useState<string>("all");
   const [startedAtFilter, setStartedAtFilter] = useState<string>("all");
   const [durationFilter, setDurationFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [sort, setSort] = useState<SortState>({ field: "startedAt", direction: "desc" });
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [modalOpen, setModalOpen] = useState(false);
@@ -221,13 +236,25 @@ export function MebJobsPage() {
   const selectedId = searchParams.get("selected");
   const queryClient = useQueryClient();
 
-  const jobsQuery = useQuery<MebbisJobResponse[]>({
-    queryKey: ["mebbisJobs", "list"],
-    queryFn: ({ signal }) => listMebbisJobs(100, signal),
+  const serverStatusFilter = filter !== "all" ? SERVER_STATUS_FILTER[filter] : undefined;
+  const serverJobTypeFilter = jobTypeFilter !== "all" ? jobTypeFilter : undefined;
+
+  const jobsQuery = useQuery<MebbisJobListResponse>({
+    queryKey: ["mebbisJobs", "list", { page, pageSize, status: serverStatusFilter, jobType: serverJobTypeFilter }],
+    queryFn: ({ signal }) =>
+      listMebbisJobs(
+        {
+          page,
+          pageSize,
+          status: serverStatusFilter,
+          jobType: serverJobTypeFilter,
+        },
+        signal
+      ),
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return false;
-      const hasActive = data.some((j) => ACTIVE_STATUSES.includes(mapMebbisStatusToJobStatus(j.status)));
+      const hasActive = data.items.some((j) => ACTIVE_STATUSES.includes(mapMebbisStatusToJobStatus(j.status)));
       return hasActive ? POLL_INTERVAL_MS : false;
     },
   });
@@ -238,9 +265,15 @@ export function MebJobsPage() {
     refetchInterval: 30_000,
   });
 
+  const jobTypesQuery = useQuery({
+    queryKey: ["mebbisJobs", "types"],
+    queryFn: ({ signal }) => listMebbisJobTypes(signal),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const jobs = useMemo<MebJob[]>(
     () =>
-      (jobsQuery.data ?? []).map((item) =>
+      (jobsQuery.data?.items ?? []).map((item) =>
         mapBackendJob(item, t)
       ),
     [jobsQuery.data, t]
@@ -257,7 +290,25 @@ export function MebJobsPage() {
     return () => window.clearInterval(id);
   }, [pollFailing]);
 
-  const summary = useMemo(() => buildJobsSummary(jobs), [jobs]);
+  const summary = useMemo(() => buildJobsSummaryFromCounts(jobsQuery.data?.summary), [jobsQuery.data?.summary]);
+  const totalCount = jobsQuery.data?.totalCount ?? 0;
+  const totalPages = jobsQuery.data?.totalPages ?? 0;
+  const hasServerFilter = filter !== "all" || jobTypeFilter !== "all";
+
+  const handleStatusFilterChange = useCallback((nextFilter: StatusFilter) => {
+    setFilter(nextFilter);
+    setPage(1);
+  }, []);
+
+  const handleJobTypeFilterChange = useCallback((nextJobType: string) => {
+    setJobTypeFilter(nextJobType);
+    setPage(1);
+  }, []);
+
+  const handlePageSizeChange = useCallback((nextPageSize: number) => {
+    setPageSize(nextPageSize);
+    setPage(1);
+  }, []);
   const filtered = useMemo(
     () =>
       sortJobs(
@@ -276,14 +327,21 @@ export function MebJobsPage() {
   );
 
   const jobTypeOptions = useMemo<TableHeaderFilterOption[]>(() => {
-    const distinct = Array.from(new Set(jobs.map((j) => j.jobType)))
-      .filter((value) => value && value.trim().length > 0)
-      .sort((a, b) => a.localeCompare(b, "tr", { sensitivity: "base" }));
+    const fallbackTypes = Array.from(new Map(
+      jobs
+        .filter((job) => job.rawJobType && job.rawJobType.trim().length > 0)
+        .map((job) => [job.rawJobType, job.jobType])
+    ).entries()).sort((a, b) => a[1].localeCompare(b[1], "tr", { sensitivity: "base" }));
+    const distinct = (jobTypesQuery.data?.map((jobType) => [
+      jobType.code,
+      mebbisJobTypeLabel(jobType.code, t),
+    ] satisfies [string, string]) ?? fallbackTypes)
+      .sort((a, b) => a[1].localeCompare(b[1], "tr", { sensitivity: "base" }));
     return [
       { value: "all", label: t("common.all") },
-      ...distinct.map((value) => ({ value, label: value })),
+      ...distinct.map(([value, label]) => ({ value, label })),
     ];
-  }, [jobs, t]);
+  }, [jobTypesQuery.data, jobs, t]);
 
   const statusFilterOptions = useMemo<TableHeaderFilterOption[]>(
     () => FILTERS.map((f) => ({ value: f.key, label: t(f.labelKey) })),
@@ -348,7 +406,7 @@ export function MebJobsPage() {
     if (!jobsQuery.data) return;
     let completedWhileOpen = false;
     const nextStatuses = new Map<string, JobStatus>();
-    for (const job of jobsQuery.data) {
+    for (const job of jobsQuery.data.items) {
       const status = mapMebbisStatusToJobStatus(job.status);
       const previousStatus = previousJobStatusesRef.current.get(job.id);
       nextStatuses.set(job.id, status);
@@ -516,11 +574,11 @@ export function MebJobsPage() {
 
       <div className="jobs-toolbar">
         {FILTERS.map((f) => (
-          <FilterChip
-            active={f.key === filter}
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-          >
+            <FilterChip
+              active={f.key === filter}
+              key={f.key}
+              onClick={() => handleStatusFilterChange(f.key)}
+            >
             {t(f.labelKey)}
           </FilterChip>
         ))}
@@ -550,6 +608,12 @@ export function MebJobsPage() {
           />
         ) : (
         <Panel>
+          <div className="meb-jobs-table-meta">
+            <span>{hasServerFilter ? "Filtrelenen" : "Toplam"} {totalCount} iş</span>
+            {(candidateFilter !== "all" || stepFilter !== "all" || startedAtFilter !== "all" || durationFilter !== "all") && (
+              <span>Bu sayfa içinde filtreleniyor</span>
+            )}
+          </div>
           <table className="data-table data-table-clickable">
             <thead>
               <tr>
@@ -558,7 +622,7 @@ export function MebJobsPage() {
                   filterControl={
                     <TableHeaderFilter
                       active={jobTypeFilter !== "all"}
-                      onChange={setJobTypeFilter}
+                      onChange={handleJobTypeFilterChange}
                       options={jobTypeOptions}
                       title={t("mebJobs.filter.jobType")}
                       value={jobTypeFilter}
@@ -603,7 +667,7 @@ export function MebJobsPage() {
                   filterControl={
                     <TableHeaderFilter
                       active={filter !== "all"}
-                      onChange={(next) => setFilter(next as StatusFilter)}
+                      onChange={(next) => handleStatusFilterChange(next as StatusFilter)}
                       options={statusFilterOptions}
                       title="Durum"
                       value={filter}
@@ -727,6 +791,15 @@ export function MebJobsPage() {
               )}
             </tbody>
           </table>
+          <Pagination
+            disabled={loading}
+            onChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            totalPages={totalPages}
+          />
         </Panel>
         )}
       </div>
@@ -802,6 +875,7 @@ function mapBackendJob(
   return {
     id: job.id,
     jobNo: `#${job.id.slice(0, 8)}`,
+    rawJobType: job.jobType,
     jobType: mebbisJobTypeLabel(job.jobType, t),
     candidateName,
     targetSecondary,
@@ -875,7 +949,7 @@ function QueueHealthBand({
         )}
       </div>
       <div className="queue-health-metrics">
-        <span>Aktif {status?.activeJobCount ?? 0}</span>
+        <span>Kuyrukta {status?.activeJobCount ?? 0}</span>
         <span>Bekleyen {status?.pendingJobCount ?? 0}</span>
         <span>Publish bekleyen {status?.unpublishedPendingCount ?? 0}</span>
         <span>Hata {status?.publishErrorCount ?? 0}</span>
@@ -934,6 +1008,7 @@ function buildStepText(job: MebbisJobResponse, t: ReturnType<typeof useT>): stri
     case "pending":
       return t("mebJobs.step.pending");
     case "leased":
+    case "processing":
     case "running":
       return t("mebJobs.step.running");
     case "retry":

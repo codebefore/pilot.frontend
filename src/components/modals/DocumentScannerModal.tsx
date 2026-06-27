@@ -73,8 +73,22 @@ function isScannerEligible(scanner: LocalAgentScannerResponse): boolean {
   );
 }
 
-function scannerConnectionKind(scanner: LocalAgentScannerResponse): ConnectionKind | null {
+export function scannerConnectionKind(scanner: LocalAgentScannerResponse): ConnectionKind | null {
   const serviceHints = [
+    scanner.provider,
+    scanner.source,
+    scanner.preferredServiceType,
+    ...scanner.serviceTypes,
+    scanner.scannerId.split(":", 1)[0],
+    scanner.scannerId,
+    scanner.hostName,
+    scanner.name,
+    scanner.model,
+    scanner.manufacturer,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLowerCase());
+  const transportHints = [
     scanner.provider,
     scanner.source,
     scanner.preferredServiceType,
@@ -84,8 +98,33 @@ function scannerConnectionKind(scanner: LocalAgentScannerResponse): ConnectionKi
     .filter((value): value is string => Boolean(value))
     .map((value) => value.toLowerCase());
 
-  if (serviceHints.some((value) => value === "wia" || value === "twain")) return "usb";
-  if (scanner.hostName || serviceHints.some((value) => value === "escl" || value === "manual")) return "wifi";
+  if (
+    scanner.hostName ||
+    serviceHints.some((value) =>
+      value === "escl" ||
+      value === "manual" ||
+      value.includes("_scanner._tcp") ||
+      value.includes("_uscan._tcp") ||
+      value.includes("_ipp._tcp") ||
+      value.includes("network") ||
+      value.includes("wifi") ||
+      value.includes("wi-fi") ||
+      value.includes("wlan") ||
+      value.includes("tcpip") ||
+      value.includes("wsd") ||
+      value.includes(" lan")
+    )
+  ) {
+    return "wifi";
+  }
+
+  if (
+    transportHints.some((value) => value === "usb") ||
+    serviceHints.some((value) => value.includes(":usb") || value.includes("\\usb"))
+  ) {
+    return "usb";
+  }
+
   return null;
 }
 

@@ -4,6 +4,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { CashRegistersSettingsSection } from "../components/settings/CashRegistersSettingsSection";
 import { LicenseClassFeeMatrixSettingsSection } from "../components/settings/LicenseClassFeeMatrixSettingsSection";
+import type { FeeMatrixMode } from "../components/settings/LicenseClassFeeMatrixSettingsSection";
 import { ClassroomsSettingsSection } from "../components/settings/ClassroomsSettingsSection";
 import { GeneralInstitutionSection } from "../components/settings/GeneralInstitutionSection";
 import { InstructorsSettingsSection } from "../components/settings/InstructorsSettingsSection";
@@ -84,7 +85,7 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       {
         labelKey: "settings.nav.fees.label",
         descriptionKey: "settings.nav.fees.description",
-        to: "/settings/definitions/fees",
+        to: "/settings/definitions/fees/institution",
         permissionAreas: ["payments"],
       },
       {
@@ -128,7 +129,32 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
 ];
 
 function isFeesRoute(pathname: string) {
-  return pathname.replace(/\/+$/, "") === "/settings/definitions/fees";
+  const normalized = pathname.replace(/\/+$/, "");
+  return (
+    normalized === "/settings/definitions/fees" ||
+    normalized.startsWith("/settings/definitions/fees/")
+  );
+}
+
+function FeeMatrixSettingsRoute() {
+  const location = useLocation();
+  const normalized = location.pathname.replace(/\/+$/, "");
+  if (normalized === "/settings/definitions/fees") {
+    return <Navigate replace to="/settings/definitions/fees/institution" />;
+  }
+
+  let mode: FeeMatrixMode | null = null;
+  if (normalized === "/settings/definitions/fees/institution") {
+    mode = "institution";
+  } else if (normalized === "/settings/definitions/fees/contract") {
+    mode = "contract";
+  }
+
+  return mode ? (
+    <LicenseClassFeeMatrixSettingsSection mode={mode} />
+  ) : (
+    <Navigate replace to="/settings/definitions/fees/institution" />
+  );
 }
 
 export function SettingsPage() {
@@ -169,7 +195,7 @@ export function SettingsPage() {
                           }
                           end
                           key={item.labelKey}
-                          state={item.to === "/settings/definitions/fees" ? { from: location.pathname } : undefined}
+                          state={item.to === "/settings/definitions/fees/institution" ? { from: location.pathname } : undefined}
                           to={item.to}
                         >
                           <span className="settings-nav-link-copy">
@@ -233,8 +259,8 @@ export function SettingsPage() {
                 path="definitions/classrooms"
               />
               <Route
-                element={requireSettingsPermission(["payments"], <LicenseClassFeeMatrixSettingsSection />)}
-                path="definitions/fees"
+                element={requireSettingsPermission(["payments"], <FeeMatrixSettingsRoute />)}
+                path="definitions/fees/*"
               />
               <Route
                 element={requireSettingsPermission(["documentTypes", "documents"], <DocumentTypesPage embedded />)}

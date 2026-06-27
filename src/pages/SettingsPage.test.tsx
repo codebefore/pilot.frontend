@@ -21,6 +21,12 @@ vi.mock("../components/settings/LicenseClassDefinitionsSettingsSection", () => (
   LicenseClassDefinitionsSettingsSection: () => <div>License Classes Section Mock</div>,
 }));
 
+vi.mock("../components/settings/LicenseClassFeeMatrixSettingsSection", () => ({
+  LicenseClassFeeMatrixSettingsSection: ({ mode }: { mode: string }) => (
+    <div>Fee Matrix {mode} Mock</div>
+  ),
+}));
+
 vi.mock("../components/settings/TrainingBranchesSettingsSection", () => ({
   TrainingBranchesSettingsSection: () => <div>Training Branches Section Mock</div>,
 }));
@@ -100,6 +106,28 @@ describe("SettingsPage", () => {
 
     fireEvent.click(screen.getByRole("link", { name: /Migration/i }));
     expect(screen.getByText("Migration Section Mock")).toBeInTheDocument();
+  });
+
+  it("opens the default fees nav item on institution fees", async () => {
+    renderSettingsPage();
+
+    fireEvent.click(screen.getByRole("link", { name: /Varsayılan Ücretler/i }));
+
+    expect(screen.getByText("Fee Matrix institution Mock")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Kurum Ayarları" })).not.toBeInTheDocument();
+  });
+
+  it("redirects the legacy fees route to institution fees", async () => {
+    renderSettingsPage("/settings/definitions/fees");
+
+    expect(await screen.findByText("Fee Matrix institution Mock")).toBeInTheDocument();
+  });
+
+  it("renders contract fees as a fullscreen fees route", async () => {
+    renderSettingsPage("/settings/definitions/fees/contract");
+
+    expect(await screen.findByText("Fee Matrix contract Mock")).toBeInTheDocument();
+    expect(screen.queryByText("Kurum Ayarları")).not.toBeInTheDocument();
   });
 
   it("redirects the legacy permissions route to the users permissions tab", async () => {

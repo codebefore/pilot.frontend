@@ -7,10 +7,12 @@ import { MebJobsPage } from "./MebJobsPage";
 
 const getCandidatesMock = vi.fn();
 const listMebbisJobsMock = vi.fn();
+const listMebbisJobTypesMock = vi.fn();
 const listMebbisJobStepsMock = vi.fn();
 const cancelMebbisJobMock = vi.fn();
 const cancelAllMebbisJobsMock = vi.fn();
 const createCandidateLookupJobMock = vi.fn();
+const getMebbisJobQueueStatusMock = vi.fn();
 
 vi.mock("../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/candidates-api")>(
@@ -32,6 +34,8 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
     ...actual,
     listMebbisJobs: (...args: Parameters<typeof actual.listMebbisJobs>) =>
       listMebbisJobsMock(...args),
+    listMebbisJobTypes: (...args: Parameters<typeof actual.listMebbisJobTypes>) =>
+      listMebbisJobTypesMock(...args),
     listMebbisJobSteps: (...args: Parameters<typeof actual.listMebbisJobSteps>) =>
       listMebbisJobStepsMock(...args),
     cancelMebbisJob: (...args: Parameters<typeof actual.cancelMebbisJob>) =>
@@ -40,6 +44,8 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
       cancelAllMebbisJobsMock(...args),
     createCandidateLookupJob: (...args: Parameters<typeof actual.createCandidateLookupJob>) =>
       createCandidateLookupJobMock(...args),
+    getMebbisJobQueueStatus: (...args: Parameters<typeof actual.getMebbisJobQueueStatus>) =>
+      getMebbisJobQueueStatusMock(...args),
   };
 });
 
@@ -69,6 +75,28 @@ const runningJob = {
   rowVersion: 1,
 };
 
+function pagedJobsResponse(
+  items = [runningJob],
+  overrides: Partial<Awaited<ReturnType<typeof import("../lib/mebbis-jobs-api").listMebbisJobs>>> = {}
+) {
+  return {
+    items,
+    page: 1,
+    pageSize: 100,
+    totalCount: items.length,
+    totalPages: items.length > 0 ? 1 : 0,
+    summary: {
+      succeeded: 0,
+      running: 1,
+      pending: 0,
+      needsManualAction: 0,
+      failed: 0,
+      cancelled: 0,
+    },
+    ...overrides,
+  };
+}
+
 function renderPage(permissions: Record<string, "view" | "full"> = { mebjobs: "view" }) {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/meb-jobs"]}>
@@ -93,10 +121,12 @@ describe("MebJobsPage", () => {
   beforeEach(() => {
     getCandidatesMock.mockReset();
     listMebbisJobsMock.mockReset();
+    listMebbisJobTypesMock.mockReset();
     listMebbisJobStepsMock.mockReset();
     cancelMebbisJobMock.mockReset();
     cancelAllMebbisJobsMock.mockReset();
     createCandidateLookupJobMock.mockReset();
+    getMebbisJobQueueStatusMock.mockReset();
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     getCandidatesMock.mockResolvedValue({
@@ -109,8 +139,52 @@ describe("MebJobsPage", () => {
         },
       ],
     });
-    listMebbisJobsMock.mockResolvedValue([runningJob]);
+    listMebbisJobsMock.mockResolvedValue(pagedJobsResponse());
+    listMebbisJobTypesMock.mockResolvedValue([
+      {
+        code: "candidate_lookup",
+        displayName: "Aday sorgulama",
+        description: "Aday sorgulama",
+        entityType: "candidate",
+        requiresEntity: true,
+        defaultPriority: 50,
+        defaultMaxAttemptCount: 1,
+      },
+      {
+        code: "candidate_sync",
+        displayName: "Aday senkronizasyonu",
+        description: "Aday senkronizasyonu",
+        entityType: "candidate",
+        requiresEntity: true,
+        defaultPriority: 50,
+        defaultMaxAttemptCount: 1,
+      },
+    ]);
     listMebbisJobStepsMock.mockResolvedValue([]);
+    getMebbisJobQueueStatusMock.mockResolvedValue({
+      streamsEnabled: true,
+      streamName: "mebbis-jobs",
+      consumerGroupName: "pilot-mebbis",
+      publishRetryEnabled: true,
+      pendingJobCount: 0,
+      activeJobCount: 1,
+      unpublishedPendingCount: 0,
+      publishErrorCount: 0,
+      activeExtensionClientCount: 1,
+      healthyExtensionClientCount: 1,
+      extensionHeartbeatFreshSeconds: 60,
+      lastExtensionSeenAtUtc: null,
+      lastExtensionDisplayName: null,
+      lastPublishedAtUtc: null,
+      lastPublishAttemptAtUtc: null,
+      redisPendingMessageCount: 0,
+      redisConsumerCount: 1,
+      redisLowestPendingMessageId: null,
+      redisHighestPendingMessageId: null,
+      redisError: null,
+      healthStatus: "healthy",
+      healthMessage: "healthy",
+    });
     cancelAllMebbisJobsMock.mockResolvedValue({
       cancelledCount: 1,
       cancelledAtUtc: "2026-05-30T10:01:00Z",
@@ -169,5 +243,72 @@ describe("MebJobsPage", () => {
     fireEvent.click(cancelAllButton);
 
     expect(cancelAllMebbisJobsMock).not.toHaveBeenCalled();
+  });
+
+  it("uses paged response summary and total count", async () => {
+    listMebbisJobsMock.mockResolvedValueOnce(pagedJobsResponse([runningJob], {
+      totalCount: 120,
+      totalPages: 2,
+      summary: {
+        succeeded: 86,
+        running: 0,
+        pending: 12,
+        needsManualAction: 0,
+        failed: 2,
+        cancelled: 1,
+      },
+    }));
+
+    renderPage();
+
+    expect(await screen.findByText("Toplam 120 iş")).toBeInTheDocument();
+    expect(screen.getByText("86")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+  });
+
+  it("requests the next server page with page and pageSize", async () => {
+    listMebbisJobsMock
+      .mockResolvedValueOnce(pagedJobsResponse([runningJob], { totalCount: 120, totalPages: 2 }))
+      .mockResolvedValueOnce(pagedJobsResponse([], { page: 2, totalCount: 120, totalPages: 2 }));
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sonraki →" }));
+
+    await waitFor(() =>
+      expect(listMebbisJobsMock).toHaveBeenLastCalledWith(
+        {
+          page: 2,
+          pageSize: 100,
+          status: undefined,
+          jobType: undefined,
+        },
+        expect.any(AbortSignal)
+      )
+    );
+  });
+
+  it("sends grouped raw statuses for status filters", async () => {
+    listMebbisJobsMock
+      .mockResolvedValueOnce(pagedJobsResponse())
+      .mockResolvedValueOnce(pagedJobsResponse([], { totalCount: 0, totalPages: 0 }));
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Bekliyor" }));
+
+    await waitFor(() =>
+      expect(listMebbisJobsMock).toHaveBeenLastCalledWith(
+        {
+          page: 1,
+          pageSize: 100,
+          status: "pending,retry",
+          jobType: undefined,
+        },
+        expect.any(AbortSignal)
+      )
+    );
   });
 });

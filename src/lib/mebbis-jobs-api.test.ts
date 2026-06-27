@@ -6,6 +6,7 @@ import {
   createCandidateSyncByNationalIdJob,
   createCandidateSyncJob,
   getMebbisJobQueueStatus,
+  listMebbisJobTypes,
   listMebbisJobs,
 } from "./mebbis-jobs-api";
 
@@ -16,7 +17,21 @@ describe("mebbis jobs api", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ items: [] }), {
+        new Response(JSON.stringify({
+          items: [],
+          page: 1,
+          pageSize: 100,
+          totalCount: 0,
+          totalPages: 0,
+          summary: {
+            succeeded: 0,
+            running: 0,
+            pending: 0,
+            needsManualAction: 0,
+            failed: 0,
+            cancelled: 0,
+          },
+        }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         })
@@ -25,10 +40,10 @@ describe("mebbis jobs api", () => {
   });
 
   it("uses the default api base url when no MEBBIS base url is configured", async () => {
-    await listMebbisJobs(50);
+    await listMebbisJobs({ page: 2, pageSize: 50, status: "queued" });
 
     const [url] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe("http://127.0.0.1:5080/api/mebbis/jobs?limit=50");
+    expect(String(url)).toBe("http://127.0.0.1:5080/api/mebbis/jobs?page=2&pageSize=50&status=queued");
   });
 
   it("routes MEBBIS calls to the runtime MEBBIS base url when configured", async () => {
@@ -37,10 +52,10 @@ describe("mebbis jobs api", () => {
       mebbisApiBaseUrl: "http://127.0.0.1:5090",
     });
 
-    await listMebbisJobs(25);
+    await listMebbisJobs({ page: 1, pageSize: 25 });
 
     const [url] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toBe("http://127.0.0.1:5090/api/mebbis/jobs?limit=25");
+    expect(String(url)).toBe("http://127.0.0.1:5090/api/mebbis/jobs?page=1&pageSize=25");
   });
 
   it("routes MEBBIS mutations to the MEBBIS base url", async () => {
@@ -136,5 +151,22 @@ describe("mebbis jobs api", () => {
 
     const [url] = vi.mocked(fetch).mock.calls[0];
     expect(String(url)).toBe("http://127.0.0.1:5090/api/mebbis/jobs/queue/status");
+  });
+
+  it("lists job types on the MEBBIS base url", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await listMebbisJobTypes();
+
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe("http://127.0.0.1:5090/api/mebbis/jobs/types");
   });
 });

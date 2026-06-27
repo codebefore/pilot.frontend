@@ -6,6 +6,7 @@ import type { JobStatus } from "../types";
 type MebbisJobStatus =
   | "pending"
   | "leased"
+  | "processing"
   | "running"
   | "retry"
   | "succeeded"
@@ -39,8 +40,44 @@ export type MebbisJobResponse = {
   rowVersion: number;
 };
 
-type MebbisJobListResponse = {
+export type MebbisJobSummaryResponse = {
+  succeeded: number;
+  running: number;
+  pending: number;
+  needsManualAction: number;
+  failed: number;
+  cancelled: number;
+};
+
+export type MebbisJobListResponse = {
   items: MebbisJobResponse[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  summary: MebbisJobSummaryResponse;
+};
+
+export type MebbisJobListParams = {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  jobType?: string;
+  limit?: number;
+};
+
+export type MebbisJobTypeResponse = {
+  code: string;
+  displayName: string;
+  description: string;
+  entityType: string | null;
+  requiresEntity: boolean;
+  defaultPriority: number;
+  defaultMaxAttemptCount: number;
+};
+
+type MebbisJobTypeListResponse = {
+  items: MebbisJobTypeResponse[];
 };
 
 export type MebbisJobStepResponse = {
@@ -125,10 +162,19 @@ const mebbisRequestOptions = (signal?: AbortSignal) => ({
   signal,
 });
 
-export async function listMebbisJobs(limit = 100, signal?: AbortSignal): Promise<MebbisJobResponse[]> {
-  const response = await httpGet<MebbisJobListResponse>("/api/mebbis/jobs", {
-    limit,
-  }, mebbisRequestOptions(signal));
+export async function listMebbisJobs(
+  params: MebbisJobListParams = {},
+  signal?: AbortSignal
+): Promise<MebbisJobListResponse> {
+  return httpGet<MebbisJobListResponse>("/api/mebbis/jobs", params, mebbisRequestOptions(signal));
+}
+
+export async function listMebbisJobTypes(signal?: AbortSignal): Promise<MebbisJobTypeResponse[]> {
+  const response = await httpGet<MebbisJobTypeListResponse>(
+    "/api/mebbis/jobs/types",
+    undefined,
+    mebbisRequestOptions(signal)
+  );
   return response.items;
 }
 
@@ -345,12 +391,12 @@ export function mapMebbisStatusToJobStatus(status: string): JobStatus {
     case "succeeded":
       return "success";
     case "leased":
+    case "processing":
     case "running":
       return "running";
     case "pending":
-      return "queued";
     case "retry":
-      return "failed";
+      return "queued";
     case "needs_manual_action":
       return "manual";
     case "failed":
@@ -372,6 +418,8 @@ export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>):
     theory_schedule_sync: "mebbisJobType.theoryScheduleSync",
     theory_schedule_import: "mebbisJobType.theoryScheduleImport",
     practice_schedule_import: "mebbisJobType.practiceScheduleImport",
+    institution_inventory_import: "mebbisJobType.institutionInventoryImport",
+    license_class_inventory_import: "mebbisJobType.licenseClassInventoryImport",
     group_inventory_import: "mebbisJobType.groupInventoryImport",
     classroom_inventory_import: "mebbisJobType.classroomInventoryImport",
     vehicle_inventory_import: "mebbisJobType.vehicleInventoryImport",

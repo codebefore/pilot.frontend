@@ -85,7 +85,7 @@ function clampNumber(value: number, min: number, max: number): number {
 }
 
 function defaultCropRect(): CropRect {
-  return { x: 10, y: 10, width: 80, height: 80 };
+  return { x: 0, y: 0, width: 100, height: 100 };
 }
 
 function toJpegFileName(fileName: string): string {
