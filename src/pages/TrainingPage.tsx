@@ -689,6 +689,21 @@ export function TrainingPage({ type }: TrainingPageProps) {
       ),
     enabled: type === "teorik" && Boolean(selectedTheoryInstructorId),
   });
+  const selectedTheoryClassroomId = type === "teorik" ? quickSettings.classroomId : "";
+  const classroomAvailabilityQuery = useQuery({
+    queryKey: ["training", "lessons", "availability", "classroom", selectedTheoryClassroomId, overlayWindow],
+    queryFn: ({ signal }) =>
+      getTrainingLessons(
+        {
+          kind: "teorik",
+          fromUtc: overlayWindow.fromUtc,
+          toUtc: overlayWindow.toUtc,
+          classroomId: selectedTheoryClassroomId,
+        },
+        signal
+      ),
+    enabled: type === "teorik" && Boolean(selectedTheoryClassroomId),
+  });
   const theoryAvailabilityEvents = useMemo<TrainingCalendarEvent[]>(() => {
     if (type !== "teorik") return [];
     const next = new Map<string, TrainingCalendarEvent>();
@@ -696,8 +711,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
       const event = trainingLessonToCalendarEvent(lesson);
       next.set(event.id, event);
     }
+    for (const lesson of classroomAvailabilityQuery.data?.items ?? []) {
+      const event = trainingLessonToCalendarEvent(lesson);
+      next.set(event.id, event);
+    }
     return Array.from(next.values());
-  }, [instructorAvailabilityQuery.data, type]);
+  }, [classroomAvailabilityQuery.data, instructorAvailabilityQuery.data, type]);
 
   const selectedPracticeInstructorId = useMemo(() => {
     if (type === "uygulama" && visibleInstructors.size === 1) {
@@ -911,7 +930,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
         filtered.push(e);
       }
     }
-    if (type === "teorik" && selectedTheoryInstructorId) {
+    if (type === "teorik" && (selectedTheoryInstructorId || selectedTheoryClassroomId)) {
       const visibleEventIds = new Set(filtered.map((event) => event.id));
       const overlapsVisibleEvent = (event: TrainingCalendarEvent) =>
         filtered.some((visibleEvent) =>
@@ -927,6 +946,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
         const busyReasons: TrainingBusyReason[] = [];
         if (selectedTheoryInstructorId && event.instructorId === selectedTheoryInstructorId) {
           busyReasons.push("instructor");
+        }
+        if (selectedTheoryClassroomId && event.classroomId === selectedTheoryClassroomId) {
+          busyReasons.push("classroom");
         }
         if (busyReasons.length === 0) continue;
 
@@ -1032,6 +1054,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
         if (selectedTheoryInstructorId && event.instructorId === selectedTheoryInstructorId) {
           busyReasons.push("instructor");
         }
+        if (selectedTheoryClassroomId && event.classroomId === selectedTheoryClassroomId) {
+          busyReasons.push("classroom");
+        }
       } else {
         if (selectedPracticeInstructorId && event.instructorId === selectedPracticeInstructorId) {
           busyReasons.push("instructor");
@@ -1061,6 +1086,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     quickSettings.groupId,
     quickSettings.candidateId,
     selectedTheoryInstructorId,
+    selectedTheoryClassroomId,
     theoryAvailabilityEvents,
     selectedPracticeInstructorId,
     selectedPracticeVehicleId,
@@ -1610,12 +1636,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
       showToast(t("training.toast.selectExactlyOneInstructor"));
       return;
     }
-    if (instructorAvailabilityQuery.isFetching) {
+    if (instructorAvailabilityQuery.isFetching || classroomAvailabilityQuery.isFetching) {
       showToast(t("training.toast.availabilityLoading"));
       return;
     }
     const instructorConflictEvents = instructorAvailabilityQuery.data
       ? instructorAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
+      : events;
+    const classroomConflictEvents = classroomAvailabilityQuery.data
+      ? classroomAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
       : events;
     const instructorBusy = instructorConflictEvents.some(
       (event) =>
@@ -1623,8 +1652,22 @@ export function TrainingPage({ type }: TrainingPageProps) {
         event.instructorId === derivedInstructorId &&
         rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
     );
+    const classroomBusy = classroomConflictEvents.some(
+      (event) =>
+        event.kind === "teorik" &&
+        event.classroomId === quickSettings.classroomId &&
+        rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
+    );
+    if (instructorBusy && classroomBusy) {
+      showToast(t("training.toast.instructorAndClassroomBusy"));
+      return;
+    }
     if (instructorBusy) {
       showToast(t("training.toast.instructorBusy"));
+      return;
+    }
+    if (classroomBusy) {
+      showToast(t("training.toast.classroomBusy"));
       return;
     }
     // Grup başlangıç tarihinden önceye ders atanamaz (backend de
