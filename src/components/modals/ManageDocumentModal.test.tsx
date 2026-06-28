@@ -13,6 +13,7 @@ const uploadDocumentMock = vi.fn();
 const openAuthorizedFileMock = vi.fn();
 const downloadAuthorizedFileMock = vi.fn();
 const printAuthorizedFileMock = vi.fn();
+const getMebbisSessionStatusMock = vi.fn();
 
 vi.mock("../../lib/authorized-files", () => ({
   openAuthorizedFile: (...args: unknown[]) => openAuthorizedFileMock(...args),
@@ -42,6 +43,17 @@ vi.mock("../../lib/documents-api", async () => {
   };
 });
 
+vi.mock("../../lib/mebbis-jobs-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/mebbis-jobs-api")>(
+    "../../lib/mebbis-jobs-api"
+  );
+  return {
+    ...actual,
+    getMebbisSessionStatus: (...args: Parameters<typeof actual.getMebbisSessionStatus>) =>
+      getMebbisSessionStatusMock(...args),
+  };
+});
+
 describe("ManageDocumentModal", () => {
   beforeEach(() => {
     applyRuntimeConfig({
@@ -55,9 +67,17 @@ describe("ManageDocumentModal", () => {
     openAuthorizedFileMock.mockReset();
     downloadAuthorizedFileMock.mockReset();
     printAuthorizedFileMock.mockReset();
+    getMebbisSessionStatusMock.mockReset();
     openAuthorizedFileMock.mockResolvedValue(undefined);
     downloadAuthorizedFileMock.mockResolvedValue(undefined);
     printAuthorizedFileMock.mockResolvedValue(undefined);
+    getMebbisSessionStatusMock.mockResolvedValue({
+      isOpen: true,
+      clientId: "extension-1",
+      lastSeenAtUtc: new Date().toISOString(),
+      lastKnownMebbisUser: "meb-user",
+      extensionHeartbeatFreshSeconds: 60,
+    });
     updateCandidateDocumentMebbisTransferMock.mockResolvedValue({ id: "doc-1" });
     deleteCandidateDocumentMock.mockResolvedValue(undefined);
     getCandidateDocumentsMock.mockResolvedValue([

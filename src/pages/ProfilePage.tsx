@@ -4,6 +4,7 @@ import { PageTabs } from "../components/layout/PageToolbar";
 import { DrawerRow, DrawerSection } from "../components/ui/Drawer";
 import { useAuth } from "../lib/auth";
 import { useLanguage, useT } from "../lib/i18n";
+import { formatPhoneDisplay } from "../lib/phone";
 import { useTheme } from "../lib/theme";
 
 type ProfileTab = "profile" | "theme";
@@ -19,7 +20,7 @@ export function ProfilePage() {
   const roleLabel = user?.isSuperAdmin
     ? t("profile.role.superAdmin")
     : user?.roleName?.trim() || t("profile.role.admin");
-  const phone = user?.phone?.trim() || "—";
+  const phone = formatPhoneDisplay(user?.phone);
 
   const initials = fullName
     .split(" ")

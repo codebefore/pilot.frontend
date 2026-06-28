@@ -32,6 +32,7 @@ import { applyMebbisInstructorInventory } from "../../lib/mebbis-instructor-impo
 import { applyMebbisLicenseClassInventory } from "../../lib/mebbis-license-class-import";
 import { applyMebbisVehicleInventory } from "../../lib/mebbis-vehicle-import";
 import { candidateKeys } from "../../lib/queries/use-candidates";
+import { useMebbisSessionGuard } from "../../lib/queries/use-mebbis-session";
 import type { GroupResponse } from "../../lib/types";
 import { MebIcon } from "../icons";
 import { useToast } from "../ui/Toast";
@@ -45,6 +46,17 @@ const LICENSE_CLASS_IMPORT_POLL_TIMEOUT_MS = 60 * 1000;
 const INSTITUTION_IMPORT_POLL_TIMEOUT_MS = 60 * 1000;
 const MIGRATION_ACCESS_STORAGE_PREFIX = "pilot.migration.access";
 const CANDIDATE_NATIONAL_IDS_STORAGE_KEY = "pilot.mebbis.candidateNationalIds";
+const MEBBIS_SESSION_REQUIRED_ACTIONS = new Set<MigrationActionKey>([
+  "general",
+  "licenseClasses",
+  "classrooms",
+  "vehicles",
+  "instructors",
+  "candidateSync",
+  "candidatePhotos",
+  "groups",
+  "theorySchedule",
+]);
 
 type MigrationActionKey =
   | "general"
@@ -157,6 +169,7 @@ const MIGRATION_GROUPS: MigrationGroup[] = [
 export function MigrationSettingsSection() {
   const t = useT();
   const { showToast } = useToast();
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const queryClient = useQueryClient();
   const { activeInstitution, user } = useAuth();
   const [runningAction, setRunningAction] = useState<MigrationActionKey | null>(null);
@@ -827,6 +840,7 @@ export function MigrationSettingsSection() {
 
   const runMigrationAction = async (action: MigrationAction) => {
     if (!action.enabled || runningAction) return;
+    if (MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key) && !mebbisSessionGuard.ensureSession()) return;
 
     if (action.key === "general") {
       await runInstitutionInventoryImport();
@@ -993,8 +1007,19 @@ export function MigrationSettingsSection() {
                       </div>
                       <button
                         className={`btn btn-${action.tone ?? "secondary"} btn-sm`}
+                        aria-disabled={
+                          action.enabled &&
+                          !runningAction &&
+                          MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key) &&
+                          mebbisSessionGuard.disabled
+                        }
                         disabled={!action.enabled || Boolean(runningAction)}
                         onClick={() => void runMigrationAction(action)}
+                        title={
+                          MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key) && mebbisSessionGuard.disabled
+                            ? mebbisSessionGuard.message
+                            : undefined
+                        }
                         type="button"
                       >
                         <MebIcon size={14} />

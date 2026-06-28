@@ -925,7 +925,7 @@ describe("CandidateDrawer", () => {
     expect(screen.queryByRole("button", { name: /profil resmi/i })).not.toBeInTheDocument();
   });
 
-  it("shows raw phone number under the name and links it to WhatsApp", async () => {
+  it("shows formatted phone number under the name and links it to WhatsApp", async () => {
     getCandidateByIdMock.mockResolvedValue({
       id: "candidate-1",
       firstName: "Ada",
@@ -956,7 +956,7 @@ describe("CandidateDrawer", () => {
       />
     );
 
-    const whatsappLink = await screen.findByRole("link", { name: "05321234567" });
+    const whatsappLink = await screen.findByRole("link", { name: "+90 532 123 45 67" });
     expect(whatsappLink).toHaveAttribute("href", "https://wa.me/905321234567");
   });
 

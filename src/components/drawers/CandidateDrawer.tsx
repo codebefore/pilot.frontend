@@ -16,7 +16,7 @@ import {
 import { todayLocalDateOnly } from "../../lib/date-only";
 import { getGroupById, getGroups } from "../../lib/groups-api";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
-import { buildWhatsAppUrl } from "../../lib/phone";
+import { buildWhatsAppUrl, formatPhoneDisplay } from "../../lib/phone";
 import { candidateKeys } from "../../lib/queries/use-candidates";
 import { groupKeys } from "../../lib/queries/use-groups";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
@@ -700,7 +700,7 @@ export function CandidateDrawer({
   );
 
   const whatsappUrl = buildWhatsAppUrl(candidate?.phoneNumber);
-  const profileContactText = candidate?.phoneNumber?.trim() || "—";
+  const profileContactText = formatPhoneDisplay(candidate?.phoneNumber);
 
   return (
     <Drawer actions={actions} onClose={onClose} open title={title}>
@@ -784,7 +784,7 @@ export function CandidateDrawer({
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={candidateEditDisabledTitle}
-              displayValue={candidate.phoneNumber ?? ""}
+              displayValue={formatPhoneDisplay(candidate.phoneNumber, "")}
               inputType="tel"
               inputValue={candidate.phoneNumber ?? ""}
               label={t("common.field.phone")}

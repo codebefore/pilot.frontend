@@ -105,6 +105,8 @@ describe("candidate contract print", () => {
     expect(request.values["yıl"]).toBe("2026");
     expect(request.values.kurumbankaadi).toBe("Ziraat Bankası");
     expect(request.values.kurummudur).toBe("Mehmet Müdür");
+    expect(request.values.kursiyertelefon1).toBe("+90 555 111 22 33");
+    expect(request.values.kurumtelefon).toBe("+90 555 000 00 00");
     expect(request.values.sozlesmetoplam).toBe("10.400,00");
     expect(request.values.taksitsayi).toBe("1");
     expect(request.values.birincitaksitvadetarihi).toBe("-");

@@ -11,8 +11,10 @@ const listMebbisJobTypesMock = vi.fn();
 const listMebbisJobStepsMock = vi.fn();
 const cancelMebbisJobMock = vi.fn();
 const cancelAllMebbisJobsMock = vi.fn();
+const retryMebbisJobsMock = vi.fn();
 const createCandidateLookupJobMock = vi.fn();
 const getMebbisJobQueueStatusMock = vi.fn();
+const getMebbisSessionStatusMock = vi.fn();
 
 vi.mock("../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/candidates-api")>(
@@ -42,10 +44,14 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
       cancelMebbisJobMock(...args),
     cancelAllMebbisJobs: (...args: Parameters<typeof actual.cancelAllMebbisJobs>) =>
       cancelAllMebbisJobsMock(...args),
+    retryMebbisJobs: (...args: Parameters<typeof actual.retryMebbisJobs>) =>
+      retryMebbisJobsMock(...args),
     createCandidateLookupJob: (...args: Parameters<typeof actual.createCandidateLookupJob>) =>
       createCandidateLookupJobMock(...args),
     getMebbisJobQueueStatus: (...args: Parameters<typeof actual.getMebbisJobQueueStatus>) =>
       getMebbisJobQueueStatusMock(...args),
+    getMebbisSessionStatus: (...args: Parameters<typeof actual.getMebbisSessionStatus>) =>
+      getMebbisSessionStatusMock(...args),
   };
 });
 
@@ -125,8 +131,10 @@ describe("MebJobsPage", () => {
     listMebbisJobStepsMock.mockReset();
     cancelMebbisJobMock.mockReset();
     cancelAllMebbisJobsMock.mockReset();
+    retryMebbisJobsMock.mockReset();
     createCandidateLookupJobMock.mockReset();
     getMebbisJobQueueStatusMock.mockReset();
+    getMebbisSessionStatusMock.mockReset();
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     getCandidatesMock.mockResolvedValue({
@@ -161,6 +169,13 @@ describe("MebJobsPage", () => {
       },
     ]);
     listMebbisJobStepsMock.mockResolvedValue([]);
+    getMebbisSessionStatusMock.mockResolvedValue({
+      isOpen: true,
+      clientId: "extension-1",
+      lastSeenAtUtc: new Date().toISOString(),
+      lastKnownMebbisUser: "meb-user",
+      extensionHeartbeatFreshSeconds: 60,
+    });
     getMebbisJobQueueStatusMock.mockResolvedValue({
       streamsEnabled: true,
       streamName: "mebbis-jobs",
@@ -188,6 +203,12 @@ describe("MebJobsPage", () => {
     cancelAllMebbisJobsMock.mockResolvedValue({
       cancelledCount: 1,
       cancelledAtUtc: "2026-05-30T10:01:00Z",
+    });
+    retryMebbisJobsMock.mockResolvedValue({
+      createdCount: 1,
+      skippedCount: 0,
+      jobs: [],
+      retriedAtUtc: "2026-05-30T10:02:00Z",
     });
   });
 
@@ -235,6 +256,27 @@ describe("MebJobsPage", () => {
     expect(await screen.findByText("1 iş iptal edildi")).toBeInTheDocument();
   });
 
+  it("warns and does not open new job flow when MEBBIS session is closed", async () => {
+    getMebbisSessionStatusMock.mockResolvedValueOnce({
+      isOpen: false,
+      clientId: null,
+      lastSeenAtUtc: null,
+      lastKnownMebbisUser: null,
+      extensionHeartbeatFreshSeconds: 60,
+    });
+    renderPage({ mebjobs: "full" });
+
+    const newJobButton = await screen.findByRole("button", { name: /Yeni MEB İşi/ });
+    await waitFor(() =>
+      expect(newJobButton).toHaveAttribute("aria-disabled", "true")
+    );
+
+    fireEvent.click(newJobButton);
+
+    expect(await screen.findByText("MEBBİS oturumu açılmalı.")).toBeInTheDocument();
+    expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
+  });
+
   it("does not cancel all jobs when confirmation is rejected", async () => {
     vi.mocked(window.confirm).mockReturnValue(false);
     renderPage({ mebjobs: "full" });
@@ -243,6 +285,23 @@ describe("MebJobsPage", () => {
     fireEvent.click(cancelAllButton);
 
     expect(cancelAllMebbisJobsMock).not.toHaveBeenCalled();
+  });
+
+  it("shows skipped count when manual MEB job bulk retry skips invalid jobs", async () => {
+    retryMebbisJobsMock.mockResolvedValueOnce({
+      createdCount: 2,
+      skippedCount: 1,
+      jobs: [],
+      retriedAtUtc: "2026-05-30T10:02:00Z",
+    });
+    renderPage({ mebjobs: "full" });
+
+    const retryManualButton = await screen.findByRole("button", { name: "Manuel Kalanları Tekrar Başlat" });
+    await waitFor(() => expect(retryManualButton).toHaveAttribute("aria-disabled", "false"));
+    fireEvent.click(retryManualButton);
+
+    await waitFor(() => expect(retryMebbisJobsMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("2 manuel MEB işi tekrar kuyruğa alındı, 1 iş veri eksikliği nedeniyle atlandı")).toBeInTheDocument();
   });
 
   it("uses paged response summary and total count", async () => {

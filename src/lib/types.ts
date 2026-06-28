@@ -411,6 +411,7 @@ export interface CandidateAccountingPaymentCreateRequest {
 
 export interface CandidateAccountingRefundCreateRequest {
   amount?: number | null;
+  cashRegisterId?: string | null;
   refundedAtUtc?: string | null;
   note?: string | null;
 }
@@ -1433,11 +1434,23 @@ export interface DashboardMebJobResponse {
   time: string;
 }
 
-interface DashboardActivityResponse {
+export interface DashboardActivityResponse {
   id: string;
   avatar: string;
   avatarTone: "brand" | "blue" | "purple" | "amber";
   actor: string;
   description: string;
   time: string;
+  createdAtUtc: string;
+  linkPath: string | null;
+  actorDisplayName?: string | null;
+  actorPhotoUrl?: string | null;
+}
+
+export interface DashboardActivityListResponse {
+  items: DashboardActivityResponse[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
 }

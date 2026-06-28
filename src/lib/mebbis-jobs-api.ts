@@ -128,6 +128,7 @@ export type MebbisJobQueueRetryResponse = {
 
 export type MebbisJobBulkRetryResponse = {
   createdCount: number;
+  skippedCount?: number;
   jobs: MebbisJobResponse[];
   retriedAtUtc: string;
 };
@@ -155,6 +156,14 @@ export type MebbisExtensionClientResponse = {
 export type MebbisExtensionPairResponse = {
   client: MebbisExtensionClientResponse;
   apiToken: string;
+};
+
+export type MebbisSessionStatusResponse = {
+  isOpen: boolean;
+  clientId: string | null;
+  lastSeenAtUtc: string | null;
+  lastKnownMebbisUser: string | null;
+  extensionHeartbeatFreshSeconds: number;
 };
 
 const mebbisRequestOptions = (signal?: AbortSignal) => ({
@@ -231,6 +240,16 @@ export async function pairMebbisExtensionClient(
   );
 }
 
+export async function getMebbisSessionStatus(
+  signal?: AbortSignal
+): Promise<MebbisSessionStatusResponse> {
+  return httpGet<MebbisSessionStatusResponse>(
+    "/api/mebbis/session/status",
+    undefined,
+    mebbisRequestOptions(signal)
+  );
+}
+
 export async function cancelMebbisJob(jobId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/${jobId}/cancel`,
@@ -287,6 +306,19 @@ export async function createCandidateSyncJob(candidateId: string): Promise<Mebbi
   );
 }
 
+export async function createCandidateTermEnrollJob(
+  candidateId: string,
+  input: { registrationFee?: number | null } = {}
+): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/term-enroll`,
+    input.registrationFee != null && input.registrationFee > 0
+      ? { registrationFee: input.registrationFee }
+      : {},
+    mebbisRequestOptions()
+  );
+}
+
 export async function createCandidateSyncByNationalIdJob(
   nationalId: string,
   candidateStatusHint?: string
@@ -309,6 +341,14 @@ export async function createCandidateNationalIdImportJob(): Promise<MebbisJobRes
 export async function createCandidatePhotoImportJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/photo/import`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function createCandidatePhotoUploadJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/photo/upload`,
     {},
     mebbisRequestOptions()
   );
@@ -411,8 +451,10 @@ export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>):
     session_check: "mebbisJobType.sessionCheck",
     candidate_lookup: "mebbisJobType.candidateLookup",
     candidate_sync: "mebbisJobType.candidateSync",
+    candidate_term_enroll: "mebbisJobType.candidateTermEnroll",
     candidate_national_id_import: "mebbisJobType.candidateNationalIdImport",
     candidate_photo_import: "mebbisJobType.candidatePhotoImport",
+    candidate_photo_upload: "mebbisJobType.candidatePhotoUpload",
     candidate_exam_result_sync: "mebbisJobType.candidateExamResultSync",
     instructor_permit_create: "mebbisJobType.instructorPermitCreate",
     theory_schedule_sync: "mebbisJobType.theoryScheduleSync",

@@ -20,6 +20,10 @@ export function isExistingLicenseCopyType(type: DocumentTypeResponse): boolean {
   );
 }
 
+export function canRetryMebbisDocumentTransfer(typeKey: string, isMebbisTransferred: boolean): boolean {
+  return typeKey === "biometric_photo" || !isMebbisTransferred;
+}
+
 export function calculateAge(birthDateIso: string | null): number | null {
   if (!birthDateIso) return null;
   const birthDate = new Date(birthDateIso);

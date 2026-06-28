@@ -39,6 +39,7 @@ import {
   type CandidateFilterState,
 } from "../lib/candidate-filters";
 import { formatLocalDateOnly, todayLocalDateOnly } from "../lib/date-only";
+import { formatPhoneDisplay } from "../lib/phone";
 import {
   assignCandidatesToExamDate,
   applyStatusToCandidates,
@@ -1042,7 +1043,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "phoneNumber",
     labelKey: "candidates.col.phoneNumber",
-    renderCell: (c) => formatOptionalText(c.phoneNumber),
+    renderCell: (c) => formatPhoneDisplay(c.phoneNumber),
     skeletonWidth: 110,
   },
   {
@@ -2904,7 +2905,7 @@ export function CandidatesPage({
     const rows = rowsToExport.map((candidate): readonly (string | number)[] => [
       `${candidate.firstName} ${candidate.lastName}`.trim(),
       candidate.nationalId,
-      formatOptionalText(candidate.phoneNumber),
+      formatPhoneDisplay(candidate.phoneNumber),
       formatDateTR(candidate.birthDate),
       formatOptionalText(candidateGenderLabel(candidate.gender)),
       candidate.licenseClass,
@@ -3980,7 +3981,7 @@ export function CandidatesPage({
                 <tr key={row.candidate.id}>
                   <td>{candidateFullName(row.candidate)}</td>
                   <td>{formatNationalId(row.candidate.nationalId)}</td>
-                  <td>{formatOptionalText(row.candidate.phoneNumber)}</td>
+                  <td>{formatPhoneDisplay(row.candidate.phoneNumber)}</td>
                   <td>
                     <input
                       aria-label={`${candidateFullName(row.candidate)} sınav ücreti`}

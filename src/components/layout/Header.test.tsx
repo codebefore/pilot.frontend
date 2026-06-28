@@ -10,6 +10,7 @@ import { Header } from "./Header";
 const localAgentMocks = vi.hoisted(() => ({
   getLocalAgentHealth: vi.fn(),
   getLocalAgentMebbisSession: vi.fn(),
+  openLocalAgentMebbisHomeView: vi.fn(),
   pairLocalAgent: vi.fn(),
   readStoredLocalAgentToken: vi.fn(),
   startLocalAgentMebbisSession: vi.fn(),
@@ -106,6 +107,7 @@ beforeEach(() => {
     timestampUtc: "2026-06-22T09:00:00.000Z",
   });
   localAgentMocks.getLocalAgentMebbisSession.mockResolvedValue(mebbisSession("inactive"));
+  localAgentMocks.openLocalAgentMebbisHomeView.mockResolvedValue({ message: "MEBBİS açıldı" });
   localAgentMocks.pairLocalAgent.mockResolvedValue({
     token: "local-agent-token",
     machineName: "Test Machine",
@@ -167,5 +169,14 @@ describe("Header MEBBİS connection", () => {
 
     expect(localAgentMocks.stopLocalAgentMebbisSession).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "MEBBİS doğrulama kodu" })).toBeInTheDocument();
+  });
+
+  it("opens MEBBİS from the inline icon without toggling the connection", async () => {
+    renderHeader();
+
+    fireEvent.click(screen.getByTitle("MEBBİS aç"));
+
+    await waitFor(() => expect(localAgentMocks.openLocalAgentMebbisHomeView).toHaveBeenCalledTimes(1));
+    expect(localAgentMocks.startLocalAgentMebbisSession).not.toHaveBeenCalled();
   });
 });

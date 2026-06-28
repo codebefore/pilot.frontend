@@ -134,7 +134,7 @@ export function DashboardNotesPanel() {
             <PencilIcon />
           </span>
         }
-        title="Notlar"
+        title="Görevler"
       >
         {notes === null ? (
           <div className="user-notes-empty">{t("notesPanel.loading")}</div>

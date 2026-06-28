@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
+import { formatPhoneDisplay } from "../../lib/phone";
 import { LogoutIcon, UserIcon } from "../icons";
 
 type UserMenuProps = {
@@ -54,7 +55,7 @@ export function UserMenu({ userInitials }: UserMenuProps) {
               <div className="user-menu-avatar">{userInitials}</div>
               <div className="user-menu-info">
                 <div className="user-menu-name">{user.name}</div>
-                <div className="user-menu-meta">{user.phone ?? user.roleName ?? ""}</div>
+                <div className="user-menu-meta">{user.phone ? formatPhoneDisplay(user.phone, "") : user.roleName ?? ""}</div>
               </div>
             </div>
           )}

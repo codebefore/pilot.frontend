@@ -1,16 +1,15 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { DashboardNotesPanel } from "../components/dashboard/DashboardNotesPanel";
-import { AlertIcon, CandidatesIcon, ExamsIcon, ExternalLinkIcon, GridIcon } from "../components/icons";
+import { CandidatesIcon, ExamsIcon, GridIcon } from "../components/icons";
+import { ActivityAvatar } from "../components/ui/ActivityAvatar";
 import { Panel } from "../components/ui/Panel";
 import { PanelListSkeleton } from "../components/ui/Skeleton";
-import { TaskItem } from "../components/ui/TaskItem";
-import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/i18n";
 import { getCandidates, type CandidateExamTabValue } from "../lib/candidates-api";
-import { LocalAgentError, openLocalAgentMebbisHomeView } from "../lib/local-agent-api";
 import { getDashboardOverview } from "../lib/stats-api";
 import {
   mergeLicenseClassOptionsWithValues,
@@ -27,6 +26,7 @@ type DashboardPageProps = {
 };
 
 const DASHBOARD_ACTIVE_MEB_JOB_REFRESH_MS = 5000;
+const DASHBOARD_CLOCK_REFRESH_MS = 1_000;
 
 type DashboardSummaryCard = {
   key: string;
@@ -219,9 +219,10 @@ async function getDashboardExamTabCounts(
 
 export function DashboardPage({ userName }: DashboardPageProps) {
   const t = useT();
-  const { showToast } = useToast();
   const { activeInstitution } = useAuth();
-  const [openingMebbis, setOpeningMebbis] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [now, setNow] = useState(() => new Date());
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const activeInstitutionId = activeInstitution?.id ?? "";
   const {
@@ -288,43 +289,70 @@ export function DashboardPage({ userName }: DashboardPageProps) {
       t,
     ]
   );
-
-  const displayName = userName?.trim() || "Pilot";
-
-  const openMebbisHome = async () => {
-    if (openingMebbis) return;
-    setOpeningMebbis(true);
-    try {
-      const result = await openLocalAgentMebbisHomeView();
-      showToast(result.message || t("dashboard.toast.mebbisOpened"));
-    } catch (err) {
-      const message = err instanceof LocalAgentError && err.status === 401
-        ? t("dashboard.toast.mebbisLocalAgentNotPaired")
-        : err instanceof Error
-          ? err.message
-          : t("dashboard.toast.mebbisOpenFailed");
-      showToast(message, "error");
-    } finally {
-      setOpeningMebbis(false);
-    }
+  const openActivityLink = (linkPath: string | null) => {
+    if (!linkPath) return;
+    navigate(linkPath, linkPath.startsWith("/candidates/")
+      ? {
+          state: {
+            returnLabel: t("activity.returnLabel"),
+            returnTo: `${location.pathname}${location.search}`,
+          },
+        }
+      : undefined);
   };
 
+  const displayName = userName?.trim() || "Pilot";
+  const currentTimeMain = useMemo(
+    () =>
+      now.toLocaleTimeString("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [now]
+  );
+  const currentSecond = useMemo(
+    () => now.getSeconds().toString().padStart(2, "0"),
+    [now]
+  );
+  const currentTime = `${currentTimeMain}:${currentSecond}`;
+  const currentDate = useMemo(
+    () => {
+      const weekday = now.toLocaleDateString("tr-TR", {
+        weekday: "long",
+      });
+      const date = now.toLocaleDateString("tr-TR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+      return `${weekday}, ${date}`;
+    },
+    [now]
+  );
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setNow(new Date()), DASHBOARD_CLOCK_REFRESH_MS);
+    return () => window.clearInterval(timerId);
+  }, []);
+
   return (
-    <>
+    <div className="dashboard-page">
       <div className="dash-header">
         <div className="dash-header-content">
-          <h1>{t("dashboard.greeting", { name: displayName })}</h1>
-          <button
-            className="dash-header-mebbis-btn"
-            disabled={openingMebbis}
-            onClick={() => void openMebbisHome()}
-            type="button"
-          >
-            <ExternalLinkIcon size={15} />
-            <span>{openingMebbis ? t("dashboard.action.openingMebbis") : "MEBBİS"}</span>
-          </button>
+          <div className="dash-header-greeting">
+            <span>Hoş geldin,</span>
+            <strong>{displayName}</strong>
+          </div>
+          <div className="dash-header-clock" aria-label={`${currentTime}, ${currentDate}`}>
+            <strong>
+              {currentTimeMain}
+              <span className="dash-header-clock-second" key={currentSecond}>
+                :{currentSecond}
+              </span>
+            </strong>
+            <span>{currentDate}</span>
+          </div>
         </div>
-        <img alt="" aria-hidden="true" className="dash-header-pattern" src="/pattern.png" />
       </div>
 
       <div className="dash-stats" aria-label={t("dashboard.candidateSummary.aria")}>
@@ -353,44 +381,41 @@ export function DashboardPage({ userName }: DashboardPageProps) {
 
       <div className="dash-content">
         <div className="dash-primary-grid">
-          <Panel
-            action={<button className="panel-action" type="button">{t("dashboard.viewAll")}</button>}
-            icon={<span className="icon-orange"><AlertIcon /></span>}
-            title={t("dashboard.panel.pendingTasks")}
-          >
-            {dashboardLoading ? (
-              <PanelListSkeleton rows={3} />
-            ) : dashboard.pendingTasks.length > 0 ? (
-              dashboard.pendingTasks.map((task) => (
-                <TaskItem
-                  key={task.id}
-                  priority={task.priority}
-                  source={task.source}
-                  status={task.status}
-                  time={task.time}
-                  title={task.title}
-                />
-              ))
-            ) : (
-              <div className="panel-empty">{t("dashboard.emptyPendingTasks")}</div>
-            )}
-          </Panel>
-
           <DashboardNotesPanel />
 
-          <Panel title={t("dashboard.panel.recentActivity")}>
+          <Panel
+            action={
+              <button className="panel-action" onClick={() => navigate("/activity")} type="button">
+                {t("dashboard.viewAll")}
+              </button>
+            }
+            title={t("dashboard.panel.recentActivity")}
+          >
             {dashboardLoading ? (
               <PanelListSkeleton rows={4} />
             ) : dashboard.recentActivity.length > 0 ? (
               dashboard.recentActivity.map((event) => (
-                <div className="activity-item" key={event.id}>
-                  <div className={`activity-avatar tone-${event.avatarTone}`}>
-                    {event.avatar}
-                  </div>
+                <div
+                  className={`activity-item${event.linkPath ? " is-clickable" : ""}`}
+                  key={event.id}
+                  onClick={() => openActivityLink(event.linkPath)}
+                  onKeyDown={(keyboardEvent) => {
+                    if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                      keyboardEvent.preventDefault();
+                      openActivityLink(event.linkPath);
+                    }
+                  }}
+                  role={event.linkPath ? "button" : undefined}
+                  tabIndex={event.linkPath ? 0 : undefined}
+                >
+                  <ActivityAvatar activity={event} />
                   <div>
                     <div className="activity-text">
                       <strong>{event.actor}</strong> {event.description}
                     </div>
+                    {event.actorDisplayName ? (
+                      <div className="activity-person">{event.actorDisplayName}</div>
+                    ) : null}
                     <div className="activity-time">{event.time}</div>
                   </div>
                 </div>
@@ -401,6 +426,6 @@ export function DashboardPage({ userName }: DashboardPageProps) {
           </Panel>
         </div>
       </div>
-    </>
+    </div>
   );
 }

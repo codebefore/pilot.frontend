@@ -1,6 +1,7 @@
 import { getDocumentApiBaseUrl } from "./api";
 import { httpPostBlob } from "./http";
 import type { InstitutionSettingsResponse } from "./institution-settings-api";
+import { formatPhoneDisplay } from "./phone";
 import type {
   CandidateAccountingSummaryResponse,
   CandidateResponse,
@@ -126,15 +127,15 @@ export function buildCandidateContractRenderPdfRequest({
       kursiyersoyadi: clean(candidate.lastName),
       kursiyertckimlikno: clean(candidate.nationalId),
       kursiyeradresi: clean(candidate.address),
-      kursiyertelefon1: clean(firstPhone(candidate)),
-      kursiyertelefon2: clean(secondPhone(candidate)),
+      kursiyertelefon1: formatPhoneDisplay(firstPhone(candidate), emptyValue),
+      kursiyertelefon2: formatPhoneDisplay(secondPhone(candidate), emptyValue),
       ehliyettipi: clean(candidate.licenseClass),
       mevcutehliyettipi: clean(existingLicense),
       kurumresmiadi: clean(institutionName),
       kurumil: clean(institution?.city),
       kurumilce: clean(institution?.district),
       kurumadresi: clean(institution?.institutionAddress),
-      kurumtelefon: clean(institution?.institutionPhone),
+      kurumtelefon: formatPhoneDisplay(institution?.institutionPhone, emptyValue),
       kurummudur: clean(managerName),
       kurumbankaadi: clean(institution?.bankName),
       kurumiban: clean(institution?.iban),

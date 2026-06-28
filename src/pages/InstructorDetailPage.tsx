@@ -29,6 +29,7 @@ import {
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { useT } from "../lib/i18n";
 import { canManageArea } from "../lib/permissions";
+import { formatPhoneDisplay } from "../lib/phone";
 import type { InstructorAssignment } from "../lib/types";
 
 function formatFileSize(bytes: number | null): string | null {
@@ -277,7 +278,7 @@ export function InstructorDetailPage() {
                       Ayrıldı · {instructor.leftAtDate.slice(0, 10).split("-").reverse().join(".")}
                     </span>
                   ) : null}
-                  {instructor.phoneNumber ? <span>{instructor.phoneNumber}</span> : null}
+                  {instructor.phoneNumber ? <span>{formatPhoneDisplay(instructor.phoneNumber)}</span> : null}
                   {instructor.email ? <span>{instructor.email}</span> : null}
                 </div>
               </div>

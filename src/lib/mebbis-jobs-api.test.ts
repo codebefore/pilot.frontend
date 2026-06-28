@@ -5,6 +5,7 @@ import {
   createCandidateNationalIdImportJob,
   createCandidateSyncByNationalIdJob,
   createCandidateSyncJob,
+  createCandidateTermEnrollJob,
   getMebbisJobQueueStatus,
   listMebbisJobTypes,
   listMebbisJobs,
@@ -76,6 +77,27 @@ describe("mebbis jobs api", () => {
       "http://127.0.0.1:5090/api/mebbis/jobs/candidates/candidate-1/sync"
     );
     expect(init?.method).toBe("POST");
+  });
+
+  it("creates candidate term enrollment jobs on the MEBBIS base url", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createCandidateTermEnrollJob("candidate-1", { registrationFee: 8750 });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe(
+      "http://127.0.0.1:5090/api/mebbis/jobs/candidates/candidate-1/term-enroll"
+    );
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ registrationFee: 8750 }));
   });
 
   it("creates candidate national ID import jobs on the MEBBIS base url", async () => {

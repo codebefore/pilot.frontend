@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWhatsAppUrl, isPhoneStartingWith5 } from "./phone";
+import { buildWhatsAppUrl, formatPhoneDisplay, isPhoneStartingWith5 } from "./phone";
 
 describe("isPhoneStartingWith5", () => {
   it("accepts values starting with 5", () => {
@@ -30,5 +30,20 @@ describe("buildWhatsAppUrl", () => {
     expect(buildWhatsAppUrl("555")).toBeNull();
     expect(buildWhatsAppUrl(null)).toBeNull();
     expect(buildWhatsAppUrl("")).toBeNull();
+  });
+});
+
+describe("formatPhoneDisplay", () => {
+  it("formats Turkish phone numbers for display", () => {
+    expect(formatPhoneDisplay("5551234567")).toBe("+90 555 123 45 67");
+    expect(formatPhoneDisplay("0 555 123 45 67")).toBe("+90 555 123 45 67");
+    expect(formatPhoneDisplay("+90 555 123 45 67")).toBe("+90 555 123 45 67");
+    expect(formatPhoneDisplay("3120000000")).toBe("+90 312 000 00 00");
+  });
+
+  it("preserves non-matching values and uses fallback for empty values", () => {
+    expect(formatPhoneDisplay("555")).toBe("555");
+    expect(formatPhoneDisplay(null)).toBe("—");
+    expect(formatPhoneDisplay("", "-")).toBe("-");
   });
 });

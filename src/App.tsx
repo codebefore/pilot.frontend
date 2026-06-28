@@ -15,6 +15,7 @@ import { ThemeProvider } from "./lib/theme";
 
 const queryClient = createQueryClient();
 
+const ActivityPage = lazy(() => import("./pages/ActivityPage").then((m) => ({ default: m.ActivityPage })));
 const CandidateDetailPage = lazy(() => import("./pages/CandidateDetailPage").then((m) => ({ default: m.CandidateDetailPage })));
 const CandidatesPage = lazy(() => import("./pages/CandidatesPage").then((m) => ({ default: m.CandidatesPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
@@ -302,6 +303,14 @@ export function AppShell() {
                   </RequireTenantPermission>
                 }
                 path="/notifications"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["dashboard"]}>
+                    <ActivityPage />
+                  </RequireTenantPermission>
+                }
+                path="/activity"
               />
               <Route
                 element={

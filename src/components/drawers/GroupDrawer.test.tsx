@@ -5,12 +5,21 @@ import { GroupDrawer } from "./GroupDrawer";
 import { renderWithProviders } from "../../test/render-with-providers";
 import { ApiError } from "../../lib/http";
 
+const navigateMock = vi.hoisted(() => vi.fn());
 const getGroupByIdMock = vi.fn();
 const deleteGroupMock = vi.fn();
 const getCandidatesMock = vi.fn();
 const updateGroupMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const removeActiveGroupAssignmentMock = vi.fn();
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
 
 vi.mock("../../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/groups-api")>("../../lib/groups-api");
@@ -78,6 +87,7 @@ describe("GroupDrawer", () => {
     updateGroupMock.mockReset();
     assignCandidateGroupMock.mockReset();
     removeActiveGroupAssignmentMock.mockReset();
+    navigateMock.mockReset();
     getCandidatesMock.mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 });
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
@@ -301,6 +311,68 @@ describe("GroupDrawer", () => {
       expect(assignCandidateGroupMock).toHaveBeenCalledWith("candidate-transfer", "group-1");
       expect(getGroupByIdMock).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("shows assigned candidates with an avatar and opens candidate detail when clicked", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({
+      activeCandidates: [
+        {
+          candidateId: "candidate-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "10000000146",
+          phoneNumber: null,
+          photo: null,
+          status: "active",
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+    }));
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    const candidateButton = await screen.findByRole("button", { name: /Ayse Demir/ });
+    expect(within(candidateButton).getByText("AD")).toBeInTheDocument();
+
+    fireEvent.click(candidateButton);
+
+    expect(navigateMock).toHaveBeenCalledWith("/candidates/candidate-1");
+  });
+
+  it("asks for confirmation before removing an assigned candidate", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    const groupWithCandidate = buildGroup({
+      activeCandidates: [
+        {
+          candidateId: "candidate-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "10000000146",
+          phoneNumber: null,
+          photo: null,
+          status: "active",
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+    });
+    getGroupByIdMock.mockResolvedValue(groupWithCandidate);
+    confirmSpy.mockReturnValue(false);
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    fireEvent.click(await screen.findByTitle("Gruptan Çıkar"));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Ayse Demir gruptan çıkarılsın mı?");
+    expect(removeActiveGroupAssignmentMock).not.toHaveBeenCalled();
+
+    confirmSpy.mockReturnValue(true);
+    fireEvent.click(screen.getByTitle("Gruptan Çıkar"));
+
+    await waitFor(() => {
+      expect(removeActiveGroupAssignmentMock).toHaveBeenCalledWith("candidate-1");
+    });
+
+    confirmSpy.mockRestore();
   });
 
   it("updates the group title from selected number and branch", async () => {

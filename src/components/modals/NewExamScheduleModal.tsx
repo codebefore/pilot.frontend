@@ -85,6 +85,7 @@ export function NewExamScheduleModal({
   const time = watch("time");
   const showTimeField = examType === "e_sinav";
   const showExamCodeField = examType === "uygulama";
+  const showCapacityField = examType === "uygulama";
   const dateRegistration = register("date");
   const timeRegistration = register("time");
 
@@ -122,7 +123,7 @@ export function NewExamScheduleModal({
         date: data.date,
         ...(showExamCodeField ? { examCodeId: data.examCodeId } : {}),
         ...(showTimeField ? { time: data.time.trim() } : {}),
-        capacity: Number(data.capacity),
+        capacity: showCapacityField ? Number(data.capacity) : defaultCapacity(examType),
       });
       invalidateExamScheduleDependents();
       showToast("Sinav tarihi eklendi");
@@ -246,23 +247,25 @@ export function NewExamScheduleModal({
           ) : null}
         </div>
 
-        <div className="form-row full">
-          <div className="form-group">
-            <label className="form-label" htmlFor={capacityInputId}>Kontenjan<RequiredMark /></label>
-            <input
-              className={fieldClass(!!errors.capacity, "form-input")}
-              disabled={!canManage}
-              id={capacityInputId}
-              min={1}
-              type="number"
-              {...register("capacity", { valueAsNumber: true })}
-            />
-            {errors.capacity ? (
-              <div className="form-error">{translateError(errors.capacity.message)}</div>
-            ) : null}
-            <div className="form-hint">Ayni sinav tipi icin ayni gunde tek oturum kaydi tutulur.</div>
+        {showCapacityField ? (
+          <div className="form-row full">
+            <div className="form-group">
+              <label className="form-label" htmlFor={capacityInputId}>Kontenjan<RequiredMark /></label>
+              <input
+                className={fieldClass(!!errors.capacity, "form-input")}
+                disabled={!canManage}
+                id={capacityInputId}
+                min={1}
+                type="number"
+                {...register("capacity", { valueAsNumber: true })}
+              />
+              {errors.capacity ? (
+                <div className="form-error">{translateError(errors.capacity.message)}</div>
+              ) : null}
+              <div className="form-hint">Ayni sinav tipi icin ayni gunde tek oturum kaydi tutulur.</div>
+            </div>
           </div>
-        </div>
+        ) : null}
       </form>
     </Modal>
   );

@@ -5,7 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { JobStatus } from "../types";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys, useGroup } from "../lib/queries/use-groups";
+import { useMebbisSessionGuard } from "../lib/queries/use-mebbis-session";
 import { todayLocalDateOnly } from "../lib/date-only";
+import { formatPhoneDisplay } from "../lib/phone";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
@@ -113,7 +115,7 @@ import {
   updateCandidateDocumentMebbisTransfer,
   uploadDocument,
 } from "../lib/documents-api";
-import { createCandidateSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
+import { createCandidatePhotoUploadJob, createCandidateTermEnrollJob, getMebbisJob } from "../lib/mebbis-jobs-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
   CANDIDATE_STATUS_OPTIONS,
@@ -170,6 +172,7 @@ import {
   addHours,
   buildFutureStages,
   calculateAge,
+  canRetryMebbisDocumentTransfer,
   candidateHasExistingLicense,
   dateOnlyAt,
   formatTimelineDate,
@@ -304,6 +307,14 @@ function contactTypeLabel(type: CandidateContactType, t: ReturnType<typeof useT>
   return t(CONTACT_TYPE_LABEL_KEYS[type] ?? "candidateDetail.contactType.other");
 }
 
+function contactOwnerDisplayName(
+  contact: CandidateContactResponse,
+  t: ReturnType<typeof useT>
+): string {
+  const ownerName = contact.ownerName?.trim();
+  if (ownerName) return ownerName;
+  return contact.type === "phone" ? t("candidateDetail.contacts.defaultPhoneOwner") : "—";
+}
 
 function buildCandidateContacts(candidate: CandidateResponse): CandidateContactResponse[] {
   if (candidate.contacts && candidate.contacts.length > 0) {
@@ -603,11 +614,16 @@ export function CandidateDetailPage() {
     }
   };
 
-  const handleRefundPayment = async (paymentId: string, amount: number | null, note: string | null) => {
+  const handleRefundPayment = async (
+    paymentId: string,
+    amount: number | null,
+    cashRegisterId: string | null,
+    note: string | null
+  ) => {
     if (!canManagePayments) return;
     if (!candidate) return;
     try {
-      await createCandidateAccountingRefund(candidate.id, paymentId, { amount, note });
+      await createCandidateAccountingRefund(candidate.id, paymentId, { amount, cashRegisterId, note });
       await refreshAccounting();
       showToast(t("candidateDetail.accounting.toast.refundRecorded"));
     } catch (error) {
@@ -810,8 +826,8 @@ export function CandidateDetailPage() {
                   void handleCreatePayment(type, amount, method, cashRegisterId, paidAtUtc, note, movementId)
                 }
                 onDeleteInvoice={(invoiceId) => void handleDeleteInvoice(invoiceId)}
-                onRefundPayment={(paymentId, amount, note) =>
-                  void handleRefundPayment(paymentId, amount, note)
+                onRefundPayment={(paymentId, amount, cashRegisterId, note) =>
+                  void handleRefundPayment(paymentId, amount, cashRegisterId, note)
                 }
                 onSaveInvoice={(invoice, payload) => void handleSaveInvoice(invoice, payload)}
                 paymentSaving={paymentSaving}
@@ -837,6 +853,7 @@ function CandidateHero({
 }) {
   const t = useT();
   const { showToast } = useToast();
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const [openingMebbisStatus, setOpeningMebbisStatus] = useState(false);
   const [mebbisStatusSnapshot, setMebbisStatusSnapshot] = useState<{
     html: string;
@@ -931,6 +948,7 @@ function CandidateHero({
       };
   const handleOpenMebbisStatus = async () => {
     if (openingMebbisStatus) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     setOpeningMebbisStatus(true);
     try {
       const response = await openLocalAgentMebbisCandidateStatusView(candidate.nationalId);
@@ -1071,8 +1089,10 @@ function CandidateHero({
             <div className="candidate-detail-hero-actions" ref={printFormsRef}>
               <button
                 className="btn btn-secondary btn-sm candidate-detail-hero-action"
+                aria-disabled={!openingMebbisStatus && mebbisSessionGuard.disabled}
                 disabled={openingMebbisStatus}
                 onClick={() => void handleOpenMebbisStatus()}
+                title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
                 type="button"
               >
                 <MebIcon size={15} />
@@ -2162,7 +2182,7 @@ function CandidateContactRow({
               value={ownerName}
             />
           ) : (
-            <strong className="candidate-contact-read-value">{ownerName.trim() || "—"}</strong>
+            <strong className="candidate-contact-read-value">{contactOwnerDisplayName(contact, t)}</strong>
           )}
         </div>
       ) : null}
@@ -2193,7 +2213,9 @@ function CandidateContactRow({
             />
           )
         ) : (
-          <strong className="candidate-contact-read-value">{value.trim() || "—"}</strong>
+          <strong className="candidate-contact-read-value">
+            {isPhone ? formatPhoneDisplay(value) : value.trim() || "—"}
+          </strong>
         )}
       </div>
       <div className="candidate-contact-row-actions">
@@ -3499,6 +3521,39 @@ function accountingErrorMessage(
   return firstMessage;
 }
 
+function candidateTermEnrollQueueErrorMessage(
+  error: unknown,
+  fallback: string,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
+  if (!(error instanceof ApiError)) return fallback;
+  const errors = error.validationErrors ?? {};
+  if (errors.phoneNumber?.length) return t("candidateDetail.documents.toast.termSyncPhoneRequired");
+  if (errors.registrationFee?.length) return t("candidateDetail.documents.toast.termSyncFeeRequired");
+  if (errors.currentGroup?.length) return t("candidateDetail.documents.toast.termSyncGroupRequired");
+  if (errors.nationalId?.length) return t("candidateDetail.documents.toast.termSyncNationalIdRequired");
+  if (errors.birthDate?.length) return t("candidateDetail.documents.toast.termSyncBirthDateRequired");
+  if (errors.identitySerialNumber?.length) return t("candidateDetail.documents.toast.termSyncSerialRequired");
+  if (errors.licenseClass?.length) return t("candidateDetail.documents.toast.termSyncLicenseRequired");
+  return Object.values(errors).flat()[0] ?? error.message ?? fallback;
+}
+
+function candidateTermEnrollJobTerminalMessage(
+  job: Awaited<ReturnType<typeof getMebbisJob>>,
+  fallback: string
+): string {
+  const message = job.errorMessage?.trim();
+  return message || fallback;
+}
+
+function documentMebbisTransferErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiError)) return fallback;
+  const validationMessage = Object.values(error.validationErrors ?? {})
+    .flat()
+    .find((message) => message.trim().length > 0);
+  return validationMessage ?? error.message ?? fallback;
+}
+
 function paymentMethodLabelKey(method: CandidatePaymentMethod): TranslationKey {
   if (method === "cash") return "candidateDetail.accounting.method.cash";
   if (method === "credit_card") return "candidateDetail.accounting.method.creditCard";
@@ -3618,6 +3673,8 @@ function cashRegisterTypeForMethod(method: CandidatePaymentMethod) {
   return method === "other" ? null : method;
 }
 
+type CashRegisterPickerOption = Pick<CashRegisterResponse, "id" | "name" | "type">;
+
 type AccountingLedgerColumnId =
   | "type"
   | "description"
@@ -3735,7 +3792,7 @@ function AccountingTab({
   ) => void;
   onCancelMovement: (movementId: string, cancellationReason: string) => void;
   onCancelPayment: (paymentId: string, cancellationReason: string) => void;
-  onRefundPayment: (paymentId: string, amount: number | null, note: string | null) => void;
+  onRefundPayment: (paymentId: string, amount: number | null, cashRegisterId: string | null, note: string | null) => void;
   onSaveInvoice: (
     invoice: CandidateAccountingInvoiceResponse | null,
     payload: {
@@ -3830,6 +3887,7 @@ function AccountingTab({
   const [paymentCancelReason, setPaymentCancelReason] = useState("");
   const [movementCancelReason, setMovementCancelReason] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
+  const [refundCashRegisterId, setRefundCashRegisterId] = useState("");
   const [refundNote, setRefundNote] = useState("");
   const [sectionSummaryOpen, setSectionSummaryOpen] = useState(false);
   const [feeSuggestionsOpen, setFeeSuggestionsOpen] = useState(false);
@@ -3896,10 +3954,15 @@ function AccountingTab({
     const expected = cashRegisterTypeForMethod(paymentModal.method);
     return expected !== null && register.type === expected;
   });
+  const availableRefundCashRegisters: CashRegisterPickerOption[] = refundPayment?.cashRegister &&
+    !cashRegisters.some((register) => register.id === refundPayment.cashRegisterId)
+      ? [refundPayment.cashRegister, ...cashRegisters]
+      : cashRegisters;
   const parsedDebtAmount = parseMoneyInput(debtModal.amount);
   const parsedPaymentPlanAmount = parseMoneyInput(paymentPlanModal.amount);
   const paymentPlanInstallmentCount = Number(paymentPlanModal.installmentCount);
   const parsedPaymentAmount = parseMoneyInput(paymentModal.amount);
+  const parsedRefundAmount = parseMoneyInput(refundAmount);
   const paymentNeedsRegister = cashRegisterTypeForMethod(paymentModal.method) !== null;
   const paymentTargetMovement = paymentModal.movementId
     ? activeMovements.find((item) => item.id === paymentModal.movementId)
@@ -3953,6 +4016,12 @@ function AccountingTab({
     invoiceSubtotal != null &&
     invoiceSubtotal > 0 &&
     !invoiceSaving;
+  const canSaveRefund =
+    canManagePayments &&
+    parsedRefundAmount != null &&
+    parsedRefundAmount > 0 &&
+    Boolean(refundCashRegisterId) &&
+    refundNote.trim().length >= 3;
 
   const openDebtModal = (
     type: CandidateAccountingType = "kurs",
@@ -4033,6 +4102,7 @@ function AccountingTab({
     if (!canManagePayments) return;
     setRefundPayment(payment);
     setRefundAmount(String(Math.max(0, payment.amount - payment.refundedAmount)));
+    setRefundCashRegisterId(payment.cashRegisterId ?? "");
     setRefundNote("");
   };
   const openCancelMovementModal = (movement: CandidateAccountingSummaryResponse["movements"][number]) => {
@@ -4857,11 +4927,16 @@ function AccountingTab({
             <button className="btn btn-secondary" onClick={() => setRefundPayment(null)} type="button">{t("common.cancel")}</button>
             <button
               className="btn btn-primary"
-              disabled={!canManagePayments || (parseMoneyInput(refundAmount) ?? 0) <= 0 || refundNote.trim().length < 3}
+              disabled={!canSaveRefund}
               onClick={() => {
                 if (!canManagePayments) return;
                 if (!refundPayment) return;
-                onRefundPayment(refundPayment.id, parseMoneyInput(refundAmount), refundNote.trim());
+                onRefundPayment(
+                  refundPayment.id,
+                  parsedRefundAmount,
+                  refundCashRegisterId || null,
+                  refundNote.trim()
+                );
                 setRefundPayment(null);
               }}
               title={!canManagePayments ? noPermissionTitle : undefined}
@@ -4880,6 +4955,15 @@ function AccountingTab({
             <span className="form-label">{t("candidateDetail.accounting.field.refundAmount")}</span>
             <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setRefundAmount(event.target.value)} placeholder="0,00" value={refundAmount} />
           </label>
+          <div className="form-group">
+            <span className="form-label">Kasa</span>
+            <CashRegisterPicker
+              disabled={!canManagePayments}
+              onChange={setRefundCashRegisterId}
+              registers={availableRefundCashRegisters}
+              value={refundCashRegisterId}
+            />
+          </div>
           <label className="form-group">
             <span className="form-label">{t("candidateDetail.accounting.field.description")}</span>
             <textarea className="form-input" disabled={!canManagePayments} onChange={(event) => setRefundNote(event.target.value)} placeholder={t("candidateDetail.accounting.placeholder.refundNote")} rows={3} value={refundNote} />
@@ -4951,7 +5035,7 @@ function CashRegisterPicker({
   onChange,
 }: {
   disabled: boolean;
-  registers: CashRegisterResponse[];
+  registers: CashRegisterPickerOption[];
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -7923,6 +8007,7 @@ function DocumentsTab({
   onDeleted: () => void;
 }) {
   const { showToast } = useToast();
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const queryClient = useQueryClient();
   const noPermissionTitle = "Yetkiniz yok.";
   const t = useT();
@@ -8092,11 +8177,16 @@ function DocumentsTab({
   const filteredOptionalTypes = optionalTypes.filter(matchesFilter);
   const filteredA4DocumentTypes = a4DocumentTypes.filter(matchesFilter);
   const hasRequiredDocumentTypes = requiredTypes.length + a4DocumentTypes.length > 0;
-  const contractFee = parseMoneyInput(
-    getDocumentMetadataValue(uploadsByKey, "contract_back", "institution_mebbis_fee") ??
-      contractBackMebbisFeeDefault ??
-      ""
+  const contractBackMebbisFeeMetadata = getDocumentMetadataValue(
+    uploadsByKey,
+    "contract_back",
+    "institution_mebbis_fee"
   );
+  const contractFee = parseMoneyInput(contractBackMebbisFeeMetadata ?? contractBackMebbisFeeDefault ?? "");
+  const termEnrollFeeResolving =
+    !contractBackMebbisFeeMetadata &&
+    !contractBackMebbisFeeDefault &&
+    (contractBackFeeMatrixQuery.isLoading || contractBackFeeMatrixQuery.isFetching);
   const documentChecklistItems = buildCandidateDocumentChecklistItems({
     candidate,
     contractFee,
@@ -8108,11 +8198,11 @@ function DocumentsTab({
   const actionableChecklistCount = documentChecklistItems.filter((item) => item.status !== "not_applicable").length;
   const handleQueueCandidateSync = async () => {
     if (!canManageMebJobs) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     if (candidateSyncQueuing || candidateSyncRunning) return;
-    setOneByOneTransferOpen(false);
     setCandidateSyncQueuing(true);
     try {
-      const job = await createCandidateSyncJob(candidateId);
+      const job = await createCandidateTermEnrollJob(candidateId, { registrationFee: contractFee });
       notifyMebbisJobQueued(job.id, job.jobType);
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
@@ -8137,14 +8227,20 @@ function DocumentsTab({
           return;
         }
         if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
-          showToast(t("candidateDetail.documents.toast.termSyncNeedsReview"), "error");
+          showToast(
+            candidateTermEnrollJobTerminalMessage(latestJob, t("candidateDetail.documents.toast.termSyncNeedsReview")),
+            "error"
+          );
           return;
         }
       }
 
       showToast(t("candidateDetail.documents.toast.termSyncStillRunning"));
-    } catch {
-      showToast(t("candidateDetail.documents.toast.termSyncFailed"), "error");
+    } catch (error) {
+      showToast(
+        candidateTermEnrollQueueErrorMessage(error, t("candidateDetail.documents.toast.termSyncFailed"), t),
+        "error"
+      );
     } finally {
       setCandidateSyncQueuing(false);
       setCandidateSyncRunning(false);
@@ -8216,7 +8312,12 @@ function DocumentsTab({
                 <div className="candidate-detail-doc-actions-bar">
                   <button
                     className="btn btn-primary btn-sm"
-                    onClick={() => setOneByOneTransferOpen(true)}
+                    aria-disabled={mebbisSessionGuard.disabled}
+                    onClick={() => {
+                      if (!mebbisSessionGuard.ensureSession()) return;
+                      setOneByOneTransferOpen(true);
+                    }}
+                    title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
                     type="button"
                   >
                     {t("candidateDetail.documents.button.mebbisActions")}
@@ -8258,6 +8359,7 @@ function DocumentsTab({
         onEnrollTerm={() => void handleQueueCandidateSync()}
         onRefresh={onRefresh}
         open={oneByOneTransferOpen}
+        termEnrollFeeResolving={termEnrollFeeResolving}
         uploadsByKey={uploadsByKey}
       />
 
@@ -8434,6 +8536,7 @@ function CandidateDocumentOneByOneTransferModal({
   onClose,
   onEnrollTerm,
   onRefresh,
+  termEnrollFeeResolving,
 }: {
   canManageDocuments: boolean;
   canManageMebJobs: boolean;
@@ -8447,23 +8550,63 @@ function CandidateDocumentOneByOneTransferModal({
   onClose: () => void;
   onEnrollTerm: () => void;
   onRefresh: () => Promise<void>;
+  termEnrollFeeResolving: boolean;
 }) {
   const t = useT();
   const { showToast } = useToast();
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const [transferringTypeId, setTransferringTypeId] = useState<string | null>(null);
   const noDocumentPermissionTitle = t("common.noPermission");
 
   const handleTransfer = async (type: DocumentTypeResponse) => {
-    if (!canManageDocuments || transferringTypeId) return;
+    if (transferringTypeId) return;
+    if (type.key === "biometric_photo" ? !canManageMebJobs : !canManageDocuments) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     const upload = uploadsByKey.get(type.key) ?? null;
-    if (getCandidateDocumentStatus(upload) === "missing" || upload?.isMebbisTransferred) return;
+    if (getCandidateDocumentStatus(upload) === "missing") return;
+    if (!canRetryMebbisDocumentTransfer(type.key, upload?.isMebbisTransferred === true)) return;
     setTransferringTypeId(type.id);
     try {
+      if (type.key === "biometric_photo") {
+        if (!canManageMebJobs) return;
+        const job = await createCandidatePhotoUploadJob(candidateId);
+        notifyMebbisJobQueued(job.id, job.jobType);
+        showToast("Biyometrik fotoğraf MEBBİS aktarımı kuyruğa alındı");
+
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          if (attempt > 0) await delay(5000);
+          const latestJob = await getMebbisJob(job.id);
+          if (latestJob.status === "succeeded") {
+            await onRefresh();
+            showToast("Biyometrik fotoğraf MEBBİS’e aktarıldı");
+            return;
+          }
+
+          if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
+            showToast(candidateTermEnrollJobTerminalMessage(latestJob, "Biyometrik fotoğraf MEBBİS aktarımı kontrol gerektiriyor"), "error");
+            return;
+          }
+        }
+
+        showToast("Biyometrik fotoğraf MEBBİS aktarımı hala devam ediyor");
+        return;
+      }
+
       await updateCandidateDocumentMebbisTransfer(candidateId, type.id, true);
       await onRefresh();
       showToast(t("candidateDetail.documents.row.toast.mebbisMarked", { name: type.name }));
-    } catch {
-      showToast(t("candidateDetail.documents.oneByOne.toast.transferFailed", { name: type.name }), "error");
+    } catch (error) {
+      if (type.key === "biometric_photo") {
+        showToast(
+          documentMebbisTransferErrorMessage(
+            error,
+            t("candidateDetail.documents.oneByOne.toast.transferFailed", { name: type.name })
+          ),
+          "error"
+        );
+      } else {
+        showToast(t("candidateDetail.documents.oneByOne.toast.transferFailed", { name: type.name }), "error");
+      }
     } finally {
       setTransferringTypeId(null);
     }
@@ -8484,9 +8627,16 @@ function CandidateDocumentOneByOneTransferModal({
         <div className="candidate-detail-doc-transfer-actions">
           <button
             className="btn btn-primary btn-sm"
-            disabled={candidateSyncQueuing || candidateSyncRunning || !canManageMebJobs}
+            aria-disabled={
+              !candidateSyncQueuing &&
+              !candidateSyncRunning &&
+              !termEnrollFeeResolving &&
+              canManageMebJobs &&
+              mebbisSessionGuard.disabled
+            }
+            disabled={candidateSyncQueuing || candidateSyncRunning || termEnrollFeeResolving || !canManageMebJobs}
             onClick={onEnrollTerm}
-            title={!canManageMebJobs ? noPermissionTitle : undefined}
+            title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
             type="button"
           >
             {candidateSyncQueuing
@@ -8495,10 +8645,26 @@ function CandidateDocumentOneByOneTransferModal({
                 ? t("candidateDetail.documents.button.syncing")
                 : t("candidateDetail.documents.button.enrollTerm")}
           </button>
-          <button className="btn btn-primary btn-sm" type="button">
+          <button
+            className="btn btn-primary btn-sm"
+            aria-disabled={mebbisSessionGuard.disabled}
+            onClick={() => {
+              if (!mebbisSessionGuard.ensureSession()) return;
+            }}
+            title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
+            type="button"
+          >
             {t("candidateDetail.documents.button.enrollTermAndTransfer")}
           </button>
-          <button className="btn btn-danger btn-sm" type="button">
+          <button
+            className="btn btn-danger btn-sm"
+            aria-disabled={mebbisSessionGuard.disabled}
+            onClick={() => {
+              if (!mebbisSessionGuard.ensureSession()) return;
+            }}
+            title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
+            type="button"
+          >
             {t("candidateDetail.documents.button.removeFromTerm")}
           </button>
         </div>
@@ -8508,6 +8674,8 @@ function CandidateDocumentOneByOneTransferModal({
             const status = getCandidateDocumentStatus(upload);
             const isTransferred = upload?.isMebbisTransferred === true;
             const isBusy = transferringTypeId === type.id;
+            const requiresMebbisJob = type.key === "biometric_photo";
+            const canTransfer = requiresMebbisJob ? canManageMebJobs : canManageDocuments;
             return (
               <li className={`candidate-detail-doc-transfer-row status-${status}`} key={type.id}>
                 <CandidateDocumentTransferPreview
@@ -8529,21 +8697,32 @@ function CandidateDocumentOneByOneTransferModal({
                 <div className="candidate-detail-doc-transfer-action">
                   <button
                     className="btn btn-primary btn-sm"
+                    aria-disabled={
+                      !transferringTypeId &&
+                      canTransfer &&
+                      status !== "missing" &&
+                      (requiresMebbisJob || !isTransferred) &&
+                      mebbisSessionGuard.disabled
+                    }
                     disabled={
                       !!transferringTypeId ||
-                      !canManageDocuments ||
+                      !canTransfer ||
                       status === "missing" ||
-                      isTransferred
+                      !canRetryMebbisDocumentTransfer(type.key, isTransferred)
                     }
                     onClick={() => void handleTransfer(type)}
-                    title={!canManageDocuments ? noDocumentPermissionTitle : undefined}
+                    title={
+                      !canTransfer
+                        ? (requiresMebbisJob ? noPermissionTitle : noDocumentPermissionTitle)
+                        : mebbisSessionGuard.disabled
+                          ? mebbisSessionGuard.message
+                          : undefined
+                    }
                     type="button"
                   >
                     {isBusy
                       ? t("candidateDetail.documents.oneByOne.transferring")
-                      : isTransferred
-                        ? t("candidateDetail.documents.oneByOne.transferred")
-                        : t("candidateDetail.documents.oneByOne.transfer")}
+                      : t("candidateDetail.documents.oneByOne.transfer")}
                   </button>
                 </div>
               </li>

@@ -40,6 +40,12 @@ function checklistPageCalls() {
   );
 }
 
+function checklistCountCalls() {
+  return getDocumentChecklistMock.mock.calls.filter(
+    ([params]) => params?.pageSize === 1
+  );
+}
+
 function lastChecklistPageCall() {
   const calls = checklistPageCalls();
   return calls[calls.length - 1];
@@ -94,20 +100,52 @@ describe("DocumentsPage", () => {
     ]);
   });
 
-  it("fetches the checklist by default without a status tab filter", async () => {
+  it("fetches the checklist by default for pre-registered candidates", async () => {
     renderPage();
 
     await waitFor(() => {
       expect(getDocumentChecklistMock).toHaveBeenCalledWith(
         expect.objectContaining({
+          candidateStatus: "pre_registered",
           page: 1,
           pageSize: 100,
         }),
         expect.any(AbortSignal)
       );
     });
-    expect(checklistPageCalls()[0]?.[0]).not.toHaveProperty("candidateStatus");
     expect(checklistPageCalls()[0]?.[0]?.hasMissingDocuments).toBeUndefined();
+  });
+
+  it("fetches tab counts for pre-registered candidates", async () => {
+    renderPage();
+
+    await waitFor(() => expect(checklistCountCalls()).toHaveLength(3));
+
+    const countParams = checklistCountCalls().map(([params]) => params);
+    expect(countParams).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          candidateStatus: "pre_registered",
+          page: 1,
+          pageSize: 1,
+        }),
+        expect.objectContaining({
+          candidateStatus: "pre_registered",
+          hasMissingDocuments: true,
+          page: 1,
+          pageSize: 1,
+        }),
+        expect.objectContaining({
+          candidateStatus: "pre_registered",
+          hasMissingDocuments: false,
+          page: 1,
+          pageSize: 1,
+        }),
+      ])
+    );
+    expect(countParams.find((params) => params != null && !("hasMissingDocuments" in params))).toEqual(
+      expect.objectContaining({ candidateStatus: "pre_registered" })
+    );
   });
 
   it("labels the exam result filter as theory-only", async () => {
@@ -182,6 +220,7 @@ describe("DocumentsPage", () => {
     await waitFor(() => {
       expect(lastChecklistPageCall()).toEqual([
         expect.objectContaining({
+          candidateStatus: "pre_registered",
           hasMissingDocuments: true,
           page: 1,
           pageSize: 100,
@@ -195,6 +234,7 @@ describe("DocumentsPage", () => {
     await waitFor(() => {
       expect(lastChecklistPageCall()).toEqual([
         expect.objectContaining({
+          candidateStatus: "pre_registered",
           hasMissingDocuments: false,
           page: 1,
           pageSize: 100,
@@ -327,7 +367,7 @@ describe("DocumentsPage", () => {
     expect(screen.getByLabelText("Nüfus Cüzdanı: var")).toBeInTheDocument();
     expect(screen.getByLabelText("Sağlık Raporu: yok, yukle")).toBeInTheDocument();
     expect(screen.getByLabelText("Mevcut Ehliyet Fotokopisi: yok, yukle")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "05321234567" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "+90 532 123 45 67" })).toHaveAttribute(
       "href",
       "https://wa.me/905321234567"
     );

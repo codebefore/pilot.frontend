@@ -92,16 +92,12 @@ function weekdayIndex(date: Date): number {
   return (date.getUTCDay() + 6) % 7;
 }
 
-function formatLocalizedDate(value: string, lang?: string): string {
+function formatLocalizedDate(value: string): string {
   const parts = value.slice(0, 10).split("-");
   if (parts.length !== 3) return value;
 
   const [year, month, day] = parts;
-  if (lang === "tr-TR") {
-    return `${day}.${month}.${year}`;
-  }
-
-  return `${year}-${month}-${day}`;
+  return `${day}.${month}.${year}`;
 }
 
 function formatLocalizedMonth(value: string, lang?: string): string {
@@ -128,7 +124,7 @@ function defaultPlaceholder(lang?: string, mode: "day" | "month" | "year" = "day
   if (mode === "month") {
     return lang === "tr-TR" ? "aa/yyyy" : "mmm yyyy";
   }
-  return lang === "tr-TR" ? "gg.aa.yyyy" : "yyyy-mm-dd";
+  return "gg.aa.yyyy";
 }
 
 function weekdayLabels(lang?: string): string[] {
@@ -396,21 +392,23 @@ export function LocalizedDateInput({
       return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
     }
 
-    const m = effectiveLang === "tr-TR"
-      ? trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
-      : trimmed.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
+    const compactDayMatch = trimmed.match(/^(\d{2})(\d{2})(\d{4})$/);
+    const m =
+      compactDayMatch ??
+      trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/) ??
+      trimmed.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
     if (!m) return null;
     let year: number;
     let month: number;
     let day: number;
-    if (effectiveLang === "tr-TR") {
-      day = Number(m[1]);
-      month = Number(m[2]);
-      year = Number(m[3]);
-    } else {
+    if (m[1].length === 4) {
       year = Number(m[1]);
       month = Number(m[2]);
       day = Number(m[3]);
+    } else {
+      day = Number(m[1]);
+      month = Number(m[2]);
+      year = Number(m[3]);
     }
     if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2999) return null;
     const date = new Date(Date.UTC(year, month - 1, day));
@@ -434,6 +432,9 @@ export function LocalizedDateInput({
     }
     if (iso) {
       onChange(iso);
+      if (!isMonthMode && !isYearMode) {
+        setTypedValue(formatLocalizedDate(iso));
+      }
       const parsed = parseIsoDate(iso);
       if (parsed) setVisibleMonth(monthStart(parsed));
     }
@@ -455,7 +456,7 @@ export function LocalizedDateInput({
       ? formatLocalizedYear(value)
       : isMonthMode
       ? formatLocalizedMonth(value, effectiveLang)
-      : formatLocalizedDate(value, effectiveLang)
+      : formatLocalizedDate(value)
     : "";
 
   return (

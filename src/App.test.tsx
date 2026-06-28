@@ -22,6 +22,13 @@ vi.mock("./lib/stats-api", () => ({
     recentMebJobs: [],
     recentActivity: [],
   }),
+  getDashboardActivity: vi.fn().mockResolvedValue({
+    items: [],
+    page: 1,
+    pageSize: 100,
+    totalCount: 0,
+    totalPages: 0,
+  }),
 }));
 
 vi.mock("./lib/candidates-api", async () => {

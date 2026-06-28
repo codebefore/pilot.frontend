@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { candidateHasExistingLicense, hasExistingLicenseValue } from "./CandidateDetailPage.helpers";
+import {
+  candidateHasExistingLicense,
+  canRetryMebbisDocumentTransfer,
+  hasExistingLicenseValue,
+} from "./CandidateDetailPage.helpers";
 
 describe("CandidateDetailPage helpers", () => {
   it("detects existing license from either flag or license type", () => {
@@ -15,5 +19,11 @@ describe("CandidateDetailPage helpers", () => {
     expect(hasExistingLicenseValue("-")).toBe(false);
     expect(hasExistingLicenseValue("none")).toBe(false);
     expect(hasExistingLicenseValue("exempt")).toBe(false);
+  });
+
+  it("allows biometric photo MEBBIS transfer retry even after it was marked transferred", () => {
+    expect(canRetryMebbisDocumentTransfer("biometric_photo", true)).toBe(true);
+    expect(canRetryMebbisDocumentTransfer("identity_copy", true)).toBe(false);
+    expect(canRetryMebbisDocumentTransfer("identity_copy", false)).toBe(true);
   });
 });

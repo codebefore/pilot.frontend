@@ -71,7 +71,17 @@ button {
   transform: none;
   box-shadow: none;
 }
+.btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: .55;
+  transform: none;
+  box-shadow: none;
+}
 .btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+.btn[aria-disabled="true"]:hover {
   transform: none;
   box-shadow: none;
 }

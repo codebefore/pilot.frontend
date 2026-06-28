@@ -36,7 +36,7 @@ import { canManageArea } from "../lib/permissions";
 import { candidateKeys, useCandidateTags } from "../lib/queries/use-candidates";
 import { groupKeys, useGroups } from "../lib/queries/use-groups";
 import { formatLocalDateOnly } from "../lib/date-only";
-import { buildWhatsAppUrl } from "../lib/phone";
+import { buildWhatsAppUrl, formatPhoneDisplay } from "../lib/phone";
 import { normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
 import {
@@ -116,7 +116,7 @@ function toAvatarCandidate(entry: DocumentChecklistEntry) {
 }
 
 function renderPhoneNumber(entry: DocumentChecklistEntry) {
-  const phoneNumber = entry.phoneNumber?.trim() || "—";
+  const phoneNumber = formatPhoneDisplay(entry.phoneNumber);
   const whatsappUrl = buildWhatsAppUrl(entry.phoneNumber);
 
   if (!whatsappUrl) {
@@ -279,6 +279,7 @@ export function DocumentsPage() {
     search: normalizeTextQuery(debouncedSearch),
     tags: activeTags.length > 0 ? activeTags : undefined,
     ...candidateFilterQuery,
+    candidateStatus: "pre_registered" as const,
     hasMissingDocuments:
       tab === "missing" ? true : tab === "complete" ? false : candidateFilterQuery.hasMissingDocuments,
     page,
@@ -317,6 +318,7 @@ export function DocumentsPage() {
     search: normalizeTextQuery(debouncedSearch),
     tags: activeTags.length > 0 ? activeTags : undefined,
     ...baseCandidateFilterQuery,
+    candidateStatus: "pre_registered" as const,
     page: 1,
     pageSize: 1,
   };
@@ -619,7 +621,7 @@ export function DocumentsPage() {
 
     const rows = rowsToExport.map((entry): readonly (string | number)[] => [
       entry.fullName,
-      entry.phoneNumber ?? "",
+      formatPhoneDisplay(entry.phoneNumber, ""),
       entry.licenseClass,
       renderDocumentTerm(entry, lang),
       entry.hasAdvancePayment ? "Var" : "Yok",
@@ -710,7 +712,7 @@ export function DocumentsPage() {
   };
 
   const openCandidateDetail = (candidateId: string) => {
-    navigate(`/candidates/${candidateId}`, { state: detailReturnState });
+    navigate(`/candidates/${candidateId}?tab=documents`, { state: detailReturnState });
   };
 
   const handleUploaded = () => {

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getMebbisApiBaseUrl } from "../../lib/api";
 import { useLanguage, type TranslationKey } from "../../lib/i18n";
@@ -6,6 +7,7 @@ import type { AuthInstitution } from "../../lib/auth-storage";
 import {
   getLocalAgentHealth,
   getLocalAgentMebbisSession,
+  openLocalAgentMebbisHomeView,
   pairLocalAgent,
   readStoredLocalAgentToken,
   startLocalAgentMebbisSession,
@@ -16,7 +18,8 @@ import {
   type LocalAgentMebbisSessionStatus,
 } from "../../lib/local-agent-api";
 import { pairMebbisExtensionClient } from "../../lib/mebbis-jobs-api";
-import { MenuIcon } from "../icons";
+import { ExternalLinkIcon, MenuIcon } from "../icons";
+import { useToast } from "../ui/Toast";
 import { InstitutionSelector } from "./InstitutionSelector";
 import { NotificationsMenu } from "./NotificationsMenu";
 import { UserMenu } from "./UserMenu";
@@ -100,13 +103,17 @@ export function Header({
 
 function HeaderMebbisConnection() {
   const { t } = useLanguage();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<LocalAgentMebbisSessionResponse | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openingMebbisHome, setOpeningMebbisHome] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
   const pollingTimer = useRef<number | null>(null);
+  const sessionStatusRefreshTimers = useRef<number[]>([]);
   const latestSession = useRef<LocalAgentMebbisSessionResponse | null>(null);
   const operationInFlight = useRef(false);
 
@@ -121,6 +128,7 @@ function HeaderMebbisConnection() {
       mounted.current = false;
       controller.abort();
       stopPolling();
+      clearSessionStatusRefreshTimers();
     };
   }, []);
 
@@ -163,6 +171,26 @@ function HeaderMebbisConnection() {
     }
   }
 
+  async function handleOpenMebbisHome(event: MouseEvent<HTMLSpanElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (openingMebbisHome) return;
+    setOpeningMebbisHome(true);
+    try {
+      const result = await openLocalAgentMebbisHomeView();
+      showToast(result.message || t("dashboard.toast.mebbisOpened"));
+    } catch (err) {
+      const message = err instanceof LocalAgentError && err.status === 401
+        ? t("dashboard.toast.mebbisLocalAgentNotPaired")
+        : err instanceof Error
+          ? err.message
+          : t("dashboard.toast.mebbisOpenFailed");
+      showToast(message, "error");
+    } finally {
+      setOpeningMebbisHome(false);
+    }
+  }
+
   function beginOperation() {
     if (operationInFlight.current) {
       return false;
@@ -176,6 +204,26 @@ function HeaderMebbisConnection() {
   function endOperation() {
     operationInFlight.current = false;
     setBusy(false);
+  }
+
+  function refreshMebbisSessionStatus() {
+    void queryClient.invalidateQueries({ queryKey: ["mebbis", "session", "status"] });
+  }
+
+  function refreshMebbisSessionStatusSoon() {
+    refreshMebbisSessionStatus();
+    clearSessionStatusRefreshTimers();
+    sessionStatusRefreshTimers.current = [
+      window.setTimeout(refreshMebbisSessionStatus, 2_000),
+      window.setTimeout(refreshMebbisSessionStatus, 5_000),
+    ];
+  }
+
+  function clearSessionStatusRefreshTimers() {
+    for (const timerId of sessionStatusRefreshTimers.current) {
+      window.clearTimeout(timerId);
+    }
+    sessionStatusRefreshTimers.current = [];
   }
 
   async function startSession() {
@@ -223,6 +271,7 @@ function HeaderMebbisConnection() {
       }
       latestSession.current = next;
       setSession(next);
+      refreshMebbisSessionStatusSoon();
       if (next.status === "waiting_verification" || next.requiresVerificationCode) {
         setPopoverOpen(true);
       }
@@ -293,6 +342,8 @@ function HeaderMebbisConnection() {
       setSession(next);
       setVerificationCode("");
       setPopoverOpen(false);
+      clearSessionStatusRefreshTimers();
+      refreshMebbisSessionStatus();
       stopPolling();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("header.mebbis.stopFailed"));
@@ -313,6 +364,7 @@ function HeaderMebbisConnection() {
       const next = await submitLocalAgentMebbisVerificationCode(code);
       latestSession.current = next;
       setSession(next);
+      refreshMebbisSessionStatusSoon();
       if (next.status !== "waiting_verification" && !next.requiresVerificationCode) {
         setVerificationCode("");
         setPopoverOpen(false);
@@ -337,6 +389,15 @@ function HeaderMebbisConnection() {
         <span className="header-mebbis-switch" data-active={active} aria-hidden="true" />
         <span className="header-mebbis-label">MEBBİS</span>
         <span className="header-mebbis-pill">{statusText}</span>
+        <span
+          aria-hidden="true"
+          className="header-mebbis-open-icon"
+          data-loading={openingMebbisHome ? "true" : undefined}
+          onClick={(event) => void handleOpenMebbisHome(event)}
+          title="MEBBİS aç"
+        >
+          <ExternalLinkIcon size={14} />
+        </span>
       </button>
 
       {popoverOpen && (

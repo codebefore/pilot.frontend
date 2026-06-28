@@ -92,7 +92,7 @@ describe("NewExamScheduleModal", () => {
     expect(onSaved).toHaveBeenCalled();
   });
 
-  it.skip("keeps the time field for e-sinav", async () => {
+  it("keeps the time field and hides capacity for e-sinav", async () => {
     const onSaved = vi.fn();
 
     createExamScheduleMock.mockResolvedValue({
@@ -115,6 +115,19 @@ describe("NewExamScheduleModal", () => {
     );
 
     expect(screen.getByLabelText(/^Saat/)).toBeInTheDocument();
-    expect(onSaved).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/^Kontenjan/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(createExamScheduleMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          examType: "e_sinav",
+          time: "09:00",
+          capacity: 20,
+        })
+      );
+    });
+    expect(onSaved).toHaveBeenCalled();
   });
 });

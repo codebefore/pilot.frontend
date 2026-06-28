@@ -39,6 +39,7 @@ import { getGroupById, getGroups } from "../lib/groups-api";
 import { getInstructors } from "../lib/instructors-api";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
+import { useMebbisSessionGuard } from "../lib/queries/use-mebbis-session";
 import {
   createPracticeScheduleImportJob,
   createTheoryScheduleImportJob,
@@ -223,6 +224,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const noPermissionTitle = t("common.noPermission");
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [serverGeneralError, setServerGeneralError] = useState<string | undefined>();
@@ -1999,6 +2001,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const handleCreateTheoryScheduleSyncJob = async () => {
     if (!canManageMebJobs) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     if (!selectedTheoryGroup) {
       showToast(t("training.toast.selectGroupForMebbisTransfer"));
       return;
@@ -2028,6 +2031,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const handleCreateTheoryScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     if (!selectedTheoryGroup) {
       showToast(t("training.toast.selectGroupForMebbisImport"));
       return;
@@ -2057,6 +2061,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const handleCreatePracticeScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     if (!selectedPracticeCandidate) {
       showToast(t("training.toast.selectCandidateForMebbisPracticeImport"));
       return;
@@ -2179,6 +2184,14 @@ export function TrainingPage({ type }: TrainingPageProps) {
               {type === "teorik" ? (
                 <button
                   className="btn btn-primary btn-sm"
+                  aria-disabled={
+                    canManageMebJobs &&
+                    !isQuickAssignLoading &&
+                    !isBulkDeleteLoading &&
+                    !isMebbisImportLoading &&
+                    !isMebbisTransferLoading &&
+                    mebbisSessionGuard.disabled
+                  }
                   disabled={
                     !canManageMebJobs ||
                     isQuickAssignLoading ||
@@ -2187,7 +2200,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     isMebbisTransferLoading
                   }
                   onClick={handleCreateTheoryScheduleSyncJob}
-                  title={!canManageMebJobs ? noPermissionTitle : undefined}
+                  title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
                   type="button"
                 >
                   <MebIcon size={14} />
@@ -2199,6 +2212,14 @@ export function TrainingPage({ type }: TrainingPageProps) {
               {type === "teorik" ? (
                 <button
                   className="btn btn-secondary btn-sm"
+                  aria-disabled={
+                    canManageMebJobs &&
+                    !isQuickAssignLoading &&
+                    !isBulkDeleteLoading &&
+                    !isMebbisImportLoading &&
+                    !isMebbisTransferLoading &&
+                    mebbisSessionGuard.disabled
+                  }
                   disabled={
                     !canManageMebJobs ||
                     isQuickAssignLoading ||
@@ -2207,7 +2228,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     isMebbisTransferLoading
                   }
                   onClick={handleCreateTheoryScheduleImportJob}
-                  title={!canManageMebJobs ? noPermissionTitle : undefined}
+                  title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
                   type="button"
                 >
                   <MebIcon size={14} />
@@ -2241,6 +2262,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 <>
                   <button
                     className="btn btn-secondary btn-sm"
+                    aria-disabled={
+                      canManageMebJobs &&
+                      !isQuickAssignLoading &&
+                      !isBulkDeleteLoading &&
+                      !isMebbisImportLoading &&
+                      !isMebbisTransferLoading &&
+                      !isMebbisPracticeImportLoading &&
+                      mebbisSessionGuard.disabled
+                    }
                     disabled={
                       !canManageMebJobs ||
                       isQuickAssignLoading ||
@@ -2250,7 +2280,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                       isMebbisPracticeImportLoading
                     }
                     onClick={handleCreatePracticeScheduleImportJob}
-                    title={!canManageMebJobs ? noPermissionTitle : undefined}
+                    title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
                     type="button"
                   >
                     <MebIcon size={14} />

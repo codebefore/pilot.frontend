@@ -11,6 +11,7 @@ import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
 import { updateStoredInstitutionName } from "../lib/auth-storage";
 import { ApiError } from "../lib/http";
+import { formatPhoneDisplay } from "../lib/phone";
 import {
   createInstitutionMember,
   createInstitutionFounder,
@@ -858,7 +859,7 @@ function InstitutionMembersModal({
                   members.map((member) => (
                     <tr key={member.id}>
                       <td><strong>{member.fullName}</strong></td>
-                      <td>{member.phone ?? "-"}</td>
+                      <td>{formatPhoneDisplay(member.phone, "-")}</td>
                       <td>{member.roleName ?? "-"}</td>
                       <td>
                         <StatusPill

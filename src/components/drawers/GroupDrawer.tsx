@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
 import {
   assignCandidateGroup,
@@ -36,6 +37,7 @@ import { CheckIcon, PencilIcon, PlusIcon, XIcon } from "../icons";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { PageLoadError } from "../ui/PageLoadError";
 import { CustomSelect } from "../ui/CustomSelect";
+import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { EditableRow } from "../ui/EditableRow";
 import { PanelListSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
@@ -51,6 +53,7 @@ type GroupDrawerProps = {
 export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -244,9 +247,16 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     }
   };
 
-  const handleRemoveCandidate = async (candidateId: string) => {
+  const openCandidateDetail = (candidateId: string) => {
+    navigate(`/candidates/${candidateId}`);
+  };
+
+  const handleRemoveCandidate = async (candidate: { candidateId: string; firstName: string; lastName: string }) => {
     if (!canManageGroups) return;
     if (!groupId) return;
+    const candidateName = `${candidate.firstName} ${candidate.lastName}`.trim();
+    if (!window.confirm(t("groupDrawer.confirm.removeCandidate", { name: candidateName }))) return;
+    const { candidateId } = candidate;
     setRemoving(candidateId);
     try {
       await removeActiveGroupAssignment(candidateId);
@@ -406,14 +416,29 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
             ) : (
               group.activeCandidates.map((c) => (
                 <div key={c.candidateId} className="drawer-row candidate-list-row">
-                  <span className="value" style={{ flex: 1 }}>
-                    {c.firstName} {c.lastName}
-                    <span className="candidate-tc">{formatNationalId(c.nationalId)}</span>
-                  </span>
+                  <button
+                    className="candidate-list-person"
+                    onClick={() => openCandidateDetail(c.candidateId)}
+                    type="button"
+                  >
+                    <CandidateAvatar
+                      candidate={{
+                        id: c.candidateId,
+                        firstName: c.firstName,
+                        lastName: c.lastName,
+                        photo: c.photo ?? null,
+                      }}
+                      size={32}
+                    />
+                    <span className="candidate-list-text">
+                      <span className="candidate-name">{c.firstName} {c.lastName}</span>
+                      <span className="candidate-tc">{formatNationalId(c.nationalId)}</span>
+                    </span>
+                  </button>
                   <button
                     className="icon-btn"
                     disabled={removing === c.candidateId || !canEdit}
-                    onClick={() => handleRemoveCandidate(c.candidateId)}
+                    onClick={() => handleRemoveCandidate(c)}
                     title={!canEdit ? noPermissionTitle : t("groupDrawer.action.removeFromGroup")}
                     type="button"
                   >

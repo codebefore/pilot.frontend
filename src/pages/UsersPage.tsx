@@ -26,6 +26,7 @@ import { useAuth } from "../lib/auth";
 import { updateStoredUserProfile } from "../lib/auth-storage";
 import { ApiError } from "../lib/http";
 import { canManageArea, canViewArea } from "../lib/permissions";
+import { formatPhoneDisplay } from "../lib/phone";
 import { getRoles } from "../lib/roles-api";
 import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
@@ -112,7 +113,7 @@ function buildColumns(
       id: "phone",
       label: t("common.field.phone"),
       sortField: "phone",
-      renderCell: (user) => user.phone || "—",
+      renderCell: (user) => formatPhoneDisplay(user.phone),
       skeletonWidth: 110,
     },
     {

@@ -818,6 +818,11 @@
   border-bottom: 1px solid var(--gray-100);
 }
 .activity-item:last-child { border-bottom: none; }
+.activity-item.is-clickable {
+  cursor: pointer;
+  transition: background .1s;
+}
+.activity-item.is-clickable:hover { background: var(--gray-50); }
 
 .activity-avatar {
   width: 28px; height: 28px;
@@ -830,15 +835,56 @@
 .activity-avatar.tone-blue   { background: #dbeafe;             color: #1d4ed8; }
 .activity-avatar.tone-purple { background: var(--purple-light); color: var(--purple); }
 .activity-avatar.tone-amber  { background: #fef3c7;             color: #92400e; }
+.activity-avatar-image {
+  object-fit: cover;
+  background: var(--gray-100);
+}
 
 .activity-text {
   font-size: 12px; color: var(--gray-600);
   line-height: 1.5;
 }
 .activity-text strong { color: var(--gray-900); font-weight: 600; }
+.activity-person {
+  font-size: 11px;
+  color: var(--gray-500);
+  line-height: 1.4;
+  margin-top: 1px;
+}
 .activity-time {
   font-size: 10px; color: var(--gray-400);
   margin-top: 2px;
+}
+
+.activity-page {
+  padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
+}
+.activity-page-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.activity-page-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.activity-page-item:last-child { border-bottom: none; }
+.activity-page-item.is-clickable {
+  cursor: pointer;
+  transition: background .1s;
+}
+.activity-page-item.is-clickable:hover { background: var(--gray-50); }
+.activity-page-body {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ─── TABLE WRAPPER ─── */
@@ -999,9 +1045,40 @@
 }
 
 /* ─── CANDIDATE LIST (inside GroupDrawer) ─── */
-.candidate-list-row { gap: 6px; }
+.candidate-list-row { gap: 8px; }
+.candidate-list-person {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 0;
+  text-align: left;
+  border-radius: 6px;
+}
+.candidate-list-person:hover .candidate-name {
+  color: var(--primary-700);
+}
+.candidate-list-person:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary-500) 35%, transparent);
+  outline-offset: 2px;
+}
+.candidate-list-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.candidate-list-text .candidate-name {
+  overflow: hidden;
+  color: var(--gray-900);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .candidate-tc {
-  margin-left: 6px;
   font-size: 11px;
   color: var(--gray-400);
 }

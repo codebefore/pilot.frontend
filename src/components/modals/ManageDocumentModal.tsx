@@ -28,6 +28,7 @@ import { ApiError } from "../../lib/http";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { candidateKeys } from "../../lib/queries/use-candidates";
+import { useMebbisSessionGuard } from "../../lib/queries/use-mebbis-session";
 import { formatDateTR } from "../../lib/status-maps";
 import type {
   DocumentMetadataField,
@@ -272,6 +273,7 @@ export function ManageDocumentModal({
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
   const { showToast } = useToast();
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const noteFieldId = useId();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -721,6 +723,7 @@ export function ManageDocumentModal({
 
   const handleMebbisToggle = async () => {
     if (!canManageDocuments) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     if (!candidateId || !document || !activeDocumentType || actionPending) return;
 
     setActionPending("mebbis");
@@ -932,9 +935,10 @@ export function ManageDocumentModal({
                   className={`btn btn-sm ${
                     isMebbisTransferred ? "btn-secondary" : "btn-primary"
                   }`}
+                  aria-disabled={canManageDocuments && !busy && mebbisSessionGuard.disabled}
                   disabled={busy || !canManageDocuments}
                   onClick={handleMebbisToggle}
-                  title={!canManageDocuments ? noPermissionTitle : undefined}
+                  title={!canManageDocuments ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
                   type="button"
                 >
                   {actionPending === "mebbis"

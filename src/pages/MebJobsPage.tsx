@@ -36,6 +36,8 @@ import { buildJobsSummaryFromCounts, type MebJob } from "../lib/mebbis-jobs";
 import { canManageArea } from "../lib/permissions";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
+import { useMebbisSessionGuard } from "../lib/queries/use-mebbis-session";
+import { ApiError } from "../lib/http";
 import type { JobStatus } from "../types";
 import { useT, currentLocale, type TranslationKey } from "../lib/i18n";
 import { formatLocalDateOnly } from "../lib/date-only";
@@ -170,13 +172,9 @@ function getStartedAtFilterValue(job: MebJob): string {
 
 function formatDateFilterLabel(value: string): string {
   if (value === "-") return value;
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("tr-TR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  const [year, month, day] = value.slice(0, 10).split("-");
+  if (!year || !month || !day) return value;
+  return `${day}.${month}.${year}`;
 }
 
 function getDurationFilterValue(job: MebJob): string {
@@ -230,6 +228,7 @@ export function MebJobsPage() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -460,13 +459,14 @@ export function MebJobsPage() {
 
   const handleRetryJob = async (job: MebJob) => {
     if (!canManageMebJobs) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     setActionPendingId(job.id);
     try {
       await retryMebbisJob(job.id);
       showToast("MEB işi tekrar kuyruğa alındı");
       invalidateMebbisJobData();
-    } catch {
-      showToast("MEB işi tekrar başlatılamadı", "error");
+    } catch (error) {
+      showToast(mebbisRetryErrorMessage(error, "MEB işi tekrar başlatılamadı"), "error");
     } finally {
       setActionPendingId(null);
     }
@@ -474,6 +474,7 @@ export function MebJobsPage() {
 
   const handleRetryManualJobs = async () => {
     if (!canManageMebJobs) return;
+    if (!mebbisSessionGuard.ensureSession()) return;
     setManualRetrying(true);
     try {
       const result = await retryMebbisJobs({
@@ -481,10 +482,10 @@ export function MebJobsPage() {
         jobType: jobTypeFilter !== "all" ? jobTypeFilter : undefined,
         limit: 100,
       });
-      showToast(`${result.createdCount} manuel MEB işi tekrar kuyruğa alındı`);
+      showToast(mebbisBulkRetryMessage(result.createdCount, result.skippedCount ?? 0));
       invalidateMebbisJobData();
-    } catch {
-      showToast("Manuel kalan MEB işleri tekrar başlatılamadı", "error");
+    } catch (error) {
+      showToast(mebbisRetryErrorMessage(error, "Manuel kalan MEB işleri tekrar başlatılamadı"), "error");
     } finally {
       setManualRetrying(false);
     }
@@ -521,9 +522,10 @@ export function MebJobsPage() {
             </button>
             <button
               className="btn btn-secondary btn-sm"
+              aria-disabled={canManageMebJobs && !manualRetrying && mebbisSessionGuard.disabled}
               disabled={!canManageMebJobs || manualRetrying}
               onClick={() => void handleRetryManualJobs()}
-              title={!canManageMebJobs ? noPermissionTitle : undefined}
+              title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
               type="button"
             >
               {manualRetrying ? "Başlatılıyor..." : "Manuel Kalanları Tekrar Başlat"}
@@ -539,9 +541,13 @@ export function MebJobsPage() {
             </button>
             <button
               className="btn btn-primary btn-sm"
+              aria-disabled={canManageMebJobs && mebbisSessionGuard.disabled}
               disabled={!canManageMebJobs}
-              onClick={() => setModalOpen(true)}
-              title={!canManageMebJobs ? noPermissionTitle : undefined}
+              onClick={() => {
+                if (!mebbisSessionGuard.ensureSession()) return;
+                setModalOpen(true);
+              }}
+              title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
               type="button"
             >
               <PlusIcon size={14} />
@@ -763,9 +769,14 @@ export function MebJobsPage() {
                       {!ACTIVE_STATUSES.includes(job.status) && job.status !== "success" && (
                         <button
                           className="btn btn-secondary btn-sm"
+                          aria-disabled={
+                            canManageMebJobs &&
+                            actionPendingId !== job.id &&
+                            mebbisSessionGuard.disabled
+                          }
                           disabled={actionPendingId === job.id || !canManageMebJobs}
                           onClick={() => void handleRetryJob(job)}
-                          title={!canManageMebJobs ? noPermissionTitle : undefined}
+                          title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
                           type="button"
                         >
                           Tekrar Başlat
@@ -816,6 +827,7 @@ export function MebJobsPage() {
         onClose={() => setModalOpen(false)}
         onSubmit={async (values) => {
           if (!canManageMebJobs) return;
+          if (!mebbisSessionGuard.ensureSession()) return;
           await createCandidateLookupJob(values.candidateId);
           setModalOpen(false);
           showToast(t("mebJobs.toast.queued"));
@@ -997,6 +1009,25 @@ function getQueuePublishTitle(job: MebJob, t: ReturnType<typeof useT>): string {
   }
 
   return t("mebJobs.publishTitle.dbQueue");
+}
+
+function mebbisRetryErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiError)) {
+    return fallback;
+  }
+
+  const validationMessage = Object.values(error.validationErrors ?? {})
+    .flat()
+    .find((message) => message.trim().length > 0);
+  return validationMessage ?? error.message ?? fallback;
+}
+
+function mebbisBulkRetryMessage(createdCount: number, skippedCount: number): string {
+  if (skippedCount > 0) {
+    return `${createdCount} manuel MEB işi tekrar kuyruğa alındı, ${skippedCount} iş veri eksikliği nedeniyle atlandı`;
+  }
+
+  return `${createdCount} manuel MEB işi tekrar kuyruğa alındı`;
 }
 
 function buildStepText(job: MebbisJobResponse, t: ReturnType<typeof useT>): string {
