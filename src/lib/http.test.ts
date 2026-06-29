@@ -304,6 +304,59 @@ describe("http client", () => {
     expect(refreshCalls).toHaveLength(1);
   });
 
+  it("retries with a session refreshed by another tab before refreshing again", async () => {
+    writeStoredAuthSession({
+      accessToken: "old-token",
+      expiresAtUtc: new Date(Date.now() - 60_000).toISOString(),
+      refreshToken: "old-refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "Test User",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [],
+      activeInstitution: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockImplementationOnce(() => {
+          writeStoredAuthSession({
+            accessToken: "new-token",
+            expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+            refreshToken: "new-refresh-token",
+            refreshTokenExpiresAtUtc: new Date(Date.now() + 120_000).toISOString(),
+            user: {
+              id: "user-1",
+              phone: "5551112233",
+              name: "Test User",
+              roleName: "Operator",
+              isSuperAdmin: false,
+            },
+            institutions: [],
+            activeInstitution: null,
+          });
+          return Promise.resolve(new Response(null, { status: 401 }));
+        })
+        .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }))
+    );
+
+    await expect(httpGet<{ ok: boolean }>("/api/test")).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(new Headers(vi.mocked(fetch).mock.calls[1][1]?.headers).get("Authorization")).toBe("Bearer new-token");
+    const refreshCalls = vi.mocked(fetch).mock.calls.filter(([url]) =>
+      /\/auth\/refresh$/.test(new URL(String(url)).pathname)
+    );
+    expect(refreshCalls).toHaveLength(0);
+  });
+
   it("notifies unauthorized when refresh token is missing", async () => {
     const unauthorized = vi.fn();
     window.addEventListener("pilot:unauthorized", unauthorized);

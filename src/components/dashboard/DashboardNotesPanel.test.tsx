@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { DashboardNotesPanel } from "./DashboardNotesPanel";
 import { renderWithProviders } from "../../test/render-with-providers";
@@ -47,6 +47,8 @@ describe("DashboardNotesPanel", () => {
           createdByUserId: "viewer",
           body: "Dashboard notu",
           isVisibleToInstitution: false,
+          candidateId: null,
+          candidateName: null,
           reminderAtUtc: null,
           completedAtUtc: null,
           createdAtUtc: "2026-01-01T09:00:00Z",
@@ -169,6 +171,33 @@ describe("DashboardNotesPanel", () => {
     expect(await screen.findByText("Bu güne ait görev yok.")).toBeInTheDocument();
     expect(screen.queryByText("Yükleniyor...")).not.toBeInTheDocument();
   });
+
+  it("renders candidate context and opens candidate detail", async () => {
+    getUserNotesMock.mockResolvedValue({
+      items: [
+        buildNote({
+          id: "candidate-note",
+          body: "Aday evrak kontrolü",
+          reminderAtUtc: "2026-01-01T09:00:00Z",
+          candidateId: "candidate-1",
+          candidateName: "Ayşe Demir",
+        }),
+      ],
+    });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route element={<DashboardNotesPanel />} path="/" />
+          <Route element={<div>Aday detay açıldı</div>} path="/candidates/:candidateId" />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ayşe Demir" }));
+
+    expect(await screen.findByText("Aday detay açıldı")).toBeInTheDocument();
+  });
 });
 
 function renderPanel(options?: Parameters<typeof renderWithProviders>[1]) {
@@ -184,12 +213,16 @@ function buildNote(overrides: {
   id: string;
   body: string;
   reminderAtUtc: string | null;
+  candidateId?: string | null;
+  candidateName?: string | null;
 }) {
   return {
     createdByUserId: "test-user",
     completedAtUtc: null,
     createdAtUtc: "2026-01-01T09:00:00Z",
     isVisibleToInstitution: false,
+    candidateId: null,
+    candidateName: null,
     updatedAtUtc: "2026-01-01T09:00:00Z",
     rowVersion: 1,
     ...overrides,

@@ -354,6 +354,14 @@ export async function createCandidatePhotoUploadJob(candidateId: string): Promis
   );
 }
 
+export async function createCandidateWebcamPhotoUploadJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/webcam-photo/upload`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
 export async function createCandidateEducationInfoUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/education-info/upload`,
@@ -365,6 +373,30 @@ export async function createCandidateEducationInfoUploadJob(candidateId: string)
 export async function createCandidateHealthReportUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/health-report/upload`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function createCandidateCriminalRecordUploadJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/criminal-record/upload`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function createCandidateSignatureUploadJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/signature/upload`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function createCandidateContractUploadJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/contract/upload`,
     {},
     mebbisRequestOptions()
   );
@@ -471,8 +503,12 @@ export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>):
     candidate_national_id_import: "mebbisJobType.candidateNationalIdImport",
     candidate_photo_import: "mebbisJobType.candidatePhotoImport",
     candidate_photo_upload: "mebbisJobType.candidatePhotoUpload",
+    candidate_webcam_photo_upload: "mebbisJobType.candidateWebcamPhotoUpload",
+    candidate_signature_upload: "mebbisJobType.candidateSignatureUpload",
+    candidate_contract_upload: "mebbisJobType.candidateContractUpload",
     candidate_education_info_upload: "mebbisJobType.candidateEducationInfoUpload",
     candidate_health_report_upload: "mebbisJobType.candidateHealthReportUpload",
+    candidate_criminal_record_upload: "mebbisJobType.candidateCriminalRecordUpload",
     candidate_exam_result_sync: "mebbisJobType.candidateExamResultSync",
     instructor_permit_create: "mebbisJobType.instructorPermitCreate",
     theory_schedule_sync: "mebbisJobType.theoryScheduleSync",

@@ -23,7 +23,6 @@ import {
 import { listVehicleDocuments } from "../../lib/vehicle-documents-api";
 import {
   VEHICLE_STATUS_OPTIONS,
-  VEHICLE_STATUS_LABEL_KEYS,
   VEHICLE_TRANSMISSION_LABEL_KEYS,
 } from "../../lib/vehicle-catalog";
 import type {
@@ -135,25 +134,6 @@ function buildVehicleColumns(t: ReturnType<typeof useT>): VehicleColumnDef[] {
         />
       ),
       skeletonWidth: 74,
-      skeletonKind: "pill",
-    },
-    {
-      id: "status",
-      labelKey: "settings.vehicles.columns.status",
-      sortField: "status",
-      renderCell: (vehicle) => (
-        <StatusPill
-          label={t(VEHICLE_STATUS_LABEL_KEYS[vehicle.status])}
-          status={
-            vehicle.status === "in_use"
-              ? "running"
-              : vehicle.status === "maintenance"
-                ? "warning"
-                : "manual"
-          }
-        />
-      ),
-      skeletonWidth: 90,
       skeletonKind: "pill",
     },
     {

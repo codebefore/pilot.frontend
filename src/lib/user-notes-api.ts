@@ -10,6 +10,8 @@ export interface UserNoteResponse {
   createdByUserId: string;
   body: string;
   isVisibleToInstitution: boolean;
+  candidateId?: string | null;
+  candidateName?: string | null;
   reminderAtUtc: string | null;
   completedAtUtc: string | null;
   createdAtUtc: string;
@@ -25,6 +27,8 @@ interface UserNoteUpsertInput {
   body: string;
   reminderAtUtc: string | null;
   isVisibleToInstitution?: boolean;
+  candidateId?: string | null;
+  candidateName?: string | null;
 }
 
 export function getUserNotes(signal?: AbortSignal): Promise<UserNoteListResponse> {

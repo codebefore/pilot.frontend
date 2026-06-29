@@ -70,7 +70,13 @@ export function TasksPage() {
     if (!editing || !canManageDashboard || editing.createdByUserId !== user?.id) return;
     setSaving(true);
     try {
-      await updateUserNote(editing.id, { body, reminderAtUtc, isVisibleToInstitution });
+      await updateUserNote(editing.id, {
+        body,
+        reminderAtUtc,
+        isVisibleToInstitution,
+        candidateId: editing.candidateId,
+        candidateName: editing.candidateName,
+      });
       showToast("Görev güncellendi");
       setEditing(null);
       invalidateNoteDependents();
@@ -133,6 +139,19 @@ export function TasksPage() {
                         </div>
                         <div className="tasks-page-body">
                           <div className="tasks-page-text">{note.body}</div>
+                          {note.candidateId && note.candidateName ? (
+                            <button
+                              className="tasks-page-candidate"
+                              onClick={() =>
+                                navigate(`/candidates/${note.candidateId}`, {
+                                  state: { returnLabel: "← Görevlere dön", returnTo: "/tasks" },
+                                })
+                              }
+                              type="button"
+                            >
+                              {note.candidateName}
+                            </button>
+                          ) : null}
                           <div className="tasks-page-meta">
                             {note.completedAtUtc
                               ? t("tasks.status.completed", { time: formatDateTime(note.completedAtUtc) })

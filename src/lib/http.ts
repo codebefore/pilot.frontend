@@ -1,8 +1,8 @@
 import { getApiBaseUrl, getAuthApiBaseUrl } from "./api";
 import {
+  AUTH_STORAGE_KEY,
   getStoredAccessToken,
   getStoredActiveInstitutionId,
-  getStoredRefreshToken,
   getStoredUserId,
   notifyInstitutionRequired,
   notifySessionRefreshed,
@@ -18,6 +18,11 @@ let refreshSessionPromise: Promise<boolean> | null = null;
 export const FORBIDDEN_ERROR_MESSAGE = "Yetkiniz yok.";
 export const ACTIVE_INSTITUTION_REQUIRED_MESSAGE = "Aktif kurum seçmeniz gerekiyor.";
 const ACTIVE_INSTITUTION_REQUIRED_TITLE = "Active institution is required.";
+const AUTH_REFRESH_LOCK_KEY = `${AUTH_STORAGE_KEY}.refresh-lock`;
+const AUTH_REFRESH_LOCK_TTL_MS = 10_000;
+const AUTH_REFRESH_LOCK_POLL_MS = 100;
+const AUTH_REFRESH_LOCK_WAIT_MS = 8_000;
+const ACCESS_TOKEN_RETRY_SKEW_MS = 30_000;
 
 /**
  * Structured validation error delivered through
@@ -304,12 +309,20 @@ function buildHeaders(base?: HeadersInit, options?: RequestOptions): HeadersInit
 }
 
 async function fetchWithAuthRetry(url: string, init: RequestInit): Promise<Response> {
+  const originalAccessToken = getAuthorizationToken(init.headers);
   const response = await fetch(url, init);
   if (response.status !== 401 || isAuthRefreshRequest(url)) {
     return response;
   }
 
-  const refreshed = await refreshStoredSession();
+  if (hasUsableStoredAccessToken(originalAccessToken)) {
+    return fetch(url, {
+      ...init,
+      headers: replaceAuthorizationHeader(init.headers),
+    });
+  }
+
+  const refreshed = await refreshStoredSession(originalAccessToken);
   if (!refreshed) {
     return response;
   }
@@ -334,6 +347,12 @@ function replaceAuthorizationHeader(headersInit?: HeadersInit): Headers {
   return headers;
 }
 
+function getAuthorizationToken(headersInit?: HeadersInit): string | null {
+  const authorization = new Headers(headersInit).get("Authorization");
+  const match = authorization?.match(/^Bearer\s+(.+)$/i);
+  return match?.[1] ?? null;
+}
+
 type RefreshLoginResponse = {
   accessToken: string;
   expiresAtUtc: string;
@@ -350,40 +369,70 @@ type RefreshLoginResponse = {
   activeInstitution: AuthInstitution | null;
 };
 
-async function refreshStoredSession(): Promise<boolean> {
+async function refreshStoredSession(staleAccessToken: string | null): Promise<boolean> {
   if (refreshSessionPromise) {
     return refreshSessionPromise;
   }
 
-  refreshSessionPromise = refreshStoredSessionOnce().finally(() => {
+  refreshSessionPromise = refreshStoredSessionOnce(staleAccessToken).finally(() => {
     refreshSessionPromise = null;
   });
   return refreshSessionPromise;
 }
 
-async function refreshStoredSessionOnce(): Promise<boolean> {
-  const refreshToken = getStoredRefreshToken();
+async function refreshStoredSessionOnce(staleAccessToken: string | null): Promise<boolean> {
+  const session = readStoredAuthSession();
+  if (!session) {
+    notifyUnauthorized();
+    return false;
+  }
+
+  if (isUsableAccessSession(session, staleAccessToken)) {
+    return true;
+  }
+
+  const refreshToken = session.refreshToken;
   if (!refreshToken) {
     notifyUnauthorized();
     return false;
   }
 
-  const response = await fetch(buildUrl("/api/auth/refresh", undefined, getAuthApiBaseUrl()), {
-    method: "POST",
-    headers: new Headers({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ refreshToken }),
-  });
-
-  if (!response.ok) {
-    notifyUnauthorized();
-    return false;
+  const refreshLock = await acquireRefreshLock();
+  if (!refreshLock) {
+    return waitForSessionRefresh(refreshToken, staleAccessToken);
   }
 
-  const refreshed = await response.json() as RefreshLoginResponse;
-  const session = mapRefreshResponse(refreshed);
-  writeStoredAuthSession(session);
-  notifySessionRefreshed(session);
-  return true;
+  try {
+    const latestSession = readStoredAuthSession();
+    const tokenToRefresh = latestSession?.refreshToken ?? refreshToken;
+    if (latestSession && tokenToRefresh !== refreshToken && isUsableAccessSession(latestSession, staleAccessToken)) {
+      notifySessionRefreshed(latestSession);
+      return true;
+    }
+
+    const response = await fetch(buildUrl("/api/auth/refresh", undefined, getAuthApiBaseUrl()), {
+      method: "POST",
+      headers: new Headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ refreshToken: tokenToRefresh }),
+    });
+
+    if (!response.ok) {
+      if (await waitForSessionRefresh(tokenToRefresh, staleAccessToken, AUTH_REFRESH_LOCK_POLL_MS)) {
+        return true;
+      }
+
+      notifyUnauthorized();
+      return false;
+    }
+
+    const refreshed = await response.json() as RefreshLoginResponse;
+    const session = mapRefreshResponse(refreshed);
+    writeStoredAuthSession(session);
+    notifySessionRefreshed(session);
+    return true;
+  } finally {
+    releaseRefreshLock(refreshLock);
+  }
 }
 
 function mapRefreshResponse(response: RefreshLoginResponse): AuthSession {
@@ -403,4 +452,112 @@ function mapRefreshResponse(response: RefreshLoginResponse): AuthSession {
     institutions: response.institutions,
     activeInstitution: response.activeInstitution ?? previous?.activeInstitution ?? null,
   };
+}
+
+type RefreshLock = {
+  owner: string;
+  expiresAt: number;
+};
+
+async function acquireRefreshLock(): Promise<RefreshLock | null> {
+  const deadline = Date.now() + AUTH_REFRESH_LOCK_WAIT_MS;
+  while (Date.now() < deadline) {
+    const existing = readRefreshLock();
+    if (!existing || existing.expiresAt <= Date.now()) {
+      const lock = {
+        owner: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+        expiresAt: Date.now() + AUTH_REFRESH_LOCK_TTL_MS,
+      };
+      writeRefreshLock(lock);
+      await delay(20);
+      if (readRefreshLock()?.owner === lock.owner) {
+        return lock;
+      }
+    }
+
+    await delay(AUTH_REFRESH_LOCK_POLL_MS);
+  }
+
+  return null;
+}
+
+function releaseRefreshLock(lock: RefreshLock): void {
+  if (readRefreshLock()?.owner === lock.owner) {
+    localStorage.removeItem(AUTH_REFRESH_LOCK_KEY);
+  }
+}
+
+function readRefreshLock(): RefreshLock | null {
+  try {
+    const raw = localStorage.getItem(AUTH_REFRESH_LOCK_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<RefreshLock>;
+    if (typeof value.owner !== "string" || typeof value.expiresAt !== "number") {
+      return null;
+    }
+    return { owner: value.owner, expiresAt: value.expiresAt };
+  } catch {
+    return null;
+  }
+}
+
+function writeRefreshLock(lock: RefreshLock): void {
+  localStorage.setItem(AUTH_REFRESH_LOCK_KEY, JSON.stringify(lock));
+}
+
+async function waitForSessionRefresh(
+  previousRefreshToken: string,
+  staleAccessToken: string | null,
+  timeoutMs = AUTH_REFRESH_LOCK_WAIT_MS
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const session = readStoredAuthSession();
+    if (
+      session &&
+      session.refreshToken !== previousRefreshToken &&
+      isUsableAccessSession(session, staleAccessToken)
+    ) {
+      notifySessionRefreshed(session);
+      return true;
+    }
+
+    await delay(AUTH_REFRESH_LOCK_POLL_MS);
+  }
+
+  return false;
+}
+
+function hasUsableStoredAccessToken(staleAccessToken: string | null): boolean {
+  const session = readStoredAuthSession();
+  return !!session && isUsableAccessSession(session, staleAccessToken);
+}
+
+function isUsableAccessSession(session: AuthSession, staleAccessToken: string | null): boolean {
+  if (!session.accessToken || session.accessToken === staleAccessToken) {
+    return false;
+  }
+
+  const expiresAt = getAccessTokenExpiresAt(session.accessToken) ?? new Date(session.expiresAtUtc).getTime();
+  return Number.isFinite(expiresAt) && expiresAt > Date.now() + ACCESS_TOKEN_RETRY_SKEW_MS;
+}
+
+function getAccessTokenExpiresAt(accessToken: string): number | null {
+  try {
+    const [, payload] = accessToken.split(".");
+    if (!payload) return null;
+    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedPayload = normalizedPayload.padEnd(
+      normalizedPayload.length + ((4 - normalizedPayload.length % 4) % 4),
+      "="
+    );
+    const decoded = JSON.parse(atob(paddedPayload)) as { exp?: unknown };
+    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

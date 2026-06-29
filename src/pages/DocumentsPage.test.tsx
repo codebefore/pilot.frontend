@@ -360,6 +360,10 @@ describe("DocumentsPage", () => {
     renderPage();
 
     expect(await screen.findByLabelText("Nüfus Cüzdanı")).toBeInTheDocument();
+    expect(screen.getByText("Peş.")).toBeInTheDocument();
+    expect(screen.getByText("Kmlk")).toBeInTheDocument();
+    expect(screen.getByText("Sğlk")).toBeInTheDocument();
+    expect(screen.getByText("Mvct")).toBeInTheDocument();
     expect(screen.getByText("B")).toBeInTheDocument();
     expect(screen.getByText("NİSAN 2026 - 1A")).toBeInTheDocument();
     expect(screen.getByLabelText("Peşinat var")).toBeInTheDocument();

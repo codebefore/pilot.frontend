@@ -25,8 +25,12 @@ import {
   updateCandidateDocumentMebbisTransfer,
 } from "../../lib/documents-api";
 import {
+  createCandidateContractUploadJob,
+  createCandidateCriminalRecordUploadJob,
   createCandidateEducationInfoUploadJob,
   createCandidateHealthReportUploadJob,
+  createCandidateSignatureUploadJob,
+  createCandidateWebcamPhotoUploadJob,
   getMebbisJob,
   type MebbisJobResponse,
 } from "../../lib/mebbis-jobs-api";
@@ -102,6 +106,37 @@ function mebbisTransferErrorMessage(error: unknown, fallback: string): string {
     .find((message) => message.trim().length > 0);
   if (validationMessage?.includes("Health report number must be at most 30 characters")) {
     return "Sağlık raporu belge sayısı MEBBİS için en fazla 30 karakter olmalı.";
+  }
+  if (validationMessage?.includes("Criminal record issuing institution is required")) {
+    return "Adli sicil belge veren kurum bilgisi gerekli.";
+  }
+  if (validationMessage?.includes("Criminal record issuing institution must be at most 100 characters")) {
+    return "Adli sicil belge veren kurum bilgisi MEBBİS için en fazla 100 karakter olmalı.";
+  }
+  if (validationMessage?.includes("Criminal record date must be a valid date")) {
+    return "Adli sicil belge tarihi geçerli bir tarih olmalı.";
+  }
+  if (validationMessage?.includes("Criminal record number is required")) {
+    return "Adli sicil belge sayısı gerekli.";
+  }
+  if (validationMessage?.includes("Criminal record number must be at most 10 characters")) {
+    return "Adli sicil belge sayısı MEBBİS için en fazla 10 karakter olmalı.";
+  }
+  if (validationMessage?.includes("Candidate criminal record file is required")) {
+    return "Adli sicil dosyası MEBBİS aktarımı için gerekli.";
+  }
+  if (validationMessage?.includes("Candidate criminal record file could not be downloaded")) {
+    return "Adli sicil dosyası MEBBİS aktarımı için indirilemedi.";
+  }
+  if (validationMessage?.includes("Candidate signature file is required")) {
+    return "İmza dosyası MEBBİS aktarımı için gerekli.";
+  }
+  if (validationMessage?.includes("Candidate signature file could not be downloaded")) {
+    return "İmza dosyası MEBBİS aktarımı için indirilemedi.";
+  }
+  if (validationMessage?.includes("Candidate signature document type id is required") ||
+    validationMessage?.includes("Candidate signature document id is required")) {
+    return "İmza doküman kaydı MEBBİS aktarımı için geçersiz.";
   }
   return validationMessage ?? error.message ?? fallback;
 }
@@ -647,7 +682,13 @@ export function ManageDocumentModal({
       : null;
   const isMebbisTransferred = document?.isMebbisTransferred ?? false;
   const isMebbisJobDocument =
-    activeDocumentType?.key === "education_certificate" || activeDocumentType?.key === "health_report";
+    activeDocumentType?.key === "education_certificate" ||
+    activeDocumentType?.key === "webcam_photo" ||
+    activeDocumentType?.key === "signature_sample" ||
+    activeDocumentType?.key === "contract_front" ||
+    activeDocumentType?.key === "contract_back" ||
+    activeDocumentType?.key === "health_report" ||
+    activeDocumentType?.key === "criminal_record";
   const mebbisToggleRequiresJob = isMebbisJobDocument;
   const canUseMebbisToggle = mebbisToggleRequiresJob ? canManageMebJobs : canManageDocuments;
   const busy = submitting || actionPending !== null;
@@ -777,7 +818,13 @@ export function ManageDocumentModal({
   const handleMebbisToggle = async () => {
     if (!candidateId || !document || !activeDocumentType || actionPending) return;
     const requiresMebbisJob =
-      activeDocumentType.key === "education_certificate" || activeDocumentType.key === "health_report";
+      activeDocumentType.key === "education_certificate" ||
+      activeDocumentType.key === "webcam_photo" ||
+      activeDocumentType.key === "signature_sample" ||
+      activeDocumentType.key === "contract_front" ||
+      activeDocumentType.key === "contract_back" ||
+      activeDocumentType.key === "health_report" ||
+      activeDocumentType.key === "criminal_record";
     if (requiresMebbisJob ? !canManageMebJobs : !canManageDocuments) return;
     if (requiresMebbisJob && !(await mebbisSessionGuard.ensureSessionAsync())) return;
 
@@ -785,25 +832,69 @@ export function ManageDocumentModal({
     try {
       if (requiresMebbisJob) {
         const isHealthReportUpload = activeDocumentType.key === "health_report";
+        const isCriminalRecordUpload = activeDocumentType.key === "criminal_record";
+        const isSignatureUpload = activeDocumentType.key === "signature_sample";
+        const isWebcamPhotoUpload = activeDocumentType.key === "webcam_photo";
+        const isContractUpload = activeDocumentType.key === "contract_front" || activeDocumentType.key === "contract_back";
         const job = isHealthReportUpload
           ? await createCandidateHealthReportUploadJob(candidateId)
-          : await createCandidateEducationInfoUploadJob(candidateId);
+          : isCriminalRecordUpload
+            ? await createCandidateCriminalRecordUploadJob(candidateId)
+            : isSignatureUpload
+              ? await createCandidateSignatureUploadJob(candidateId)
+            : isContractUpload
+              ? await createCandidateContractUploadJob(candidateId)
+            : isWebcamPhotoUpload
+              ? await createCandidateWebcamPhotoUploadJob(candidateId)
+            : await createCandidateEducationInfoUploadJob(candidateId);
         const queuedMessage = isHealthReportUpload
           ? "Sağlık raporu MEBBİS aktarımı kuyruğa alındı"
+          : isCriminalRecordUpload
+            ? "Adli sicil MEBBİS aktarımı kuyruğa alındı"
+          : isSignatureUpload
+            ? "İmza MEBBİS aktarımı kuyruğa alındı"
+          : isContractUpload
+            ? "Sözleşme MEBBİS aktarımı kuyruğa alındı"
+          : isWebcamPhotoUpload
+            ? "Webcam fotoğraf MEBBİS aktarımı kuyruğa alındı"
           : "Öğrenim bilgisi MEBBİS aktarımı kuyruğa alındı";
         const successMessage = isHealthReportUpload
           ? "Sağlık raporu MEBBİS’e aktarıldı"
+          : isCriminalRecordUpload
+            ? "Adli sicil MEBBİS’e aktarıldı"
+          : isSignatureUpload
+            ? "İmza MEBBİS’e aktarıldı"
+          : isContractUpload
+            ? "Sözleşme MEBBİS’e aktarıldı"
+          : isWebcamPhotoUpload
+            ? "Webcam fotoğraf MEBBİS’e aktarıldı"
           : "Öğrenim bilgisi MEBBİS’e aktarıldı";
         const manualMessage = isHealthReportUpload
           ? "Sağlık raporu MEBBİS aktarımı kontrol gerektiriyor"
+          : isCriminalRecordUpload
+            ? "Adli sicil MEBBİS aktarımı kontrol gerektiriyor"
+          : isSignatureUpload
+            ? "İmza MEBBİS aktarımı kontrol gerektiriyor"
+          : isContractUpload
+            ? "Sözleşme MEBBİS aktarımı kontrol gerektiriyor"
+          : isWebcamPhotoUpload
+            ? "Webcam fotoğraf MEBBİS aktarımı kontrol gerektiriyor"
           : "Öğrenim bilgisi MEBBİS aktarımı kontrol gerektiriyor";
         const runningMessage = isHealthReportUpload
           ? "Sağlık raporu MEBBİS aktarımı hala devam ediyor"
+          : isCriminalRecordUpload
+            ? "Adli sicil MEBBİS aktarımı hala devam ediyor"
+          : isSignatureUpload
+            ? "İmza MEBBİS aktarımı hala devam ediyor"
+          : isContractUpload
+            ? "Sözleşme MEBBİS aktarımı hala devam ediyor"
+          : isWebcamPhotoUpload
+            ? "Webcam fotoğraf MEBBİS aktarımı hala devam ediyor"
           : "Öğrenim bilgisi MEBBİS aktarımı hala devam ediyor";
         showToast(queuedMessage);
 
         for (let attempt = 0; attempt < 60; attempt += 1) {
-          if (attempt > 0) await delay(5000);
+          if (attempt > 0) await delay(1000);
           const latestJob = await getMebbisJob(job.id);
           if (latestJob.status === "succeeded") {
             invalidateDocumentMutationDependents();

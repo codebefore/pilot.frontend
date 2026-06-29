@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UploadDocumentModal } from "./UploadDocumentModal";
+import { UploadDocumentModal, educationCertificateMetadataMaxLength } from "./UploadDocumentModal";
 import { renderWithProviders } from "../../test/render-with-providers";
 
 const uploadDocumentMock = vi.fn();
@@ -21,6 +21,14 @@ describe("UploadDocumentModal", () => {
   beforeEach(() => {
     uploadDocumentMock.mockReset();
     uploadDocumentMock.mockResolvedValue({ id: "doc-1" });
+  });
+
+  it("limits MEBBIS document metadata lengths by document type", () => {
+    expect(educationCertificateMetadataMaxLength("education_certificate", "document_number")).toBe(10);
+    expect(educationCertificateMetadataMaxLength("criminal_record", "document_number")).toBe(10);
+    expect(educationCertificateMetadataMaxLength("health_report", "document_number")).toBe(30);
+    expect(educationCertificateMetadataMaxLength("criminal_record", "issuing_institution")).toBe(100);
+    expect(educationCertificateMetadataMaxLength("identity_copy", "document_number")).toBeUndefined();
   });
 
   it("applies health report default metadata when uploading from the modal", async () => {

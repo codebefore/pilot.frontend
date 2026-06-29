@@ -21,7 +21,11 @@ export function isExistingLicenseCopyType(type: DocumentTypeResponse): boolean {
 }
 
 export function canRetryMebbisDocumentTransfer(typeKey: string, isMebbisTransferred: boolean): boolean {
-  return typeKey === "biometric_photo" || typeKey === "education_certificate" || typeKey === "health_report" || !isMebbisTransferred;
+  return typeKey === "biometric_photo" || typeKey === "webcam_photo" || typeKey === "signature_sample" || typeKey === "contract_front" || typeKey === "contract_back" || typeKey === "education_certificate" || typeKey === "health_report" || typeKey === "criminal_record" || !isMebbisTransferred;
+}
+
+export function shouldShowMebbisDocumentTransferAction(typeKey: string): boolean {
+  return typeKey !== "contract_back";
 }
 
 export function calculateAge(birthDateIso: string | null): number | null {

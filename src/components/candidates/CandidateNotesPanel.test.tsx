@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CandidateNotesPanel } from "./CandidateNotesPanel";
@@ -80,6 +80,8 @@ describe("CandidateNotesPanel", () => {
       createdByUserId: "test-user",
       body: "Yeni aday notu",
       isVisibleToInstitution: false,
+      candidateId: "cand-1",
+      candidateName: "Ayşe Demir",
       reminderAtUtc: "2026-06-29T10:15:00Z",
       completedAtUtc: null,
       createdAtUtc: "2026-06-29T10:15:00Z",
@@ -131,7 +133,7 @@ describe("CandidateNotesPanel", () => {
   });
 
   it("can create a candidate note and mirror it to dashboard tasks using created date when no reminder is selected", async () => {
-    renderWithProviders(<CandidateNotesPanel candidateId="cand-1" />);
+    renderWithProviders(<CandidateNotesPanel candidateId="cand-1" candidateName="Ayşe Demir" />);
 
     await screen.findByText("Kontrol notu");
 
@@ -149,7 +151,34 @@ describe("CandidateNotesPanel", () => {
         body: "Yeni aday notu",
         reminderAtUtc: "2026-06-29T10:15:00Z",
         isVisibleToInstitution: false,
+        candidateId: "cand-1",
+        candidateName: "Ayşe Demir",
       });
+    });
+  });
+
+  it("asks for confirmation before deleting a candidate note", async () => {
+    deleteCandidateNoteMock.mockResolvedValue(undefined);
+    renderWithProviders(<CandidateNotesPanel candidateId="cand-1" />);
+
+    await screen.findByText("Kontrol notu");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sil" }));
+
+    expect(deleteCandidateNoteMock).not.toHaveBeenCalled();
+    const firstPopover = screen.getByRole("alertdialog", { name: "Not silme onayı" });
+    expect(within(firstPopover).getByText("Not silinsin mi?")).toBeInTheDocument();
+
+    fireEvent.click(within(firstPopover).getByRole("button", { name: "Vazgeç" }));
+
+    expect(screen.queryByRole("alertdialog", { name: "Not silme onayı" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sil" }));
+    const secondPopover = screen.getByRole("alertdialog", { name: "Not silme onayı" });
+    fireEvent.click(within(secondPopover).getByRole("button", { name: "Sil" }));
+
+    await waitFor(() => {
+      expect(deleteCandidateNoteMock).toHaveBeenCalledWith("cand-1", "note-1");
     });
   });
 });

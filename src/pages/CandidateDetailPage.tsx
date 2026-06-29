@@ -104,7 +104,7 @@ import {
   useCandidateLicenseClassOptions,
   useExistingLicenseTypeOptions,
 } from "../lib/use-license-class-options";
-import { openLocalAgentMebbisCandidateStatusView } from "../lib/local-agent-api";
+import { openLocalAgentMebbisCandidateStatusView, openLocalAgentMebbisPageView } from "../lib/local-agent-api";
 import {
   analyzeCandidateDocumentOcr,
   deleteCandidateDocument,
@@ -116,10 +116,14 @@ import {
   uploadDocument,
 } from "../lib/documents-api";
 import {
+  createCandidateContractUploadJob,
+  createCandidateCriminalRecordUploadJob,
   createCandidateEducationInfoUploadJob,
   createCandidateHealthReportUploadJob,
   createCandidatePhotoUploadJob,
+  createCandidateSignatureUploadJob,
   createCandidateTermEnrollJob,
+  createCandidateWebcamPhotoUploadJob,
   getMebbisJob,
 } from "../lib/mebbis-jobs-api";
 import {
@@ -185,6 +189,7 @@ import {
   isExistingLicenseCopyType,
   normalizeLicenseOptionKey,
   nowDateTimeLocal,
+  shouldShowMebbisDocumentTransferAction,
   todayIsoDate,
   vehicleTypeForLicenseClass,
 } from "./CandidateDetailPage.helpers";
@@ -1703,7 +1708,10 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
           </section>
         </div>
         <div className="candidate-general-grid-col">
-          <CandidateNotesPanel candidateId={candidate.id} />
+          <CandidateNotesPanel
+            candidateId={candidate.id}
+            candidateName={`${candidate.firstName} ${candidate.lastName}`.trim()}
+          />
           <CandidateTimeline candidate={candidate} />
         </div>
         <div className="candidate-general-grid-col">
@@ -3560,7 +3568,46 @@ function documentMebbisTransferErrorMessage(error: unknown, fallback: string): s
   if (validationMessage?.includes("Health report number must be at most 30 characters")) {
     return "Sağlık raporu belge sayısı MEBBİS için en fazla 30 karakter olmalı.";
   }
+  if (validationMessage?.includes("Criminal record issuing institution is required")) {
+    return "Adli sicil belge veren kurum bilgisi gerekli.";
+  }
+  if (validationMessage?.includes("Criminal record issuing institution must be at most 100 characters")) {
+    return "Adli sicil belge veren kurum bilgisi MEBBİS için en fazla 100 karakter olmalı.";
+  }
+  if (validationMessage?.includes("Criminal record date must be a valid date")) {
+    return "Adli sicil belge tarihi geçerli bir tarih olmalı.";
+  }
+  if (validationMessage?.includes("Criminal record number is required")) {
+    return "Adli sicil belge sayısı gerekli.";
+  }
+  if (validationMessage?.includes("Criminal record number must be at most 10 characters")) {
+    return "Adli sicil belge sayısı MEBBİS için en fazla 10 karakter olmalı.";
+  }
+  if (validationMessage?.includes("Candidate criminal record file is required")) {
+    return "Adli sicil dosyası MEBBİS aktarımı için gerekli.";
+  }
+  if (validationMessage?.includes("Candidate criminal record file could not be downloaded")) {
+    return "Adli sicil dosyası MEBBİS aktarımı için indirilemedi.";
+  }
+  if (validationMessage?.includes("Candidate signature file is required")) {
+    return "İmza dosyası MEBBİS aktarımı için gerekli.";
+  }
+  if (validationMessage?.includes("Candidate signature file could not be downloaded")) {
+    return "İmza dosyası MEBBİS aktarımı için indirilemedi.";
+  }
+  if (validationMessage?.includes("Candidate signature document type id is required") ||
+    validationMessage?.includes("Candidate signature document id is required")) {
+    return "İmza doküman kaydı MEBBİS aktarımı için geçersiz.";
+  }
   return validationMessage ?? error.message ?? fallback;
+}
+
+function buildCandidateMebbisDocumentCheckUrl(candidate: CandidateResponse): string | null {
+  const nationalId = candidate.nationalId.replace(/\D/g, "");
+  const monthDate = candidate.currentGroup?.term?.monthDate ?? "";
+  const match = monthDate.match(/^(\d{4})-(\d{2})/);
+  if (nationalId.length !== 11 || !match) return null;
+  return `https://mebbis.meb.gov.tr/SKT/sozlesme.aspx?id=${nationalId}${match[1]}${match[2]}`;
 }
 
 function paymentMethodLabelKey(method: CandidatePaymentMethod): TranslationKey {
@@ -7724,6 +7771,16 @@ const MEBBIS_ONE_BY_ONE_EXCLUDED_DOCUMENT_KEYS = new Set([
   "existing_license_copy",
   "identity_card",
 ]);
+const MEBBIS_JOB_DOCUMENT_KEYS = new Set([
+  "biometric_photo",
+  "webcam_photo",
+  "signature_sample",
+  "contract_front",
+  "contract_back",
+  "education_certificate",
+  "health_report",
+  "criminal_record",
+]);
 
 const HEALTH_REPORT_FOREIGN_LANGUAGES: Array<{ value: string; labelKey: TranslationKey }> = [
   { value: "arabic", labelKey: "candidateDetail.documents.healthReport.language.arabic" },
@@ -7761,7 +7818,9 @@ const HEALTH_REPORT_EXTRA_KEYS = new Set<string>([
 ]);
 
 function educationCertificateMetadataMaxLength(documentTypeKey: string | undefined, fieldKey: string): number | undefined {
-  if (documentTypeKey !== "education_certificate" && documentTypeKey !== "health_report") return undefined;
+  if (documentTypeKey !== "education_certificate" && documentTypeKey !== "health_report" && documentTypeKey !== "criminal_record") {
+    return undefined;
+  }
   if (fieldKey === "issuing_institution") return 100;
   if (fieldKey === "document_number") return documentTypeKey === "health_report" ? 30 : 10;
   return undefined;
@@ -8203,6 +8262,7 @@ function DocumentsTab({
     !contractBackMebbisFeeMetadata &&
     !contractBackMebbisFeeDefault &&
     (contractBackFeeMatrixQuery.isLoading || contractBackFeeMatrixQuery.isFetching);
+  const mebbisDocumentCheckUrl = buildCandidateMebbisDocumentCheckUrl(candidate);
   const documentChecklistItems = buildCandidateDocumentChecklistItems({
     candidate,
     contractFee,
@@ -8229,7 +8289,7 @@ function DocumentsTab({
 
       for (let attempt = 0; attempt < 60; attempt += 1) {
         if (attempt > 0) {
-          await delay(5000);
+          await delay(1000);
         }
         const latestJob = await getMebbisJob(job.id);
         if (latestJob.status === "succeeded") {
@@ -8365,11 +8425,13 @@ function DocumentsTab({
         candidateId={candidateId}
         candidateSyncQueuing={candidateSyncQueuing}
         candidateSyncRunning={candidateSyncRunning}
+        contractFee={contractFee}
         documentTypes={sortedTypes.filter(
           (type) =>
             !isNotApplicable(type) &&
             !MEBBIS_ONE_BY_ONE_EXCLUDED_DOCUMENT_KEYS.has(type.key)
         )}
+        mebbisDocumentCheckUrl={mebbisDocumentCheckUrl}
         noPermissionTitle={noPermissionTitle}
         onClose={() => setOneByOneTransferOpen(false)}
         onEnrollTerm={() => void handleQueueCandidateSync()}
@@ -8545,7 +8607,9 @@ function CandidateDocumentOneByOneTransferModal({
   candidateId,
   candidateSyncQueuing,
   candidateSyncRunning,
+  contractFee,
   documentTypes,
+  mebbisDocumentCheckUrl,
   noPermissionTitle,
   open,
   uploadsByKey,
@@ -8559,7 +8623,9 @@ function CandidateDocumentOneByOneTransferModal({
   candidateId: string;
   candidateSyncQueuing: boolean;
   candidateSyncRunning: boolean;
+  contractFee: number | null;
   documentTypes: DocumentTypeResponse[];
+  mebbisDocumentCheckUrl: string | null;
   noPermissionTitle: string;
   open: boolean;
   uploadsByKey: Map<string, DocumentResponse>;
@@ -8572,12 +8638,169 @@ function CandidateDocumentOneByOneTransferModal({
   const { showToast } = useToast();
   const mebbisSessionGuard = useMebbisSessionGuard();
   const [transferringTypeId, setTransferringTypeId] = useState<string | null>(null);
+  const [batchTransferRunning, setBatchTransferRunning] = useState(false);
+  const [batchTransferStep, setBatchTransferStep] = useState<string | null>(null);
   const noDocumentPermissionTitle = t("common.noPermission");
+  const handleOpenMebbisDocumentCheck = async () => {
+    if (!mebbisDocumentCheckUrl) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+    try {
+      const response = await openLocalAgentMebbisPageView(mebbisDocumentCheckUrl);
+      showToast(response.message || "MEBBİS evrak kontrol sayfası açıldı.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "MEBBİS evrak kontrol sayfası açılamadı.", "error");
+    }
+  };
+
+  const isMebbisJobDocument = (type: DocumentTypeResponse) => MEBBIS_JOB_DOCUMENT_KEYS.has(type.key);
+  const isDocumentReadyForMebbisTransfer = (type: DocumentTypeResponse) => {
+    if (type.key === "contract_back") return false;
+    const upload = uploadsByKey.get(type.key) ?? null;
+    if (type.key === "contract_front") {
+      const contractBackType = documentTypes.find((item) => item.key === "contract_back") ?? null;
+      const contractBackUpload = contractBackType ? uploadsByKey.get(contractBackType.key) ?? null : null;
+      return getCandidateDocumentStatus(upload) !== "missing" &&
+        getCandidateDocumentStatus(contractBackUpload) !== "missing";
+    }
+    return getCandidateDocumentStatus(upload) !== "missing";
+  };
+  const documentTransferDisplayName = (type: DocumentTypeResponse) =>
+    type.key === "contract_front" ? "Sözleşme" : type.name;
+  const documentTransferMessages = (type: DocumentTypeResponse) => {
+    const isWebcamPhotoUpload = type.key === "webcam_photo";
+    const isEducationInfoUpload = type.key === "education_certificate";
+    const isHealthReportUpload = type.key === "health_report";
+    const isCriminalRecordUpload = type.key === "criminal_record";
+    const isSignatureUpload = type.key === "signature_sample";
+    const isContractUpload = type.key === "contract_front" || type.key === "contract_back";
+    const prefix = isEducationInfoUpload
+      ? "Öğrenim bilgisi"
+      : isHealthReportUpload
+        ? "Sağlık raporu"
+        : isCriminalRecordUpload
+          ? "Adli sicil"
+          : isSignatureUpload
+            ? "İmza"
+            : isContractUpload
+              ? "Sözleşme"
+              : isWebcamPhotoUpload
+                ? "Webcam fotoğraf"
+                : "Biyometrik fotoğraf";
+    return {
+      queued: `${prefix} MEBBİS aktarımı kuyruğa alındı`,
+      success: `${prefix} MEBBİS’e aktarıldı`,
+      manual: `${prefix} MEBBİS aktarımı kontrol gerektiriyor`,
+      running: `${prefix} MEBBİS aktarımı hala devam ediyor`,
+    };
+  };
+  const createDocumentTransferJob = async (type: DocumentTypeResponse) => {
+    if (type.key === "education_certificate") return createCandidateEducationInfoUploadJob(candidateId);
+    if (type.key === "health_report") return createCandidateHealthReportUploadJob(candidateId);
+    if (type.key === "criminal_record") return createCandidateCriminalRecordUploadJob(candidateId);
+    if (type.key === "signature_sample") return createCandidateSignatureUploadJob(candidateId);
+    if (type.key === "contract_front" || type.key === "contract_back") return createCandidateContractUploadJob(candidateId);
+    if (type.key === "webcam_photo") return createCandidateWebcamPhotoUploadJob(candidateId);
+    return createCandidatePhotoUploadJob(candidateId);
+  };
+  const waitForTerminalMebbisJob = async (jobId: string) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      if (attempt > 0) await delay(1000);
+      const latestJob = await getMebbisJob(jobId);
+      if (latestJob.status === "succeeded" || ["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
+        return latestJob;
+      }
+    }
+    return null;
+  };
+  const queueAndWaitDocumentTransfer = async (type: DocumentTypeResponse): Promise<"succeeded" | "stopped"> => {
+    const messages = documentTransferMessages(type);
+    const job = await createDocumentTransferJob(type);
+    notifyMebbisJobQueued(job.id, job.jobType);
+    showToast(messages.queued);
+    const latestJob = await waitForTerminalMebbisJob(job.id);
+    if (!latestJob) {
+      showToast(messages.running);
+      return "stopped";
+    }
+    if (latestJob.status === "succeeded") {
+      await onRefresh();
+      showToast(messages.success);
+      return "succeeded";
+    }
+    showToast(candidateTermEnrollJobTerminalMessage(latestJob, messages.manual), "error");
+    return "stopped";
+  };
+
+  const handleEnrollTermAndTransfer = async () => {
+    if (batchTransferRunning || transferringTypeId) return;
+    if (!canManageMebJobs) return;
+    if (termEnrollFeeResolving) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+
+    setBatchTransferRunning(true);
+    setBatchTransferStep("Dönem kaydı");
+    try {
+      const termJob = await createCandidateTermEnrollJob(candidateId, { registrationFee: contractFee });
+      notifyMebbisJobQueued(termJob.id, termJob.jobType);
+      showToast(t("candidateDetail.documents.toast.termSyncQueued"));
+      const termResult = await waitForTerminalMebbisJob(termJob.id);
+      if (!termResult) {
+        showToast(t("candidateDetail.documents.toast.termSyncStillRunning"));
+        return;
+      }
+      if (termResult.status !== "succeeded") {
+        showToast(
+          candidateTermEnrollJobTerminalMessage(termResult, t("candidateDetail.documents.toast.termSyncNeedsReview")),
+          "error"
+        );
+        return;
+      }
+
+      await onRefresh();
+      showToast(t("candidateDetail.documents.toast.termSyncCompleted"));
+
+      const transferTypes = documentTypes.filter((type) => {
+        if (!isMebbisJobDocument(type)) return false;
+        if (!shouldShowMebbisDocumentTransferAction(type.key)) return false;
+        if (!isDocumentReadyForMebbisTransfer(type)) return false;
+        const upload = uploadsByKey.get(type.key) ?? null;
+        const contractBackUpload = type.key === "contract_front" ? uploadsByKey.get("contract_back") ?? null : null;
+        const isTransferred = type.key === "contract_front"
+          ? upload?.isMebbisTransferred === true && contractBackUpload?.isMebbisTransferred === true
+          : upload?.isMebbisTransferred === true;
+        return canRetryMebbisDocumentTransfer(type.key, isTransferred);
+      });
+
+      if (transferTypes.length === 0) {
+        showToast("Dönem kaydı tamamlandı; aktarılacak uygun evrak bulunamadı.");
+        return;
+      }
+
+      for (const type of transferTypes) {
+        setTransferringTypeId(type.id);
+        setBatchTransferStep(documentTransferDisplayName(type));
+        const result = await queueAndWaitDocumentTransfer(type);
+        setTransferringTypeId(null);
+        if (result !== "succeeded") return;
+      }
+
+      showToast("Dönem kaydı ve evrak aktarımları tamamlandı.");
+    } catch (error) {
+      const fallback = "Döneme kaydet ve aktar işlemi başlatılamadı.";
+      const message = batchTransferStep && batchTransferStep !== "Dönem kaydı"
+        ? documentMebbisTransferErrorMessage(error, fallback)
+        : candidateTermEnrollQueueErrorMessage(error, fallback, t);
+      showToast(message, "error");
+    } finally {
+      setTransferringTypeId(null);
+      setBatchTransferRunning(false);
+      setBatchTransferStep(null);
+    }
+  };
 
   const handleTransfer = async (type: DocumentTypeResponse) => {
-    if (transferringTypeId) return;
-    const requiresMebbisJob =
-      type.key === "biometric_photo" || type.key === "education_certificate" || type.key === "health_report";
+    if (transferringTypeId || batchTransferRunning) return;
+    const requiresMebbisJob = isMebbisJobDocument(type);
     if (requiresMebbisJob ? !canManageMebJobs : !canManageDocuments) return;
     if (requiresMebbisJob && !(await mebbisSessionGuard.ensureSessionAsync())) return;
     const upload = uploadsByKey.get(type.key) ?? null;
@@ -8587,52 +8810,7 @@ function CandidateDocumentOneByOneTransferModal({
     try {
       if (requiresMebbisJob) {
         if (!canManageMebJobs) return;
-        const isEducationInfoUpload = type.key === "education_certificate";
-        const isHealthReportUpload = type.key === "health_report";
-        const job = isEducationInfoUpload
-          ? await createCandidateEducationInfoUploadJob(candidateId)
-          : isHealthReportUpload
-            ? await createCandidateHealthReportUploadJob(candidateId)
-            : await createCandidatePhotoUploadJob(candidateId);
-        const queuedMessage = isEducationInfoUpload
-          ? "Öğrenim bilgisi MEBBİS aktarımı kuyruğa alındı"
-          : isHealthReportUpload
-            ? "Sağlık raporu MEBBİS aktarımı kuyruğa alındı"
-            : "Biyometrik fotoğraf MEBBİS aktarımı kuyruğa alındı";
-        const successMessage = isEducationInfoUpload
-          ? "Öğrenim bilgisi MEBBİS’e aktarıldı"
-          : isHealthReportUpload
-            ? "Sağlık raporu MEBBİS’e aktarıldı"
-            : "Biyometrik fotoğraf MEBBİS’e aktarıldı";
-        const manualMessage = isEducationInfoUpload
-          ? "Öğrenim bilgisi MEBBİS aktarımı kontrol gerektiriyor"
-          : isHealthReportUpload
-            ? "Sağlık raporu MEBBİS aktarımı kontrol gerektiriyor"
-            : "Biyometrik fotoğraf MEBBİS aktarımı kontrol gerektiriyor";
-        const runningMessage = isEducationInfoUpload
-          ? "Öğrenim bilgisi MEBBİS aktarımı hala devam ediyor"
-          : isHealthReportUpload
-            ? "Sağlık raporu MEBBİS aktarımı hala devam ediyor"
-            : "Biyometrik fotoğraf MEBBİS aktarımı hala devam ediyor";
-        notifyMebbisJobQueued(job.id, job.jobType);
-        showToast(queuedMessage);
-
-        for (let attempt = 0; attempt < 60; attempt += 1) {
-          if (attempt > 0) await delay(5000);
-          const latestJob = await getMebbisJob(job.id);
-          if (latestJob.status === "succeeded") {
-            await onRefresh();
-            showToast(successMessage);
-            return;
-          }
-
-          if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
-            showToast(candidateTermEnrollJobTerminalMessage(latestJob, manualMessage), "error");
-            return;
-          }
-        }
-
-        showToast(runningMessage);
+        await queueAndWaitDocumentTransfer(type);
         return;
       }
 
@@ -8640,7 +8818,7 @@ function CandidateDocumentOneByOneTransferModal({
       await onRefresh();
       showToast(t("candidateDetail.documents.row.toast.mebbisMarked", { name: type.name }));
     } catch (error) {
-      if (type.key === "biometric_photo" || type.key === "education_certificate" || type.key === "health_report") {
+      if (isMebbisJobDocument(type)) {
         showToast(
           documentMebbisTransferErrorMessage(
             error,
@@ -8659,7 +8837,7 @@ function CandidateDocumentOneByOneTransferModal({
   return (
     <Modal
       footer={
-        <button className="btn btn-secondary" disabled={!!transferringTypeId} onClick={onClose} type="button">
+        <button className="btn btn-secondary" disabled={!!transferringTypeId || batchTransferRunning} onClick={onClose} type="button">
           {t("common.close")}
         </button>
       }
@@ -8675,10 +8853,11 @@ function CandidateDocumentOneByOneTransferModal({
               !candidateSyncQueuing &&
               !candidateSyncRunning &&
               !termEnrollFeeResolving &&
+              !batchTransferRunning &&
               canManageMebJobs &&
               mebbisSessionGuard.disabled
             }
-            disabled={candidateSyncQueuing || candidateSyncRunning || termEnrollFeeResolving || !canManageMebJobs}
+            disabled={candidateSyncQueuing || candidateSyncRunning || termEnrollFeeResolving || batchTransferRunning || !canManageMebJobs}
             onClick={onEnrollTerm}
             title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
             type="button"
@@ -8691,18 +8870,51 @@ function CandidateDocumentOneByOneTransferModal({
           </button>
           <button
             className="btn btn-primary btn-sm"
-            aria-disabled={mebbisSessionGuard.disabled}
-            onClick={async () => {
-              if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
-            }}
-            title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
+            aria-disabled={
+              !batchTransferRunning &&
+              !transferringTypeId &&
+              !candidateSyncQueuing &&
+              !candidateSyncRunning &&
+              !termEnrollFeeResolving &&
+              canManageMebJobs &&
+              mebbisSessionGuard.disabled
+            }
+            disabled={
+              batchTransferRunning ||
+              !!transferringTypeId ||
+              candidateSyncQueuing ||
+              candidateSyncRunning ||
+              termEnrollFeeResolving ||
+              !canManageMebJobs
+            }
+            onClick={() => void handleEnrollTermAndTransfer()}
+            title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
             type="button"
           >
-            {t("candidateDetail.documents.button.enrollTermAndTransfer")}
+            {batchTransferRunning
+              ? (batchTransferStep ? `Aktarılıyor: ${batchTransferStep}` : t("candidateDetail.documents.button.syncing"))
+              : t("candidateDetail.documents.button.enrollTermAndTransfer")}
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            aria-disabled={!mebbisDocumentCheckUrl || mebbisSessionGuard.disabled}
+            disabled={!mebbisDocumentCheckUrl}
+            onClick={() => void handleOpenMebbisDocumentCheck()}
+            title={
+              !mebbisDocumentCheckUrl
+                ? "Evrak kontrol için TC ve dönem bilgisi gerekli."
+                : mebbisSessionGuard.disabled
+                  ? mebbisSessionGuard.message
+                  : "Mevcut MEBBİS oturumunda evrak kontrol sayfasını aç"
+            }
+            type="button"
+          >
+            Evrak Kontrol
           </button>
           <button
             className="btn btn-danger btn-sm"
-            aria-disabled={mebbisSessionGuard.disabled}
+            aria-disabled={!batchTransferRunning && !transferringTypeId && mebbisSessionGuard.disabled}
+            disabled={batchTransferRunning || !!transferringTypeId}
             onClick={async () => {
               if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
             }}
@@ -8714,24 +8926,66 @@ function CandidateDocumentOneByOneTransferModal({
         </div>
         <ul className="candidate-detail-doc-transfer-list">
           {documentTypes.map((type) => {
+            if (type.key === "contract_back") return null;
+            const isContractFront = type.key === "contract_front";
+            const contractBackType = isContractFront
+              ? documentTypes.find((item) => item.key === "contract_back") ?? null
+              : null;
             const upload = uploadsByKey.get(type.key) ?? null;
-            const status = getCandidateDocumentStatus(upload);
-            const isTransferred = upload?.isMebbisTransferred === true;
+            const contractBackUpload = contractBackType ? uploadsByKey.get(contractBackType.key) ?? null : null;
+            const ownStatus = getCandidateDocumentStatus(upload);
+            const contractBackStatus = contractBackType ? getCandidateDocumentStatus(contractBackUpload) : "missing";
+            const status = isContractFront
+              ? ownStatus === "missing" || contractBackStatus === "missing"
+                ? "missing"
+                : "uploaded"
+              : ownStatus;
+            const isTransferred = isContractFront
+              ? upload?.isMebbisTransferred === true && contractBackUpload?.isMebbisTransferred === true
+              : upload?.isMebbisTransferred === true;
             const isBusy = transferringTypeId === type.id;
-            const requiresMebbisJob =
-              type.key === "biometric_photo" || type.key === "education_certificate" || type.key === "health_report";
+            const requiresMebbisJob = isMebbisJobDocument(type);
             const canTransfer = requiresMebbisJob ? canManageMebJobs : canManageDocuments;
+            const showTransferAction = shouldShowMebbisDocumentTransferAction(type.key);
             return (
-              <li className={`candidate-detail-doc-transfer-row status-${status}`} key={type.id}>
-                <CandidateDocumentTransferPreview
-                  candidateId={candidateId}
-                  type={type}
-                  upload={upload}
-                />
+              <li className={`candidate-detail-doc-transfer-row status-${status}${isContractFront ? " is-contract" : ""}`} key={type.id}>
+                {isContractFront && contractBackType ? (
+                  <div className="candidate-detail-doc-transfer-preview-pair">
+                    <div className="candidate-detail-doc-transfer-preview-item">
+                      <CandidateDocumentTransferPreview
+                        candidateId={candidateId}
+                        type={type}
+                        upload={upload}
+                      />
+                      <span>Ön</span>
+                    </div>
+                    <div className="candidate-detail-doc-transfer-preview-item">
+                      <CandidateDocumentTransferPreview
+                        candidateId={candidateId}
+                        type={contractBackType}
+                        upload={contractBackUpload}
+                      />
+                      <span>Arka</span>
+                    </div>
+                  </div>
+                ) : (
+                  <CandidateDocumentTransferPreview
+                    candidateId={candidateId}
+                    type={type}
+                    upload={upload}
+                  />
+                )}
                 <div className="candidate-detail-doc-transfer-info">
-                  <strong>{type.name}</strong>
+                  <strong>{isContractFront ? "Sözleşme" : type.name}</strong>
                   <div className="candidate-detail-doc-state-chips">
-                    <StateChip on={status !== "missing"} onLabel="Var" offLabel="Yok" />
+                    {isContractFront ? (
+                      <>
+                        <StateChip on={ownStatus !== "missing"} onLabel="Ön Var" offLabel="Ön Yok" />
+                        <StateChip on={contractBackStatus !== "missing"} onLabel="Arka Var" offLabel="Arka Yok" />
+                      </>
+                    ) : (
+                      <StateChip on={status !== "missing"} onLabel="Var" offLabel="Yok" />
+                    )}
                     <StateChip
                       on={isTransferred}
                       onLabel={t("candidateDetail.documents.row.state.mebbisTransferred")}
@@ -8740,37 +8994,41 @@ function CandidateDocumentOneByOneTransferModal({
                   </div>
                 </div>
                 <div className="candidate-detail-doc-transfer-action">
-                  <button
-                    className="btn btn-primary btn-sm"
-                    aria-disabled={
-                      !transferringTypeId &&
-                      canTransfer &&
-                      status !== "missing" &&
-                      (requiresMebbisJob || !isTransferred) &&
-                      requiresMebbisJob &&
-                      mebbisSessionGuard.disabled
-                    }
-                    disabled={
-                      !!transferringTypeId ||
-                      !canTransfer ||
-                      status === "missing" ||
-                      (requiresMebbisJob && mebbisSessionGuard.disabled) ||
-                      !canRetryMebbisDocumentTransfer(type.key, isTransferred)
-                    }
-                    onClick={() => void handleTransfer(type)}
-                    title={
-                      !canTransfer
-                        ? (requiresMebbisJob ? noPermissionTitle : noDocumentPermissionTitle)
-                        : requiresMebbisJob && mebbisSessionGuard.disabled
-                          ? mebbisSessionGuard.message
-                          : undefined
-                    }
-                    type="button"
-                  >
-                    {isBusy
-                      ? t("candidateDetail.documents.oneByOne.transferring")
-                      : t("candidateDetail.documents.oneByOne.transfer")}
-                  </button>
+                  {showTransferAction ? (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      aria-disabled={
+                        !transferringTypeId &&
+                        !batchTransferRunning &&
+                        canTransfer &&
+                        status !== "missing" &&
+                        (requiresMebbisJob || !isTransferred) &&
+                        requiresMebbisJob &&
+                        mebbisSessionGuard.disabled
+                      }
+                      disabled={
+                        !!transferringTypeId ||
+                        batchTransferRunning ||
+                        !canTransfer ||
+                        status === "missing" ||
+                        (requiresMebbisJob && mebbisSessionGuard.disabled) ||
+                        !canRetryMebbisDocumentTransfer(type.key, isTransferred)
+                      }
+                      onClick={() => void handleTransfer(type)}
+                      title={
+                        !canTransfer
+                          ? (requiresMebbisJob ? noPermissionTitle : noDocumentPermissionTitle)
+                          : requiresMebbisJob && mebbisSessionGuard.disabled
+                            ? mebbisSessionGuard.message
+                            : undefined
+                      }
+                      type="button"
+                    >
+                      {isBusy
+                        ? t("candidateDetail.documents.oneByOne.transferring")
+                        : t("candidateDetail.documents.oneByOne.transfer")}
+                    </button>
+                  ) : null}
                 </div>
               </li>
             );

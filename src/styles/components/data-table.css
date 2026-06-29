@@ -28,17 +28,52 @@
   padding: 32px;
 }
 .documents-table {
-  width: max-content;
-  min-width: max-content;
+  width: 100%;
+  min-width: 100%;
   table-layout: auto;
+}
+.documents-table th,
+.documents-table td {
+  box-sizing: border-box;
+}
+.documents-candidate-th,
+.documents-candidate-td {
+  width: 170px;
+  min-width: 170px;
+  max-width: 170px;
+}
+.documents-license-th,
+.documents-license-td {
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+}
+.documents-term-th,
+.documents-term-td {
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
+}
+.documents-summary-th,
+.documents-summary-td {
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+}
+.documents-candidate-td,
+.documents-term-td,
+.documents-summary-td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .documents-doc-th,
 .documents-doc-td {
-  width: 108px;
-  min-width: 108px;
-  max-width: 108px;
-  padding-left: 12px !important;
-  padding-right: 12px !important;
+  width: 54px;
+  min-width: 54px;
+  max-width: 54px;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
   text-align: center !important;
   white-space: nowrap;
 }
@@ -50,8 +85,8 @@
   overflow-y: visible;
 }
 .documents-doc-th {
-  height: 42px;
-  padding: 8px 12px;
+  height: 38px;
+  padding: 7px 6px;
   vertical-align: middle;
   overflow: hidden;
 }
@@ -59,7 +94,7 @@
   display: block;
   max-width: 100%;
   overflow: hidden;
-  padding: 0 2px;
+  padding: 0;
   text-align: center;
   font-size: 10px;
   line-height: 1;

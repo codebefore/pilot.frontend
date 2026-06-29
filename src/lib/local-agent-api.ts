@@ -271,6 +271,20 @@ export async function openLocalAgentMebbisHomeView(
   return normalizeMebbisPageViewResponse(body);
 }
 
+export async function openLocalAgentMebbisPageView(
+  url: string,
+  signal?: AbortSignal
+): Promise<LocalAgentMebbisPageViewResponse> {
+  const response = await fetch(getLocalAgentUrl("/mebbis/page/view"), {
+    method: "POST",
+    headers: buildLocalAgentHeaders(true),
+    body: JSON.stringify({ url }),
+    signal,
+  });
+  const body = await handleLocalAgentJson<Record<string, unknown>>(response);
+  return normalizeMebbisPageViewResponse(body);
+}
+
 export async function listLocalAgentScanners(signal?: AbortSignal): Promise<LocalAgentScannerResponse[]> {
   const response = await getLocalAgentJson<LocalAgentScannerListResponse>("/scanners", signal);
   return response.scanners;

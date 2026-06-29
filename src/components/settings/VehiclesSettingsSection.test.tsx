@@ -199,9 +199,6 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Genel Durum filtresi" }));
     fireEvent.click(screen.getByRole("button", { name: "Pasif" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Araç Durumu filtresi" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bakımda" }));
-
     fireEvent.click(screen.getByRole("button", { name: "Belge filtresi" }));
     fireEvent.click(await screen.findByRole("button", { name: "A2" }));
 
@@ -209,7 +206,6 @@ describe("VehiclesSettingsSection", () => {
       expect(getVehiclesMock).toHaveBeenLastCalledWith(
         {
           activity: "inactive",
-          status: "maintenance",
           licenseClass: "A2",
           page: 1,
           pageSize: 10,
@@ -340,9 +336,9 @@ describe("VehiclesSettingsSection", () => {
     expect(screen.queryByRole("button", { name: "Sütunlar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vites" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Marka / Model" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Araç Durumu" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Plaka / Simülatör No" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Belge" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Araç Durumu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Genel Durum" })).toBeInTheDocument();
   });
 

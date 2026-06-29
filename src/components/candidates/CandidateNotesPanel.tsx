@@ -21,9 +21,10 @@ import { createUserNote } from "../../lib/user-notes-api";
 
 type Props = {
   candidateId: string;
+  candidateName?: string | null;
 };
 
-export function CandidateNotesPanel({ candidateId }: Props) {
+export function CandidateNotesPanel({ candidateId, candidateName }: Props) {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
@@ -34,6 +35,8 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<CandidateNoteResponse | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -55,12 +58,14 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   const beginCreate = () => {
     if (!canManageCandidates) return;
     setEditing(null);
+    setConfirmDeleteId(null);
     setComposerOpen(true);
   };
 
   const beginEdit = (note: CandidateNoteResponse) => {
     if (!canManageCandidates) return;
     setEditing(note);
+    setConfirmDeleteId(null);
     setComposerOpen(true);
   };
 
@@ -89,6 +94,8 @@ export function CandidateNotesPanel({ candidateId }: Props) {
             body,
             reminderAtUtc: reminderAtUtc ?? createdNote.createdAtUtc,
             isVisibleToInstitution: false,
+            candidateId,
+            candidateName: candidateName?.trim() || null,
           });
         }
         showToast(addToTasks ? "Not eklendi, görev oluşturuldu" : "Not eklendi");
@@ -116,14 +123,18 @@ export function CandidateNotesPanel({ candidateId }: Props) {
   };
 
   const handleDelete = async (note: CandidateNoteResponse) => {
-    if (!canManageCandidates) return;
+    if (!canManageCandidates || deletingId) return;
 
+    setDeletingId(note.id);
     try {
       await deleteCandidateNote(candidateId, note.id);
+      setConfirmDeleteId(null);
       await load();
       invalidateNoteDependents();
     } catch {
       showToast("Not silinemedi", "error");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -162,19 +173,21 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                 note.reminderAtUtc !== null &&
                 new Date(note.reminderAtUtc).getTime() <= Date.now();
               const author = note.createdByName?.trim() || null;
+              const isConfirmingDelete = confirmDeleteId === note.id;
+              const isDeleting = deletingId === note.id;
               return (
                 <li
-                  className={`user-notes-item${completed ? " is-completed" : ""}${overdue ? " is-overdue" : ""}`}
+                  className={`user-notes-item${completed ? " is-completed" : ""}${overdue ? " is-overdue" : ""}${isConfirmingDelete ? " has-delete-popover" : ""}`}
                   key={note.id}
                 >
-                    <button
-                      aria-label={completed ? t("notesPanel.aria.uncomplete") : t("notesPanel.aria.complete")}
-                      className="user-notes-item-toggle"
-                      disabled={!canManageCandidates}
-                      onClick={() => void handleToggle(note)}
-                      title={!canManageCandidates ? noPermissionTitle : undefined}
-                      type="button"
-                    >
+                  <button
+                    aria-label={completed ? t("notesPanel.aria.uncomplete") : t("notesPanel.aria.complete")}
+                    className="user-notes-item-toggle"
+                    disabled={!canManageCandidates}
+                    onClick={() => void handleToggle(note)}
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
+                    type="button"
+                  >
                     {completed ? <CheckIcon size={12} /> : null}
                   </button>
                   <div className="user-notes-item-body">
@@ -192,7 +205,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                     <button
                       aria-label={t("common.edit")}
                       className="user-notes-item-action"
-                      disabled={!canManageCandidates}
+                      disabled={!canManageCandidates || isDeleting}
                       onClick={() => beginEdit(note)}
                       title={!canManageCandidates ? noPermissionTitle : undefined}
                       type="button"
@@ -202,13 +215,40 @@ export function CandidateNotesPanel({ candidateId }: Props) {
                     <button
                       aria-label="Sil"
                       className="user-notes-item-action is-danger"
-                      disabled={!canManageCandidates}
-                      onClick={() => void handleDelete(note)}
+                      disabled={!canManageCandidates || isDeleting}
+                      onClick={() => setConfirmDeleteId(isConfirmingDelete ? null : note.id)}
                       title={!canManageCandidates ? noPermissionTitle : undefined}
                       type="button"
                     >
                       <TrashIcon size={14} />
                     </button>
+                    {isConfirmingDelete ? (
+                      <div
+                        aria-label="Not silme onayı"
+                        className="user-notes-delete-popover"
+                        role="alertdialog"
+                      >
+                        <div className="user-notes-delete-popover-title">Not silinsin mi?</div>
+                        <div className="user-notes-delete-popover-actions">
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={isDeleting}
+                            onClick={() => setConfirmDeleteId(null)}
+                            type="button"
+                          >
+                            Vazgeç
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            disabled={isDeleting}
+                            onClick={() => void handleDelete(note)}
+                            type="button"
+                          >
+                            {isDeleting ? "Siliniyor..." : "Sil"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </li>
               );

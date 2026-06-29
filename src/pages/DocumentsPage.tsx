@@ -142,12 +142,58 @@ function renderDocumentTerm(entry: DocumentChecklistEntry, lang: "tr" | "en") {
     : "-";
 }
 
-function compactDocumentColumnLabel(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length < 2) return words[0] ?? name;
-  const secondWordInitial = words[1].match(/[\p{L}\p{N}]/u)?.[0] ?? words[1].charAt(0);
+const DOCUMENT_COLUMN_LABELS_BY_KEY: Record<string, string> = {
+  application_form: "Mrct.",
+  biometric_photo: "Biyo",
+  contract_back: "Söz. A.",
+  contract_front: "Söz. Ö.",
+  criminal_record: "Adli",
+  education_certificate: "Öğr.",
+  existing_license_copy: "Mvct",
+  health_report: "Sğlk",
+  identity_card: "Kmlk",
+  national_id: "Kmlk",
+  signature_sample: "İmza",
+  webcam_photo: "Wbcm",
+};
 
-  return `${words[0]} ${secondWordInitial}.`;
+const DOCUMENT_COLUMN_LABELS_BY_NORMALIZED_NAME: Record<string, string> = {
+  adli_sicil_kaydi: "Adli",
+  biyometrik_fotograf: "Biyo",
+  kimlik_fotokopisi: "Kmlk",
+  mevcut_ehliyet_fotokopisi: "Mvct",
+  muracaat_formu: "Mrct.",
+  nufus_cuzdani: "Kmlk",
+  ogrenci_belgesi: "Öğr.",
+  ogrenim_belgesi: "Öğr.",
+  saglik_raporu: "Sğlk",
+  sozlesme_arka_yuz: "Söz. A.",
+  sozlesme_on_yuz: "Söz. Ö.",
+  imza_ornegi: "İmza",
+  webcam_fotografi: "Wbcm",
+};
+
+function formatDocumentColumnLabel(documentType: DocumentTypeResponse): string {
+  const keyLabel = DOCUMENT_COLUMN_LABELS_BY_KEY[documentType.key];
+  if (keyLabel) return keyLabel;
+
+  return DOCUMENT_COLUMN_LABELS_BY_NORMALIZED_NAME[normalizeDocumentTypeName(documentType.name)] ?? documentType.name;
+}
+
+function normalizeDocumentTypeName(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 export function DocumentsPage() {
@@ -1096,12 +1142,14 @@ export function DocumentsPage() {
                 </th>
                 <th aria-label="Resim" className="cand-photo-th" />
                 <SortableTh
+                  className="documents-candidate-th"
                   field="name"
                   label={t("documents.col.candidate")}
                   onToggle={handleSortToggle}
                   sort={sort}
                 />
                 <SortableTh
+                  className="documents-license-th"
                   field="licenseClass"
                   filterControl={
                     <CheckboxListPopover
@@ -1124,6 +1172,7 @@ export function DocumentsPage() {
                   sort={sort}
                 />
                 <SortableTh
+                  className="documents-term-th"
                   field="term"
                   filterControl={
                     <TableHeaderFilter
@@ -1149,9 +1198,9 @@ export function DocumentsPage() {
                   onToggle={handleSortToggle}
                   sort={sort}
                 />
-                <th>
-                  <div className="sortable-th-shell">
-                    <span>Peşinat</span>
+                <th className="documents-doc-th documents-advance-th">
+                  <div className="documents-doc-label">
+                    <span title="Peşinat">Peş.</span>
                   </div>
                 </th>
                 {visibleRequiredDocumentTypes.map((documentType) => (
@@ -1161,11 +1210,11 @@ export function DocumentsPage() {
                     title={documentType.name}
                   >
                     <span aria-label={documentType.name} className="documents-doc-label">
-                      {compactDocumentColumnLabel(documentType.name)}
+                      {formatDocumentColumnLabel(documentType)}
                     </span>
                   </th>
                 ))}
-                <th>
+                <th className="documents-summary-th">
                   <div className="sortable-th-shell">
                     <span>{t("documents.col.summary")}</span>
                     <div className="sortable-th-filter">
@@ -1201,16 +1250,16 @@ export function DocumentsPage() {
                     <td className="cand-photo-td">
                       <span className="skeleton" style={{ width: 28, height: 28, borderRadius: "999px" }} />
                     </td>
-                    <td>
+                    <td className="documents-candidate-td">
                       <span className="skeleton" style={{ width: `${110 + (index * 37) % 60}px` }} />
                     </td>
-                    <td>
+                    <td className="documents-license-td">
                       <span className="skeleton" style={{ width: 56 }} />
                     </td>
-                    <td>
+                    <td className="documents-term-td">
                       <span className="skeleton" style={{ width: 94 }} />
                     </td>
-                    <td>
+                    <td className="documents-doc-td documents-advance-td">
                       <span className="skeleton" style={{ width: 56 }} />
                     </td>
                     {visibleRequiredDocumentTypes.map((documentType, docIndex) => (
@@ -1221,7 +1270,7 @@ export function DocumentsPage() {
                         />
                       </td>
                     ))}
-                    <td>
+                    <td className="documents-summary-td">
                       <span className="skeleton" style={{ width: 88 }} />
                     </td>
                     <td className="col-picker-td" />
@@ -1262,13 +1311,13 @@ export function DocumentsPage() {
                           size={30}
                         />
                       </td>
-                      <td>
+                      <td className="documents-candidate-td">
                         <div className="cand-name">{entry.fullName}</div>
                         {renderPhoneNumber(entry)}
                       </td>
-                      <td>{entry.licenseClass}</td>
-                      <td>{renderDocumentTerm(entry, lang)}</td>
-                      <td>
+                      <td className="documents-license-td">{entry.licenseClass}</td>
+                      <td className="documents-term-td">{renderDocumentTerm(entry, lang)}</td>
+                      <td className="documents-doc-td documents-advance-td">
                         <button
                           aria-label={entry.hasAdvancePayment ? t("documentsPage.advancePayment.has") : t("documentsPage.advancePayment.none")}
                           className="documents-doc-icon-btn"
@@ -1350,7 +1399,7 @@ export function DocumentsPage() {
                           </td>
                         );
                       })}
-                      <td>
+                      <td className="documents-summary-td">
                         <span className={documentSummaryToneClass(entry.summary)}>
                           {t("documents.summary", {
                             completedCount: entry.summary.completedCount,
@@ -1418,6 +1467,7 @@ export function DocumentsPage() {
 }
 
 type SortableThProps = {
+  className?: string;
   field: DocumentSortField;
   filterControl?: ReactNode;
   label: string;
@@ -1425,7 +1475,7 @@ type SortableThProps = {
   onToggle: (field: DocumentSortField) => void;
 };
 
-function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThProps) {
+function SortableTh({ className, field, filterControl, label, sort, onToggle }: SortableThProps) {
   const isActive = sort?.field === field;
   const direction = isActive ? sort.direction : null;
   const indicator = direction === "asc" ? "▲" : direction === "desc" ? "▼" : "↕";
@@ -1436,7 +1486,10 @@ function SortableTh({ field, filterControl, label, sort, onToggle }: SortableThP
     : "none";
 
   return (
-    <th aria-sort={ariaSort} className={isActive ? "sortable-th active" : "sortable-th"}>
+    <th
+      aria-sort={ariaSort}
+      className={`${isActive ? "sortable-th active" : "sortable-th"}${className ? ` ${className}` : ""}`}
+    >
       <div className="sortable-th-shell">
         <button
           className="sortable-th-btn"

@@ -105,7 +105,13 @@ export function DashboardNotesPanel() {
     setSaving(true);
     try {
       if (editing) {
-        await updateUserNote(editing.id, { body, reminderAtUtc, isVisibleToInstitution });
+        await updateUserNote(editing.id, {
+          body,
+          reminderAtUtc,
+          isVisibleToInstitution,
+          candidateId: editing.candidateId,
+          candidateName: editing.candidateName,
+        });
         showToast("Görev güncellendi");
       } else {
         await createUserNote({ body, reminderAtUtc, isVisibleToInstitution });
@@ -224,6 +230,19 @@ export function DashboardNotesPanel() {
         <div className="user-notes-item-time">{reminderTime}</div>
         <div className="user-notes-item-body">
           <div className="user-notes-item-text">{note.body}</div>
+          {note.candidateId && note.candidateName ? (
+            <button
+              className="user-notes-item-candidate"
+              onClick={() =>
+                navigate(`/candidates/${note.candidateId}`, {
+                  state: { returnLabel: "← Kokpite dön", returnTo: "/" },
+                })
+              }
+              type="button"
+            >
+              {note.candidateName}
+            </button>
+          ) : null}
         </div>
         <div className="user-notes-item-actions">
           <button
