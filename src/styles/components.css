@@ -1083,6 +1083,66 @@
   color: var(--gray-400);
 }
 
+.group-candidate-remove-anchor {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.group-candidate-remove-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: min(280px, calc(100vw - 48px));
+  padding: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.group-candidate-remove-popover::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  border-top: 1px solid var(--gray-200);
+  border-left: 1px solid var(--gray-200);
+  background: var(--white);
+  transform: rotate(45deg);
+}
+
+.group-candidate-remove-title {
+  color: var(--gray-900);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.group-candidate-remove-message {
+  margin: 6px 0 0;
+  color: var(--gray-600);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.group-candidate-remove-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.group-candidate-remove-actions .btn {
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 .drawer-empty-hint {
   padding: 6px 0 8px;
   font-size: 13px;

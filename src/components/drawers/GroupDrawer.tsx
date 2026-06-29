@@ -448,18 +448,56 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                     />
                     <span className="candidate-list-text">
                       <span className="candidate-name">{c.firstName} {c.lastName}</span>
-                      <span className="candidate-tc">{formatNationalId(c.nationalId)}</span>
                     </span>
                   </button>
-                  <button
-                    className="icon-btn"
-                    disabled={removing === c.candidateId || !canEdit}
-                    onClick={() => handleRemoveCandidate(c)}
-                    title={!canEdit ? noPermissionTitle : t("groupDrawer.action.removeFromGroup")}
-                    type="button"
-                  >
-                    <XIcon size={13} />
-                  </button>
+                  <div className="group-candidate-remove-anchor">
+                    <button
+                      className="icon-btn"
+                      disabled={removing === c.candidateId || !canEdit}
+                      onClick={() => handleRemoveCandidate(c)}
+                      title={!canEdit ? noPermissionTitle : t("groupDrawer.action.removeFromGroup")}
+                      type="button"
+                    >
+                      <XIcon size={13} />
+                    </button>
+                    {removeCandidateConfirm?.candidateId === c.candidateId ? (
+                      <div
+                        aria-labelledby={`group-remove-candidate-confirm-title-${c.candidateId}`}
+                        className="group-candidate-remove-popover"
+                        role="alertdialog"
+                      >
+                        <div
+                          className="group-candidate-remove-title"
+                          id={`group-remove-candidate-confirm-title-${c.candidateId}`}
+                        >
+                          {t("groupDrawer.confirm.removeCandidateTitle")}
+                        </div>
+                        <p className="group-candidate-remove-message">
+                          {t("groupDrawer.confirm.removeCandidate", { name: removeCandidateConfirm.name })}
+                        </p>
+                        <div className="group-candidate-remove-actions">
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={removing !== null}
+                            onClick={() => setRemoveCandidateConfirm(null)}
+                            type="button"
+                          >
+                            {t("common.cancel")}
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            disabled={removing !== null || !canManageGroups}
+                            onClick={() => void confirmRemoveCandidate()}
+                            type="button"
+                          >
+                            {removing !== null
+                              ? t("groupDrawer.confirm.removingCandidate")
+                              : t("groupDrawer.confirm.confirmRemoveCandidate")}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ))
             )}
@@ -565,40 +603,6 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
             type="button"
           >
             {t("groupDrawer.confirm.activateCandidates")}
-          </button>
-        </div>
-      </div>
-    ) : null}
-    {removeCandidateConfirm !== null ? (
-      <div
-        aria-labelledby="group-remove-candidate-confirm-title"
-        className="group-meb-confirm-popover"
-        role="alertdialog"
-      >
-        <div className="group-meb-confirm-title" id="group-remove-candidate-confirm-title">
-          {t("groupDrawer.confirm.removeCandidateTitle")}
-        </div>
-        <p className="group-meb-confirm-message">
-          {t("groupDrawer.confirm.removeCandidate", { name: removeCandidateConfirm.name })}
-        </p>
-        <div className="group-meb-confirm-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={removing !== null}
-            onClick={() => setRemoveCandidateConfirm(null)}
-            type="button"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            className="btn btn-danger btn-sm"
-            disabled={removing !== null || !canManageGroups}
-            onClick={() => void confirmRemoveCandidate()}
-            type="button"
-          >
-            {removing !== null
-              ? t("groupDrawer.confirm.removingCandidate")
-              : t("groupDrawer.confirm.confirmRemoveCandidate")}
           </button>
         </div>
       </div>
