@@ -8,6 +8,7 @@ import {
   normalizeApiPathForBaseUrl,
   type QueryParams,
 } from "./http";
+import type { CandidateStatusValue } from "./status-maps";
 import type {
   CandidateDocumentOcrSuggestionResponse,
   DocumentMetadataField,
@@ -81,7 +82,7 @@ export interface GetDocumentChecklistParams extends QueryParams {
   candidateIds?: readonly string[];
   search?: string;
   status?: DocumentStatus;
-  candidateStatus?: "pre_registered" | "active";
+  candidateStatus?: CandidateStatusValue;
   tags?: readonly string[];
   firstName?: string;
   lastName?: string;

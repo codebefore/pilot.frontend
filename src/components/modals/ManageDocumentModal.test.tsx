@@ -15,6 +15,7 @@ const downloadAuthorizedFileMock = vi.fn();
 const printAuthorizedFileMock = vi.fn();
 const getMebbisSessionStatusMock = vi.fn();
 const createCandidateEducationInfoUploadJobMock = vi.fn();
+const createCandidateHealthReportUploadJobMock = vi.fn();
 const getMebbisJobMock = vi.fn();
 
 vi.mock("../../lib/authorized-files", () => ({
@@ -56,6 +57,9 @@ vi.mock("../../lib/mebbis-jobs-api", async () => {
     createCandidateEducationInfoUploadJob: (
       ...args: Parameters<typeof actual.createCandidateEducationInfoUploadJob>
     ) => createCandidateEducationInfoUploadJobMock(...args),
+    createCandidateHealthReportUploadJob: (
+      ...args: Parameters<typeof actual.createCandidateHealthReportUploadJob>
+    ) => createCandidateHealthReportUploadJobMock(...args),
     getMebbisJob: (...args: Parameters<typeof actual.getMebbisJob>) =>
       getMebbisJobMock(...args),
   };
@@ -76,6 +80,7 @@ describe("ManageDocumentModal", () => {
     printAuthorizedFileMock.mockReset();
     getMebbisSessionStatusMock.mockReset();
     createCandidateEducationInfoUploadJobMock.mockReset();
+    createCandidateHealthReportUploadJobMock.mockReset();
     getMebbisJobMock.mockReset();
     openAuthorizedFileMock.mockResolvedValue(undefined);
     downloadAuthorizedFileMock.mockResolvedValue(undefined);
@@ -92,9 +97,14 @@ describe("ManageDocumentModal", () => {
       jobType: "candidate_education_info_upload",
       status: "pending",
     });
+    createCandidateHealthReportUploadJobMock.mockResolvedValue({
+      id: "job-health-1",
+      jobType: "candidate_health_report_upload",
+      status: "pending",
+    });
     getMebbisJobMock.mockResolvedValue({
       id: "job-1",
-      jobType: "candidate_education_info_upload",
+      jobType: "candidate_health_report_upload",
       status: "succeeded",
       resultJson: null,
       errorMessage: null,
@@ -199,18 +209,8 @@ describe("ManageDocumentModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mebbis Aktar" }));
 
     await waitFor(() => {
-      expect(updateCandidateDocumentMock).toHaveBeenCalledWith("cand-1", "doc-1", {
-        note: "Mevcut not",
-        metadata: {
-          disability: "none",
-          issuing_institution: "Mevcut Kurum",
-        },
-      });
-      expect(updateCandidateDocumentMebbisTransferMock).toHaveBeenCalledWith(
-        "cand-1",
-        "type-1",
-        true
-      );
+      expect(createCandidateHealthReportUploadJobMock).toHaveBeenCalledWith("cand-1");
+      expect(updateCandidateDocumentMebbisTransferMock).not.toHaveBeenCalled();
       expect(onSaved).toHaveBeenCalledTimes(1);
     });
   });
@@ -290,7 +290,7 @@ describe("ManageDocumentModal", () => {
     });
   });
 
-  it("unmarks a document transferred to Mebbis", async () => {
+  it("retries health report Mebbis transfer when already transferred", async () => {
     getCandidateDocumentsMock.mockResolvedValueOnce([
       {
         id: "doc-1",
@@ -330,14 +330,11 @@ describe("ManageDocumentModal", () => {
 
     await screen.findByDisplayValue("Mevcut Kurum");
 
-    fireEvent.click(screen.getByRole("button", { name: "Mebbis Kaldır" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mebbis Aktar" }));
 
     await waitFor(() => {
-      expect(updateCandidateDocumentMebbisTransferMock).toHaveBeenCalledWith(
-        "cand-1",
-        "type-1",
-        false
-      );
+      expect(createCandidateHealthReportUploadJobMock).toHaveBeenCalledWith("cand-1");
+      expect(updateCandidateDocumentMebbisTransferMock).not.toHaveBeenCalled();
       expect(onSaved).toHaveBeenCalledTimes(1);
     });
   });

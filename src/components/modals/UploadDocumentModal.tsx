@@ -39,9 +39,9 @@ const uploadDocumentSchema = z.object({
 });
 
 export function educationCertificateMetadataMaxLength(documentTypeKey: string | undefined, fieldKey: string): number | undefined {
-  if (documentTypeKey !== "education_certificate") return undefined;
+  if (documentTypeKey !== "education_certificate" && documentTypeKey !== "health_report") return undefined;
   if (fieldKey === "issuing_institution") return 100;
-  if (fieldKey === "document_number") return 10;
+  if (fieldKey === "document_number") return documentTypeKey === "health_report" ? 30 : 10;
   return undefined;
 }
 

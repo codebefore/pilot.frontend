@@ -10,6 +10,7 @@ export type NoteDraft = {
   body: string;
   reminderAtUtc: string | null;
   isVisibleToInstitution: boolean;
+  addToTasks: boolean;
 };
 
 type Props = {
@@ -30,6 +31,10 @@ type Props = {
   initialIsVisibleToInstitution?: boolean;
   visibilityToggleLabel?: string;
   visibilityToggleHint?: string;
+  showAddToTasksToggle?: boolean;
+  initialAddToTasks?: boolean;
+  addToTasksToggleLabel?: string;
+  addToTasksToggleHint?: string;
   saving?: boolean;
   onCancel: () => void;
   onSubmit: (draft: NoteDraft) => Promise<void> | void;
@@ -53,6 +58,10 @@ export function NoteComposerModal({
   initialIsVisibleToInstitution = false,
   visibilityToggleLabel = "Herkese göster",
   visibilityToggleHint = "Kapalıysa sadece sen görürsün.",
+  showAddToTasksToggle = false,
+  initialAddToTasks = false,
+  addToTasksToggleLabel = "Görevlere ekle",
+  addToTasksToggleHint = "Tarih seçilmezse eklenme tarihi kullanılır.",
   saving = false,
   onCancel,
   onSubmit,
@@ -67,11 +76,13 @@ export function NoteComposerModal({
   const [reminderDate, setReminderDate] = useState("");
   const [reminderTime, setReminderTime] = useState("");
   const [isVisibleToInstitution, setIsVisibleToInstitution] = useState(initialIsVisibleToInstitution);
+  const [addToTasks, setAddToTasks] = useState(initialAddToTasks);
 
   useEffect(() => {
     if (!open) return;
     setBody(initialBody);
     setIsVisibleToInstitution(initialIsVisibleToInstitution);
+    setAddToTasks(initialAddToTasks);
     if (initialReminderAtUtc) {
       const parts = splitLocalParts(initialReminderAtUtc);
       setReminderDate(parts.date);
@@ -80,7 +91,7 @@ export function NoteComposerModal({
       setReminderDate(initialReminderDate);
       setReminderTime("");
     }
-  }, [open, initialBody, initialReminderAtUtc, initialReminderDate, initialIsVisibleToInstitution]);
+  }, [open, initialBody, initialReminderAtUtc, initialReminderDate, initialIsVisibleToInstitution, initialAddToTasks]);
 
   const trimmed = body.trim();
   const submitDisabled = !trimmed || saving;
@@ -90,7 +101,7 @@ export function NoteComposerModal({
     const reminderAtUtc = reminderDate
       ? combineLocalToUtc(reminderDate, reminderTime || "09:00")
       : null;
-    void onSubmit({ body: trimmed, reminderAtUtc, isVisibleToInstitution });
+    void onSubmit({ body: trimmed, reminderAtUtc, isVisibleToInstitution, addToTasks });
   };
 
   return (
@@ -151,15 +162,32 @@ export function NoteComposerModal({
           </div>
         </div>
         {showVisibilityToggle ? (
-          <label className="note-composer-visibility">
+          <label className="note-composer-visibility switch-toggle">
             <input
+              aria-label={visibilityToggleLabel}
               checked={isVisibleToInstitution}
               onChange={(event) => setIsVisibleToInstitution(event.target.checked)}
               type="checkbox"
             />
-            <span>
+            <span className="switch-toggle-control" aria-hidden="true" />
+            <span className="note-composer-visibility-text">
               <strong>{visibilityToggleLabel}</strong>
               <em>{visibilityToggleHint}</em>
+            </span>
+          </label>
+        ) : null}
+        {showAddToTasksToggle ? (
+          <label className="note-composer-visibility switch-toggle">
+            <input
+              aria-label={addToTasksToggleLabel}
+              checked={addToTasks}
+              onChange={(event) => setAddToTasks(event.target.checked)}
+              type="checkbox"
+            />
+            <span className="switch-toggle-control" aria-hidden="true" />
+            <span className="note-composer-visibility-text">
+              <strong>{addToTasksToggleLabel}</strong>
+              <em>{addToTasksToggleHint}</em>
             </span>
           </label>
         ) : null}

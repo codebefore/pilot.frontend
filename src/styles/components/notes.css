@@ -15,18 +15,14 @@
 }
 .note-composer-visibility {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-alt, rgba(15, 23, 42, .03));
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
 }
-.note-composer-visibility input {
-  margin-top: 2px;
-}
-.note-composer-visibility span {
+.note-composer-visibility-text {
   display: flex;
   flex-direction: column;
   gap: 2px;

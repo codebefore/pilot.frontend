@@ -113,7 +113,8 @@ describe("DashboardPage layout", () => {
     expect(await screen.findByText("tahsilat alındı: 500 TL")).toBeInTheDocument();
     expect(screen.getByText("Mehmet Kaya")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tümünü gör" }));
+    const [activityButton] = screen.getAllByRole("button", { name: "Tümünü gör" }).slice(-1);
+    fireEvent.click(activityButton);
 
     expect(await screen.findByText("Activity Page")).toBeInTheDocument();
   });

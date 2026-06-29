@@ -907,6 +907,7 @@ export const tr = {
   "mebbisJobType.candidatePhotoImport": "Aday Fotoğrafı Çekme",
   "mebbisJobType.candidatePhotoUpload": "Aday Fotoğrafı Aktarma",
   "mebbisJobType.candidateEducationInfoUpload": "Aday Öğrenim Bilgisi Aktarma",
+  "mebbisJobType.candidateHealthReportUpload": "Aday Sağlık Raporu Aktarma",
   "mebbisJobType.candidateExamResultSync": "Aday Sınav Sonucu",
   "mebbisJobType.instructorPermitCreate": "Eğitmen İzin Oluşturma",
   "mebbisJobType.theoryScheduleSync": "Teorik Ders Programı Aktarımı",

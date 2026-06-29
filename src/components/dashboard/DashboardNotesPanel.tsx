@@ -65,6 +65,7 @@ export function DashboardNotesPanel() {
       setNotes(response.items);
     } catch (error) {
       if (isAbortError(error)) return;
+      setNotes([]);
       showToast(t("notesPanel.toast.loadFailed"), "error");
     }
   }, [showToast, t]);

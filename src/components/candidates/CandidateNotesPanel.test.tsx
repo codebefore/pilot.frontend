@@ -8,6 +8,7 @@ const getCandidateNotesMock = vi.fn();
 const createCandidateNoteMock = vi.fn();
 const setCandidateNoteCompletionMock = vi.fn();
 const deleteCandidateNoteMock = vi.fn();
+const createUserNoteMock = vi.fn();
 
 vi.mock("../../lib/candidate-notes-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/candidate-notes-api")>(
@@ -27,12 +28,24 @@ vi.mock("../../lib/candidate-notes-api", async () => {
   };
 });
 
+vi.mock("../../lib/user-notes-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/user-notes-api")>(
+    "../../lib/user-notes-api"
+  );
+  return {
+    ...actual,
+    createUserNote: (...args: Parameters<typeof actual.createUserNote>) =>
+      createUserNoteMock(...args),
+  };
+});
+
 describe("CandidateNotesPanel", () => {
   beforeEach(() => {
     getCandidateNotesMock.mockReset();
     createCandidateNoteMock.mockReset();
     setCandidateNoteCompletionMock.mockReset();
     deleteCandidateNoteMock.mockReset();
+    createUserNoteMock.mockReset();
 
     getCandidateNotesMock.mockResolvedValue({
       items: [
@@ -49,6 +62,29 @@ describe("CandidateNotesPanel", () => {
           rowVersion: 1,
         },
       ],
+    });
+    createCandidateNoteMock.mockResolvedValue({
+      id: "note-created",
+      candidateId: "cand-1",
+      body: "Yeni aday notu",
+      reminderAtUtc: null,
+      completedAtUtc: null,
+      createdByUserId: "test-user",
+      createdByName: "Test User",
+      createdAtUtc: "2026-06-29T10:15:00Z",
+      updatedAtUtc: "2026-06-29T10:15:00Z",
+      rowVersion: 1,
+    });
+    createUserNoteMock.mockResolvedValue({
+      id: "task-created",
+      createdByUserId: "test-user",
+      body: "Yeni aday notu",
+      isVisibleToInstitution: false,
+      reminderAtUtc: "2026-06-29T10:15:00Z",
+      completedAtUtc: null,
+      createdAtUtc: "2026-06-29T10:15:00Z",
+      updatedAtUtc: "2026-06-29T10:15:00Z",
+      rowVersion: 1,
     });
   });
 
@@ -88,8 +124,32 @@ describe("CandidateNotesPanel", () => {
 
     await waitFor(() => {
       expect(createCandidateNoteMock).not.toHaveBeenCalled();
+      expect(createUserNoteMock).not.toHaveBeenCalled();
       expect(setCandidateNoteCompletionMock).not.toHaveBeenCalled();
       expect(deleteCandidateNoteMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("can create a candidate note and mirror it to dashboard tasks using created date when no reminder is selected", async () => {
+    renderWithProviders(<CandidateNotesPanel candidateId="cand-1" />);
+
+    await screen.findByText("Kontrol notu");
+
+    fireEvent.click(screen.getByRole("button", { name: /Yeni Not/i }));
+    fireEvent.change(screen.getByLabelText("Not"), { target: { value: "Yeni aday notu" } });
+    fireEvent.click(screen.getByLabelText("Görevlere ekle"));
+    fireEvent.click(screen.getByRole("button", { name: "Ekle" }));
+
+    await waitFor(() => {
+      expect(createCandidateNoteMock).toHaveBeenCalledWith(
+        "cand-1",
+        { body: "Yeni aday notu", reminderAtUtc: null }
+      );
+      expect(createUserNoteMock).toHaveBeenCalledWith({
+        body: "Yeni aday notu",
+        reminderAtUtc: "2026-06-29T10:15:00Z",
+        isVisibleToInstitution: false,
+      });
     });
   });
 });

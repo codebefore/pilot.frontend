@@ -21,7 +21,7 @@ export function isExistingLicenseCopyType(type: DocumentTypeResponse): boolean {
 }
 
 export function canRetryMebbisDocumentTransfer(typeKey: string, isMebbisTransferred: boolean): boolean {
-  return typeKey === "biometric_photo" || typeKey === "education_certificate" || !isMebbisTransferred;
+  return typeKey === "biometric_photo" || typeKey === "education_certificate" || typeKey === "health_report" || !isMebbisTransferred;
 }
 
 export function calculateAge(birthDateIso: string | null): number | null {

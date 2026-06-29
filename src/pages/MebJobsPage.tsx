@@ -459,7 +459,7 @@ export function MebJobsPage() {
 
   const handleRetryJob = async (job: MebJob) => {
     if (!canManageMebJobs) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     setActionPendingId(job.id);
     try {
       await retryMebbisJob(job.id);
@@ -474,7 +474,7 @@ export function MebJobsPage() {
 
   const handleRetryManualJobs = async () => {
     if (!canManageMebJobs) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     setManualRetrying(true);
     try {
       const result = await retryMebbisJobs({
@@ -543,8 +543,8 @@ export function MebJobsPage() {
               className="btn btn-primary btn-sm"
               aria-disabled={canManageMebJobs && mebbisSessionGuard.disabled}
               disabled={!canManageMebJobs}
-              onClick={() => {
-                if (!mebbisSessionGuard.ensureSession()) return;
+              onClick={async () => {
+                if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
                 setModalOpen(true);
               }}
               title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
@@ -827,7 +827,7 @@ export function MebJobsPage() {
         onClose={() => setModalOpen(false)}
         onSubmit={async (values) => {
           if (!canManageMebJobs) return;
-          if (!mebbisSessionGuard.ensureSession()) return;
+          if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
           await createCandidateLookupJob(values.candidateId);
           setModalOpen(false);
           showToast(t("mebJobs.toast.queued"));

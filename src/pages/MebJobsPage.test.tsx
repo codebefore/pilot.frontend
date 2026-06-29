@@ -263,17 +263,50 @@ describe("MebJobsPage", () => {
       lastSeenAtUtc: null,
       lastKnownMebbisUser: null,
       extensionHeartbeatFreshSeconds: 60,
+    }).mockResolvedValueOnce({
+      isOpen: false,
+      clientId: null,
+      lastSeenAtUtc: null,
+      lastKnownMebbisUser: null,
+      extensionHeartbeatFreshSeconds: 60,
     });
     renderPage({ mebjobs: "full" });
 
     const newJobButton = await screen.findByRole("button", { name: /Yeni MEB İşi/ });
     await waitFor(() =>
-      expect(newJobButton).toHaveAttribute("aria-disabled", "true")
+      expect(newJobButton).toHaveAttribute("aria-disabled", "false")
     );
 
     fireEvent.click(newJobButton);
 
     expect(await screen.findByText("MEBBİS oturumu açılmalı.")).toBeInTheDocument();
+    expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
+  });
+
+  it("refetches and blocks new job flow when cached MEBBIS session turns closed", async () => {
+    getMebbisSessionStatusMock.mockResolvedValueOnce({
+      isOpen: true,
+      clientId: "extension-1",
+      lastSeenAtUtc: new Date().toISOString(),
+      lastKnownMebbisUser: "meb-user",
+      extensionHeartbeatFreshSeconds: 60,
+    }).mockResolvedValueOnce({
+      isOpen: false,
+      clientId: null,
+      lastSeenAtUtc: null,
+      lastKnownMebbisUser: null,
+      extensionHeartbeatFreshSeconds: 60,
+    });
+    renderPage({ mebjobs: "full" });
+
+    const newJobButton = await screen.findByRole("button", { name: /Yeni MEB İşi/ });
+    await waitFor(() => expect(newJobButton).toHaveAttribute("aria-disabled", "false"));
+
+    fireEvent.click(newJobButton);
+
+    expect(await screen.findByText("MEBBİS oturumu açılmalı.")).toBeInTheDocument();
+    expect(getMebbisSessionStatusMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
   });
 

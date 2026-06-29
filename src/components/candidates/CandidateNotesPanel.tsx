@@ -17,6 +17,7 @@ import {
   updateCandidateNote,
   type CandidateNoteResponse,
 } from "../../lib/candidate-notes-api";
+import { createUserNote } from "../../lib/user-notes-api";
 
 type Props = {
   candidateId: string;
@@ -73,7 +74,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
-  const handleSubmit = async ({ body, reminderAtUtc }: NoteDraft) => {
+  const handleSubmit = async ({ body, reminderAtUtc, addToTasks }: NoteDraft) => {
     if (!canManageCandidates) return;
 
     setSaving(true);
@@ -82,8 +83,15 @@ export function CandidateNotesPanel({ candidateId }: Props) {
         await updateCandidateNote(candidateId, editing.id, { body, reminderAtUtc });
         showToast(t("notesPanel.toast.noteUpdated"));
       } else {
-        await createCandidateNote(candidateId, { body, reminderAtUtc });
-        showToast("Not eklendi");
+        const createdNote = await createCandidateNote(candidateId, { body, reminderAtUtc });
+        if (addToTasks) {
+          await createUserNote({
+            body,
+            reminderAtUtc: reminderAtUtc ?? createdNote.createdAtUtc,
+            isVisibleToInstitution: false,
+          });
+        }
+        showToast(addToTasks ? "Not eklendi, görev oluşturuldu" : "Not eklendi");
       }
       closeComposer();
       await load();
@@ -218,6 +226,7 @@ export function CandidateNotesPanel({ candidateId }: Props) {
         open={composerOpen}
         placeholder="Bu adayla ilgili not..."
         saving={saving}
+        showAddToTasksToggle={!editing}
       />
     </>
   );

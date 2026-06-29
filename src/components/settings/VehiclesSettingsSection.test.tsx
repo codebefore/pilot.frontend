@@ -493,12 +493,12 @@ describe("VehiclesSettingsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Simülatör/i }));
     expect(screen.getByLabelText(/Simülatör No/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/Simülatör No/), { target: { value: "SIM-1" } });
+    fireEvent.change(screen.getByLabelText(/Simülatör No/), { target: { value: "123r1231892391" } });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(createVehicleMock).toHaveBeenCalledWith({
-        plateNumber: "SIM-1",
+        plateNumber: "123r1231892391",
         brand: "",
         model: null,
         modelYear: null,

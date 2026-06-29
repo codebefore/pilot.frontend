@@ -909,6 +909,7 @@ export const en: Record<TranslationKey, string> = {
   "mebbisJobType.candidatePhotoImport": "Candidate Photo Import",
   "mebbisJobType.candidatePhotoUpload": "Candidate Photo Upload",
   "mebbisJobType.candidateEducationInfoUpload": "Candidate Education Info Upload",
+  "mebbisJobType.candidateHealthReportUpload": "Candidate Health Report Upload",
   "mebbisJobType.candidateExamResultSync": "Candidate Exam Result",
   "mebbisJobType.instructorPermitCreate": "Instructor Permit Creation",
   "mebbisJobType.theoryScheduleSync": "Theory Schedule Push",

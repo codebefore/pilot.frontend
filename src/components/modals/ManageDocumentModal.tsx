@@ -26,6 +26,7 @@ import {
 } from "../../lib/documents-api";
 import {
   createCandidateEducationInfoUploadJob,
+  createCandidateHealthReportUploadJob,
   getMebbisJob,
   type MebbisJobResponse,
 } from "../../lib/mebbis-jobs-api";
@@ -92,6 +93,17 @@ function mebbisJobTerminalMessage(job: MebbisJobResponse, fallback: string): str
   }
 
   return fallback;
+}
+
+function mebbisTransferErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiError)) return fallback;
+  const validationMessage = Object.values(error.validationErrors ?? {})
+    .flat()
+    .find((message) => message.trim().length > 0);
+  if (validationMessage?.includes("Health report number must be at most 30 characters")) {
+    return "Sağlık raporu belge sayısı MEBBİS için en fazla 30 karakter olmalı.";
+  }
+  return validationMessage ?? error.message ?? fallback;
 }
 
 function emptyForm(
@@ -634,7 +646,9 @@ export function ManageDocumentModal({
       ? getCandidateDocumentDownloadUrl(candidateId, document.id, { inline: true })
       : null;
   const isMebbisTransferred = document?.isMebbisTransferred ?? false;
-  const mebbisToggleRequiresJob = activeDocumentType?.key === "education_certificate" && !isMebbisTransferred;
+  const isMebbisJobDocument =
+    activeDocumentType?.key === "education_certificate" || activeDocumentType?.key === "health_report";
+  const mebbisToggleRequiresJob = isMebbisJobDocument;
   const canUseMebbisToggle = mebbisToggleRequiresJob ? canManageMebJobs : canManageDocuments;
   const busy = submitting || actionPending !== null;
   const noPermissionTitle = t("common.noPermission");
@@ -653,11 +667,14 @@ export function ManageDocumentModal({
     const nextErrors: Record<string, string> = {};
     for (const field of metadataFields) {
       const value = (metadataValues[field.key] ?? "").trim();
+      const maxLength = educationCertificateMetadataMaxLength(activeDocumentType?.key, field.key);
       if (field.isRequired && value === "") {
         nextErrors[field.key] = t("uploadDoc.errors.metadataRequired").replace(
           "{label}",
           field.label
         );
+      } else if (maxLength && value.length > maxLength) {
+        nextErrors[field.key] = `${field.label} en fazla ${maxLength} karakter olmalı.`;
       }
     }
 
@@ -759,15 +776,31 @@ export function ManageDocumentModal({
 
   const handleMebbisToggle = async () => {
     if (!candidateId || !document || !activeDocumentType || actionPending) return;
-    const requiresMebbisJob = activeDocumentType.key === "education_certificate" && !isMebbisTransferred;
+    const requiresMebbisJob =
+      activeDocumentType.key === "education_certificate" || activeDocumentType.key === "health_report";
     if (requiresMebbisJob ? !canManageMebJobs : !canManageDocuments) return;
-    if (requiresMebbisJob && !mebbisSessionGuard.ensureSession()) return;
+    if (requiresMebbisJob && !(await mebbisSessionGuard.ensureSessionAsync())) return;
 
     setActionPending("mebbis");
     try {
       if (requiresMebbisJob) {
-        const job = await createCandidateEducationInfoUploadJob(candidateId);
-        showToast("Öğrenim bilgisi MEBBİS aktarımı kuyruğa alındı");
+        const isHealthReportUpload = activeDocumentType.key === "health_report";
+        const job = isHealthReportUpload
+          ? await createCandidateHealthReportUploadJob(candidateId)
+          : await createCandidateEducationInfoUploadJob(candidateId);
+        const queuedMessage = isHealthReportUpload
+          ? "Sağlık raporu MEBBİS aktarımı kuyruğa alındı"
+          : "Öğrenim bilgisi MEBBİS aktarımı kuyruğa alındı";
+        const successMessage = isHealthReportUpload
+          ? "Sağlık raporu MEBBİS’e aktarıldı"
+          : "Öğrenim bilgisi MEBBİS’e aktarıldı";
+        const manualMessage = isHealthReportUpload
+          ? "Sağlık raporu MEBBİS aktarımı kontrol gerektiriyor"
+          : "Öğrenim bilgisi MEBBİS aktarımı kontrol gerektiriyor";
+        const runningMessage = isHealthReportUpload
+          ? "Sağlık raporu MEBBİS aktarımı hala devam ediyor"
+          : "Öğrenim bilgisi MEBBİS aktarımı hala devam ediyor";
+        showToast(queuedMessage);
 
         for (let attempt = 0; attempt < 60; attempt += 1) {
           if (attempt > 0) await delay(5000);
@@ -775,20 +808,20 @@ export function ManageDocumentModal({
           if (latestJob.status === "succeeded") {
             invalidateDocumentMutationDependents();
             onSaved();
-            showToast("Öğrenim bilgisi MEBBİS’e aktarıldı");
+            showToast(successMessage);
             return;
           }
 
           if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
             showToast(
-              mebbisJobTerminalMessage(latestJob, "Öğrenim bilgisi MEBBİS aktarımı kontrol gerektiriyor"),
+              mebbisJobTerminalMessage(latestJob, manualMessage),
               "error"
             );
             return;
           }
         }
 
-        showToast("Öğrenim bilgisi MEBBİS aktarımı hala devam ediyor");
+        showToast(runningMessage);
         return;
       }
 
@@ -813,8 +846,8 @@ export function ManageDocumentModal({
       );
       invalidateDocumentMutationDependents();
       onSaved();
-    } catch {
-      showToast(t("documents.manage.mebbisFailed"), "error");
+    } catch (error) {
+      showToast(mebbisTransferErrorMessage(error, t("documents.manage.mebbisFailed")), "error");
     } finally {
       setActionPending(null);
     }
@@ -997,7 +1030,7 @@ export function ManageDocumentModal({
                 </button>
                 <button
                   className={`btn btn-sm ${
-                    isMebbisTransferred ? "btn-secondary" : "btn-primary"
+                    isMebbisTransferred && !isMebbisJobDocument ? "btn-secondary" : "btn-primary"
                   }`}
                   aria-disabled={canUseMebbisToggle && !busy && mebbisToggleRequiresJob && mebbisSessionGuard.disabled}
                   disabled={busy || !canUseMebbisToggle || (mebbisToggleRequiresJob && mebbisSessionGuard.disabled)}
@@ -1013,9 +1046,9 @@ export function ManageDocumentModal({
                 >
                   {actionPending === "mebbis"
                     ? t("documents.manage.mebbisSaving")
-                    : isMebbisTransferred
-                    ? t("documents.manage.mebbisUnset")
-                    : t("documents.manage.mebbisSet")}
+                    : isMebbisTransferred && !isMebbisJobDocument
+                      ? t("documents.manage.mebbisUnset")
+                      : t("documents.manage.mebbisSet")}
                 </button>
                 {confirmDelete ? (
                   <>

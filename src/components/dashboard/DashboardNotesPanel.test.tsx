@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 import { DashboardNotesPanel } from "./DashboardNotesPanel";
 import { renderWithProviders } from "../../test/render-with-providers";
@@ -61,7 +62,7 @@ describe("DashboardNotesPanel", () => {
   });
 
   it("keeps note actions visible but disabled for dashboard view-only users", async () => {
-    renderWithProviders(<DashboardNotesPanel />, {
+    renderPanel({
       auth: {
         user: {
           id: "viewer",
@@ -101,7 +102,7 @@ describe("DashboardNotesPanel", () => {
   it("shows the calendar even when there are no notes", async () => {
     getUserNotesMock.mockResolvedValue({ items: [] });
 
-    renderWithProviders(<DashboardNotesPanel />);
+    renderPanel();
 
     expect(await screen.findByLabelText("Not takvimi")).toBeInTheDocument();
     expect(screen.getByText("Bu güne ait görev yok.")).toBeInTheDocument();
@@ -117,7 +118,7 @@ describe("DashboardNotesPanel", () => {
       ],
     });
 
-    renderWithProviders(<DashboardNotesPanel />);
+    renderPanel();
 
     await screen.findByText("Tarihsiz kokpit notu");
     expect(screen.queryByText("10 Ocak notu")).not.toBeInTheDocument();
@@ -137,7 +138,7 @@ describe("DashboardNotesPanel", () => {
       ],
     });
 
-    renderWithProviders(<DashboardNotesPanel />);
+    renderPanel();
 
     await screen.findByText("Bugünün hatırlatması");
     expect(screen.getByText("Tarihsiz görevler")).toBeInTheDocument();
@@ -151,7 +152,7 @@ describe("DashboardNotesPanel", () => {
       ],
     });
 
-    renderWithProviders(<DashboardNotesPanel />);
+    renderPanel();
 
     await screen.findByText("Bu güne ait görev yok.");
     fireEvent.click(screen.getByRole("button", { name: "Sonraki ay" }));
@@ -159,7 +160,25 @@ describe("DashboardNotesPanel", () => {
 
     expect(await screen.findByText("Şubat notu")).toBeInTheDocument();
   });
+
+  it("leaves the loading state when notes fail to load", async () => {
+    getUserNotesMock.mockRejectedValue(new Error("notes failed"));
+
+    renderPanel();
+
+    expect(await screen.findByText("Bu güne ait görev yok.")).toBeInTheDocument();
+    expect(screen.queryByText("Yükleniyor...")).not.toBeInTheDocument();
+  });
 });
+
+function renderPanel(options?: Parameters<typeof renderWithProviders>[1]) {
+  return renderWithProviders(
+    <MemoryRouter>
+      <DashboardNotesPanel />
+    </MemoryRouter>,
+    options
+  );
+}
 
 function buildNote(overrides: {
   id: string;

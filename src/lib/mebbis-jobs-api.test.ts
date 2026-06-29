@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applyRuntimeConfig } from "./api";
 import {
   createCandidateEducationInfoUploadJob,
+  createCandidateHealthReportUploadJob,
   createCandidateNationalIdImportJob,
   createCandidateSyncByNationalIdJob,
   createCandidateSyncJob,
@@ -117,6 +118,26 @@ describe("mebbis jobs api", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(String(url)).toBe(
       "http://127.0.0.1:5090/api/mebbis/jobs/candidates/candidate-1/education-info/upload"
+    );
+    expect(init?.method).toBe("POST");
+  });
+
+  it("creates candidate health report upload jobs on the MEBBIS base url", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createCandidateHealthReportUploadJob("candidate-1");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe(
+      "http://127.0.0.1:5090/api/mebbis/jobs/candidates/candidate-1/health-report/upload"
     );
     expect(init?.method).toBe("POST");
   });

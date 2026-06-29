@@ -21,23 +21,30 @@ export function useMebbisSessionGuard() {
     return sessionQuery.data?.isOpen === true;
   }, [sessionQuery.data?.isOpen]);
 
-  const checking = sessionQuery.isPending;
-  const disabled = checking || !sessionOpen;
-
   const warnSessionRequired = useCallback(() => {
     showToast(MEBBIS_SESSION_REQUIRED_MESSAGE, "error");
   }, [showToast]);
 
-  const ensureSession = useCallback(() => {
-    if (sessionOpen) return true;
+  const ensureSessionAsync = useCallback(async () => {
+    let refetchCompleted = false;
+
+    try {
+      const result = await sessionQuery.refetch();
+      refetchCompleted = true;
+      if (result.data?.isOpen === true) return true;
+    } catch {
+      // Fall through to the user-facing warning below.
+    }
+
+    if (!refetchCompleted && sessionOpen) return true;
+
     warnSessionRequired();
     return false;
-  }, [sessionOpen, warnSessionRequired]);
+  }, [sessionOpen, sessionQuery, warnSessionRequired]);
 
   return {
-    checking,
-    disabled,
-    ensureSession,
+    disabled: false,
+    ensureSessionAsync,
     message: MEBBIS_SESSION_REQUIRED_MESSAGE,
     sessionOpen,
     warnSessionRequired,

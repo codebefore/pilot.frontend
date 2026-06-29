@@ -433,10 +433,10 @@ export function VehicleFormModal({
                   id={plateId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.plateNumber?.message)}
-                  placeholder={isSimulator ? "SIM-1" : "34 ABC 123"}
+                  placeholder={isSimulator ? "123r1231892391" : "34 ABC 123"}
                   value={field.value ?? ""}
                   onChange={(event) => {
-                    field.onChange(event.target.value.toLocaleUpperCase("tr-TR"));
+                    field.onChange(isSimulator ? event.target.value : event.target.value.toLocaleUpperCase("tr-TR"));
                   }}
                 />
               )}

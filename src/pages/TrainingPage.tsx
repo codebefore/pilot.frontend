@@ -2002,7 +2002,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const handleCreateTheoryScheduleSyncJob = async () => {
     if (!canManageMebJobs) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     if (!selectedTheoryGroup) {
       showToast(t("training.toast.selectGroupForMebbisTransfer"));
       return;
@@ -2032,7 +2032,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const handleCreateTheoryScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     if (!selectedTheoryGroup) {
       showToast(t("training.toast.selectGroupForMebbisImport"));
       return;
@@ -2062,7 +2062,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
   const handleCreatePracticeScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     if (!selectedPracticeCandidate) {
       showToast(t("training.toast.selectCandidateForMebbisPracticeImport"));
       return;

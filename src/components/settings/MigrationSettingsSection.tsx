@@ -840,7 +840,7 @@ export function MigrationSettingsSection() {
 
   const runMigrationAction = async (action: MigrationAction) => {
     if (!action.enabled || runningAction) return;
-    if (MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key) && !mebbisSessionGuard.ensureSession()) return;
+    if (MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key) && !(await mebbisSessionGuard.ensureSessionAsync())) return;
 
     if (action.key === "general") {
       await runInstitutionInventoryImport();

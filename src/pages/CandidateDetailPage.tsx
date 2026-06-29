@@ -117,6 +117,7 @@ import {
 } from "../lib/documents-api";
 import {
   createCandidateEducationInfoUploadJob,
+  createCandidateHealthReportUploadJob,
   createCandidatePhotoUploadJob,
   createCandidateTermEnrollJob,
   getMebbisJob,
@@ -953,7 +954,7 @@ function CandidateHero({
       };
   const handleOpenMebbisStatus = async () => {
     if (openingMebbisStatus) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     setOpeningMebbisStatus(true);
     try {
       const response = await openLocalAgentMebbisCandidateStatusView(candidate.nationalId);
@@ -3556,6 +3557,9 @@ function documentMebbisTransferErrorMessage(error: unknown, fallback: string): s
   const validationMessage = Object.values(error.validationErrors ?? {})
     .flat()
     .find((message) => message.trim().length > 0);
+  if (validationMessage?.includes("Health report number must be at most 30 characters")) {
+    return "Sağlık raporu belge sayısı MEBBİS için en fazla 30 karakter olmalı.";
+  }
   return validationMessage ?? error.message ?? fallback;
 }
 
@@ -7757,9 +7761,9 @@ const HEALTH_REPORT_EXTRA_KEYS = new Set<string>([
 ]);
 
 function educationCertificateMetadataMaxLength(documentTypeKey: string | undefined, fieldKey: string): number | undefined {
-  if (documentTypeKey !== "education_certificate") return undefined;
+  if (documentTypeKey !== "education_certificate" && documentTypeKey !== "health_report") return undefined;
   if (fieldKey === "issuing_institution") return 100;
-  if (fieldKey === "document_number") return 10;
+  if (fieldKey === "document_number") return documentTypeKey === "health_report" ? 30 : 10;
   return undefined;
 }
 
@@ -8210,7 +8214,7 @@ function DocumentsTab({
   const actionableChecklistCount = documentChecklistItems.filter((item) => item.status !== "not_applicable").length;
   const handleQueueCandidateSync = async () => {
     if (!canManageMebJobs) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     if (candidateSyncQueuing || candidateSyncRunning) return;
     setCandidateSyncQueuing(true);
     try {
@@ -8325,8 +8329,8 @@ function DocumentsTab({
                   <button
                     className="btn btn-primary btn-sm"
                     aria-disabled={mebbisSessionGuard.disabled}
-                    onClick={() => {
-                      if (!mebbisSessionGuard.ensureSession()) return;
+                    onClick={async () => {
+                      if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
                       setOneByOneTransferOpen(true);
                     }}
                     title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
@@ -8572,9 +8576,10 @@ function CandidateDocumentOneByOneTransferModal({
 
   const handleTransfer = async (type: DocumentTypeResponse) => {
     if (transferringTypeId) return;
-    const requiresMebbisJob = type.key === "biometric_photo" || type.key === "education_certificate";
+    const requiresMebbisJob =
+      type.key === "biometric_photo" || type.key === "education_certificate" || type.key === "health_report";
     if (requiresMebbisJob ? !canManageMebJobs : !canManageDocuments) return;
-    if (requiresMebbisJob && !mebbisSessionGuard.ensureSession()) return;
+    if (requiresMebbisJob && !(await mebbisSessionGuard.ensureSessionAsync())) return;
     const upload = uploadsByKey.get(type.key) ?? null;
     if (getCandidateDocumentStatus(upload) === "missing") return;
     if (!canRetryMebbisDocumentTransfer(type.key, upload?.isMebbisTransferred === true)) return;
@@ -8583,21 +8588,32 @@ function CandidateDocumentOneByOneTransferModal({
       if (requiresMebbisJob) {
         if (!canManageMebJobs) return;
         const isEducationInfoUpload = type.key === "education_certificate";
+        const isHealthReportUpload = type.key === "health_report";
         const job = isEducationInfoUpload
           ? await createCandidateEducationInfoUploadJob(candidateId)
-          : await createCandidatePhotoUploadJob(candidateId);
+          : isHealthReportUpload
+            ? await createCandidateHealthReportUploadJob(candidateId)
+            : await createCandidatePhotoUploadJob(candidateId);
         const queuedMessage = isEducationInfoUpload
           ? "Öğrenim bilgisi MEBBİS aktarımı kuyruğa alındı"
-          : "Biyometrik fotoğraf MEBBİS aktarımı kuyruğa alındı";
+          : isHealthReportUpload
+            ? "Sağlık raporu MEBBİS aktarımı kuyruğa alındı"
+            : "Biyometrik fotoğraf MEBBİS aktarımı kuyruğa alındı";
         const successMessage = isEducationInfoUpload
           ? "Öğrenim bilgisi MEBBİS’e aktarıldı"
-          : "Biyometrik fotoğraf MEBBİS’e aktarıldı";
+          : isHealthReportUpload
+            ? "Sağlık raporu MEBBİS’e aktarıldı"
+            : "Biyometrik fotoğraf MEBBİS’e aktarıldı";
         const manualMessage = isEducationInfoUpload
           ? "Öğrenim bilgisi MEBBİS aktarımı kontrol gerektiriyor"
-          : "Biyometrik fotoğraf MEBBİS aktarımı kontrol gerektiriyor";
+          : isHealthReportUpload
+            ? "Sağlık raporu MEBBİS aktarımı kontrol gerektiriyor"
+            : "Biyometrik fotoğraf MEBBİS aktarımı kontrol gerektiriyor";
         const runningMessage = isEducationInfoUpload
           ? "Öğrenim bilgisi MEBBİS aktarımı hala devam ediyor"
-          : "Biyometrik fotoğraf MEBBİS aktarımı hala devam ediyor";
+          : isHealthReportUpload
+            ? "Sağlık raporu MEBBİS aktarımı hala devam ediyor"
+            : "Biyometrik fotoğraf MEBBİS aktarımı hala devam ediyor";
         notifyMebbisJobQueued(job.id, job.jobType);
         showToast(queuedMessage);
 
@@ -8624,7 +8640,7 @@ function CandidateDocumentOneByOneTransferModal({
       await onRefresh();
       showToast(t("candidateDetail.documents.row.toast.mebbisMarked", { name: type.name }));
     } catch (error) {
-      if (type.key === "biometric_photo" || type.key === "education_certificate") {
+      if (type.key === "biometric_photo" || type.key === "education_certificate" || type.key === "health_report") {
         showToast(
           documentMebbisTransferErrorMessage(
             error,
@@ -8676,8 +8692,8 @@ function CandidateDocumentOneByOneTransferModal({
           <button
             className="btn btn-primary btn-sm"
             aria-disabled={mebbisSessionGuard.disabled}
-            onClick={() => {
-              if (!mebbisSessionGuard.ensureSession()) return;
+            onClick={async () => {
+              if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
             }}
             title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
             type="button"
@@ -8687,8 +8703,8 @@ function CandidateDocumentOneByOneTransferModal({
           <button
             className="btn btn-danger btn-sm"
             aria-disabled={mebbisSessionGuard.disabled}
-            onClick={() => {
-              if (!mebbisSessionGuard.ensureSession()) return;
+            onClick={async () => {
+              if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
             }}
             title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
             type="button"
@@ -8702,7 +8718,8 @@ function CandidateDocumentOneByOneTransferModal({
             const status = getCandidateDocumentStatus(upload);
             const isTransferred = upload?.isMebbisTransferred === true;
             const isBusy = transferringTypeId === type.id;
-            const requiresMebbisJob = type.key === "biometric_photo" || type.key === "education_certificate";
+            const requiresMebbisJob =
+              type.key === "biometric_photo" || type.key === "education_certificate" || type.key === "health_report";
             const canTransfer = requiresMebbisJob ? canManageMebJobs : canManageDocuments;
             return (
               <li className={`candidate-detail-doc-transfer-row status-${status}`} key={type.id}>
