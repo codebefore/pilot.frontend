@@ -321,6 +321,15 @@ export const PencilIcon = (p?: IconProps) =>
     p
   );
 
+export const EditLineIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M4 20h16" />,
+      <path key="2" d="M7 16.5 17.5 6a2.1 2.1 0 0 1 3 3L10 19l-4 .8 1-3.3Z" />,
+    ],
+    p
+  );
+
 export const TrashIcon = (p?: IconProps) =>
   svg(
     [

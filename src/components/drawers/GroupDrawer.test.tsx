@@ -340,7 +340,6 @@ describe("GroupDrawer", () => {
   });
 
   it("asks for confirmation before removing an assigned candidate", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm");
     const groupWithCandidate = buildGroup({
       activeCandidates: [
         {
@@ -356,23 +355,32 @@ describe("GroupDrawer", () => {
       ],
     });
     getGroupByIdMock.mockResolvedValue(groupWithCandidate);
-    confirmSpy.mockReturnValue(false);
 
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
 
     fireEvent.click(await screen.findByTitle("Gruptan Çıkar"));
 
-    expect(confirmSpy).toHaveBeenCalledWith("Ayse Demir gruptan çıkarılsın mı?");
+    const popover = screen.getByRole("alertdialog", {
+      name: "Aday gruptan çıkarılsın mı?",
+    });
+    expect(within(popover).getByText("Ayse Demir gruptan çıkarılsın mı?")).toBeInTheDocument();
     expect(removeActiveGroupAssignmentMock).not.toHaveBeenCalled();
 
-    confirmSpy.mockReturnValue(true);
+    fireEvent.click(within(popover).getByRole("button", { name: "Vazgeç" }));
+    expect(screen.queryByRole("alertdialog", { name: "Aday gruptan çıkarılsın mı?" })).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByTitle("Gruptan Çıkar"));
+    fireEvent.click(
+      within(
+        screen.getByRole("alertdialog", {
+          name: "Aday gruptan çıkarılsın mı?",
+        })
+      ).getByRole("button", { name: "Evet, çıkar" })
+    );
 
     await waitFor(() => {
       expect(removeActiveGroupAssignmentMock).toHaveBeenCalledWith("candidate-1");
     });
-
-    confirmSpy.mockRestore();
   });
 
   it("updates the group title from selected number and branch", async () => {

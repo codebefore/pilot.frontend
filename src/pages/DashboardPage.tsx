@@ -381,7 +381,9 @@ export function DashboardPage({ userName }: DashboardPageProps) {
 
       <div className="dash-content">
         <div className="dash-primary-grid">
-          <DashboardNotesPanel />
+          <div className="dash-notes-panel-wide">
+            <DashboardNotesPanel />
+          </div>
 
           <Panel
             action={

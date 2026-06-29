@@ -1007,19 +1007,8 @@ export function MigrationSettingsSection() {
                       </div>
                       <button
                         className={`btn btn-${action.tone ?? "secondary"} btn-sm`}
-                        aria-disabled={
-                          action.enabled &&
-                          !runningAction &&
-                          MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key) &&
-                          mebbisSessionGuard.disabled
-                        }
                         disabled={!action.enabled || Boolean(runningAction)}
                         onClick={() => void runMigrationAction(action)}
-                        title={
-                          MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key) && mebbisSessionGuard.disabled
-                            ? mebbisSessionGuard.message
-                            : undefined
-                        }
                         type="button"
                       >
                         <MebIcon size={14} />

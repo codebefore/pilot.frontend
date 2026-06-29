@@ -50,6 +50,11 @@ type GroupDrawerProps = {
   onDeleted?: () => void;
 };
 
+type RemoveCandidateConfirmation = {
+  candidateId: string;
+  name: string;
+};
+
 export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -69,6 +74,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   const [searchLoading, setSearchLoading] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  const [removeCandidateConfirm, setRemoveCandidateConfirm] = useState<RemoveCandidateConfirmation | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [mebStatusConfirm, setMebStatusConfirm] = useState<{
@@ -96,6 +102,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       setSearchOpen(false);
       setSearchQuery("");
       setSearchResults([]);
+      setRemoveCandidateConfirm(null);
       setConfirmDelete(false);
       setMebStatusConfirm((current) => {
         current?.resolve(false);
@@ -255,11 +262,20 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     if (!canManageGroups) return;
     if (!groupId) return;
     const candidateName = `${candidate.firstName} ${candidate.lastName}`.trim();
-    if (!window.confirm(t("groupDrawer.confirm.removeCandidate", { name: candidateName }))) return;
-    const { candidateId } = candidate;
+    setRemoveCandidateConfirm({
+      candidateId: candidate.candidateId,
+      name: candidateName,
+    });
+  };
+
+  const confirmRemoveCandidate = async () => {
+    if (!canManageGroups) return;
+    if (!groupId || !removeCandidateConfirm) return;
+    const { candidateId } = removeCandidateConfirm;
     setRemoving(candidateId);
     try {
       await removeActiveGroupAssignment(candidateId);
+      setRemoveCandidateConfirm(null);
       await refreshGroup();
     } catch {
       showToast(t("groupDrawer.toast.removeCandidateFailed"), "error");
@@ -549,6 +565,40 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
             type="button"
           >
             {t("groupDrawer.confirm.activateCandidates")}
+          </button>
+        </div>
+      </div>
+    ) : null}
+    {removeCandidateConfirm !== null ? (
+      <div
+        aria-labelledby="group-remove-candidate-confirm-title"
+        className="group-meb-confirm-popover"
+        role="alertdialog"
+      >
+        <div className="group-meb-confirm-title" id="group-remove-candidate-confirm-title">
+          {t("groupDrawer.confirm.removeCandidateTitle")}
+        </div>
+        <p className="group-meb-confirm-message">
+          {t("groupDrawer.confirm.removeCandidate", { name: removeCandidateConfirm.name })}
+        </p>
+        <div className="group-meb-confirm-actions">
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={removing !== null}
+            onClick={() => setRemoveCandidateConfirm(null)}
+            type="button"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            className="btn btn-danger btn-sm"
+            disabled={removing !== null || !canManageGroups}
+            onClick={() => void confirmRemoveCandidate()}
+            type="button"
+          >
+            {removing !== null
+              ? t("groupDrawer.confirm.removingCandidate")
+              : t("groupDrawer.confirm.confirmRemoveCandidate")}
           </button>
         </div>
       </div>

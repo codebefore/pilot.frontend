@@ -1444,6 +1444,7 @@ export interface DashboardActivityResponse {
   createdAtUtc: string;
   linkPath: string | null;
   actorDisplayName?: string | null;
+  actorPhoneNumber?: string | null;
   actorPhotoUrl?: string | null;
 }
 

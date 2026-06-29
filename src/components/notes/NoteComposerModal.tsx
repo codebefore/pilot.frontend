@@ -16,6 +16,7 @@ type Props = {
   mode: "create" | "edit";
   initialBody?: string;
   initialReminderAtUtc?: string | null;
+  initialReminderDate?: string;
   placeholder?: string;
   saving?: boolean;
   onCancel: () => void;
@@ -27,6 +28,7 @@ export function NoteComposerModal({
   mode,
   initialBody = "",
   initialReminderAtUtc = null,
+  initialReminderDate = "",
   placeholder,
   saving = false,
   onCancel,
@@ -46,10 +48,10 @@ export function NoteComposerModal({
       setReminderDate(parts.date);
       setReminderTime(parts.time);
     } else {
-      setReminderDate("");
+      setReminderDate(initialReminderDate);
       setReminderTime("");
     }
-  }, [open, initialBody, initialReminderAtUtc]);
+  }, [open, initialBody, initialReminderAtUtc, initialReminderDate]);
 
   const trimmed = body.trim();
   const submitDisabled = !trimmed || saving;

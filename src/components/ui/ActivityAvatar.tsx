@@ -9,6 +9,8 @@ import {
   getTrainingApiBaseUrl,
 } from "../../lib/api";
 import { currentLocale } from "../../lib/i18n";
+import { getInstructors } from "../../lib/instructors-api";
+import { normalizeApiPathForBaseUrl } from "../../lib/http";
 import type { DashboardActivityResponse } from "../../lib/types";
 
 type ActivityAvatarProps = {
@@ -16,11 +18,46 @@ type ActivityAvatarProps = {
 };
 
 export function ActivityAvatar({ activity }: ActivityAvatarProps) {
-  const imageUrl = getSafeImageUrl(activity.actorPhotoUrl);
+  const [instructorPhotoUrl, setInstructorPhotoUrl] = useState<string | null>(null);
+  const imageUrl = getSafeImageUrl(activity.actorPhotoUrl) ?? getSafeImageUrl(instructorPhotoUrl);
   const [displayUrl, setDisplayUrl] = useState<string | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
   const actorInitials = getInitials(activity.actorDisplayName);
   const fallback = actorInitials || activity.avatar;
+
+  useEffect(() => {
+    setInstructorPhotoUrl(null);
+    const actorPhoneNumber = normalizePhone(activity.actorPhoneNumber);
+    const actorDisplayName = activity.actorDisplayName?.trim() ?? "";
+    if (activity.actorPhotoUrl || (!actorPhoneNumber && !actorDisplayName)) {
+      return;
+    }
+
+    const controller = new AbortController();
+    getInstructors(
+      {
+        search: actorPhoneNumber || actorDisplayName,
+        includeInactive: true,
+        pageSize: 10,
+      },
+      controller.signal
+    )
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        const targetName = normalizeName(actorDisplayName);
+        const instructor = response.items.find((item) => {
+          if (!item.hasPhoto) return false;
+          if (actorPhoneNumber && normalizePhone(item.phoneNumber) === actorPhoneNumber) return true;
+          return Boolean(targetName && normalizeName(`${item.firstName} ${item.lastName}`) === targetName);
+        });
+        setInstructorPhotoUrl(instructor ? buildInstructorPhotoUrl(instructor.id) : null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setInstructorPhotoUrl(null);
+      });
+
+    return () => controller.abort();
+  }, [activity.actorDisplayName, activity.actorPhoneNumber, activity.actorPhotoUrl]);
 
   useEffect(() => {
     setImageFailed(false);
@@ -71,6 +108,27 @@ export function ActivityAvatar({ activity }: ActivityAvatarProps) {
   }
 
   return <div className={`activity-avatar tone-${activity.avatarTone}`}>{fallback}</div>;
+}
+
+function buildInstructorPhotoUrl(instructorId: string): string {
+  const base = getTrainingApiBaseUrl().replace(/\/+$/, "");
+  const path = `/api/training/instructors/${instructorId}/photo`;
+  return new URL(`${base}${normalizeApiPathForBaseUrl(base, path)}`, window.location.origin).toString();
+}
+
+function normalizeName(value: string | null | undefined): string {
+  return value?.trim().replace(/\s+/g, " ").toLocaleLowerCase("tr-TR") ?? "";
+}
+
+function normalizePhone(value: string | null | undefined): string {
+  const digits = value?.replace(/\D/g, "") ?? "";
+  if (digits.length === 12 && digits.startsWith("90")) {
+    return digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith("0")) {
+    return digits.slice(1);
+  }
+  return digits;
 }
 
 function shouldUseAuthorizedFetch(url: string): boolean {
