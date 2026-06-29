@@ -24,6 +24,11 @@ import {
   updateCandidateDocument,
   updateCandidateDocumentMebbisTransfer,
 } from "../../lib/documents-api";
+import {
+  createCandidateEducationInfoUploadJob,
+  getMebbisJob,
+  type MebbisJobResponse,
+} from "../../lib/mebbis-jobs-api";
 import { ApiError } from "../../lib/http";
 import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
@@ -41,7 +46,7 @@ import { PanelListSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 import { CameraIcon, ScannerIcon } from "../icons";
 import { DocumentScannerModal } from "./DocumentScannerModal";
-import { MetadataFieldRow } from "./UploadDocumentModal";
+import { MetadataFieldRow, educationCertificateMetadataMaxLength } from "./UploadDocumentModal";
 
 const manageDocumentFormSchema = z.object({
   isPhysicallyAvailable: z.boolean(),
@@ -57,9 +62,37 @@ type ManageDocumentModalProps = {
   documentTypeId?: string;
   documentTypes: DocumentTypeResponse[];
   canManageDocuments?: boolean;
+  canManageMebJobs?: boolean;
   onClose: () => void;
   onSaved: () => void;
 };
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function mebbisJobTerminalMessage(job: MebbisJobResponse, fallback: string): string {
+  if (job.errorMessage?.trim()) return job.errorMessage.trim();
+  if (!job.resultJson) return fallback;
+
+  try {
+    const parsed = JSON.parse(job.resultJson) as {
+      message?: unknown;
+      warningText?: unknown;
+      resultText?: unknown;
+    };
+    const message = typeof parsed.message === "string" ? parsed.message.trim() : "";
+    if (message) return message;
+    const warningText = typeof parsed.warningText === "string" ? parsed.warningText.trim() : "";
+    if (warningText) return warningText;
+    const resultText = typeof parsed.resultText === "string" ? parsed.resultText.trim() : "";
+    if (resultText) return resultText;
+  } catch {
+    // Ignore malformed result payloads and show the generic job message.
+  }
+
+  return fallback;
+}
 
 function emptyForm(
   note?: string | null,
@@ -265,6 +298,7 @@ export function ManageDocumentModal({
   documentTypeId,
   documentTypes,
   canManageDocuments = true,
+  canManageMebJobs = true,
   onClose,
   onSaved,
 }: ManageDocumentModalProps) {
@@ -600,6 +634,8 @@ export function ManageDocumentModal({
       ? getCandidateDocumentDownloadUrl(candidateId, document.id, { inline: true })
       : null;
   const isMebbisTransferred = document?.isMebbisTransferred ?? false;
+  const mebbisToggleRequiresJob = activeDocumentType?.key === "education_certificate" && !isMebbisTransferred;
+  const canUseMebbisToggle = mebbisToggleRequiresJob ? canManageMebJobs : canManageDocuments;
   const busy = submitting || actionPending !== null;
   const noPermissionTitle = t("common.noPermission");
 
@@ -722,12 +758,40 @@ export function ManageDocumentModal({
   });
 
   const handleMebbisToggle = async () => {
-    if (!canManageDocuments) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
     if (!candidateId || !document || !activeDocumentType || actionPending) return;
+    const requiresMebbisJob = activeDocumentType.key === "education_certificate" && !isMebbisTransferred;
+    if (requiresMebbisJob ? !canManageMebJobs : !canManageDocuments) return;
+    if (requiresMebbisJob && !mebbisSessionGuard.ensureSession()) return;
 
     setActionPending("mebbis");
     try {
+      if (requiresMebbisJob) {
+        const job = await createCandidateEducationInfoUploadJob(candidateId);
+        showToast("Öğrenim bilgisi MEBBİS aktarımı kuyruğa alındı");
+
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          if (attempt > 0) await delay(5000);
+          const latestJob = await getMebbisJob(job.id);
+          if (latestJob.status === "succeeded") {
+            invalidateDocumentMutationDependents();
+            onSaved();
+            showToast("Öğrenim bilgisi MEBBİS’e aktarıldı");
+            return;
+          }
+
+          if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
+            showToast(
+              mebbisJobTerminalMessage(latestJob, "Öğrenim bilgisi MEBBİS aktarımı kontrol gerektiriyor"),
+              "error"
+            );
+            return;
+          }
+        }
+
+        showToast("Öğrenim bilgisi MEBBİS aktarımı hala devam ediyor");
+        return;
+      }
+
       const existingMetadata: Record<string, string> = {};
       for (const [key, value] of Object.entries(document.metadata ?? {})) {
         if (value) existingMetadata[key] = value;
@@ -935,10 +999,16 @@ export function ManageDocumentModal({
                   className={`btn btn-sm ${
                     isMebbisTransferred ? "btn-secondary" : "btn-primary"
                   }`}
-                  aria-disabled={canManageDocuments && !busy && mebbisSessionGuard.disabled}
-                  disabled={busy || !canManageDocuments}
+                  aria-disabled={canUseMebbisToggle && !busy && mebbisToggleRequiresJob && mebbisSessionGuard.disabled}
+                  disabled={busy || !canUseMebbisToggle || (mebbisToggleRequiresJob && mebbisSessionGuard.disabled)}
                   onClick={handleMebbisToggle}
-                  title={!canManageDocuments ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
+                  title={
+                    !canUseMebbisToggle
+                      ? noPermissionTitle
+                      : mebbisToggleRequiresJob && mebbisSessionGuard.disabled
+                        ? mebbisSessionGuard.message
+                        : undefined
+                  }
                   type="button"
                 >
                   {actionPending === "mebbis"
@@ -1155,6 +1225,7 @@ export function ManageDocumentModal({
                   field={field}
                   fieldClass={(hasError, base) => hasError ? `${base} error` : base}
                   key={field.key}
+                  maxLength={educationCertificateMetadataMaxLength(activeDocumentType?.key, field.key)}
                   onChange={(next) => setMetadataValue(field.key, next)}
                   selectPlaceholderFallback={t("uploadDoc.metadataSelectPlaceholder")}
                   value={metadataValues[field.key] ?? ""}

@@ -340,7 +340,7 @@ describe("VehiclesSettingsSection", () => {
     expect(screen.queryByRole("button", { name: "Sütunlar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vites" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Marka / Model" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Plaka" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plaka / Simülatör No" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Belge" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Araç Durumu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Genel Durum" })).toBeInTheDocument();
@@ -492,11 +492,13 @@ describe("VehiclesSettingsSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Yeni Araç/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Simülatör/i }));
+    expect(screen.getByLabelText(/Simülatör No/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Simülatör No/), { target: { value: "SIM-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(createVehicleMock).toHaveBeenCalledWith({
-        plateNumber: "",
+        plateNumber: "SIM-1",
         brand: "",
         model: null,
         modelYear: null,

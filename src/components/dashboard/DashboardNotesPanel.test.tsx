@@ -43,7 +43,9 @@ describe("DashboardNotesPanel", () => {
       items: [
         {
           id: "note-1",
+          createdByUserId: "viewer",
           body: "Dashboard notu",
+          isVisibleToInstitution: false,
           reminderAtUtc: null,
           completedAtUtc: null,
           createdAtUtc: "2026-01-01T09:00:00Z",
@@ -74,7 +76,7 @@ describe("DashboardNotesPanel", () => {
 
     await screen.findByText("Dashboard notu");
 
-    const addButton = screen.getByRole("button", { name: /Yeni Not/i });
+    const addButton = screen.getByRole("button", { name: /Yeni Görev/i });
     const toggleButton = screen.getByRole("button", { name: "Tamamlandı olarak işaretle" });
     const deleteButton = screen.getByRole("button", { name: "Sil" });
 
@@ -102,8 +104,7 @@ describe("DashboardNotesPanel", () => {
     renderWithProviders(<DashboardNotesPanel />);
 
     expect(await screen.findByLabelText("Not takvimi")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bugün" })).toBeInTheDocument();
-    expect(screen.getByText("Bu güne ait hatırlatmalı not yok.")).toBeInTheDocument();
+    expect(screen.getByText("Bu güne ait görev yok.")).toBeInTheDocument();
     expect(screen.queryByText("Henüz not yok. Yeni not ekleyebilirsin.")).not.toBeInTheDocument();
   });
 
@@ -139,7 +140,7 @@ describe("DashboardNotesPanel", () => {
     renderWithProviders(<DashboardNotesPanel />);
 
     await screen.findByText("Bugünün hatırlatması");
-    expect(screen.getByText("Tarihsiz notlar")).toBeInTheDocument();
+    expect(screen.getByText("Tarihsiz görevler")).toBeInTheDocument();
     expect(screen.getByText("Takvimsiz not")).toBeInTheDocument();
   });
 
@@ -152,7 +153,7 @@ describe("DashboardNotesPanel", () => {
 
     renderWithProviders(<DashboardNotesPanel />);
 
-    await screen.findByText("Bu güne ait hatırlatmalı not yok.");
+    await screen.findByText("Bu güne ait görev yok.");
     fireEvent.click(screen.getByRole("button", { name: "Sonraki ay" }));
     fireEvent.click(screen.getByRole("button", { name: /^5 Şubat/i }));
 
@@ -166,8 +167,10 @@ function buildNote(overrides: {
   reminderAtUtc: string | null;
 }) {
   return {
+    createdByUserId: "test-user",
     completedAtUtc: null,
     createdAtUtc: "2026-01-01T09:00:00Z",
+    isVisibleToInstitution: false,
     updatedAtUtc: "2026-01-01T09:00:00Z",
     rowVersion: 1,
     ...overrides,

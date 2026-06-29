@@ -113,7 +113,7 @@ const EMPTY_INSTRUCTORS: InstructorResponse[] = [];
 const EMPTY_VEHICLES: VehicleResponse[] = [];
 
 function vehicleFilterKey(vehicle: VehicleResponse): string {
-  return vehicle.plateNumber || vehicle.id;
+  return vehicle.plateNumber.trim() || vehicle.id;
 }
 
 function delay(ms: number): Promise<void> {
@@ -896,8 +896,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
           if (e.candidateId === focusedCandidate) filtered.push(e);
           continue;
         }
-        const vehicleKey = e.vehicleId || e.vehiclePlate || t("training.filter.noVehicle");
-        const vehicleMatches = visibleGroups.has(vehicleKey) || (e.vehiclePlate ? visibleGroups.has(e.vehiclePlate) : false);
+        const eventVehiclePlate = e.vehiclePlate?.trim();
+        const vehicleKey = e.vehicleId || eventVehiclePlate || t("training.filter.noVehicle");
+        const vehicleMatches = visibleGroups.has(vehicleKey) || (eventVehiclePlate ? visibleGroups.has(eventVehiclePlate) : false);
         const instructorMatches = visibleInstructors.has(e.instructorId);
         if (
           (vehicleMatches || instructorMatches) &&

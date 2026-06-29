@@ -115,7 +115,12 @@ import {
   updateCandidateDocumentMebbisTransfer,
   uploadDocument,
 } from "../lib/documents-api";
-import { createCandidatePhotoUploadJob, createCandidateTermEnrollJob, getMebbisJob } from "../lib/mebbis-jobs-api";
+import {
+  createCandidateEducationInfoUploadJob,
+  createCandidatePhotoUploadJob,
+  createCandidateTermEnrollJob,
+  getMebbisJob,
+} from "../lib/mebbis-jobs-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
   CANDIDATE_STATUS_OPTIONS,
@@ -188,7 +193,7 @@ function vehicleDisplayName(vehicle: VehicleResponse | null | undefined): string
   const primary = vehicle.plateNumber.trim();
   if (primary) return primary;
   const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ").trim();
-  return name || (vehicle.isSimulator ? "Simulator" : null);
+  return name || null;
 }
 
 const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
@@ -6656,7 +6661,7 @@ function CandidateExamAttemptsSection({
               <thead>
                 <tr>
                   <th>Tarih-saat</th>
-                  <th>Plaka</th>
+                  <th>Araç / Simülatör No</th>
                   <th>Usta Öğretici</th>
                   <th>Hak</th>
                   <th>Sınav Durumu</th>
@@ -6854,7 +6859,7 @@ function CandidateExamAttemptsSection({
           {form.examType === "practice" ? (
             <>
               <label>
-                <span>Plaka</span>
+                <span>Araç / Simülatör No</span>
                 <CustomSelect
                   className="form-select"
                   onChange={(event) => setForm((current) => ({ ...current, vehicleId: event.target.value }))}
@@ -7751,6 +7756,13 @@ const HEALTH_REPORT_EXTRA_KEYS = new Set<string>([
   HEALTH_REPORT_META_KEYS.needsSignLanguageTranslator,
 ]);
 
+function educationCertificateMetadataMaxLength(documentTypeKey: string | undefined, fieldKey: string): number | undefined {
+  if (documentTypeKey !== "education_certificate") return undefined;
+  if (fieldKey === "issuing_institution") return 100;
+  if (fieldKey === "document_number") return 10;
+  return undefined;
+}
+
 function isPhotoDocumentType(type: DocumentTypeResponse): boolean {
   return PHOTO_DOCUMENT_TYPE_KEYS.includes(
     type.key as (typeof PHOTO_DOCUMENT_TYPE_KEYS)[number]
@@ -8560,35 +8572,51 @@ function CandidateDocumentOneByOneTransferModal({
 
   const handleTransfer = async (type: DocumentTypeResponse) => {
     if (transferringTypeId) return;
-    if (type.key === "biometric_photo" ? !canManageMebJobs : !canManageDocuments) return;
-    if (!mebbisSessionGuard.ensureSession()) return;
+    const requiresMebbisJob = type.key === "biometric_photo" || type.key === "education_certificate";
+    if (requiresMebbisJob ? !canManageMebJobs : !canManageDocuments) return;
+    if (requiresMebbisJob && !mebbisSessionGuard.ensureSession()) return;
     const upload = uploadsByKey.get(type.key) ?? null;
     if (getCandidateDocumentStatus(upload) === "missing") return;
     if (!canRetryMebbisDocumentTransfer(type.key, upload?.isMebbisTransferred === true)) return;
     setTransferringTypeId(type.id);
     try {
-      if (type.key === "biometric_photo") {
+      if (requiresMebbisJob) {
         if (!canManageMebJobs) return;
-        const job = await createCandidatePhotoUploadJob(candidateId);
+        const isEducationInfoUpload = type.key === "education_certificate";
+        const job = isEducationInfoUpload
+          ? await createCandidateEducationInfoUploadJob(candidateId)
+          : await createCandidatePhotoUploadJob(candidateId);
+        const queuedMessage = isEducationInfoUpload
+          ? "Öğrenim bilgisi MEBBİS aktarımı kuyruğa alındı"
+          : "Biyometrik fotoğraf MEBBİS aktarımı kuyruğa alındı";
+        const successMessage = isEducationInfoUpload
+          ? "Öğrenim bilgisi MEBBİS’e aktarıldı"
+          : "Biyometrik fotoğraf MEBBİS’e aktarıldı";
+        const manualMessage = isEducationInfoUpload
+          ? "Öğrenim bilgisi MEBBİS aktarımı kontrol gerektiriyor"
+          : "Biyometrik fotoğraf MEBBİS aktarımı kontrol gerektiriyor";
+        const runningMessage = isEducationInfoUpload
+          ? "Öğrenim bilgisi MEBBİS aktarımı hala devam ediyor"
+          : "Biyometrik fotoğraf MEBBİS aktarımı hala devam ediyor";
         notifyMebbisJobQueued(job.id, job.jobType);
-        showToast("Biyometrik fotoğraf MEBBİS aktarımı kuyruğa alındı");
+        showToast(queuedMessage);
 
         for (let attempt = 0; attempt < 60; attempt += 1) {
           if (attempt > 0) await delay(5000);
           const latestJob = await getMebbisJob(job.id);
           if (latestJob.status === "succeeded") {
             await onRefresh();
-            showToast("Biyometrik fotoğraf MEBBİS’e aktarıldı");
+            showToast(successMessage);
             return;
           }
 
           if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
-            showToast(candidateTermEnrollJobTerminalMessage(latestJob, "Biyometrik fotoğraf MEBBİS aktarımı kontrol gerektiriyor"), "error");
+            showToast(candidateTermEnrollJobTerminalMessage(latestJob, manualMessage), "error");
             return;
           }
         }
 
-        showToast("Biyometrik fotoğraf MEBBİS aktarımı hala devam ediyor");
+        showToast(runningMessage);
         return;
       }
 
@@ -8596,7 +8624,7 @@ function CandidateDocumentOneByOneTransferModal({
       await onRefresh();
       showToast(t("candidateDetail.documents.row.toast.mebbisMarked", { name: type.name }));
     } catch (error) {
-      if (type.key === "biometric_photo") {
+      if (type.key === "biometric_photo" || type.key === "education_certificate") {
         showToast(
           documentMebbisTransferErrorMessage(
             error,
@@ -8674,7 +8702,7 @@ function CandidateDocumentOneByOneTransferModal({
             const status = getCandidateDocumentStatus(upload);
             const isTransferred = upload?.isMebbisTransferred === true;
             const isBusy = transferringTypeId === type.id;
-            const requiresMebbisJob = type.key === "biometric_photo";
+            const requiresMebbisJob = type.key === "biometric_photo" || type.key === "education_certificate";
             const canTransfer = requiresMebbisJob ? canManageMebJobs : canManageDocuments;
             return (
               <li className={`candidate-detail-doc-transfer-row status-${status}`} key={type.id}>
@@ -8702,19 +8730,21 @@ function CandidateDocumentOneByOneTransferModal({
                       canTransfer &&
                       status !== "missing" &&
                       (requiresMebbisJob || !isTransferred) &&
+                      requiresMebbisJob &&
                       mebbisSessionGuard.disabled
                     }
                     disabled={
                       !!transferringTypeId ||
                       !canTransfer ||
                       status === "missing" ||
+                      (requiresMebbisJob && mebbisSessionGuard.disabled) ||
                       !canRetryMebbisDocumentTransfer(type.key, isTransferred)
                     }
                     onClick={() => void handleTransfer(type)}
                     title={
                       !canTransfer
                         ? (requiresMebbisJob ? noPermissionTitle : noDocumentPermissionTitle)
-                        : mebbisSessionGuard.disabled
+                        : requiresMebbisJob && mebbisSessionGuard.disabled
                           ? mebbisSessionGuard.message
                           : undefined
                     }
@@ -10266,6 +10296,7 @@ function DocRow({
                       aria-label={field.label}
                       className={error ? "form-input error" : "form-input"}
                       disabled={!canManageDocuments}
+                      maxLength={educationCertificateMetadataMaxLength(type.key, field.key)}
                       onBlur={(event) => {
                         const next = event.target.value;
                         if (next === (upload?.metadata?.[field.key] ?? "")) return;

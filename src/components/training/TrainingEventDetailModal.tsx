@@ -142,7 +142,7 @@ export function TrainingEventDetailModal({
                 {event.candidateName ?? event.groupName}
               </DrawerRow>
               <DrawerRow label={t("training.detail.field.vehicle")}>
-                {event.vehiclePlate ?? "—"}
+                {event.vehiclePlate?.trim() || "—"}
               </DrawerRow>
             </>
           ) : (

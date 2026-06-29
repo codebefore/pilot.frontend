@@ -38,6 +38,13 @@ const uploadDocumentSchema = z.object({
   note: z.string(),
 });
 
+export function educationCertificateMetadataMaxLength(documentTypeKey: string | undefined, fieldKey: string): number | undefined {
+  if (documentTypeKey !== "education_certificate") return undefined;
+  if (fieldKey === "issuing_institution") return 100;
+  if (fieldKey === "document_number") return 10;
+  return undefined;
+}
+
 type UploadDocumentForm = z.infer<typeof uploadDocumentSchema>;
 
 type UploadDocumentModalProps = {
@@ -881,6 +888,7 @@ export function UploadDocumentModal({
                 field={field}
                 fieldClass={fieldClass}
                 key={field.key}
+                maxLength={educationCertificateMetadataMaxLength(activeDocumentType?.key, field.key)}
                 onChange={(next) => setMetadataValue(field.key, next)}
                 selectPlaceholderFallback={t("uploadDoc.metadataSelectPlaceholder")}
                 value={metadataValues[field.key] ?? ""}
@@ -935,6 +943,7 @@ export type MetadataFieldRowProps = {
   value: string;
   error?: string;
   disabled?: boolean;
+  maxLength?: number;
   dateInputLang?: string;
   selectPlaceholderFallback: string;
   fieldClass: (hasError: boolean, base: "form-input" | "form-select") => string;
@@ -946,6 +955,7 @@ export function MetadataFieldRow({
   value,
   error,
   disabled = false,
+  maxLength,
   dateInputLang,
   selectPlaceholderFallback,
   fieldClass,
@@ -992,6 +1002,7 @@ export function MetadataFieldRow({
             aria-label={field.label}
             className={fieldClass(!!error, "form-input")}
             disabled={disabled}
+            maxLength={maxLength}
             onChange={(event) => onChange(event.target.value)}
             placeholder={field.placeholder ?? ""}
             type="text"

@@ -31,6 +31,7 @@ const OutboxPage = lazy(() => import("./pages/OutboxPage").then((m) => ({ defaul
 const PaymentsPage = lazy(() => import("./pages/PaymentsPage").then((m) => ({ default: m.PaymentsPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const TasksPage = lazy(() => import("./pages/TasksPage").then((m) => ({ default: m.TasksPage })));
 const TrainingPage = lazy(() => import("./pages/TrainingPage").then((m) => ({ default: m.TrainingPage })));
 
 function RouteFallback() {
@@ -311,6 +312,14 @@ export function AppShell() {
                   </RequireTenantPermission>
                 }
                 path="/activity"
+              />
+              <Route
+                element={
+                  <RequireTenantPermission areas={["dashboard"]}>
+                    <TasksPage />
+                  </RequireTenantPermission>
+                }
+                path="/tasks"
               />
               <Route
                 element={

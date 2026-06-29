@@ -21,8 +21,9 @@ describe("CandidateDetailPage helpers", () => {
     expect(hasExistingLicenseValue("exempt")).toBe(false);
   });
 
-  it("allows biometric photo MEBBIS transfer retry even after it was marked transferred", () => {
+  it("allows MEBBIS job document transfer retry even after it was marked transferred", () => {
     expect(canRetryMebbisDocumentTransfer("biometric_photo", true)).toBe(true);
+    expect(canRetryMebbisDocumentTransfer("education_certificate", true)).toBe(true);
     expect(canRetryMebbisDocumentTransfer("identity_copy", true)).toBe(false);
     expect(canRetryMebbisDocumentTransfer("identity_copy", false)).toBe(true);
   });

@@ -14,6 +14,8 @@ const openAuthorizedFileMock = vi.fn();
 const downloadAuthorizedFileMock = vi.fn();
 const printAuthorizedFileMock = vi.fn();
 const getMebbisSessionStatusMock = vi.fn();
+const createCandidateEducationInfoUploadJobMock = vi.fn();
+const getMebbisJobMock = vi.fn();
 
 vi.mock("../../lib/authorized-files", () => ({
   openAuthorizedFile: (...args: unknown[]) => openAuthorizedFileMock(...args),
@@ -51,6 +53,11 @@ vi.mock("../../lib/mebbis-jobs-api", async () => {
     ...actual,
     getMebbisSessionStatus: (...args: Parameters<typeof actual.getMebbisSessionStatus>) =>
       getMebbisSessionStatusMock(...args),
+    createCandidateEducationInfoUploadJob: (
+      ...args: Parameters<typeof actual.createCandidateEducationInfoUploadJob>
+    ) => createCandidateEducationInfoUploadJobMock(...args),
+    getMebbisJob: (...args: Parameters<typeof actual.getMebbisJob>) =>
+      getMebbisJobMock(...args),
   };
 });
 
@@ -68,6 +75,8 @@ describe("ManageDocumentModal", () => {
     downloadAuthorizedFileMock.mockReset();
     printAuthorizedFileMock.mockReset();
     getMebbisSessionStatusMock.mockReset();
+    createCandidateEducationInfoUploadJobMock.mockReset();
+    getMebbisJobMock.mockReset();
     openAuthorizedFileMock.mockResolvedValue(undefined);
     downloadAuthorizedFileMock.mockResolvedValue(undefined);
     printAuthorizedFileMock.mockResolvedValue(undefined);
@@ -77,6 +86,18 @@ describe("ManageDocumentModal", () => {
       lastSeenAtUtc: new Date().toISOString(),
       lastKnownMebbisUser: "meb-user",
       extensionHeartbeatFreshSeconds: 60,
+    });
+    createCandidateEducationInfoUploadJobMock.mockResolvedValue({
+      id: "job-1",
+      jobType: "candidate_education_info_upload",
+      status: "pending",
+    });
+    getMebbisJobMock.mockResolvedValue({
+      id: "job-1",
+      jobType: "candidate_education_info_upload",
+      status: "succeeded",
+      resultJson: null,
+      errorMessage: null,
     });
     updateCandidateDocumentMebbisTransferMock.mockResolvedValue({ id: "doc-1" });
     deleteCandidateDocumentMock.mockResolvedValue(undefined);
@@ -190,6 +211,81 @@ describe("ManageDocumentModal", () => {
         "type-1",
         true
       );
+      expect(onSaved).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("queues an education certificate Mebbis job instead of manually marking it transferred", async () => {
+    getCandidateDocumentsMock.mockResolvedValueOnce([
+      {
+        id: "doc-education-1",
+        candidateId: "cand-1",
+        documentTypeId: "type-education",
+        documentTypeKey: "education_certificate",
+        documentTypeName: "Mezuniyet Belgesi",
+        originalFileName: "mezuniyet.pdf",
+        contentType: "application/pdf",
+        fileSizeBytes: 2048,
+        isPhysicallyAvailable: false,
+        isMebbisTransferred: false,
+        hasFile: true,
+        note: "",
+        metadata: {
+          issuing_institution: "Anadolu Lisesi",
+          certificate_type: "high_school_diploma",
+          issued_on: "2026-06-01",
+          document_number: "ABC-123",
+        },
+        uploadedAtUtc: "2026-04-18T08:30:00Z",
+        createdAtUtc: "2026-04-18T08:30:00Z",
+        updatedAtUtc: "2026-04-18T08:30:00Z",
+      },
+    ]);
+    const onSaved = vi.fn();
+    const educationDocumentTypes = [
+      {
+        id: "type-education",
+        module: "candidate",
+        key: "education_certificate",
+        name: "Mezuniyet Belgesi",
+        sortOrder: 1,
+        isRequired: true,
+        isActive: true,
+        metadataFields: [
+          {
+            key: "issuing_institution",
+            label: "Kurum",
+            inputType: "text" as const,
+            isRequired: true,
+            placeholder: "Kurum adı",
+            options: [],
+          },
+        ],
+        createdAtUtc: "2026-01-01T00:00:00Z",
+        updatedAtUtc: "2026-01-01T00:00:00Z",
+      },
+    ];
+
+    renderWithProviders(
+      <ManageDocumentModal
+        candidateId="cand-1"
+        candidateName="Ayse Demir"
+        documentTypeId="type-education"
+        documentTypes={educationDocumentTypes}
+        onClose={() => {}}
+        onSaved={onSaved}
+        open
+      />
+    );
+
+    await screen.findByDisplayValue("Anadolu Lisesi");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mebbis Aktar" }));
+
+    await waitFor(() => {
+      expect(createCandidateEducationInfoUploadJobMock).toHaveBeenCalledWith("cand-1");
+      expect(getMebbisJobMock).toHaveBeenCalledWith("job-1");
+      expect(updateCandidateDocumentMebbisTransferMock).not.toHaveBeenCalled();
       expect(onSaved).toHaveBeenCalledTimes(1);
     });
   });

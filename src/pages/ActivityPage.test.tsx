@@ -98,6 +98,7 @@ describe("ActivityPage", () => {
 
     renderActivity("/activity?page=2");
 
+    expect(await screen.findByText("27 Haziran Cumartesi")).toBeInTheDocument();
     expect(await screen.findByText("Ayşe Yılmaz")).toBeInTheDocument();
     fireEvent.click(await screen.findByText("aday evrakı yüklendi: Fotoğraf"));
 

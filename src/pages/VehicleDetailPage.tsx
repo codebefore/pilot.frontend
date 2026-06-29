@@ -240,10 +240,10 @@ export function VehicleDetailPage() {
           <header className="instructor-detail-card instructor-detail-header">
             <div className="instructor-detail-header-main">
               <div className="instructor-detail-code">
-                {vehicle.plateNumber || (vehicle.isSimulator ? t("vehicleForm.field.simulator") : "—")}
+                {vehicle.plateNumber.trim() || "—"}
               </div>
               <h2 className="instructor-detail-name">
-                {vehicle.brand || (vehicle.isSimulator ? t("vehicleForm.field.simulator") : "—")}
+                {vehicle.brand || "—"}
                 {vehicle.model ? ` ${vehicle.model}` : ""}
                 {vehicle.modelYear ? ` (${vehicle.modelYear})` : ""}
               </h2>

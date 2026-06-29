@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -25,6 +26,7 @@ export function ActivityPage() {
 
   const items = activityQuery.data?.items ?? [];
   const totalPages = activityQuery.data?.totalPages ?? 0;
+  const activityGroups = useMemo(() => groupActivitiesByDay(items), [items]);
 
   const changePage = (nextPage: number) => {
     setSearchParams(nextPage <= 1 ? {} : { page: String(nextPage) });
@@ -47,6 +49,11 @@ export function ActivityPage() {
       <PageToolbar title={t("activity.title")} />
 
       <div className="activity-page">
+        <div className="page-content-leading">
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate("/")} type="button">
+            {t("common.backToDashboard")}
+          </button>
+        </div>
         {activityQuery.isLoading ? (
           <NotificationListSkeleton rows={8} />
         ) : items.length === 0 ? (
@@ -54,35 +61,45 @@ export function ActivityPage() {
             {t("activity.empty")}
           </div>
         ) : (
-          <ul className="activity-page-list">
-            {items.map((activity) => (
-              <li
-                className={`activity-page-item${activity.linkPath ? " is-clickable" : ""}`}
-                key={activity.id}
-                onClick={() => openActivityLink(activity)}
-                role={activity.linkPath ? "button" : undefined}
-                style={activity.linkPath ? { cursor: "pointer" } : undefined}
-                tabIndex={activity.linkPath ? 0 : undefined}
-                onKeyDown={(keyboardEvent) => {
-                  if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
-                    keyboardEvent.preventDefault();
-                    openActivityLink(activity);
-                  }
-                }}
-              >
-                <ActivityAvatar activity={activity} />
-                <div className="activity-page-body">
-                  <div className="activity-text">
-                    <strong>{activity.actor}</strong> {activity.description}
-                  </div>
-                  {activity.actorDisplayName ? (
-                    <div className="activity-person">{activity.actorDisplayName}</div>
-                  ) : null}
-                  <div className="activity-time">{formatActivityDateTime(activity.createdAtUtc)}</div>
+          <div className="activity-day-groups">
+            {activityGroups.map((group) => (
+              <section className="activity-day-group" key={group.key}>
+                <div className="activity-day-heading">
+                  <strong>{group.label}</strong>
+                  <span>{group.activities.length}</span>
                 </div>
-              </li>
+                <ul className="activity-page-list">
+                  {group.activities.map((activity) => (
+                    <li
+                      className={`activity-page-item${activity.linkPath ? " is-clickable" : ""}`}
+                      key={activity.id}
+                      onClick={() => openActivityLink(activity)}
+                      role={activity.linkPath ? "button" : undefined}
+                      style={activity.linkPath ? { cursor: "pointer" } : undefined}
+                      tabIndex={activity.linkPath ? 0 : undefined}
+                      onKeyDown={(keyboardEvent) => {
+                        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                          keyboardEvent.preventDefault();
+                          openActivityLink(activity);
+                        }
+                      }}
+                    >
+                      <ActivityAvatar activity={activity} />
+                      <div className="activity-page-body">
+                        <div className="activity-text">
+                          <strong>{activity.actor}</strong> {activity.description}
+                        </div>
+                        {activity.actorDisplayName ? (
+                          <div className="activity-person">{activity.actorDisplayName}</div>
+                        ) : null}
+                        <div className="activity-time">{formatActivityTime(activity.createdAtUtc)}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 
@@ -96,17 +113,52 @@ export function ActivityPage() {
   );
 }
 
-function formatActivityDateTime(value: string): string {
+type ActivityDayGroup = {
+  key: string;
+  label: string;
+  activities: DashboardActivityResponse[];
+};
+
+function groupActivitiesByDay(items: DashboardActivityResponse[]): ActivityDayGroup[] {
+  const groups = new Map<string, ActivityDayGroup>();
+
+  for (const activity of items) {
+    const date = new Date(activity.createdAtUtc);
+    const key = Number.isNaN(date.getTime()) ? activity.createdAtUtc : toLocalDateKey(date);
+    const label = Number.isNaN(date.getTime()) ? activity.createdAtUtc : formatActivityDayLabel(key);
+    const group = groups.get(key) ?? { key, label, activities: [] };
+    group.activities.push(activity);
+    groups.set(key, group);
+  }
+
+  return [...groups.values()];
+}
+
+function formatActivityDayLabel(key: string): string {
+  const [year, month, day] = key.split("-").map(Number);
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1);
+  return date.toLocaleDateString(currentLocale(), {
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+  });
+}
+
+function formatActivityTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleString(currentLocale(), {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+  return date.toLocaleTimeString(currentLocale(), {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function parsePositiveInteger(value: string | null): number {

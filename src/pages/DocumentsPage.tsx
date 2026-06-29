@@ -158,6 +158,7 @@ export function DocumentsPage() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageDocuments = canManageArea(user, permissions, "documents");
+  const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const canManageGroups = canManageArea(user, permissions, "groups");
   const noPermissionTitle = t("common.noPermission");
@@ -1399,6 +1400,7 @@ export function DocumentsPage() {
         onClose={() => setManageTarget(null)}
         onSaved={handleDocumentSaved}
         canManageDocuments={canManageDocuments}
+        canManageMebJobs={canManageMebJobs}
         open={manageTarget !== null}
       />
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
 import { canViewAnyArea } from "../../lib/permissions";
@@ -42,7 +42,6 @@ export function Sidebar({
 }: SidebarProps) {
   const t = useT();
   const location = useLocation();
-  const navigate = useNavigate();
   const { user, permissions } = useAuth();
   const visibleSections = useMemo(
     () =>
@@ -94,14 +93,8 @@ export function Sidebar({
     });
   }, [activeParentKeys, activeParentSignature]);
 
-  const openSubmenuFirstChild = (item: NavItem) => {
-    const firstChildPath = item.children?.[0]?.path;
-
+  const openSubmenu = (item: NavItem) => {
     setOpenSubmenus(new Set([item.key]));
-
-    if (firstChildPath) {
-      navigate(firstChildPath);
-    }
   };
 
   return (
@@ -148,7 +141,7 @@ export function Sidebar({
                       ]
                         .filter(Boolean)
                         .join(" ")}
-                      onClick={() => openSubmenuFirstChild(item)}
+                      onClick={() => openSubmenu(item)}
                       type="button"
                     >
                       <span className="sidebar-icon">

@@ -130,7 +130,7 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "Outbox" })).toBeInTheDocument();
   });
 
-  it("keeps submenus collapsed by default and activates the first child when parent is clicked", () => {
+  it("keeps submenus collapsed by default and only opens submenu when parent is clicked", () => {
     renderSidebar("/");
 
     const trainingMenu = screen.getByRole("button", { name: "Eğitim Planı" });
@@ -142,7 +142,7 @@ describe("Sidebar", () => {
     fireEvent.click(trainingMenu);
 
     expect(trainingMenu).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "Teorik Eğitim" })).not.toHaveClass("active");
     expect(screen.getByRole("link", { name: "Direksiyon Eğitim" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "E-Sınav" })).not.toBeInTheDocument();
   });
@@ -163,7 +163,7 @@ describe("Sidebar", () => {
     expect(trainingMenu).toHaveAttribute("aria-expanded", "false");
     expect(examsMenu).toHaveAttribute("aria-expanded", "true");
     expect(screen.queryByRole("link", { name: "Teorik Eğitim" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "E-Sınav" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "E-Sınav" })).not.toHaveClass("active");
   });
 
   it("renders exams submenu and highlights the active child route", () => {

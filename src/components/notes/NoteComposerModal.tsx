@@ -9,6 +9,7 @@ import { useT } from "../../lib/i18n";
 export type NoteDraft = {
   body: string;
   reminderAtUtc: string | null;
+  isVisibleToInstitution: boolean;
 };
 
 type Props = {
@@ -18,6 +19,17 @@ type Props = {
   initialReminderAtUtc?: string | null;
   initialReminderDate?: string;
   placeholder?: string;
+  titleCreate?: string;
+  titleEdit?: string;
+  fieldLabel?: string;
+  reminderLabel?: string;
+  reminderDateAriaLabel?: string;
+  reminderTimeAriaLabel?: string;
+  hideReminderLabel?: boolean;
+  showVisibilityToggle?: boolean;
+  initialIsVisibleToInstitution?: boolean;
+  visibilityToggleLabel?: string;
+  visibilityToggleHint?: string;
   saving?: boolean;
   onCancel: () => void;
   onSubmit: (draft: NoteDraft) => Promise<void> | void;
@@ -30,19 +42,36 @@ export function NoteComposerModal({
   initialReminderAtUtc = null,
   initialReminderDate = "",
   placeholder,
+  titleCreate,
+  titleEdit,
+  fieldLabel,
+  reminderLabel,
+  reminderDateAriaLabel,
+  reminderTimeAriaLabel,
+  hideReminderLabel = false,
+  showVisibilityToggle = false,
+  initialIsVisibleToInstitution = false,
+  visibilityToggleLabel = "Herkese göster",
+  visibilityToggleHint = "Kapalıysa sadece sen görürsün.",
   saving = false,
   onCancel,
   onSubmit,
 }: Props) {
   const t = useT();
   const effectivePlaceholder = placeholder ?? t("noteComposer.placeholder.default");
+  const effectiveFieldLabel = fieldLabel ?? t("noteComposer.field.note");
+  const effectiveReminderLabel = reminderLabel ?? t("noteComposer.label.reminderOptional");
+  const effectiveReminderDateAriaLabel = reminderDateAriaLabel ?? t("noteComposer.aria.reminderDate");
+  const effectiveReminderTimeAriaLabel = reminderTimeAriaLabel ?? t("noteComposer.aria.reminderTime");
   const [body, setBody] = useState(initialBody);
   const [reminderDate, setReminderDate] = useState("");
   const [reminderTime, setReminderTime] = useState("");
+  const [isVisibleToInstitution, setIsVisibleToInstitution] = useState(initialIsVisibleToInstitution);
 
   useEffect(() => {
     if (!open) return;
     setBody(initialBody);
+    setIsVisibleToInstitution(initialIsVisibleToInstitution);
     if (initialReminderAtUtc) {
       const parts = splitLocalParts(initialReminderAtUtc);
       setReminderDate(parts.date);
@@ -51,7 +80,7 @@ export function NoteComposerModal({
       setReminderDate(initialReminderDate);
       setReminderTime("");
     }
-  }, [open, initialBody, initialReminderAtUtc, initialReminderDate]);
+  }, [open, initialBody, initialReminderAtUtc, initialReminderDate, initialIsVisibleToInstitution]);
 
   const trimmed = body.trim();
   const submitDisabled = !trimmed || saving;
@@ -61,7 +90,7 @@ export function NoteComposerModal({
     const reminderAtUtc = reminderDate
       ? combineLocalToUtc(reminderDate, reminderTime || "09:00")
       : null;
-    void onSubmit({ body: trimmed, reminderAtUtc });
+    void onSubmit({ body: trimmed, reminderAtUtc, isVisibleToInstitution });
   };
 
   return (
@@ -88,13 +117,13 @@ export function NoteComposerModal({
       }
       onClose={onCancel}
       open={open}
-      title={mode === "edit" ? t("noteComposer.title.edit") : t("noteComposer.title.create")}
+      title={mode === "edit" ? titleEdit ?? t("noteComposer.title.edit") : titleCreate ?? t("noteComposer.title.create")}
     >
       <div className="note-composer">
         <label className="form-group">
-          <span className="form-label">{t("noteComposer.field.note")}</span>
+          <span className="form-label">{effectiveFieldLabel}</span>
           <textarea
-            aria-label={t("noteComposer.field.note")}
+            aria-label={effectiveFieldLabel}
             className="form-input"
             onChange={(event) => setBody(event.target.value)}
             placeholder={effectivePlaceholder}
@@ -103,22 +132,37 @@ export function NoteComposerModal({
           />
         </label>
         <div className="form-group">
-          <span className="form-label">
-            <ClockIcon size={14} /> {t("noteComposer.label.reminderOptional")}
-          </span>
+          {!hideReminderLabel ? (
+            <span className="form-label">
+              <ClockIcon size={14} /> {effectiveReminderLabel}
+            </span>
+          ) : null}
           <div className="note-composer-reminder-fields">
             <LocalizedDateInput
-              ariaLabel={t("noteComposer.aria.reminderDate")}
+              ariaLabel={effectiveReminderDateAriaLabel}
               onChange={setReminderDate}
               value={reminderDate}
             />
             <LocalizedTimeInput
-              ariaLabel={t("noteComposer.aria.reminderTime")}
+              ariaLabel={effectiveReminderTimeAriaLabel}
               onChange={setReminderTime}
               value={reminderTime}
             />
           </div>
         </div>
+        {showVisibilityToggle ? (
+          <label className="note-composer-visibility">
+            <input
+              checked={isVisibleToInstitution}
+              onChange={(event) => setIsVisibleToInstitution(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <strong>{visibilityToggleLabel}</strong>
+              <em>{visibilityToggleHint}</em>
+            </span>
+          </label>
+        ) : null}
       </div>
     </Modal>
   );

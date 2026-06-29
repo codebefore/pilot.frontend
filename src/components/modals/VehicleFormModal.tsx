@@ -86,10 +86,14 @@ const vehicleFormSchema = z.object({
   otherDetails: z.string(),
   notes: z.string(),
 }).superRefine((values, ctx) => {
-  if (values.isSimulator) return;
   if (!values.plateNumber.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["plateNumber"], message: "Plaka zorunlu" });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["plateNumber"],
+      message: values.isSimulator ? "Simülatör No zorunlu" : "Plaka zorunlu",
+    });
   }
+  if (values.isSimulator) return;
   if (!values.brand.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["brand"], message: "Marka zorunlu" });
   }
@@ -216,10 +220,11 @@ function hasConcurrencyError(
 function translateVehicleValidationMessage(
   message: string,
   serverField: string,
-  t: ReturnType<typeof useT>
+  t: ReturnType<typeof useT>,
+  isSimulator: boolean
 ): string {
   if (serverField === "PlateNumber" && message === PLATE_CONFLICT_MESSAGE) {
-    return t("vehicle.validation.plateConflict");
+    return t(isSimulator ? "vehicle.validation.simulatorNumberConflict" : "vehicle.validation.plateConflict");
   }
 
   return message;
@@ -363,7 +368,7 @@ export function VehicleFormModal({
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
         translateCode: (code, params) => t(code as TranslationKey, params),
         translateMessage: (message, serverField) =>
-          translateVehicleValidationMessage(message, serverField, t),
+          translateVehicleValidationMessage(message, serverField, t, payload.isSimulator),
         fieldMap: VALIDATION_FIELD_MAP as Record<string, import("react-hook-form").Path<VehicleFormValues>>,
       });
       if (unmappedMessages[0]) {
@@ -416,8 +421,8 @@ export function VehicleFormModal({
         <div className="form-row">
           <div className="form-group">
             <label className="form-label" htmlFor={plateId}>
-              {t("vehicleForm.field.plate")}
-              {!isSimulator ? <RequiredMark /> : null}
+              {isSimulator ? t("vehicleForm.field.simulatorNumber") : t("vehicleForm.field.plate")}
+              <RequiredMark />
             </label>
             <Controller
               control={control}
@@ -428,7 +433,7 @@ export function VehicleFormModal({
                   id={plateId}
                   autoCapitalize="characters"
                   className={fieldClass(errors.plateNumber?.message)}
-                  placeholder="34 ABC 123"
+                  placeholder={isSimulator ? "SIM-1" : "34 ABC 123"}
                   value={field.value ?? ""}
                   onChange={(event) => {
                     field.onChange(event.target.value.toLocaleUpperCase("tr-TR"));

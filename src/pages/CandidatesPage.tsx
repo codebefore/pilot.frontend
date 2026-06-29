@@ -467,7 +467,7 @@ function vehicleDisplayName(vehicle: VehicleResponse | null | undefined): string
   const primary = vehicle.plateNumber.trim();
   if (primary) return primary;
   const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ").trim();
-  return name || (vehicle.isSimulator ? "Simulator" : null);
+  return name || null;
 }
 
 function DrivingExamTimeCell({

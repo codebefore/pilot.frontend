@@ -859,15 +859,48 @@
 .activity-page {
   padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
 }
-.activity-page-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.activity-day-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.activity-day-group {
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+.activity-day-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--gray-200);
+  background: color-mix(in srgb, var(--surface-alt, var(--gray-50)) 70%, var(--white));
+}
+.activity-day-heading strong {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+.activity-day-heading span {
+  flex: 0 0 auto;
+  min-width: 26px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.activity-page-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .activity-page-item {
   display: flex;

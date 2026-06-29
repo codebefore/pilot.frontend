@@ -34,14 +34,26 @@ type VehicleFilterOption = {
 };
 
 function getVehicleFilterKey(vehicle: VehicleResponse): string {
-  return vehicle.plateNumber || vehicle.id;
+  return vehicle.plateNumber.trim() || vehicle.id;
 }
 
-function getVehicleFilterLabel(vehicle: VehicleResponse, simulatorLabel: string, fallbackLabel: string): string {
+function getVehicleFilterLabel(vehicle: VehicleResponse, fallbackLabel: string): string {
   const primary = vehicle.plateNumber.trim();
   if (primary) return primary;
   const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ").trim();
-  return name || (vehicle.isSimulator ? simulatorLabel : fallbackLabel);
+  return name || fallbackLabel;
+}
+
+function vehicleFilterOptionFromCatalog(
+  vehicle: VehicleResponse,
+  fallbackLabel: string,
+  allLicenseClassLabel: string
+): VehicleFilterOption {
+  return {
+    key: getVehicleFilterKey(vehicle),
+    label: getVehicleFilterLabel(vehicle, fallbackLabel),
+    licenseClass: vehicle.isSimulator ? allLicenseClassLabel : vehicle.licenseClasses.join(", "),
+  };
 }
 
 export function TrainingFilters({
@@ -112,12 +124,27 @@ export function TrainingFilters({
   const vehicles = useMemo(() => {
     if (kind !== "uygulama") return [];
     const map = new Map<string, VehicleFilterOption>();
+    const catalogById = new Map(allVehiclesCatalog.map((vehicle) => [vehicle.id, vehicle]));
+    const allLicenseClassLabel = t("common.all");
     ownEvents.forEach((e) => {
-      const key = e.vehicleId || e.vehiclePlate || noVehicleLabel;
+      const catalogVehicle = e.vehicleId ? catalogById.get(e.vehicleId) : undefined;
+      if (catalogVehicle) {
+        const option = vehicleFilterOptionFromCatalog(
+          catalogVehicle,
+          noVehicleLabel,
+          allLicenseClassLabel
+        );
+        if (!map.has(option.key)) {
+          map.set(option.key, option);
+        }
+        return;
+      }
+      const eventVehiclePlate = e.vehiclePlate?.trim();
+      const key = e.vehicleId || eventVehiclePlate || noVehicleLabel;
       if (!map.has(key)) {
         map.set(key, {
           key,
-          label: e.vehiclePlate || noVehicleLabel,
+          label: eventVehiclePlate || noVehicleLabel,
           licenseClass: "",
         });
       }
@@ -125,15 +152,15 @@ export function TrainingFilters({
     allVehiclesCatalog
       .filter((v) => v.isActive)
       .forEach((v) => {
-        const key = getVehicleFilterKey(v);
-        map.set(key, {
-          key,
-          label: getVehicleFilterLabel(v, t("vehicleForm.field.simulator"), noVehicleLabel),
-          licenseClass: v.isSimulator ? t("common.all") : v.licenseClasses.join(", "),
-        });
+        const option = vehicleFilterOptionFromCatalog(
+          v,
+          noVehicleLabel,
+          allLicenseClassLabel
+        );
+        map.set(option.key, option);
       });
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "tr"));
-  }, [ownEvents, allVehiclesCatalog, kind, noVehicleLabel]);
+  }, [ownEvents, allVehiclesCatalog, kind, noVehicleLabel, t]);
 
   // Search state'leri.
   const [instructorSearch, setInstructorSearch] = useState("");

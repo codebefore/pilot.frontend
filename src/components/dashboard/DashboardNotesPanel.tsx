@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
-import { CalendarIcon, CheckIcon, EditLineIcon, XIcon } from "../icons";
+import { CheckIcon, EditLineIcon, XIcon } from "../icons";
 import { NoteComposerModal, type NoteDraft } from "../notes/NoteComposerModal";
 import { Panel } from "../ui/Panel";
 import { useToast } from "../ui/Toast";
@@ -19,6 +20,27 @@ import {
 } from "../../lib/user-notes-api";
 
 const calendarWeekdays = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+const TURKEY_FIXED_PUBLIC_HOLIDAYS = new Map([
+  ["01-01", "Yılbaşı"],
+  ["04-23", "Ulusal Egemenlik ve Çocuk Bayramı"],
+  ["05-01", "Emek ve Dayanışma Günü"],
+  ["05-19", "Atatürk'ü Anma, Gençlik ve Spor Bayramı"],
+  ["07-15", "Demokrasi ve Milli Birlik Günü"],
+  ["08-30", "Zafer Bayramı"],
+  ["10-28", "Cumhuriyet Bayramı arifesi"],
+  ["10-29", "Cumhuriyet Bayramı"],
+]);
+const TURKEY_2026_MOVABLE_PUBLIC_HOLIDAYS = new Map([
+  ["2026-03-19", "Ramazan Bayramı arifesi"],
+  ["2026-03-20", "Ramazan Bayramı"],
+  ["2026-03-21", "Ramazan Bayramı"],
+  ["2026-03-22", "Ramazan Bayramı"],
+  ["2026-05-26", "Kurban Bayramı arifesi"],
+  ["2026-05-27", "Kurban Bayramı"],
+  ["2026-05-28", "Kurban Bayramı"],
+  ["2026-05-29", "Kurban Bayramı"],
+  ["2026-05-30", "Kurban Bayramı"],
+]);
 
 export function DashboardNotesPanel() {
   const { showToast } = useToast();
@@ -26,10 +48,12 @@ export function DashboardNotesPanel() {
   const canManageDashboard = canManageArea(user, permissions, "dashboard");
   const t = useT();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const noPermissionTitle = t("common.noPermission");
   const [notes, setNotes] = useState<UserNoteResponse[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<UserNoteResponse | null>(null);
+  const [deleteConfirmNoteId, setDeleteConfirmNoteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => toLocalDateKey(new Date()));
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
@@ -73,49 +97,52 @@ export function DashboardNotesPanel() {
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
-  const handleSubmit = async ({ body, reminderAtUtc }: NoteDraft) => {
+  const handleSubmit = async ({ body, reminderAtUtc, isVisibleToInstitution }: NoteDraft) => {
     if (!canManageDashboard) return;
+    if (editing && editing.createdByUserId !== user?.id) return;
 
     setSaving(true);
     try {
       if (editing) {
-        await updateUserNote(editing.id, { body, reminderAtUtc });
-        showToast(t("notesPanel.toast.noteUpdated"));
+        await updateUserNote(editing.id, { body, reminderAtUtc, isVisibleToInstitution });
+        showToast("Görev güncellendi");
       } else {
-        await createUserNote({ body, reminderAtUtc });
-        showToast("Not eklendi");
+        await createUserNote({ body, reminderAtUtc, isVisibleToInstitution });
+        showToast("Görev eklendi");
       }
       closeComposer();
       await load();
       invalidateNoteDependents();
     } catch {
-      showToast(t(editing ? "notesPanel.toast.noteUpdateFailed" : "notesPanel.toast.noteAddFailed"), "error");
+      showToast(editing ? "Görev güncellenemedi" : "Görev eklenemedi", "error");
     } finally {
       setSaving(false);
     }
   };
 
   const handleToggle = async (note: UserNoteResponse) => {
-    if (!canManageDashboard) return;
+    if (!canManageDashboard || note.createdByUserId !== user?.id) return;
 
     try {
+      setDeleteConfirmNoteId(null);
       await setUserNoteCompletion(note.id, note.completedAtUtc === null);
       await load();
       invalidateNoteDependents();
     } catch {
-      showToast(t("notesPanel.toast.noteUpdateFailed"), "error");
+      showToast("Görev güncellenemedi", "error");
     }
   };
 
   const handleDelete = async (note: UserNoteResponse) => {
-    if (!canManageDashboard) return;
+    if (!canManageDashboard || note.createdByUserId !== user?.id) return;
 
     try {
       await deleteUserNote(note.id);
+      setDeleteConfirmNoteId(null);
       await load();
       invalidateNoteDependents();
     } catch {
-      showToast("Not silinemedi", "error");
+      showToast("Görev silinemedi", "error");
     }
   };
 
@@ -150,26 +177,22 @@ export function DashboardNotesPanel() {
     return keys;
   }, [notes]);
   const calendarDays = useMemo(() => buildCalendarDays(visibleMonth), [visibleMonth]);
-  const selectedDateLabel = useMemo(() => formatLongDate(selectedDate), [selectedDate]);
   const visibleMonthLabel = useMemo(
     () => visibleMonth.toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
     [visibleMonth]
   );
-  const selectedDateCountLabel = `${notesForSelectedDate.length} not`;
+  const selectedDateCompletedCount = notesForSelectedDate.filter((note) => note.completedAtUtc !== null).length;
+  const selectedDateCountLabel = `${selectedDateCompletedCount}/${notesForSelectedDate.length}`;
 
   const goToPreviousMonth = () => setVisibleMonth((current) => addMonths(current, -1));
   const goToNextMonth = () => setVisibleMonth((current) => addMonths(current, 1));
-  const goToToday = () => {
-    const today = new Date();
-    setSelectedDate(toLocalDateKey(today));
-    setVisibleMonth(startOfMonth(today));
-  };
   const selectCalendarDay = (date: Date) => {
     setSelectedDate(toLocalDateKey(date));
   };
 
   const renderNote = (note: UserNoteResponse, variant: "dated" | "undated" = "dated") => {
     const completed = note.completedAtUtc !== null;
+    const canManageNote = canManageDashboard && note.createdByUserId === user?.id;
     const reminderTime = note.reminderAtUtc ? formatReminderTime(note.reminderAtUtc) : "Tarihsiz";
     const overdue =
       !completed &&
@@ -190,9 +213,9 @@ export function DashboardNotesPanel() {
         <button
           aria-label={completed ? t("notesPanel.aria.uncomplete") : t("notesPanel.aria.complete")}
           className="user-notes-item-toggle"
-          disabled={!canManageDashboard}
+          disabled={!canManageNote}
           onClick={() => void handleToggle(note)}
-          title={!canManageDashboard ? noPermissionTitle : undefined}
+          title={!canManageNote ? noPermissionTitle : undefined}
           type="button"
         >
           {completed ? <CheckIcon size={12} /> : null}
@@ -205,9 +228,12 @@ export function DashboardNotesPanel() {
           <button
             aria-label={t("common.edit")}
             className="user-notes-item-action"
-            disabled={!canManageDashboard}
-            onClick={() => beginEdit(note)}
-            title={!canManageDashboard ? noPermissionTitle : undefined}
+            disabled={!canManageNote}
+            onClick={() => {
+              setDeleteConfirmNoteId(null);
+              beginEdit(note);
+            }}
+            title={!canManageNote ? noPermissionTitle : undefined}
             type="button"
           >
             <EditLineIcon size={14} />
@@ -215,13 +241,27 @@ export function DashboardNotesPanel() {
           <button
             aria-label="Sil"
             className="user-notes-item-action is-danger"
-            disabled={!canManageDashboard}
-            onClick={() => void handleDelete(note)}
-            title={!canManageDashboard ? noPermissionTitle : undefined}
+            disabled={!canManageNote}
+            onClick={() => setDeleteConfirmNoteId(note.id)}
+            title={!canManageNote ? noPermissionTitle : undefined}
             type="button"
           >
             <XIcon size={15} />
           </button>
+          {deleteConfirmNoteId === note.id ? (
+            <div className="task-delete-confirm-popover" role="alertdialog" aria-label="Görev silme onayı">
+              <strong>Görev silinsin mi?</strong>
+              <span>Bu işlem geri alınamaz.</span>
+              <div className="task-delete-confirm-actions">
+                <button className="btn btn-secondary btn-sm" onClick={() => setDeleteConfirmNoteId(null)} type="button">
+                  Vazgeç
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={() => void handleDelete(note)} type="button">
+                  Sil
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </li>
     );
@@ -231,20 +271,20 @@ export function DashboardNotesPanel() {
     <>
       <Panel
         action={
-          <button
-            className="panel-action"
-            disabled={!canManageDashboard}
-            onClick={beginCreate}
-            title={!canManageDashboard ? noPermissionTitle : undefined}
-            type="button"
-          >
-            Yeni Not
-          </button>
-        }
-        icon={
-          <span className="icon-brand">
-            <CalendarIcon />
-          </span>
+          <div className="dashboard-notes-panel-actions">
+            <button className="panel-action" onClick={() => navigate("/tasks")} type="button">
+              {t("dashboard.viewAll")}
+            </button>
+            <button
+              className="panel-action"
+              disabled={!canManageDashboard}
+              onClick={beginCreate}
+              title={!canManageDashboard ? noPermissionTitle : undefined}
+              type="button"
+            >
+              Yeni Görev
+            </button>
+          </div>
         }
         title="Görevler"
       >
@@ -272,9 +312,6 @@ export function DashboardNotesPanel() {
                   ›
                 </button>
               </div>
-              <button className="dashboard-notes-today" onClick={goToToday} type="button">
-                {t("notesPanel.calendar.today")}
-              </button>
               <div className="dashboard-notes-weekdays" aria-hidden="true">
                 {calendarWeekdays.map((weekday) => (
                   <span key={weekday}>{weekday}</span>
@@ -283,12 +320,20 @@ export function DashboardNotesPanel() {
               <div className="dashboard-notes-days">
                 {calendarDays.map((day) => {
                   const noteCount = reminderCountsByDate.get(day.key) ?? 0;
+                  const publicHoliday = getTurkeyPublicHolidayLabel(day.key);
+                  const weekend = isWeekend(day.date);
                   return (
                     <button
-                      aria-label={`${formatLongDate(day.key)}${noteCount > 0 ? `, ${noteCount} not` : ""}`}
+                      aria-label={[
+                        formatLongDate(day.key),
+                        publicHoliday,
+                        noteCount > 0 ? `${noteCount} not` : "",
+                      ].filter(Boolean).join(", ")}
                       className={[
                         "dashboard-notes-day",
                         day.inCurrentMonth ? "" : "is-muted",
+                        weekend ? "is-weekend" : "",
+                        publicHoliday ? "is-public-holiday" : "",
                         day.key === selectedDate ? "is-selected" : "",
                         day.key === toLocalDateKey(new Date()) ? "is-today" : "",
                         noteCount > 0 ? "has-notes" : "",
@@ -297,6 +342,7 @@ export function DashboardNotesPanel() {
                       ].filter(Boolean).join(" ")}
                       key={day.key}
                       onClick={() => selectCalendarDay(day.date)}
+                      title={publicHoliday || undefined}
                       type="button"
                     >
                       <span>{day.date.getDate()}</span>
@@ -307,13 +353,6 @@ export function DashboardNotesPanel() {
               </div>
             </aside>
             <div className="dashboard-notes-main">
-              <div className="dashboard-notes-selected-head">
-                <div>
-                  <span>{t("notesPanel.calendar.selectedDate")}</span>
-                  <strong>{selectedDateLabel}</strong>
-                </div>
-                <em>{selectedDateCountLabel}</em>
-              </div>
               {notesForSelectedDate.length > 0 ? (
                 <ul className="user-notes-list is-dashboard-list">
                   {notesForSelectedDate.map((note) => renderNote(note))}
@@ -331,20 +370,35 @@ export function DashboardNotesPanel() {
                   </ul>
                 </section>
               ) : null}
+              <div className="dashboard-notes-selected-foot">
+                <em>{selectedDateCountLabel}</em>
+              </div>
             </div>
           </div>
         )}
       </Panel>
 
       <NoteComposerModal
+        fieldLabel="Görev"
+        hideReminderLabel
         initialBody={editing?.body ?? ""}
+        initialIsVisibleToInstitution={editing?.isVisibleToInstitution ?? false}
         initialReminderDate={editing ? "" : selectedDate}
         initialReminderAtUtc={editing?.reminderAtUtc ?? null}
         mode={editing ? "edit" : "create"}
         onCancel={closeComposer}
         onSubmit={handleSubmit}
         open={composerOpen}
+        placeholder="Görev içeriği..."
+        reminderDateAriaLabel="Görev tarihi"
+        reminderLabel="Tarih/Saat (opsiyonel)"
+        reminderTimeAriaLabel="Görev saati"
         saving={saving}
+        showVisibilityToggle={!editing}
+        titleCreate="Yeni Görev"
+        titleEdit="Görevi Düzenle"
+        visibilityToggleHint="Kapalıysa sadece sen görürsün."
+        visibilityToggleLabel="Herkese göster"
       />
     </>
   );
@@ -372,6 +426,17 @@ function startOfMonth(date: Date): Date {
 
 function addMonths(date: Date, amount: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function isWeekend(date: Date): boolean {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function getTurkeyPublicHolidayLabel(dateKey: string): string | null {
+  const [, month, day] = dateKey.split("-").map(Number);
+  const fixedHoliday = TURKEY_FIXED_PUBLIC_HOLIDAYS.get(`${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
+  return fixedHoliday ?? TURKEY_2026_MOVABLE_PUBLIC_HOLIDAYS.get(dateKey) ?? null;
 }
 
 function toLocalDateKey(date: Date): string {

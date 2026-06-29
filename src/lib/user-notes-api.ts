@@ -7,7 +7,9 @@ function authOptions(signal?: AbortSignal) {
 
 export interface UserNoteResponse {
   id: string;
+  createdByUserId: string;
   body: string;
+  isVisibleToInstitution: boolean;
   reminderAtUtc: string | null;
   completedAtUtc: string | null;
   createdAtUtc: string;
@@ -22,6 +24,7 @@ interface UserNoteListResponse {
 interface UserNoteUpsertInput {
   body: string;
   reminderAtUtc: string | null;
+  isVisibleToInstitution?: boolean;
 }
 
 export function getUserNotes(signal?: AbortSignal): Promise<UserNoteListResponse> {
