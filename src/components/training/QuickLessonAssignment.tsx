@@ -150,8 +150,7 @@ export function QuickLessonAssignment({
                   ) : null}
                   <span className="training-filters-group-title">
                     {/* "Nisan 2026 - 1A" → "Nisan - 1A" — yıl bilgisini kısalt. */}
-                    {group.title.replace(/\s+\d{4}/g, "")} (
-                    {group.activeCandidateCount})
+                    {group.title.replace(/\s+\d{4}/g, "")}
                   </span>
                 </span>
               </label>

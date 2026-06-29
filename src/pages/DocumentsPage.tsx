@@ -1167,7 +1167,7 @@ export function DocumentsPage() {
                       values={candidateFilters.licenseClasses}
                     />
                   }
-                  label="Ehliyet Tipi"
+                  label="Ehliyet"
                   onToggle={handleSortToggle}
                   sort={sort}
                 />

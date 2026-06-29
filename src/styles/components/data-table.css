@@ -38,9 +38,9 @@
 }
 .documents-candidate-th,
 .documents-candidate-td {
-  width: 170px;
-  min-width: 170px;
-  max-width: 170px;
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
 }
 .documents-license-th,
 .documents-license-td {
@@ -50,9 +50,9 @@
 }
 .documents-term-th,
 .documents-term-td {
-  width: 116px;
-  min-width: 116px;
-  max-width: 116px;
+  width: 92px;
+  min-width: 92px;
+  max-width: 92px;
 }
 .documents-summary-th,
 .documents-summary-td {
@@ -63,6 +63,18 @@
 .documents-candidate-td,
 .documents-term-td,
 .documents-summary-td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.documents-candidate-td .cand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.documents-candidate-td .cand-secondary-text,
+.documents-candidate-td .documents-phone-link {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
