@@ -181,11 +181,24 @@ type CropRect = {
 
 type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
 
+const DEFAULT_PHOTO_CROP_PERCENT = 80;
+const PHOTO_CROP_DOCUMENT_TYPE_KEYS = new Set(["biometric_photo", "webcam_photo"]);
+
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function defaultCropRect(): CropRect {
+function defaultCropRect(documentTypeKey?: string | null): CropRect {
+  if (documentTypeKey && PHOTO_CROP_DOCUMENT_TYPE_KEYS.has(documentTypeKey)) {
+    const offset = (100 - DEFAULT_PHOTO_CROP_PERCENT) / 2;
+    return {
+      x: offset,
+      y: offset,
+      width: DEFAULT_PHOTO_CROP_PERCENT,
+      height: DEFAULT_PHOTO_CROP_PERCENT,
+    };
+  }
+
   return { x: 0, y: 0, width: 100, height: 100 };
 }
 
@@ -432,7 +445,7 @@ export function ManageDocumentModal({
     if (capturedUrl) URL.revokeObjectURL(capturedUrl);
     setCapturedUrl(null);
     setCapturedFile(null);
-    setCrop(defaultCropRect());
+    setCrop(defaultCropRect(activeDocumentType?.key));
     setCropSaving(false);
   };
 
@@ -455,7 +468,7 @@ export function ManageDocumentModal({
     if (capturedUrl) URL.revokeObjectURL(capturedUrl);
     setCapturedFile(file);
     setCapturedUrl(URL.createObjectURL(file));
-    setCrop(defaultCropRect());
+    setCrop(defaultCropRect(activeDocumentType?.key));
     setCropSaving(false);
   };
 

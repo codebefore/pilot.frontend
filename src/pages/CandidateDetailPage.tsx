@@ -9458,12 +9458,24 @@ type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
 
 const MIN_CROP_SIZE = 12;
 const UPLOAD_POPOVER_MARGIN = 12;
+const DEFAULT_PHOTO_CROP_PERCENT = 80;
+const PHOTO_CROP_DOCUMENT_TYPE_KEYS = new Set(["biometric_photo", "webcam_photo"]);
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function defaultCropRect(): CropRect {
+function defaultCropRect(documentTypeKey?: string | null): CropRect {
+  if (documentTypeKey && PHOTO_CROP_DOCUMENT_TYPE_KEYS.has(documentTypeKey)) {
+    const offset = (100 - DEFAULT_PHOTO_CROP_PERCENT) / 2;
+    return {
+      x: offset,
+      y: offset,
+      width: DEFAULT_PHOTO_CROP_PERCENT,
+      height: DEFAULT_PHOTO_CROP_PERCENT,
+    };
+  }
+
   return { x: 0, y: 0, width: 100, height: 100 };
 }
 
@@ -9559,6 +9571,7 @@ function isCropSupportedUpload(file: File): boolean {
 function CandidateDocumentUploadPopover({
   anchorRef,
   busy,
+  documentTypeKey,
   initialFile,
   initialSource,
   inputId,
@@ -9570,6 +9583,7 @@ function CandidateDocumentUploadPopover({
 }: {
   anchorRef: RefObject<HTMLElement | null>;
   busy: boolean;
+  documentTypeKey: string;
   initialFile?: File | null;
   initialSource?: "camera" | "scanner" | "file";
   inputId: string;
@@ -9598,7 +9612,7 @@ function CandidateDocumentUploadPopover({
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
   const [captureSource, setCaptureSource] = useState<"camera" | "scanner" | "file">("camera");
-  const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
+  const [crop, setCrop] = useState<CropRect>(() => defaultCropRect(documentTypeKey));
   const [cropSaving, setCropSaving] = useState(false);
   const [position, setPosition] = useState<UploadPopoverPosition | null>(null);
 
@@ -9614,7 +9628,7 @@ function CandidateDocumentUploadPopover({
     if (capturedUrl) URL.revokeObjectURL(capturedUrl);
     setCapturedUrl(null);
     setCapturedFile(null);
-    setCrop(defaultCropRect());
+    setCrop(defaultCropRect(documentTypeKey));
   };
 
   const closeAll = () => {
@@ -9668,7 +9682,7 @@ function CandidateDocumentUploadPopover({
     setCapturedFile(file);
     setCapturedUrl(url);
     setCaptureSource(source);
-    setCrop(defaultCropRect());
+    setCrop(defaultCropRect(documentTypeKey));
     setMode("crop");
   };
 
@@ -9760,7 +9774,7 @@ function CandidateDocumentUploadPopover({
       setCapturedFile(file);
       setCapturedUrl(url);
       setCaptureSource("camera");
-      setCrop(defaultCropRect());
+      setCrop(defaultCropRect(documentTypeKey));
       setMode("crop");
     } catch {
       setCameraError(t("candidateDetail.documents.upload.photoError"));
@@ -10654,6 +10668,7 @@ function DocRow({
             <CandidateDocumentUploadPopover
               anchorRef={uploadTriggerRef}
               busy={busy}
+              documentTypeKey={type.key}
               initialFile={scannedFile}
               initialSource={scannedFile ? "scanner" : undefined}
               inputId={inputId}
