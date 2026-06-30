@@ -6094,6 +6094,17 @@ function formatExamAttemptDateTime(attempt: CandidateExamAttemptResponse): strin
     : formatDateTimeTR(attempt.scheduledAt);
 }
 
+function examAttemptNumberLabel(
+  attempts: CandidateExamAttemptResponse[],
+  attempt: CandidateExamAttemptResponse
+): string {
+  const limit = candidateExamAttemptLimit(attempts, attempt.examType, attempt.examAttendanceStatus ?? "");
+  const attemptNumber = isPendingScheduleExamAttempt(attempt)
+    ? Math.min(nextCandidateExamAttemptNumber(attempts, attempt.examType, attempt.examAttendanceStatus ?? ""), limit)
+    : attempt.attemptNumber;
+  return `${attemptNumber}/${limit}`;
+}
+
 function theoryExamResult(attempt: CandidateExamAttemptResponse): "passed" | "failed" | null {
   if (attempt.score == null) {
     return null;
@@ -6688,7 +6699,7 @@ function CandidateExamAttemptsSection({
                 ) : theoryAttempts.map((attempt) => (
                   <CandidateExamAttemptRow
                     attempt={attempt}
-                    attemptLimit={candidateExamAttemptLimit(attempts, attempt.examType)}
+                    attemptNumberLabel={examAttemptNumberLabel(attempts, attempt)}
                     disabled={rowSavingId === attempt.id || !canManageCandidates}
                     deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
@@ -6757,7 +6768,7 @@ function CandidateExamAttemptsSection({
                 ) : practiceAttempts.map((attempt) => (
                   <CandidatePracticeExamAttemptRow
                     attempt={attempt}
-                    attemptLimit={candidateExamAttemptLimit(attempts, attempt.examType)}
+                    attemptNumberLabel={examAttemptNumberLabel(attempts, attempt)}
                     disabled={rowSavingId === attempt.id || !canManageCandidates}
                     deleteConfirmOpen={deleteConfirmId === attempt.id}
                     key={attempt.id}
@@ -7049,7 +7060,7 @@ function CandidateExamAttemptsSection({
 
 function CandidateExamAttemptRow({
   attempt,
-  attemptLimit,
+  attemptNumberLabel,
   disabled,
   deleteConfirmOpen,
   onCharge,
@@ -7062,7 +7073,7 @@ function CandidateExamAttemptRow({
   onScoreSave,
 }: {
   attempt: CandidateExamAttemptResponse;
-  attemptLimit: number;
+  attemptNumberLabel: string;
   disabled: boolean;
   deleteConfirmOpen: boolean;
   onCharge: () => void;
@@ -7079,7 +7090,7 @@ function CandidateExamAttemptRow({
   return (
     <tr>
       <td>{formatExamAttemptDateTime(attempt)}</td>
-      <td>{pendingSchedule ? "—" : `${attempt.attemptNumber}/${attemptLimit}`}</td>
+      <td>{attemptNumberLabel}</td>
       <td>
         {pendingSchedule ? (
           "—"
@@ -7187,7 +7198,7 @@ function ExamFeeStatusCell({
 
 function CandidatePracticeExamAttemptRow({
   attempt,
-  attemptLimit,
+  attemptNumberLabel,
   disabled,
   deleteConfirmOpen,
   onCharge,
@@ -7200,7 +7211,7 @@ function CandidatePracticeExamAttemptRow({
   onStatusSave,
 }: {
   attempt: CandidateExamAttemptResponse;
-  attemptLimit: number;
+  attemptNumberLabel: string;
   disabled: boolean;
   deleteConfirmOpen: boolean;
   onCharge: () => void;
@@ -7224,7 +7235,7 @@ function CandidatePracticeExamAttemptRow({
       <td>{formatExamAttemptDateTime(attempt)}</td>
       <td>{attempt.vehiclePlate ?? "—"}</td>
       <td>{attempt.instructorFullName ?? "—"}</td>
-      <td>{pendingSchedule ? "—" : `${attempt.attemptNumber}/${attemptLimit}`}</td>
+      <td>{attemptNumberLabel}</td>
       <td>
         <CustomSelect
           aria-label={t("candidateDetail.exam.aria.examStatus")}
