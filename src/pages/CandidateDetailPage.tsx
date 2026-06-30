@@ -3330,7 +3330,7 @@ function nextCandidateExamAttemptNumber(
 ): number {
   const maxAttemptNumber = candidateExamAttemptLimit(attempts, examType, attendanceStatus);
   const used = attempts
-    .filter((attempt) => attempt.examType === examType)
+    .filter((attempt) => attempt.examType === examType && isScheduledExamAttempt(attempt))
     .map((attempt) => attempt.attemptNumber);
   for (let number = 1; number <= maxAttemptNumber; number += 1) {
     if (!used.includes(number)) return number;
@@ -3346,7 +3346,11 @@ function candidateExamAttemptLimit(
   if (examType !== "practice") return 4;
   const hasReportedAttempt =
     isReportedAttendanceStatus(attendanceStatus) ||
-    attempts.some((attempt) => attempt.examType === "practice" && isReportedAttendanceStatus(attempt.examAttendanceStatus));
+    attempts.some((attempt) =>
+      attempt.examType === "practice" &&
+      isScheduledExamAttempt(attempt) &&
+      isReportedAttendanceStatus(attempt.examAttendanceStatus)
+    );
   return hasReportedAttempt ? 5 : 4;
 }
 
@@ -6064,16 +6068,30 @@ function buildCandidateExamSummaryOverrides(
 function latestExamAttempt(
   attempts: CandidateExamAttemptResponse[]
 ): CandidateExamAttemptResponse | undefined {
-  return [...attempts].sort((left, right) => {
+  return attempts.filter(isScheduledExamAttempt).sort((left, right) => {
     if (right.attemptNumber !== left.attemptNumber) {
       return right.attemptNumber - left.attemptNumber;
     }
-    return Date.parse(right.scheduledAt) - Date.parse(left.scheduledAt);
+    return Date.parse(right.scheduledAt ?? "") - Date.parse(left.scheduledAt ?? "");
   })[0];
 }
 
-function attemptDateOnly(attempt: CandidateExamAttemptResponse): string {
-  return attempt.scheduledAt.slice(0, 10);
+function attemptDateOnly(attempt: CandidateExamAttemptResponse): string | null {
+  return attempt.scheduledAt?.slice(0, 10) ?? null;
+}
+
+function isScheduledExamAttempt(attempt: CandidateExamAttemptResponse): boolean {
+  return (attempt.schedulingStatus ?? "scheduled") === "scheduled" && Boolean(attempt.scheduledAt);
+}
+
+function isPendingScheduleExamAttempt(attempt: CandidateExamAttemptResponse): boolean {
+  return attempt.schedulingStatus === "pending_schedule" || !attempt.scheduledAt;
+}
+
+function formatExamAttemptDateTime(attempt: CandidateExamAttemptResponse): string {
+  return isPendingScheduleExamAttempt(attempt)
+    ? "Henüz sınav tarihi atanmadı"
+    : formatDateTimeTR(attempt.scheduledAt);
 }
 
 function theoryExamResult(attempt: CandidateExamAttemptResponse): "passed" | "failed" | null {
@@ -6282,6 +6300,11 @@ function CandidateExamAttemptsSection({
 
   const openEditForm = (attempt: CandidateExamAttemptResponse) => {
     if (!canManageCandidates) return;
+    if (isPendingScheduleExamAttempt(attempt)) {
+      showToast("Sınav tarihi atanmamış satır tarih atama ekranından planlanmalı.", "error");
+      return;
+    }
+    if (!attempt.scheduledAt) return;
     setEditingAttempt(attempt);
     setFeeTouched(true);
     setDeleteConfirmId(null);
@@ -6439,6 +6462,8 @@ function CandidateExamAttemptsSection({
     nextScore: number | null
   ): Promise<boolean> => {
     if (!canManageCandidates) return false;
+    if (isPendingScheduleExamAttempt(attempt)) return false;
+    if (!attempt.scheduledAt) return false;
     setRowSavingId(attempt.id);
     try {
       // PUT endpoint full upsert kabul ediyor — score dışında her şeyi
@@ -6483,6 +6508,8 @@ function CandidateExamAttemptsSection({
     nextResultStatus: CandidateExamAttemptResponse["examResultStatus"]
   ): Promise<boolean> => {
     if (!canManageCandidates) return false;
+    if (isPendingScheduleExamAttempt(attempt)) return false;
+    if (!attempt.scheduledAt) return false;
     setRowSavingId(attempt.id);
     try {
       const updated = await updateCandidateExamAttempt(candidate.id, attempt.id, {
@@ -7048,16 +7075,21 @@ function CandidateExamAttemptRow({
   onScoreSave: (nextScore: number | null) => Promise<boolean>;
 }) {
   const t = useT();
+  const pendingSchedule = isPendingScheduleExamAttempt(attempt);
   return (
     <tr>
-      <td>{formatDateTimeTR(attempt.scheduledAt)}</td>
-      <td>{attempt.attemptNumber}/{attemptLimit}</td>
+      <td>{formatExamAttemptDateTime(attempt)}</td>
+      <td>{pendingSchedule ? "—" : `${attempt.attemptNumber}/${attemptLimit}`}</td>
       <td>
-        <EditableScoreCell
-          score={attempt.score}
-          disabled={disabled}
-          onSave={onScoreSave}
-        />
+        {pendingSchedule ? (
+          "—"
+        ) : (
+          <EditableScoreCell
+            score={attempt.score}
+            disabled={disabled}
+            onSave={onScoreSave}
+          />
+        )}
       </td>
       <td>
         <div className="candidate-exam-fee-cell">
@@ -7079,8 +7111,9 @@ function CandidateExamAttemptRow({
           <button
             aria-label={t("candidateDetail.exam.aria.editExam")}
             className="candidate-exam-row-action"
-            disabled={disabled}
+            disabled={disabled || pendingSchedule}
             onClick={onEdit}
+            title={pendingSchedule ? "Tarih atama ekranından planlanır" : undefined}
             type="button"
           >
             <PencilIcon size={14} />
@@ -7183,19 +7216,20 @@ function CandidatePracticeExamAttemptRow({
   ) => Promise<boolean>;
 }) {
   const t = useT();
+  const pendingSchedule = isPendingScheduleExamAttempt(attempt);
   const attendanceStatus = attempt.examAttendanceStatus ?? "";
   const resultStatus = attempt.examResultStatus ?? "";
   return (
     <tr>
-      <td>{formatDateTimeTR(attempt.scheduledAt)}</td>
+      <td>{formatExamAttemptDateTime(attempt)}</td>
       <td>{attempt.vehiclePlate ?? "—"}</td>
       <td>{attempt.instructorFullName ?? "—"}</td>
-      <td>{attempt.attemptNumber}/{attemptLimit}</td>
+      <td>{pendingSchedule ? "—" : `${attempt.attemptNumber}/${attemptLimit}`}</td>
       <td>
         <CustomSelect
           aria-label={t("candidateDetail.exam.aria.examStatus")}
           className="candidate-exam-inline-select"
-          disabled={disabled}
+          disabled={disabled || pendingSchedule}
           onChange={(event) => {
             const nextAttendanceStatus = (event.target.value || null) as CandidateExamAttemptResponse["examAttendanceStatus"];
             const nextResultStatus = nextAttendanceStatus === "attended" ? attempt.examResultStatus : null;
@@ -7213,7 +7247,7 @@ function CandidatePracticeExamAttemptRow({
         <CustomSelect
           aria-label={t("candidateDetail.exam.aria.examResult")}
           className="candidate-exam-inline-select"
-          disabled={disabled || attempt.examAttendanceStatus !== "attended"}
+          disabled={disabled || pendingSchedule || attempt.examAttendanceStatus !== "attended"}
           onChange={(event) => {
             const nextResultStatus = (event.target.value || null) as CandidateExamAttemptResponse["examResultStatus"];
             void onStatusSave(attempt.examAttendanceStatus, nextResultStatus);
@@ -7244,8 +7278,9 @@ function CandidatePracticeExamAttemptRow({
           <button
             aria-label={t("candidateDetail.exam.aria.editExam")}
             className="candidate-exam-row-action"
-            disabled={disabled}
+            disabled={disabled || pendingSchedule}
             onClick={onEdit}
+            title={pendingSchedule ? "Tarih atama ekranından planlanır" : undefined}
             type="button"
           >
             <PencilIcon size={14} />
@@ -7410,7 +7445,9 @@ function InlineDeleteConfirm({
 }
 
 function compareExamAttempts(a: CandidateExamAttemptResponse, b: CandidateExamAttemptResponse): number {
-  return a.examType.localeCompare(b.examType) || a.attemptNumber - b.attemptNumber;
+  return a.examType.localeCompare(b.examType) ||
+    Number(isScheduledExamAttempt(a)) - Number(isScheduledExamAttempt(b)) ||
+    a.attemptNumber - b.attemptNumber;
 }
 
 function getScoreStatus(score: number | null): { labelKey: TranslationKey; kind: "success" | "danger" } | null {

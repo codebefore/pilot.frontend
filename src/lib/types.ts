@@ -205,6 +205,7 @@ type CandidateAccountingStatus = "active" | "cancelled";
 export type CandidatePaymentMethod = "cash" | "bank_transfer" | "credit_card" | "mail_order" | "other";
 export type CandidateAccountingType = "kurs" | "teorik_sinav" | "direksiyon_sinav" | "diger";
 export type CandidateExamType = "theory" | "practice";
+export type CandidateExamSchedulingStatus = "pending_schedule" | "scheduled";
 export type CandidateExamFeeStatus =
   | "pending"
   | "charged"
@@ -220,7 +221,8 @@ export interface CandidateExamAttemptResponse {
   id: string;
   candidateId: string;
   examType: CandidateExamType;
-  scheduledAt: string;
+  scheduledAt: string | null;
+  schedulingStatus: CandidateExamSchedulingStatus;
   attemptNumber: number;
   score: number | null;
   expiresAt: string | null;
@@ -1360,6 +1362,13 @@ export interface LicenseClassFeeProgramUpsertRequest {
   educationFee?: number | null;
   otherFee1?: number | null;
   rowVersion?: number | null;
+}
+
+export interface CandidateExamAttemptUnscheduledChargeRequest {
+  examType: CandidateExamType;
+  dueDate: string;
+  fee: number;
+  description: string;
 }
 
 export interface LicenseClassFeeRowResponse {

@@ -57,9 +57,11 @@ import {
 } from "../lib/candidates-api";
 import {
   chargeCandidateExamAttempt,
+  createUnscheduledCandidateExamAttemptCharge,
   listCandidateExamAttempts,
   updateCandidateExamAttempt,
 } from "../lib/candidate-exam-attempts-api";
+import { getCandidateAccounting } from "../lib/candidate-accounting-api";
 import { getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
 import { getVehicles } from "../lib/vehicles-api";
@@ -101,6 +103,7 @@ import type {
   CandidateExamAttemptResponse,
   CandidateExamAttemptUpsertRequest,
   CandidateExamType,
+  CandidateAccountingSummaryResponse,
   CandidateResponse,
   CandidateTag,
   ExamCodeOption,
@@ -286,8 +289,52 @@ type ExamChargePromptState = {
   rows: ExamChargeCandidateRow[];
 };
 
+type UnscheduledExamChargeRow = {
+  candidate: CandidateResponse;
+  fee: string;
+  selected: boolean;
+  duplicateReason?: string;
+};
+
+type UnscheduledExamChargePromptState = {
+  examType: CandidateExamType;
+  dueDate: string;
+  description: string;
+  rows: UnscheduledExamChargeRow[];
+};
+
 function examChargeTitle(examType: CandidateExamDateType): string {
   return examType === "e_sinav" ? "E-Sınav borçlandırması" : "Direksiyon sınav borçlandırması";
+}
+
+function unscheduledExamChargeTitle(examType: CandidateExamType): string {
+  return examType === "theory" ? "Tarihsiz e-sınav borçlandırması" : "Tarihsiz direksiyon sınav borçlandırması";
+}
+
+function examDateTypeFromCandidateExamType(examType: CandidateExamType): CandidateExamDateType {
+  return examType === "theory" ? "e_sinav" : "uygulama";
+}
+
+function accountingTypeFromCandidateExamType(examType: CandidateExamType): "teorik_sinav" | "direksiyon_sinav" {
+  return examType === "theory" ? "teorik_sinav" : "direksiyon_sinav";
+}
+
+function defaultUnscheduledExamChargeDescription(examType: CandidateExamType): string {
+  return examType === "theory"
+    ? "Tarihsiz e-sınav borçlandırması"
+    : "Tarihsiz direksiyon sınav borçlandırması";
+}
+
+function activeExamDebtExists(
+  accounting: CandidateAccountingSummaryResponse,
+  examType: CandidateExamType
+): boolean {
+  const accountingType = accountingTypeFromCandidateExamType(examType);
+  return accounting.movements.some((movement) =>
+    movement.type === accountingType &&
+    movement.status === "active" &&
+    movement.remainingAmount > 0
+  );
 }
 
 function examChargeFeeYear(date: string): number {
@@ -329,7 +376,7 @@ function buildExamAttemptPayload(
 ): CandidateExamAttemptUpsertRequest {
   return {
     examType: attempt.examType,
-    scheduledAt: attempt.scheduledAt,
+    scheduledAt: attempt.scheduledAt ?? "",
     attemptNumber: attempt.attemptNumber,
     score,
     expiresAt: attempt.expiresAt,
@@ -694,12 +741,16 @@ function latestExamAttempt(
   examType: CandidateExamType
 ): CandidateExamAttemptResponse | undefined {
   return attempts
-    .filter((attempt) => attempt.examType === examType)
+    .filter((attempt) =>
+      attempt.examType === examType &&
+      (attempt.schedulingStatus ?? "scheduled") === "scheduled" &&
+      Boolean(attempt.scheduledAt)
+    )
     .sort((left, right) => {
       if (right.attemptNumber !== left.attemptNumber) {
         return right.attemptNumber - left.attemptNumber;
       }
-      return Date.parse(right.scheduledAt) - Date.parse(left.scheduledAt);
+      return Date.parse(right.scheduledAt ?? "") - Date.parse(left.scheduledAt ?? "");
     })[0];
 }
 
@@ -1713,6 +1764,10 @@ export function CandidatesPage({
   const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
   const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
   const [examChargeSaving, setExamChargeSaving] = useState(false);
+  const [unscheduledExamChargePrompt, setUnscheduledExamChargePrompt] =
+    useState<UnscheduledExamChargePromptState | null>(null);
+  const [unscheduledExamChargeLoading, setUnscheduledExamChargeLoading] = useState(false);
+  const [unscheduledExamChargeSaving, setUnscheduledExamChargeSaving] = useState(false);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -1884,7 +1939,7 @@ export function CandidatesPage({
       const nextAttempts = attempts.map((attempt) => attempt.id === updated.id ? updated : attempt);
       const latestTheory = latestExamAttempt(nextAttempts, "theory");
       const nextSummary = {
-        mebExamDate: latestTheory?.scheduledAt.slice(0, 10) ?? null,
+        mebExamDate: latestTheory?.scheduledAt?.slice(0, 10) ?? null,
         mebExamResult: theoryExamResultFromScore(latestTheory?.score),
         eSinavAttemptCount: latestTheory?.attemptNumber ?? 1,
       };
@@ -1904,7 +1959,7 @@ export function CandidatesPage({
                     ? {
                         ...item,
                         ...updatedCandidate,
-                        mebExamDate: updated.scheduledAt.slice(0, 10),
+                        mebExamDate: updated.scheduledAt?.slice(0, 10) ?? null,
                         mebExamResult: theoryExamResultFromScore(updated.score),
                         eSinavAttemptCount: updated.attemptNumber,
                         eSinavAttemptId: updated.id,
@@ -1970,6 +2025,10 @@ export function CandidatesPage({
         return;
       }
       const nextScheduledAt = patch.time ? scheduledAt ?? latestAttempt.scheduledAt : latestAttempt.scheduledAt;
+      if (!nextScheduledAt) {
+        showToast(t("candidates.toast.examTimeUpdateFailed"), "error");
+        return;
+      }
       const nextAttendanceStatus = patch.attendanceStatus !== undefined
         ? patch.attendanceStatus
         : latestAttempt.examAttendanceStatus;
@@ -3072,6 +3131,73 @@ export function CandidatesPage({
     setBulkActionMode("examDate");
   };
 
+  const prepareUnscheduledExamChargePrompt = async (examType: CandidateExamType) => {
+    if (!canManageCandidates) return;
+    if (selectedCandidateIds.size === 0) {
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
+      return;
+    }
+
+    setUnscheduledExamChargeLoading(true);
+    try {
+      const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+      const selectedIds = Array.from(selectedCandidateIds);
+      const selectedCandidates = await Promise.all(
+        selectedIds.map((candidateId) => candidateById.get(candidateId) ?? getCandidateById(candidateId))
+      );
+      const feeYear = new Date().getFullYear();
+      const feeMatrix = await queryClient.fetchQuery({
+        queryKey: ["finance", "license-class-fee-matrix", feeYear],
+        queryFn: ({ signal }) => getLicenseClassFeeMatrix(feeYear, undefined, signal),
+        staleTime: 5 * 60 * 1000,
+      }).catch(() => null);
+      const examDateType = examDateTypeFromCandidateExamType(examType);
+      const rows = await Promise.all(selectedCandidates.map(async (candidate): Promise<UnscheduledExamChargeRow> => {
+        const [attemptsResult, accountingResult] = await Promise.allSettled([
+          listCandidateExamAttempts(candidate.id),
+          getCandidateAccounting(candidate.id),
+        ]);
+        const hasPendingAttempt =
+          attemptsResult.status === "fulfilled" &&
+          attemptsResult.value.some((attempt) =>
+            attempt.examType === examType &&
+            attempt.schedulingStatus === "pending_schedule"
+          );
+        const hasActiveDebt =
+          accountingResult.status === "fulfilled" &&
+          activeExamDebtExists(accountingResult.value, examType);
+        const duplicateReason = hasPendingAttempt
+          ? "Planlanmamış sınav borcu var"
+          : hasActiveDebt
+            ? "Aktif sınav borcu var"
+            : undefined;
+
+        return {
+          candidate,
+          fee: String(defaultExamChargeFee(candidate, examDateType, feeMatrix, 0)),
+          selected: !duplicateReason,
+          duplicateReason,
+        };
+      }));
+
+      setUnscheduledExamChargePrompt({
+        examType,
+        dueDate: todayLocalDateOnly(),
+        description: defaultUnscheduledExamChargeDescription(examType),
+        rows,
+      });
+      setBulkActionMode(null);
+    } catch {
+      showToast("Sınav borçlandırma listesi hazırlanamadı", "error");
+    } finally {
+      setUnscheduledExamChargeLoading(false);
+    }
+  };
+
+  const openBulkUnscheduledExamChargeAction = () => {
+    void prepareUnscheduledExamChargePrompt("theory");
+  };
+
   const cancelBulkAction = () => {
     setBulkActionMode(null);
     setBulkStatusValue("");
@@ -3277,6 +3403,87 @@ export function CandidatesPage({
       showToast("Sınav borçlandırması yapılamadı", "error");
     } finally {
       setExamChargeSaving(false);
+    }
+  };
+
+  const closeUnscheduledExamChargePrompt = () => {
+    if (unscheduledExamChargeSaving) return;
+    setUnscheduledExamChargePrompt(null);
+  };
+
+  const updateUnscheduledExamChargeFee = (candidateId: string, value: string) => {
+    setUnscheduledExamChargePrompt((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        rows: current.rows.map((row) =>
+          row.candidate.id === candidateId ? { ...row, fee: value } : row
+        ),
+      };
+    });
+  };
+
+  const toggleUnscheduledExamChargeRow = (candidateId: string) => {
+    setUnscheduledExamChargePrompt((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        rows: current.rows.map((row) =>
+          row.candidate.id === candidateId ? { ...row, selected: !row.selected } : row
+        ),
+      };
+    });
+  };
+
+  const updateUnscheduledExamChargeType = (examType: CandidateExamType) => {
+    void prepareUnscheduledExamChargePrompt(examType);
+  };
+
+  const saveUnscheduledExamCharges = async () => {
+    if (!unscheduledExamChargePrompt || unscheduledExamChargeSaving) return;
+    const prepared = unscheduledExamChargePrompt.rows
+      .filter((row) => row.selected)
+      .map((row) => ({
+        ...row,
+        amount: row.fee.trim() === "" ? 0 : Number(row.fee),
+      }));
+    if (prepared.length === 0) {
+      showToast("Borçlandırılacak aday seçilmedi", "error");
+      return;
+    }
+    if (prepared.some((row) => !Number.isFinite(row.amount) || row.amount <= 0)) {
+      showToast("Sınav ücreti 0'dan büyük olmalı", "error");
+      return;
+    }
+
+    setUnscheduledExamChargeSaving(true);
+    try {
+      const results = await Promise.allSettled(prepared.map((row) =>
+        createUnscheduledCandidateExamAttemptCharge(row.candidate.id, {
+          examType: unscheduledExamChargePrompt.examType,
+          dueDate: unscheduledExamChargePrompt.dueDate,
+          fee: row.amount,
+          description: unscheduledExamChargePrompt.description.trim(),
+        })
+      ));
+      const successCount = results.filter((result) => result.status === "fulfilled").length;
+      const failureCount = results.length - successCount;
+      if (successCount === 0) {
+        showToast("Sınav borçlandırması yapılamadı", "error");
+        return;
+      }
+
+      showToast(failureCount === 0
+        ? `${successCount} aday için sınav borçlandırması yapıldı`
+        : `${successCount} aday borçlandırıldı, ${failureCount} adayda hata oluştu`,
+        failureCount === 0 ? undefined : "error");
+      setUnscheduledExamChargePrompt(null);
+      setSelectedCandidateIds(new Set());
+      refreshAll();
+    } catch {
+      showToast("Sınav borçlandırması yapılamadı", "error");
+    } finally {
+      setUnscheduledExamChargeSaving(false);
     }
   };
 
@@ -3727,6 +3934,15 @@ export function CandidatesPage({
                         >
                           {t("candidates.bulk.addTag")}
                         </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={!canManageCandidates || unscheduledExamChargeLoading}
+                          onClick={openBulkUnscheduledExamChargeAction}
+                          title={!canManageCandidates ? noPermissionTitle : undefined}
+                          type="button"
+                        >
+                          {unscheduledExamChargeLoading ? "Hazırlanıyor" : "Sınav borçlandır"}
+                        </button>
                         {showBulkStatusAction ? (
                           <button
                             className="btn btn-secondary btn-sm"
@@ -3771,6 +3987,15 @@ export function CandidatesPage({
                           type="button"
                         >
                           {t("candidates.bulk.addTag")}
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={!canManageCandidates || unscheduledExamChargeLoading}
+                          onClick={openBulkUnscheduledExamChargeAction}
+                          title={!canManageCandidates ? noPermissionTitle : undefined}
+                          type="button"
+                        >
+                          {unscheduledExamChargeLoading ? "Hazırlanıyor" : "Sınav borçlandır"}
                         </button>
                         {showFiltersAction ? (
                           <button
@@ -3913,6 +4138,124 @@ export function CandidatesPage({
         open={tagManagerOpen}
         tags={allTags}
       />
+      <Modal
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              disabled={unscheduledExamChargeSaving}
+              onClick={closeUnscheduledExamChargePrompt}
+              type="button"
+            >
+              Vazgeç
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={
+                unscheduledExamChargeSaving ||
+                !unscheduledExamChargePrompt?.rows.some((row) => row.selected)
+              }
+              onClick={saveUnscheduledExamCharges}
+              type="button"
+            >
+              {unscheduledExamChargeSaving ? "Kaydediliyor" : "Borçlandır"}
+            </button>
+          </>
+        }
+        onClose={closeUnscheduledExamChargePrompt}
+        open={Boolean(unscheduledExamChargePrompt)}
+        title={unscheduledExamChargePrompt
+          ? unscheduledExamChargeTitle(unscheduledExamChargePrompt.examType)
+          : "Sınav borçlandır"}
+      >
+        {unscheduledExamChargePrompt ? (
+          <div className="exam-charge-table-wrap">
+            <div className="candidate-exam-attempt-form">
+              <label>
+                <span>Sınav tipi</span>
+                <CustomSelect
+                  className="form-select"
+                  disabled={unscheduledExamChargeLoading || unscheduledExamChargeSaving}
+                  onChange={(event) => updateUnscheduledExamChargeType(event.target.value as CandidateExamType)}
+                  value={unscheduledExamChargePrompt.examType}
+                >
+                  <option value="theory">Teorik</option>
+                  <option value="practice">Direksiyon</option>
+                </CustomSelect>
+              </label>
+              <label>
+                <span>Vade tarihi</span>
+                <input
+                  className="form-input"
+                  disabled={unscheduledExamChargeSaving}
+                  onChange={(event) =>
+                    setUnscheduledExamChargePrompt((current) =>
+                      current ? { ...current, dueDate: event.target.value } : current
+                    )
+                  }
+                  type="date"
+                  value={unscheduledExamChargePrompt.dueDate}
+                />
+              </label>
+              <label>
+                <span>Açıklama</span>
+                <input
+                  className="form-input"
+                  disabled={unscheduledExamChargeSaving}
+                  onChange={(event) =>
+                    setUnscheduledExamChargePrompt((current) =>
+                      current ? { ...current, description: event.target.value } : current
+                    )
+                  }
+                  value={unscheduledExamChargePrompt.description}
+                />
+              </label>
+            </div>
+            <table className="exam-charge-table">
+              <thead>
+                <tr>
+                  <th>Seç</th>
+                  <th>Ad Soyad</th>
+                  <th>TC</th>
+                  <th>Telefon</th>
+                  <th>Ücret</th>
+                  <th>Uyarı</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unscheduledExamChargePrompt.rows.map((row) => (
+                  <tr key={row.candidate.id}>
+                    <td>
+                      <input
+                        aria-label={`${candidateFullName(row.candidate)} seç`}
+                        checked={row.selected}
+                        disabled={unscheduledExamChargeSaving}
+                        onChange={() => toggleUnscheduledExamChargeRow(row.candidate.id)}
+                        type="checkbox"
+                      />
+                    </td>
+                    <td>{candidateFullName(row.candidate)}</td>
+                    <td>{formatNationalId(row.candidate.nationalId)}</td>
+                    <td>{formatPhoneDisplay(row.candidate.phoneNumber)}</td>
+                    <td>
+                      <input
+                        aria-label={`${candidateFullName(row.candidate)} sınav ücreti`}
+                        className="exam-charge-fee-input"
+                        min="0"
+                        onChange={(event) => updateUnscheduledExamChargeFee(row.candidate.id, event.target.value)}
+                        step="0.01"
+                        type="number"
+                        value={row.fee}
+                      />
+                    </td>
+                    <td>{row.duplicateReason ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </Modal>
       {examChargePrompt && !examChargeModalOpen ? (
         <div
           aria-label="Sınav borçlandırması yapılsın mı?"

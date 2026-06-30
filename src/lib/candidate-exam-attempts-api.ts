@@ -2,6 +2,7 @@ import { getTrainingApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
 import type {
   CandidateExamAttemptResponse,
+  CandidateExamAttemptUnscheduledChargeRequest,
   CandidateExamAttemptUpsertRequest,
 } from "./types";
 
@@ -26,6 +27,17 @@ export function createCandidateExamAttempt(
 ): Promise<CandidateExamAttemptResponse> {
   return httpPost<CandidateExamAttemptResponse>(
     `/api/training/candidates/${candidateId}/exam-attempts`,
+    body,
+    trainingOptions()
+  );
+}
+
+export function createUnscheduledCandidateExamAttemptCharge(
+  candidateId: string,
+  body: CandidateExamAttemptUnscheduledChargeRequest
+): Promise<CandidateExamAttemptResponse> {
+  return httpPost<CandidateExamAttemptResponse>(
+    `/api/training/candidates/${candidateId}/exam-attempts/unscheduled-charge`,
     body,
     trainingOptions()
   );

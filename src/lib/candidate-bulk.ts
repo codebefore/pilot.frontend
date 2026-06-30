@@ -248,6 +248,13 @@ async function upsertCandidateExamAttemptForSchedule(
   const attemptExamType: CandidateExamType = examType === "e_sinav" ? "theory" : "practice";
   const attempts = await listCandidateExamAttempts(candidateId);
   const existing = findScheduleAttempt(attempts, attemptExamType, examScheduleId, examDate);
+  const pending = existing
+    ? undefined
+    : attempts.find((attempt) =>
+        attempt.examType === attemptExamType &&
+        attempt.schedulingStatus === "pending_schedule"
+      );
+  const target = existing ?? pending;
   const attemptNumber = existing?.attemptNumber ?? nextCandidateExamAttemptNumber(attempts, attemptExamType);
   const scheduledAt = examDateTimeUtc(examDate, examTime);
   const payload = {
@@ -255,21 +262,21 @@ async function upsertCandidateExamAttemptForSchedule(
     scheduledAt,
     examScheduleId,
     attemptNumber,
-    score: attemptExamType === "theory" ? existing?.score ?? null : null,
+    score: attemptExamType === "theory" ? target?.score ?? null : null,
     expiresAt: null,
-    vehicleId: attemptExamType === "practice" ? existing?.vehicleId ?? null : null,
-    vehiclePlate: attemptExamType === "practice" ? existing?.vehiclePlate ?? null : null,
-    instructorId: attemptExamType === "practice" ? existing?.instructorId ?? null : null,
-    instructorFullName: attemptExamType === "practice" ? existing?.instructorFullName ?? null : null,
-    examAttendanceStatus: attemptExamType === "practice" ? existing?.examAttendanceStatus ?? null : null,
-    examResultStatus: attemptExamType === "practice" ? existing?.examResultStatus ?? null : null,
-    fee: existing?.fee ?? 0,
-    feeStatus: existing?.feeStatus ?? "pending",
-    rowVersion: existing?.rowVersion,
+    vehicleId: attemptExamType === "practice" ? target?.vehicleId ?? null : null,
+    vehiclePlate: attemptExamType === "practice" ? target?.vehiclePlate ?? null : null,
+    instructorId: attemptExamType === "practice" ? target?.instructorId ?? null : null,
+    instructorFullName: attemptExamType === "practice" ? target?.instructorFullName ?? null : null,
+    examAttendanceStatus: attemptExamType === "practice" ? target?.examAttendanceStatus ?? null : null,
+    examResultStatus: attemptExamType === "practice" ? target?.examResultStatus ?? null : null,
+    fee: target?.fee ?? 0,
+    feeStatus: target?.feeStatus ?? "pending",
+    rowVersion: target?.rowVersion,
   };
 
-  if (existing) {
-    return updateCandidateExamAttempt(candidateId, existing.id, payload);
+  if (target) {
+    return updateCandidateExamAttempt(candidateId, target.id, payload);
   }
 
   return createCandidateExamAttempt(candidateId, payload);
@@ -285,6 +292,7 @@ function findScheduleAttempt(
     ?? attempts.find((attempt) =>
       attempt.examType === examType &&
       !attempt.examScheduleId &&
+      attempt.scheduledAt &&
       applicationDateOnly(attempt.scheduledAt) === examDate
     );
 }
@@ -295,7 +303,7 @@ function nextCandidateExamAttemptNumber(
 ): number {
   const maxAttemptNumber = candidateExamAttemptLimit(attempts, examType);
   const used = attempts
-    .filter((attempt) => attempt.examType === examType)
+    .filter((attempt) => attempt.examType === examType && (attempt.schedulingStatus ?? "scheduled") === "scheduled")
     .map((attempt) => attempt.attemptNumber);
   for (let number = 1; number <= maxAttemptNumber; number += 1) {
     if (!used.includes(number)) return number;
