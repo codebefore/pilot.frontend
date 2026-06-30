@@ -4197,19 +4197,6 @@ export function CandidatesPage({
                   value={unscheduledExamChargePrompt.dueDate}
                 />
               </label>
-              <label>
-                <span>Açıklama</span>
-                <input
-                  className="form-input"
-                  disabled={unscheduledExamChargeSaving}
-                  onChange={(event) =>
-                    setUnscheduledExamChargePrompt((current) =>
-                      current ? { ...current, description: event.target.value } : current
-                    )
-                  }
-                  value={unscheduledExamChargePrompt.description}
-                />
-              </label>
             </div>
             <table className="exam-charge-table">
               <thead>
