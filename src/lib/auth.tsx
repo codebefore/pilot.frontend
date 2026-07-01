@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -23,6 +23,7 @@ import {
   type AuthSession,
   type AuthUser,
 } from "./auth-storage";
+import { stopLocalAgentMebbisSession } from "./local-agent-api";
 
 export type AuthContextValue = {
   user: AuthUser | null;
@@ -41,17 +42,29 @@ export type AuthContextValue = {
 // Exported for tests so a deterministic value can be supplied without
 // running the real provider's effects (storage reads, event listeners).
 export const AuthContext = createContext<AuthContextValue | null>(null);
+const AUTH_LOGOUT_SYNC_KEY = `${AUTH_STORAGE_KEY}.logout-sync`;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<AuthSession | null>(() => readStoredAuthSession());
+  const mebbisAgentStopRequestedRef = useRef(false);
   const [institutionRequired, setInstitutionRequired] = useState(
     () => !!session && !session.activeInstitution
   );
 
+  const stopMebbisAgentSessionOnce = () => {
+    if (mebbisAgentStopRequestedRef.current) return;
+    mebbisAgentStopRequestedRef.current = true;
+    stopMebbisAgentSession();
+  };
+
   useEffect(() => {
-    if (session) writeStoredAuthSession(session);
-    else clearStoredAuthSession();
+    if (session) {
+      mebbisAgentStopRequestedRef.current = false;
+      writeStoredAuthSession(session);
+    } else {
+      clearStoredAuthSession();
+    }
   }, [session]);
 
   useEffect(() => {
@@ -65,8 +78,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   useEffect(() => {
+    const onRefreshUnauthorized = () => {
+      stopMebbisAgentSessionOnce();
+    };
+    window.addEventListener("pilot:refresh-unauthorized", onRefreshUnauthorized);
+    return () => window.removeEventListener("pilot:refresh-unauthorized", onRefreshUnauthorized);
+  }, []);
+
+  useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.storageArea !== localStorage || event.key !== AUTH_STORAGE_KEY) return;
+      if (event.storageArea !== localStorage) return;
+
+      if (event.key === AUTH_LOGOUT_SYNC_KEY) {
+        if (session) {
+          stopMebbisAgentSessionOnce();
+        }
+        return;
+      }
+
+      if (event.key !== AUTH_STORAGE_KEY) return;
 
       const nextSession = readStoredAuthSession();
       queryClient.clear();
@@ -76,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [queryClient]);
+  }, [queryClient, session]);
 
   useEffect(() => {
     const onInstitutionRequired = () => setInstitutionRequired(true);
@@ -129,6 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (refreshToken) {
       void logoutSession({ refreshToken }).catch(() => undefined);
     }
+    stopMebbisAgentSessionOnce();
+    notifyLogoutAcrossTabs();
     queryClient.clear();
     setInstitutionRequired(false);
     setSession(null);
@@ -170,6 +202,18 @@ function clearQueryCacheForSessionChange(
 
 export function reloadCurrentPage() {
   window.location.reload();
+}
+
+function stopMebbisAgentSession(): void {
+  void stopLocalAgentMebbisSession().catch(() => undefined);
+}
+
+function notifyLogoutAcrossTabs(): void {
+  try {
+    localStorage.setItem(AUTH_LOGOUT_SYNC_KEY, new Date().toISOString());
+  } catch {
+    // Logout should still complete when localStorage is unavailable.
+  }
 }
 
 export function useAuth(): AuthContextValue {

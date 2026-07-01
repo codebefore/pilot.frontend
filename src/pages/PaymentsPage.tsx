@@ -228,6 +228,7 @@ const COLLECTION_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
   { key: "all", labelKey: "payments.detailTab.all" },
   { key: "payment", labelKey: "payments.detailTab.payment" },
   { key: "refund", labelKey: "payments.detailTab.refund" },
+  { key: "cancelled", labelKey: "payments.detailTab.cancelled" },
 ];
 
 const FINANCE_DETAIL_TABS: { key: DetailTab; labelKey: TranslationKey }[] = [
@@ -1446,6 +1447,25 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       );
     }
 
+    if (detailTab === "cancelled") {
+      rows.push(
+        ...(overview.payments ?? [])
+          .filter(
+            (payment) =>
+              payment.status === "cancelled" &&
+              isActivePaymentCandidate(payment.candidate) &&
+              isInDateRange(payment.cancelledAtUtc ?? payment.paidAtUtc, fromDate, toDate),
+          )
+          .map((payment) => ({
+            kind: "cancelled" as const,
+            id: payment.id,
+            payment,
+            date: payment.cancelledAtUtc ?? payment.paidAtUtc,
+            amount: payment.amount,
+          })),
+      );
+    }
+
     if (detailTab === "cancelledDebt") {
       rows.push(
         ...(overview.installments ?? [])
@@ -1665,28 +1685,40 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const baseDebtRows = useMemo<DebtRow[]>(() => {
     const rows = new Map<string, DebtRow>();
 
+    const ensureRow = (candidate: PaymentCandidateSummaryResponse) => {
+      const existing = rows.get(candidate.id);
+      if (existing) return existing;
+      const row = {
+        candidate,
+        kurs: 0,
+        teorikSinav: 0,
+        direksiyonSinav: 0,
+        diger: 0,
+        total: 0,
+      };
+      rows.set(candidate.id, row);
+      return row;
+    };
+
+    (overview?.candidates ?? [])
+      .filter(isActivePaymentCandidate)
+      .filter((candidate) =>
+        periodMonth
+          ? candidateMatchesPeriod(candidate, periodMonth)
+          : candidateMatchesRegistrationDateRange(candidate, fromDate, toDate),
+      )
+      .forEach(ensureRow);
+
     baseInstallmentRows
-      .filter((installment) => installment.remainingAmount > 0)
       .forEach((installment) => {
-        const key = installment.candidate.id;
-        const row =
-          rows.get(key) ??
-          {
-            candidate: installment.candidate,
-            kurs: 0,
-            teorikSinav: 0,
-            direksiyonSinav: 0,
-            diger: 0,
-            total: 0,
-          };
+        const row = ensureRow(installment.candidate);
 
         row[debtBucketForType(installment.type)] += installment.remainingAmount;
         row.total += installment.remainingAmount;
-        rows.set(key, row);
       });
 
     return Array.from(rows.values());
-  }, [baseInstallmentRows]);
+  }, [baseInstallmentRows, fromDate, overview?.candidates, periodMonth, toDate]);
 
   const debtRows = useMemo(() => {
     const candidateQuery = detailColumnFilters.candidate
@@ -2227,22 +2259,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       grandTotal += payment.amount;
     });
 
-    filteredRefunds.forEach((refund) => {
-      const rowKey = refund.type;
-      const columnKey = refundCashRegisterKey(refund);
-      const cellKey = `${rowKey}:${columnKey}`;
-
-      cells.set(cellKey, (cells.get(cellKey) ?? 0) - refund.amount);
-      rowTotals[rowKey] -= refund.amount;
-      columnTotals.set(
-        columnKey,
-        (columnTotals.get(columnKey) ?? 0) - refund.amount,
-      );
-      grandTotal -= refund.amount;
-    });
-
     return { cells, rowTotals, columnTotals, grandTotal };
-  }, [filteredPayments, filteredRefunds]);
+  }, [filteredPayments]);
 
   const basePeriodStats = useMemo(() => {
     const rows = new Map<string, PeriodStatsRow>();
@@ -2810,7 +2828,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (columnId === "cancelKind") return rowCancelKindLabel(row, t);
     if (columnId === "date") return renderFinanceDateTime(row.date);
     if (columnId === "amount") {
-      return row.kind === "payment"
+      return row.kind === "payment" || row.kind === "cancelled"
         ? money(row.amount)
         : `-${money(row.amount)}`;
     }

@@ -4756,6 +4756,9 @@
 .finance-detail-row.type-cancelled .payment-credit {
   color: var(--red);
 }
+.finance-detail-row.type-cancelled .finance-col-amount {
+  text-decoration: line-through;
+}
 .finance-detail-row.type-cancelledDebt td {
   color: var(--gray-500);
   text-decoration: line-through;

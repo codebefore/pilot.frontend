@@ -321,6 +321,15 @@
 }
 .sortable-th.active .sortable-th-btn { color: var(--brand-dark); }
 .sortable-th.active .sortable-th-indicator { color: var(--brand); }
+.cand-column-draggable {
+  cursor: grab;
+}
+.cand-column-draggable:active {
+  cursor: grabbing;
+}
+.cand-column-dragging {
+  opacity: .55;
+}
 .table-header-filter {
   position: relative;
   display: inline-flex;

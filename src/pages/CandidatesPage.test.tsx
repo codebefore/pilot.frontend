@@ -20,8 +20,10 @@ const getGroupsMock = vi.fn();
 const getExamCodesMock = vi.fn();
 const listCandidateExamAttemptsMock = vi.fn();
 const createCandidateExamAttemptMock = vi.fn();
+const createUnscheduledCandidateExamAttemptChargeMock = vi.fn();
 const updateCandidateExamAttemptMock = vi.fn();
 const chargeCandidateExamAttemptMock = vi.fn();
+const markCandidateExamAttemptSelfPaidMock = vi.fn();
 const getLicenseClassFeeMatrixMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
@@ -129,12 +131,18 @@ vi.mock("../lib/candidate-exam-attempts-api", async () => {
     createCandidateExamAttempt: (
       ...args: Parameters<typeof actual.createCandidateExamAttempt>
     ) => createCandidateExamAttemptMock(...args),
+    createUnscheduledCandidateExamAttemptCharge: (
+      ...args: Parameters<typeof actual.createUnscheduledCandidateExamAttemptCharge>
+    ) => createUnscheduledCandidateExamAttemptChargeMock(...args),
     updateCandidateExamAttempt: (
       ...args: Parameters<typeof actual.updateCandidateExamAttempt>
     ) => updateCandidateExamAttemptMock(...args),
     chargeCandidateExamAttempt: (
       ...args: Parameters<typeof actual.chargeCandidateExamAttempt>
     ) => chargeCandidateExamAttemptMock(...args),
+    markCandidateExamAttemptSelfPaid: (
+      ...args: Parameters<typeof actual.markCandidateExamAttemptSelfPaid>
+    ) => markCandidateExamAttemptSelfPaidMock(...args),
   };
 });
 
@@ -215,16 +223,20 @@ describe("CandidatesPage tabs", () => {
     getExamCodesMock.mockReset();
     listCandidateExamAttemptsMock.mockReset();
     createCandidateExamAttemptMock.mockReset();
+    createUnscheduledCandidateExamAttemptChargeMock.mockReset();
     updateCandidateExamAttemptMock.mockReset();
     chargeCandidateExamAttemptMock.mockReset();
+    markCandidateExamAttemptSelfPaidMock.mockReset();
     getLicenseClassFeeMatrixMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
     getExamCodesMock.mockResolvedValue([]);
     listCandidateExamAttemptsMock.mockResolvedValue([]);
     createCandidateExamAttemptMock.mockResolvedValue({});
+    createUnscheduledCandidateExamAttemptChargeMock.mockResolvedValue({});
     updateCandidateExamAttemptMock.mockResolvedValue({});
     chargeCandidateExamAttemptMock.mockResolvedValue({});
+    markCandidateExamAttemptSelfPaidMock.mockResolvedValue({});
     getLicenseClassFeeMatrixMock.mockResolvedValue({ year: 2026, vatRate: 20, rows: [] });
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
@@ -334,6 +346,127 @@ describe("CandidatesPage tabs", () => {
           eSinavTab: "randevulu",
           page: 1,
           pageSize: 100,
+        })
+      );
+    });
+  });
+
+  it("allows empty unscheduled e-sinav charge fee so backend can mark it self paid", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Eren",
+      lastName: "Test",
+      nationalId: "52925238938",
+      phoneNumber: "55533322112213",
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: null,
+      drivingExamDate: null,
+      eSinavAttemptCount: 1,
+      drivingExamAttemptCount: 1,
+      currentGroup: null,
+      documentSummary: null,
+      mebExamResult: null,
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: [candidate],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getCandidateByIdMock.mockResolvedValue(candidate);
+    listCandidateExamAttemptsMock.mockResolvedValue([]);
+    getLicenseClassFeeMatrixMock.mockResolvedValue({ year: 2026, vatRate: 20, rows: [] });
+
+    renderESinavPage();
+
+    await screen.findByText("Eren Test");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
+
+    const feeInput = await screen.findByLabelText("Eren Test sınav ücreti");
+    fireEvent.change(feeInput, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Borçlandır" }));
+
+    await waitFor(() => {
+      expect(createUnscheduledCandidateExamAttemptChargeMock).toHaveBeenCalledWith(
+        "cand-1",
+        expect.objectContaining({
+          examType: "theory",
+          fee: 0,
+        })
+      );
+    });
+  });
+
+  it("uses practice exam type for unscheduled charge on uygulama page without showing exam type select", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Eren",
+      lastName: "Test",
+      nationalId: "52925238938",
+      phoneNumber: "55533322112213",
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: null,
+      drivingExamDate: null,
+      eSinavAttemptCount: 1,
+      drivingExamAttemptCount: 1,
+      currentGroup: null,
+      documentSummary: null,
+      mebExamResult: null,
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: [candidate],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getCandidateByIdMock.mockResolvedValue(candidate);
+    listCandidateExamAttemptsMock.mockResolvedValue([]);
+    getLicenseClassFeeMatrixMock.mockResolvedValue({ year: 2026, vatRate: 20, rows: [] });
+
+    renderUygulamaPage();
+
+    await screen.findByText("Eren Test");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
+
+    const feeInput = await screen.findByLabelText("Eren Test sınav ücreti");
+    expect(screen.queryByText("Sınav tipi")).not.toBeInTheDocument();
+    fireEvent.change(feeInput, { target: { value: "1000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Borçlandır" }));
+
+    await waitFor(() => {
+      expect(createUnscheduledCandidateExamAttemptChargeMock).toHaveBeenCalledWith(
+        "cand-1",
+        expect.objectContaining({
+          examType: "practice",
+          fee: 1000,
         })
       );
     });
@@ -1134,6 +1267,83 @@ describe("CandidatesPage tabs", () => {
       throw new Error("column picker menu not found");
     }
     expect(within(picker).getByText("Ehliyet Tipi")).toBeInTheDocument();
+  });
+
+  it("falls back to the shared column order without creating user-specific preferences", async () => {
+    localStorage.setItem(
+      "candidates.columns.v19.active",
+      JSON.stringify(["name", "photo"])
+    );
+
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    const headers = screen.getAllByRole("columnheader").map((header) =>
+      (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")
+    );
+    expect(headers).toEqual(["", "Ad Soyad", "Resim", ""]);
+    expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull();
+  });
+
+  it("stores user-specific candidate column order after dragging a header", async () => {
+    localStorage.setItem(
+      "candidates.columns.v19.active.user.test-user",
+      JSON.stringify(["photo", "name", "nationalId"])
+    );
+
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      effectAllowed: "",
+      dropEffect: "",
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+    };
+    const nationalIdHeader = screen.getByRole("columnheader", { name: "TC Kimlik" });
+    const nameHeader = screen.getByRole("columnheader", { name: /Ad Soyad/ });
+
+    fireEvent.dragStart(nationalIdHeader, { dataTransfer });
+    fireEvent.dragOver(nameHeader, { dataTransfer });
+    fireEvent.drop(nameHeader, { dataTransfer });
+
+    await waitFor(() =>
+      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBe(
+        JSON.stringify(["photo", "nationalId", "name"])
+      )
+    );
+  });
+
+  it("removes user-specific candidate column preferences when resetting columns", async () => {
+    localStorage.setItem(
+      "candidates.columns.v19.active",
+      JSON.stringify(["name", "photo"])
+    );
+    localStorage.setItem(
+      "candidates.columns.v19.active.user.test-user",
+      JSON.stringify(["photo", "name", "nationalId"])
+    );
+
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
+    const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
+    expect(picker).not.toBeNull();
+    if (!picker) {
+      throw new Error("column picker menu not found");
+    }
+
+    fireEvent.click(within(picker).getByRole("button", { name: "Varsayılana dön" }));
+
+    await waitFor(() =>
+      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull()
+    );
+    const headers = screen.getAllByRole("columnheader").map((header) =>
+      (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")
+    );
+    expect(headers).toEqual(["", "Ad Soyad", "Resim", ""]);
   });
 
   it("renders exam progress columns on the main candidates page", async () => {
@@ -3128,7 +3338,7 @@ describe("CandidatesPage tabs", () => {
     expect(chargeCandidateExamAttemptMock).toHaveBeenCalledWith("cand-1", "attempt-1");
   });
 
-  it("keeps exam attempt uncharged when bulk exam charge fee is empty", async () => {
+  it("marks exam attempt self paid when bulk exam charge fee is empty", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -3225,6 +3435,7 @@ describe("CandidatesPage tabs", () => {
       );
     });
     expect(chargeCandidateExamAttemptMock).not.toHaveBeenCalled();
+    expect(markCandidateExamAttemptSelfPaidMock).toHaveBeenCalledWith("cand-1", "attempt-1");
   });
 
   it("prefills driving exam charge with institution practice exam fee", async () => {

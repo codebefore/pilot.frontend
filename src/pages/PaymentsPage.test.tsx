@@ -425,6 +425,154 @@ describe("PaymentsPage permissions", () => {
     expect(screen.queryByText("Hatalı tahsilat")).not.toBeInTheDocument();
   });
 
+  it("lists cancelled collections in the cancelled collections tab", async () => {
+    const today = todayDateOnly();
+    const candidate = {
+      id: "candidate-cancelled",
+      firstName: "Iptal",
+      lastName: "Aday",
+      nationalId: "11111111111",
+      licenseClass: "B",
+      isDeleted: false,
+      currentGroup: null,
+      photo: null,
+    };
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      payments: [
+        {
+          id: "payment-cancelled",
+          candidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-CANCEL",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 250,
+          paymentMethod: "cash",
+          paidAtUtc: `${today}T09:00:00Z`,
+          note: "İptal edilen tahsilat",
+          status: "cancelled",
+          cancelledAtUtc: `${today}T10:30:00Z`,
+          cancellationReason: "Yanlış tahsilat",
+        },
+      ],
+    });
+
+    renderCollectionsPage();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "İptal" }));
+
+    const cancelledRow = await screen.findByRole("row", { name: /Iptal Aday/ });
+    expect(within(cancelledRow).getByText("TAH-CANCEL")).toBeInTheDocument();
+    expect(within(cancelledRow).getByText("Yanlış tahsilat")).toBeInTheDocument();
+    expect(within(cancelledRow).getByText("₺250")).toBeInTheDocument();
+  });
+
+  it("keeps refunded collections in the collections matrix as gross collections", async () => {
+    const today = todayDateOnly();
+    const candidate = paymentCandidate({
+      id: "candidate-refunded-collection",
+      firstName: "Iadeli",
+      lastName: "Tahsilat",
+    });
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      payments: [
+        {
+          id: "payment-refunded",
+          candidate,
+          type: "kurs",
+          installmentDescription: null,
+          number: "TAH-1",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 1000,
+          paymentMethod: "cash",
+          paidAtUtc: `${today}T09:00:00Z`,
+          note: "İade edilen tahsilat",
+          status: "active",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+      ],
+      refunds: [
+        {
+          id: "refund-refunded",
+          paymentId: "payment-refunded",
+          candidate,
+          type: "kurs",
+          number: "IAD-1",
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 1000,
+          refundedAtUtc: `${today}T10:00:00Z`,
+          note: "Tam iade",
+        },
+      ],
+    });
+
+    renderCollectionsPage();
+
+    expect(await screen.findByRole("heading", { name: "Tahsilat Matrisi" })).toBeInTheDocument();
+    const courseRow = screen.getAllByRole("row", { name: /Kurs Ücreti/ })[0];
+    expect(within(courseRow).getAllByText("₺1.000").length).toBeGreaterThan(0);
+  });
+
+  it("shows zero-debt candidates in balances by candidate registration date filters", async () => {
+    const zeroDebtCandidate = paymentCandidate({
+      id: "candidate-zero-debt",
+      firstName: "Sifir",
+      lastName: "Bakiye",
+      createdAtUtc: "2026-05-10T00:00:00Z",
+    });
+    const outsideCandidate = paymentCandidate({
+      id: "candidate-outside-balance",
+      firstName: "Dis",
+      lastName: "Bakiye",
+      createdAtUtc: "2026-04-10T00:00:00Z",
+    });
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      candidates: [zeroDebtCandidate, outsideCandidate],
+      installments: [
+        {
+          id: "installment-zero-debt",
+          candidate: zeroDebtCandidate,
+          type: "kurs",
+          sequence: 1,
+          dueDate: "2026-04-15",
+          amount: 1000,
+          paidAmount: 1000,
+          remainingAmount: 0,
+          description: "Kurs",
+          status: "active",
+          paymentStatus: "paid",
+          cancelledAtUtc: null,
+          cancellationReason: null,
+        },
+      ],
+    });
+
+    renderBalancesPage();
+
+    expect(await screen.findByRole("heading", { name: "Bakiyeler" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByText("Bakiyeler", { selector: "button" }));
+    fireEvent.change(await screen.findByPlaceholderText("Başlangıç"), {
+      target: { value: "01.05.2026" },
+    });
+    fireEvent.change(await screen.findByPlaceholderText("Bitiş"), {
+      target: { value: "31.05.2026" },
+    });
+
+    const zeroDebtRow = await screen.findByRole("row", { name: /Sifir Bakiye/ });
+    expect(within(zeroDebtRow).getAllByText("₺0").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Dis Bakiye")).not.toBeInTheDocument();
+  });
+
   it("filters statistics by candidate registration date and includes candidates without finance rows", async () => {
     const noFinanceCandidate = paymentCandidate({
       id: "candidate-no-finance",

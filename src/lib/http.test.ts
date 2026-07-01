@@ -391,7 +391,9 @@ describe("http client", () => {
       activeInstitution: null,
     });
     const unauthorized = vi.fn();
+    const refreshUnauthorized = vi.fn();
     window.addEventListener("pilot:unauthorized", unauthorized);
+    window.addEventListener("pilot:refresh-unauthorized", refreshUnauthorized);
     vi.stubGlobal(
       "fetch",
       vi.fn()
@@ -406,7 +408,9 @@ describe("http client", () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
     expect(new URL(String(vi.mocked(fetch).mock.calls[1][0])).pathname).toMatch(/\/auth\/refresh$/);
     expect(unauthorized).toHaveBeenCalledTimes(1);
+    expect(refreshUnauthorized).toHaveBeenCalledTimes(1);
     window.removeEventListener("pilot:unauthorized", unauthorized);
+    window.removeEventListener("pilot:refresh-unauthorized", refreshUnauthorized);
   });
 
   it("routes automatic refresh to the configured auth base url", async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode, type ThHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -20,6 +20,7 @@ import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTagsInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
+import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
 import { Modal } from "../components/ui/Modal";
 import { Pagination } from "../components/ui/Pagination";
@@ -59,9 +60,9 @@ import {
   chargeCandidateExamAttempt,
   createUnscheduledCandidateExamAttemptCharge,
   listCandidateExamAttempts,
+  markCandidateExamAttemptSelfPaid,
   updateCandidateExamAttempt,
 } from "../lib/candidate-exam-attempts-api";
-import { getCandidateAccounting } from "../lib/candidate-accounting-api";
 import { getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
 import { getVehicles } from "../lib/vehicles-api";
@@ -103,7 +104,6 @@ import type {
   CandidateExamAttemptResponse,
   CandidateExamAttemptUpsertRequest,
   CandidateExamType,
-  CandidateAccountingSummaryResponse,
   CandidateResponse,
   CandidateTag,
   ExamCodeOption,
@@ -143,6 +143,8 @@ const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
 
 type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
+
+const COLUMN_DRAG_MIME_TYPE = "application/x-pilot-candidate-column";
 
 function candidateListTabLabel(value: CandidateTab, t: ReturnType<typeof useT>): string {
   return value === "all" ? t("common.all") : candidateStatusLabel(value);
@@ -282,6 +284,7 @@ type ExamChargeCandidateRow = {
   candidate: CandidateResponse;
   attempt: CandidateExamAttemptResponse;
   fee: string;
+  duplicateReason?: string;
 };
 
 type ExamChargePromptState = {
@@ -315,25 +318,52 @@ function examDateTypeFromCandidateExamType(examType: CandidateExamType): Candida
   return examType === "theory" ? "e_sinav" : "uygulama";
 }
 
-function accountingTypeFromCandidateExamType(examType: CandidateExamType): "teorik_sinav" | "direksiyon_sinav" {
-  return examType === "theory" ? "teorik_sinav" : "direksiyon_sinav";
-}
-
 function defaultUnscheduledExamChargeDescription(examType: CandidateExamType): string {
   return examType === "theory"
     ? "Tarihsiz e-sınav borçlandırması"
     : "Tarihsiz direksiyon sınav borçlandırması";
 }
 
-function activeExamDebtExists(
-  accounting: CandidateAccountingSummaryResponse,
+function nextUnscheduledExamAttemptNumber(
+  attempts: CandidateExamAttemptResponse[],
   examType: CandidateExamType
+): number | null {
+  const maxAttemptNumber = examType === "practice" && attempts.some((attempt) =>
+    attempt.examType === "practice" && isReportedAttendanceStatus(attempt.examAttendanceStatus)
+  )
+    ? 5
+    : 4;
+  const used = attempts
+    .filter((attempt) => attempt.examType === examType && (attempt.schedulingStatus ?? "scheduled") === "scheduled")
+    .map((attempt) => attempt.attemptNumber);
+  for (let number = 1; number <= maxAttemptNumber; number += 1) {
+    if (!used.includes(number)) return number;
+  }
+  return null;
+}
+
+function hasActiveExamDebtForAttemptNumber(
+  attempts: CandidateExamAttemptResponse[],
+  examType: CandidateExamType,
+  attemptNumber: number
 ): boolean {
-  const accountingType = accountingTypeFromCandidateExamType(examType);
-  return accounting.movements.some((movement) =>
-    movement.type === accountingType &&
-    movement.status === "active" &&
-    movement.remainingAmount > 0
+  return attempts.some((attempt) =>
+    attempt.examType === examType &&
+    (attempt.schedulingStatus ?? "scheduled") === "scheduled" &&
+    attempt.attemptNumber === attemptNumber &&
+    attempt.fee > 0 &&
+    attempt.accountingMovementId !== null &&
+    (attempt.feeStatus === "charged" || attempt.feeStatus === "partially_paid")
+  );
+}
+
+function examAttemptHasAccountingCharge(attempt: CandidateExamAttemptResponse): boolean {
+  return (
+    attempt.fee > 0 &&
+    attempt.accountingMovementId !== null &&
+    attempt.feeStatus !== "pending" &&
+    attempt.feeStatus !== "cancelled" &&
+    attempt.feeStatus !== "refunded"
   );
 }
 
@@ -515,6 +545,10 @@ function vehicleDisplayName(vehicle: VehicleResponse | null | undefined): string
   if (primary) return primary;
   const name = [vehicle.brand, vehicle.model].filter(Boolean).join(" ").trim();
   return name || null;
+}
+
+function isExamVehicle(vehicle: VehicleResponse): boolean {
+  return !vehicle.isSimulator;
 }
 
 function DrivingExamTimeCell({
@@ -1799,6 +1833,7 @@ export function CandidatesPage({
   } | null>(null);
   const [savingESinavScoreCandidateId, setSavingESinavScoreCandidateId] = useState<string | null>(null);
   const [savingPracticeCandidateId, setSavingPracticeCandidateId] = useState<string | null>(null);
+  const [draggedColumnId, setDraggedColumnId] = useState<CandidateColumnId | null>(null);
 
   /* ── React Query — side data (independent of candidate list query) ── */
 
@@ -1817,7 +1852,7 @@ export function CandidatesPage({
       getVehicles({ activity: "active", page: 1, pageSize: 500 }, signal),
     enabled: practiceVehiclesEnabled,
   });
-  const practiceVehicles: VehicleResponse[] = practiceVehiclesQuery.data?.items ?? [];
+  const practiceVehicles: VehicleResponse[] = (practiceVehiclesQuery.data?.items ?? []).filter(isExamVehicle);
 
   const practiceInstructorsQuery = useQuery({
     queryKey: ["instructors", "list", { activity: "active", page: 1, pageSize: 500 }],
@@ -1880,24 +1915,33 @@ export function CandidatesPage({
     ],
     [availableColumnIds, scopedDefaultVisibleColumnIds]
   );
-  const effectiveColumnStorageKey =
+  const sharedColumnStorageKey =
     showTabs && !defaultVisibleColumnIdsProp && TAB_KEYS.includes(tab as CandidateTab)
       ? `${columnStorageKey}.${tab}`
       : columnStorageKey;
+  const userColumnStorageKey = user?.id
+    ? `${sharedColumnStorageKey}.user.${user.id}`
+    : sharedColumnStorageKey;
   const {
     visibleIds,
     isVisible,
     toggle: toggleColumn,
     reset: resetColumns,
+    reorder: reorderColumns,
   } = useColumnVisibility(
-    effectiveColumnStorageKey,
+    userColumnStorageKey,
     orderedAvailableColumnIds,
     defaultVisibleColumnIdsProp
       ? scopedDefaultVisibleColumnIds
       : scopedDefaultVisibleColumnIds.length > 0
         ? scopedDefaultVisibleColumnIds
         : undefined,
-    { allowEmpty: lockedVisibleColumnIds.length > 0 }
+    {
+      allowEmpty: lockedVisibleColumnIds.length > 0,
+      fallbackStorageKey: user?.id ? sharedColumnStorageKey : undefined,
+      removeStorageOnReset: Boolean(user?.id),
+      deferInitialPersist: Boolean(user?.id),
+    }
   );
   const currentTabLabel = useMemo(
     () => resolvedTabConfig.tabs.find((item) => item.key === tab)?.label ?? t("candidates.columns.button"),
@@ -2359,6 +2403,39 @@ export function CandidatesPage({
     ((col.id === "group" && groupColumnMode === "term")
       ? t("candidates.col.term")
       : t(col.labelKey));
+  const isColumnReorderable = (id: CandidateColumnId) => !forcedVisibleColumnIds.has(id);
+  const startColumnDrag = (event: DragEvent<HTMLTableCellElement>, id: CandidateColumnId) => {
+    if (!isColumnReorderable(id)) {
+      event.preventDefault();
+      return;
+    }
+    setDraggedColumnId(id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(COLUMN_DRAG_MIME_TYPE, id);
+  };
+  const dragOverColumn = (event: DragEvent<HTMLTableCellElement>, id: CandidateColumnId) => {
+    if (!draggedColumnId || draggedColumnId === id || !isColumnReorderable(id)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+  const dropColumn = (event: DragEvent<HTMLTableCellElement>, id: CandidateColumnId) => {
+    const sourceId = event.dataTransfer.getData(COLUMN_DRAG_MIME_TYPE) as CandidateColumnId;
+    if (!sourceId || sourceId === id || !isColumnReorderable(sourceId) || !isColumnReorderable(id)) {
+      setDraggedColumnId(null);
+      return;
+    }
+    event.preventDefault();
+    reorderColumns(sourceId, id);
+    setDraggedColumnId(null);
+  };
+  const endColumnDrag = () => setDraggedColumnId(null);
+  const columnDragHandlers = (id: CandidateColumnId) => ({
+    draggable: isColumnReorderable(id),
+    onDragStart: (event: DragEvent<HTMLTableCellElement>) => startColumnDrag(event, id),
+    onDragOver: (event: DragEvent<HTMLTableCellElement>) => dragOverColumn(event, id),
+    onDrop: (event: DragEvent<HTMLTableCellElement>) => dropColumn(event, id),
+    onDragEnd: endColumnDrag,
+  });
   const visibleBulkStatusOptions = useMemo(
     () => BULK_STATUS_OPTIONS,
     []
@@ -3153,23 +3230,30 @@ export function CandidatesPage({
       }).catch(() => null);
       const examDateType = examDateTypeFromCandidateExamType(examType);
       const rows = await Promise.all(selectedCandidates.map(async (candidate): Promise<UnscheduledExamChargeRow> => {
-        const [attemptsResult, accountingResult] = await Promise.allSettled([
-          listCandidateExamAttempts(candidate.id),
-          getCandidateAccounting(candidate.id),
-        ]);
+        const attemptsResult = await listCandidateExamAttempts(candidate.id)
+          .then((attempts) => ({ status: "fulfilled" as const, value: attempts }))
+          .catch(() => ({ status: "rejected" as const }));
+        const attempts = attemptsResult.status === "fulfilled" ? attemptsResult.value : [];
         const hasPendingAttempt =
           attemptsResult.status === "fulfilled" &&
-          attemptsResult.value.some((attempt) =>
+          attempts.some((attempt) =>
             attempt.examType === examType &&
             attempt.schedulingStatus === "pending_schedule"
           );
-        const hasActiveDebt =
-          accountingResult.status === "fulfilled" &&
-          activeExamDebtExists(accountingResult.value, examType);
-        const duplicateReason = hasPendingAttempt
+        const nextAttemptNumber = attemptsResult.status === "fulfilled" && !hasPendingAttempt
+          ? nextUnscheduledExamAttemptNumber(attempts, examType)
+          : null;
+        const hasSameRightActiveDebt =
+          nextAttemptNumber !== null &&
+          hasActiveExamDebtForAttemptNumber(attempts, examType, nextAttemptNumber);
+        const duplicateReason = attemptsResult.status === "rejected"
+          ? "Sınav hakları kontrol edilemedi"
+          : hasPendingAttempt
           ? "Planlanmamış sınav borcu var"
-          : hasActiveDebt
-            ? "Aktif sınav borcu var"
+          : nextAttemptNumber === null
+            ? "Kullanılabilir sınav hakkı yok"
+          : hasSameRightActiveDebt
+            ? `${nextAttemptNumber}. hak için aktif sınav borcu var`
             : undefined;
 
         return {
@@ -3195,7 +3279,8 @@ export function CandidatesPage({
   };
 
   const openBulkUnscheduledExamChargeAction = () => {
-    void prepareUnscheduledExamChargePrompt("theory");
+    const examType = examDateSidebar?.examType === "uygulama" ? "practice" : "theory";
+    void prepareUnscheduledExamChargePrompt(examType);
   };
 
   const cancelBulkAction = () => {
@@ -3311,6 +3396,7 @@ export function CandidatesPage({
               candidate,
               attempt,
               fee: String(defaultExamChargeFee(candidate, examDateSidebar.examType, feeMatrix, attempt.fee)),
+              duplicateReason: examAttemptHasAccountingCharge(attempt) ? "Sınav borçlandırması var" : undefined,
             }]
           : []
       );
@@ -3365,21 +3451,31 @@ export function CandidatesPage({
 
   const saveExamCharges = async () => {
     if (!examChargePrompt || examChargeSaving) return;
-    const prepared = examChargePrompt.rows.map((row) => ({
-      ...row,
-      amount: row.fee.trim() === "" ? 0 : Number(row.fee),
-    }));
-    if (prepared.some((row) => !Number.isFinite(row.amount) || row.amount < 0)) {
-      showToast("Sınav ücreti 0 veya daha büyük olmalı", "error");
+    const allowZeroAmount = examChargePrompt.examType === "e_sinav";
+    const prepared = examChargePrompt.rows
+      .filter((row) => !row.duplicateReason)
+      .map((row) => ({
+        ...row,
+        amount: row.fee.trim() === "" ? 0 : Number(row.fee),
+      }));
+    if (prepared.length === 0) {
+      showToast("Borçlandırılacak aday yok", "error");
+      return;
+    }
+    if (prepared.some((row) => !Number.isFinite(row.amount) || row.amount < 0 || (!allowZeroAmount && row.amount <= 0))) {
+      showToast(allowZeroAmount ? "Sınav ücreti 0 veya daha büyük olmalı" : "Sınav ücreti 0'dan büyük olmalı", "error");
       return;
     }
 
     setExamChargeSaving(true);
     try {
-      await Promise.all(
+      const chargeResults = await Promise.all(
         prepared.map(async (row) => {
           const latestAttempts = await listCandidateExamAttempts(row.candidate.id);
           const latestAttempt = latestAttempts.find((attempt) => attempt.id === row.attempt.id) ?? row.attempt;
+          if (examAttemptHasAccountingCharge(latestAttempt)) {
+            return false;
+          }
           const updatedAttempt = await updateCandidateExamAttempt(
             row.candidate.id,
             latestAttempt.id,
@@ -3387,15 +3483,19 @@ export function CandidatesPage({
           );
           if (row.amount > 0) {
             await chargeCandidateExamAttempt(row.candidate.id, updatedAttempt.id);
+            return "charged" as const;
           }
+          await markCandidateExamAttemptSelfPaid(row.candidate.id, updatedAttempt.id);
+          return "selfPaid" as const;
         })
       );
-      const chargedCount = prepared.filter((row) => row.amount > 0).length;
-      showToast(
-        chargedCount > 0
-          ? `${chargedCount} aday için sınav borçlandırması yapıldı`
-          : "Sınav ücreti kaydedildi"
-      );
+      const chargedCount = chargeResults.filter((result) => result === "charged").length;
+      const selfPaidCount = chargeResults.filter((result) => result === "selfPaid").length;
+      const messages = [
+        chargedCount > 0 ? `${chargedCount} aday için sınav borçlandırması yapıldı` : null,
+        selfPaidCount > 0 ? `${selfPaidCount} aday kendi ödedi olarak işaretlendi` : null,
+      ].filter(Boolean);
+      showToast(messages.length > 0 ? messages.join(", ") : "Sınav ücreti kaydedildi");
       setExamChargePrompt(null);
       setExamChargeModalOpen(false);
       refreshAll();
@@ -3429,20 +3529,17 @@ export function CandidatesPage({
       return {
         ...current,
         rows: current.rows.map((row) =>
-          row.candidate.id === candidateId ? { ...row, selected: !row.selected } : row
+          row.candidate.id === candidateId && !row.duplicateReason ? { ...row, selected: !row.selected } : row
         ),
       };
     });
   };
 
-  const updateUnscheduledExamChargeType = (examType: CandidateExamType) => {
-    void prepareUnscheduledExamChargePrompt(examType);
-  };
-
   const saveUnscheduledExamCharges = async () => {
     if (!unscheduledExamChargePrompt || unscheduledExamChargeSaving) return;
+    const allowZeroAmount = unscheduledExamChargePrompt.examType === "theory";
     const prepared = unscheduledExamChargePrompt.rows
-      .filter((row) => row.selected)
+      .filter((row) => row.selected && !row.duplicateReason)
       .map((row) => ({
         ...row,
         amount: row.fee.trim() === "" ? 0 : Number(row.fee),
@@ -3451,8 +3548,8 @@ export function CandidatesPage({
       showToast("Borçlandırılacak aday seçilmedi", "error");
       return;
     }
-    if (prepared.some((row) => !Number.isFinite(row.amount) || row.amount <= 0)) {
-      showToast("Sınav ücreti 0'dan büyük olmalı", "error");
+    if (prepared.some((row) => !Number.isFinite(row.amount) || row.amount < 0 || (!allowZeroAmount && row.amount <= 0))) {
+      showToast(allowZeroAmount ? "Sınav ücreti 0 veya daha büyük olmalı" : "Sınav ücreti 0'dan büyük olmalı", "error");
       return;
     }
 
@@ -3468,14 +3565,26 @@ export function CandidatesPage({
       ));
       const successCount = results.filter((result) => result.status === "fulfilled").length;
       const failureCount = results.length - successCount;
+      const chargedCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.feeStatus === "charged"
+      ).length;
+      const selfPaidCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.feeStatus === "paid"
+      ).length;
       if (successCount === 0) {
         showToast("Sınav borçlandırması yapılamadı", "error");
         return;
       }
 
-      showToast(failureCount === 0
-        ? `${successCount} aday için sınav borçlandırması yapıldı`
-        : `${successCount} aday borçlandırıldı, ${failureCount} adayda hata oluştu`,
+      const successMessages = [
+        chargedCount > 0 ? `${chargedCount} aday için sınav borçlandırması yapıldı` : null,
+        selfPaidCount > 0 ? `${selfPaidCount} aday kendi ödedi olarak işaretlendi` : null,
+      ].filter(Boolean);
+      showToast(
+        [
+          successMessages.length > 0 ? successMessages.join(", ") : `${successCount} aday için sınav borçlandırması yapıldı`,
+          failureCount > 0 ? `${failureCount} adayda hata oluştu` : null,
+        ].filter(Boolean).join(", "),
         failureCount === 0 ? undefined : "error");
       setUnscheduledExamChargePrompt(null);
       setSelectedCandidateIds(new Set());
@@ -3594,9 +3703,16 @@ export function CandidatesPage({
               {visibleColumns.map((col) => {
                 const label = getColumnLabel(col);
                 const filterControl = getColumnFilterControl(col);
+                const dragHandlers = columnDragHandlers(col.id);
+                const dragClassName = [
+                  col.headerClassName,
+                  dragHandlers.draggable ? "cand-column-draggable" : null,
+                  draggedColumnId === col.id ? "cand-column-dragging" : null,
+                ].filter(Boolean).join(" ");
                 return col.sortField ? (
                   <SortableTh
-                    className={col.headerClassName}
+                    className={dragClassName}
+                    dragHandlers={dragHandlers}
                     filterControl={filterControl}
                     key={col.id}
                     field={col.sortField}
@@ -3605,7 +3721,12 @@ export function CandidatesPage({
                     sort={sort}
                   />
                 ) : (
-                  <th aria-label={label} className={col.headerClassName} key={col.id}>
+                  <th
+                    aria-label={label}
+                    className={dragClassName}
+                    key={col.id}
+                    {...dragHandlers}
+                  >
                     <div className="sortable-th-shell">
                       <span>{col.headerLabel ?? label}</span>
                       {filterControl ? (
@@ -4172,28 +4293,17 @@ export function CandidatesPage({
           <div className="exam-charge-table-wrap">
             <div className="candidate-exam-attempt-form">
               <label>
-                <span>Sınav tipi</span>
-                <CustomSelect
-                  className="form-select"
-                  disabled={unscheduledExamChargeLoading || unscheduledExamChargeSaving}
-                  onChange={(event) => updateUnscheduledExamChargeType(event.target.value as CandidateExamType)}
-                  value={unscheduledExamChargePrompt.examType}
-                >
-                  <option value="theory">Teorik</option>
-                  <option value="practice">Direksiyon</option>
-                </CustomSelect>
-              </label>
-              <label>
                 <span>Vade tarihi</span>
-                <input
+                <LocalizedDateInput
+                  ariaLabel="Vade tarihi"
                   className="form-input"
                   disabled={unscheduledExamChargeSaving}
-                  onChange={(event) =>
+                  lang="tr-TR"
+                  onChange={(dueDate) =>
                     setUnscheduledExamChargePrompt((current) =>
-                      current ? { ...current, dueDate: event.target.value } : current
+                      current ? { ...current, dueDate } : current
                     )
                   }
-                  type="date"
                   value={unscheduledExamChargePrompt.dueDate}
                 />
               </label>
@@ -4211,26 +4321,37 @@ export function CandidatesPage({
               </thead>
               <tbody>
                 {unscheduledExamChargePrompt.rows.map((row) => (
-                  <tr key={row.candidate.id}>
+                  <tr
+                    className={row.duplicateReason ? "exam-charge-table-row-warning" : undefined}
+                    key={row.candidate.id}
+                  >
                     <td>
-                      <input
-                        aria-label={`${candidateFullName(row.candidate)} seç`}
-                        checked={row.selected}
-                        disabled={unscheduledExamChargeSaving}
-                        onChange={() => toggleUnscheduledExamChargeRow(row.candidate.id)}
-                        type="checkbox"
-                      />
+                      <label className="cand-select-control switch-toggle">
+                        <input
+                          aria-label={`${candidateFullName(row.candidate)} seç`}
+                          checked={!row.duplicateReason && row.selected}
+                          disabled={unscheduledExamChargeSaving || Boolean(row.duplicateReason)}
+                          onChange={() => toggleUnscheduledExamChargeRow(row.candidate.id)}
+                          type="checkbox"
+                        />
+                        <span className="switch-toggle-control" aria-hidden="true" />
+                      </label>
                     </td>
                     <td>{candidateFullName(row.candidate)}</td>
                     <td>{formatNationalId(row.candidate.nationalId)}</td>
                     <td>{formatPhoneDisplay(row.candidate.phoneNumber)}</td>
-                    <td>
-                      <input
-                        aria-label={`${candidateFullName(row.candidate)} sınav ücreti`}
-                        className="exam-charge-fee-input"
-                        min="0"
-                        onChange={(event) => updateUnscheduledExamChargeFee(row.candidate.id, event.target.value)}
-                        step="0.01"
+	                    <td>
+	                      <input
+	                        aria-label={`${candidateFullName(row.candidate)} sınav ücreti`}
+	                        className={[
+	                          "exam-charge-fee-input",
+	                          Number(row.fee) < 0 || (unscheduledExamChargePrompt.examType !== "theory" && Number(row.fee) <= 0)
+                              ? "exam-charge-fee-input-invalid"
+                              : null,
+	                        ].filter(Boolean).join(" ")}
+	                        min="0"
+	                        onChange={(event) => updateUnscheduledExamChargeFee(row.candidate.id, event.target.value)}
+	                        step="0.01"
                         type="number"
                         value={row.fee}
                       />
@@ -4284,7 +4405,7 @@ export function CandidatesPage({
             </button>
             <button
               className="btn btn-primary"
-              disabled={examChargeSaving}
+              disabled={examChargeSaving || !examChargePrompt?.rows.some((row) => !row.duplicateReason)}
               onClick={saveExamCharges}
               type="button"
             >
@@ -4304,18 +4425,28 @@ export function CandidatesPage({
                 <th>TC</th>
                 <th>Telefon</th>
                 <th>Ücret</th>
+                <th>Uyarı</th>
               </tr>
             </thead>
             <tbody>
               {examChargePrompt?.rows.map((row) => (
-                <tr key={row.candidate.id}>
+                <tr
+                  className={row.duplicateReason ? "exam-charge-table-row-warning" : undefined}
+                  key={row.candidate.id}
+                >
                   <td>{candidateFullName(row.candidate)}</td>
                   <td>{formatNationalId(row.candidate.nationalId)}</td>
                   <td>{formatPhoneDisplay(row.candidate.phoneNumber)}</td>
                   <td>
                     <input
                       aria-label={`${candidateFullName(row.candidate)} sınav ücreti`}
-                      className="exam-charge-fee-input"
+                      className={[
+                        "exam-charge-fee-input",
+                        Number(row.fee) < 0 || (examChargePrompt.examType !== "e_sinav" && Number(row.fee) <= 0)
+                          ? "exam-charge-fee-input-invalid"
+                          : null,
+                      ].filter(Boolean).join(" ")}
+                      disabled={examChargeSaving || Boolean(row.duplicateReason)}
                       min="0"
                       onChange={(event) => updateExamChargeFee(row.candidate.id, event.target.value)}
                       step="0.01"
@@ -4323,6 +4454,7 @@ export function CandidatesPage({
                       value={row.fee}
                     />
                   </td>
+                  <td>{row.duplicateReason ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -4364,6 +4496,7 @@ type SortableThProps = {
   sort: SortState;
   onToggle: (field: CandidateSortField) => void;
   className?: string;
+  dragHandlers?: ThHTMLAttributes<HTMLTableCellElement>;
 };
 
 function SortableTh({
@@ -4373,6 +4506,7 @@ function SortableTh({
   sort,
   onToggle,
   className,
+  dragHandlers,
 }: SortableThProps) {
   const isActive = sort?.field === field;
   const direction = isActive ? sort!.direction : null;
@@ -4386,7 +4520,7 @@ function SortableTh({
     .filter(Boolean)
     .join(" ");
   return (
-    <th aria-sort={ariaSort} className={thClassName}>
+    <th aria-sort={ariaSort} className={thClassName} {...dragHandlers}>
       <div className="sortable-th-shell">
         <button
           className="sortable-th-btn"

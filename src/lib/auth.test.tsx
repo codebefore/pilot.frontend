@@ -10,12 +10,17 @@ const requestLoginCodeMock = vi.fn();
 const verifyLoginCodeMock = vi.fn();
 const selectInstitutionMock = vi.fn();
 const logoutSessionMock = vi.fn();
+const stopLocalAgentMebbisSessionMock = vi.fn();
 
 vi.mock("./auth-api", () => ({
   logoutSession: (...args: unknown[]) => logoutSessionMock(...args),
   requestLoginCode: (...args: unknown[]) => requestLoginCodeMock(...args),
   selectInstitution: (...args: unknown[]) => selectInstitutionMock(...args),
   verifyLoginCode: (...args: unknown[]) => verifyLoginCodeMock(...args),
+}));
+
+vi.mock("./local-agent-api", () => ({
+  stopLocalAgentMebbisSession: (...args: unknown[]) => stopLocalAgentMebbisSessionMock(...args),
 }));
 
 const kurumA = {
@@ -99,6 +104,8 @@ describe("AuthProvider", () => {
     selectInstitutionMock.mockReset();
     logoutSessionMock.mockReset();
     logoutSessionMock.mockResolvedValue(undefined);
+    stopLocalAgentMebbisSessionMock.mockReset();
+    stopLocalAgentMebbisSessionMock.mockResolvedValue(undefined);
   });
 
   it("stores institutions and active institution after login", async () => {
@@ -158,6 +165,38 @@ describe("AuthProvider", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("none"));
+    expect(stopLocalAgentMebbisSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("does not stop MEBBIS agent session for repeated generic unauthorized events", async () => {
+    verifyLoginCodeMock.mockResolvedValue(response());
+    renderHarness();
+
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    act(() => {
+      window.dispatchEvent(new Event("pilot:unauthorized"));
+      window.dispatchEvent(new Event("pilot:unauthorized"));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("none"));
+    expect(stopLocalAgentMebbisSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("stops MEBBIS agent session once when refresh token is unauthorized", async () => {
+    verifyLoginCodeMock.mockResolvedValue(response());
+    renderHarness();
+
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    act(() => {
+      window.dispatchEvent(new Event("pilot:refresh-unauthorized"));
+      window.dispatchEvent(new Event("pilot:refresh-unauthorized"));
+    });
+
+    expect(stopLocalAgentMebbisSessionMock).toHaveBeenCalledTimes(1);
   });
 
   it("calls logout endpoint and clears only auth session locally", async () => {
@@ -174,6 +213,7 @@ describe("AuthProvider", () => {
     });
 
     expect(logoutSessionMock).toHaveBeenCalledWith({ refreshToken: "refresh-token-a" });
+    expect(stopLocalAgentMebbisSessionMock).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("user")).toHaveTextContent("none");
     expect(readStoredAuthSession()).toBeNull();
     expect(localStorage.getItem("pilot.lang")).toBe("tr");
@@ -193,6 +233,7 @@ describe("AuthProvider", () => {
     });
 
     expect(logoutSessionMock).toHaveBeenCalledWith({ refreshToken: "refresh-token-a" });
+    expect(stopLocalAgentMebbisSessionMock).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("user")).toHaveTextContent("none");
     expect(readStoredAuthSession()).toBeNull();
   });
@@ -217,7 +258,29 @@ describe("AuthProvider", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("none"));
+    expect(stopLocalAgentMebbisSessionMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("required")).toHaveTextContent("no");
+  });
+
+  it("stops MEBBIS agent session when logout is synchronized from another tab", async () => {
+    verifyLoginCodeMock.mockResolvedValue(response());
+    renderHarness();
+
+    await act(async () => {
+      screen.getByText("login").click();
+    });
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: `${AUTH_STORAGE_KEY}.logout-sync`,
+          oldValue: null,
+          newValue: new Date().toISOString(),
+          storageArea: localStorage,
+        })
+      );
+    });
+
+    expect(stopLocalAgentMebbisSessionMock).toHaveBeenCalledTimes(1);
   });
 
   it("marks institution required without clearing session", async () => {

@@ -1022,10 +1022,23 @@
   overflow: auto;
 }
 
+.exam-charge-table-wrap:has(.localized-date-popover) {
+  overflow: visible;
+}
+
+.exam-charge-table-wrap .localized-date-field:has(.localized-date-popover),
+.exam-charge-table-wrap .localized-date-popover {
+  z-index: 1600;
+}
+
 .exam-charge-table {
   width: 100%;
   min-width: 680px;
   border-collapse: collapse;
+}
+
+.candidate-exam-attempt-form + .exam-charge-table {
+  margin-top: 12px;
 }
 
 .exam-charge-table th,
@@ -1035,6 +1048,10 @@
   text-align: left;
   font-size: 13px;
   vertical-align: middle;
+}
+
+.exam-charge-table tr.exam-charge-table-row-warning td {
+  background: #fff1f2;
 }
 
 .exam-charge-table th {
@@ -1058,6 +1075,15 @@
   border-color: var(--primary-500);
   outline: 2px solid color-mix(in srgb, var(--primary-500) 20%, transparent);
   outline-offset: 1px;
+}
+
+.exam-charge-fee-input.exam-charge-fee-input-invalid {
+  border-color: #ef4444;
+}
+
+.exam-charge-fee-input.exam-charge-fee-input-invalid:focus {
+  border-color: #dc2626;
+  outline-color: color-mix(in srgb, #ef4444 22%, transparent);
 }
 
 /* ─── META ROW ─── */

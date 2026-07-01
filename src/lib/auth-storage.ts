@@ -239,6 +239,10 @@ export function notifyUnauthorized(): void {
   window.dispatchEvent(new Event("pilot:unauthorized"));
 }
 
+export function notifyRefreshUnauthorized(): void {
+  window.dispatchEvent(new Event("pilot:refresh-unauthorized"));
+}
+
 export function notifyInstitutionRequired(): void {
   window.dispatchEvent(new Event("pilot:institution-required"));
 }

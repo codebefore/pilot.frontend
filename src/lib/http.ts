@@ -5,6 +5,7 @@ import {
   getStoredActiveInstitutionId,
   getStoredUserId,
   notifyInstitutionRequired,
+  notifyRefreshUnauthorized,
   notifySessionRefreshed,
   notifyUnauthorized,
   readStoredAuthSession,
@@ -421,6 +422,9 @@ async function refreshStoredSessionOnce(staleAccessToken: string | null): Promis
         return true;
       }
 
+      if (response.status === 401) {
+        notifyRefreshUnauthorized();
+      }
       notifyUnauthorized();
       return false;
     }

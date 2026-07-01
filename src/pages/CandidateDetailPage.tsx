@@ -202,6 +202,10 @@ function vehicleDisplayName(vehicle: VehicleResponse | null | undefined): string
   return name || null;
 }
 
+function isExamVehicle(vehicle: VehicleResponse): boolean {
+  return !vehicle.isSimulator;
+}
+
 const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
 
 type TabKey =
@@ -3987,14 +3991,16 @@ function AccountingTab({
     .reduce((sum, item) => sum + item.remainingAmount, 0);
   const sectionMovements = (types: CandidateAccountingType[]) =>
     allMovements.filter((item) => types.includes(item.type));
+  const activeSectionMovements = (types: CandidateAccountingType[]) =>
+    activeMovements.filter((item) => types.includes(item.type));
   const sectionSummaries = ACCOUNTING_SECTION_DEFINITIONS.map((section) => {
-    const movements = sectionMovements(section.types);
+    const movements = activeSectionMovements(section.types);
 
     return {
       ...section,
       movementCount: movements.length,
       totalAmount: movements.reduce((sum, item) => sum + item.amount, 0),
-      paidAmount: movements.reduce((sum, item) => sum + item.paidAmount, 0),
+      paidAmount: movements.reduce((sum, item) => sum + item.paidAmount + item.refundedAmount, 0),
       refundedAmount: movements.reduce((sum, item) => sum + item.refundedAmount, 0),
       remainingAmount: movements.reduce((sum, item) => sum + item.remainingAmount, 0),
     };
@@ -4306,11 +4312,11 @@ function AccountingTab({
                       </div>
                       <div className="candidate-accounting-section-summary-metrics">
                         <span>
-                          <em>Borç</em>
+                          <em>Ücret</em>
                           <strong>{formatCurrencyTRY(section.totalAmount)}</strong>
                         </span>
                         <span>
-                          <em>Tahsil</em>
+                          <em>Ödenen</em>
                           <strong>{formatCurrencyTRY(section.paidAmount)}</strong>
                         </span>
                         <span>
@@ -4340,8 +4346,12 @@ function AccountingTab({
                         <em>KDV</em>
                         <strong>{formatCurrencyTRY(invoiceSummary.vatAmount)}</strong>
                       </span>
-                      <span className="is-balance">
+                      <span>
                         <em>Toplam</em>
+                        <strong>{formatCurrencyTRY(invoiceSummary.totalAmount)}</strong>
+                      </span>
+                      <span className="is-balance">
+                        <em>Kesilen</em>
                         <strong>{formatCurrencyTRY(invoiceSummary.totalAmount)}</strong>
                       </span>
                     </div>
@@ -6207,7 +6217,7 @@ function CandidateExamAttemptsSection({
     const controller = new AbortController();
     void reload(controller.signal);
     getVehicles({ activity: "active", page: 1, pageSize: 500 }, controller.signal)
-      .then((response) => setVehicles(response.items))
+      .then((response) => setVehicles(response.items.filter(isExamVehicle)))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setVehicles([]);
@@ -6750,7 +6760,7 @@ function CandidateExamAttemptsSection({
               <thead>
                 <tr>
                   <th>Tarih-saat</th>
-                  <th>Araç / Simülatör No</th>
+                  <th>Araç Plakası</th>
                   <th>Usta Öğretici</th>
                   <th>Hak</th>
                   <th>Sınav Durumu</th>
@@ -6948,7 +6958,7 @@ function CandidateExamAttemptsSection({
           {form.examType === "practice" ? (
             <>
               <label>
-                <span>Araç / Simülatör No</span>
+                <span>Araç Plakası</span>
                 <CustomSelect
                   className="form-select"
                   onChange={(event) => setForm((current) => ({ ...current, vehicleId: event.target.value }))}
