@@ -36,7 +36,9 @@ vi.mock("../components/settings/ClassroomsSettingsSection", () => ({
 }));
 
 vi.mock("../components/settings/ReferencesSettingsSection", () => ({
-  ReferencesSettingsSection: () => <div>References Section Mock</div>,
+  ReferencesSettingsSection: ({ variant = "references" }: { variant?: string }) => (
+    <div>{variant === "routes" ? "Routes Section Mock" : "References Section Mock"}</div>
+  ),
 }));
 
 vi.mock("../components/settings/MigrationSettingsSection", () => ({
@@ -91,6 +93,9 @@ describe("SettingsPage", () => {
 
     fireEvent.click(screen.getByRole("link", { name: /Branşlar/i }));
     expect(screen.getByText("Training Branches Section Mock")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: /Güzergahlar/i }));
+    expect(screen.getByText("Routes Section Mock")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: /Derslikler/i }));
     expect(screen.getByText("Classrooms Section Mock")).toBeInTheDocument();
@@ -190,6 +195,7 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByText("References Section Mock")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Referanslar/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Güzergahlar/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Genel/i })).not.toBeInTheDocument();
   });
 });

@@ -135,7 +135,13 @@ const SERVER_STATUS_FILTER: Record<Exclude<StatusFilter, "all">, string> = {
 };
 
 function isDomainApplyMebbisJob(jobType: string): boolean {
-  return ["candidate_sync", "theory_schedule_sync", "theory_schedule_import", "practice_schedule_import"].includes(jobType);
+  return [
+    "candidate_sync",
+    "candidate_exam_result_sync",
+    "theory_schedule_sync",
+    "theory_schedule_import",
+    "practice_schedule_import",
+  ].includes(jobType);
 }
 
 function isRecentlyCompletedDomainJob(job: MebbisJobResponse): boolean {

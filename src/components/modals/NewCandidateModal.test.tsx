@@ -435,6 +435,108 @@ describe("NewCandidateModal", () => {
     });
   });
 
+  it("can assign the new candidate to an optional group", async () => {
+    getTermsMock.mockResolvedValue({
+      items: [
+        {
+          id: "term-1",
+          monthDate: "2026-05-01",
+          sequence: 1,
+          name: "Mayıs",
+          groupCount: 1,
+          activeCandidateCount: 0,
+          licenseClassCounts: [],
+          createdAtUtc: "2026-05-01T00:00:00Z",
+          updatedAtUtc: "2026-05-01T00:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "term-2",
+          monthDate: "2026-06-01",
+          sequence: 1,
+          name: "Haziran",
+          groupCount: 1,
+          activeCandidateCount: 0,
+          licenseClassCounts: [],
+          createdAtUtc: "2026-06-01T00:00:00Z",
+          updatedAtUtc: "2026-06-01T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 200,
+      totalCount: 2,
+      totalPages: 1,
+    });
+    getGroupsMock.mockResolvedValue({
+      items: [
+        {
+          id: "group-1",
+          title: "1A",
+          term: { id: "term-1", monthDate: "2026-05-01", sequence: 1, name: "Mayıs" },
+          capacity: 20,
+          assignedCandidateCount: 0,
+          activeCandidateCount: 0,
+          licenseClassCounts: [],
+          startDate: "2026-05-10",
+          mebStatus: null,
+          createdAtUtc: "2026-05-01T00:00:00Z",
+          updatedAtUtc: "2026-05-01T00:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "group-2",
+          title: "2A",
+          term: { id: "term-2", monthDate: "2026-06-01", sequence: 1, name: "Haziran" },
+          capacity: 20,
+          assignedCandidateCount: 0,
+          activeCandidateCount: 0,
+          licenseClassCounts: [],
+          startDate: "2026-06-10",
+          mebStatus: null,
+          createdAtUtc: "2026-06-01T00:00:00Z",
+          updatedAtUtc: "2026-06-01T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 500,
+      totalCount: 2,
+      totalPages: 1,
+    });
+
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    const groupSelect = await waitFor(() => {
+      const select = document.querySelector<HTMLSelectElement>('select[name="groupId"]');
+      expect(select).not.toBeNull();
+      expect([...select!.options].map((option) => option.value)).toEqual(["", "group-2", "group-1"]);
+      expect(select!.options[1].textContent).toContain("HAZİRAN 2026");
+      return select!;
+    });
+    fireEvent.change(groupSelect!, { target: { value: "group-1" } });
+
+    fireEvent.change(screen.getByPlaceholderText("11 haneli TC"), {
+      target: { value: "10000000146" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Adı"), {
+      target: { value: "Ada" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
+      target: { value: "Yilmaz" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("5XX XXX XX XX"), {
+      target: { value: "5551234567" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(createCandidateMock).toHaveBeenCalled();
+      expect(assignCandidateGroupMock).toHaveBeenCalledWith("candidate-1", "group-1");
+    });
+  });
+
   it("does not list inactive global license classes as targets", async () => {
     getLicenseClassDefinitionsMock.mockImplementation((options) => {
       const activeItems = [licenseClassDefinition("A2", 20)];

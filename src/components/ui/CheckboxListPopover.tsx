@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useT } from "../../lib/i18n";
+import { normalizeSearchComparable } from "../../lib/search";
 import { FilterIcon } from "../icons";
 
 type CheckboxListOption = {
@@ -58,9 +59,9 @@ export function CheckboxListPopover({
 
   const filteredOptions = useMemo(() => {
     if (!searchable || search.trim() === "") return options;
-    const needle = search.trim().toLocaleLowerCase("tr");
+    const needle = normalizeSearchComparable(search);
     return options.filter((option) =>
-      option.label.toLocaleLowerCase("tr").includes(needle)
+      normalizeSearchComparable(option.label).includes(needle)
     );
   }, [options, search, searchable]);
 

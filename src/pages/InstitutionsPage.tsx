@@ -12,6 +12,7 @@ import { useAuth } from "../lib/auth";
 import { updateStoredInstitutionName } from "../lib/auth-storage";
 import { ApiError } from "../lib/http";
 import { formatPhoneDisplay } from "../lib/phone";
+import { normalizeSearchComparable } from "../lib/search";
 import {
   createInstitutionMember,
   createInstitutionFounder,
@@ -102,11 +103,11 @@ export function InstitutionsPage() {
     return counts;
   }, [institutions, memberCountQueries]);
   const filteredInstitutions = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("tr-TR");
+    const query = normalizeSearchComparable(search);
     if (!query) return institutions;
 
     return institutions.filter((institution) =>
-      institution.name.toLocaleLowerCase("tr-TR").includes(query)
+      normalizeSearchComparable(institution.name).includes(query)
     );
   }, [institutions, search]);
 

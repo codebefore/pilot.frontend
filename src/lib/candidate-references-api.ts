@@ -8,6 +8,7 @@ const candidateRequestOptions = (signal?: AbortSignal) => ({
 
 export interface CandidateReferenceResponse {
   id: string;
+  kind?: CandidateReferenceKind;
   name: string;
   displayOrder: number;
   isActive: boolean;
@@ -20,7 +21,10 @@ interface CandidateReferenceListResponse {
   items: CandidateReferenceResponse[];
 }
 
+export type CandidateReferenceKind = "reference" | "route";
+
 interface CandidateReferenceUpsertRequest {
+  kind?: CandidateReferenceKind;
   name: string;
   displayOrder: number;
   isActive: boolean;
@@ -28,10 +32,13 @@ interface CandidateReferenceUpsertRequest {
 }
 
 export async function getCandidateReferences(
-  options: { includeInactive?: boolean } = {},
+  options: { includeInactive?: boolean; kind?: CandidateReferenceKind } = {},
   signal?: AbortSignal
 ): Promise<CandidateReferenceResponse[]> {
   const params = new URLSearchParams();
+  if (options.kind) {
+    params.set("kind", options.kind);
+  }
   if (options.includeInactive) {
     params.set("includeInactive", "true");
   }

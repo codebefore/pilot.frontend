@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { useT } from "../../lib/i18n";
+import { normalizeSearchComparable } from "../../lib/search";
 import type {
   TrainingCalendarEvent,
   TrainingEventKind,
@@ -167,17 +168,17 @@ export function TrainingFilters({
   const [vehicleSearch, setVehicleSearch] = useState("");
 
   const filteredInstructors = useMemo(() => {
-    const q = instructorSearch.trim().toLocaleLowerCase("tr");
+    const q = normalizeSearchComparable(instructorSearch);
     if (!q) return instructors;
     return instructors.filter((i) =>
-      i.name.toLocaleLowerCase("tr").includes(q)
+      normalizeSearchComparable(i.name).includes(q)
     );
   }, [instructors, instructorSearch]);
 
   const filteredVehicles = useMemo(() => {
-    const q = vehicleSearch.trim().toLocaleLowerCase("tr");
+    const q = normalizeSearchComparable(vehicleSearch);
     if (!q) return vehicles;
-    return vehicles.filter((v) => v.label.toLocaleLowerCase("tr").includes(q));
+    return vehicles.filter((v) => normalizeSearchComparable(v.label).includes(q));
   }, [vehicles, vehicleSearch]);
 
   return (

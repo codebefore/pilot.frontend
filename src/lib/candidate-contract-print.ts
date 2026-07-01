@@ -2,10 +2,15 @@ import { getDocumentApiBaseUrl } from "./api";
 import { httpPostBlob } from "./http";
 import type { InstitutionSettingsResponse } from "./institution-settings-api";
 import { formatPhoneDisplay } from "./phone";
+import { formatDateTR } from "./status-maps";
 import type {
   CandidateAccountingSummaryResponse,
+  CandidateKCertificateResponse,
   CandidateResponse,
+  InstructorResponse,
   LicenseClassFeeRowResponse,
+  TrainingLessonResponse,
+  VehicleResponse,
 } from "./types";
 
 const emptyValue = "-";
@@ -20,13 +25,25 @@ export type CandidateContractDocumentInput = {
   managerName: string | null;
 };
 
+export type CandidateKCertificateRenderInput = {
+  candidate: CandidateResponse;
+  certificate: Pick<CandidateKCertificateResponse, "documentNumber" | "startDate" | "expiryDate" | "lastLessonEndDate">;
+  institution: InstitutionSettingsResponse | null;
+  managerName: string | null;
+  lesson: TrainingLessonResponse | null;
+  instructor: InstructorResponse | null;
+  vehicle: VehicleResponse | null;
+  vehicleTypeLabel: string | null;
+  routeName: string | null;
+};
+
 export type CandidateContractRenderPdfRequest = {
   values: Record<string, string>;
   fileName: string;
   templateKey?: CandidateContractTemplateKey;
 };
 
-export type CandidateContractTemplateKey = "registration-contract" | "signature-sample";
+export type CandidateContractTemplateKey = "registration-contract" | "signature-sample" | "k-certificate";
 
 function documentRequestOptions(signal?: AbortSignal) {
   return { baseUrl: getDocumentApiBaseUrl(), signal };
@@ -96,6 +113,23 @@ function contractFileName(candidate: CandidateResponse): string {
 
 function signatureSampleFileName(candidate: CandidateResponse): string {
   return candidatePdfFileName(candidate, "imza-ornegi");
+}
+
+function kCertificateFileName(candidate: CandidateResponse, documentNumber: string | null | undefined): string {
+  const suffix = documentNumber?.trim()
+    ? `k-belgesi-${documentNumber.trim()}`
+    : "k-belgesi";
+  return candidatePdfFileName(candidate, suffix);
+}
+
+function splitFullName(fullName: string | null | undefined): { firstName: string | null; lastName: string | null } {
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: null, lastName: null };
+  if (parts.length === 1) return { firstName: parts[0], lastName: null };
+  return {
+    firstName: parts.slice(0, -1).join(" "),
+    lastName: parts[parts.length - 1],
+  };
 }
 
 export function buildCandidateContractRenderPdfRequest({
@@ -175,6 +209,58 @@ export function buildCandidateSignatureSampleRenderPdfRequest(
       kursiyeradi: clean(candidate.firstName),
       kursiyersoyadi: clean(candidate.lastName),
       kursiyertckimlikno: clean(candidate.nationalId),
+    },
+  };
+}
+
+export function buildCandidateKCertificateRenderPdfRequest({
+  candidate,
+  certificate,
+  institution,
+  managerName,
+  lesson,
+  instructor,
+  vehicle,
+  vehicleTypeLabel,
+  routeName,
+}: CandidateKCertificateRenderInput): CandidateContractRenderPdfRequest {
+  const institutionName = institution?.institutionOfficialName ?? institution?.institutionName ?? null;
+  const instructorNameParts = splitFullName(
+    instructor
+      ? `${instructor.firstName} ${instructor.lastName}`
+      : lesson?.instructorName
+  );
+
+  return {
+    fileName: kCertificateFileName(candidate, certificate.documentNumber),
+    templateKey: "k-certificate",
+    values: {
+      adayno: clean(candidate.nationalId),
+      aracturu: clean(vehicleTypeLabel),
+      guzergah: clean(routeName),
+      kbelgesibaslangictarihi: formatDateTR(certificate.startDate),
+      kbelgesibitistarihi: formatDateTR(certificate.expiryDate),
+      kursresmiadi: clean(institutionName),
+      kursmuduru: clean(managerName),
+      kursil: clean(institution?.city),
+      kursilce: clean(institution?.district),
+      kursadresi: clean(institution?.institutionAddress),
+      kursiyertckimlikno: clean(candidate.nationalId),
+      kursiyeradi: clean(candidate.firstName),
+      kursiyersoyadi: clean(candidate.lastName),
+      kursiyerbabaadi: clean(candidate.fatherName),
+      kursiyerdogumyeri: clean(candidate.birthPlace),
+      kursiyerdogumtarihi: formatDateTR(candidate.birthDate),
+      kursiyeradresi: clean(candidate.address),
+      kursiyerbiyometrikfotograf: "",
+      ustaogreticikimlikno: clean(instructor?.nationalId),
+      ustaogreticiadi: clean(instructorNameParts.firstName),
+      ustaogreticisoyadi: clean(instructorNameParts.lastName),
+      ustaogreticiadresi: clean(instructor?.notes),
+      ustaogreticiehliyettipi: clean(instructor?.licenseClassCodes.join(", ")),
+      ustaogreticiehliyetno: emptyValue,
+      ustaogreticiehliyetverildigiyer: emptyValue,
+      aracplaka: clean(vehicle?.plateNumber ?? lesson?.vehiclePlate),
     },
   };
 }

@@ -19,9 +19,7 @@ import type {
   InstructorCreateRequest,
   InstructorResponse,
   InstructorUpsertRequest,
-  LicenseClass,
 } from "../../lib/types";
-import { useLicenseClassOptions } from "../../lib/use-license-class-options";
 import { InstructorAvatar } from "../ui/InstructorAvatar";
 import { Modal } from "../ui/Modal";
 import { RequiredMark } from "../ui/RequiredMark";
@@ -31,10 +29,13 @@ type InstructorFormValues = {
   firstName: string;
   lastName: string;
   nationalId: string;
+  driverLicenseNumber: string;
+  driverLicenseTypeText: string;
+  driverLicenseIssuedPlace: string;
+  driverLicenseAddress: string;
   phoneNumber: string;
   email: string;
   isActive: boolean;
-  licenseClassCodes: LicenseClass[];
   notes: string;
 };
 
@@ -51,13 +52,16 @@ const instructorFormSchema = z.object({
   firstName: z.string().min(1, "instructorForm.error.firstNameRequired"),
   lastName: z.string().min(1, "instructorForm.error.lastNameRequired"),
   nationalId: z.string(),
+  driverLicenseNumber: z.string(),
+  driverLicenseTypeText: z.string(),
+  driverLicenseIssuedPlace: z.string(),
+  driverLicenseAddress: z.string(),
   phoneNumber: z.string().refine(
     (value) => !value.trim() || isPhoneStartingWith5(value),
     "instructorForm.error.phoneStartWith5"
   ),
   email: z.string(),
   isActive: z.boolean(),
-  licenseClassCodes: z.array(z.string()),
   notes: z.string(),
 });
 
@@ -68,12 +72,18 @@ const VALIDATION_FIELD_MAP: Record<string, keyof InstructorFormValues> = {
   LastName: "lastName",
   nationalId: "nationalId",
   NationalId: "nationalId",
+  driverLicenseNumber: "driverLicenseNumber",
+  DriverLicenseNumber: "driverLicenseNumber",
+  driverLicenseTypeText: "driverLicenseTypeText",
+  DriverLicenseTypeText: "driverLicenseTypeText",
+  driverLicenseIssuedPlace: "driverLicenseIssuedPlace",
+  DriverLicenseIssuedPlace: "driverLicenseIssuedPlace",
+  driverLicenseAddress: "driverLicenseAddress",
+  DriverLicenseAddress: "driverLicenseAddress",
   phoneNumber: "phoneNumber",
   PhoneNumber: "phoneNumber",
   email: "email",
   Email: "email",
-  licenseClassCodes: "licenseClassCodes",
-  LicenseClassCodes: "licenseClassCodes",
   notes: "notes",
   Notes: "notes",
 };
@@ -100,20 +110,26 @@ function getEmptyValues(editing: InstructorResponse | null): InstructorFormValue
         firstName: editing.firstName,
         lastName: editing.lastName,
         nationalId: editing.nationalId ?? "",
+        driverLicenseNumber: editing.driverLicenseNumber ?? "",
+        driverLicenseTypeText: editing.driverLicenseTypeText ?? "",
+        driverLicenseIssuedPlace: editing.driverLicenseIssuedPlace ?? "",
+        driverLicenseAddress: editing.driverLicenseAddress ?? "",
         phoneNumber: editing.phoneNumber ?? "",
         email: editing.email ?? "",
         isActive: editing.isActive,
-        licenseClassCodes: editing.licenseClassCodes,
         notes: editing.notes ?? "",
       }
     : {
         firstName: "",
         lastName: "",
         nationalId: "",
+        driverLicenseNumber: "",
+        driverLicenseTypeText: "",
+        driverLicenseIssuedPlace: "",
+        driverLicenseAddress: "",
         phoneNumber: "",
         email: "",
         isActive: true,
-        licenseClassCodes: ["B"],
         notes: "",
       };
 }
@@ -136,12 +152,15 @@ export function InstructorFormModal({
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoInstructor, setPhotoInstructor] = useState<InstructorResponse | null>(editing);
   const nationalIdInputId = useId();
+  const driverLicenseNumberId = useId();
+  const driverLicenseTypeTextId = useId();
+  const driverLicenseIssuedPlaceId = useId();
+  const driverLicenseAddressId = useId();
   const firstNameId = useId();
   const lastNameInputId = useId();
   const phoneInputId = useId();
   const emailId = useId();
   const notesId = useId();
-  const { options: licenseClassOptions } = useLicenseClassOptions();
 
   const invalidateInstructorDependents = (instructorId?: string) => {
     void queryClient.invalidateQueries({ queryKey: ["instructors", "list"] });
@@ -164,13 +183,11 @@ export function InstructorFormModal({
     register,
     reset,
     setError,
-    setValue,
     watch,
   } = useForm<InstructorFormValues>({
     defaultValues: getEmptyValues(editing),
     resolver: zodResolver(instructorFormSchema),
   });
-  const selectedLicenseClassCodes = watch("licenseClassCodes");
   const phoneNumberRegistration = register("phoneNumber");
 
   useEffect(() => {
@@ -178,26 +195,6 @@ export function InstructorFormModal({
     reset(getEmptyValues(editing));
     setPhotoInstructor(editing);
   }, [editing, open, reset]);
-
-  useEffect(() => {
-    if (!open || !editing || licenseClassOptions.length === 0) return;
-
-    const supported = new Set(licenseClassOptions.map((option) => option.value));
-    const selected = selectedLicenseClassCodes ?? [];
-    if (selected.length > 0 && selected.every((value) => supported.has(value))) {
-      return;
-    }
-
-    const activeSelected = selected.filter((value) => supported.has(value));
-    setValue(
-      "licenseClassCodes",
-      activeSelected.length > 0 ? activeSelected : [licenseClassOptions[0].value],
-      {
-        shouldDirty: false,
-        shouldValidate: true,
-      }
-    );
-  }, [editing, licenseClassOptions, open, selectedLicenseClassCodes, setValue]);
 
   const submit = handleSubmit(async (values) => {
     if (!canManage) return;
@@ -207,9 +204,13 @@ export function InstructorFormModal({
       firstName: normalizeUppercase(values.firstName.trim()),
       lastName: normalizeUppercase(values.lastName.trim()),
       nationalId: values.nationalId.trim() || null,
+      driverLicenseNumber: values.driverLicenseNumber.trim() || null,
+      driverLicenseTypeText: values.driverLicenseTypeText.trim() || null,
+      driverLicenseIssuedPlace: values.driverLicenseIssuedPlace.trim() || null,
+      driverLicenseAddress: values.driverLicenseAddress.trim() || null,
       phoneNumber: values.phoneNumber.trim() || null,
       email: values.email.trim() || null,
-	      isActive: values.isActive,
+      isActive: values.isActive,
       assignedVehicleId: editing?.assignedVehicleId ?? null,
       notes: values.notes.trim() || null,
       ...(editing ? { rowVersion: editing.rowVersion } : {}),
@@ -339,7 +340,7 @@ export function InstructorFormModal({
           </div>
         ) : null}
 
-        <div className="form-row">
+        <div className="form-row full">
           <div className="form-group">
             <label className="form-label" htmlFor={nationalIdInputId}>{t("common.field.nationalId")}</label>
             <input
@@ -436,6 +437,57 @@ export function InstructorFormModal({
           <div className="form-group">
             <label className="form-label" htmlFor={notesId}>{t("common.field.note")}</label>
             <textarea id={notesId} className="form-input" rows={4} {...register("notes")} />
+          </div>
+        </div>
+
+        <div className="instructor-license-section">
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor={driverLicenseNumberId}>{t("common.field.driverLicenseNumber")}</label>
+              <input
+                id={driverLicenseNumberId}
+                className={fieldClass(errors.driverLicenseNumber?.message)}
+                maxLength={64}
+                placeholder={t("common.field.driverLicenseNumber")}
+                {...register("driverLicenseNumber")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor={driverLicenseTypeTextId}>{t("common.field.driverLicenseTypeText")}</label>
+              <input
+                id={driverLicenseTypeTextId}
+                className={fieldClass(errors.driverLicenseTypeText?.message)}
+                maxLength={64}
+                placeholder={t("common.field.driverLicenseTypeText")}
+                {...register("driverLicenseTypeText")}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor={driverLicenseIssuedPlaceId}>{t("common.field.driverLicenseIssuedPlace")}</label>
+              <input
+                id={driverLicenseIssuedPlaceId}
+                className={fieldClass(errors.driverLicenseIssuedPlace?.message)}
+                maxLength={128}
+                placeholder={t("instructorForm.placeholder.driverLicenseIssuedPlace")}
+                {...register("driverLicenseIssuedPlace")}
+              />
+            </div>
+          </div>
+
+          <div className="form-row full">
+            <div className="form-group">
+              <label className="form-label" htmlFor={driverLicenseAddressId}>{t("common.field.driverLicenseAddress")}</label>
+              <textarea
+                id={driverLicenseAddressId}
+                className={fieldClass(errors.driverLicenseAddress?.message)}
+                maxLength={1000}
+                placeholder={t("common.field.driverLicenseAddress")}
+                rows={3}
+                {...register("driverLicenseAddress")}
+              />
+            </div>
           </div>
         </div>
 

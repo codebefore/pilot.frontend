@@ -10,6 +10,7 @@ import {
   deleteCandidateReference,
   getCandidateReferences,
   updateCandidateReference,
+  type CandidateReferenceKind,
   type CandidateReferenceResponse,
 } from "../../lib/candidate-references-api";
 import { useAuth } from "../../lib/auth";
@@ -19,11 +20,56 @@ import { candidateKeys } from "../../lib/queries/use-candidates";
 
 const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 
-export function ReferencesSettingsSection() {
+type ReferencesSettingsSectionCopy = {
+  totalLabel: string;
+  listTitle: string;
+  newButton: string;
+  placeholder: string;
+  emptyText: string;
+  nameColumn: string;
+  addedToast: string;
+  addFailedToast: string;
+  deletedToast: string;
+  deleteFailedToast: string;
+};
+
+const referenceCopy: ReferencesSettingsSectionCopy = {
+  totalLabel: "Toplam Referans",
+  listTitle: "Referans Listesi",
+  newButton: "Yeni Referans",
+  placeholder: "Referans adı",
+  emptyText: "Henüz referans tanımı yok.",
+  nameColumn: "Ad",
+  addedToast: "Referans eklendi",
+  addFailedToast: "Referans eklenemedi",
+  deletedToast: "Referans silindi",
+  deleteFailedToast: "Referans silinemedi",
+};
+
+const routeCopy: ReferencesSettingsSectionCopy = {
+  totalLabel: "Toplam Güzergah",
+  listTitle: "Güzergah Listesi",
+  newButton: "Yeni Güzergah",
+  placeholder: "Güzergah adı",
+  emptyText: "Henüz güzergah tanımı yok.",
+  nameColumn: "Adres",
+  addedToast: "Güzergah eklendi",
+  addFailedToast: "Güzergah eklenemedi",
+  deletedToast: "Güzergah silindi",
+  deleteFailedToast: "Güzergah silinemedi",
+};
+
+type ReferencesSettingsSectionProps = {
+  variant?: "references" | "routes";
+};
+
+export function ReferencesSettingsSection({ variant = "references" }: ReferencesSettingsSectionProps) {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const t = useT();
+  const copy = variant === "routes" ? routeCopy : referenceCopy;
+  const kind: CandidateReferenceKind = variant === "routes" ? "route" : "reference";
   const queryClient = useQueryClient();
   const noPermissionTitle = t("common.noPermission");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -38,8 +84,8 @@ export function ReferencesSettingsSection() {
 
   const referencesQuery = useQuery({
     gcTime: SETTINGS_QUERY_CACHE_MS,
-    queryKey: ["settings", "candidate-references", { includeInactive: true }, refreshKey],
-    queryFn: ({ signal }) => getCandidateReferences({ includeInactive: true }, signal),
+    queryKey: ["settings", "candidate-references", { includeInactive: true, kind }, refreshKey],
+    queryFn: ({ signal }) => getCandidateReferences({ includeInactive: true, kind }, signal),
     retry: false,
   });
   const items = referencesQuery.data ?? [];
@@ -53,7 +99,10 @@ export function ReferencesSettingsSection() {
 
   const refresh = () => {
     setRefreshKey((value) => value + 1);
-    void queryClient.invalidateQueries({ queryKey: ["settings", "candidate-references"] });
+    void queryClient.invalidateQueries({ queryKey: ["settings", "candidate-references", { kind }] });
+    if (kind === "route") {
+      void queryClient.invalidateQueries({ queryKey: ["settings", "candidate-routes"] });
+    }
     void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
@@ -70,16 +119,17 @@ export function ReferencesSettingsSection() {
         ? Math.max(...items.map((item) => item.displayOrder)) + 100
         : 100;
       await createCandidateReference({
+        kind,
         name: trimmed,
         displayOrder: nextOrder,
         isActive: true,
       });
       setNewName("");
       setCreating(false);
-      showToast("Referans eklendi");
+      showToast(copy.addedToast);
       refresh();
     } catch {
-      showToast("Referans eklenemedi", "error");
+      showToast(copy.addFailedToast, "error");
     } finally {
       setSaving(false);
     }
@@ -105,6 +155,7 @@ export function ReferencesSettingsSection() {
     setSaving(true);
     try {
       await updateCandidateReference(editing.id, {
+        kind,
         name: trimmed,
         displayOrder: editing.displayOrder,
         isActive: editActive,
@@ -125,11 +176,11 @@ export function ReferencesSettingsSection() {
     setDeletingId(id);
     try {
       await deleteCandidateReference(id);
-      showToast("Referans silindi");
+      showToast(copy.deletedToast);
       setConfirmDeleteId(null);
       refresh();
     } catch {
-      showToast("Referans silinemedi", "error");
+      showToast(copy.deleteFailedToast, "error");
     } finally {
       setDeletingId(null);
     }
@@ -141,7 +192,7 @@ export function ReferencesSettingsSection() {
     <div className="settings-section-stack">
       <div className="settings-summary-grid">
         <div className="settings-summary-card">
-          <span className="settings-summary-label">Toplam Referans</span>
+          <span className="settings-summary-label">{copy.totalLabel}</span>
           <strong className="settings-summary-value">{items.length}</strong>
         </div>
         <div className="settings-summary-card">
@@ -152,7 +203,7 @@ export function ReferencesSettingsSection() {
 
       <section className="settings-surface">
         <div className="settings-surface-header">
-          <div className="settings-surface-title">Referans Listesi</div>
+          <div className="settings-surface-title">{copy.listTitle}</div>
           {!creating ? (
           <button
             className="btn btn-primary btn-sm"
@@ -164,7 +215,7 @@ export function ReferencesSettingsSection() {
             title={!canManageCandidates ? noPermissionTitle : undefined}
             type="button"
           >
-              Yeni Referans
+              {copy.newButton}
             </button>
           ) : null}
         </div>
@@ -183,7 +234,7 @@ export function ReferencesSettingsSection() {
                   setNewName("");
                 }
               }}
-              placeholder="Referans adı"
+              placeholder={copy.placeholder}
               value={newName}
             />
             <button
@@ -213,7 +264,7 @@ export function ReferencesSettingsSection() {
           <table className="settings-table">
             <thead>
               <tr>
-                <th>Ad</th>
+                <th>{copy.nameColumn}</th>
                 <th>Durum</th>
                 <th style={{ width: 120 }} />
               </tr>
@@ -224,7 +275,7 @@ export function ReferencesSettingsSection() {
               ) : null}
               {!loading && items.length === 0 ? (
                 <tr>
-                  <td colSpan={3}>Henüz referans tanımı yok.</td>
+                  <td colSpan={3}>{copy.emptyText}</td>
                 </tr>
               ) : null}
               {items.map((item) => {

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applyRuntimeConfig } from "./api";
 import {
   createCandidateEducationInfoUploadJob,
+  createCandidateExamResultSyncJob,
+  createESinavExamResultSyncJob,
   createCandidateHealthReportUploadJob,
   createCandidateNationalIdImportJob,
   createCandidateSyncByNationalIdJob,
@@ -100,6 +102,47 @@ describe("mebbis jobs api", () => {
     );
     expect(init?.method).toBe("POST");
     expect(init?.body).toBe(JSON.stringify({ registrationFee: 8750 }));
+  });
+
+  it("creates candidate exam result sync jobs on the MEBBIS base url", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createCandidateExamResultSyncJob("candidate-1");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe(
+      "http://127.0.0.1:5090/api/mebbis/jobs/candidates/candidate-1/exam-result-sync"
+    );
+    expect(init?.method).toBe("POST");
+  });
+
+  it("creates date-level e-sinav exam result sync jobs on the MEBBIS base url", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createESinavExamResultSyncJob("2026-06-12");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe(
+      "http://127.0.0.1:5090/api/mebbis/jobs/exam-results/e-sinav"
+    );
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ examDate: "2026-06-12" }));
   });
 
   it("creates candidate education info upload jobs on the MEBBIS base url", async () => {

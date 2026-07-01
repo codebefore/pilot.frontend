@@ -77,4 +77,39 @@ describe("ReferencesSettingsSection", () => {
     expect(updateCandidateReferenceMock).not.toHaveBeenCalled();
     expect(deleteCandidateReferenceMock).not.toHaveBeenCalled();
   });
+
+  it("loads and creates routes with the route kind", async () => {
+    createCandidateReferenceMock.mockResolvedValue({
+      id: "route-1",
+      kind: "route",
+      name: "Sahil",
+      displayOrder: 200,
+      isActive: true,
+      createdAtUtc: "2026-01-01T00:00:00Z",
+      updatedAtUtc: "2026-01-01T00:00:00Z",
+      rowVersion: 1,
+    });
+
+    renderWithProviders(<ReferencesSettingsSection variant="routes" />);
+
+    expect(await screen.findByText("Tavsiye")).toBeInTheDocument();
+    expect(getCandidateReferencesMock).toHaveBeenCalledWith(
+      { includeInactive: true, kind: "route" },
+      expect.any(AbortSignal)
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Yeni Güzergah" }));
+    fireEvent.change(screen.getByPlaceholderText("Güzergah adı"), {
+      target: { value: "Sahil" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ekle" }));
+
+    expect(await screen.findByText("Güzergah eklendi")).toBeInTheDocument();
+    expect(createCandidateReferenceMock).toHaveBeenCalledWith({
+      kind: "route",
+      name: "Sahil",
+      displayOrder: 200,
+      isActive: true,
+    });
+  });
 });

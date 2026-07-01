@@ -28,6 +28,7 @@ import { ApiError } from "../lib/http";
 import { canManageArea, canViewArea } from "../lib/permissions";
 import { formatPhoneDisplay } from "../lib/phone";
 import { getRoles } from "../lib/roles-api";
+import { normalizeSearchComparable } from "../lib/search";
 import { deleteUser, getUsers } from "../lib/users-api";
 import type { AppUserResponse, RoleResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
@@ -254,10 +255,10 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
   );
 
   const filteredUsers = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("tr-TR");
-    const fullName = filters.fullName.trim().toLocaleLowerCase("tr-TR");
+    const query = normalizeSearchComparable(search);
+    const fullName = normalizeSearchComparable(filters.fullName);
     const phone = filters.phone.replace(/\D/g, "");
-    const mebbisUsername = filters.mebbisUsername.trim().toLocaleLowerCase("tr-TR");
+    const mebbisUsername = normalizeSearchComparable(filters.mebbisUsername);
 
     return users.filter((user) => {
       if (query) {
@@ -268,10 +269,11 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
           user.roleName ?? "",
         ]
           .join(" ")
-          .toLocaleLowerCase("tr-TR");
-        if (!haystack.includes(query)) return false;
+          .trim();
+        const comparableHaystack = normalizeSearchComparable(haystack);
+        if (!comparableHaystack.includes(query)) return false;
       }
-      if (fullName && !user.fullName.toLocaleLowerCase("tr-TR").includes(fullName)) {
+      if (fullName && !normalizeSearchComparable(user.fullName).includes(fullName)) {
         return false;
       }
       if (phone && !(user.phone ?? "").replace(/\D/g, "").includes(phone)) {
@@ -279,7 +281,7 @@ export function UsersPage({ embedded = false }: UsersPageProps) {
       }
       if (
         mebbisUsername &&
-        !(user.mebbisUsername ?? "").toLocaleLowerCase("tr-TR").includes(mebbisUsername)
+        !normalizeSearchComparable(user.mebbisUsername ?? "").includes(mebbisUsername)
       ) {
         return false;
       }

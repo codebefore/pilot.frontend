@@ -309,6 +309,10 @@ export function InstructorDetailPage() {
 
             <div className="instructor-detail-summary-grid">
               <Field label="TC Kimlik No" value={instructor.nationalId ?? "—"} />
+              <Field label={t("common.field.driverLicenseNumber")} value={instructor.driverLicenseNumber ?? "—"} />
+              <Field label={t("common.field.driverLicenseTypeText")} value={instructor.driverLicenseTypeText ?? "—"} />
+              <Field label={t("common.field.driverLicenseIssuedPlace")} value={instructor.driverLicenseIssuedPlace ?? "—"} />
+              <Field label={t("common.field.driverLicenseAddress")} value={instructor.driverLicenseAddress ?? "—"} />
               <Field
                 label={t("instructor.detail.field.status")}
                 value={INSTRUCTOR_EMPLOYMENT_LABEL_KEYS[instructor.employmentType] ? t(INSTRUCTOR_EMPLOYMENT_LABEL_KEYS[instructor.employmentType]) : "—"}

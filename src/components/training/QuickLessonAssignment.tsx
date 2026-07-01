@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 
 import { useT } from "../../lib/i18n";
+import { normalizeSearchComparable } from "../../lib/search";
 import type { ClassroomResponse, GroupResponse } from "../../lib/types";
 
 type QuickLessonAssignmentProps = {
@@ -40,10 +41,10 @@ export function QuickLessonAssignment({
     [groups]
   );
   const filteredGroups = useMemo(() => {
-    const q = groupSearch.trim().toLocaleLowerCase("tr");
+    const q = normalizeSearchComparable(groupSearch);
     if (!q) return sortedGroups;
     return sortedGroups.filter((group) =>
-      group.title.toLocaleLowerCase("tr").includes(q)
+      normalizeSearchComparable(group.title).includes(q)
     );
   }, [sortedGroups, groupSearch]);
   const visibleGroups = useMemo(

@@ -77,6 +77,12 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         permissionAreas: ["candidates"],
       },
       {
+        labelKey: "settings.nav.routes.label",
+        descriptionKey: "settings.nav.routes.description",
+        to: "/settings/definitions/routes",
+        permissionAreas: ["candidates"],
+      },
+      {
         labelKey: "settings.nav.licenseClasses.label",
         descriptionKey: "settings.nav.licenseClasses.description",
         to: "/settings/definitions/license-classes",
@@ -253,6 +259,10 @@ export function SettingsPage() {
               <Route
                 element={requireSettingsPermission(["candidates"], <ReferencesSettingsSection />)}
                 path="definitions/references"
+              />
+              <Route
+                element={requireSettingsPermission(["candidates"], <ReferencesSettingsSection variant="routes" />)}
+                path="definitions/routes"
               />
               <Route
                 element={requireSettingsPermission(["training"], <ClassroomsSettingsSection />)}

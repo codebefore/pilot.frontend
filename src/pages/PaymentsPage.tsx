@@ -24,6 +24,7 @@ import {
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { useAuth } from "../lib/auth";
 import { canManageArea } from "../lib/permissions";
+import { normalizeSearchComparable } from "../lib/search";
 import { formatDateTR } from "../lib/status-maps";
 import { useLicenseClassOptions } from "../lib/use-license-class-options";
 import { useToast } from "../components/ui/Toast";
@@ -1498,9 +1499,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       Object.entries(detailColumnFilters).every(([field, value]) => {
         if (!value || value === "all") return true;
         if (field === "candidate") {
-          return rowCandidateName(row)
-            .toLocaleLowerCase("tr-TR")
-            .includes(value.toLocaleLowerCase("tr-TR"));
+          return normalizeSearchComparable(rowCandidateName(row)).includes(
+            normalizeSearchComparable(value),
+          );
         }
         return rowFilterValue(row, field as DetailSortField, t) === value;
       }),
@@ -1530,15 +1531,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   }, [fromDate, overview, toDate]);
 
   const invoiceRows = useMemo(() => {
-    const candidateQuery = detailColumnFilters.candidate
-      ?.trim()
-      .toLocaleLowerCase("tr-TR");
+    const candidateQuery = normalizeSearchComparable(detailColumnFilters.candidate);
     const filteredRows = baseInvoiceRows
       .filter((invoice) => {
         if (!candidateQuery) return true;
-        return invoiceCandidateName(invoice)
-          .toLocaleLowerCase("tr-TR")
-          .includes(candidateQuery);
+        return normalizeSearchComparable(invoiceCandidateName(invoice)).includes(candidateQuery);
       })
       .filter((invoice) =>
         Object.entries(invoiceColumnFilters).every(([field, value]) => {
@@ -1642,15 +1639,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   }, [fromDate, isBalancesPage, overview, periodMonth, toDate]);
 
   const installmentRows = useMemo(() => {
-    const candidateQuery = detailColumnFilters.candidate
-      ?.trim()
-      .toLocaleLowerCase("tr-TR");
+    const candidateQuery = normalizeSearchComparable(detailColumnFilters.candidate);
     const filteredRows = baseInstallmentRows
       .filter((installment) => {
         if (!candidateQuery) return true;
-        return installmentCandidateName(installment)
-          .toLocaleLowerCase("tr-TR")
-          .includes(candidateQuery);
+        return normalizeSearchComparable(installmentCandidateName(installment)).includes(candidateQuery);
       })
       .filter((installment) =>
         Object.entries(installmentColumnFilters).every(([field, value]) => {
@@ -1721,15 +1714,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   }, [baseInstallmentRows, fromDate, overview?.candidates, periodMonth, toDate]);
 
   const debtRows = useMemo(() => {
-    const candidateQuery = detailColumnFilters.candidate
-      ?.trim()
-      .toLocaleLowerCase("tr-TR");
+    const candidateQuery = normalizeSearchComparable(detailColumnFilters.candidate);
     const filteredRows = baseDebtRows
       .filter((row) => {
         if (!candidateQuery) return true;
-        return paymentCandidateName(row.candidate)
-          .toLocaleLowerCase("tr-TR")
-          .includes(candidateQuery);
+        return normalizeSearchComparable(paymentCandidateName(row.candidate)).includes(candidateQuery);
       })
       .filter((row) =>
         Object.entries(debtColumnFilters).every(([field, value]) => {

@@ -25,6 +25,10 @@ const updateCandidateExamAttemptMock = vi.fn();
 const chargeCandidateExamAttemptMock = vi.fn();
 const markCandidateExamAttemptSelfPaidMock = vi.fn();
 const getLicenseClassFeeMatrixMock = vi.fn();
+const createCandidateExamResultSyncJobMock = vi.fn();
+const createESinavExamResultSyncJobMock = vi.fn();
+const getMebbisJobMock = vi.fn();
+const getMebbisSessionStatusMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -158,6 +162,23 @@ vi.mock("../lib/license-class-fee-matrix-api", async () => {
   };
 });
 
+vi.mock("../lib/mebbis-jobs-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/mebbis-jobs-api")>(
+    "../lib/mebbis-jobs-api"
+  );
+  return {
+    ...actual,
+    createCandidateExamResultSyncJob: (...args: Parameters<typeof actual.createCandidateExamResultSyncJob>) =>
+      createCandidateExamResultSyncJobMock(...args),
+    createESinavExamResultSyncJob: (...args: Parameters<typeof actual.createESinavExamResultSyncJob>) =>
+      createESinavExamResultSyncJobMock(...args),
+    getMebbisJob: (...args: Parameters<typeof actual.getMebbisJob>) =>
+      getMebbisJobMock(...args),
+    getMebbisSessionStatus: (...args: Parameters<typeof actual.getMebbisSessionStatus>) =>
+      getMebbisSessionStatusMock(...args),
+  };
+});
+
 function examScheduleOption(
   date: string,
   overrides: Partial<{
@@ -228,6 +249,10 @@ describe("CandidatesPage tabs", () => {
     chargeCandidateExamAttemptMock.mockReset();
     markCandidateExamAttemptSelfPaidMock.mockReset();
     getLicenseClassFeeMatrixMock.mockReset();
+    createCandidateExamResultSyncJobMock.mockReset();
+    createESinavExamResultSyncJobMock.mockReset();
+    getMebbisJobMock.mockReset();
+    getMebbisSessionStatusMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
     getExamCodesMock.mockResolvedValue([]);
@@ -238,6 +263,57 @@ describe("CandidatesPage tabs", () => {
     chargeCandidateExamAttemptMock.mockResolvedValue({});
     markCandidateExamAttemptSelfPaidMock.mockResolvedValue({});
     getLicenseClassFeeMatrixMock.mockResolvedValue({ year: 2026, vatRate: 20, rows: [] });
+    createCandidateExamResultSyncJobMock.mockImplementation((candidateId: string) =>
+      Promise.resolve({
+        id: `job-${candidateId}`,
+        jobType: "candidate_exam_result_sync",
+        entityType: "candidate",
+        entityId: candidateId,
+        status: "pending",
+        priority: 0,
+        payloadJson: null,
+        resultJson: null,
+        errorMessage: null,
+        attemptCount: 0,
+        maxAttemptCount: 1,
+        nextAttemptAtUtc: null,
+        leaseOwnerClientId: null,
+        leaseExpiresAtUtc: null,
+      })
+    );
+    createESinavExamResultSyncJobMock.mockResolvedValue({
+      id: "job-e-sinav-date",
+      jobType: "candidate_exam_result_sync",
+      entityType: "institution",
+      entityId: null,
+      status: "pending",
+      priority: 0,
+      payloadJson: null,
+      resultJson: null,
+      errorMessage: null,
+      attemptCount: 0,
+      maxAttemptCount: 1,
+      nextAttemptAtUtc: null,
+      leaseOwnerClientId: null,
+      leaseExpiresAtUtc: null,
+    });
+    getMebbisJobMock.mockResolvedValue({
+      id: "job-e-sinav-date",
+      jobType: "candidate_exam_result_sync",
+      entityType: "institution",
+      entityId: null,
+      status: "succeeded",
+      priority: 0,
+      payloadJson: null,
+      resultJson: null,
+      errorMessage: null,
+      attemptCount: 1,
+      maxAttemptCount: 1,
+      nextAttemptAtUtc: null,
+      leaseOwnerClientId: null,
+      leaseExpiresAtUtc: null,
+    });
+    getMebbisSessionStatusMock.mockResolvedValue({ isOpen: true });
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "cand-1",
@@ -272,14 +348,14 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 0,
       totalPages: 1,
     });
@@ -289,7 +365,7 @@ describe("CandidatesPage tabs", () => {
     vi.useRealTimers();
   });
 
-  it("defaults to the active tab and sends status='active'", async () => {
+  it("defaults to the all tab without sending a status filter", async () => {
     renderPage();
 
     await waitFor(() => {
@@ -297,7 +373,8 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ status: "active", page: 1, pageSize: 100 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 20 });
+    expect(callArgs.status).toBeUndefined();
     expect(callArgs.candidateTab).toBeUndefined();
   });
 
@@ -309,7 +386,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 20 });
     expect(callArgs.eSinavTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
 
@@ -332,7 +409,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "basarisiz",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -345,13 +422,13 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "randevulu",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
   });
 
-  it("allows empty unscheduled e-sinav charge fee so backend can mark it self paid", async () => {
+  it("does not show the unscheduled exam charge action on the e-sinav candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -382,7 +459,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -394,24 +471,11 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
-
-    const feeInput = await screen.findByLabelText("Eren Test sınav ücreti");
-    fireEvent.change(feeInput, { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Borçlandır" }));
-
-    await waitFor(() => {
-      expect(createUnscheduledCandidateExamAttemptChargeMock).toHaveBeenCalledWith(
-        "cand-1",
-        expect.objectContaining({
-          examType: "theory",
-          fee: 0,
-        })
-      );
-    });
+    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
+    expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
-  it("uses practice exam type for unscheduled charge on uygulama page without showing exam type select", async () => {
+  it("does not show the unscheduled exam charge action on the uygulama candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -442,7 +506,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -454,22 +518,8 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
-
-    const feeInput = await screen.findByLabelText("Eren Test sınav ücreti");
-    expect(screen.queryByText("Sınav tipi")).not.toBeInTheDocument();
-    fireEvent.change(feeInput, { target: { value: "1000" } });
-    fireEvent.click(screen.getByRole("button", { name: "Borçlandır" }));
-
-    await waitFor(() => {
-      expect(createUnscheduledCandidateExamAttemptChargeMock).toHaveBeenCalledWith(
-        "cand-1",
-        expect.objectContaining({
-          examType: "practice",
-          fee: 1000,
-        })
-      );
-    });
+    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
+    expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
   it("renders uygulama tabs and defaults to the havuz filter", async () => {
@@ -480,7 +530,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 20 });
     expect(callArgs.drivingExamTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
 
@@ -503,7 +553,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "basarisiz",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -516,7 +566,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "randevulu",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -549,7 +599,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           drivingExamCode: "100000001",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -565,7 +615,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "havuz",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -858,7 +908,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-06-12",
           eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -883,7 +933,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-05-12",
           eSinavScheduleId: "e_sinav-2026-05-12",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -921,7 +971,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "basarisiz",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -992,7 +1042,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamDate: "2026-06-13",
           drivingExamScheduleId: "uygulama-2026-06-13",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -1038,7 +1088,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "randevulu",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -1080,7 +1130,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 8,
       totalPages: 1,
     });
@@ -1160,7 +1210,7 @@ describe("CandidatesPage tabs", () => {
       expect(lastCall.candidateTab).toBeUndefined();
       expect(lastCall.status).toBeUndefined();
       expect(lastCall.page).toBe(1);
-      expect(lastCall.pageSize).toBe(100);
+      expect(lastCall.pageSize).toBe(20);
     });
   });
 
@@ -1199,7 +1249,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           status: "graduated",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
@@ -1271,7 +1321,7 @@ describe("CandidatesPage tabs", () => {
 
   it("falls back to the shared column order without creating user-specific preferences", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.active",
+      "candidates.columns.v19.all",
       JSON.stringify(["name", "photo"])
     );
 
@@ -1282,12 +1332,12 @@ describe("CandidatesPage tabs", () => {
       (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")
     );
     expect(headers).toEqual(["", "Ad Soyad", "Resim", ""]);
-    expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull();
+    expect(localStorage.getItem("candidates.columns.v19.all.user.test-user")).toBeNull();
   });
 
   it("stores user-specific candidate column order after dragging a header", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.active.user.test-user",
+      "candidates.columns.v19.all.user.test-user",
       JSON.stringify(["photo", "name", "nationalId"])
     );
 
@@ -1309,7 +1359,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.drop(nameHeader, { dataTransfer });
 
     await waitFor(() =>
-      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBe(
+      expect(localStorage.getItem("candidates.columns.v19.all.user.test-user")).toBe(
         JSON.stringify(["photo", "nationalId", "name"])
       )
     );
@@ -1317,11 +1367,11 @@ describe("CandidatesPage tabs", () => {
 
   it("removes user-specific candidate column preferences when resetting columns", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.active",
+      "candidates.columns.v19.all",
       JSON.stringify(["name", "photo"])
     );
     localStorage.setItem(
-      "candidates.columns.v19.active.user.test-user",
+      "candidates.columns.v19.all.user.test-user",
       JSON.stringify(["photo", "name", "nationalId"])
     );
 
@@ -1338,7 +1388,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(within(picker).getByRole("button", { name: "Varsayılana dön" }));
 
     await waitFor(() =>
-      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull()
+      expect(localStorage.getItem("candidates.columns.v19.all.user.test-user")).toBeNull()
     );
     const headers = screen.getAllByRole("columnheader").map((header) =>
       (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")
@@ -1637,7 +1687,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 8,
       totalPages: 1,
     });
@@ -1764,7 +1814,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -1875,7 +1925,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -1986,7 +2036,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2032,7 +2082,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2104,14 +2154,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 100,
+        pageSize: 20,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [candidate],
         page: 1,
-        pageSize: 100,
+        pageSize: 20,
         totalCount: 1,
         totalPages: 1,
       });
@@ -2226,14 +2276,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 100,
+        pageSize: 20,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [{ ...candidate, eSinavScore: 60 }],
         page: 1,
-        pageSize: 100,
+        pageSize: 20,
         totalCount: 1,
         totalPages: 1,
       });
@@ -2341,14 +2391,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 100,
+        pageSize: 20,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [{ ...candidate, mebExamResult: null, eSinavScore: null }],
         page: 1,
-        pageSize: 100,
+        pageSize: 20,
         totalCount: 1,
         totalPages: 1,
       });
@@ -2455,7 +2505,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2521,7 +2571,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2562,7 +2612,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2613,7 +2663,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2691,7 +2741,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2732,7 +2782,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2775,7 +2825,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2843,7 +2893,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2892,7 +2942,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2981,7 +3031,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 2,
       totalPages: 1,
     });
@@ -3039,7 +3089,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3100,7 +3150,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3189,13 +3239,53 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-06-12",
           eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
-          pageSize: 100,
+          pageSize: 20,
         })
       );
     });
 
     expect(screen.getByRole("button", { name: "Sınav Tarihi Belirle" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();
+  });
+
+  it("queues one MEBBIS e-sinav result sync job for the selected exam date", async () => {
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-06-12", {
+        candidateCount: 2,
+        time: "09:00",
+      }),
+    ]);
+    getCandidatesMock.mockImplementation((params) => Promise.resolve({
+      items: [],
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 100,
+      totalCount: 0,
+      totalPages: 1,
+    }));
+
+    renderESinavPage();
+
+    const examDateButton = (await screen.findByText("2 aday")).closest("button");
+    expect(examDateButton).not.toBeNull();
+    fireEvent.click(examDateButton!);
+    const syncButton = screen.getByRole("button", { name: "Sonuç Sorgulama" });
+    expect(syncButton).not.toBeDisabled();
+    expect(syncButton).toHaveClass("btn-primary");
+
+    fireEvent.click(syncButton);
+
+    await waitFor(() => {
+      expect(createESinavExamResultSyncJobMock).toHaveBeenCalledTimes(1);
+    });
+    expect(getMebbisSessionStatusMock).toHaveBeenCalled();
+    expect(createESinavExamResultSyncJobMock).toHaveBeenCalledWith("2026-06-12");
+    expect(createCandidateExamResultSyncJobMock).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(getMebbisJobMock).toHaveBeenCalledWith("job-e-sinav-date");
+    });
+    await waitFor(() => {
+      expect(getCandidatesMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   it("charges selected candidates after bulk e-sinav date assignment when confirmed", async () => {
@@ -3254,7 +3344,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3392,7 +3482,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3511,7 +3601,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3654,7 +3744,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3694,19 +3784,19 @@ describe("CandidatesPage sorting", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 0,
       totalPages: 1,
     });
   });
 
-  it("does not send sort params on initial load", async () => {
+  it("sends the default created date sort on initial load", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs.sortBy).toBeUndefined();
-    expect(callArgs.sortDir).toBeUndefined();
+    expect(callArgs.sortBy).toBe("createdAtUtc");
+    expect(callArgs.sortDir).toBe("desc");
   });
 
   it("cycles Ad Soyad header through asc → desc → unsorted", async () => {
@@ -3872,7 +3962,7 @@ describe("CandidatesPage sorting", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 2,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 25,
       totalPages: 3,
     });
@@ -3920,7 +4010,7 @@ describe("CandidatesPage filter panel", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 0,
       totalPages: 1,
     });
@@ -4002,7 +4092,7 @@ describe("CandidatesPage filter panel", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 2,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 25,
       totalPages: 3,
     });
@@ -4227,7 +4317,7 @@ describe("CandidatesPage gender rendering", () => {
         },
       ],
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 3,
       totalPages: 1,
     });
@@ -4287,7 +4377,7 @@ describe("CandidatesPage bulk status update", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 100,
+      pageSize: 20,
       totalCount: 1,
       totalPages: 1,
     });

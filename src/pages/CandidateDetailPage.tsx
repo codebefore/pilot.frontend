@@ -65,7 +65,6 @@ import {
   updateCandidateExamAttempt,
 } from "../lib/candidate-exam-attempts-api";
 import {
-  createCandidateKCertificate,
   deleteCandidateKCertificate,
   listCandidateKCertificates,
 } from "../lib/candidate-k-certificates-api";
@@ -73,11 +72,11 @@ import { getCashRegisters } from "../lib/cash-registers-api";
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstitutionSettings } from "../lib/institution-settings-api";
-import { getInstructors } from "../lib/instructors-api";
+import { getInstructor, getInstructors } from "../lib/instructors-api";
 import { getGroupById, getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
 import { getTrainingLessons } from "../lib/training-lessons-api";
-import { getVehicles } from "../lib/vehicles-api";
+import { getVehicle, getVehicles } from "../lib/vehicles-api";
 import {
   trainingLessonToCalendarEvent,
   type TrainingCalendarEvent,
@@ -133,13 +132,13 @@ import {
   candidateStatusLabel,
   candidateStatusToPill,
   existingLicenseTypeLabel,
-  TURKEY_PROVINCE_OPTIONS,
   formatDateTR,
   normalizeCandidateExamResultValue,
   normalizeCandidateGender,
 } from "../lib/status-maps";
 import { toTurkishUpperCase } from "../lib/text-format";
 import {
+  buildCandidateKCertificateRenderPdfRequest,
   buildCandidateContractRenderPdfRequest,
   buildCandidateSignatureSampleRenderPdfRequest,
   openCandidateContractPrintWindow,
@@ -1095,7 +1094,7 @@ function CandidateHero({
         <CandidateAvatar
           candidate={candidate}
           className="candidate-detail-hero-avatar"
-          size={96}
+          size={156}
         />
 
         <div className="candidate-detail-hero-body">
@@ -3167,7 +3166,6 @@ function LicenseInfoTab({
               displayValue={hasLicense ? candidate.existingLicenseIssuedProvince ?? "" : issuedProvince}
               inputValue={hasLicense ? candidate.existingLicenseIssuedProvince ?? "" : issuedProvince}
               label={t("candidateDetail.license.field.documentIssueProvince")}
-              options={TURKEY_PROVINCE_OPTIONS}
               onSave={(value) =>
                 saveExistingLicenseField({ existingLicenseIssuedProvince: value || null })
               }
@@ -7549,23 +7547,6 @@ function buildKCertificateRows(
   return rows;
 }
 
-function nextKCertificateRow(
-  previousRow: KCertificateRow,
-  candidateRegistrationNumber: string,
-  candidateId: string,
-  sequence: number
-): KCertificateRow {
-  const candidateNumber = candidateRegistrationNumber.trim() || candidateId.slice(0, 8);
-  const startDate = previousRow.expiryDate;
-  return {
-    id: "",
-    startDate,
-    expiryDate: addDaysToISODate(startDate, 180),
-    lastLessonEndDate: previousRow.lastLessonEndDate,
-    documentNumber: `K-${candidateNumber}-${sequence}`,
-  };
-}
-
 function kCertificateResponseToRow(certificate: CandidateKCertificateResponse): KCertificateRow {
   return {
     id: certificate.id,
@@ -7585,15 +7566,29 @@ function CandidateKCertificateSection({
   candidate: CandidateResponse;
 }) {
   const t = useT();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [lessons, setLessons] = useState<TrainingLessonResponse[]>([]);
-  const renewSavingRef = useRef(false);
   const [hiddenRowIds, setHiddenRowIds] = useState<string[]>([]);
   const [persistedRows, setPersistedRows] = useState<KCertificateRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [printingRowId, setPrintingRowId] = useState<string | null>(null);
+  const [routePickerRow, setRoutePickerRow] = useState<KCertificateRow | null>(null);
+  const [routePickerPosition, setRoutePickerPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const routePickerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const noPermissionTitle = t("common.noPermission");
+  const routeOptionsQuery = useQuery({
+    enabled: routePickerRow != null,
+    queryKey: ["settings", "candidate-routes", { includeInactive: false, kind: "route" }],
+    queryFn: ({ signal }) => getCandidateReferences({ includeInactive: false, kind: "route" }, signal),
+    staleTime: 5 * 60 * 1000,
+  });
+  const routeOptions = useMemo(
+    () => (routeOptionsQuery.data ?? []).filter((item) => item.isActive),
+    [routeOptionsQuery.data]
+  );
 
   const invalidateKCertificateDependents = () => {
     void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidate.id) });
@@ -7641,6 +7636,28 @@ function CandidateKCertificateSection({
     return () => controller.abort();
   }, [candidate.id]);
 
+  useEffect(() => {
+    if (!routePickerRow) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && routePickerRef.current?.contains(target)) return;
+      setRoutePickerRow(null);
+      setRoutePickerPosition(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setRoutePickerRow(null);
+        setRoutePickerPosition(null);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [routePickerRow]);
+
   const rows = useMemo(
     () => buildKCertificateRows(lessons, candidate.registrationNumber, candidate.id),
     [candidate.id, candidate.registrationNumber, lessons]
@@ -7654,38 +7671,6 @@ function CandidateKCertificateSection({
     [hiddenRowIds, persistedRows, visibleBaseRows]
   );
   const displayRows = useMemo(() => [...visibleRows].reverse(), [visibleRows]);
-
-  const renewKCertificate = async () => {
-    if (!canManageCandidates) return;
-    if (renewSavingRef.current) return;
-    const previousRow = visibleRows[visibleRows.length - 1];
-    if (!previousRow) return;
-    const nextRow = nextKCertificateRow(
-      previousRow,
-      candidate.registrationNumber,
-      candidate.id,
-      visibleRows.length + 1
-    );
-
-    renewSavingRef.current = true;
-    setSaving(true);
-    setError(null);
-    try {
-      const created = await createCandidateKCertificate(candidate.id, {
-        documentNumber: nextRow.documentNumber,
-        startDate: nextRow.startDate,
-        expiryDate: nextRow.expiryDate,
-        lastLessonEndDate: nextRow.lastLessonEndDate,
-      });
-      setPersistedRows((current) => [...current, kCertificateResponseToRow(created)]);
-      invalidateKCertificateDependents();
-    } catch {
-      setError("K belgesi yenilenemedi.");
-    } finally {
-      renewSavingRef.current = false;
-      setSaving(false);
-    }
-  };
 
   const deleteKCertificateRow = async (row: KCertificateRow) => {
     if (!canManageCandidates) return;
@@ -7705,38 +7690,96 @@ function CandidateKCertificateSection({
     setHiddenRowIds((current) => [...current, row.id]);
   };
 
-  const printKCertificates = () => {
-    window.print();
+  const findKCertificateLesson = (row: KCertificateRow): TrainingLessonResponse | null => {
+    return lessons.find((lesson) => {
+      const lessonDate = dateOnlyInTurkey(lesson.startAtUtc);
+      return lessonDate
+        ? compareDateOnly(lessonDate, row.startDate) >= 0 && compareDateOnly(lessonDate, row.expiryDate) <= 0
+        : false;
+    }) ?? null;
+  };
+
+  const fetchOptional = async <T,>(promise: Promise<T> | null): Promise<T | null> => {
+    if (!promise) return null;
+    try {
+      return await promise;
+    } catch {
+      return null;
+    }
+  };
+
+  const openRoutePicker = (row: KCertificateRow, event: MouseEvent<HTMLButtonElement>) => {
+    if (printingRowId) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = 320;
+    const left = Math.min(
+      window.innerWidth - width - 12,
+      Math.max(12, rect.right - width)
+    );
+    setRoutePickerPosition({
+      top: rect.bottom + 6,
+      left,
+      width,
+    });
+    setRoutePickerRow(row);
+  };
+
+  const printKCertificate = async (row: KCertificateRow, routeName: string) => {
+    if (printingRowId) return;
+    setRoutePickerRow(null);
+    setRoutePickerPosition(null);
+    const printWindow = openCandidateContractPrintWindow("K Belgesi");
+    if (!printWindow) {
+      showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+      return;
+    }
+
+    setPrintingRowId(row.id);
+    try {
+      const lesson = findKCertificateLesson(row);
+      const [institution, managerResponse, instructor, vehicle] = await Promise.all([
+        fetchOptional(getInstitutionSettings()),
+        fetchOptional(getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 1 })),
+        fetchOptional(lesson?.instructorId ? getInstructor(lesson.instructorId) : null),
+        fetchOptional(lesson?.vehicleId ? getVehicle(lesson.vehicleId) : null),
+      ]);
+      const manager = managerResponse?.items.find((item) => item.isActive && item.role === "manager") ?? null;
+      const managerName = manager
+        ? `${manager.firstName} ${manager.lastName}`.trim()
+        : null;
+      const request = buildCandidateKCertificateRenderPdfRequest({
+        candidate,
+        certificate: row,
+        institution,
+        managerName,
+        lesson,
+        instructor,
+        vehicle,
+        vehicleTypeLabel: vehicleTypeForLicenseClass(candidate.licenseClass, t),
+        routeName,
+      });
+      const blob = await renderCandidateContractPdf(request);
+      printCandidateContractPdf(printWindow, blob);
+    } catch (error) {
+      printWindow.close();
+      const message = error instanceof Error
+        ? error.message
+        : "K belgesi dosyası hazırlanamadı.";
+      showToast(message, "error");
+    } finally {
+      setPrintingRowId(null);
+    }
   };
 
   return (
     <section className="instructor-detail-card candidate-k-certificate-section">
-      <div className="candidate-k-certificate-head">
-        <h3 className="candidate-detail-section-title">{t("candidateDetail.exam.section.kCertificate")}</h3>
-        <div className="candidate-k-certificate-actions">
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={saving || visibleRows.length === 0 || !canManageCandidates}
-            onClick={() => void renewKCertificate()}
-            title={!canManageCandidates ? noPermissionTitle : undefined}
-            type="button"
-          >
-            Yenile
-          </button>
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={saving || visibleRows.length === 0}
-            onClick={printKCertificates}
-            type="button"
-          >
-            Yazdır
-          </button>
+        <div className="candidate-k-certificate-head">
+          <h3 className="candidate-detail-section-title">{t("candidateDetail.exam.section.kCertificate")}</h3>
         </div>
-      </div>
 
-      {error ? <div className="instructor-detail-error">{error}</div> : null}
-      <div className="table-wrap candidate-k-certificate-table-wrap">
-        <table className="data-table candidate-k-certificate-table">
+        {error ? <div className="instructor-detail-error">{error}</div> : null}
+        <div className="table-wrap candidate-k-certificate-table-wrap">
+          <table className="data-table candidate-k-certificate-table">
           <thead>
             <tr>
               <th>Belge No</th>
@@ -7771,22 +7814,71 @@ function CandidateKCertificateSection({
                     )}
                   </td>
                   <td>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      disabled={saving || !canManageCandidates}
-                      onClick={() => void deleteKCertificateRow(row)}
-                      title={!canManageCandidates ? noPermissionTitle : undefined}
-                      type="button"
-                    >
-                      Sil
-                    </button>
+                    <div className="candidate-k-certificate-row-actions">
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={saving || printingRowId != null}
+                        onClick={(event) => openRoutePicker(row, event)}
+                        type="button"
+                      >
+                        <PrintIcon size={14} />
+                        {printingRowId === row.id ? "Hazırlanıyor" : "Yazdır"}
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        disabled={saving || !canManageCandidates}
+                        onClick={() => void deleteKCertificateRow(row)}
+                        title={!canManageCandidates ? noPermissionTitle : undefined}
+                        type="button"
+                      >
+                        Sil
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
             )}
           </tbody>
-        </table>
-      </div>
+          </table>
+        </div>
+        {routePickerRow && routePickerPosition
+          ? createPortal(
+              <div
+                className="candidate-k-certificate-route-popover"
+                ref={routePickerRef}
+                role="menu"
+                aria-label="Güzergah seç"
+                style={{
+                  top: routePickerPosition.top,
+                  left: routePickerPosition.left,
+                  width: routePickerPosition.width,
+                }}
+              >
+                <div className="candidate-k-certificate-route-popover-title">Güzergah seç</div>
+                {routeOptionsQuery.isLoading ? (
+                  <div className="candidate-k-certificate-route-popover-note">Güzergahlar yükleniyor...</div>
+                ) : routeOptionsQuery.isError ? (
+                  <div className="candidate-k-certificate-route-popover-note error">Güzergah listesi yüklenemedi.</div>
+                ) : routeOptions.length === 0 ? (
+                  <div className="candidate-k-certificate-route-popover-note">Aktif güzergah bulunmuyor.</div>
+                ) : (
+                  routeOptions.map((route) => (
+                    <button
+                      className="candidate-k-certificate-route-option"
+                      disabled={printingRowId != null}
+                      key={route.id}
+                      onClick={() => void printKCertificate(routePickerRow, route.name)}
+                      role="menuitem"
+                      type="button"
+                    >
+                      {route.name}
+                    </button>
+                  ))
+                )}
+              </div>,
+              document.body
+            )
+          : null}
     </section>
   );
 }

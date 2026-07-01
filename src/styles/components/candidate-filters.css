@@ -9,6 +9,19 @@
 .candidates-main {
   min-width: 0;
 }
+.candidates-page {
+  --candidates-toolbar-sticky-height: 71px;
+}
+.candidates-page > .page-toolbar {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 30;
+}
+.candidates-page .tabs-search-row {
+  position: sticky;
+  top: calc(var(--header-h) + var(--candidates-toolbar-sticky-height));
+  z-index: 29;
+}
 .candidates-main .tabs-search-row {
   padding-left: 0;
   padding-right: 0;

@@ -192,6 +192,12 @@ const PERMISSION_DISPLAY_ROWS: PermissionDisplayRow[] = [
     parentKey: "nav.settings",
   },
   {
+    id: "settingsRoutes",
+    area: "candidates",
+    labelKey: "settings.nav.routes.label",
+    parentKey: "nav.settings",
+  },
+  {
     id: "settingsLicenseClasses",
     area: "settings",
     labelKey: "settings.nav.licenseClasses.label",

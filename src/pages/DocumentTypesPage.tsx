@@ -24,6 +24,7 @@ import { useAuth } from "../lib/auth";
 import { getDocumentTypes } from "../lib/documents-api";
 import { useT, type TranslationKey } from "../lib/i18n";
 import { candidateKeys } from "../lib/queries/use-candidates";
+import { normalizeSearchComparable } from "../lib/search";
 import type { DocumentTypeResponse } from "../lib/types";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 
@@ -146,15 +147,15 @@ export function DocumentTypesPage({ embedded = false }: DocumentTypesPageProps) 
   };
 
   const filteredItems = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("tr-TR");
-    const name = filters.name.trim().toLocaleLowerCase("tr-TR");
+    const query = normalizeSearchComparable(search);
+    const name = normalizeSearchComparable(filters.name);
 
     return items.filter((item) => {
+      const comparableName = normalizeSearchComparable(item.name);
       if (query) {
-        const haystack = item.name.toLocaleLowerCase("tr-TR");
-        if (!haystack.includes(query)) return false;
+        if (!comparableName.includes(query)) return false;
       }
-      if (name && !item.name.toLocaleLowerCase("tr-TR").includes(name)) return false;
+      if (name && !comparableName.includes(name)) return false;
       if (filters.required === "required" && !item.isRequired) return false;
       if (filters.required === "optional" && item.isRequired) return false;
       if (filters.activity === "active" && !item.isActive) return false;

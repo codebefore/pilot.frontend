@@ -1,5 +1,6 @@
 import { getCatalogApiBaseUrl } from "./api";
 import { httpDelete, httpGet, httpPost, httpPut } from "./http";
+import { normalizeSearchComparable } from "./search";
 import type {
   LicenseClassDefinitionActivityRequest,
   LicenseClassDefinitionListResponse,
@@ -70,7 +71,7 @@ function mapLicenseClassList(
   snapshots: LicenseClassSnapshot[],
   options?: GetLicenseClassDefinitionsOptions
 ): LicenseClassDefinitionListResponse {
-  const search = options?.search?.trim().toLocaleLowerCase("tr-TR");
+  const search = normalizeSearchComparable(options?.search);
   const activity = options?.activity ?? (options?.includeInactive ? "all" : "active");
   let items = snapshots.map(mapLicenseClass);
 
@@ -88,7 +89,7 @@ function mapLicenseClassList(
   if (search) {
     items = items.filter((item) =>
       [item.code, item.name, item.existingLicenseType ?? ""].some((value) =>
-        value.toLocaleLowerCase("tr-TR").includes(search)
+        normalizeSearchComparable(value).includes(search)
       )
     );
   }

@@ -60,6 +60,7 @@ type InstructorFilters = {
 };
 type InstructorColumnId =
   | "fullName"
+  | "driverLicenseNumber"
   | "role"
   | "employmentType"
   | "branches"
@@ -147,6 +148,12 @@ function getInstructorColumns(
       skeletonKind: "pill",
     },
     {
+      id: "driverLicenseNumber",
+      label: t("settings.instructors.table.driverLicenseNumber"),
+      renderCell: (instructor) => instructor.driverLicenseNumber || "—",
+      skeletonWidth: 110,
+    },
+    {
       id: "contractEndDate",
       label: t("settings.instructors.table.contractEndDate"),
       renderCell: (instructor) => {
@@ -230,6 +237,7 @@ function getInstructorColumns(
 const INSTRUCTOR_COLUMN_IDS: InstructorColumnId[] = [
   "fullName",
   "isActive",
+  "driverLicenseNumber",
   "contractEndDate",
   "role",
   "employmentType",
@@ -241,6 +249,7 @@ const INSTRUCTOR_COLUMN_IDS: InstructorColumnId[] = [
 const DEFAULT_INSTRUCTOR_VISIBLE_COLUMNS: InstructorColumnId[] = [
   "fullName",
   "isActive",
+  "driverLicenseNumber",
   "contractEndDate",
   "role",
   "employmentType",
@@ -264,7 +273,7 @@ export function InstructorsSettingsSection() {
   const canManageTraining = canManageArea(user, permissions, "training");
   const noPermissionTitle = t("common.noPermission");
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "settings.instructors.columns.v2",
+    "settings.instructors.columns.v3",
     INSTRUCTOR_COLUMN_IDS,
     DEFAULT_INSTRUCTOR_VISIBLE_COLUMNS
   );

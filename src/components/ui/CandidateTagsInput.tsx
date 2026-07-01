@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 
 import { searchCandidateTags } from "../../lib/candidates-api";
 import { useT } from "../../lib/i18n";
-import { normalizeTextQuery } from "../../lib/search";
+import { normalizeSearchComparable, normalizeTextQuery } from "../../lib/search";
 import type { CandidateTag } from "../../lib/types";
 
 type CandidateTagsInputProps = {
@@ -20,7 +20,7 @@ const SEARCH_LIMIT = 20;
 const TAG_COLOR_COUNT = 6;
 
 function normalize(value: string): string {
-  return value.trim().toLocaleLowerCase("tr-TR");
+  return normalizeSearchComparable(value);
 }
 
 /**

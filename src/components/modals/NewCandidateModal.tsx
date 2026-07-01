@@ -1,10 +1,11 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import {
+  assignCandidateGroup,
   createCandidate,
   getCandidateReuseSources,
 } from "../../lib/candidates-api";
@@ -12,15 +13,20 @@ import {
   getCandidateReferences,
   type CandidateReferenceResponse,
 } from "../../lib/candidate-references-api";
+import { getGroups } from "../../lib/groups-api";
+import { getTerms } from "../../lib/terms-api";
 import { ApiError } from "../../lib/http";
-import { useT, type TranslationKey } from "../../lib/i18n";
+import { useLanguage, useT, type TranslationKey } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { isPhoneStartingWith5 } from "../../lib/phone";
 import { candidateKeys } from "../../lib/queries/use-candidates";
+import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { toTurkishUpperCase } from "../../lib/text-format";
 import type {
   CandidateResponse,
   CandidateReuseSourceResponse,
+  GroupResponse,
+  TermResponse,
 } from "../../lib/types";
 import {
   useCandidateLicenseClassOptions,
@@ -64,6 +70,7 @@ const newCandidateSchema = z.object({
   hasExistingLicense: z.boolean(),
   existingLicenseType: z.string(),
   existingLicenseIssuedAt: z.string(),
+  groupId: z.string(),
   tags: z.array(z.string()),
   reuseFromCandidateId: z.string(),
   documentIdsToCopy: z.array(z.string()),
@@ -109,6 +116,7 @@ const defaultValues = (): NewCandidateForm => ({
   hasExistingLicense: false,
   existingLicenseType: "",
   existingLicenseIssuedAt: "",
+  groupId: "",
   tags: [],
   reuseFromCandidateId: "",
   documentIdsToCopy: [],
@@ -118,6 +126,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const t = useT();
+  const { lang } = useLanguage();
   const noPermissionTitle = t("common.noPermission");
   const [submitting, setSubmitting] = useState(false);
   const tcInputId = useId();
@@ -128,9 +137,12 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const licenseClassInputId = useId();
   const existingLicenseInputId = useId();
   const issuedAtInputId = useId();
+  const groupInputId = useId();
   const [reuseSources, setReuseSources] = useState<CandidateReuseSourceResponse[]>([]);
   const [reuseSourcesLoading, setReuseSourcesLoading] = useState(false);
   const [references, setReferences] = useState<CandidateReferenceResponse[]>([]);
+  const [terms, setTerms] = useState<TermResponse[]>([]);
+  const [groups, setGroups] = useState<GroupResponse[]>([]);
 
   const {
     control,
@@ -152,6 +164,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   const documentIdsToCopy = watch("documentIdsToCopy");
   const tags = watch("tags");
   const existingLicenseIssuedAt = watch("existingLicenseIssuedAt");
+  const selectedGroupId = watch("groupId");
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const {
     options: licenseClassOptions,
@@ -163,6 +176,26 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   );
   const selectedReuseSource =
     reuseSources.find((source) => source.id === reuseFromCandidateId) ?? null;
+  const sortedTerms = useMemo(() => [...terms].sort(compareTermsDesc), [terms]);
+  const groupOptions = useMemo(
+    () =>
+      groups
+        .map((group) => ({
+          group,
+          value: group.id,
+          label: buildGroupHeading(group.title, group.term, sortedTerms, lang),
+        }))
+        .sort((left, right) => {
+          if (left.group.term.monthDate !== right.group.term.monthDate) {
+            return left.group.term.monthDate < right.group.term.monthDate ? 1 : -1;
+          }
+          if (left.group.term.sequence !== right.group.term.sequence) {
+            return right.group.term.sequence - left.group.term.sequence;
+          }
+          return left.label.localeCompare(right.label, lang);
+        }),
+    [groups, lang, sortedTerms]
+  );
   const classRegistration = register("className");
   const phoneRegistration = register("phone");
 
@@ -170,6 +203,8 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
     void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "reuseSources"] });
     void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "tags"] });
+    void queryClient.invalidateQueries({ queryKey: ["groups"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
     void queryClient.invalidateQueries({ queryKey: ["documents", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["documents", "tabCount"] });
     void queryClient.invalidateQueries({ queryKey: ["payments"] });
@@ -227,6 +262,29 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    Promise.all([
+      getTerms({ page: 1, pageSize: 200 }, controller.signal),
+      getGroups({ page: 1, pageSize: 500 }, controller.signal),
+    ])
+      .then(([termResponse, groupResponse]) => {
+        if (controller.signal.aborted) return;
+        setTerms(termResponse.items ?? []);
+        setGroups(groupResponse.items ?? []);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setTerms([]);
+          setGroups([]);
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [open]);
+
   // Reset form when modal closes
   useEffect(() => {
     if (!open) reset(defaultValues());
@@ -262,6 +320,17 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
   }, [normalizedTc, open, setValue]);
 
   useEffect(() => {
+    if (!open || !selectedGroupId) return;
+    if (groups.some((group) => group.id === selectedGroupId)) {
+      return;
+    }
+    setValue("groupId", "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [groups, open, selectedGroupId, setValue]);
+
+  useEffect(() => {
     if (!selectedReuseSource) return;
 
     setValue("firstName", selectedReuseSource.firstName, {
@@ -294,8 +363,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
         referenceName: data.referenceName.trim() || null,
         phoneNumber: data.phone.trim() || null,
         // Quick registration captures only identity + phone + license class.
-        // Birth date, gender, existing license, and group assignment are
-        // edited from the candidate detail page.
+        // Birth date and gender are edited from the candidate detail page.
         birthDate: null,
         gender: null,
         licenseClass: data.className,
@@ -319,6 +387,9 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
           : null,
         documentIdsToCopy: data.documentIdsToCopy,
       });
+      if (data.groupId) {
+        await assignCandidateGroup(candidate.id, data.groupId);
+      }
 
       invalidateNewCandidateDependents();
       showToast(t("newCandidate.toast.success"));
@@ -652,6 +723,33 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
                 setValue("existingLicenseIssuedAt", next, { shouldDirty: true })
               }
               value={existingLicenseIssuedAt}
+            />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group full">
+            <label className="form-label" htmlFor={groupInputId}>{t("terms.selector.label")}</label>
+            <Controller
+              control={control}
+              name="groupId"
+              render={({ field }) => (
+                <CustomSelect
+                  id={groupInputId}
+                  className="form-select"
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  value={field.value ?? ""}
+                >
+                  <option value="">{t("candidates.bulk.groupPlaceholder")}</option>
+                  {groupOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </CustomSelect>
+              )}
             />
           </div>
         </div>

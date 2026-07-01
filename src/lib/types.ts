@@ -799,6 +799,10 @@ export interface InstructorResponse {
   firstName: string;
   lastName: string;
   nationalId: string | null;
+  driverLicenseNumber: string | null;
+  driverLicenseTypeText: string | null;
+  driverLicenseIssuedPlace: string | null;
+  driverLicenseAddress: string | null;
   phoneNumber: string | null;
   email: string | null;
   isActive: boolean;
@@ -835,6 +839,10 @@ export interface InstructorUpsertRequest {
   firstName: string;
   lastName: string;
   nationalId?: string | null;
+  driverLicenseNumber?: string | null;
+  driverLicenseTypeText?: string | null;
+  driverLicenseIssuedPlace?: string | null;
+  driverLicenseAddress?: string | null;
   phoneNumber?: string | null;
   email?: string | null;
   isActive: boolean;

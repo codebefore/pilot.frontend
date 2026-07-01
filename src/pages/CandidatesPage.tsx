@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
 import { groupKeys, useGroups } from "../lib/queries/use-groups";
+import { useMebbisSessionGuard } from "../lib/queries/use-mebbis-session";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
@@ -75,6 +76,7 @@ import {
 } from "../lib/exam-schedules-api";
 import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-api";
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
+import { createESinavExamResultSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
   DRIVING_EXAM_TIME_SLOT_LABELS,
@@ -97,7 +99,7 @@ import {
 } from "../lib/status-maps";
 import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../lib/term-label";
 import { formatNationalId } from "../lib/national-id";
-import { normalizeTextQuery } from "../lib/search";
+import { normalizeSearchComparable, normalizeTextQuery } from "../lib/search";
 import type { JobStatus } from "../types";
 import type {
   CandidateExamFeeStatus,
@@ -134,12 +136,15 @@ const TAB_KEYS: CandidateTab[] = [
   "graduated",
   "dropped",
 ];
-const DEFAULT_TAB: CandidateTab = "active";
+const DEFAULT_TAB: CandidateTab = "all";
 
-const DEFAULT_PAGE_SIZE = 100;
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
+const MEBBIS_EXAM_RESULT_POLL_INTERVAL_MS = 1000;
+const MEBBIS_EXAM_RESULT_POLL_TIMEOUT_MS = 30 * 60 * 1000;
+const MEBBIS_EXAM_RESULT_REFRESH_DELAYS_MS = [0, 1500, 4000, 8000];
 
 type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
@@ -314,47 +319,8 @@ function unscheduledExamChargeTitle(examType: CandidateExamType): string {
   return examType === "theory" ? "Tarihsiz e-sınav borçlandırması" : "Tarihsiz direksiyon sınav borçlandırması";
 }
 
-function examDateTypeFromCandidateExamType(examType: CandidateExamType): CandidateExamDateType {
-  return examType === "theory" ? "e_sinav" : "uygulama";
-}
-
-function defaultUnscheduledExamChargeDescription(examType: CandidateExamType): string {
-  return examType === "theory"
-    ? "Tarihsiz e-sınav borçlandırması"
-    : "Tarihsiz direksiyon sınav borçlandırması";
-}
-
-function nextUnscheduledExamAttemptNumber(
-  attempts: CandidateExamAttemptResponse[],
-  examType: CandidateExamType
-): number | null {
-  const maxAttemptNumber = examType === "practice" && attempts.some((attempt) =>
-    attempt.examType === "practice" && isReportedAttendanceStatus(attempt.examAttendanceStatus)
-  )
-    ? 5
-    : 4;
-  const used = attempts
-    .filter((attempt) => attempt.examType === examType && (attempt.schedulingStatus ?? "scheduled") === "scheduled")
-    .map((attempt) => attempt.attemptNumber);
-  for (let number = 1; number <= maxAttemptNumber; number += 1) {
-    if (!used.includes(number)) return number;
-  }
-  return null;
-}
-
-function hasActiveExamDebtForAttemptNumber(
-  attempts: CandidateExamAttemptResponse[],
-  examType: CandidateExamType,
-  attemptNumber: number
-): boolean {
-  return attempts.some((attempt) =>
-    attempt.examType === examType &&
-    (attempt.schedulingStatus ?? "scheduled") === "scheduled" &&
-    attempt.attemptNumber === attemptNumber &&
-    attempt.fee > 0 &&
-    attempt.accountingMovementId !== null &&
-    (attempt.feeStatus === "charged" || attempt.feeStatus === "partially_paid")
-  );
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function examAttemptHasAccountingCharge(attempt: CandidateExamAttemptResponse): boolean {
@@ -1684,6 +1650,8 @@ export function CandidatesPage({
   const { user, permissions } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const canManageGroups = canManageArea(user, permissions, "groups");
+  const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const noPermissionTitle = t("common.noPermission");
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const columnPageScope: CandidateColumnPageScope =
@@ -1776,7 +1744,7 @@ export function CandidatesPage({
     },
     [columnPageScope, tab]
   );
-  const [sort, setSort] = useState<SortState>(null);
+  const [sort, setSort] = useState<SortState>({ field: "createdAtUtc", direction: "desc" });
   const [modalOpen, setModalOpen] = useState(false);
   const [examScheduleModalOpen, setExamScheduleModalOpen] = useState(false);
   const [examCodeModalOpen, setExamCodeModalOpen] = useState(false);
@@ -1800,7 +1768,6 @@ export function CandidatesPage({
   const [examChargeSaving, setExamChargeSaving] = useState(false);
   const [unscheduledExamChargePrompt, setUnscheduledExamChargePrompt] =
     useState<UnscheduledExamChargePromptState | null>(null);
-  const [unscheduledExamChargeLoading, setUnscheduledExamChargeLoading] = useState(false);
   const [unscheduledExamChargeSaving, setUnscheduledExamChargeSaving] = useState(false);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -1833,6 +1800,7 @@ export function CandidatesPage({
   } | null>(null);
   const [savingESinavScoreCandidateId, setSavingESinavScoreCandidateId] = useState<string | null>(null);
   const [savingPracticeCandidateId, setSavingPracticeCandidateId] = useState<string | null>(null);
+  const [mebbisExamResultSyncRunning, setMebbisExamResultSyncRunning] = useState(false);
   const [draggedColumnId, setDraggedColumnId] = useState<CandidateColumnId | null>(null);
 
   /* ── React Query — side data (independent of candidate list query) ── */
@@ -2764,6 +2732,60 @@ export function CandidatesPage({
     }
   };
 
+  const handleSelectedExamDateMebbisResultSync = async () => {
+    if (!canManageMebJobs || mebbisExamResultSyncRunning) return;
+    if (!examDateSidebar || examDateSidebar.field !== "eSinavDate" || !selectedExamDate) {
+      showToast("Önce bir e-sınav tarihi seçmelisin.", "error");
+      return;
+    }
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+
+    setMebbisExamResultSyncRunning(true);
+    try {
+      const job = await createESinavExamResultSyncJob(selectedExamDate);
+      window.dispatchEvent(new CustomEvent("pilot:mebbis-job-queued", {
+        detail: { jobId: job.id, jobType: job.jobType }
+      }));
+
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
+      showToast(`${formatDateTR(selectedExamDate)} e-sınav sonuç sorgulama işi kuyruğa alındı.`);
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < MEBBIS_EXAM_RESULT_POLL_TIMEOUT_MS) {
+        await delay(MEBBIS_EXAM_RESULT_POLL_INTERVAL_MS);
+        const latestJob = await getMebbisJob(job.id);
+        if (latestJob.status === "succeeded") {
+          for (const refreshDelay of MEBBIS_EXAM_RESULT_REFRESH_DELAYS_MS) {
+            window.setTimeout(() => {
+              void queryClient.invalidateQueries({ queryKey: candidateKeys.lists() });
+              void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+              void queryClient.invalidateQueries({ queryKey: [...candidateKeys.all, "examScheduleOptions"] });
+              void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+              void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
+              void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+              void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+            }, refreshDelay);
+          }
+          showToast(`${formatDateTR(selectedExamDate)} e-sınav sonuçları güncellendi.`);
+          return;
+        }
+        if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
+          void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+          void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
+          const terminalMessage = latestJob.errorMessage || "MEBBİS e-sınav sonucu sorgulama manuel kontrol gerektiriyor.";
+          showToast(terminalMessage, "error");
+          return;
+        }
+      }
+      showToast("MEBBİS e-sınav sonucu sorgulama işi devam ediyor.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "MEBBİS e-sınav sonucu çekme işleri oluşturulamadı.";
+      showToast(message, "error");
+    } finally {
+      setMebbisExamResultSyncRunning(false);
+    }
+  };
+
   const handleExamCodeDelete = async (option: ExamCodeOption) => {
     if (!canManageGroups) return;
     if (deletingExamCodeId) {
@@ -2857,6 +2879,27 @@ export function CandidatesPage({
     setSelectedExamScheduleId(option?.id ?? "");
   };
 
+  const examDateSidebarActions = (() => {
+    if (!examDateSidebar) return [];
+    return [
+      {
+        label: t("candidatesPage.action.addExamDate"),
+        onClick: handleExamDateAddClick,
+        disabled: !canManageGroups,
+        title: !canManageGroups ? noPermissionTitle : undefined,
+      },
+    ];
+  })();
+
+  const showMebbisExamResultSyncAction = examDateSidebar?.field === "eSinavDate";
+  const mebbisExamResultSyncTitle = !canManageMebJobs
+    ? noPermissionTitle
+    : !selectedExamDate
+      ? "Önce bir e-sınav tarihi seç"
+      : mebbisSessionGuard.disabled
+        ? mebbisSessionGuard.message
+        : undefined;
+
   const handleExamCodeSelect = (value: string) => {
     setSelectedExamDate("");
     setSelectedExamScheduleId("");
@@ -2927,9 +2970,9 @@ export function CandidatesPage({
       return;
     }
 
-    const normalized = name.toLocaleLowerCase("tr-TR");
+    const normalized = normalizeSearchComparable(name);
     const existing = allTags.find(
-      (tag) => tag.name.toLocaleLowerCase("tr-TR") === normalized
+      (tag) => normalizeSearchComparable(tag.name) === normalized
     );
     if (existing) {
       setActiveTags((current) =>
@@ -3206,81 +3249,6 @@ export function CandidatesPage({
         : ""
     );
     setBulkActionMode("examDate");
-  };
-
-  const prepareUnscheduledExamChargePrompt = async (examType: CandidateExamType) => {
-    if (!canManageCandidates) return;
-    if (selectedCandidateIds.size === 0) {
-      showToast(t("candidates.toast.selectAtLeastOne"), "error");
-      return;
-    }
-
-    setUnscheduledExamChargeLoading(true);
-    try {
-      const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-      const selectedIds = Array.from(selectedCandidateIds);
-      const selectedCandidates = await Promise.all(
-        selectedIds.map((candidateId) => candidateById.get(candidateId) ?? getCandidateById(candidateId))
-      );
-      const feeYear = new Date().getFullYear();
-      const feeMatrix = await queryClient.fetchQuery({
-        queryKey: ["finance", "license-class-fee-matrix", feeYear],
-        queryFn: ({ signal }) => getLicenseClassFeeMatrix(feeYear, undefined, signal),
-        staleTime: 5 * 60 * 1000,
-      }).catch(() => null);
-      const examDateType = examDateTypeFromCandidateExamType(examType);
-      const rows = await Promise.all(selectedCandidates.map(async (candidate): Promise<UnscheduledExamChargeRow> => {
-        const attemptsResult = await listCandidateExamAttempts(candidate.id)
-          .then((attempts) => ({ status: "fulfilled" as const, value: attempts }))
-          .catch(() => ({ status: "rejected" as const }));
-        const attempts = attemptsResult.status === "fulfilled" ? attemptsResult.value : [];
-        const hasPendingAttempt =
-          attemptsResult.status === "fulfilled" &&
-          attempts.some((attempt) =>
-            attempt.examType === examType &&
-            attempt.schedulingStatus === "pending_schedule"
-          );
-        const nextAttemptNumber = attemptsResult.status === "fulfilled" && !hasPendingAttempt
-          ? nextUnscheduledExamAttemptNumber(attempts, examType)
-          : null;
-        const hasSameRightActiveDebt =
-          nextAttemptNumber !== null &&
-          hasActiveExamDebtForAttemptNumber(attempts, examType, nextAttemptNumber);
-        const duplicateReason = attemptsResult.status === "rejected"
-          ? "Sınav hakları kontrol edilemedi"
-          : hasPendingAttempt
-          ? "Planlanmamış sınav borcu var"
-          : nextAttemptNumber === null
-            ? "Kullanılabilir sınav hakkı yok"
-          : hasSameRightActiveDebt
-            ? `${nextAttemptNumber}. hak için aktif sınav borcu var`
-            : undefined;
-
-        return {
-          candidate,
-          fee: String(defaultExamChargeFee(candidate, examDateType, feeMatrix, 0)),
-          selected: !duplicateReason,
-          duplicateReason,
-        };
-      }));
-
-      setUnscheduledExamChargePrompt({
-        examType,
-        dueDate: todayLocalDateOnly(),
-        description: defaultUnscheduledExamChargeDescription(examType),
-        rows,
-      });
-      setBulkActionMode(null);
-    } catch {
-      showToast("Sınav borçlandırma listesi hazırlanamadı", "error");
-    } finally {
-      setUnscheduledExamChargeLoading(false);
-    }
-  };
-
-  const openBulkUnscheduledExamChargeAction = () => {
-    const examType = examDateSidebar?.examType === "uygulama" ? "practice" : "theory";
-    void prepareUnscheduledExamChargePrompt(examType);
   };
 
   const cancelBulkAction = () => {
@@ -3867,7 +3835,7 @@ export function CandidatesPage({
   );
 
   return (
-    <>
+    <div className="candidates-page">
       <PageToolbar
         actions={
           <>
@@ -4046,6 +4014,17 @@ export function CandidatesPage({
                         >
                           {t("candidates.bulk.setExamDate")}
                         </button>
+                        {showMebbisExamResultSyncAction ? (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            disabled={!canManageMebJobs || mebbisExamResultSyncRunning || !selectedExamDate}
+                            onClick={handleSelectedExamDateMebbisResultSync}
+                            title={mebbisExamResultSyncTitle}
+                            type="button"
+                          >
+                            {mebbisExamResultSyncRunning ? "Sorgulanıyor" : "Sonuç Sorgulama"}
+                          </button>
+                        ) : null}
                         <button
                           className="btn btn-secondary btn-sm"
                           disabled={!canManageCandidates}
@@ -4054,15 +4033,6 @@ export function CandidatesPage({
                           type="button"
                         >
                           {t("candidates.bulk.addTag")}
-                        </button>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          disabled={!canManageCandidates || unscheduledExamChargeLoading}
-                          onClick={openBulkUnscheduledExamChargeAction}
-                          title={!canManageCandidates ? noPermissionTitle : undefined}
-                          type="button"
-                        >
-                          {unscheduledExamChargeLoading ? "Hazırlanıyor" : "Sınav borçlandır"}
                         </button>
                         {showBulkStatusAction ? (
                           <button
@@ -4108,15 +4078,6 @@ export function CandidatesPage({
                           type="button"
                         >
                           {t("candidates.bulk.addTag")}
-                        </button>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          disabled={!canManageCandidates || unscheduledExamChargeLoading}
-                          onClick={openBulkUnscheduledExamChargeAction}
-                          title={!canManageCandidates ? noPermissionTitle : undefined}
-                          type="button"
-                        >
-                          {unscheduledExamChargeLoading ? "Hazırlanıyor" : "Sınav borçlandır"}
                         </button>
                         {showFiltersAction ? (
                           <button
@@ -4180,14 +4141,7 @@ export function CandidatesPage({
       {examDateSidebar ? (
         <div className="candidates-layout">
           <CandidateExamDateSidebar
-            actions={[
-              {
-                label: t("candidatesPage.action.addExamDate"),
-                onClick: handleExamDateAddClick,
-                disabled: !canManageGroups,
-                title: !canManageGroups ? noPermissionTitle : undefined,
-              },
-            ]}
+            actions={examDateSidebarActions}
             canManageMutations={canManageGroups}
             deletingOptionId={deletingExamScheduleId}
             deletingCodeId={deletingExamCodeId}
@@ -4485,7 +4439,7 @@ export function CandidatesPage({
           open={examCodeModalOpen}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 

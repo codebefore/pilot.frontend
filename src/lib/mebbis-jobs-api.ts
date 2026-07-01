@@ -319,6 +319,22 @@ export async function createCandidateTermEnrollJob(
   );
 }
 
+export async function createCandidateExamResultSyncJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/exam-result-sync`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
+export async function createESinavExamResultSyncJob(examDate: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    "/api/mebbis/jobs/exam-results/e-sinav",
+    { examDate },
+    mebbisRequestOptions()
+  );
+}
+
 export async function createCandidateSyncByNationalIdJob(
   nationalId: string,
   candidateStatusHint?: string

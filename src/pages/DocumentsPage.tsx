@@ -37,7 +37,7 @@ import { candidateKeys, useCandidateTags } from "../lib/queries/use-candidates";
 import { groupKeys, useGroups } from "../lib/queries/use-groups";
 import { formatLocalDateOnly } from "../lib/date-only";
 import { buildWhatsAppUrl, formatPhoneDisplay } from "../lib/phone";
-import { normalizeTextQuery } from "../lib/search";
+import { normalizeSearchComparable, normalizeTextQuery } from "../lib/search";
 import { buildGroupHeading } from "../lib/term-label";
 import {
   CANDIDATE_STATUS_OPTIONS,
@@ -482,9 +482,9 @@ export function DocumentsPage() {
       return;
     }
 
-    const normalized = name.toLocaleLowerCase("tr-TR");
+    const normalized = normalizeSearchComparable(name);
     const existing = allTags.find(
-      (tag) => tag.name.toLocaleLowerCase("tr-TR") === normalized
+      (tag) => normalizeSearchComparable(tag.name) === normalized
     );
     if (existing) {
       setActiveTags((current) =>

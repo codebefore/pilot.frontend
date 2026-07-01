@@ -1,5 +1,6 @@
 import { getCatalogApiBaseUrl } from "./api";
 import { httpGet, httpPut } from "./http";
+import { normalizeSearchComparable } from "./search";
 import type {
   TrainingBranchDefinitionListResponse,
   TrainingBranchDefinitionResponse,
@@ -54,7 +55,7 @@ function mapTrainingBranchList(
   snapshots: TrainingBranchSnapshot[],
   options?: GetTrainingBranchDefinitionsOptions
 ): TrainingBranchDefinitionListResponse {
-  const search = options?.search?.trim().toLocaleLowerCase("tr-TR");
+  const search = normalizeSearchComparable(options?.search);
   const activity = options?.activity ?? (options?.includeInactive ? "all" : "active");
   let items = snapshots.map(mapTrainingBranch);
 
@@ -65,7 +66,7 @@ function mapTrainingBranchList(
   }
   if (search) {
     items = items.filter((item) =>
-      [item.code, item.name].some((value) => value.toLocaleLowerCase("tr-TR").includes(search))
+      [item.code, item.name].some((value) => normalizeSearchComparable(value).includes(search))
     );
   }
 
