@@ -135,6 +135,15 @@ export const PrintIcon = (p?: IconProps) =>
     p
   );
 
+export const RotateCwIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M21 12a9 9 0 1 1-3.8-7.36" />,
+      <polyline key="2" points="21 4 21 12 13 12" />,
+    ],
+    p
+  );
+
 export const ExamsIcon = (p?: IconProps) =>
   svg(
     [

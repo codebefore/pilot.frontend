@@ -27,7 +27,7 @@ import { FileDropInput } from "../ui/FileDropInput";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
-import { CameraIcon, ScannerIcon } from "../icons";
+import { CameraIcon, RotateCwIcon, ScannerIcon } from "../icons";
 import { DocumentScannerModal } from "./DocumentScannerModal";
 
 const uploadDocumentSchema = z.object({
@@ -91,23 +91,80 @@ type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
 
 const DEFAULT_PHOTO_CROP_PERCENT = 80;
 const PHOTO_CROP_DOCUMENT_TYPE_KEYS = new Set(["biometric_photo", "webcam_photo"]);
+const BIOMETRIC_PHOTO_DOCUMENT_TYPE_KEY = "biometric_photo";
+const MEBBIS_BIOMETRIC_PHOTO_WIDTH = 394;
+const MEBBIS_BIOMETRIC_PHOTO_HEIGHT = 512;
+const MEBBIS_BIOMETRIC_PHOTO_ASPECT = MEBBIS_BIOMETRIC_PHOTO_WIDTH / MEBBIS_BIOMETRIC_PHOTO_HEIGHT;
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function defaultCropRect(documentTypeKey?: string | null): CropRect {
+function isBiometricPhotoDocumentType(documentTypeKey?: string | null): boolean {
+  return documentTypeKey === BIOMETRIC_PHOTO_DOCUMENT_TYPE_KEY;
+}
+
+function cropPercentRatioForImage(image: HTMLImageElement | null | undefined): number | null {
+  if (!image || image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
+  return MEBBIS_BIOMETRIC_PHOTO_ASPECT / (image.naturalWidth / image.naturalHeight);
+}
+
+function centeredCropRectForRatio(percent: number, cropPercentRatio: number | null): CropRect {
+  let width = percent;
+  let height = percent;
+  if (cropPercentRatio && cropPercentRatio > 0) {
+    height = width / cropPercentRatio;
+    if (height > percent) {
+      height = percent;
+      width = height * cropPercentRatio;
+    }
+  }
+  return {
+    x: (100 - width) / 2,
+    y: (100 - height) / 2,
+    width,
+    height,
+  };
+}
+
+function defaultCropRect(documentTypeKey?: string | null, image?: HTMLImageElement | null): CropRect {
   if (documentTypeKey && PHOTO_CROP_DOCUMENT_TYPE_KEYS.has(documentTypeKey)) {
-    const offset = (100 - DEFAULT_PHOTO_CROP_PERCENT) / 2;
-    return {
-      x: offset,
-      y: offset,
-      width: DEFAULT_PHOTO_CROP_PERCENT,
-      height: DEFAULT_PHOTO_CROP_PERCENT,
-    };
+    return centeredCropRectForRatio(
+      DEFAULT_PHOTO_CROP_PERCENT,
+      isBiometricPhotoDocumentType(documentTypeKey) ? cropPercentRatioForImage(image) : null
+    );
   }
 
   return { x: 0, y: 0, width: 100, height: 100 };
+}
+
+function resizeCropRectWithRatio(start: CropRect, mode: CropDragMode, dx: number, dy: number, cropPercentRatio: number): CropRect {
+  const draggingEast = mode.includes("e");
+  const draggingSouth = mode.includes("s");
+  const anchorX = draggingEast ? start.x : start.x + start.width;
+  const anchorY = draggingSouth ? start.y : start.y + start.height;
+  const maxWidth = draggingEast ? 100 - anchorX : anchorX;
+  const maxHeight = draggingSouth ? 100 - anchorY : anchorY;
+  const maxAspectWidth = Math.min(maxWidth, maxHeight * cropPercentRatio);
+  const maxAspectHeight = maxAspectWidth / cropPercentRatio;
+  const widthFromX = start.width + (draggingEast ? dx : -dx);
+  const heightFromY = start.height + (draggingSouth ? dy : -dy);
+  const useHorizontal = Math.abs(dx) >= Math.abs(dy * cropPercentRatio);
+  let width = useHorizontal
+    ? clampNumber(widthFromX, MIN_CROP_SIZE, maxAspectWidth)
+    : clampNumber(heightFromY * cropPercentRatio, MIN_CROP_SIZE, maxAspectWidth);
+  let height = width / cropPercentRatio;
+  if (height < MIN_CROP_SIZE) {
+    height = Math.min(MIN_CROP_SIZE, maxAspectHeight);
+    width = height * cropPercentRatio;
+  }
+
+  return {
+    x: draggingEast ? anchorX : anchorX - width,
+    y: draggingSouth ? anchorY : anchorY - height,
+    width,
+    height,
+  };
 }
 
 function toJpegFileName(fileName: string): string {
@@ -144,7 +201,49 @@ function drawVideoFrameToFile(video: HTMLVideoElement): Promise<File> {
   });
 }
 
-function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect): Promise<File> {
+function rotateImageFileClockwise(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalHeight;
+        canvas.height = image.naturalWidth;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("canvas-not-supported"));
+          return;
+        }
+        context.fillStyle = "#fff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.translate(canvas.width, 0);
+        context.rotate(Math.PI / 2);
+        context.drawImage(image, 0, 0);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("rotate-failed"));
+              return;
+            }
+            resolve(new File([blob], toJpegFileName(file.name), { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.92
+        );
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("image-load-failed"));
+    };
+    image.src = url;
+  });
+}
+
+function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect, documentTypeKey?: string | null): Promise<File> {
   const naturalWidth = image.naturalWidth;
   const naturalHeight = image.naturalHeight;
   const sourceX = Math.round((crop.x / 100) * naturalWidth);
@@ -156,10 +255,16 @@ function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect): Pro
   }
 
   const canvas = document.createElement("canvas");
-  canvas.width = sourceWidth;
-  canvas.height = sourceHeight;
+  const outputWidth = isBiometricPhotoDocumentType(documentTypeKey) ? MEBBIS_BIOMETRIC_PHOTO_WIDTH : sourceWidth;
+  const outputHeight = isBiometricPhotoDocumentType(documentTypeKey) ? MEBBIS_BIOMETRIC_PHOTO_HEIGHT : sourceHeight;
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
   const context = canvas.getContext("2d");
   if (!context) return Promise.reject(new Error("canvas-not-supported"));
+  if (isBiometricPhotoDocumentType(documentTypeKey)) {
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, outputWidth, outputHeight);
+  }
   context.drawImage(
     image,
     sourceX,
@@ -168,8 +273,8 @@ function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect): Pro
     sourceHeight,
     0,
     0,
-    sourceWidth,
-    sourceHeight
+    outputWidth,
+    outputHeight
   );
 
   return new Promise((resolve, reject) => {
@@ -259,6 +364,7 @@ export function UploadDocumentModal({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
+  const [captureRotating, setCaptureRotating] = useState(false);
   const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
   const [cropSaving, setCropSaving] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -314,6 +420,7 @@ export function UploadDocumentModal({
     setCapturedFile(null);
     setCrop(defaultCropRect(activeDocumentType?.key));
     setCropSaving(false);
+    setCaptureRotating(false);
   };
 
   const closeCamera = () => {
@@ -331,6 +438,7 @@ export function UploadDocumentModal({
     setCapturedUrl(URL.createObjectURL(file));
     setCrop(defaultCropRect(activeDocumentType?.key));
     setCropSaving(false);
+    setCaptureRotating(false);
   };
 
   const handleSelectedFile = (file: File | null) => {
@@ -440,6 +548,13 @@ export function UploadDocumentModal({
       const top = start.y;
       const right = start.x + start.width;
       const bottom = start.y + start.height;
+      const cropPercentRatio = isBiometricPhotoDocumentType(activeDocumentType?.key)
+        ? cropPercentRatioForImage(cropImageRef.current)
+        : null;
+      if (cropPercentRatio) {
+        setCrop(resizeCropRectWithRatio(start, drag.mode, dx, dy, cropPercentRatio));
+        return;
+      }
       const nextLeft = drag.mode.includes("w")
         ? clampNumber(left + dx, 0, right - MIN_CROP_SIZE)
         : left;
@@ -470,12 +585,28 @@ export function UploadDocumentModal({
     if (!capturedFile || !cropImageRef.current || cropSaving) return;
     setCropSaving(true);
     try {
-      const file = await cropImageFile(capturedFile, cropImageRef.current, crop);
+      const file = await cropImageFile(capturedFile, cropImageRef.current, crop, activeDocumentType?.key);
       setSelectedFile(file);
       clearCapture();
     } catch {
       showToast(t("candidateDetail.documents.upload.photoError"), "error");
       setCropSaving(false);
+    }
+  };
+
+  const rotateCapturedFile = async () => {
+    if (!capturedFile || cropSaving || captureRotating) return;
+    setCaptureRotating(true);
+    try {
+      const file = await rotateImageFileClockwise(capturedFile);
+      if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+      setCapturedFile(file);
+      setCapturedUrl(URL.createObjectURL(file));
+      setCrop(defaultCropRect(activeDocumentType?.key));
+    } catch {
+      showToast(t("candidateDetail.documents.upload.photoError"), "error");
+    } finally {
+      setCaptureRotating(false);
     }
   };
 
@@ -852,6 +983,7 @@ export function UploadDocumentModal({
                   <div className="candidate-doc-crop-viewport" ref={cropViewportRef}>
                     <img
                       alt={t("candidateDetail.documents.upload.capturedAlt")}
+                      onLoad={() => setCrop(defaultCropRect(activeDocumentType?.key, cropImageRef.current))}
                       ref={cropImageRef}
                       src={capturedUrl}
                     />
@@ -880,8 +1012,17 @@ export function UploadDocumentModal({
                     İptal
                   </button>
                   <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={captureRotating || cropSaving}
+                    onClick={() => void rotateCapturedFile()}
+                    type="button"
+                  >
+                    <RotateCwIcon size={14} />
+                    Döndür
+                  </button>
+                  <button
                     className="btn btn-primary btn-sm"
-                    disabled={cropSaving}
+                    disabled={cropSaving || captureRotating}
                     onClick={() => void saveCroppedFile()}
                     type="button"
                   >
