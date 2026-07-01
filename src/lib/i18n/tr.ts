@@ -1488,7 +1488,7 @@ export const tr = {
   "nav.exams": "Sınavlar",
   "nav.examESinav": "E-Sınav",
   "nav.examUygulama": "Direksiyon",
-  "nav.mebJobs": "Meb Sync",
+  "nav.mebJobs": "Local Agent",
   "nav.outbox": "Outbox",
   "nav.settings": "Kurum Ayarları",
   "nav.users": "Kullanıcılar",

@@ -98,7 +98,7 @@ describe("Sidebar", () => {
       "Sınavlar",
       "Eğitim Planı",
       "Finans",
-      "Meb Sync",
+      "Local Agent",
       "Kurum Ayarları",
     ]);
   });

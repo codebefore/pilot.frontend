@@ -1490,7 +1490,7 @@ export const en: Record<TranslationKey, string> = {
   "nav.exams": "Exams",
   "nav.examESinav": "E-Exam",
   "nav.examUygulama": "Driving",
-  "nav.mebJobs": "Meb Sync",
+  "nav.mebJobs": "Local Agent",
   "nav.outbox": "Outbox",
   "nav.settings": "Institution Settings",
   "nav.users": "Users",
