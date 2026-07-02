@@ -54,7 +54,7 @@ export async function printAuthorizedFile(url: string, title: string): Promise<v
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
-async function fetchAuthorizedBlob(url: string, signal?: AbortSignal): Promise<Blob> {
+export async function fetchAuthorizedBlob(url: string, signal?: AbortSignal): Promise<Blob> {
   const headers = new Headers();
   const token = getStoredAccessToken();
   if (token) {

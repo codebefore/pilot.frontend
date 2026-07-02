@@ -1769,6 +1769,8 @@ export function CandidatesPage({
   const [unscheduledExamChargePrompt, setUnscheduledExamChargePrompt] =
     useState<UnscheduledExamChargePromptState | null>(null);
   const [unscheduledExamChargeSaving, setUnscheduledExamChargeSaving] = useState(false);
+  const isDrivingExamRandevuluTab = examDateSidebar?.examType === "uygulama" && tab === "randevulu";
+  const showUnscheduledExamChargePrompt = Boolean(unscheduledExamChargePrompt) && !isDrivingExamRandevuluTab;
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -2742,7 +2744,8 @@ export function CandidatesPage({
 
     setMebbisExamResultSyncRunning(true);
     try {
-      const job = await createESinavExamResultSyncJob(selectedExamDate);
+      const selectedExamSchedule = displayedExamDateOptions.find((option) => option.id === selectedExamScheduleId);
+      const job = await createESinavExamResultSyncJob(selectedExamDate, selectedExamSchedule?.time);
       window.dispatchEvent(new CustomEvent("pilot:mebbis-job-queued", {
         detail: { jobId: job.id, jobType: job.jobType }
       }));
@@ -3505,6 +3508,10 @@ export function CandidatesPage({
 
   const saveUnscheduledExamCharges = async () => {
     if (!unscheduledExamChargePrompt || unscheduledExamChargeSaving) return;
+    if (isDrivingExamRandevuluTab) {
+      setUnscheduledExamChargePrompt(null);
+      return;
+    }
     const allowZeroAmount = unscheduledExamChargePrompt.examType === "theory";
     const prepared = unscheduledExamChargePrompt.rows
       .filter((row) => row.selected && !row.duplicateReason)
@@ -4238,7 +4245,7 @@ export function CandidatesPage({
           </>
         }
         onClose={closeUnscheduledExamChargePrompt}
-        open={Boolean(unscheduledExamChargePrompt)}
+        open={showUnscheduledExamChargePrompt}
         title={unscheduledExamChargePrompt
           ? unscheduledExamChargeTitle(unscheduledExamChargePrompt.examType)
           : "Sınav borçlandır"}

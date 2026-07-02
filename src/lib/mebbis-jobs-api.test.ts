@@ -135,13 +135,30 @@ describe("mebbis jobs api", () => {
       })
     );
 
-    await createESinavExamResultSyncJob("2026-06-12");
+    await createESinavExamResultSyncJob("2026-06-12", "09:00");
 
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(String(url)).toBe(
       "http://127.0.0.1:5090/api/mebbis/jobs/exam-results/e-sinav"
     );
     expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ examDate: "2026-06-12", examTime: "09:00" }));
+  });
+
+  it("omits e-sinav exam time when it is not selected", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createESinavExamResultSyncJob("2026-06-12", null);
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
     expect(init?.body).toBe(JSON.stringify({ examDate: "2026-06-12" }));
   });
 

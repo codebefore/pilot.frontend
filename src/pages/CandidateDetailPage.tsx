@@ -95,6 +95,7 @@ import { formatNationalId } from "../lib/national-id";
 import {
   createAuthorizedObjectUrl,
   downloadAuthorizedFile,
+  fetchAuthorizedBlob,
   printAuthorizedFile,
 } from "../lib/authorized-files";
 import {
@@ -144,6 +145,7 @@ import {
   openCandidateContractPrintWindow,
   printCandidateContractPdf,
   renderCandidateContractPdf,
+  type CandidateContractImageInput,
 } from "../lib/candidate-contract-print";
 import { StatusPill } from "../components/ui/StatusPill";
 import type {
@@ -203,6 +205,45 @@ function vehicleDisplayName(vehicle: VehicleResponse | null | undefined): string
 
 function isExamVehicle(vehicle: VehicleResponse): boolean {
   return !vehicle.isSimulator;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      const commaIndex = result.indexOf(",");
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Fotoğraf okunamadı."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function loadCandidateKCertificateBiometricPhoto(
+  candidate: CandidateResponse
+): Promise<CandidateContractImageInput | null> {
+  if (!candidate.photo?.documentId || candidate.photo.kind !== "biometric_photo") {
+    return null;
+  }
+
+  try {
+    const url = getCandidateDocumentDownloadUrl(candidate.id, candidate.photo.documentId, { inline: true });
+    const blob = await fetchAuthorizedBlob(url);
+    const contentType = blob.type || "image/jpeg";
+    if (!contentType.startsWith("image/")) {
+      return null;
+    }
+
+    return {
+      base64: await blobToBase64(blob),
+      contentType,
+      widthCm: 2.4,
+      heightCm: 3.2,
+    };
+  } catch {
+    return null;
+  }
 }
 
 const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
@@ -7737,11 +7778,12 @@ function CandidateKCertificateSection({
     setPrintingRowId(row.id);
     try {
       const lesson = findKCertificateLesson(row);
-      const [institution, managerResponse, instructor, vehicle] = await Promise.all([
+      const [institution, managerResponse, instructor, vehicle, biometricPhoto] = await Promise.all([
         fetchOptional(getInstitutionSettings()),
         fetchOptional(getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 1 })),
         fetchOptional(lesson?.instructorId ? getInstructor(lesson.instructorId) : null),
         fetchOptional(lesson?.vehicleId ? getVehicle(lesson.vehicleId) : null),
+        loadCandidateKCertificateBiometricPhoto(candidate),
       ]);
       const manager = managerResponse?.items.find((item) => item.isActive && item.role === "manager") ?? null;
       const managerName = manager
@@ -7757,6 +7799,7 @@ function CandidateKCertificateSection({
         vehicle,
         vehicleTypeLabel: vehicleTypeForLicenseClass(candidate.licenseClass, t),
         routeName,
+        biometricPhoto,
       });
       const blob = await renderCandidateContractPdf(request);
       printCandidateContractPdf(printWindow, blob);

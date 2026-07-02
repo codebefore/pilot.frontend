@@ -35,15 +35,24 @@ export type CandidateKCertificateRenderInput = {
   vehicle: VehicleResponse | null;
   vehicleTypeLabel: string | null;
   routeName: string | null;
+  biometricPhoto?: CandidateContractImageInput | null;
 };
 
 export type CandidateContractRenderPdfRequest = {
   values: Record<string, string>;
   fileName: string;
   templateKey?: CandidateContractTemplateKey;
+  images?: Record<string, CandidateContractImageInput>;
 };
 
 export type CandidateContractTemplateKey = "registration-contract" | "signature-sample" | "k-certificate";
+
+export type CandidateContractImageInput = {
+  base64: string;
+  contentType: string;
+  widthCm?: number;
+  heightCm?: number;
+};
 
 function documentRequestOptions(signal?: AbortSignal) {
   return { baseUrl: getDocumentApiBaseUrl(), signal };
@@ -223,6 +232,7 @@ export function buildCandidateKCertificateRenderPdfRequest({
   vehicle,
   vehicleTypeLabel,
   routeName,
+  biometricPhoto,
 }: CandidateKCertificateRenderInput): CandidateContractRenderPdfRequest {
   const institutionName = institution?.institutionOfficialName ?? institution?.institutionName ?? null;
   const instructorNameParts = splitFullName(
@@ -234,6 +244,11 @@ export function buildCandidateKCertificateRenderPdfRequest({
   return {
     fileName: kCertificateFileName(candidate, certificate.documentNumber),
     templateKey: "k-certificate",
+    images: biometricPhoto
+      ? {
+          kursiyerbiyometrikfotograf: biometricPhoto,
+        }
+      : undefined,
     values: {
       adayno: clean(candidate.nationalId),
       aracturu: clean(vehicleTypeLabel),
@@ -256,10 +271,10 @@ export function buildCandidateKCertificateRenderPdfRequest({
       ustaogreticikimlikno: clean(instructor?.nationalId),
       ustaogreticiadi: clean(instructorNameParts.firstName),
       ustaogreticisoyadi: clean(instructorNameParts.lastName),
-      ustaogreticiadresi: clean(instructor?.notes),
-      ustaogreticiehliyettipi: clean(instructor?.licenseClassCodes.join(", ")),
-      ustaogreticiehliyetno: emptyValue,
-      ustaogreticiehliyetverildigiyer: emptyValue,
+      ustaogreticiadresi: clean(instructor?.driverLicenseAddress),
+      ustaogreticiehliyettipi: clean(instructor?.driverLicenseTypeText ?? instructor?.licenseClassCodes.join(", ")),
+      ustaogreticiehliyetno: clean(instructor?.driverLicenseNumber),
+      ustaogreticiehliyetverildigiyer: clean(instructor?.driverLicenseIssuedPlace),
       aracplaka: clean(vehicle?.plateNumber ?? lesson?.vehiclePlate),
     },
   };

@@ -26,6 +26,7 @@ export function ExamESinavPage() {
       examDateSidebar={{
         examType: "e_sinav",
         field: "eSinavDate",
+        showTime: true,
         summaryMode: "candidateCount",
         title: t("candidates.col.eSinavDate"),
       }}

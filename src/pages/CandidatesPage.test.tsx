@@ -3278,7 +3278,7 @@ describe("CandidatesPage tabs", () => {
       expect(createESinavExamResultSyncJobMock).toHaveBeenCalledTimes(1);
     });
     expect(getMebbisSessionStatusMock).toHaveBeenCalled();
-    expect(createESinavExamResultSyncJobMock).toHaveBeenCalledWith("2026-06-12");
+    expect(createESinavExamResultSyncJobMock).toHaveBeenCalledWith("2026-06-12", "09:00");
     expect(createCandidateExamResultSyncJobMock).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(getMebbisJobMock).toHaveBeenCalledWith("job-e-sinav-date");

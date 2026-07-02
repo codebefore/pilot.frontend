@@ -327,10 +327,13 @@ export async function createCandidateExamResultSyncJob(candidateId: string): Pro
   );
 }
 
-export async function createESinavExamResultSyncJob(examDate: string): Promise<MebbisJobResponse> {
+export async function createESinavExamResultSyncJob(
+  examDate: string,
+  examTime?: string | null
+): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/exam-results/e-sinav",
-    { examDate },
+    examTime ? { examDate, examTime } : { examDate },
     mebbisRequestOptions()
   );
 }
