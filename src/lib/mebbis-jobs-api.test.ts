@@ -104,6 +104,27 @@ describe("mebbis jobs api", () => {
     expect(init?.body).toBe(JSON.stringify({ registrationFee: 8750 }));
   });
 
+  it("creates free candidate term enrollment jobs without a registration fee", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createCandidateTermEnrollJob("candidate-1", { isFree: true });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe(
+      "http://127.0.0.1:5090/api/mebbis/jobs/candidates/candidate-1/term-enroll"
+    );
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ isFree: true }));
+  });
+
   it("creates candidate exam result sync jobs on the MEBBIS base url", async () => {
     applyRuntimeConfig({
       mebbisApiBaseUrl: "http://127.0.0.1:5090",

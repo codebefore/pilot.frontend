@@ -362,8 +362,12 @@ export function CandidateDrawer({
         firstName: candidate.firstName,
         lastName: candidate.lastName,
         nationalId: candidate.nationalId,
+        identitySerialNumber: candidate.identitySerialNumber,
+        motherName: candidate.motherName,
+        fatherName: candidate.fatherName,
         referenceName: candidate.referenceName,
         phoneNumber: candidate.phoneNumber,
+        address: candidate.address,
         birthDate: candidate.birthDate,
         birthPlace: candidate.birthPlace,
         gender: normalizeCandidateGender(candidate.gender),
@@ -378,13 +382,23 @@ export function CandidateDrawer({
         mebSyncStatus: candidate.mebSyncStatus,
         mebExamDate: candidate.mebExamDate,
         drivingExamDate: candidate.drivingExamDate,
+        drivingExamScheduleId: candidate.drivingExamScheduleId,
         graduationDate: candidate.graduationDate,
         mebExamResult: candidate.mebExamResult,
+        isFree: candidate.isFree ?? false,
         eSinavAttemptCount: candidate.eSinavAttemptCount ?? 1,
         drivingExamAttemptCount: candidate.drivingExamAttemptCount ?? 1,
         status: normalizeCandidateStatusValue(candidate.status),
         terminationReason: candidate.terminationReason,
         terminationDate: candidate.terminationDate,
+        contacts: candidate.contacts?.map((contact) => ({
+          id: contact.id,
+          type: contact.type,
+          label: contact.label,
+          value: contact.value,
+          isPrimary: contact.isPrimary,
+          ownerName: contact.ownerName,
+        })) ?? [],
         tags: candidate.tags?.map((tag) => tag.name) ?? [],
         rowVersion: candidate.rowVersion,
         ...patch,
@@ -710,7 +724,12 @@ export function CandidateDrawer({
         <>
           <div className="drawer-profile-summary">
             <span className="drawer-profile-avatar-shell">
-              <CandidateAvatar candidate={candidate} className="drawer-profile-avatar" size={64} />
+              <CandidateAvatar
+                candidate={candidate}
+                className="drawer-profile-avatar"
+                previewOnClick
+                size={64}
+              />
             </span>
             <div className="drawer-profile-meta">
               <div className="drawer-profile-name">

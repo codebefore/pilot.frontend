@@ -121,7 +121,11 @@ export function CandidateExamDateSidebar({
     if (!confirmingId && !confirmingCodeId) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (confirmRef.current && !confirmRef.current.contains(event.target as Node)) {
+      const target = event.target as Element;
+      if (target.closest(".exam-date-option-delete-trigger")) {
+        return;
+      }
+      if (confirmRef.current && !confirmRef.current.contains(target)) {
         setConfirmingId(null);
         setConfirmingCodeId(null);
       }
@@ -274,8 +278,12 @@ export function CandidateExamDateSidebar({
             const isDeleting = deletingCodeId === option.id;
             const isEditing = editingCodeLocalId === option.id;
             const canDelete = option.scheduleCount === 0 && option.candidateCount === 0;
+            const isConfirmingDelete = confirmingCodeId === option.id;
             return (
-              <div className="exam-date-option-shell" key={option.id}>
+              <div
+                className={isConfirmingDelete ? "exam-date-option-shell has-delete-popover" : "exam-date-option-shell"}
+                key={option.id}
+              >
                 {isEditing ? (
                   <div className="exam-code-option exam-date-option-edit">
                     <input
@@ -363,7 +371,7 @@ export function CandidateExamDateSidebar({
                     {onCodeDelete ? (
                       <button
                         aria-label={t("examDateSidebar.aria.deleteCode")}
-                        className="exam-date-option-action danger"
+                        className="exam-date-option-action danger exam-date-option-delete-trigger"
                         disabled={!canManageMutations || !canDelete || isDeleting}
                         onClick={(event) => {
                           if (!canManageMutations) return;
@@ -384,8 +392,13 @@ export function CandidateExamDateSidebar({
                     ) : null}
                   </div>
                 )}
-                {onCodeDelete && confirmingCodeId === option.id ? (
-                  <div className="exam-date-option-confirm" ref={confirmRef} role="dialog">
+                {onCodeDelete && isConfirmingDelete ? (
+                  <div
+                    aria-label="Sınav kodu silme onayı"
+                    className="exam-date-option-confirm"
+                    ref={confirmRef}
+                    role="alertdialog"
+                  >
                     <span className="exam-date-option-confirm-label">Bu kodu sil?</span>
                     <div className="exam-date-option-confirm-actions">
                       <button
@@ -439,12 +452,13 @@ export function CandidateExamDateSidebar({
         const licenseClassHeader = showLicenseClassInHeader
           ? formatExamScheduleLicenseClassHeader(option)
           : "";
+        const isConfirmingDelete = confirmingId === option.id;
         return (
           <div className="exam-date-option-group" key={option.id}>
             {option.id === todayDividerOptionId ? (
               <div aria-hidden="true" className="exam-date-divider" data-testid="exam-date-divider" />
             ) : null}
-            <div className="exam-date-option-shell">
+            <div className={isConfirmingDelete ? "exam-date-option-shell has-delete-popover" : "exam-date-option-shell"}>
               {isEditing ? (
                 <div className="exam-date-option exam-date-option-edit">
                   <div className="exam-date-option-edit-fields">
@@ -542,7 +556,7 @@ export function CandidateExamDateSidebar({
                   {onDelete ? (
                     <button
                       aria-label={`${formatDateTR(option.date)} sınav tarihini sil`}
-                      className="exam-date-option-action danger"
+                      className="exam-date-option-action danger exam-date-option-delete-trigger"
                       disabled={isDeleting || !canManageMutations}
                       onClick={(event) => {
                         if (!canManageMutations) return;
@@ -557,8 +571,13 @@ export function CandidateExamDateSidebar({
                   ) : null}
                 </div>
               )}
-              {onDelete && confirmingId === option.id ? (
-                <div className="exam-date-option-confirm" ref={confirmRef} role="dialog">
+              {onDelete && isConfirmingDelete ? (
+                <div
+                  aria-label="Sınav tarihi silme onayı"
+                  className="exam-date-option-confirm"
+                  ref={confirmRef}
+                  role="alertdialog"
+                >
                   <span className="exam-date-option-confirm-label">Bu tarihi sil?</span>
                   <div className="exam-date-option-confirm-actions">
                     <button

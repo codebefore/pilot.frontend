@@ -308,13 +308,18 @@ export async function createCandidateSyncJob(candidateId: string): Promise<Mebbi
 
 export async function createCandidateTermEnrollJob(
   candidateId: string,
-  input: { registrationFee?: number | null } = {}
+  input: { registrationFee?: number | null; isFree?: boolean } = {}
 ): Promise<MebbisJobResponse> {
+  const body = {
+    ...(input.registrationFee != null && input.registrationFee > 0
+      ? { registrationFee: input.registrationFee }
+      : {}),
+    ...(input.isFree === true ? { isFree: true } : {}),
+  };
+
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/term-enroll`,
-    input.registrationFee != null && input.registrationFee > 0
-      ? { registrationFee: input.registrationFee }
-      : {},
+    body,
     mebbisRequestOptions()
   );
 }

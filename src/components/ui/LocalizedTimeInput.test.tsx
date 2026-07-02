@@ -40,4 +40,38 @@ describe("LocalizedTimeInput", () => {
     expect(onChange).toHaveBeenCalledWith("13:30");
     expect(screen.queryByRole("dialog", { name: "Saat secimi" })).not.toBeInTheDocument();
   });
+
+  it("uses the configured minute step for the time options", () => {
+    renderWithProviders(
+      <LocalizedTimeInput
+        ariaLabel="Saat"
+        onChange={vi.fn()}
+        stepMinutes={15}
+        value="09:00"
+      />
+    );
+
+    fireEvent.focus(screen.getByLabelText("Saat"));
+
+    expect(screen.getByRole("option", { name: "09:15" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "09:05" })).not.toBeInTheDocument();
+  });
+
+  it("allows manual entry when enabled", () => {
+    const onChange = vi.fn();
+
+    renderWithProviders(
+      <LocalizedTimeInput
+        allowManualInput
+        ariaLabel="Saat"
+        onChange={onChange}
+        stepMinutes={15}
+        value="09:00"
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Saat"), { target: { value: "10:45" } });
+
+    expect(onChange).toHaveBeenCalledWith("10:45");
+  });
 });

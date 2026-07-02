@@ -89,6 +89,12 @@ import {
   DEFAULT_DRIVING_EXAM_TIME,
   DRIVING_EXAM_TIME_SLOTS,
 } from "../lib/driving-exam-time-slots";
+import {
+  TURKEY_ADDRESS_PROVINCE_OPTIONS,
+  getTurkeyDistrictOptions,
+  resolveTurkeyDistrictValue,
+  resolveTurkeyProvinceValue,
+} from "../lib/turkey-address-options";
 import { buildTermLabel } from "../lib/term-label";
 import { ApiError } from "../lib/http";
 import { formatNationalId } from "../lib/national-id";
@@ -223,12 +229,25 @@ function blobToBase64(blob: Blob): Promise<string> {
 async function loadCandidateKCertificateBiometricPhoto(
   candidate: CandidateResponse
 ): Promise<CandidateContractImageInput | null> {
-  if (!candidate.photo?.documentId || candidate.photo.kind !== "biometric_photo") {
+  let documentId =
+    candidate.photo?.kind === "biometric_photo"
+      ? candidate.photo.documentId
+      : null;
+  if (!documentId) {
+    try {
+      const documents = await getCandidateDocuments(candidate.id);
+      documentId = documents.find((document) => document.documentTypeKey === "biometric_photo" && document.hasFile)?.id ?? null;
+    } catch {
+      documentId = null;
+    }
+  }
+
+  if (!documentId) {
     return null;
   }
 
   try {
-    const url = getCandidateDocumentDownloadUrl(candidate.id, candidate.photo.documentId, { inline: true });
+    const url = getCandidateDocumentDownloadUrl(candidate.id, documentId, { inline: true });
     const blob = await fetchAuthorizedBlob(url);
     const contentType = blob.type || "image/jpeg";
     if (!contentType.startsWith("image/")) {
@@ -310,12 +329,14 @@ function buildCandidateUpdatePayload(
     identitySerialNumber: candidate.identitySerialNumber,
     motherName: candidate.motherName,
     fatherName: candidate.fatherName,
+    referenceName: candidate.referenceName,
     phoneNumber: candidate.phoneNumber,
     address: candidate.address,
     birthDate: candidate.birthDate,
     birthPlace: candidate.birthPlace,
     gender: normalizeCandidateGender(candidate.gender),
     licenseClass: candidate.licenseClass,
+    licenseClassDefinitionId: candidate.licenseClassDefinitionId ?? null,
     hasExistingLicense: candidateHasExistingLicense(candidate),
     existingLicenseType: candidate.existingLicenseType,
     existingLicenseIssuedAt: candidate.existingLicenseIssuedAt,
@@ -323,10 +344,15 @@ function buildCandidateUpdatePayload(
     existingLicenseIssuedProvince: candidate.existingLicenseIssuedProvince,
     existingLicensePre2016: candidate.existingLicensePre2016,
     status: candidate.status,
+    terminationReason: candidate.terminationReason,
+    terminationDate: candidate.terminationDate,
     mebSyncStatus: candidate.mebSyncStatus,
     mebExamDate: candidate.mebExamDate,
     drivingExamDate: candidate.drivingExamDate,
+    drivingExamScheduleId: candidate.drivingExamScheduleId,
+    graduationDate: candidate.graduationDate,
     mebExamResult: candidate.mebExamResult,
+    isFree: candidate.isFree ?? false,
     eSinavAttemptCount: candidate.eSinavAttemptCount,
     drivingExamAttemptCount: candidate.drivingExamAttemptCount,
     contacts: buildCandidateContactPayload(candidate),
@@ -855,6 +881,7 @@ export function CandidateDetailPage() {
                     queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
                   ]);
                 }}
+                onCandidateUpdated={(updated) => setCandidate(updated)}
                 onDeleted={() => navigate(breadcrumbTarget)}
               />
             )}
@@ -1135,6 +1162,7 @@ function CandidateHero({
         <CandidateAvatar
           candidate={candidate}
           className="candidate-detail-hero-avatar"
+          previewOnClick
           size={156}
         />
 
@@ -1696,20 +1724,6 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
               <EditableRow
                 disabled={!canManageCandidates}
                 disabledTitle={noPermissionTitle}
-                displayValue={candidateMebbisStatusLabel(candidate.mebSyncStatus)}
-                inputValue={candidate.mebSyncStatus ?? "not_synced"}
-                label={t("candidateDetail.license.field.mebbisStatus")}
-                options={[
-                  { value: "not_synced", label: "Gönderilmedi" },
-                  { value: "synced", label: "Gönderildi" },
-                ]}
-                onSave={(value) =>
-                  saveGeneralField({ mebSyncStatus: value || "not_synced" }, t("candidateDetail.license.toast.mebbisStatusUpdated"))
-                }
-              />
-              <EditableRow
-                disabled={!canManageCandidates}
-                disabledTitle={noPermissionTitle}
                 displayValue={candidate.registrationNumber}
                 inputValue={candidate.registrationNumber}
                 label={t("candidateDetail.license.field.candidateNumber")}
@@ -2163,6 +2177,37 @@ function isValidContactPhone(value: string): boolean {
   return /^5\d{9}$/.test(value);
 }
 
+type AddressContactParts = {
+  detail: string;
+  province: string;
+  district: string;
+};
+
+function parseAddressContactValue(value: string): AddressContactParts {
+  const trimmed = value.trim();
+  const provinceFirstMatch = /^(?<province>[^/,-]+)\s*\/\s*(?<district>[^,-]+)\s*[-,]\s*(?<detail>.+)$/u.exec(trimmed);
+  const detailFirstMatch = /^(?<detail>.+?)\s*[-,]\s*(?<province>[^/,-]+)\s*\/\s*(?<district>[^,-]+)$/u.exec(trimmed);
+  const match = detailFirstMatch?.groups ? detailFirstMatch : provinceFirstMatch;
+  if (!match?.groups) {
+    return { detail: trimmed, province: "", district: "" };
+  }
+
+  const province = resolveTurkeyProvinceValue(match.groups.province);
+  const district = resolveTurkeyDistrictValue(province, match.groups.district);
+  return {
+    detail: match.groups.detail.trim(),
+    province,
+    district,
+  };
+}
+
+function buildAddressContactValue(parts: AddressContactParts): string {
+  const detail = parts.detail.trim();
+  const province = resolveTurkeyProvinceValue(parts.province);
+  const district = resolveTurkeyDistrictValue(province, parts.district);
+  return [detail, province && district ? `${province} / ${district}` : ""].filter(Boolean).join(" - ");
+}
+
 function CandidateContactRow({
   contact,
   label,
@@ -2185,28 +2230,46 @@ function CandidateContactRow({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const trimmedValue = value.trim();
   const isPhone = contact.type === "phone";
+  const isAddress = contact.type === "address";
+  const [addressParts, setAddressParts] = useState<AddressContactParts>(() => parseAddressContactValue(contact.value));
+  const composedAddressValue = buildAddressContactValue(addressParts);
+  const hasIncompleteAddress =
+    isAddress &&
+    (addressParts.detail.trim().length === 0 || !addressParts.province || !addressParts.district);
   const isInvalidPhone = isPhone && trimmedValue.length > 0 && !isValidContactPhone(trimmedValue);
-  const validationMessage = error ?? (isInvalidPhone ? t("candidateDetail.contacts.error.phoneInvalid") : null);
+  const validationMessage =
+    error ??
+    (isInvalidPhone
+      ? t("candidateDetail.contacts.error.phoneInvalid")
+      : hasIncompleteAddress
+        ? t("candidateDetail.contacts.error.addressIncomplete")
+        : null);
   const noPermissionTitle = t("common.noPermission");
   const unchanged =
-    trimmedValue === contact.value &&
+    (isAddress ? composedAddressValue === contact.value : trimmedValue === contact.value) &&
     (!isPhone || ownerName.trim() === (contact.ownerName ?? ""));
 
   useEffect(() => {
     setValue(contact.value);
+    setAddressParts(parseAddressContactValue(contact.value));
     setOwnerName(contact.ownerName ?? "");
     setDeleteConfirmOpen(false);
   }, [contact.ownerName, contact.value]);
 
   const save = async () => {
-    if (!canManageCandidates || !trimmedValue || saving || unchanged) return;
+    const nextValue = isAddress ? composedAddressValue : trimmedValue;
+    if (!canManageCandidates || !nextValue || saving || unchanged) return;
     if (isInvalidPhone) {
       setError(t("candidateDetail.contacts.error.phoneInvalid"));
       return;
     }
+    if (hasIncompleteAddress) {
+      setError(t("candidateDetail.contacts.error.addressIncomplete"));
+      return;
+    }
     setSaving(true);
     try {
-      await onSave(trimmedValue, isPhone ? ownerName.trim() || null : null);
+      await onSave(nextValue, isPhone ? ownerName.trim() || null : null);
       setEditing(false);
       setDeleteConfirmOpen(false);
     } finally {
@@ -2246,13 +2309,15 @@ function CandidateContactRow({
       ) : null}
       <div className="candidate-contact-field candidate-contact-value-field">
         {editing ? (
-          contactInputType(contact.type) === "textarea" ? (
-            <textarea
-              aria-label={label}
-              className="form-textarea-sm"
+          isAddress ? (
+            <AddressContactFields
               disabled={saving}
-              onChange={(event) => setValue(event.target.value)}
-              value={value}
+              label={label}
+              onChange={(nextParts) => {
+                setAddressParts(nextParts);
+                if (error) setError(null);
+              }}
+              value={addressParts}
             />
           ) : (
             <input
@@ -2282,7 +2347,12 @@ function CandidateContactRow({
             <button
               aria-label={t("common.save")}
               className="icon-btn icon-btn-confirm"
-              disabled={!trimmedValue || isInvalidPhone || saving || unchanged || !canManageCandidates}
+              disabled={
+                (isAddress ? !composedAddressValue || hasIncompleteAddress : !trimmedValue || isInvalidPhone) ||
+                saving ||
+                unchanged ||
+                !canManageCandidates
+              }
               onClick={() => void save()}
               title={!canManageCandidates ? noPermissionTitle : t("common.save")}
               type="button"
@@ -2295,6 +2365,7 @@ function CandidateContactRow({
               disabled={saving}
               onClick={() => {
                 setValue(contact.value);
+                setAddressParts(parseAddressContactValue(contact.value));
                 setOwnerName(contact.ownerName ?? "");
                 setError(null);
                 setEditing(false);
@@ -2384,24 +2455,41 @@ function CandidateContactDraftRow({
 }) {
   const t = useT();
   const [value, setValue] = useState("");
+  const [addressParts, setAddressParts] = useState<AddressContactParts>({ detail: "", province: "", district: "" });
   const [ownerName, setOwnerName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const trimmedValue = value.trim();
+  const isAddress = inputType === "textarea" && !isPhone;
+  const composedAddressValue = buildAddressContactValue(addressParts);
+  const hasIncompleteAddress =
+    isAddress &&
+    (addressParts.detail.trim().length === 0 || !addressParts.province || !addressParts.district);
   const isInvalidPhone = isPhone && trimmedValue.length > 0 && !isValidContactPhone(trimmedValue);
-  const validationMessage = error ?? (isInvalidPhone ? t("candidateDetail.contacts.error.phoneInvalid") : null);
+  const validationMessage =
+    error ??
+    (isInvalidPhone
+      ? t("candidateDetail.contacts.error.phoneInvalid")
+      : hasIncompleteAddress
+        ? t("candidateDetail.contacts.error.addressIncomplete")
+        : null);
   const noPermissionTitle = t("common.noPermission");
 
   const save = async () => {
-    if (!canManageCandidates || !trimmedValue || saving) return;
+    const nextValue = isAddress ? composedAddressValue : trimmedValue;
+    if (!canManageCandidates || !nextValue || saving) return;
     if (isInvalidPhone) {
       setError(t("candidateDetail.contacts.error.phoneInvalid"));
+      return;
+    }
+    if (hasIncompleteAddress) {
+      setError(t("candidateDetail.contacts.error.addressIncomplete"));
       return;
     }
 
     setSaving(true);
     try {
-      await onCreate(trimmedValue, ownerName.trim() || null);
+      await onCreate(nextValue, ownerName.trim() || null);
       setError(null);
     } finally {
       setSaving(false);
@@ -2424,16 +2512,15 @@ function CandidateContactDraftRow({
         </label>
       ) : null}
       <label className="candidate-contact-field candidate-contact-value-field">
-        {inputType === "textarea" ? (
-          <textarea
-            aria-label={label}
-            className="form-textarea-sm"
+        {isAddress ? (
+          <AddressContactFields
             disabled={saving}
-            onChange={(event) => {
-              setValue(event.target.value);
+            label={label}
+            onChange={(nextParts) => {
+              setAddressParts(nextParts);
               if (error) setError(null);
             }}
-            value={value}
+            value={addressParts}
           />
         ) : (
           <input
@@ -2456,7 +2543,11 @@ function CandidateContactDraftRow({
         <button
           aria-label={t("common.save")}
           className="icon-btn icon-btn-confirm"
-          disabled={!trimmedValue || isInvalidPhone || saving || !canManageCandidates}
+          disabled={
+            (isAddress ? !composedAddressValue || hasIncompleteAddress : !trimmedValue || isInvalidPhone) ||
+            saving ||
+            !canManageCandidates
+          }
           onClick={() => void save()}
           title={!canManageCandidates ? noPermissionTitle : t("common.save")}
           type="button"
@@ -2475,6 +2566,82 @@ function CandidateContactDraftRow({
         </button>
       </div>
       {validationMessage ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
+    </div>
+  );
+}
+
+function AddressContactFields({
+  disabled,
+  label,
+  onChange,
+  value,
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (value: AddressContactParts) => void;
+  value: AddressContactParts;
+}) {
+  const t = useT();
+  const districtOptions = useMemo(
+    () => getTurkeyDistrictOptions(value.province, value.district),
+    [value.district, value.province]
+  );
+
+  return (
+    <div className="candidate-address-editor">
+      <div className="candidate-address-select-row">
+        <CustomSelect
+          aria-label={t("candidateDetail.contacts.addressProvince")}
+          className="form-select-sm"
+          disabled={disabled}
+          onChange={(event) => {
+            onChange({
+              ...value,
+              province: resolveTurkeyProvinceValue(event.target.value),
+              district: "",
+            });
+          }}
+          placeholder={t("candidateDetail.contacts.addressProvince")}
+          size="sm"
+          value={value.province}
+        >
+          <option value="">{t("candidateDetail.contacts.addressProvince")}</option>
+          {TURKEY_ADDRESS_PROVINCE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </CustomSelect>
+        <CustomSelect
+          aria-label={t("candidateDetail.contacts.addressDistrict")}
+          className="form-select-sm"
+          disabled={disabled || !value.province}
+          onChange={(event) => {
+            onChange({
+              ...value,
+              district: resolveTurkeyDistrictValue(value.province, event.target.value),
+            });
+          }}
+          placeholder={t("candidateDetail.contacts.addressDistrict")}
+          size="sm"
+          value={value.district}
+        >
+          <option value="">{t("candidateDetail.contacts.addressDistrict")}</option>
+          {districtOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </CustomSelect>
+      </div>
+      <textarea
+        aria-label={label}
+        className="form-textarea-sm"
+        disabled={disabled}
+        onChange={(event) => onChange({ ...value, detail: event.target.value })}
+        placeholder={t("candidateDetail.contacts.addressDetail")}
+        value={value.detail}
+      />
     </div>
   );
 }
@@ -3049,17 +3216,6 @@ function LicenseInfoTab({
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={noPermissionTitle}
-              displayValue={candidateGenderLabel(candidate.gender)}
-              inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
-              label={t("common.field.gender")}
-              options={CANDIDATE_GENDER_OPTIONS}
-              onSave={(value) =>
-                saveApplicationField({ gender: normalizeCandidateGender(value) }, t("candidateDetail.license.toast.genderUpdated"))
-              }
-            />
-            <EditableRow
-              disabled={!canManageCandidates}
-              disabledTitle={noPermissionTitle}
               displayValue={formatDateTR(candidate.birthDate)}
               inputType="date"
               inputValue={candidate.birthDate ?? ""}
@@ -3074,6 +3230,17 @@ function LicenseInfoTab({
               label={t("common.field.birthPlace")}
               onSave={(value) =>
                 saveApplicationField({ birthPlace: value.trim() || null }, t("candidateDetail.license.toast.birthPlaceUpdated"))
+              }
+            />
+            <EditableRow
+              disabled={!canManageCandidates}
+              disabledTitle={noPermissionTitle}
+              displayValue={candidateGenderLabel(candidate.gender)}
+              inputValue={normalizeCandidateGender(candidate.gender) ?? ""}
+              label={t("common.field.gender")}
+              options={CANDIDATE_GENDER_OPTIONS}
+              onSave={(value) =>
+                saveApplicationField({ gender: normalizeCandidateGender(value) }, t("candidateDetail.license.toast.genderUpdated"))
               }
             />
             <Field label={t("common.field.age")} value={age != null ? String(age) : "—"} />
@@ -3107,7 +3274,7 @@ function LicenseInfoTab({
             />
           </div>
 
-          <div className="instructor-detail-section-header" style={{ marginTop: 24 }}>
+          <div className="instructor-detail-section-header candidate-theory-exemption-header" style={{ marginTop: 24 }}>
             <span className="form-label" style={{ margin: 0 }}>
               {t("candidateDetail.license.theoryExemption")}
             </span>
@@ -3655,6 +3822,28 @@ function buildCandidateMebbisDocumentCheckUrl(candidate: CandidateResponse): str
   const match = monthDate.match(/^(\d{4})-(\d{2})/);
   if (nationalId.length !== 11 || !match) return null;
   return `https://mebbis.meb.gov.tr/SKT/sozlesme.aspx?id=${nationalId}${match[1]}${match[2]}`;
+}
+
+function buildCandidateMebbisPageSelection(candidate: CandidateResponse) {
+  const nationalId = candidate.nationalId.replace(/\D/g, "");
+  const monthDate = candidate.currentGroup?.term?.monthDate ?? "";
+  const match = monthDate.match(/^(\d{4})-(\d{2})/);
+  const addressValue =
+    candidate.address?.trim() ||
+    candidate.contacts
+      ?.filter((contact) => contact.type === "address")
+      .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary) || left.displayOrder - right.displayOrder)
+      [0]?.value.trim() ||
+    "";
+  const addressParts = parseAddressContactValue(addressValue);
+  return {
+    termValue: match ? `${match[1]}${match[2]}` : null,
+    termLabel: candidate.currentGroup?.term ? buildTermLabel(candidate.currentGroup.term, []) : null,
+    nationalId: nationalId.length === 11 ? nationalId : null,
+    candidateName: [candidate.firstName, candidate.lastName].filter(Boolean).join(" ").trim() || null,
+    addressProvince: addressParts.province || null,
+    addressDistrict: addressParts.district || null,
+  };
 }
 
 function paymentMethodLabelKey(method: CandidatePaymentMethod): TranslationKey {
@@ -6720,6 +6909,14 @@ function CandidateExamAttemptsSection({
         {loading ? (
           <div className="table-wrap spaced candidate-exam-attempts-table-wrap">
             <table className="data-table cand-table candidate-exam-attempts-table">
+              <colgroup>
+                <col style={{ width: 150 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 300 }} />
+                <col style={{ width: 90 }} />
+              </colgroup>
               <tbody>
                 <SettingsTableSkeleton columns={[132, 54, 64, 92, 92, 64]} rows={4} />
               </tbody>
@@ -6730,6 +6927,14 @@ function CandidateExamAttemptsSection({
         ) : (
           <div className="table-wrap spaced candidate-exam-attempts-table-wrap">
             <table className="data-table cand-table candidate-exam-attempts-table">
+              <colgroup>
+                <col style={{ width: 150 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 300 }} />
+                <col style={{ width: 90 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Tarih-saat</th>
@@ -6786,8 +6991,19 @@ function CandidateExamAttemptsSection({
         {loading ? (
           <div className="table-wrap spaced candidate-exam-attempts-table-wrap">
             <table className="data-table cand-table candidate-exam-attempts-table candidate-exam-attempts-table--practice">
+              <colgroup>
+                <col style={{ width: 150 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 160 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 280 }} />
+                <col style={{ width: 90 }} />
+              </colgroup>
               <tbody>
-                <SettingsTableSkeleton columns={[132, 86, 138, 54, 94, 94, 92, 64]} rows={4} />
+                <SettingsTableSkeleton columns={[132, 86, 138, 54, 94, 94, 92, 120, 64]} rows={4} />
               </tbody>
             </table>
           </div>
@@ -6796,6 +7012,17 @@ function CandidateExamAttemptsSection({
         ) : (
           <div className="table-wrap spaced candidate-exam-attempts-table-wrap">
             <table className="data-table cand-table candidate-exam-attempts-table candidate-exam-attempts-table--practice">
+              <colgroup>
+                <col style={{ width: 150 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 160 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 280 }} />
+                <col style={{ width: 90 }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Tarih-saat</th>
@@ -7476,30 +7703,69 @@ function InlineDeleteConfirm({
   onConfirm: () => void;
   onRequest: () => void;
 }) {
-  if (!open) {
-    return (
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const popoverWidth = 164;
+      const padding = 8;
+      setPosition({
+        top: Math.min(rect.bottom + 8, window.innerHeight - 84),
+        left: Math.max(padding, Math.min(rect.right - popoverWidth, window.innerWidth - popoverWidth - padding)),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  return (
+    <div className={`candidate-exam-delete-anchor${open ? " is-open" : ""}`}>
       <button
+        ref={triggerRef}
         aria-label="Sil"
         className="icon-btn candidate-exam-delete-trigger"
         disabled={disabled}
-        onClick={onRequest}
+        onClick={open ? onCancel : onRequest}
         title="Sil"
         type="button"
       >
         <TrashIcon size={13} />
       </button>
-    );
-  }
-
-  return (
-    <div className="candidate-inline-delete-confirm">
-      <span>Emin misin?</span>
-      <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onCancel} type="button">
-        Vazgeç
-      </button>
-      <button className="btn btn-danger btn-sm" disabled={disabled} onClick={onConfirm} type="button">
-        Sil
-      </button>
+      {open && position
+        ? createPortal(
+          <div
+            className="candidate-inline-delete-confirm"
+            role="alertdialog"
+            aria-label="Sınav silme onayı"
+            style={{ left: position.left, top: position.top }}
+          >
+            <span>Emin misin?</span>
+            <div className="candidate-inline-delete-confirm-actions">
+              <button className="btn btn-secondary btn-sm" disabled={disabled} onClick={onCancel} type="button">
+                Vazgeç
+              </button>
+              <button className="btn btn-danger btn-sm" disabled={disabled} onClick={onConfirm} type="button">
+                Sil
+              </button>
+            </div>
+          </div>,
+          document.body
+        )
+        : null}
     </div>
   );
 }
@@ -7615,11 +7881,11 @@ function CandidateKCertificateSection({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [printingRowId, setPrintingRowId] = useState<string | null>(null);
+  const [deleteConfirmRowId, setDeleteConfirmRowId] = useState<string | null>(null);
   const [routePickerRow, setRoutePickerRow] = useState<KCertificateRow | null>(null);
   const [routePickerPosition, setRoutePickerPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const routePickerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const noPermissionTitle = t("common.noPermission");
   const routeOptionsQuery = useQuery({
     enabled: routePickerRow != null,
     queryKey: ["settings", "candidate-routes", { includeInactive: false, kind: "route" }],
@@ -7721,6 +7987,7 @@ function CandidateKCertificateSection({
         await deleteCandidateKCertificate(candidate.id, row.id);
         setPersistedRows((current) => current.filter((item) => item.id !== row.id));
         invalidateKCertificateDependents();
+        setDeleteConfirmRowId(null);
       } catch {
         setError("K belgesi silinemedi.");
       } finally {
@@ -7729,6 +7996,7 @@ function CandidateKCertificateSection({
       return;
     }
     setHiddenRowIds((current) => [...current, row.id]);
+    setDeleteConfirmRowId(null);
   };
 
   const findKCertificateLesson = (row: KCertificateRow): TrainingLessonResponse | null => {
@@ -7823,6 +8091,14 @@ function CandidateKCertificateSection({
         {error ? <div className="instructor-detail-error">{error}</div> : null}
         <div className="table-wrap candidate-k-certificate-table-wrap">
           <table className="data-table candidate-k-certificate-table">
+          <colgroup>
+            <col style={{ width: 120 }} />
+            <col style={{ width: 190 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 200 }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Belge No</th>
@@ -7867,15 +8143,13 @@ function CandidateKCertificateSection({
                         <PrintIcon size={14} />
                         {printingRowId === row.id ? "Hazırlanıyor" : "Yazdır"}
                       </button>
-                      <button
-                        className="btn btn-danger btn-sm"
+                      <InlineDeleteConfirm
                         disabled={saving || !canManageCandidates}
-                        onClick={() => void deleteKCertificateRow(row)}
-                        title={!canManageCandidates ? noPermissionTitle : undefined}
-                        type="button"
-                      >
-                        Sil
-                      </button>
+                        open={deleteConfirmRowId === row.id}
+                        onCancel={() => setDeleteConfirmRowId(null)}
+                        onConfirm={() => void deleteKCertificateRow(row)}
+                        onRequest={() => setDeleteConfirmRowId(row.id)}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -8160,8 +8434,12 @@ function buildCandidateDocumentChecklistItems({
     }),
     {
       label: t("candidateDetail.documents.checklistItem.contractFee"),
-      status: contractFee != null && contractFee > 0 ? "done" : "missing",
-      value: contractFee != null && contractFee > 0 ? formatCurrencyTRY(contractFee) : undefined,
+      status: candidate.isFree || (contractFee != null && contractFee > 0) ? "done" : "missing",
+      value: candidate.isFree
+        ? "Ücretsiz"
+        : contractFee != null && contractFee > 0
+          ? formatCurrencyTRY(contractFee)
+          : undefined,
     },
     {
       label: t("candidateDetail.documents.checklistItem.contract"),
@@ -8260,6 +8538,7 @@ function DocumentsTab({
   loading,
   error,
   onRefresh,
+  onCandidateUpdated,
   onDeleted,
 }: {
   canManageCandidates: boolean;
@@ -8272,6 +8551,7 @@ function DocumentsTab({
   loading: boolean;
   error: string | null;
   onRefresh: () => Promise<void>;
+  onCandidateUpdated: (updated: CandidateResponse) => void;
   onDeleted: () => void;
 }) {
   const { showToast } = useToast();
@@ -8284,6 +8564,7 @@ function DocumentsTab({
   const [candidateSyncRunning, setCandidateSyncRunning] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mebbisStatusSaving, setMebbisStatusSaving] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
   const [oneByOneTransferOpen, setOneByOneTransferOpen] = useState(false);
   const contractBackFeeMatrixYear = candidateFeeMatrixYear(candidate);
@@ -8347,6 +8628,22 @@ function DocumentsTab({
       setConfirmDelete(false);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleMebbisStatusToggle = async (checked: boolean) => {
+    if (!canManageCandidates || mebbisStatusSaving) return;
+    setMebbisStatusSaving(true);
+    try {
+      const updated = await updateCandidateField(candidate, {
+        mebSyncStatus: checked ? "synced" : "not_synced",
+      });
+      onCandidateUpdated(updated);
+      showToast(t("candidateDetail.license.toast.mebbisStatusUpdated"));
+    } catch {
+      showToast("MEBBİS durumu güncellenemedi.", "error");
+    } finally {
+      setMebbisStatusSaving(false);
     }
   };
 
@@ -8452,6 +8749,7 @@ function DocumentsTab({
   );
   const contractFee = parseMoneyInput(contractBackMebbisFeeMetadata ?? contractBackMebbisFeeDefault ?? "");
   const termEnrollFeeResolving =
+    candidate.isFree !== true &&
     !contractBackMebbisFeeMetadata &&
     !contractBackMebbisFeeDefault &&
     (contractBackFeeMatrixQuery.isLoading || contractBackFeeMatrixQuery.isFetching);
@@ -8471,7 +8769,10 @@ function DocumentsTab({
     if (candidateSyncQueuing || candidateSyncRunning) return;
     setCandidateSyncQueuing(true);
     try {
-      const job = await createCandidateTermEnrollJob(candidateId, { registrationFee: contractFee });
+      const job = await createCandidateTermEnrollJob(candidateId, {
+        registrationFee: contractFee,
+        isFree: candidate.isFree === true,
+      });
       notifyMebbisJobQueued(job.id, job.jobType);
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
@@ -8579,6 +8880,20 @@ function DocumentsTab({
             ) : (
               <>
                 <div className="candidate-detail-doc-actions-bar">
+                  <label
+                    className="switch-toggle candidate-detail-mebbis-toggle"
+                    title={!canManageCandidates ? noPermissionTitle : undefined}
+                  >
+                    <input
+                      aria-label={t("candidateDetail.license.field.mebbisStatus")}
+                      checked={candidate.mebSyncStatus === "synced"}
+                      disabled={mebbisStatusSaving || !canManageCandidates}
+                      onChange={(event) => void handleMebbisStatusToggle(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span className="switch-toggle-control" aria-hidden="true" />
+                    <span>MEB Durum</span>
+                  </label>
                   <button
                     className="btn btn-primary btn-sm"
                     aria-disabled={mebbisSessionGuard.disabled}
@@ -8615,6 +8930,7 @@ function DocumentsTab({
       <CandidateDocumentOneByOneTransferModal
         canManageDocuments={canManageDocuments}
         canManageMebJobs={canManageMebJobs}
+        candidate={candidate}
         candidateId={candidateId}
         candidateSyncQueuing={candidateSyncQueuing}
         candidateSyncRunning={candidateSyncRunning}
@@ -8654,7 +8970,9 @@ function DocumentsTab({
         <ul className="candidate-detail-doc-list candidate-detail-doc-photo-grid">
           {photoTypes.filter(matchesFilter).map((type) => (
             <DocRow
+              canManageCandidates={canManageCandidates}
               canManageDocuments={canManageDocuments}
+              candidate={candidate}
               candidateId={candidateId}
               key={type.id}
               onRefresh={onRefresh}
@@ -8669,7 +8987,9 @@ function DocumentsTab({
         <ul className="candidate-detail-doc-list candidate-detail-doc-contract-grid">
           {contractTypes.filter(matchesFilter).map((type) => (
             <DocRow
+              canManageCandidates={canManageCandidates}
               canManageDocuments={canManageDocuments}
+              candidate={candidate}
               candidateId={candidateId}
               defaultMetadataValues={type.key === "contract_back" ? contractBackMetadataDefaults : undefined}
               key={type.id}
@@ -8685,7 +9005,9 @@ function DocumentsTab({
         <ul className="candidate-detail-doc-list candidate-detail-doc-a4-grid">
           {filteredA4DocumentTypes.map((type) => (
             <DocRow
+              canManageCandidates={canManageCandidates}
               canManageDocuments={canManageDocuments}
+              candidate={candidate}
               candidateId={candidateId}
               key={type.id}
               onRefresh={onRefresh}
@@ -8700,7 +9022,9 @@ function DocumentsTab({
         <ul className="candidate-detail-doc-list">
           {filteredRequiredTypes.map((type) => (
             <DocRow
+              canManageCandidates={canManageCandidates}
               canManageDocuments={canManageDocuments}
+              candidate={candidate}
               candidateId={candidateId}
               key={type.id}
               onRefresh={onRefresh}
@@ -8722,7 +9046,9 @@ function DocumentsTab({
             <ul className="candidate-detail-doc-list">
               {filteredOptionalTypes.map((type) => (
                 <DocRow
+                  canManageCandidates={canManageCandidates}
                   canManageDocuments={canManageDocuments}
+                  candidate={candidate}
                   candidateId={candidateId}
                   key={type.id}
                   onRefresh={onRefresh}
@@ -8797,6 +9123,7 @@ function CandidateDocumentChecklistModal({
 function CandidateDocumentOneByOneTransferModal({
   canManageDocuments,
   canManageMebJobs,
+  candidate,
   candidateId,
   candidateSyncQueuing,
   candidateSyncRunning,
@@ -8813,6 +9140,7 @@ function CandidateDocumentOneByOneTransferModal({
 }: {
   canManageDocuments: boolean;
   canManageMebJobs: boolean;
+  candidate: CandidateResponse;
   candidateId: string;
   candidateSyncQueuing: boolean;
   candidateSyncRunning: boolean;
@@ -8827,6 +9155,7 @@ function CandidateDocumentOneByOneTransferModal({
   onRefresh: () => Promise<void>;
   termEnrollFeeResolving: boolean;
 }) {
+  const mebbisCandidateAddressUrl = "https://mebbis.meb.gov.tr/SKT/SKT02012.aspx";
   const t = useT();
   const { showToast } = useToast();
   const mebbisSessionGuard = useMebbisSessionGuard();
@@ -8834,6 +9163,14 @@ function CandidateDocumentOneByOneTransferModal({
   const [batchTransferRunning, setBatchTransferRunning] = useState(false);
   const [batchTransferStep, setBatchTransferStep] = useState<string | null>(null);
   const noDocumentPermissionTitle = t("common.noPermission");
+  const candidateAddress =
+    candidate.address?.trim() ||
+    candidate.contacts
+      ?.filter((contact) => contact.type === "address")
+      .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary) || left.displayOrder - right.displayOrder)
+      [0]?.value.trim() ||
+    "";
+  const candidateMebbisPageSelection = buildCandidateMebbisPageSelection(candidate);
   const handleOpenMebbisDocumentCheck = async () => {
     if (!mebbisDocumentCheckUrl) return;
     if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
@@ -8842,6 +9179,15 @@ function CandidateDocumentOneByOneTransferModal({
       showToast(response.message || "MEBBİS evrak kontrol sayfası açıldı.");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "MEBBİS evrak kontrol sayfası açılamadı.", "error");
+    }
+  };
+  const handleOpenMebbisCandidateAddressPage = async () => {
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+    try {
+      const response = await openLocalAgentMebbisPageView(mebbisCandidateAddressUrl, candidateMebbisPageSelection);
+      showToast(response.message || "MEBBİS adres sayfası açıldı.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "MEBBİS adres sayfası açılamadı.", "error");
     }
   };
 
@@ -8933,7 +9279,10 @@ function CandidateDocumentOneByOneTransferModal({
     setBatchTransferRunning(true);
     setBatchTransferStep("Dönem kaydı");
     try {
-      const termJob = await createCandidateTermEnrollJob(candidateId, { registrationFee: contractFee });
+      const termJob = await createCandidateTermEnrollJob(candidateId, {
+        registrationFee: contractFee,
+        isFree: candidate.isFree === true,
+      });
       notifyMebbisJobQueued(termJob.id, termJob.jobType);
       showToast(t("candidateDetail.documents.toast.termSyncQueued"));
       const termResult = await waitForTerminalMebbisJob(termJob.id);
@@ -8966,6 +9315,7 @@ function CandidateDocumentOneByOneTransferModal({
 
       if (transferTypes.length === 0) {
         showToast("Dönem kaydı tamamlandı; aktarılacak uygun evrak bulunamadı.");
+        await handleOpenMebbisCandidateAddressPage();
         return;
       }
 
@@ -8978,6 +9328,7 @@ function CandidateDocumentOneByOneTransferModal({
       }
 
       showToast("Dönem kaydı ve evrak aktarımları tamamlandı.");
+      await handleOpenMebbisCandidateAddressPage();
     } catch (error) {
       const fallback = "Döneme kaydet ve aktar işlemi başlatılamadı.";
       const message = batchTransferStep && batchTransferStep !== "Dönem kaydı"
@@ -9141,7 +9492,8 @@ function CandidateDocumentOneByOneTransferModal({
             const canTransfer = requiresMebbisJob ? canManageMebJobs : canManageDocuments;
             const showTransferAction = shouldShowMebbisDocumentTransferAction(type.key);
             return (
-              <li className={`candidate-detail-doc-transfer-row status-${status}${isContractFront ? " is-contract" : ""}`} key={type.id}>
+              <Fragment key={type.id}>
+                <li className={`candidate-detail-doc-transfer-row status-${status}${isContractFront ? " is-contract" : ""}`}>
                 {isContractFront && contractBackType ? (
                   <div className="candidate-detail-doc-transfer-preview-pair">
                     <div className="candidate-detail-doc-transfer-preview-item">
@@ -9223,7 +9575,27 @@ function CandidateDocumentOneByOneTransferModal({
                     </button>
                   ) : null}
                 </div>
-              </li>
+                </li>
+                {isContractFront ? (
+                  <li
+                    className="candidate-detail-doc-transfer-row candidate-detail-doc-transfer-address-row"
+                    onClick={() => void handleOpenMebbisCandidateAddressPage()}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      void handleOpenMebbisCandidateAddressPage();
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title="MEBBİS adres sayfasını aç"
+                  >
+                    <div className="candidate-detail-doc-transfer-address-label">Adres</div>
+                    <div className={`candidate-detail-doc-transfer-address${candidateAddress ? "" : " is-empty"}`}>
+                      <strong>{candidateAddress || "Adres yok"}</strong>
+                    </div>
+                  </li>
+                ) : null}
+              </Fragment>
             );
           })}
         </ul>
@@ -10518,14 +10890,18 @@ function CandidateDocumentOcrReviewModal({
 }
 
 function DocRow({
+  canManageCandidates,
   canManageDocuments,
+  candidate,
   candidateId,
   defaultMetadataValues,
   type,
   upload,
   onRefresh,
 }: {
+  canManageCandidates: boolean;
   canManageDocuments: boolean;
+  candidate: CandidateResponse;
   candidateId: string;
   defaultMetadataValues?: Record<string, string>;
   type: DocumentTypeResponse;
@@ -10538,6 +10914,7 @@ function DocRow({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [markingPhysical, setMarkingPhysical] = useState(false);
+  const [savingFreeState, setSavingFreeState] = useState(false);
   const [metadataSaving, setMetadataSaving] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrSuggestion, setOcrSuggestion] = useState<CandidateDocumentOcrSuggestionResponse | null>(null);
@@ -10561,6 +10938,7 @@ function DocRow({
   const uploadedDate = upload?.uploadedAtUtc && status !== "missing" ? formatDateTR(upload.uploadedAtUtc) : null;
   const isPhotoType = isPhotoDocumentType(type);
   const isContractType = isContractDocumentType(type);
+  const showFreeCandidateToggle = type.key === "contract_back";
   const isSignatureType = isSignatureDocumentType(type);
   const isA4Type = isA4DocumentType(type);
   const showsImagePreview = isPhotoType || isContractType || isSignatureType || isA4Type;
@@ -10779,6 +11157,19 @@ function DocRow({
       showToast(t("candidateDetail.documents.row.toast.ocrReadFailed", { name: type.name }), "error");
     } finally {
       setOcrLoading(false);
+    }
+  };
+
+  const handleToggleFreeCandidate = async () => {
+    if (!canManageCandidates || savingFreeState) return;
+    setSavingFreeState(true);
+    try {
+      await updateCandidateField(candidate, { isFree: !(candidate.isFree ?? false) });
+      await onRefresh();
+    } catch {
+      showToast("Ücretsiz aday durumu güncellenemedi.", "error");
+    } finally {
+      setSavingFreeState(false);
     }
   };
 
@@ -11038,6 +11429,24 @@ function DocRow({
               open={scannerOpen}
             />
           </div>
+        ) : null}
+
+        {showFreeCandidateToggle ? (
+          <button
+            type="button"
+            className={`candidate-detail-doc-hero-switch candidate-detail-doc-free-switch${candidate.isFree ? " on" : " off"}`}
+            role="switch"
+            aria-checked={candidate.isFree ?? false}
+            aria-label="Ücretsiz aday durumu"
+            disabled={savingFreeState || !canManageCandidates}
+            onClick={handleToggleFreeCandidate}
+            title={!canManageCandidates ? noPermissionTitle : undefined}
+          >
+            <span className="candidate-detail-doc-hero-switch-track-label">
+              {candidate.isFree ? "Ücretsiz" : "Ücretli"}
+            </span>
+            <span className="candidate-detail-doc-hero-switch-thumb" aria-hidden="true" />
+          </button>
         ) : null}
 
         <button

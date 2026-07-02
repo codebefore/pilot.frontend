@@ -107,6 +107,15 @@ export type LocalAgentMebbisPageViewResponse = {
   error?: string | null;
 };
 
+export type LocalAgentMebbisPageViewSelection = {
+  termValue?: string | null;
+  termLabel?: string | null;
+  nationalId?: string | null;
+  candidateName?: string | null;
+  addressProvince?: string | null;
+  addressDistrict?: string | null;
+};
+
 export type LocalAgentUpdateStatus =
   | "upToDate"
   | "checking"
@@ -273,12 +282,13 @@ export async function openLocalAgentMebbisHomeView(
 
 export async function openLocalAgentMebbisPageView(
   url: string,
+  selection?: LocalAgentMebbisPageViewSelection,
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisPageViewResponse> {
   const response = await fetch(getLocalAgentUrl("/mebbis/page/view"), {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, ...selection }),
     signal,
   });
   const body = await handleLocalAgentJson<Record<string, unknown>>(response);

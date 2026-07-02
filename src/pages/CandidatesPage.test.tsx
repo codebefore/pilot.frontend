@@ -832,9 +832,28 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(deleteButton);
 
     expect(screen.queryByRole("button", { name: /25\.05\.2026 sınav tarihini kaydet/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: /Bu tarihi sil/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog", { name: "Sınav tarihi silme onayı" })).not.toBeInTheDocument();
     expect(onEdit).not.toHaveBeenCalled();
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("closes the exam schedule delete popover when the delete action is clicked again", () => {
+    renderWithProviders(
+      <CandidateExamDateSidebar
+        onDelete={vi.fn()}
+        onSelect={vi.fn()}
+        options={[examScheduleOption("2026-05-25", { candidateCount: 3 })]}
+        title="E-Sınav Tarihi"
+      />
+    );
+
+    const deleteButton = screen.getByRole("button", { name: /25\.05\.2026 sınav tarihini sil/i });
+    fireEvent.click(deleteButton);
+    expect(screen.getByRole("alertdialog", { name: "Sınav tarihi silme onayı" })).toBeInTheDocument();
+
+    fireEvent.click(deleteButton);
+
+    expect(screen.queryByRole("alertdialog", { name: "Sınav tarihi silme onayı" })).not.toBeInTheDocument();
   });
 
   it("edits the exam schedule time without changing the date", async () => {
@@ -1260,7 +1279,7 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     // The search input is still there.
-    expect(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC)")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC, telefon)")).toBeInTheDocument();
 
     // Removed filter dropdowns should no longer be rendered.
     expect(screen.queryByLabelText("Lisans Sınıfı")).not.toBeInTheDocument();
@@ -1276,7 +1295,7 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
     expect(getCandidatesMock).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC)"), {
+    fireEvent.change(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC, telefon)"), {
       target: { value: "A" },
     });
 
@@ -1284,7 +1303,7 @@ describe("CandidatesPage tabs", () => {
 
     expect(getCandidatesMock).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC)"), {
+    fireEvent.change(screen.getByPlaceholderText("Aday ara... (ad, soyad, TC, telefon)"), {
       target: { value: "Ay" },
     });
 

@@ -139,7 +139,8 @@
   font-size: 13px;
   color: var(--gray-700);
 }
-.custom-select-option:hover {
+.custom-select-option:hover,
+.custom-select-option.active {
   background: var(--gray-50);
   color: var(--gray-900);
 }

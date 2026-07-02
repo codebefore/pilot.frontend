@@ -20,6 +20,7 @@ import { createPortal } from "react-dom";
 
 type CustomSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & {
   onMenuScroll?: UIEventHandler<HTMLDivElement>;
+  openOnFocus?: boolean;
   placeholder?: string;
   size?: "md" | "sm";
 };
@@ -67,6 +68,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     onChange,
     onKeyDown,
     onMenuScroll,
+    openOnFocus = false,
     placeholder,
     size = "md",
     title,
@@ -80,6 +82,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
   const menuRef = useRef<HTMLDivElement | null>(null);
   const listboxId = useId();
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const [internalValue, setInternalValue] = useState(
     value !== undefined ? String(value) : defaultValue !== undefined ? String(defaultValue) : ""
@@ -90,6 +93,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
   const selectedOption =
     options.find((option) => option.value === currentValue) ??
     options.find((option) => option.value === "");
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === currentValue));
 
   useEffect(() => {
     if (value === undefined) return;
@@ -98,6 +102,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
 
   useEffect(() => {
     if (!open) return;
+    setActiveIndex(selectedIndex);
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -122,7 +127,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, [open, selectedIndex]);
 
   useEffect(() => {
     if (!open) return;
@@ -182,6 +187,24 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     onChange?.(event);
   };
 
+  const dispatchValue = (nextValue: string) => {
+    const hiddenSelect = hiddenSelectRef.current;
+
+    if (!hiddenSelect) {
+      if (value === undefined) {
+        setInternalValue(nextValue);
+      }
+      return;
+    }
+
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLSelectElement.prototype,
+      "value"
+    )?.set;
+    valueSetter?.call(hiddenSelect, nextValue);
+    hiddenSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
   const commitValue = (nextValue: string) => {
     const hiddenSelect = hiddenSelectRef.current;
 
@@ -193,15 +216,23 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
       return;
     }
 
-    const valueSetter = Object.getOwnPropertyDescriptor(
-      HTMLSelectElement.prototype,
-      "value"
-    )?.set;
-    valueSetter?.call(hiddenSelect, nextValue);
-    hiddenSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    dispatchValue(nextValue);
     hiddenSelect.focus();
     hiddenSelect.blur();
     setOpen(false);
+  };
+
+  const moveActiveOption = (direction: 1 | -1) => {
+    if (options.length === 0) return;
+
+    let nextIndex = activeIndex;
+    for (let attempt = 0; attempt < options.length; attempt += 1) {
+      nextIndex = (nextIndex + direction + options.length) % options.length;
+      if (!options[nextIndex]?.disabled) {
+        setActiveIndex(nextIndex);
+        return;
+      }
+    }
   };
 
   const triggerClassName = [
@@ -229,12 +260,52 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
   };
 
   const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    onKeyDown?.(event as unknown as ReactKeyboardEvent<HTMLSelectElement>);
     if (disabled) return;
-    if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      setOpen(true);
+      if (!open) {
+        setOpen(true);
+        return;
+      }
+      moveActiveOption(event.key === "ArrowDown" ? 1 : -1);
+      return;
     }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (open) {
+        const activeOption = options[activeIndex];
+        if (activeOption && !activeOption.disabled) {
+          commitValue(activeOption.value);
+        }
+        return;
+      }
+      setOpen(true);
+      return;
+    }
+
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      return;
+    }
+
+    if (event.key === "Tab" && open) {
+      const activeOption = options[activeIndex];
+      if (activeOption && !activeOption.disabled) {
+        dispatchValue(activeOption.value);
+      }
+      setOpen(false);
+    }
+
+    onKeyDown?.(event as unknown as ReactKeyboardEvent<HTMLSelectElement>);
+  };
+
+  const handleTriggerFocus = () => {
+    if (disabled || !openOnFocus) return;
+    setOpen(true);
   };
 
   return (
@@ -248,6 +319,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
         aria-disabled={disabled}
         className={triggerClassName}
         onClick={handleTriggerClick}
+        onFocus={handleTriggerFocus}
         onKeyDown={handleTriggerKeyDown}
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -297,13 +369,14 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
           role="listbox"
           style={menuStyle ?? undefined}
         >
-          {options.map((option) => (
+          {options.map((option, index) => (
             <button
               key={option.value}
               aria-selected={option.value === currentValue}
               className={[
                 optionClassName,
                 option.value === currentValue ? "selected" : "",
+                index === activeIndex ? "active" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}

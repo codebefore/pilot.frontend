@@ -270,6 +270,26 @@
   width: 100%;
 }
 
+.candidate-address-editor {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.candidate-address-select-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.candidate-address-select-row .custom-select,
+.candidate-address-select-row .form-select-sm {
+  width: 100%;
+  min-width: 0;
+}
+
 .candidate-contact-validation {
   color: #dc2626;
   font-size: 12px;

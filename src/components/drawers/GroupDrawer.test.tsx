@@ -126,7 +126,7 @@ describe("GroupDrawer", () => {
     fireEvent.click(addCandidateButton);
 
     expect(screen.queryByRole("button", { name: "Evet, Sil" })).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("İsim veya TC ara...")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("İsim, TC veya telefon ara...")).not.toBeInTheDocument();
     expect(deleteGroupMock).not.toHaveBeenCalled();
     expect(assignCandidateGroupMock).not.toHaveBeenCalled();
   });
@@ -194,6 +194,71 @@ describe("GroupDrawer", () => {
     });
   });
 
+  it("blocks group deletion when an assigned candidate was sent to MEBBIS", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({
+      activeCandidates: [
+        {
+          candidateId: "candidate-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "10000000146",
+          phoneNumber: null,
+          photo: null,
+          status: "active",
+          mebSyncStatus: "synced",
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+    }));
+    deleteGroupMock.mockResolvedValue(undefined);
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Grup Sil" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evet, Sil" }));
+
+    expect(
+      await screen.findByText("MEBBIS'e gönderilmiş aday bulunan grup silinemez.")
+    ).toBeInTheDocument();
+    expect(deleteGroupMock).not.toHaveBeenCalled();
+  });
+
+  it("checks all group candidate pages before deleting", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({ activeCandidateCount: 101 }));
+    getCandidatesMock
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 100 }, (_, index) => ({
+          id: `candidate-${index + 1}`,
+          mebSyncStatus: "not_synced",
+        })),
+        page: 1,
+        pageSize: 100,
+        totalCount: 101,
+        totalPages: 2,
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: "candidate-101", mebSyncStatus: "synced" }],
+        page: 2,
+        pageSize: 100,
+        totalCount: 101,
+        totalPages: 2,
+      });
+    deleteGroupMock.mockResolvedValue(undefined);
+
+    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Grup Sil" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evet, Sil" }));
+
+    expect(
+      await screen.findByText("MEBBIS'e gönderilmiş aday bulunan grup silinemez.")
+    ).toBeInTheDocument();
+    expect(getCandidatesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ groupIds: ["group-1"], page: 2, pageSize: 100 })
+    );
+    expect(deleteGroupMock).not.toHaveBeenCalled();
+  });
+
   it("shows backend validation error when the group cannot be deleted", async () => {
     getGroupByIdMock.mockResolvedValue(buildGroup());
     deleteGroupMock.mockRejectedValue(
@@ -217,7 +282,7 @@ describe("GroupDrawer", () => {
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Aday Ekle" }));
-    fireEvent.change(screen.getByPlaceholderText("İsim veya TC ara..."), {
+    fireEvent.change(screen.getByPlaceholderText("İsim, TC veya telefon ara..."), {
       target: { value: "A" },
     });
 
@@ -226,7 +291,7 @@ describe("GroupDrawer", () => {
     expect(getCandidatesMock).not.toHaveBeenCalled();
     expect(screen.queryByText("Sonuç bulunamadı.")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("İsim veya TC ara..."), {
+    fireEvent.change(screen.getByPlaceholderText("İsim, TC veya telefon ara..."), {
       target: { value: "Ay" },
     });
 
@@ -300,7 +365,7 @@ describe("GroupDrawer", () => {
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Aday Ekle" }));
-    fireEvent.change(screen.getByPlaceholderText("İsim veya TC ara..."), {
+    fireEvent.change(screen.getByPlaceholderText("İsim, TC veya telefon ara..."), {
       target: { value: "Ay" },
     });
 
@@ -332,7 +397,7 @@ describe("GroupDrawer", () => {
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
 
     const candidateButton = await screen.findByRole("button", { name: /Ayse Demir/ });
-    expect(within(candidateButton).getByText("AD")).toBeInTheDocument();
+    expect(screen.getByText("AD")).toBeInTheDocument();
 
     fireEvent.click(candidateButton);
 

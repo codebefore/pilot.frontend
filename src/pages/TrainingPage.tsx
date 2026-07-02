@@ -7,7 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useT, currentLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/i18n";
 import { PageToolbar } from "../components/layout/PageToolbar";
-import { MebIcon } from "../components/icons";
+import { DownloadIcon, MebIcon, PrintIcon } from "../components/icons";
 import {
   NewTrainingPlanModal,
   type TrainingLessonSubmitValues,
@@ -69,6 +69,7 @@ import { getVehicles } from "../lib/vehicles-api";
 import { canManageArea } from "../lib/permissions";
 
 import { buildBranchHelpers } from "../lib/training-branches";
+import { buildTermLabel } from "../lib/term-label";
 
 type TrainingPageProps = {
   type: "teorik" | "uygulama";
@@ -120,6 +121,174 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function fileNamePart(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "grup";
+}
+
+function formatExportDate(date: Date): string {
+  return date.toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatExportTime(date: Date): string {
+  return date.toLocaleTimeString("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatExportDuration(start: Date, end: Date): string {
+  const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (remainingMinutes === 0) return `${hours} saat`;
+  if (hours === 0) return `${remainingMinutes} dk`;
+  return `${hours} saat ${remainingMinutes} dk`;
+}
+
+type TheoryLessonExportRow = {
+  no: number;
+  date: string;
+  start: string;
+  end: string;
+  duration: string;
+  term: string;
+  group: string;
+  branch: string;
+  instructor: string;
+  classroom: string;
+  candidateCount: number;
+  licenseClass: string;
+  status: string;
+  notes: string;
+};
+
+function buildTheoryLessonTableHtml(title: string, rows: TheoryLessonExportRow[]): string {
+  const headers = [
+    "No",
+    "Tarih",
+    "Başlangıç",
+    "Bitiş",
+    "Süre",
+    "Dönem",
+    "Grup",
+    "Ders",
+    "Eğitmen",
+    "Derslik",
+    "Aday",
+    "Sınıf",
+    "Durum",
+    "Not",
+  ];
+
+  return `
+    <h1>${escapeHtml(title)}</h1>
+    <table>
+      <thead>
+        <tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (row) => `
+              <tr>
+                <td>${escapeHtml(row.no)}</td>
+                <td>${escapeHtml(row.date)}</td>
+                <td>${escapeHtml(row.start)}</td>
+                <td>${escapeHtml(row.end)}</td>
+                <td>${escapeHtml(row.duration)}</td>
+                <td>${escapeHtml(row.term)}</td>
+                <td>${escapeHtml(row.group)}</td>
+                <td>${escapeHtml(row.branch)}</td>
+                <td>${escapeHtml(row.instructor)}</td>
+                <td>${escapeHtml(row.classroom)}</td>
+                <td>${escapeHtml(row.candidateCount)}</td>
+                <td>${escapeHtml(row.licenseClass)}</td>
+                <td>${escapeHtml(row.status)}</td>
+                <td>${escapeHtml(row.notes)}</td>
+              </tr>
+            `
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function downloadHtmlExcel(fileName: string, title: string, rows: TheoryLessonExportRow[]): void {
+  const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          table { border-collapse: collapse; }
+          th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-family: Arial, sans-serif; font-size: 12px; }
+          th { background: #f3f4f6; font-weight: 700; }
+        </style>
+      </head>
+      <body>${buildTheoryLessonTableHtml(title, rows)}</body>
+    </html>`;
+  const blob = new Blob(["\ufeff", html], {
+    type: "application/vnd.ms-excel;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${fileName}.xls`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function printTheoryLessonPdf(title: string, rows: TheoryLessonExportRow[]): boolean {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return false;
+
+  printWindow.document.write(`<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4 landscape; margin: 12mm; }
+          body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
+          h1 { font-size: 18px; margin: 0 0 12px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #d1d5db; padding: 5px 6px; font-size: 10px; text-align: left; vertical-align: top; }
+          th { background: #f3f4f6; font-weight: 700; }
+        </style>
+      </head>
+      <body>${buildTheoryLessonTableHtml(title, rows)}</body>
+    </html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  return true;
 }
 
 function containTrainingFilterWheel(event: WheelEvent) {
@@ -1825,6 +1994,44 @@ export function TrainingPage({ type }: TrainingPageProps) {
         : null,
     [groups, quickSettings.groupId, type]
   );
+  const theoryLessonExportRows = useMemo<TheoryLessonExportRow[]>(() => {
+    if (type !== "teorik" || !selectedTheoryGroup) return [];
+
+    return events
+      .filter((event) => event.kind === "teorik" && event.groupId === selectedTheoryGroup.id)
+      .sort(
+        (left, right) =>
+          left.start.getTime() - right.start.getTime() ||
+          left.end.getTime() - right.end.getTime() ||
+          left.id.localeCompare(right.id)
+      )
+      .map((event, index) => {
+        const branchCode = event.branchCode ?? branchHelpers.detectFromNotes(event.notes);
+        return {
+          no: index + 1,
+          date: formatExportDate(event.start),
+          start: formatExportTime(event.start),
+          end: formatExportTime(event.end),
+          duration: formatExportDuration(event.start, event.end),
+          term: event.termName || buildTermLabel(selectedTheoryGroup.term, []),
+          group: selectedTheoryGroup.title,
+          branch: branchCode ? branchHelpers.label(branchCode) ?? branchCode : event.notes ?? "",
+          instructor: event.instructorName || "-",
+          classroom: event.location ?? "-",
+          candidateCount: event.candidateCount,
+          licenseClass: event.licenseClass || "-",
+          status: event.status === "completed" ? "Tamamlandı" : "Planlandı",
+          notes: event.notes ?? "",
+        };
+      });
+  }, [branchHelpers, events, selectedTheoryGroup, type]);
+  const theoryLessonExportTitle = selectedTheoryGroup
+    ? `${selectedTheoryGroup.title} teorik ders planı`
+    : "Teorik ders planı";
+  const theoryLessonExportFileName = selectedTheoryGroup
+    ? `${fileNamePart(selectedTheoryGroup.title)}-teorik-ders-plani`
+    : "teorik-ders-plani";
+  const canExportTheoryLessons = type === "teorik" && Boolean(selectedTheoryGroup) && theoryLessonExportRows.length > 0;
   const selectedPracticeCandidate = useMemo(
     () =>
       type === "uygulama" && quickSettings.candidateId
@@ -2060,6 +2267,24 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
+  const handleExportTheoryLessonsExcel = () => {
+    if (!canExportTheoryLessons) {
+      showToast("Çıktı almak için dersleri olan bir grup seçin.");
+      return;
+    }
+    downloadHtmlExcel(theoryLessonExportFileName, theoryLessonExportTitle, theoryLessonExportRows);
+  };
+
+  const handlePrintTheoryLessonsPdf = () => {
+    if (!canExportTheoryLessons) {
+      showToast("Çıktı almak için dersleri olan bir grup seçin.");
+      return;
+    }
+    if (!printTheoryLessonPdf(theoryLessonExportTitle, theoryLessonExportRows)) {
+      showToast("PDF çıktısı için açılır pencereye izin verin.");
+    }
+  };
+
   const handleCreatePracticeScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
     if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
@@ -2208,6 +2433,30 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   {isMebbisTransferLoading
                     ? t("training.mebbis.transferQueuing")
                     : t("training.mebbis.transfer")}
+                </button>
+              ) : null}
+              {type === "teorik" ? (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={!canExportTheoryLessons}
+                  onClick={handleExportTheoryLessonsExcel}
+                  title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}
+                  type="button"
+                >
+                  <DownloadIcon size={14} />
+                  Excel
+                </button>
+              ) : null}
+              {type === "teorik" ? (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={!canExportTheoryLessons}
+                  onClick={handlePrintTheoryLessonsPdf}
+                  title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}
+                  type="button"
+                >
+                  <PrintIcon size={14} />
+                  PDF
                 </button>
               ) : null}
               {type === "teorik" ? (

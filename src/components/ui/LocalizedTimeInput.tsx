@@ -22,6 +22,7 @@ type LocalizedTimeInputProps = {
   placeholder?: string;
   size?: "md" | "sm";
   inputRef?: Ref<HTMLInputElement>;
+  allowManualInput?: boolean;
   stepMinutes?: number;
   timeOptions?: Array<string | { value: string; label: string }>;
 };
@@ -66,6 +67,7 @@ export function LocalizedTimeInput({
   placeholder = "HH:mm",
   size = "md",
   inputRef,
+  allowManualInput = false,
   stepMinutes = 5,
   timeOptions: customTimeOptions,
 }: LocalizedTimeInputProps) {
@@ -147,6 +149,11 @@ export function LocalizedTimeInput({
     notifyBlur();
   };
 
+  const handleManualChange = (nextValue: string) => {
+    if (!allowManualInput) return;
+    onChange(nextValue);
+  };
+
   const triggerClassName = [
     className ?? (size === "sm" ? "form-input-sm" : "form-input"),
     "localized-date-trigger",
@@ -177,6 +184,8 @@ export function LocalizedTimeInput({
               openPopover();
             }
           }}
+          onChange={(event) => handleManualChange(event.currentTarget.value)}
+          onBlur={notifyBlur}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
               event.preventDefault();
@@ -184,7 +193,7 @@ export function LocalizedTimeInput({
             }
           }}
           placeholder={placeholder}
-          readOnly
+          readOnly={!allowManualInput}
           type="text"
           value={displayValue}
         />
@@ -201,6 +210,7 @@ export function LocalizedTimeInput({
         onBlur={onBlur}
         readOnly
         ref={assignInputRef}
+        step={stepMinutes * 60}
         tabIndex={-1}
         type="time"
         value={value}

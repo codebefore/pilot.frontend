@@ -166,6 +166,46 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: "E-Sınav" })).not.toHaveClass("active");
   });
 
+  it("closes an open submenu when its parent menu is clicked again", () => {
+    renderSidebar("/");
+
+    const trainingMenu = screen.getByRole("button", { name: "Eğitim Planı" });
+
+    fireEvent.click(trainingMenu);
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Teorik Eğitim" })).toBeInTheDocument();
+
+    fireEvent.click(trainingMenu);
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Teorik Eğitim" })).not.toBeInTheDocument();
+  });
+
+  it("allows the active training submenu to be closed by clicking its parent menu again", () => {
+    renderSidebar("/training/uygulama");
+
+    const trainingMenu = screen.getByRole("button", { name: "Eğitim Planı" });
+
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Direksiyon Eğitim" })).toHaveClass("active");
+
+    fireEvent.click(trainingMenu);
+    expect(trainingMenu).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Direksiyon Eğitim" })).not.toBeInTheDocument();
+  });
+
+  it("allows the active finance submenu to be closed by clicking its parent menu again", () => {
+    renderSidebar("/payments/balances");
+
+    const financeMenu = screen.getByRole("button", { name: "Finans" });
+
+    expect(financeMenu).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Bakiyeler" })).toHaveClass("active");
+
+    fireEvent.click(financeMenu);
+    expect(financeMenu).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Bakiyeler" })).not.toBeInTheDocument();
+  });
+
   it("renders exams submenu and highlights the active child route", () => {
     renderSidebar("/exams/e-sinav");
 

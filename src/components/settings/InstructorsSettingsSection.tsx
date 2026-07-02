@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
+import { MebIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { InstructorFormModal } from "../modals/InstructorFormModal";
 import { ColumnPicker } from "../ui/ColumnPicker";
 import { InstructorAvatar } from "../ui/InstructorAvatar";
@@ -12,8 +12,12 @@ import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
+import { ApiError } from "../../lib/http";
 import { canManageArea } from "../../lib/permissions";
+import { createInstructorInventoryImportJob, getMebbisJob, type MebbisJobResponse } from "../../lib/mebbis-jobs-api";
+import { applyMebbisInstructorInventory } from "../../lib/mebbis-instructor-import";
 import { candidateKeys } from "../../lib/queries/use-candidates";
+import { useMebbisSessionGuard } from "../../lib/queries/use-mebbis-session";
 import {
   deleteInstructor,
   getInstructors,
@@ -49,6 +53,8 @@ import {
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
+const MEBBIS_IMPORT_POLL_INTERVAL_MS = 5000;
+const INSTRUCTOR_IMPORT_POLL_TIMEOUT_MS = 10 * 60 * 1000;
 type SortState = { field: InstructorSortField; direction: InstructorSortDirection } | null;
 type InstructorFilterValue<T extends string> = T | "all";
 type InstructorFilters = {
@@ -269,6 +275,7 @@ export function InstructorsSettingsSection() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const noPermissionTitle = t("common.noPermission");
@@ -294,6 +301,7 @@ export function InstructorsSettingsSection() {
   const [editing, setEditing] = useState<InstructorResponse | null>(null);
   const [confirmDeleteInstructorId, setConfirmDeleteInstructorId] = useState<string | null>(null);
   const [deletingInstructorId, setDeletingInstructorId] = useState<string | null>(null);
+  const [mebbisImportRunning, setMebbisImportRunning] = useState(false);
   const [trainingBranches, setTrainingBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const filterLicenseClassOptions = useMemo(
@@ -391,6 +399,86 @@ export function InstructorsSettingsSection() {
     void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const refreshInstructorsAfterMebbisImport = () => {
+    setRefreshKey((current) => current + 1);
+    invalidateInstructorDependents();
+    void queryClient.invalidateQueries({ queryKey: ["settings", "instructors"] });
+    void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+  };
+
+  const pollMebbisImportJob = async (
+    jobId: string,
+    timeoutMs = INSTRUCTOR_IMPORT_POLL_TIMEOUT_MS
+  ): Promise<MebbisJobResponse | null> => {
+    const timeoutAt = Date.now() + timeoutMs;
+
+    while (Date.now() < timeoutAt) {
+      await new Promise((resolve) => window.setTimeout(resolve, MEBBIS_IMPORT_POLL_INTERVAL_MS));
+
+      let job: MebbisJobResponse;
+      try {
+        job = await getMebbisJob(jobId);
+      } catch (error) {
+        console.error(error);
+        continue;
+      }
+
+      if (job.status === "succeeded") return job;
+      if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) return job;
+    }
+
+    return null;
+  };
+
+  const handleMebbisImport = async () => {
+    if (!canManageTraining || mebbisImportRunning) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+
+    setMebbisImportRunning(true);
+    try {
+      const job = await createInstructorInventoryImportJob();
+      refreshInstructorsAfterMebbisImport();
+      showToast(t("settings.instructors.mebbisImportQueued"));
+
+      const completedJob = await pollMebbisImportJob(job.id);
+      if (completedJob?.status === "succeeded") {
+        const result = await applyMebbisInstructorInventory(completedJob);
+        refreshInstructorsAfterMebbisImport();
+
+        if (result.importedCount === 0) {
+          showToast(t("settings.instructors.mebbisImportCompleted"));
+          return;
+        }
+
+        showToast(
+          t("settings.instructors.mebbisImportApplied", {
+            created: String(result.createdCount),
+            updated: String(result.updatedCount),
+          })
+        );
+        return;
+      }
+
+      refreshInstructorsAfterMebbisImport();
+      if (completedJob) {
+        showToast(t("settings.instructors.mebbisImportNeedsManualAction"), "error");
+        return;
+      }
+
+      showToast(t("settings.instructors.mebbisImportStillRunning"));
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("settings.instructors.mebbisImportFailed")
+          : t("settings.instructors.mebbisImportFailed");
+      showToast(message, "error");
+    } finally {
+      setMebbisImportRunning(false);
+    }
   };
   const detailReturnState = useMemo(
     () => ({
@@ -539,6 +627,18 @@ export function InstructorsSettingsSection() {
                 <span className="switch-toggle-control" aria-hidden="true" />
                 <span>{t("settings.instructors.showInactive")}</span>
               </label>
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={!canManageTraining || mebbisImportRunning}
+                onClick={() => void handleMebbisImport()}
+                title={!canManageTraining ? noPermissionTitle : undefined}
+                type="button"
+              >
+                <MebIcon size={14} />
+                {mebbisImportRunning
+                  ? t("settings.instructors.mebbisImportRunning")
+                  : t("settings.instructors.mebbisImportButton")}
+              </button>
               <button
                 className="btn btn-primary btn-sm"
                 disabled={!canManageTraining}

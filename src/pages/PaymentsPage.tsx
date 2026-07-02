@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 
+import { DownloadIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
@@ -183,6 +184,14 @@ type PeriodStatsRow = {
   count: number;
   revenue: number;
   collected: number;
+};
+type FinanceExportFormat = "excel" | "pdf";
+type FinanceExportCell = string | number | null | undefined;
+type FinanceExportTable = {
+  title: string;
+  headers: string[];
+  rows: FinanceExportCell[][];
+  footer?: FinanceExportCell[];
 };
 type DatePreset =
   | "all"
@@ -475,6 +484,122 @@ function money(amount: number): string {
     currency: "TRY",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function escapeFinanceExportHtml(value: FinanceExportCell): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function financeExportFileNamePart(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "finans";
+}
+
+function buildFinanceExportTablesHtml(title: string, tables: FinanceExportTable[]): string {
+  return `
+    <h1>${escapeFinanceExportHtml(title)}</h1>
+    ${tables
+      .map(
+        (table) => `
+          <section>
+            <h2>${escapeFinanceExportHtml(table.title)}</h2>
+            <table>
+              <thead>
+                <tr>${table.headers.map((header) => `<th>${escapeFinanceExportHtml(header)}</th>`).join("")}</tr>
+              </thead>
+              <tbody>
+                ${table.rows.length === 0
+                  ? `<tr><td colspan="${table.headers.length}">Kayıt bulunamadı.</td></tr>`
+                  : table.rows
+                    .map(
+                      (row) => `
+                        <tr>
+                          ${row.map((cell) => `<td>${escapeFinanceExportHtml(cell)}</td>`).join("")}
+                        </tr>
+                      `,
+                    )
+                    .join("")}
+              </tbody>
+              ${table.footer
+                ? `<tfoot><tr>${table.footer.map((cell) => `<td>${escapeFinanceExportHtml(cell)}</td>`).join("")}</tr></tfoot>`
+                : ""}
+            </table>
+          </section>
+        `,
+      )
+      .join("")}
+  `;
+}
+
+function downloadFinanceExportExcel(fileName: string, title: string, tables: FinanceExportTable[]): void {
+  const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; }
+          h1 { font-size: 18px; }
+          h2 { font-size: 14px; margin: 18px 0 8px; }
+          table { border-collapse: collapse; margin-bottom: 16px; }
+          th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 12px; }
+          th { background: #f3f4f6; font-weight: 700; }
+          tfoot td { background: #f9fafb; font-weight: 700; }
+        </style>
+      </head>
+      <body>${buildFinanceExportTablesHtml(title, tables)}</body>
+    </html>`;
+  const blob = new Blob(["\ufeff", html], {
+    type: "application/vnd.ms-excel;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${fileName}.xls`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function printFinanceExportPdf(title: string, tables: FinanceExportTable[]): boolean {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return false;
+  printWindow.document.write(`<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeFinanceExportHtml(title)}</title>
+        <style>
+          @page { size: A4 landscape; margin: 12mm; }
+          body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
+          h1 { font-size: 18px; margin: 0 0 12px; }
+          h2 { font-size: 13px; margin: 16px 0 8px; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+          th, td { border: 1px solid #d1d5db; padding: 5px 6px; font-size: 10px; text-align: left; vertical-align: top; }
+          th { background: #f3f4f6; font-weight: 700; }
+          tfoot td { background: #f9fafb; font-weight: 700; }
+        </style>
+      </head>
+      <body>${buildFinanceExportTablesHtml(title, tables)}</body>
+    </html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  return true;
 }
 
 function percent(value: number): string {
@@ -1243,6 +1368,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const [statsMonth, setStatsMonth] = useState("");
   const [statsFromDate, setStatsFromDate] = useState("");
   const [statsToDate, setStatsToDate] = useState("");
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [detailGroup, setDetailGroup] = useState<DetailGroup>(
     isCashPage ? "cashSummary" : "movements",
   );
@@ -2799,7 +2925,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   ) => {
     const candidate = rowCandidate(row);
     if (columnId === "photo") {
-      return <CandidateAvatar candidate={candidate} size={32} />;
+      return <CandidateAvatar candidate={candidate} previewOnClick size={32} />;
     }
     if (columnId === "candidate") {
       return (
@@ -2832,7 +2958,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     columnId: InvoiceColumnId,
   ) => {
     if (columnId === "photo") {
-      return <CandidateAvatar candidate={invoice.candidate} size={32} />;
+      return <CandidateAvatar candidate={invoice.candidate} previewOnClick size={32} />;
     }
     if (columnId === "candidate") {
       return (
@@ -2870,7 +2996,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     columnId: InvoiceAnalysisColumnId,
   ) => {
     if (columnId === "photo") {
-      return <CandidateAvatar candidate={row.candidate} size={32} />;
+      return <CandidateAvatar candidate={row.candidate} previewOnClick size={32} />;
     }
     if (columnId === "candidate") {
       return (
@@ -2922,7 +3048,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     columnId: InstallmentColumnId,
   ) => {
     if (columnId === "photo") {
-      return <CandidateAvatar candidate={installment.candidate} size={32} />;
+      return <CandidateAvatar candidate={installment.candidate} previewOnClick size={32} />;
     }
     if (columnId === "candidate") {
       return (
@@ -2951,7 +3077,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
   const renderDebtCell = (row: DebtRow, columnId: DebtColumnId) => {
     if (columnId === "photo") {
-      return <CandidateAvatar candidate={row.candidate} size={32} />;
+      return <CandidateAvatar candidate={row.candidate} previewOnClick size={32} />;
     }
     if (columnId === "candidate") {
       return (
@@ -2970,6 +3096,300 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     }
     return money(row[columnId]);
   };
+
+  const pageTitle = isBalancesPage
+    ? t("payments.page.title.balances")
+    : isCollectionsPage
+      ? t("payments.page.title.collections")
+      : isInvoicesPage
+        ? t("payments.page.title.invoices")
+        : isCashPage
+          ? t("payments.page.title.cash")
+          : isStatisticsPage
+            ? t("payments.page.title.statistics")
+            : t("payments.page.title.finance");
+
+  const financeExportTables = useMemo<FinanceExportTable[]>(() => {
+    const tables: FinanceExportTable[] = [];
+    const withoutPhoto = <T extends { id: string }>(columns: T[]) =>
+      columns.filter(
+        (column): column is T & { id: Exclude<T["id"], "photo"> } =>
+          column.id !== "photo",
+      );
+
+    if (isCollectionsPage) {
+      tables.push({
+        title: "Tahsilat Matrisi",
+        headers: [
+          "Ödeme Türü",
+          ...cashRegisters.map((register) => `${register.label} (${register.typeLabel})`),
+          "Toplam",
+        ],
+        rows: PAYMENT_TYPE_ROWS.map((row) => [
+          t(PAYMENT_TYPE_KEY[row.key]),
+          ...cashRegisters.map((register) => money(matrix.cells.get(`${row.key}:${register.key}`) ?? 0)),
+          money(matrix.rowTotals[row.key]),
+        ]),
+        footer: [
+          "Toplam",
+          ...cashRegisters.map((register) => money(matrix.columnTotals.get(register.key) ?? 0)),
+          money(matrix.grandTotal),
+        ],
+      });
+    }
+
+    if (isStatisticsPage) {
+      tables.push({
+        title: pageTitle,
+        headers: PERIOD_STATS_COLUMNS.map((column) => t(column.labelKey)),
+        rows: periodStats.items.map((row) => [
+          row.licenseClass,
+          row.count,
+          money(row.revenue),
+          row.count > 0 ? money(row.revenue / row.count) : "-",
+          money(row.collected),
+          row.revenue > 0 ? percent((row.collected / row.revenue) * 100) : "-",
+        ]),
+        footer: [
+          "Toplam",
+          periodStats.total.count,
+          money(periodStats.total.revenue),
+          periodStats.total.count > 0
+            ? money(periodStats.total.revenue / periodStats.total.count)
+            : "-",
+          money(periodStats.total.collected),
+          periodStats.total.revenue > 0
+            ? percent((periodStats.total.collected / periodStats.total.revenue) * 100)
+            : "-",
+        ],
+      });
+      return tables;
+    }
+
+    if (isInvoicesPage) {
+      if (invoiceView === "analysis") {
+        const columns = withoutPhoto(invoiceAnalysisColumns);
+        tables.push({
+          title: "Fatura Analiz",
+          headers: columns.map((column) => column.label),
+          rows: invoiceAnalysisRows.map((row) =>
+            columns.map((column) => {
+              if (column.id === "candidate") return paymentCandidateName(row.candidate);
+              if (column.id === "group") return invoiceAnalysisGroupLabel(row.candidate);
+              if (column.id === "licenseClass") {
+                return licenseClassLabel(row.candidate.licenseClass, licenseClassLabelByCode);
+              }
+              if (column.id === "courseBase") return money(row.courseBase);
+              if (column.id === "invoicedTotal") return money(row.invoicedTotal);
+              return money(row.remainingTotal);
+            }),
+          ),
+        });
+        return tables;
+      }
+
+      const columns = withoutPhoto(invoiceColumns);
+      tables.push({
+        title: "Fatura Hareketleri",
+        headers: columns.map((column) => column.label),
+        rows: invoiceRows.map((invoice) =>
+          columns.map((column) => {
+            if (column.id === "candidate") return invoiceCandidateName(invoice);
+            if (column.id === "group") return invoiceGroupLabel(invoice);
+            if (column.id === "licenseClass") {
+              return licenseClassLabel(invoice.candidate.licenseClass, licenseClassLabelByCode);
+            }
+            if (column.id === "invoiceNo") return invoice.invoiceNo;
+            if (column.id === "invoiceType") return invoiceTypeLabel(invoice.invoiceType, t);
+            if (column.id === "date") return formatDateTR(invoice.invoiceDate);
+            if (column.id === "service") return invoiceService(invoice, t);
+            if (column.id === "quantity") return invoiceQuantity(invoice);
+            if (column.id === "unitPrice") return money(invoiceUnitPrice(invoice));
+            if (column.id === "subtotal") return money(invoice.subtotal);
+            if (column.id === "vatRate") return `%${invoice.vatRate}`;
+            if (column.id === "vatAmount") return money(invoice.vatAmount);
+            if (column.id === "total") return money(invoice.totalAmount);
+            return invoiceNotes(invoice);
+          }),
+        ),
+      });
+      return tables;
+    }
+
+    if (isCashPage) {
+      tables.push({
+        title: t("payments.cashSummary.title"),
+        headers: CASH_SUMMARY_COLUMNS.map((column) => t(column.labelKey)),
+        rows: cashSummaryRows.map((row) => [
+          row.name,
+          money(row.balance),
+          row.lastMovementDate ? formatFinanceDateTimeTR(row.lastMovementDate) : "-",
+          money(row.selectedInflow),
+          money(row.selectedOutflow),
+        ]),
+      });
+      tables.push({
+        title: "Kasa Hareketleri",
+        headers: ["Tip", ...CASH_MOVEMENT_COLUMNS.map((column) => t(column.labelKey))],
+        rows: cashMovementRows.map((row) => [
+          row.type,
+          row.cashRegister,
+          row.type === "Çıkış" ? `-${money(row.amount)}` : money(row.amount),
+          formatFinanceDateTimeTR(row.date),
+          row.description,
+        ]),
+      });
+      return tables;
+    }
+
+    if (detailTab === "installment") {
+      const columns = withoutPhoto(INSTALLMENT_COLUMNS);
+      tables.push({
+        title: t("payments.detailTab.installment"),
+        headers: columns.map((column) => t(column.labelKey)),
+        rows: installmentRows.map((installment) =>
+          columns.map((column) => {
+            if (column.id === "candidate") return installmentCandidateName(installment);
+            if (column.id === "group") return installmentGroupLabel(installment);
+            if (column.id === "licenseClass") {
+              return licenseClassLabel(installment.candidate.licenseClass, licenseClassLabelByCode);
+            }
+            if (column.id === "type") return t(PAYMENT_TYPE_KEY[installment.type]);
+            if (column.id === "dueDate") return formatDateTR(installment.dueDate);
+            if (column.id === "amount") return money(installment.amount);
+            if (column.id === "remainingAmount") return money(installment.remainingAmount);
+            return installmentDescription(installment);
+          }),
+        ),
+      });
+      return tables;
+    }
+
+    if (detailTab === "debt") {
+      const columns = withoutPhoto(DEBT_COLUMNS);
+      tables.push({
+        title: t("payments.detailTab.debt"),
+        headers: columns.map((column) => t(column.labelKey)),
+        rows: debtRows.map((row) =>
+          columns.map((column) => {
+            if (column.id === "candidate") return paymentCandidateName(row.candidate);
+            if (column.id === "group") return paymentCandidateGroupLabel(row.candidate);
+            if (column.id === "licenseClass") {
+              return licenseClassLabel(row.candidate.licenseClass, licenseClassLabelByCode);
+            }
+            if (column.id === "kurs") return money(row.kurs);
+            if (column.id === "teorikSinav") return money(row.teorikSinav);
+            if (column.id === "direksiyonSinav") return money(row.direksiyonSinav);
+            if (column.id === "diger") return money(row.diger);
+            return money(row.total);
+          }),
+        ),
+      });
+      return tables;
+    }
+
+    const columns = withoutPhoto(detailColumns);
+    tables.push({
+      title: isCollectionsPage ? pageTitle : t("payments.financeDetail.title"),
+      headers: columns.map((column) => column.label),
+      rows: detailRows.map((row) =>
+        columns.map((column) => {
+          const candidate = rowCandidate(row);
+          if (column.id === "candidate") return `${candidate.firstName} ${candidate.lastName}`.trim();
+          if (column.id === "group") return rowGroupLabel(row);
+          if (column.id === "type") return t(PAYMENT_TYPE_KEY[rowType(row)]);
+          if (column.id === "cancelKind") return rowCancelKindLabel(row, t);
+          if (column.id === "date") return formatFinanceDateTimeTR(row.date);
+          if (column.id === "amount") {
+            return row.kind === "payment" || row.kind === "cancelled"
+              ? money(row.amount)
+              : `-${money(row.amount)}`;
+          }
+          if (column.id === "receiptNumber") return rowReceiptNumber(row);
+          if (column.id === "method") return rowMethodLabel(row, t);
+          if (column.id === "cashRegister") return rowCashRegisterLabel(row, t);
+          return rowDescription(row, t);
+        }),
+      ),
+    });
+
+    return tables;
+  }, [
+    cashMovementRows,
+    cashRegisters,
+    cashSummaryRows,
+    debtRows,
+    detailColumns,
+    detailRows,
+    detailTab,
+    invoiceAnalysisColumns,
+    invoiceAnalysisRows,
+    invoiceColumns,
+    invoiceRows,
+    invoiceView,
+    isCashPage,
+    isCollectionsPage,
+    isInvoicesPage,
+    isStatisticsPage,
+    licenseClassLabelByCode,
+    matrix,
+    pageTitle,
+    periodStats,
+    t,
+    installmentRows,
+  ]);
+
+  const hasFinanceExportTables = financeExportTables.length > 0;
+
+  const handleFinanceExport = (format: FinanceExportFormat) => {
+    setExportMenuOpen(false);
+    if (!hasFinanceExportTables) {
+      showToast("Dışa aktarılacak kayıt bulunamadı.", "error");
+      return;
+    }
+
+    const fileName = financeExportFileNamePart(pageTitle);
+    if (format === "excel") {
+      downloadFinanceExportExcel(fileName, pageTitle, financeExportTables);
+      return;
+    }
+
+    if (!printFinanceExportPdf(pageTitle, financeExportTables)) {
+      showToast("PDF çıktısı için açılır pencereye izin verin.", "error");
+    }
+  };
+
+  const exportButton = (
+    <div className="payments-export-menu-wrap">
+      <button
+        className="btn btn-secondary payments-filter-export"
+        disabled={!hasFinanceExportTables}
+        onClick={() => setExportMenuOpen((current) => !current)}
+        type="button"
+      >
+        <DownloadIcon size={14} />
+        Dışa aktar
+      </button>
+      {exportMenuOpen ? (
+        <div className="payments-export-menu" role="menu">
+          <button
+            onClick={() => handleFinanceExport("excel")}
+            role="menuitem"
+            type="button"
+          >
+            Excel
+          </button>
+          <button
+            onClick={() => handleFinanceExport("pdf")}
+            role="menuitem"
+            type="button"
+          >
+            PDF
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
 
   if (loadError) {
     return <PageLoadError onRetry={() => void queryClient.invalidateQueries({ queryKey: ["payments"] })} />;
@@ -3070,13 +3490,16 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                 value={toDate}
               />
             </div>
-            <button
-              className="btn btn-secondary payments-filter-reset"
-              onClick={resetFilters}
-              type="button"
-            >
-              Temizle
-            </button>
+            <div className="payments-filter-actions">
+              <button
+                className="btn btn-secondary payments-filter-reset"
+                onClick={resetFilters}
+                type="button"
+              >
+                Temizle
+              </button>
+              {exportButton}
+            </div>
           </div>
           ) : null}
 
@@ -3113,13 +3536,16 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                 value={statsToDate}
               />
             </div>
-            <button
-              className="btn btn-secondary payments-filter-reset"
-              onClick={clearStatsFilters}
-              type="button"
-            >
-              Temizle
-            </button>
+            <div className="payments-filter-actions">
+              <button
+                className="btn btn-secondary payments-filter-reset"
+                onClick={clearStatsFilters}
+                type="button"
+              >
+                Temizle
+              </button>
+              {exportButton}
+            </div>
           </div>
           ) : null}
 
@@ -3337,7 +3763,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   onChange={(event) =>
                     setDetailColumnFilter("candidate", event.target.value)
                   }
-                  placeholder="Aday ara"
+                  placeholder="Aday adı ara"
                   value={detailColumnFilters.candidate ?? ""}
                 />
               )}

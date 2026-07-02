@@ -178,6 +178,13 @@
   color: #ffffff;
   box-shadow: 0 8px 18px color-mix(in srgb, var(--brand, #ED2AA3) 26%, transparent);
 }
+.dashboard-notes-day.is-weekend.is-selected:not(.is-muted),
+.dashboard-notes-day.is-public-holiday.is-selected:not(.is-muted),
+.dashboard-notes-day.is-today.is-selected {
+  background: var(--brand, #ED2AA3);
+  color: #ffffff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--brand, #ED2AA3) 26%, transparent);
+}
 .dashboard-notes-day.is-selected span {
   color: #ffffff;
 }

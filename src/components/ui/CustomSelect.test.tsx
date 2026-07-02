@@ -109,4 +109,28 @@ describe("CustomSelect", () => {
 
     expect(onMenuScroll).toHaveBeenCalledTimes(1);
   });
+
+  it("does not commit arrow-key navigation until the user confirms", async () => {
+    const onChange = vi.fn();
+    render(
+      <CustomSelect aria-label="Sınav durumu" onChange={onChange} value="attended">
+        <option value="">—</option>
+        <option value="attended">Girdi</option>
+        <option value="absent">Girmedi</option>
+      </CustomSelect>
+    );
+
+    const trigger = screen.getByRole("button", { name: "Girdi" });
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+
+    expect(screen.getByRole("button", { name: "Girdi" })).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Girdi" })).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

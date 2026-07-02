@@ -499,6 +499,14 @@
   width: var(--candidate-avatar-size);
   height: var(--candidate-avatar-size);
 }
+.candidate-avatar-previewable {
+  cursor: zoom-in;
+}
+.candidate-avatar-previewable:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
 .candidate-avatar-image,
 .candidate-avatar-fallback {
   width: var(--candidate-avatar-size);
@@ -533,6 +541,24 @@
 .candidate-avatar.instructor-avatar .candidate-avatar-fallback {
   background: #e0e7ff;
   color: #3730a3;
+}
+.candidate-avatar-popover {
+  position: fixed;
+  z-index: 1000;
+  width: 180px;
+  padding: 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.candidate-avatar-popover-image {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--gray-100);
 }
 .instructor-photo-row {
   display: flex;

@@ -115,10 +115,11 @@ export function EditableRow({
   };
 
   const save = async () => {
-    if (draft === inputValue) { setEditing(false); return true; }
+    const nextValue = inputRef.current instanceof HTMLSelectElement ? inputRef.current.value : draft;
+    if (nextValue === inputValue) { setEditing(false); return true; }
     setSaving(true);
     try {
-      await onSave(draft);
+      await onSave(nextValue);
       setEditing(false);
       return true;
     } finally {
@@ -189,6 +190,7 @@ export function EditableRow({
               disabled={saving || loadingOptions}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
+              openOnFocus
               ref={inputRef as React.Ref<HTMLSelectElement>}
               value={draft}
             >

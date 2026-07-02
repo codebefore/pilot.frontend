@@ -285,6 +285,97 @@ describe("CandidateDrawer", () => {
     });
   });
 
+  it("preserves identity, address, and contacts when saving an unrelated field", async () => {
+    getCandidateByIdMock.mockResolvedValue({
+      id: "candidate-1",
+      firstName: "Ada",
+      lastName: "Yilmaz",
+      nationalId: "10000000078",
+      identitySerialNumber: "A12B34567",
+      motherName: "Ayse",
+      fatherName: "Mehmet",
+      referenceName: "Referans",
+      phoneNumber: "05551112233",
+      address: "Ataturk Mah. No: 1",
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebSyncStatus: "not_synced",
+      drivingExamDate: "2026-06-15",
+      drivingExamScheduleId: "schedule-1",
+      isFree: true,
+      contacts: [
+        {
+          id: "contact-1",
+          type: "phone",
+          label: "Veli",
+          value: "05554443322",
+          isPrimary: false,
+          displayOrder: 1,
+          ownerName: "Veli Kisi",
+        },
+      ],
+      currentGroup: null,
+      documentSummary: null,
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+      rowVersion: 3,
+    });
+
+    renderWithProviders(
+      <CandidateDrawer
+        candidateId="candidate-1"
+        onClose={() => {}}
+        onDeleted={() => {}}
+      />
+    );
+
+    await screen.findByRole("heading", { name: "Ada Yilmaz" });
+
+    const statusLabel = screen.getAllByText("Durum").find(
+      (node) => node.classList.contains("label")
+    );
+    const statusRow = statusLabel?.closest(".drawer-row");
+    expect(statusRow).not.toBeNull();
+    fireEvent.click(statusRow!.querySelector('button[title="Düzenle"]') as HTMLButtonElement);
+
+    const statusSelect = await screen.findByDisplayValue("Aktif");
+    fireEvent.change(statusSelect, { target: { value: "graduated" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(updateCandidateMock).toHaveBeenCalledWith(
+        "candidate-1",
+        expect.objectContaining({
+          status: "graduated",
+          identitySerialNumber: "A12B34567",
+          motherName: "Ayse",
+          fatherName: "Mehmet",
+          address: "Ataturk Mah. No: 1",
+          drivingExamScheduleId: "schedule-1",
+          isFree: true,
+          contacts: [
+            {
+              id: "contact-1",
+              type: "phone",
+              label: "Veli",
+              value: "05554443322",
+              isPrimary: false,
+              ownerName: "Veli Kisi",
+            },
+          ],
+          rowVersion: 3,
+        })
+      );
+    });
+  });
+
   it("saves canonical english gender values and renders the Turkish label", async () => {
     getCandidateByIdMock.mockResolvedValue({
       id: "candidate-1",

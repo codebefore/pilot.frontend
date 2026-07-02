@@ -22,6 +22,7 @@ import { groupKeys } from "../../lib/queries/use-groups";
 import { normalizeTextQuery } from "../../lib/search";
 import {
   formatDateTR,
+  normalizeCandidateMebSyncStatusValue,
   groupMebStatusLabel,
   GROUP_MEB_STATUS_OPTIONS,
   normalizeGroupMebStatusValue,
@@ -305,6 +306,27 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     if (!groupId) return;
     setDeleting(true);
     try {
+      const alreadySyncedInGroup =
+        group?.activeCandidates.some(
+          (candidate) => normalizeCandidateMebSyncStatusValue(candidate.mebSyncStatus) === "synced"
+        ) ?? false;
+      if (alreadySyncedInGroup) {
+        showToast(t("groupDrawer.toast.groupDeleteBlockedMebbisCandidate"), "error");
+        setConfirmDelete(false);
+        return;
+      }
+
+      const groupCandidates = await loadAllGroupCandidates(groupId);
+      const hasMebbisSyncedCandidate = groupCandidates.items.some(
+        (candidate) => normalizeCandidateMebSyncStatusValue(candidate.mebSyncStatus) === "synced"
+      );
+
+      if (hasMebbisSyncedCandidate) {
+        showToast(t("groupDrawer.toast.groupDeleteBlockedMebbisCandidate"), "error");
+        setConfirmDelete(false);
+        return;
+      }
+
       await deleteGroup(groupId);
       showToast(t("groupDrawer.toast.groupDeleted"));
       invalidateGroupDrawerDependents();
@@ -432,11 +454,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
             ) : (
               group.activeCandidates.map((c) => (
                 <div key={c.candidateId} className="drawer-row candidate-list-row">
-                  <button
-                    className="candidate-list-person"
-                    onClick={() => openCandidateDetail(c.candidateId)}
-                    type="button"
-                  >
+                  <div className="candidate-list-person">
                     <CandidateAvatar
                       candidate={{
                         id: c.candidateId,
@@ -444,12 +462,17 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                         lastName: c.lastName,
                         photo: c.photo ?? null,
                       }}
+                      previewOnClick
                       size={32}
                     />
-                    <span className="candidate-list-text">
+                    <button
+                      className="candidate-list-text"
+                      onClick={() => openCandidateDetail(c.candidateId)}
+                      type="button"
+                    >
                       <span className="candidate-name">{c.firstName} {c.lastName}</span>
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                   <div className="group-candidate-remove-anchor">
                     <button
                       className="icon-btn"
@@ -609,6 +632,30 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     ) : null}
     </>
   );
+}
+
+async function loadAllGroupCandidates(groupId: string) {
+  const pageSize = 100;
+  const firstPage = await getCandidates({ groupIds: [groupId], page: 1, pageSize });
+  const items = [...firstPage.items];
+  const effectivePageSize = firstPage.pageSize || pageSize;
+  const totalCount = firstPage.totalCount ?? items.length;
+  let page = firstPage.page || 1;
+
+  while (items.length < totalCount) {
+    const nextPage = page + 1;
+    const response = await getCandidates({ groupIds: [groupId], page: nextPage, pageSize });
+    if (response.items.length === 0) break;
+    items.push(...response.items);
+    page = response.page || nextPage;
+
+    if (response.items.length < effectivePageSize) break;
+  }
+
+  return {
+    ...firstPage,
+    items,
+  };
 }
 
 type GroupCodeEditableRowProps = {

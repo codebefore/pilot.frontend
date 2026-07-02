@@ -42,4 +42,59 @@ describe("EditableRow", () => {
       expect(screen.getByRole("textbox", { name: "Aday No" })).toBeInTheDocument();
     });
   });
+
+  it("opens a select row reached by Tab and saves the arrow-key selection on the next Tab", async () => {
+    const saveName = vi.fn().mockResolvedValue(undefined);
+    const saveGender = vi.fn().mockResolvedValue(undefined);
+    const saveBirthPlace = vi.fn().mockResolvedValue(undefined);
+
+    renderWithProviders(
+      <div className="candidate-detail-edit-list">
+        <EditableRow
+          displayValue="Ayşe"
+          inputValue="Ayşe"
+          label="Ad"
+          onSave={saveName}
+        />
+        <EditableRow
+          displayValue="Kadın"
+          inputValue="female"
+          label="Cinsiyet"
+          onSave={saveGender}
+          options={[
+            { value: "female", label: "Kadın" },
+            { value: "male", label: "Erkek" },
+          ]}
+        />
+        <EditableRow
+          displayValue="Ankara"
+          inputValue="Ankara"
+          label="Doğum Yeri"
+          onSave={saveBirthPlace}
+        />
+      </div>
+    );
+
+    fireEvent.click(screen.getAllByTitle("Düzenle")[0]);
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Ad" }), {
+      key: "Tab",
+    });
+
+    const genderTrigger = await screen.findByRole("button", { name: "Kadın" });
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
+
+    fireEvent.keyDown(genderTrigger, { key: "ArrowDown" });
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "Erkek" })).toHaveClass("active");
+    });
+
+    fireEvent.keyDown(genderTrigger, {
+      key: "Tab",
+    });
+
+    await waitFor(() => {
+      expect(saveGender).toHaveBeenCalledWith("male");
+      expect(screen.getByRole("textbox", { name: "Doğum Yeri" })).toBeInTheDocument();
+    });
+  });
 });

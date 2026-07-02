@@ -51,6 +51,68 @@ describe("buildCandidateUpdatePayload", () => {
     expect(payload.existingLicenseType).toBe("B");
   });
 
+  it("preserves identity, address, and contacts for bulk updates", () => {
+    const candidate = {
+      firstName: "Ayse",
+      lastName: "Demir",
+      nationalId: "12345678910",
+      identitySerialNumber: "A12B34567",
+      motherName: "Fatma",
+      fatherName: "Mehmet",
+      referenceName: "Referans",
+      phoneNumber: "05551112233",
+      address: "Ataturk Mah. No: 1",
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      licenseClassDefinitionId: "rule-b",
+      hasExistingLicense: false,
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "pre_registered",
+      drivingExamDate: "2026-06-15",
+      drivingExamScheduleId: "schedule-1",
+      isFree: true,
+      contacts: [
+        {
+          id: "contact-1",
+          type: "phone",
+          label: "Veli",
+          value: "05554443322",
+          isPrimary: false,
+          displayOrder: 1,
+          ownerName: "Veli Kisi",
+        },
+      ],
+      rowVersion: 3,
+    } as CandidateResponse;
+
+    const payload = buildCandidateUpdatePayload(candidate, { status: "active" });
+
+    expect(payload).toEqual(expect.objectContaining({
+      status: "active",
+      identitySerialNumber: "A12B34567",
+      motherName: "Fatma",
+      fatherName: "Mehmet",
+      address: "Ataturk Mah. No: 1",
+      drivingExamScheduleId: "schedule-1",
+      isFree: true,
+      contacts: [
+        {
+          id: "contact-1",
+          type: "phone",
+          label: "Veli",
+          value: "05554443322",
+          isPrimary: false,
+          ownerName: "Veli Kisi",
+        },
+      ],
+    }));
+  });
+
   it("does not treat existing license placeholders as a license", () => {
     const candidate = {
       firstName: "Ayse",

@@ -19,17 +19,24 @@ vi.mock("../../lib/exam-schedules-api", async () => {
 
 vi.mock("../ui/LocalizedTimeInput", () => ({
   LocalizedTimeInput: ({
+    allowManualInput,
     ariaLabel,
+    stepMinutes,
     value,
     onChange,
   }: {
+    allowManualInput?: boolean;
     ariaLabel?: string;
+    stepMinutes?: number;
     value: string;
     onChange: (value: string) => void;
   }) => (
     <input
       aria-label={ariaLabel}
+      data-allow-manual-input={allowManualInput ? "true" : "false"}
+      data-step-minutes={stepMinutes}
       onChange={(event) => onChange(event.currentTarget.value)}
+      step={stepMinutes ? stepMinutes * 60 : undefined}
       type="time"
       value={value}
     />
@@ -117,13 +124,19 @@ describe("NewExamScheduleModal", () => {
     expect(screen.getByLabelText(/^Saat/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Kontenjan/)).not.toBeInTheDocument();
 
+    const timeInput = screen.getByLabelText(/^Saat/) as HTMLInputElement;
+    expect(timeInput).toHaveAttribute("step", "900");
+    expect(timeInput).toHaveAttribute("data-step-minutes", "15");
+    expect(timeInput).toHaveAttribute("data-allow-manual-input", "true");
+    fireEvent.change(timeInput, { target: { value: "10:45" } });
+
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
       expect(createExamScheduleMock).toHaveBeenCalledWith(
         expect.objectContaining({
           examType: "e_sinav",
-          time: "09:00",
+          time: "10:45",
           capacity: 20,
         })
       );

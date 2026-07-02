@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { PencilIcon, PlusIcon, TrashIcon } from "../icons";
+import { MebIcon, PencilIcon, PlusIcon, TrashIcon } from "../icons";
 import { VehicleFormModal } from "../modals/VehicleFormModal";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
@@ -10,9 +10,13 @@ import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
+import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
+import { createVehicleInventoryImportJob, getMebbisJob, type MebbisJobResponse } from "../../lib/mebbis-jobs-api";
+import { applyMebbisVehicleInventory } from "../../lib/mebbis-vehicle-import";
 import { canManageArea } from "../../lib/permissions";
 import { candidateKeys } from "../../lib/queries/use-candidates";
+import { useMebbisSessionGuard } from "../../lib/queries/use-mebbis-session";
 import {
   deleteVehicle,
   getVehicles,
@@ -41,6 +45,8 @@ import {
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const SEARCH_DEBOUNCE_MS = 300;
+const MEBBIS_IMPORT_POLL_INTERVAL_MS = 5000;
+const VEHICLE_IMPORT_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 type SortState = { field: VehicleSortField; direction: VehicleSortDirection } | null;
 type VehicleFilterValue<T extends string> = T | "all";
 type VehicleFilters = {
@@ -181,6 +187,7 @@ export function VehiclesSettingsSection() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const mebbisSessionGuard = useMebbisSessionGuard();
   const queryClient = useQueryClient();
   const t = useT();
   const { user, permissions } = useAuth();
@@ -210,6 +217,7 @@ export function VehiclesSettingsSection() {
   const [editing, setEditing] = useState<VehicleResponse | null>(null);
   const [confirmDeleteVehicleId, setConfirmDeleteVehicleId] = useState<string | null>(null);
   const [deletingVehicleId, setDeletingVehicleId] = useState<string | null>(null);
+  const [mebbisImportRunning, setMebbisImportRunning] = useState(false);
   const { options: licenseClassOptions } = useLicenseClassOptions();
   const filterLicenseClassOptions = useMemo(
     () =>
@@ -287,6 +295,97 @@ export function VehiclesSettingsSection() {
     void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const refreshVehiclesAfterMebbisImport = () => {
+    setRefreshKey((current) => current + 1);
+    invalidateVehicleDependents();
+    void queryClient.invalidateQueries({ queryKey: ["settings", "vehicles"] });
+    void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+  };
+
+  const pollMebbisImportJob = async (
+    jobId: string,
+    timeoutMs = VEHICLE_IMPORT_POLL_TIMEOUT_MS
+  ): Promise<MebbisJobResponse | null> => {
+    const timeoutAt = Date.now() + timeoutMs;
+
+    while (Date.now() < timeoutAt) {
+      await new Promise((resolve) => window.setTimeout(resolve, MEBBIS_IMPORT_POLL_INTERVAL_MS));
+
+      let job: MebbisJobResponse;
+      try {
+        job = await getMebbisJob(jobId);
+      } catch (error) {
+        console.error(error);
+        continue;
+      }
+
+      if (job.status === "succeeded") return job;
+      if (["failed", "needs_manual_action", "cancelled"].includes(job.status)) return job;
+    }
+
+    return null;
+  };
+
+  const handleMebbisImport = async () => {
+    if (!canManageTraining || mebbisImportRunning) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+
+    setMebbisImportRunning(true);
+    try {
+      const job = await createVehicleInventoryImportJob();
+      refreshVehiclesAfterMebbisImport();
+      showToast(t("settings.vehicles.mebbisImportQueued"));
+
+      const completedJob = await pollMebbisImportJob(job.id);
+      if (completedJob?.status === "succeeded") {
+        const result = await applyMebbisVehicleInventory(completedJob);
+        refreshVehiclesAfterMebbisImport();
+
+        if (result.importedCount === 0) {
+          showToast(t("settings.vehicles.mebbisImportCompleted"));
+          return;
+        }
+
+        if (result.documentErrorCount > 0) {
+          showToast(
+            t("settings.vehicles.mebbisImportDocumentFailed", {
+              count: String(result.documentErrorCount),
+            }),
+            "error"
+          );
+        }
+
+        showToast(
+          t("settings.vehicles.mebbisImportApplied", {
+            created: String(result.createdCount),
+            updated: String(result.updatedCount),
+            inspections: String(result.inspectionDocumentCount),
+            insurances: String(result.insuranceDocumentCount),
+          })
+        );
+        return;
+      }
+
+      refreshVehiclesAfterMebbisImport();
+      if (completedJob) {
+        showToast(t("settings.vehicles.mebbisImportNeedsManualAction"), "error");
+        return;
+      }
+
+      showToast(t("settings.vehicles.mebbisImportStillRunning"));
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("settings.vehicles.mebbisImportFailed")
+          : t("settings.vehicles.mebbisImportFailed");
+      showToast(message, "error");
+    } finally {
+      setMebbisImportRunning(false);
+    }
   };
 
   const handleSaved = (_saved: VehicleResponse) => {
@@ -398,6 +497,18 @@ export function VehiclesSettingsSection() {
                 <span className="switch-toggle-control" aria-hidden="true" />
                 <span>{t("settings.vehicles.showInactive")}</span>
               </label>
+              <button
+                className="btn btn-secondary btn-sm"
+                disabled={!canManageTraining || mebbisImportRunning}
+                onClick={() => void handleMebbisImport()}
+                title={!canManageTraining ? noPermissionTitle : undefined}
+                type="button"
+              >
+                <MebIcon size={14} />
+                {mebbisImportRunning
+                  ? t("settings.vehicles.mebbisImportRunning")
+                  : t("settings.vehicles.mebbisImportButton")}
+              </button>
               <button
                 className="btn btn-primary btn-sm"
                 disabled={!canManageTraining}

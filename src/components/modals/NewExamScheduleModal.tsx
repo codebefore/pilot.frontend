@@ -17,10 +17,12 @@ import { RequiredMark } from "../ui/RequiredMark";
 import { useToast } from "../ui/Toast";
 import type { ExamCodeOption } from "../../lib/types";
 
+const TIME_24H_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 const newExamScheduleSchema = z.object({
   date: z.string().min(1, "common.required"),
   examCodeId: z.string().optional(),
-  time: z.string().min(1, "common.required"),
+  time: z.string().min(1, "common.required").regex(TIME_24H_PATTERN, "newExamSchedule.error.timeInvalid"),
   capacity: z.number().min(1, "newExamSchedule.error.capacityMin"),
 });
 
@@ -206,6 +208,7 @@ export function NewExamScheduleModal({
             <div className="form-group">
               <label className="form-label">{t("common.field.time")}<RequiredMark /></label>
               <LocalizedTimeInput
+                allowManualInput
                 ariaLabel="Saat"
                 className={fieldClass(!!errors.time, "form-input")}
                 disabled={!canManage}
@@ -218,6 +221,7 @@ export function NewExamScheduleModal({
                     shouldValidate: true,
                   })
                 }
+                stepMinutes={15}
                 value={time}
               />
               {errors.time ? <div className="form-error">{translateError(errors.time.message)}</div> : null}

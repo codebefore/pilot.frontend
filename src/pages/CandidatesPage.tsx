@@ -1051,7 +1051,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     headerClassName: "cand-photo-th",
     cellClassName: "cand-photo-td",
     renderCell: (c) => (
-      <CandidateAvatar candidate={c} className="cand-avatar-cell" />
+      <CandidateAvatar candidate={c} className="cand-avatar-cell" previewOnClick />
     ),
     skeletonWidth: 36,
   },

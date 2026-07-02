@@ -113,6 +113,7 @@ export interface CandidateResponse {
   drivingExamFeeStatus?: CandidateExamFeeStatus | null;
   hasReportedPracticeAttempt?: boolean;
   isTheoryExempt?: boolean;
+  isFree?: boolean;
   totalFee: number;
   totalPaid: number;
   totalDebt: number;
@@ -181,6 +182,7 @@ export interface CandidateUpsertRequest {
   mebExamResult?: string | null;
   eSinavAttemptCount?: number | null;
   drivingExamAttemptCount?: number | null;
+  isFree?: boolean;
   contacts?: CandidateContactUpsertRequest[];
   /** Names only — backend resolves or creates tags by name. */
   tags?: string[];
@@ -1025,6 +1027,7 @@ interface GroupCandidateResponse {
   phoneNumber: string | null;
   photo?: CandidatePhotoSummary | null;
   status: string;
+  mebSyncStatus?: string | null;
   assignedAtUtc: string;
 }
 

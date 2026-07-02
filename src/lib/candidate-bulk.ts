@@ -23,6 +23,7 @@ export type CandidatePayloadOverrides = {
   drivingExamScheduleId?: string | null;
   drivingExamAttemptCount?: number | null;
   graduationDate?: string | null;
+  isFree?: boolean;
 };
 
 type BulkCandidateUpdateResult = {
@@ -78,8 +79,12 @@ export function buildCandidateUpdatePayload(
     firstName: candidate.firstName,
     lastName: candidate.lastName,
     nationalId: candidate.nationalId,
+    identitySerialNumber: candidate.identitySerialNumber,
+    motherName: candidate.motherName,
+    fatherName: candidate.fatherName,
     referenceName: candidate.referenceName,
     phoneNumber: candidate.phoneNumber,
+    address: candidate.address,
     birthDate: candidate.birthDate,
     birthPlace: candidate.birthPlace,
     gender: normalizeCandidateGender(candidate.gender),
@@ -98,11 +103,12 @@ export function buildCandidateUpdatePayload(
       : candidate.drivingExamDate,
     drivingExamScheduleId: hasDrivingExamScheduleOverride
       ? overrides.drivingExamScheduleId
-      : undefined,
+      : candidate.drivingExamScheduleId,
     graduationDate: hasGraduationDateOverride
       ? overrides.graduationDate
       : candidate.graduationDate,
     mebExamResult: hasMebExamResultOverride ? overrides.mebExamResult : candidate.mebExamResult,
+    isFree: overrides?.isFree ?? candidate.isFree ?? false,
     eSinavAttemptCount: hasESinavAttemptCountOverride
       ? overrides.eSinavAttemptCount ?? 1
       : candidate.eSinavAttemptCount ?? 1,
@@ -112,6 +118,14 @@ export function buildCandidateUpdatePayload(
     status: overrides?.status ?? (candidate.status as CandidateStatusValue),
     terminationReason: candidate.terminationReason,
     terminationDate: candidate.terminationDate,
+    contacts: candidate.contacts?.map((contact) => ({
+      id: contact.id,
+      type: contact.type,
+      label: contact.label,
+      value: contact.value,
+      isPrimary: contact.isPrimary,
+      ownerName: contact.ownerName,
+    })) ?? [],
     tags: overrides?.tags ?? (candidate.tags?.map((tag) => tag.name) ?? []),
     rowVersion: candidate.rowVersion,
   };

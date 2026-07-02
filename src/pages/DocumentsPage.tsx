@@ -1308,6 +1308,7 @@ export function DocumentsPage() {
                         <CandidateAvatar
                           candidate={toAvatarCandidate(entry)}
                           className="cand-avatar-cell"
+                          previewOnClick
                           size={30}
                         />
                       </td>

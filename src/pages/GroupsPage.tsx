@@ -550,6 +550,7 @@ export function GroupsPage() {
                 }}
                 className="group-card-avatar"
                 key={candidate.candidateId}
+                previewOnClick
                 size={28}
               />
             ))}

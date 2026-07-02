@@ -93,8 +93,8 @@ export function Sidebar({
     });
   }, [activeParentKeys, activeParentSignature]);
 
-  const openSubmenu = (item: NavItem) => {
-    setOpenSubmenus(new Set([item.key]));
+  const toggleSubmenu = (item: NavItem) => {
+    setOpenSubmenus((current) => (current.has(item.key) ? new Set() : new Set([item.key])));
   };
 
   return (
@@ -141,7 +141,7 @@ export function Sidebar({
                       ]
                         .filter(Boolean)
                         .join(" ")}
-                      onClick={() => openSubmenu(item)}
+                      onClick={() => toggleSubmenu(item)}
                       type="button"
                     >
                       <span className="sidebar-icon">

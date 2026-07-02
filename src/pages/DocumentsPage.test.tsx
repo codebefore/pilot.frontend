@@ -165,7 +165,7 @@ describe("DocumentsPage", () => {
 
     await waitFor(() => expect(getDocumentChecklistMock).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
+    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC, telefon)..."), {
       target: { value: "Ayse" },
     });
 
@@ -186,7 +186,7 @@ describe("DocumentsPage", () => {
 
     await waitFor(() => expect(checklistPageCalls()).toHaveLength(1));
 
-    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
+    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC, telefon)..."), {
       target: { value: "A" },
     });
 
@@ -194,7 +194,7 @@ describe("DocumentsPage", () => {
 
     expect(checklistPageCalls()).toHaveLength(1);
 
-    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC)..."), {
+    fireEvent.change(screen.getByPlaceholderText("Aday ara (ad, TC, telefon)..."), {
       target: { value: "Ay" },
     });
 
