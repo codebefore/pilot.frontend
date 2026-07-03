@@ -7,7 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useT, currentLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/i18n";
 import { PageToolbar } from "../components/layout/PageToolbar";
-import { DownloadIcon, MebIcon, PrintIcon } from "../components/icons";
+import { DownloadIcon, MebIcon } from "../components/icons";
 import {
   NewTrainingPlanModal,
   type TrainingLessonSubmitValues,
@@ -390,6 +390,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const { showToast } = useToast();
   const t = useT();
   const filtersSidebarRef = useRef<HTMLElement | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
@@ -495,6 +496,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   useEffect(() => {
     const sidebar = filtersSidebarRef.current;
@@ -588,6 +590,22 @@ export function TrainingPage({ type }: TrainingPageProps) {
     window.addEventListener("mouseup", handler, true);
     return () => window.removeEventListener("mouseup", handler, true);
   }, []);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && exportMenuRef.current?.contains(target)) {
+        return;
+      }
+
+      setExportMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    return () => window.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [exportMenuOpen]);
 
   useEffect(() => {
     return () => {
@@ -2407,6 +2425,27 @@ export function TrainingPage({ type }: TrainingPageProps) {
         actions={
           type === "teorik" || showBackToCandidateList || selectedTheoryGroup || selectedPracticeCandidate ? (
             <>
+              {selectedTheoryGroup ? (
+                <>
+                  <span className="candidate-bulk-count">
+                    {t("training.quick.deleteGroupLessonsHint", {
+                      count: selectedGroupLessonCount,
+                    })}
+                  </span>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={!canManageTraining || isQuickAssignLoading || isBulkDeleteLoading || selectedGroupLessonCount === 0}
+                    onClick={() => {
+                      if (!canManageTraining) return;
+                      setBulkDeleteGroup(selectedTheoryGroup);
+                    }}
+                    title={!canManageTraining ? noPermissionTitle : undefined}
+                    type="button"
+                  >
+                    {t("training.quick.deleteGroupLessons")}
+                  </button>
+                </>
+              ) : null}
               {type === "teorik" ? (
                 <button
                   className="btn btn-primary btn-sm"
@@ -2438,30 +2477,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
               {type === "teorik" ? (
                 <button
                   className="btn btn-secondary btn-sm"
-                  disabled={!canExportTheoryLessons}
-                  onClick={handleExportTheoryLessonsExcel}
-                  title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}
-                  type="button"
-                >
-                  <DownloadIcon size={14} />
-                  Excel
-                </button>
-              ) : null}
-              {type === "teorik" ? (
-                <button
-                  className="btn btn-secondary btn-sm"
-                  disabled={!canExportTheoryLessons}
-                  onClick={handlePrintTheoryLessonsPdf}
-                  title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}
-                  type="button"
-                >
-                  <PrintIcon size={14} />
-                  PDF
-                </button>
-              ) : null}
-              {type === "teorik" ? (
-                <button
-                  className="btn btn-secondary btn-sm"
                   aria-disabled={
                     canManageMebJobs &&
                     !isQuickAssignLoading &&
@@ -2487,29 +2502,64 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     : t("training.mebbis.import")}
                 </button>
               ) : null}
-              {selectedTheoryGroup ? (
+              {type === "teorik" ? (
+                <div className="payments-export-menu-wrap" ref={exportMenuRef}>
+                  <button
+                    aria-expanded={exportMenuOpen}
+                    className="btn btn-secondary payments-filter-export"
+                    disabled={!canExportTheoryLessons}
+                    onClick={() => setExportMenuOpen((open) => !open)}
+                    title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}
+                    type="button"
+                  >
+                    <DownloadIcon size={14} />
+                    Dışa aktar
+                  </button>
+                  {exportMenuOpen && canExportTheoryLessons ? (
+                    <div className="payments-export-menu" role="menu">
+                      <button
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          handleExportTheoryLessonsExcel();
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        Excel
+                      </button>
+                      <button
+                        onClick={() => {
+                          setExportMenuOpen(false);
+                          handlePrintTheoryLessonsPdf();
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        PDF
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {selectedPracticeCandidate ? (
                 <>
                   <span className="candidate-bulk-count">
                     {t("training.quick.deleteGroupLessonsHint", {
-                      count: selectedGroupLessonCount,
+                      count: selectedCandidateLessonCount,
                     })}
                   </span>
                   <button
                     className="btn btn-danger btn-sm"
-                    disabled={!canManageTraining || isQuickAssignLoading || isBulkDeleteLoading || selectedGroupLessonCount === 0}
+                    disabled={!canManageTraining || isQuickAssignLoading || isBulkDeleteLoading || selectedCandidateLessonCount === 0}
                     onClick={() => {
                       if (!canManageTraining) return;
-                      setBulkDeleteGroup(selectedTheoryGroup);
+                      setBulkDeleteCandidate(selectedPracticeCandidate);
                     }}
                     title={!canManageTraining ? noPermissionTitle : undefined}
                     type="button"
                   >
-                    {t("training.quick.deleteGroupLessons")}
+                    {t("training.quick.deleteCandidateLessons")}
                   </button>
-                </>
-              ) : null}
-              {selectedPracticeCandidate ? (
-                <>
                   <button
                     className="btn btn-secondary btn-sm"
                     aria-disabled={
@@ -2537,23 +2587,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
                     {isMebbisPracticeImportLoading
                       ? t("training.mebbis.importQueuing")
                       : t("training.mebbis.import")}
-                  </button>
-                  <span className="candidate-bulk-count">
-                    {t("training.quick.deleteGroupLessonsHint", {
-                      count: selectedCandidateLessonCount,
-                    })}
-                  </span>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    disabled={!canManageTraining || isQuickAssignLoading || isBulkDeleteLoading || selectedCandidateLessonCount === 0}
-                    onClick={() => {
-                      if (!canManageTraining) return;
-                      setBulkDeleteCandidate(selectedPracticeCandidate);
-                    }}
-                    title={!canManageTraining ? noPermissionTitle : undefined}
-                    type="button"
-                  >
-                    {t("training.quick.deleteCandidateLessons")}
                   </button>
                 </>
               ) : null}
@@ -2617,17 +2650,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   }
                 />
               )}
-              {type === "teorik" ? (
-                <TrainingBranchSummary
-                  branches={branches}
-                  branchHelpers={branchHelpers}
-                  candidates={candidates}
-                  events={events}
-                  groupId={quickSettings.groupId || undefined}
-                  kind={type}
-                  overlayEvents={practiceEventsForOverlay}
-                />
-              ) : null}
               <TrainingFilters
                 allInstructors={instructors}
                 allVehiclesCatalog={vehicles}
@@ -2640,6 +2662,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 visibleGroups={visibleGroups}
                 visibleInstructors={visibleInstructors}
               />
+              {type === "teorik" ? (
+                <TrainingBranchSummary
+                  branches={branches}
+                  branchHelpers={branchHelpers}
+                  candidates={candidates}
+                  events={events}
+                  groupId={quickSettings.groupId || undefined}
+                  kind={type}
+                  overlayEvents={practiceEventsForOverlay}
+                />
+              ) : null}
             </aside>
             {type === "uygulama" && !quickSettings.candidateId ? (
               <PracticeCandidatePicker

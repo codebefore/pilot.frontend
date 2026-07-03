@@ -174,6 +174,15 @@ export const MebIcon = (p?: IconProps) =>
     p
   );
 
+export const MapPinIcon = (p?: IconProps) =>
+  svg(
+    [
+      <path key="1" d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />,
+      <circle key="2" cx="12" cy="10" r="3" />,
+    ],
+    p
+  );
+
 export const ChevronDownIcon = (p?: IconProps) =>
   svg(<polyline points="6 9 12 15 18 9" />, { size: 12, ...p });
 

@@ -468,7 +468,7 @@ export const en: Record<TranslationKey, string> = {
   "groupDrawer.confirm.deleting": "Deleting...",
   "groupDrawer.confirm.yesDelete": "Yes, Delete",
   "groupDrawer.section.info": "Group Info",
-  "groupDrawer.field.capacity": "Capacity",
+  "groupDrawer.field.capacity": "Kontenjan",
   "groupDrawer.field.registeredAt": "Registered At",
   "groupDrawer.action.saveTitle": "Save",
   "groupDrawer.confirm.areYouSure": "Are you sure?",

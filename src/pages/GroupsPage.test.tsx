@@ -6,8 +6,10 @@ import { GroupsPage } from "./GroupsPage";
 import { renderWithProviders } from "../test/render-with-providers";
 
 const getGroupsMock = vi.fn();
+const getGroupByIdMock = vi.fn();
 const getTermsMock = vi.fn();
 const deleteTermMock = vi.fn();
+const getCandidateDocumentsMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -21,8 +23,17 @@ vi.mock("../lib/groups-api", async () => {
   return {
     ...actual,
     getGroups: (...args: Parameters<typeof actual.getGroups>) => getGroupsMock(...args),
-    getGroupById: vi.fn(),
+    getGroupById: (...args: Parameters<typeof actual.getGroupById>) => getGroupByIdMock(...args),
     updateGroup: vi.fn(),
+  };
+});
+
+vi.mock("../lib/documents-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/documents-api")>("../lib/documents-api");
+  return {
+    ...actual,
+    getCandidateDocuments: (...args: Parameters<typeof actual.getCandidateDocuments>) =>
+      getCandidateDocumentsMock(...args),
   };
 });
 
@@ -94,6 +105,30 @@ describe("GroupsPage", () => {
       totalCount: 0,
       totalPages: 1,
     });
+
+    getGroupByIdMock.mockReset();
+    getGroupByIdMock.mockImplementation((id: string) => Promise.resolve({
+      id,
+      title: "1A",
+      term: {
+        id: "term-1",
+        monthDate: "2026-04-01",
+        sequence: 1,
+        name: null,
+      },
+      capacity: 20,
+      assignedCandidateCount: 0,
+      activeCandidateCount: 0,
+      startDate: "2026-04-10",
+      mebStatus: "sent",
+      candidatePreview: [],
+      activeCandidates: [],
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    }));
+
+    getCandidateDocumentsMock.mockReset();
+    getCandidateDocumentsMock.mockResolvedValue([]);
 
     getTermsMock.mockReset();
     getTermsMock.mockResolvedValue({
@@ -434,6 +469,96 @@ describe("GroupsPage", () => {
     expect(screen.getByText("NİSAN 2026 - 1A")).toBeInTheDocument();
     expect(screen.getByText("NİSAN 2026 - 1B")).toBeInTheDocument();
     expect(screen.getByText("NİSAN 2026 / 2 - 2A")).toBeInTheDocument();
+  });
+
+  it("shows the MEB transfer summary under capacity on each group card", async () => {
+    getGroupsMock.mockResolvedValueOnce({
+      items: [
+        {
+          id: "group-meb-summary",
+          title: "1A",
+          term: {
+            id: "term-1",
+            monthDate: "2026-04-01",
+            sequence: 1,
+            name: null,
+          },
+          capacity: 20,
+          assignedCandidateCount: 2,
+          activeCandidateCount: 2,
+          startDate: "2026-04-10",
+          mebStatus: "sent",
+          candidatePreview: [],
+          createdAtUtc: "2026-04-12T10:00:00Z",
+          updatedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getGroupByIdMock.mockResolvedValueOnce({
+      id: "group-meb-summary",
+      title: "1A",
+      term: {
+        id: "term-1",
+        monthDate: "2026-04-01",
+        sequence: 1,
+        name: null,
+      },
+      capacity: 20,
+      assignedCandidateCount: 2,
+      activeCandidateCount: 2,
+      startDate: "2026-04-10",
+      mebStatus: "sent",
+      candidatePreview: [],
+      activeCandidates: [
+        {
+          candidateId: "candidate-transferred",
+          firstName: "Ayse",
+          lastName: "Yilmaz",
+          nationalId: "11111111111",
+          phoneNumber: null,
+          photo: null,
+          status: "active",
+          mebSyncStatus: null,
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+        {
+          candidateId: "candidate-waiting",
+          firstName: "Mehmet",
+          lastName: "Demir",
+          nationalId: "22222222222",
+          phoneNumber: null,
+          photo: null,
+          status: "active",
+          mebSyncStatus: null,
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    });
+    getCandidateDocumentsMock.mockImplementation((candidateId: string) => Promise.resolve(
+      candidateId === "candidate-transferred"
+        ? [{ id: "doc-1", isMebbisTransferred: true }]
+        : []
+    ));
+
+    renderWithProviders(<GroupsPage />);
+
+    const heading = await screen.findByText("NİSAN 2026 - 1A");
+    const card = heading.closest(".group-card") as HTMLElement | null;
+    expect(card).not.toBeNull();
+    if (!card) {
+      throw new Error("Expected group card");
+    }
+
+    expect(within(card).getByText("Kontenjan")).toBeInTheDocument();
+    expect(within(card).getByText("2 / 20")).toBeInTheDocument();
+    expect(within(card).getByText("MEB Durumu")).toBeInTheDocument();
+    expect(await within(card).findByText("1/2")).toBeInTheDocument();
   });
 
   it("groups list view into term sections and keeps a single column picker", async () => {

@@ -7,6 +7,7 @@ import {
   getCandidates,
   removeActiveGroupAssignment,
 } from "../../lib/candidates-api";
+import { getCandidateDocuments } from "../../lib/documents-api";
 import { deleteGroup, getGroupById, updateGroup } from "../../lib/groups-api";
 import {
   parseGroupTitle,
@@ -16,6 +17,7 @@ import {
 import { ApiError } from "../../lib/http";
 import { getGroupValidationToastMessage } from "../../lib/group-validation";
 import { useLanguage, useT } from "../../lib/i18n";
+import { getLicenseClassDefinitions } from "../../lib/license-class-definitions-api";
 import { formatNationalId } from "../../lib/national-id";
 import { candidateKeys } from "../../lib/queries/use-candidates";
 import { groupKeys } from "../../lib/queries/use-groups";
@@ -23,16 +25,16 @@ import { normalizeTextQuery } from "../../lib/search";
 import {
   formatDateTR,
   normalizeCandidateMebSyncStatusValue,
-  groupMebStatusLabel,
-  GROUP_MEB_STATUS_OPTIONS,
   normalizeGroupMebStatusValue,
 } from "../../lib/status-maps";
 import { buildGroupHeading, compareTermsDesc } from "../../lib/term-label";
 import { getTerms } from "../../lib/terms-api";
+import { getTrainingLessons } from "../../lib/training-lessons-api";
 import type {
   GroupDetailResponse,
   GroupUpdateRequest,
   TermResponse,
+  TrainingLessonResponse,
 } from "../../lib/types";
 import { CheckIcon, PencilIcon, PlusIcon, XIcon } from "../icons";
 import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
@@ -56,6 +58,33 @@ type RemoveCandidateConfirmation = {
   name: string;
 };
 
+type MebbisDocumentTransferSummary = {
+  transferredCount: number;
+  totalCount: number;
+  loading: boolean;
+  transferredCandidateIds: Set<string>;
+};
+
+type TheoryEducationSummary = {
+  scheduledHours: number;
+  requiredHours: number | null;
+  loading: boolean;
+};
+
+function formatLessonHours(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function getTrainingLessonDurationHours(lesson: TrainingLessonResponse): number {
+  const start = Date.parse(lesson.startAtUtc);
+  const end = Date.parse(lesson.endAtUtc);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 0;
+  }
+
+  return Math.round(((end - start) / 3_600_000) * 100) / 100;
+}
+
 export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -78,6 +107,19 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   const [removeCandidateConfirm, setRemoveCandidateConfirm] = useState<RemoveCandidateConfirmation | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mebbisDocumentTransferSummary, setMebbisDocumentTransferSummary] =
+    useState<MebbisDocumentTransferSummary>({
+      transferredCount: 0,
+      totalCount: 0,
+      loading: false,
+      transferredCandidateIds: new Set(),
+    });
+  const [theoryEducationSummary, setTheoryEducationSummary] =
+    useState<TheoryEducationSummary>({
+      scheduledHours: 0,
+      requiredHours: null,
+      loading: false,
+    });
   const [mebStatusConfirm, setMebStatusConfirm] = useState<{
     resolve: (confirmed: boolean) => void;
   } | null>(null);
@@ -135,6 +177,117 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       mebStatusConfirmResolveRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const activeCandidates = group?.activeCandidates ?? [];
+    const totalCount = activeCandidates.length;
+    if (!groupId || totalCount === 0) {
+      setMebbisDocumentTransferSummary({
+        transferredCount: 0,
+        totalCount,
+        loading: false,
+        transferredCandidateIds: new Set(),
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    setMebbisDocumentTransferSummary({
+      transferredCount: 0,
+      totalCount,
+      loading: true,
+      transferredCandidateIds: new Set(),
+    });
+
+    void Promise.all(
+      activeCandidates.map(async (candidate) => {
+        try {
+          const documents = await getCandidateDocuments(candidate.candidateId, controller.signal);
+          return {
+            candidateId: candidate.candidateId,
+            isTransferred: documents.some((document) => document.isMebbisTransferred),
+          };
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return {
+              candidateId: candidate.candidateId,
+              isTransferred: false,
+            };
+          }
+          return {
+            candidateId: candidate.candidateId,
+            isTransferred: false,
+          };
+        }
+      })
+    ).then((results) => {
+      if (controller.signal.aborted) return;
+      const transferredCandidateIds = new Set(
+        results
+          .filter((result) => result.isTransferred)
+          .map((result) => result.candidateId)
+      );
+      setMebbisDocumentTransferSummary({
+        transferredCount: transferredCandidateIds.size,
+        totalCount,
+        loading: false,
+        transferredCandidateIds,
+      });
+    });
+
+    return () => controller.abort();
+  }, [group, groupId]);
+
+  useEffect(() => {
+    if (!groupId || !group) {
+      setTheoryEducationSummary({
+        scheduledHours: 0,
+        requiredHours: null,
+        loading: false,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    setTheoryEducationSummary((current) => ({
+      ...current,
+      loading: true,
+    }));
+
+    void Promise.all([
+      getTrainingLessons({ kind: "teorik", groupId }, controller.signal),
+      getLicenseClassDefinitions({ activity: "all", page: 1, pageSize: 500 }, controller.signal),
+    ]).then(([lessons, definitions]) => {
+      if (controller.signal.aborted) return;
+
+      const scheduledHours = lessons.items.reduce(
+        (total, lesson) => total + getTrainingLessonDurationHours(lesson),
+        0
+      );
+      const groupLicenseClasses = group.licenseClassCounts?.map((entry) => entry.licenseClass) ?? [];
+      const requiredHours = groupLicenseClasses
+        .map((licenseClass) => definitions.items.find((definition) => definition.code === licenseClass)?.theoryLessonHours ?? null)
+        .filter((value): value is number => typeof value === "number");
+
+      setTheoryEducationSummary({
+        scheduledHours,
+        requiredHours: requiredHours.length > 0 ? Math.max(...requiredHours) : null,
+        loading: false,
+      });
+    }).catch((error) => {
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+        return;
+      }
+
+      setTheoryEducationSummary({
+        scheduledHours: 0,
+        requiredHours: null,
+        loading: false,
+      });
+    });
+
+    return () => controller.abort();
+  }, [group, groupId]);
 
   // Load term catalog lazily so the term selector can build the correct
   // "Nisan 2026 / 2" style labels and so the user can reassign the group to
@@ -332,18 +485,10 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       invalidateGroupDrawerDependents();
       onDeleted?.();
     } catch (error) {
-      if (error instanceof ApiError) {
-        const message =
-          error.validationErrors?.group?.[0] ??
-          error.validationErrors?.Group?.[0];
-        if (message) {
-          showToast(message, "error");
-        } else {
-          showToast(t("groupDrawer.toast.groupDeleteFailed"), "error");
-        }
-      } else {
-        showToast("Grup silinemedi", "error");
-      }
+      showToast(
+        getGroupValidationToastMessage(error, t) ?? t("groupDrawer.toast.groupDeleteFailed"),
+        "error"
+      );
       setConfirmDelete(false);
     } finally {
       setDeleting(false);
@@ -361,6 +506,12 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     ? buildGroupHeading(group.title, group.term, sortedTerms, lang)
     : t("groupDrawer.title");
   const effectiveSearchQuery = normalizeTextQuery(searchQuery);
+  const mebbisCandidateSummary = mebbisDocumentTransferSummary.loading
+    ? `.../${mebbisDocumentTransferSummary.totalCount}`
+    : `${mebbisDocumentTransferSummary.transferredCount}/${mebbisDocumentTransferSummary.totalCount}`;
+  const theoryEducationSummaryText = theoryEducationSummary.loading
+    ? `.../${theoryEducationSummary.requiredHours === null ? "-" : formatLessonHours(theoryEducationSummary.requiredHours)}`
+    : `${formatLessonHours(theoryEducationSummary.scheduledHours)}/${theoryEducationSummary.requiredHours === null ? "-" : formatLessonHours(theoryEducationSummary.requiredHours)}`;
 
   const actions = confirmDelete ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
@@ -436,16 +587,8 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
               disabledTitle={noPermissionTitle}
               onSave={(v) => saveField({ startDate: v })}
             />
-            <EditableRow
-              displayValue={groupMebStatusLabel(group.mebStatus)}
-              inputValue={normalizeGroupMebStatusValue(group.mebStatus) ?? ""}
-              label="MEB Durumu"
-              disabled={!canManageGroups}
-              disabledTitle={noPermissionTitle}
-              options={GROUP_MEB_STATUS_OPTIONS}
-              onSave={(v) => saveField({ mebStatus: v })}
-            />
-            <DrawerRow label={t("groupDrawer.field.registeredAt")}>{formatDateTR(group.createdAtUtc)}</DrawerRow>
+            <DrawerRow label="MEB Durumu">{mebbisCandidateSummary}</DrawerRow>
+            <DrawerRow label="Teorik Eğitimi">{theoryEducationSummaryText}</DrawerRow>
           </DrawerSection>
 
           <DrawerSection title={`Adaylar (${group.activeCandidates.length} / ${group.capacity})`}>
@@ -453,7 +596,15 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
               <div className="drawer-empty-hint">{t("groupDrawer.empty.noCandidates")}</div>
             ) : (
               group.activeCandidates.map((c) => (
-                <div key={c.candidateId} className="drawer-row candidate-list-row">
+                <div
+                  key={c.candidateId}
+                  className={[
+                    "drawer-row candidate-list-row",
+                    mebbisDocumentTransferSummary.transferredCandidateIds.has(c.candidateId)
+                      ? "is-mebbis-transferred"
+                      : "",
+                  ].filter(Boolean).join(" ")}
+                >
                   <div className="candidate-list-person">
                     <CandidateAvatar
                       candidate={{

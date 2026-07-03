@@ -212,91 +212,93 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
           {loading ? t("training.picker.loading") : t("training.picker.empty")}
         </div>
       ) : viewMode === "list" ? (
-        <table className="practice-picker-table">
-          <thead>
-            <tr>
-              {currentColumns.map((column) => (
-                <th key={column}>{column}</th>
-              ))}
-              <th>{t("training.picker.col.assign")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((candidate) => (
-              <tr
-                className="practice-picker-row"
-                key={candidate.candidateId}
-                onClick={() => onAssign(candidate.candidateId)}
-              >
-                <td className="practice-picker-row-name">
-                  <span>
-                    {candidate.fullName}
-                    <small>{candidate.registrationNumber}</small>
-                  </span>
-                </td>
-                <td>
-                  <span className="license-class-badge">
-                    {candidate.licenseClass}
-                  </span>
-                </td>
-                <td className="practice-picker-row-muted">
-                  {candidate.groupTitle ?? "—"}
-                </td>
-                <td>
-                  <span className="practice-picker-attempt-badge">
-                    {candidate.attemptSlotLabel}
-                  </span>
-                </td>
-                <td>
-                  <div className="practice-picker-row-progress">
-                    <div
-                      aria-hidden="true"
-                      className={
-                        candidate.remainingPracticeHours <= 0
-                          ? "practice-picker-bar practice-picker-bar-done"
-                          : candidate.remainingPracticeHours <= 4
-                            ? "practice-picker-bar practice-picker-bar-almost"
-                            : "practice-picker-bar"
-                      }
-                    >
-                      <div
-                        className="practice-picker-bar-fill"
-                        style={{
-                          width: `${
-                            candidate.targetPracticeHours > 0
-                              ? Math.min(
-                                  100,
-                                  (candidate.completedPracticeHours / candidate.targetPracticeHours) * 100
-                                )
-                              : 0
-                          }%`,
-                        }}
-                      />
-                    </div>
-                    <span className="practice-picker-progress-text">
-                      {formatHours(candidate.completedPracticeHours)} / {formatHours(candidate.targetPracticeHours)}
-                    </span>
-                  </div>
-                </td>
-                <td className="practice-picker-row-muted">
-                  {formatDateTime(candidate.lastPracticeLessonAt)}
-                </td>
-                <td className="practice-picker-action-cell">
-                  <button
-                    aria-label={t("training.picker.openCandidate", {
-                      name: candidate.fullName,
-                    })}
-                    className="practice-picker-assign-btn"
-                    onClick={(event) => openCandidateFromAction(event, candidate.candidateId)}
-                    type="button"
-                  >
-                    <MebIcon size={16} />
-                  </button>
-                </td>
+        <div className="practice-picker-table-wrap">
+          <table className="practice-picker-table">
+            <thead>
+              <tr>
+                {currentColumns.map((column) => (
+                  <th key={column}>{column}</th>
+                ))}
+                <th>{t("training.picker.col.assign")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((candidate) => (
+                <tr
+                  className="practice-picker-row"
+                  key={candidate.candidateId}
+                  onClick={() => onAssign(candidate.candidateId)}
+                >
+                  <td className="practice-picker-row-name">
+                    <span>
+                      {candidate.fullName}
+                      <small>{candidate.registrationNumber}</small>
+                    </span>
+                  </td>
+                  <td>
+                    <span className="license-class-badge">
+                      {candidate.licenseClass}
+                    </span>
+                  </td>
+                  <td className="practice-picker-row-muted">
+                    {candidate.groupTitle ?? "—"}
+                  </td>
+                  <td>
+                    <span className="practice-picker-attempt-badge">
+                      {candidate.attemptSlotLabel}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="practice-picker-row-progress">
+                      <div
+                        aria-hidden="true"
+                        className={
+                          candidate.remainingPracticeHours <= 0
+                            ? "practice-picker-bar practice-picker-bar-done"
+                            : candidate.remainingPracticeHours <= 4
+                              ? "practice-picker-bar practice-picker-bar-almost"
+                              : "practice-picker-bar"
+                        }
+                      >
+                        <div
+                          className="practice-picker-bar-fill"
+                          style={{
+                            width: `${
+                              candidate.targetPracticeHours > 0
+                                ? Math.min(
+                                    100,
+                                    (candidate.completedPracticeHours / candidate.targetPracticeHours) * 100
+                                  )
+                                : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <span className="practice-picker-progress-text">
+                        {formatHours(candidate.completedPracticeHours)} / {formatHours(candidate.targetPracticeHours)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="practice-picker-row-muted">
+                    {formatDateTime(candidate.lastPracticeLessonAt)}
+                  </td>
+                  <td className="practice-picker-action-cell">
+                    <button
+                      aria-label={t("training.picker.openCandidate", {
+                        name: candidate.fullName,
+                      })}
+                      className="practice-picker-assign-btn"
+                      onClick={(event) => openCandidateFromAction(event, candidate.candidateId)}
+                      type="button"
+                    >
+                      <MebIcon size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <ul className="practice-picker-grid">
           {items.map((candidate) => (

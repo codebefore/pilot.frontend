@@ -9,6 +9,7 @@ const navigateMock = vi.hoisted(() => vi.fn());
 const getGroupByIdMock = vi.fn();
 const deleteGroupMock = vi.fn();
 const getCandidatesMock = vi.fn();
+const getCandidateDocumentsMock = vi.fn();
 const updateGroupMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const removeActiveGroupAssignmentMock = vi.fn();
@@ -56,6 +57,15 @@ vi.mock("../../lib/candidates-api", async () => {
   };
 });
 
+vi.mock("../../lib/documents-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/documents-api")>("../../lib/documents-api");
+  return {
+    ...actual,
+    getCandidateDocuments: (...args: Parameters<typeof actual.getCandidateDocuments>) =>
+      getCandidateDocumentsMock(...args),
+  };
+});
+
 function buildGroup(overrides: Record<string, unknown> = {}) {
   return {
     id: "group-1",
@@ -84,11 +94,13 @@ describe("GroupDrawer", () => {
     deleteGroupMock.mockReset();
     getGroupByIdMock.mockReset();
     getCandidatesMock.mockReset();
+    getCandidateDocumentsMock.mockReset();
     updateGroupMock.mockReset();
     assignCandidateGroupMock.mockReset();
     removeActiveGroupAssignmentMock.mockReset();
     navigateMock.mockReset();
     getCandidatesMock.mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 });
+    getCandidateDocumentsMock.mockResolvedValue([]);
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "candidate-transfer",
@@ -137,37 +149,70 @@ describe("GroupDrawer", () => {
     expect(await screen.findByRole("button", { name: "Aday Ekle" })).toBeInTheDocument();
   });
 
-  it("shows a custom confirmation before marking MEB status as sent", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm");
-    getGroupByIdMock.mockResolvedValue(buildGroup({ mebStatus: "not_sent" }));
-    updateGroupMock.mockResolvedValue(buildGroup({ mebStatus: "sent", rowVersion: 2 }));
+  it("renders MEB transfer count summary in the drawer details", async () => {
+    getGroupByIdMock.mockResolvedValue(buildGroup({
+      mebStatus: "sent",
+      activeCandidates: [
+        {
+          candidateId: "candidate-synced",
+          firstName: "Ayse",
+          lastName: "Yilmaz",
+          nationalId: "12345678901",
+          phoneNumber: null,
+          status: "active",
+          mebSyncStatus: "synced",
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+        {
+          candidateId: "candidate-waiting",
+          firstName: "Mehmet",
+          lastName: "Demir",
+          nationalId: "12345678902",
+          phoneNumber: null,
+          status: "active",
+          mebSyncStatus: "not_synced",
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+    }));
+    getCandidateDocumentsMock.mockImplementation((candidateId: string) => {
+      if (candidateId === "candidate-synced") {
+        return Promise.resolve([
+          {
+            id: "doc-1",
+            candidateId,
+            documentTypeId: "doc-type-1",
+            documentTypeKey: "health_report",
+            documentTypeName: "Sağlık Raporu",
+            originalFileName: null,
+            contentType: null,
+            fileSizeBytes: null,
+            isPhysicallyAvailable: true,
+            isMebbisTransferred: true,
+            hasFile: false,
+            note: null,
+            metadata: {},
+            uploadedAtUtc: "2026-04-12T10:00:00Z",
+            createdAtUtc: "2026-04-12T10:00:00Z",
+            updatedAtUtc: "2026-04-12T10:00:00Z",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
 
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
 
-    await screen.findByText("Gönderilmedi");
-    const mebStatusRow = screen.getByText("MEB Durumu").closest(".drawer-row");
-    expect(mebStatusRow).not.toBeNull();
-
-    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Düzenle"));
-    fireEvent.change(within(mebStatusRow as HTMLElement).getByLabelText("MEB Durumu"), {
-      target: { value: "sent" },
-    });
-    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Kaydet"));
-
-    expect(await screen.findByText("Adaylar aktife geçirilecek")).toBeInTheDocument();
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(await screen.findByText("NİSAN 2026 - 1A")).toBeInTheDocument();
+    expect(screen.getByText("MEB Durumu")).toBeInTheDocument();
+    expect(await screen.findByText("1/2")).toBeInTheDocument();
+    expect(screen.getByText("Ayse Yilmaz").closest(".candidate-list-row"))
+      .toHaveClass("is-mebbis-transferred");
+    expect(screen.getByText("Mehmet Demir").closest(".candidate-list-row"))
+      .not.toHaveClass("is-mebbis-transferred");
+    expect(screen.queryByText("Gönderildi")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gönderilmedi")).not.toBeInTheDocument();
     expect(updateGroupMock).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Devam et" }));
-
-    await waitFor(() => {
-      expect(updateGroupMock).toHaveBeenCalledWith(
-        "group-1",
-        expect.objectContaining({ mebStatus: "sent" })
-      );
-    });
-
-    confirmSpy.mockRestore();
   });
 
   it("renders the group code with the term label in the drawer title", async () => {
@@ -468,59 +513,6 @@ describe("GroupDrawer", () => {
         expect.objectContaining({
           groupNumber: 3,
           groupBranch: "C",
-          rowVersion: 1,
-        })
-      );
-    });
-  });
-
-  it("asks before marking MEB status as sent and cancels without updating", async () => {
-    getGroupByIdMock.mockResolvedValue(buildGroup({ mebStatus: "not_sent" }));
-    updateGroupMock.mockResolvedValue(buildGroup({ mebStatus: "sent" }));
-
-    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
-
-    const mebStatusValue = await screen.findByText("Gönderilmedi");
-    const mebStatusRow = mebStatusValue.closest(".drawer-row");
-    expect(mebStatusRow).not.toBeNull();
-    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Düzenle"));
-    fireEvent.change(within(mebStatusRow as HTMLElement).getByLabelText("MEB Durumu"), {
-      target: { value: "sent" },
-    });
-    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Kaydet"));
-
-    expect(await screen.findByText("Adaylar aktife geçirilecek")).toBeInTheDocument();
-    const popover = screen.getByRole("alertdialog", {
-      name: "Adaylar aktife geçirilecek",
-    });
-    fireEvent.click(within(popover).getByRole("button", { name: "Vazgeç" }));
-
-    await waitFor(() => {
-      expect(updateGroupMock).not.toHaveBeenCalled();
-    });
-  });
-
-  it("updates MEB status after activation confirmation", async () => {
-    getGroupByIdMock.mockResolvedValue(buildGroup({ mebStatus: "not_sent" }));
-    updateGroupMock.mockResolvedValue(buildGroup({ mebStatus: "sent" }));
-
-    renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
-
-    const mebStatusValue = await screen.findByText("Gönderilmedi");
-    const mebStatusRow = mebStatusValue.closest(".drawer-row");
-    expect(mebStatusRow).not.toBeNull();
-    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Düzenle"));
-    fireEvent.change(within(mebStatusRow as HTMLElement).getByLabelText("MEB Durumu"), {
-      target: { value: "sent" },
-    });
-    fireEvent.click(within(mebStatusRow as HTMLElement).getByTitle("Kaydet"));
-    fireEvent.click(await screen.findByRole("button", { name: "Devam et" }));
-
-    await waitFor(() => {
-      expect(updateGroupMock).toHaveBeenCalledWith(
-        "group-1",
-        expect.objectContaining({
-          mebStatus: "sent",
           rowVersion: 1,
         })
       );

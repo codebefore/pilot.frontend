@@ -11,7 +11,7 @@ import { formatPhoneDisplay } from "../lib/phone";
 
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateNotesPanel } from "../components/candidates/CandidateNotesPanel";
-import { CameraIcon, CheckIcon, MebIcon, PencilIcon, PrintIcon, RotateCwIcon, ScannerIcon, TrashIcon, UploadCloudIcon, XIcon } from "../components/icons";
+import { CameraIcon, CheckIcon, MapPinIcon, MebIcon, PencilIcon, PrintIcon, RotateCwIcon, ScannerIcon, TrashIcon, UploadCloudIcon, XIcon } from "../components/icons";
 import { DocumentScannerModal } from "../components/modals/DocumentScannerModal";
 import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
@@ -2653,10 +2653,6 @@ function Field({ label, value }: { label: string; value: string }) {
       <span className="value">{value}</span>
     </div>
   );
-}
-
-function candidateMebbisStatusLabel(status: string | null | undefined): string {
-  return status === "synced" ? "Gönderildi" : "Gönderilmedi";
 }
 
 function buildCandidateExamEvents(
@@ -9577,21 +9573,27 @@ function CandidateDocumentOneByOneTransferModal({
                 </div>
                 </li>
                 {isContractFront ? (
-                  <li
-                    className="candidate-detail-doc-transfer-row candidate-detail-doc-transfer-address-row"
-                    onClick={() => void handleOpenMebbisCandidateAddressPage()}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      void handleOpenMebbisCandidateAddressPage();
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    title="MEBBİS adres sayfasını aç"
-                  >
-                    <div className="candidate-detail-doc-transfer-address-label">Adres</div>
-                    <div className={`candidate-detail-doc-transfer-address${candidateAddress ? "" : " is-empty"}`}>
-                      <strong>{candidateAddress || "Adres yok"}</strong>
+                  <li className="candidate-detail-doc-transfer-row candidate-detail-doc-transfer-address-row">
+                    <div className="candidate-detail-doc-transfer-address-icon" aria-hidden="true">
+                      <MapPinIcon size={24} />
+                    </div>
+                    <div className="candidate-detail-doc-transfer-info">
+                      <strong>Adres</strong>
+                      <span className={`candidate-detail-doc-transfer-address${candidateAddress ? "" : " is-empty"}`}>
+                        {candidateAddress || "Adres yok"}
+                      </span>
+                    </div>
+                    <div className="candidate-detail-doc-transfer-action">
+                      <button
+                        className="btn btn-primary btn-sm"
+                        aria-disabled={!batchTransferRunning && !transferringTypeId && mebbisSessionGuard.disabled}
+                        disabled={batchTransferRunning || !!transferringTypeId}
+                        onClick={() => void handleOpenMebbisCandidateAddressPage()}
+                        title={mebbisSessionGuard.disabled ? mebbisSessionGuard.message : "MEBBİS adres sayfasını aç"}
+                        type="button"
+                      >
+                        Aktar
+                      </button>
                     </div>
                   </li>
                 ) : null}

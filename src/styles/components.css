@@ -447,10 +447,11 @@
 .group-term-section-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 6px;
 }
 .group-term-section-stat {
-  min-width: 110px;
+  min-width: 84px;
+  text-align: center;
 }
 .group-term-section-stat strong {
   display: block;
@@ -464,18 +465,25 @@
   font-size: 12px;
   color: var(--gray-500);
 }
-.group-term-section-stat-license {
-  position: relative;
-  padding-left: 16px;
+.group-term-section-license-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-left: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--gray-200);
 }
-.group-term-section-stat-license::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 2px;
-  bottom: 2px;
-  width: 1px;
-  background: var(--gray-200);
+.group-term-section-stat-license {
+  min-width: 44px;
+  text-align: center;
+}
+.group-term-section-stat-license strong {
+  font-size: 16px;
+}
+.group-term-section-stat-license span {
+  font-size: 11px;
 }
 .group-term-section .groups-page-grid {
   padding: 0;
@@ -516,6 +524,11 @@
   .group-term-section-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .group-term-section-license-group {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
   }
 }
 @media (max-width: 640px) {
@@ -1105,6 +1118,10 @@
 
 /* ─── CANDIDATE LIST (inside GroupDrawer) ─── */
 .candidate-list-row { gap: 8px; }
+.candidate-list-row.is-mebbis-transferred {
+  border-color: color-mix(in srgb, var(--success-300) 58%, var(--gray-200));
+  background: color-mix(in srgb, var(--success-50) 72%, var(--white));
+}
 .candidate-list-person {
   flex: 1;
   min-width: 0;

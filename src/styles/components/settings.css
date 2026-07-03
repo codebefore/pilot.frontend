@@ -1793,19 +1793,8 @@
   grid-template-columns: 164px minmax(0, 1fr) 112px;
 }
 .candidate-detail-doc-transfer-row.candidate-detail-doc-transfer-address-row {
-  grid-template-columns: 164px minmax(0, 1fr);
-  min-height: 0;
-  align-items: start;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.candidate-detail-doc-transfer-row.candidate-detail-doc-transfer-address-row:hover {
-  border-color: color-mix(in srgb, var(--primary-300, #93c5fd) 70%, var(--gray-200));
-  background: color-mix(in srgb, var(--primary-50, #eff6ff) 45%, var(--white));
-}
-.candidate-detail-doc-transfer-row.candidate-detail-doc-transfer-address-row:focus-visible {
-  outline: 2px solid var(--primary-500, #2563eb);
-  outline-offset: 2px;
+  grid-template-columns: 164px minmax(0, 1fr) 112px;
+  min-height: 72px;
 }
 .candidate-detail-doc-transfer-row.status-missing {
   background: color-mix(in srgb, var(--gray-50) 60%, var(--white));
@@ -1870,34 +1859,29 @@
   color: var(--gray-600);
   font-size: 12px;
 }
-.candidate-detail-doc-transfer-address-label {
-  color: var(--gray-600);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.35;
+.candidate-detail-doc-transfer-address-icon {
+  width: 72px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  border: 1px solid color-mix(in srgb, var(--gray-200) 80%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--gray-50, #f9fafb) 80%, var(--white));
+  color: var(--gray-500);
 }
 .candidate-detail-doc-transfer-address {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding-top: 2px;
-}
-.candidate-detail-doc-transfer-address > span {
-  color: var(--gray-500);
-  font-size: 11px;
-  line-height: 1.2;
-}
-.candidate-detail-doc-transfer-address > strong {
   display: -webkit-box;
   overflow: hidden;
   color: var(--gray-700);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.35;
+  white-space: normal;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.candidate-detail-doc-transfer-address.is-empty > strong {
+.candidate-detail-doc-transfer-address.is-empty {
   color: var(--gray-500);
   font-weight: 400;
 }
@@ -1929,6 +1913,10 @@
   }
   .candidate-detail-doc-transfer-row.candidate-detail-doc-transfer-address-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .candidate-detail-doc-transfer-address-icon {
+    justify-self: stretch;
+    width: 100%;
   }
   .candidate-detail-doc-transfer-preview-pair {
     grid-template-columns: repeat(2, minmax(0, 72px));
@@ -4442,6 +4430,31 @@
 .group-card-heading {
   min-width: 0;
   flex: 1;
+  display: flex;
+  align-items: center;
+}
+.group-card-heading-badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 32px;
+  padding-left: 12px;
+  color: var(--gray-900);
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.group-card-heading-badge::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 4px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--brand);
 }
 .group-card-avatar-stack {
   display: flex;

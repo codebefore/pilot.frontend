@@ -466,7 +466,7 @@ export const tr = {
   "groupDrawer.confirm.deleting": "Siliniyor...",
   "groupDrawer.confirm.yesDelete": "Evet, Sil",
   "groupDrawer.section.info": "Grup Bilgileri",
-  "groupDrawer.field.capacity": "Kapasite",
+  "groupDrawer.field.capacity": "Kontenjan",
   "groupDrawer.field.registeredAt": "Kayıt Tarihi",
   "groupDrawer.action.saveTitle": "Kaydet",
   "groupDrawer.confirm.areYouSure": "Emin misiniz?",

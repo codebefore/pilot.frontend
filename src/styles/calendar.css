@@ -64,7 +64,7 @@
 }
 
 .training-mebbis-actions {
-  padding: 0;
+  padding: 0 0 25px;
 }
 
 .training-mebbis-actions .btn {
@@ -102,10 +102,10 @@
 /* ─── Filtre paneli ───────────────────────────────────────── */
 .training-filters {
   flex: 0 0 200px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius);
-  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
   /* Scroll/sticky artık `.training-filters-sidebar` üzerinde —
    * bu eleman daima sidebar içinde render ediliyor, kendi sticky'sine
    * gerek yok. */
@@ -115,7 +115,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 25px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -124,17 +124,20 @@
 }
 
 .training-filters-section {
-  margin-top: 8px;
+  margin-top: 0;
+  padding: 12px 10px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
 }
 
 .training-filters-section + .training-filters-section {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid var(--gray-100);
+  margin-top: 0;
 }
 
 .training-filters-section-panel {
-  padding: 10px 0;
+  margin-top: 4px;
+  padding: 4px 0 10px;
   border-top: 1px solid var(--gray-100);
   border-bottom: 1px solid var(--gray-100);
 }
@@ -424,6 +427,7 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 /* ─── Aday kart galerisi (uygulama eğitim sayfası boş geliş) ── */
 .practice-picker {
   flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -574,17 +578,27 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 }
 
 /* Liste modu — gerçek tablo. */
+.practice-picker-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 25px;
+  overflow: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+}
+
 .practice-picker-table {
   width: 100%;
   border-collapse: collapse;
   background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  overflow: hidden;
   font-size: 12px;
 }
 
 .practice-picker-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   text-align: left;
   padding: 8px 10px;
   font-size: 10px;
@@ -1673,7 +1687,14 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   gap: 10px;
   flex: 0 1 auto;
   min-height: 0;
+  max-height: 250px;
   overflow: hidden;
+}
+
+.training-quick-assign .training-filters-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 180px;
 }
 
 .training-quick-assign-header {

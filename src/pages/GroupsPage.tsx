@@ -14,8 +14,9 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
+import { getCandidateDocuments } from "../lib/documents-api";
 import { parseGroupTitle } from "../lib/group-code";
-import { getGroups } from "../lib/groups-api";
+import { getGroupById, getGroups } from "../lib/groups-api";
 import { ApiError, isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { getInstitutionSettings } from "../lib/institution-settings-api";
@@ -28,6 +29,7 @@ import {
   formatDateTR,
   groupMebStatusLabel,
   groupMebStatusToPill,
+  normalizeGroupMebStatusValue,
 } from "../lib/status-maps";
 import {
   buildGroupHeading,
@@ -73,6 +75,12 @@ type GroupTermSection = {
   activeCandidateCount: number;
 };
 
+type GroupMebbisDocumentSummary = {
+  transferredCount: number;
+  totalCount: number;
+  loading: boolean;
+};
+
 const GROUP_FETCH_PAGE_SIZE = 100;
 const GROUP_COLUMNS: GroupColumnDef[] = [
   {
@@ -105,12 +113,7 @@ const GROUP_COLUMNS: GroupColumnDef[] = [
     id: "mebStatus",
     labelKey: "groups.table.mebStatus",
     skeletonWidth: 76,
-    renderCell: (group) => (
-      <StatusPill
-        label={groupMebStatusLabel(group.mebStatus)}
-        status={groupMebStatusToPill(group.mebStatus)}
-      />
-    ),
+    renderCell: (group) => renderGroupMebStatusPill(group.mebStatus),
   },
   {
     id: "createdAtUtc",
@@ -138,6 +141,23 @@ const GROUP_SEARCH_DEBOUNCE_MS = 300;
 const TERM_FETCH_PAGE_SIZE = 10;
 const TERM_MENU_SCROLL_THRESHOLD_PX = 32;
 const TERM_PAGE_SCROLL_THRESHOLD_PX = 1200;
+
+function renderGroupMebStatusPill(mebStatus: string | null): ReactNode {
+  if (normalizeGroupMebStatusValue(mebStatus) === "sent") {
+    return null;
+  }
+
+  return (
+    <StatusPill
+      label={groupMebStatusLabel(mebStatus)}
+      status={groupMebStatusToPill(mebStatus)}
+    />
+  );
+}
+
+function formatLicenseClassDisplay(value: string): string {
+  return value === "B-OTOMATIK" ? "B-O" : value;
+}
 
 function compareGroupsByTitle(
   a: GroupResponse,
@@ -193,10 +213,14 @@ export function GroupsPage() {
   const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
   const [search, setSearch] = useState("");
   const [groupPage, setGroupPage] = useState(1);
+  const [groupMebbisDocumentSummaries, setGroupMebbisDocumentSummaries] =
+    useState<Record<string, GroupMebbisDocumentSummary>>({});
+  const [groupMebbisSummaryRefreshKey, setGroupMebbisSummaryRefreshKey] = useState(0);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const termLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const requestedGroupMebbisSummaryIdsRef = useRef<Set<string>>(new Set());
   const visibleColumns = GROUP_COLUMNS.filter((column) => isVisible(column.id));
   const pickerOptions: ColumnOption[] = GROUP_COLUMNS.map((column) => ({
     id: column.id,
@@ -408,12 +432,18 @@ export function GroupsPage() {
   const handleGroupCreated = () => {
     setModalOpen(false);
     showToast(t("groups.created"));
+    requestedGroupMebbisSummaryIdsRef.current.clear();
+    setGroupMebbisDocumentSummaries({});
+    setGroupMebbisSummaryRefreshKey((key) => key + 1);
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
   };
 
   const handleGroupUpdated = () => {
+    requestedGroupMebbisSummaryIdsRef.current.clear();
+    setGroupMebbisDocumentSummaries({});
+    setGroupMebbisSummaryRefreshKey((key) => key + 1);
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
@@ -421,6 +451,9 @@ export function GroupsPage() {
 
   const handleGroupDeleted = () => {
     setSelectedGroupId(null);
+    requestedGroupMebbisSummaryIdsRef.current.clear();
+    setGroupMebbisDocumentSummaries({});
+    setGroupMebbisSummaryRefreshKey((key) => key + 1);
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
@@ -491,23 +524,110 @@ export function GroupsPage() {
     return Array.from({ length: DEFAULT_LOADING_TERM_SECTION_COUNT }, () => null);
   }, [selectedTerm, sortedTerms]);
 
+  const visibleGroupCardGroups = useMemo(
+    () => viewMode === "cards" ? visibleTermSections.flatMap((section) => section.groups) : [],
+    [viewMode, visibleTermSections]
+  );
+
+  useEffect(() => {
+    const pendingGroups = visibleGroupCardGroups.filter((group) =>
+      group.activeCandidateCount > 0 &&
+      !groupMebbisDocumentSummaries[group.id] &&
+      !requestedGroupMebbisSummaryIdsRef.current.has(group.id)
+    );
+    if (pendingGroups.length === 0) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    pendingGroups.forEach((group) => {
+      requestedGroupMebbisSummaryIdsRef.current.add(group.id);
+    });
+    setGroupMebbisDocumentSummaries((current) => {
+      const next = { ...current };
+      pendingGroups.forEach((group) => {
+        next[group.id] = {
+          transferredCount: 0,
+          totalCount: group.activeCandidateCount,
+          loading: true,
+        };
+      });
+      return next;
+    });
+
+    pendingGroups.forEach((group) => {
+      void (async () => {
+        try {
+          const detail = await getGroupById(group.id, abortController.signal);
+          const activeCandidates = detail.activeCandidates ?? [];
+          const transferredFlags = await Promise.all(
+            activeCandidates.map(async (candidate) => {
+              try {
+                const documents = await getCandidateDocuments(candidate.candidateId, abortController.signal);
+                return documents.some((document) => document.isMebbisTransferred);
+              } catch (error) {
+                if (isAbortError(error)) {
+                  throw error;
+                }
+                return false;
+              }
+            })
+          );
+
+          if (abortController.signal.aborted) {
+            return;
+          }
+
+          setGroupMebbisDocumentSummaries((current) => ({
+            ...current,
+            [group.id]: {
+              transferredCount: transferredFlags.filter(Boolean).length,
+              totalCount: activeCandidates.length,
+              loading: false,
+            },
+          }));
+        } catch (error) {
+          if (abortController.signal.aborted || isAbortError(error)) {
+            return;
+          }
+
+          setGroupMebbisDocumentSummaries((current) => ({
+            ...current,
+            [group.id]: {
+              transferredCount: 0,
+              totalCount: group.activeCandidateCount,
+              loading: false,
+            },
+          }));
+        }
+      })();
+    });
+  }, [groupMebbisSummaryRefreshKey, visibleGroupCardGroups]);
+
   const emptyMessage = t("groups.empty.noGroupsForTab");
+
+  const getGroupMebbisDocumentSummaryText = (group: GroupResponse) => {
+    const summary = groupMebbisDocumentSummaries[group.id];
+    if (!summary) {
+      return group.activeCandidateCount > 0 ? `.../${group.activeCandidateCount}` : "0/0";
+    }
+
+    return summary.loading
+      ? `.../${summary.totalCount}`
+      : `${summary.transferredCount}/${summary.totalCount}`;
+  };
 
   const renderGroupCard = (group: GroupResponse) => {
     const licenseClassCounts = group.licenseClassCounts ?? [];
+    const groupHeading = buildGroupHeading(group.title, group.term, termLabelContext, lang);
 
     return (
       <div className="panel group-card" key={group.id} onClick={() => setSelectedGroupId(group.id)}>
         <div className="panel-header group-card-header">
           <div className="group-card-heading">
-            <span className="panel-title">
-              {buildGroupHeading(group.title, group.term, termLabelContext, lang)}
-            </span>
+            <span className="group-card-heading-badge">{groupHeading}</span>
           </div>
-          <StatusPill
-            label={groupMebStatusLabel(group.mebStatus)}
-            status={groupMebStatusToPill(group.mebStatus)}
-          />
+          {renderGroupMebStatusPill(group.mebStatus)}
         </div>
         <div className="group-body">
           <div className="drawer-row">
@@ -515,6 +635,10 @@ export function GroupsPage() {
             <span className="value">
               {group.assignedCandidateCount} / {group.capacity}
             </span>
+          </div>
+          <div className="drawer-row">
+            <span className="label">MEB Durumu</span>
+            <span className="value">{getGroupMebbisDocumentSummaryText(group)}</span>
           </div>
           <div className="drawer-row">
             <span className="label">{t("groups.card.startDate")}</span>
@@ -532,7 +656,7 @@ export function GroupsPage() {
                   })}
                 >
                   <strong>{entry.count}</strong>
-                  <span>{entry.licenseClass}</span>
+                  <span>{formatLicenseClassDisplay(entry.licenseClass)}</span>
                 </span>
               ))}
             </div>
@@ -591,12 +715,16 @@ export function GroupsPage() {
             <strong>%{occupancyRate}</strong>
             <span>{t("groups.section.occupancy")}</span>
           </div>
-          {licenseClassCounts.map((entry) => (
-            <div className="group-term-section-stat group-term-section-stat-license" key={entry.licenseClass}>
-              <strong>{entry.count}</strong>
-              <span>{entry.licenseClass}</span>
+          {licenseClassCounts.length > 0 && (
+            <div className="group-term-section-license-group">
+              {licenseClassCounts.map((entry) => (
+                <div className="group-term-section-stat group-term-section-stat-license" key={entry.licenseClass}>
+                  <strong>{entry.count}</strong>
+                  <span>{formatLicenseClassDisplay(entry.licenseClass)}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     );
