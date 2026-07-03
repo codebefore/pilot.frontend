@@ -188,6 +188,8 @@ export interface CandidateUpsertRequest {
   tags?: string[];
   reuseFromCandidateId?: string | null;
   documentIdsToCopy?: string[];
+  /** Used only on create to atomically assign the initial training group. */
+  groupId?: string | null;
   /** Required for updates; omitted on create. */
   rowVersion?: number;
 }

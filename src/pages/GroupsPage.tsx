@@ -143,7 +143,9 @@ const TERM_MENU_SCROLL_THRESHOLD_PX = 32;
 const TERM_PAGE_SCROLL_THRESHOLD_PX = 1200;
 
 function renderGroupMebStatusPill(mebStatus: string | null): ReactNode {
-  if (normalizeGroupMebStatusValue(mebStatus) === "sent") {
+  const normalizedMebStatus = normalizeGroupMebStatusValue(mebStatus);
+
+  if (normalizedMebStatus === null || normalizedMebStatus === "not_sent" || normalizedMebStatus === "sent") {
     return null;
   }
 

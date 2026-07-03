@@ -533,7 +533,10 @@ describe("NewCandidateModal", () => {
 
     await waitFor(() => {
       expect(createCandidateMock).toHaveBeenCalled();
-      expect(assignCandidateGroupMock).toHaveBeenCalledWith("candidate-1", "group-1");
+      expect(createCandidateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ groupId: "group-1" })
+      );
+      expect(assignCandidateGroupMock).not.toHaveBeenCalled();
     });
   });
 

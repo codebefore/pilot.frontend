@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import {
-  assignCandidateGroup,
   createCandidate,
   getCandidateReuseSources,
 } from "../../lib/candidates-api";
@@ -386,10 +385,8 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
           ? data.reuseFromCandidateId || null
           : null,
         documentIdsToCopy: data.documentIdsToCopy,
+        groupId: data.groupId || null,
       });
-      if (data.groupId) {
-        await assignCandidateGroup(candidate.id, data.groupId);
-      }
 
       invalidateNewCandidateDependents();
       showToast(t("newCandidate.toast.success"));

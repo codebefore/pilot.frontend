@@ -29,14 +29,6 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
-    try {
-      const stored = localStorage.getItem("pilot.training.pickerView");
-      return stored === "list" ? "list" : "grid";
-    } catch {
-      return "grid";
-    }
-  });
 
   useEffect(() => {
     const id = window.setTimeout(
@@ -79,15 +71,6 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
       });
     return () => controller.abort();
   }, [debouncedSearch, page, tab]);
-
-  const switchView = (next: "grid" | "list") => {
-    setViewMode(next);
-    try {
-      localStorage.setItem("pilot.training.pickerView", next);
-    } catch {
-      /* ignore */
-    }
-  };
 
   const formatDateTime = (value: string | null) => {
     if (!value) return "—";
@@ -134,7 +117,13 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
   };
 
   const formatHours = (value: number) => {
-    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return String(value);
+
+    return numericValue.toLocaleString(currentLocale(), {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: 0,
+    });
   };
 
   return (
@@ -147,36 +136,6 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
               ? t("training.picker.loading")
               : t("training.picker.subtitle", { count: totalCount })}
           </span>
-        </div>
-        <div className="practice-picker-header-actions">
-          <div className="practice-picker-view-toggle" role="group">
-            <button
-              aria-pressed={viewMode === "grid"}
-              className={
-                viewMode === "grid"
-                  ? "practice-picker-view-btn practice-picker-view-btn-active"
-                  : "practice-picker-view-btn"
-              }
-              onClick={() => switchView("grid")}
-              title={t("training.picker.view.grid")}
-              type="button"
-            >
-              ▦
-            </button>
-            <button
-              aria-pressed={viewMode === "list"}
-              className={
-                viewMode === "list"
-                  ? "practice-picker-view-btn practice-picker-view-btn-active"
-                  : "practice-picker-view-btn"
-              }
-              onClick={() => switchView("list")}
-              title={t("training.picker.view.list")}
-              type="button"
-            >
-              ☰
-            </button>
-          </div>
         </div>
       </header>
 
@@ -211,7 +170,7 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
         <div className="practice-picker-empty">
           {loading ? t("training.picker.loading") : t("training.picker.empty")}
         </div>
-      ) : viewMode === "list" ? (
+      ) : (
         <div className="practice-picker-table-wrap">
           <table className="practice-picker-table">
             <thead>
@@ -299,62 +258,6 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
             </tbody>
           </table>
         </div>
-      ) : (
-        <ul className="practice-picker-grid">
-          {items.map((candidate) => (
-            <li key={candidate.candidateId}>
-              <div
-                className="practice-picker-card"
-                onClick={() => onAssign(candidate.candidateId)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onAssign(candidate.candidateId);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="practice-picker-card-head">
-                  <div className="practice-picker-card-name">
-                    <strong>{candidate.fullName}</strong>
-                    <span className="license-class-badge">
-                      {candidate.licenseClass}
-                    </span>
-                  </div>
-                  <button
-                    aria-label={t("training.picker.openCandidate", {
-                      name: candidate.fullName,
-                    })}
-                    className="practice-picker-assign-btn"
-                    onClick={(event) => openCandidateFromAction(event, candidate.candidateId)}
-                    type="button"
-                  >
-                    <MebIcon size={16} />
-                  </button>
-                </div>
-
-                <div className="practice-picker-card-progress">
-                  <span>
-                    {candidate.completedPracticeHours} / {candidate.targetPracticeHours}
-                  </span>
-                  <span>{candidate.attemptSlotLabel}</span>
-                </div>
-
-                <div className="practice-picker-card-meta">
-                  <span>{candidate.groupTitle ?? "—"}</span>
-                  <span>
-                    {candidate.lastPracticeLessonAt
-                      ? t("training.picker.lastLesson", {
-                          at: formatDateTime(candidate.lastPracticeLessonAt),
-                        })
-                      : t("training.picker.noLessonsYet")}
-                  </span>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
       )}
 
       {totalPages > 1 ? (

@@ -924,6 +924,12 @@ export function ManageDocumentModal({
       invalidateDocumentMutationDependents();
       onSaved();
     } catch (error) {
+      if (error instanceof ApiError && error.status === 413) {
+        setFileError(t("uploadDoc.errors.fileTooLarge"));
+        showToast(t("uploadDoc.errors.fileTooLarge"), "error");
+        return;
+      }
+
       // Apply note field errors via applyApiErrorsToForm
       const { applied, unmappedMessages } = applyApiErrorsToForm(error, setError, {
         translateCode: (code, params) => t(code as TranslationKey, params),
