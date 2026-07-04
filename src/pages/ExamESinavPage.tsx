@@ -35,6 +35,7 @@ export function ExamESinavPage() {
       showBulkStatusAction={true}
       showCreateCandidateAction={false}
       showFiltersAction={false}
+      showTabCounts={true}
       tabConfig={{
         tabs,
         defaultTab: "havuz",

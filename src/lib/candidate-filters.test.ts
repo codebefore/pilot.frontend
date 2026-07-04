@@ -39,16 +39,16 @@ describe("countActiveCandidateFilters", () => {
     expect(
       filtersToQuery({
         ...EMPTY_CANDIDATE_FILTERS,
-        examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
-        examAttemptCount: ["2", "3"],
+        examStatus: ["e_sinav_havuz", "direksiyon_basarisiz", "direksiyon_basarili"],
+        examAttemptCount: ["e_sinav_2", "direksiyon_3"],
         totalFeeMin: "1000",
         totalFeeMax: "5000",
         totalPaidMin: "300",
         totalDebtMax: "2500",
       })
     ).toMatchObject({
-      examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
-      examAttemptCount: [2, 3],
+      examStatus: ["e_sinav_havuz", "direksiyon_basarisiz", "direksiyon_basarili"],
+      examAttemptCount: ["e_sinav_2", "direksiyon_3"],
       totalFeeMin: 1000,
       totalFeeMax: 5000,
       totalPaidMin: 300,

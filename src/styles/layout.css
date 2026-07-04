@@ -611,6 +611,9 @@
   }
 }
 .page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   padding: 12px 16px;
   font-size: 13px; font-weight: 600;
   color: var(--gray-500);
@@ -619,6 +622,20 @@
 }
 .page-tab:hover { color: var(--gray-900); }
 .page-tab.active { color: var(--brand-dark); border-bottom-color: var(--brand); }
+.page-tab-count {
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+.page-tab.active .page-tab-count {
+  background: rgba(0, 82, 204, 0.1);
+  color: var(--brand-dark);
+}
 
 /* ─── DASH HEADER ─── */
 .dashboard-page {

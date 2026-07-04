@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { useT } from "../../lib/i18n";
-import { normalizeSearchComparable } from "../../lib/search";
 import type {
   TrainingCalendarEvent,
   TrainingEventKind,
@@ -32,7 +31,30 @@ type VehicleFilterOption = {
   key: string;
   label: string;
   licenseClass: string;
+  isSimulator: boolean;
 };
+
+function getLicenseClassSortRank(licenseClass: string): number {
+  const ranks = licenseClass
+    .split(",")
+    .map((part) => part.trim().toLocaleUpperCase("tr-TR").match(/[A-Z]/)?.[0])
+    .filter((letter): letter is string => Boolean(letter))
+    .map((letter) => letter.charCodeAt(0) - "A".charCodeAt(0));
+  return ranks.length ? Math.min(...ranks) : Number.POSITIVE_INFINITY;
+}
+
+function compareVehicleFilterOptions(a: VehicleFilterOption, b: VehicleFilterOption): number {
+  if (a.isSimulator !== b.isSimulator) return a.isSimulator ? -1 : 1;
+  const licenseClassOrder =
+    getLicenseClassSortRank(a.licenseClass) - getLicenseClassSortRank(b.licenseClass);
+  if (licenseClassOrder !== 0) return licenseClassOrder;
+  const licenseClassLabelOrder = a.licenseClass.localeCompare(b.licenseClass, "tr", {
+    sensitivity: "base",
+    numeric: true,
+  });
+  if (licenseClassLabelOrder !== 0) return licenseClassLabelOrder;
+  return a.label.localeCompare(b.label, "tr", { sensitivity: "base", numeric: true });
+}
 
 function getVehicleFilterKey(vehicle: VehicleResponse): string {
   return vehicle.plateNumber.trim() || vehicle.id;
@@ -54,6 +76,7 @@ function vehicleFilterOptionFromCatalog(
     key: getVehicleFilterKey(vehicle),
     label: getVehicleFilterLabel(vehicle, fallbackLabel),
     licenseClass: vehicle.isSimulator ? allLicenseClassLabel : vehicle.licenseClasses.join(", "),
+    isSimulator: vehicle.isSimulator,
   };
 }
 
@@ -147,6 +170,7 @@ export function TrainingFilters({
           key,
           label: eventVehiclePlate || noVehicleLabel,
           licenseClass: "",
+          isSimulator: false,
         });
       }
     });
@@ -160,40 +184,15 @@ export function TrainingFilters({
         );
         map.set(option.key, option);
       });
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "tr"));
+    return Array.from(map.values()).sort(compareVehicleFilterOptions);
   }, [ownEvents, allVehiclesCatalog, kind, noVehicleLabel, t]);
-
-  // Search state'leri.
-  const [instructorSearch, setInstructorSearch] = useState("");
-  const [vehicleSearch, setVehicleSearch] = useState("");
-
-  const filteredInstructors = useMemo(() => {
-    const q = normalizeSearchComparable(instructorSearch);
-    if (!q) return instructors;
-    return instructors.filter((i) =>
-      normalizeSearchComparable(i.name).includes(q)
-    );
-  }, [instructors, instructorSearch]);
-
-  const filteredVehicles = useMemo(() => {
-    const q = normalizeSearchComparable(vehicleSearch);
-    if (!q) return vehicles;
-    return vehicles.filter((v) => normalizeSearchComparable(v.label).includes(q));
-  }, [vehicles, vehicleSearch]);
 
   return (
     <aside className="training-filters">
       {kind === "uygulama" ? (
         <section className="training-filters-section">
-          <input
-            className="training-filters-search"
-            onChange={(e) => setVehicleSearch(e.target.value)}
-            placeholder={t("training.filter.searchPlaceholder")}
-            type="search"
-            value={vehicleSearch}
-          />
           <ul className="training-filters-list training-filters-list-scroll">
-            {filteredVehicles.map((vehicle) => {
+            {vehicles.map((vehicle) => {
               const checked = visibleGroups?.has(vehicle.key) ?? false;
               return (
                 <li key={vehicle.key}>
@@ -219,7 +218,7 @@ export function TrainingFilters({
                 </li>
               );
             })}
-            {filteredVehicles.length === 0 ? (
+            {vehicles.length === 0 ? (
               <li className="training-filters-empty">
                 {t("training.filter.noMatches")}
               </li>
@@ -229,17 +228,8 @@ export function TrainingFilters({
       ) : null}
 
       <section className="training-filters-section">
-        {kind === "uygulama" ? (
-          <input
-            className="training-filters-search"
-            onChange={(e) => setInstructorSearch(e.target.value)}
-            placeholder={t("training.filter.searchPlaceholder")}
-            type="search"
-            value={instructorSearch}
-          />
-        ) : null}
         <ul className="training-filters-list training-filters-list-scroll">
-          {filteredInstructors.map((instructor) => {
+          {instructors.map((instructor) => {
             const checked = visibleInstructors.has(instructor.id);
             return (
               <li key={instructor.id}>
@@ -261,7 +251,7 @@ export function TrainingFilters({
               </li>
             );
           })}
-          {filteredInstructors.length === 0 ? (
+          {instructors.length === 0 ? (
             <li className="training-filters-empty">
               {t("training.filter.noMatches")}
             </li>

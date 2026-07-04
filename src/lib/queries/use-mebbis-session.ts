@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { getMebbisSessionStatus } from "../mebbis-jobs-api";
+import { getLocalAgentMebbisSession } from "../local-agent-api";
 import { useAuth } from "../auth";
 import { useToast } from "../../components/ui/Toast";
 
@@ -12,14 +12,14 @@ export function useMebbisSessionGuard() {
   const { activeInstitution, user } = useAuth();
   const sessionQuery = useQuery({
     queryKey: ["mebbis", "session", "status", activeInstitution?.id ?? "no-institution", user?.id ?? "anonymous"],
-    queryFn: ({ signal }) => getMebbisSessionStatus(signal),
+    queryFn: ({ signal }) => getLocalAgentMebbisSession(signal),
     refetchInterval: 30_000,
     enabled: Boolean(activeInstitution && user),
   });
 
   const sessionOpen = useMemo(() => {
-    return sessionQuery.data?.isOpen === true;
-  }, [sessionQuery.data?.isOpen]);
+    return sessionQuery.data?.status === "connected";
+  }, [sessionQuery.data?.status]);
 
   const warnSessionRequired = useCallback(() => {
     showToast(MEBBIS_SESSION_REQUIRED_MESSAGE, "error");
@@ -31,7 +31,7 @@ export function useMebbisSessionGuard() {
     try {
       const result = await sessionQuery.refetch();
       refetchCompleted = true;
-      if (result.data?.isOpen === true) return true;
+      if (result.data?.status === "connected") return true;
     } catch {
       // Fall through to the user-facing warning below.
     }
@@ -43,7 +43,7 @@ export function useMebbisSessionGuard() {
   }, [sessionOpen, sessionQuery, warnSessionRequired]);
 
   return {
-    disabled: false,
+    disabled: !sessionOpen,
     ensureSessionAsync,
     message: MEBBIS_SESSION_REQUIRED_MESSAGE,
     sessionOpen,

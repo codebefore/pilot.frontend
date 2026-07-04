@@ -472,6 +472,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
     queryFn: ({ signal }) => getVehicles({ activity: "active", page: 1, pageSize: 100 }, signal),
   });
   const vehicles: VehicleResponse[] = vehiclesQuery.data?.items ?? EMPTY_VEHICLES;
+  const simulatorVehicleIds = useMemo(
+    () => new Set(vehicles.filter((vehicle) => vehicle.isSimulator).map((vehicle) => vehicle.id)),
+    [vehicles]
+  );
 
   const classroomsQuery = useQuery({
     queryKey: ["training", "classrooms"],
@@ -559,6 +563,34 @@ export function TrainingPage({ type }: TrainingPageProps) {
     });
     return () => controller.abort();
   }, [type, quickSettings.candidateId, candidates]);
+
+  const selectedPracticeCandidateLessonsQuery = useQuery({
+    queryKey: ["training", "lessons", "candidate", quickSettings.candidateId],
+    queryFn: ({ signal }) =>
+      getTrainingLessons(
+        {
+          kind: "uygulama",
+          candidateId: quickSettings.candidateId,
+        },
+        signal
+      ),
+    enabled: type === "uygulama" && Boolean(quickSettings.candidateId),
+  });
+  const selectedPracticeCandidateEvents = useMemo<TrainingCalendarEvent[]>(
+    () =>
+      type === "uygulama" && quickSettings.candidateId
+        ? selectedPracticeCandidateLessonsQuery.data?.items.map(trainingLessonToCalendarEvent) ?? []
+        : [],
+    [quickSettings.candidateId, selectedPracticeCandidateLessonsQuery.data, type]
+  );
+  const eventsWithSelectedCandidateLessons = useMemo<TrainingCalendarEvent[]>(() => {
+    if (type !== "uygulama" || !quickSettings.candidateId) return events;
+    const byId = new Map(selectedPracticeCandidateEvents.map((event) => [event.id, event]));
+    for (const event of events) {
+      byId.set(event.id, event);
+    }
+    return Array.from(byId.values());
+  }, [events, quickSettings.candidateId, selectedPracticeCandidateEvents, type]);
 
   const [isBranchPickerOpen, setIsBranchPickerOpen] = useState(false);
   // Uygulama akışında slot tıklayınca eğitim türü popover'ı açılır;
@@ -987,7 +1019,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return mebbisImportedFocusDate;
     }
     if (!quickSettings.candidateId) return null;
-    const earliest = events
+    const earliest = eventsWithSelectedCandidateLessons
       .filter(
         (e) => e.kind === "uygulama" && e.candidateId === quickSettings.candidateId
       )
@@ -1001,6 +1033,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     quickSettings.groupId,
     quickSettings.candidateId,
     mebbisImportedFocusDate,
+    eventsWithSelectedCandidateLessons,
     groups,
   ]);
 
@@ -1049,7 +1082,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
 
     const practiceLessonNumberById = new Map<string, number>();
     const practiceEventsByCandidate = new Map<string, TrainingCalendarEvent[]>();
-    for (const event of uniqueEventsById([...events, ...practiceEventsForOverlay])) {
+    for (const event of uniqueEventsById([...eventsWithSelectedCandidateLessons, ...practiceEventsForOverlay])) {
       if (event.kind !== "uygulama" || !event.candidateId) continue;
       const candidateEvents = practiceEventsByCandidate.get(event.candidateId) ?? [];
       candidateEvents.push(event);
@@ -1076,7 +1109,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
     //    (visibleGroups = plaka set) ve eğitmen filtreleri OR olarak
     //    çalışır — işaretli olan eksenden gelen tüm dersler görünür.
     const filtered: TrainingCalendarEvent[] = [];
-    for (const e of events) {
+    for (const e of eventsWithSelectedCandidateLessons) {
       if (type === "uygulama") {
         const focusedCandidate = quickSettings.candidateId;
         if (focusedCandidate) {
@@ -1265,7 +1298,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return displayLessonNumber ? { ...event, displayLessonNumber } : event;
     });
   }, [
-    events,
+    eventsWithSelectedCandidateLessons,
     branchHelpers,
     visibleGroups,
     visibleInstructors,
@@ -2059,10 +2092,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
   );
   const selectedCandidateLessonCount = useMemo(() => {
     if (type !== "uygulama" || !quickSettings.candidateId) return 0;
-    return events.filter(
+    return eventsWithSelectedCandidateLessons.filter(
       (event) => event.kind === "uygulama" && event.candidateId === quickSettings.candidateId
     ).length;
-  }, [events, quickSettings.candidateId, type]);
+  }, [eventsWithSelectedCandidateLessons, quickSettings.candidateId, type]);
   const bulkDeleteGroupLessonCount = useMemo(() => {
     if (!bulkDeleteGroup) return 0;
     return events.filter(
@@ -2694,6 +2727,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   onSelectEvent={handleSelectEvent}
                   onSelectSlot={handleSelectSlot}
                   readOnly={!canManageTraining}
+                  simulatorVehicleIds={simulatorVehicleIds}
                 />
               </div>
             )}

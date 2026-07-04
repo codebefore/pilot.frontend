@@ -290,8 +290,22 @@ const CANDIDATE_PRINT_FORM_OPTIONS = [
   "İmza örneği",
   "Ücretsiz kursiyer formu",
   "Direksiyon takip çizelgesi",
+  "K Belgesi",
   "100 ceza puanı belgesi",
 ] as const;
+
+function isPenaltyPointsLicenseClass(licenseClass: string | null | undefined): boolean {
+  return (licenseClass ?? "").replace(/\s+/g, "").toLocaleUpperCase("tr-TR") === "100CP";
+}
+
+async function fetchOptional<T>(promise: Promise<T> | null): Promise<T | null> {
+  if (!promise) return null;
+  try {
+    return await promise;
+  } catch {
+    return null;
+  }
+}
 
 const candidateTargetFeeMatrixKey = (year: number, targetLicenseClass: string) =>
   ["finance", "license-class-fee-matrix", year, targetLicenseClass] as const;
@@ -962,12 +976,46 @@ function CandidateHero({
         contractFeeMatrixYear,
         { targetLicenseClass: candidate.licenseClass },
         signal
-      ),
+    ),
     staleTime: 5 * 60 * 1000,
+  });
+  const kCertificateLessonsQuery = useQuery({
+    enabled: printFormsOpen,
+    queryKey: ["training", "lessons", "k-certificate", candidate.id],
+    queryFn: ({ signal }) =>
+      getTrainingLessons(
+        {
+          kind: "uygulama",
+          candidateId: candidate.id,
+        },
+        signal
+      ),
+    staleTime: 60 * 1000,
+  });
+  const kCertificatesQuery = useQuery({
+    enabled: printFormsOpen,
+    queryKey: ["candidates", "k-certificates", candidate.id],
+    queryFn: ({ signal }) => listCandidateKCertificates(candidate.id, signal),
+    staleTime: 60 * 1000,
   });
   const statusLabel = candidateStatusLabel(candidate.status);
   const statusPill = candidateStatusToPill(candidate.status);
   const fullName = `${candidate.firstName} ${candidate.lastName}`;
+  const hasPenaltyPointsLicenseClass = isPenaltyPointsLicenseClass(candidate.licenseClass);
+  const kCertificateLessons = kCertificateLessonsQuery.data?.items ?? [];
+  const kCertificateRows = [
+    ...buildKCertificateRows(kCertificateLessons, candidate.registrationNumber, candidate.id),
+    ...(kCertificatesQuery.data ?? []).map(kCertificateResponseToRow),
+  ];
+  const latestValidKCertificate = latestValidKCertificateRow(kCertificateRows, candidate.drivingExamDate);
+  const kCertificatePrintLoading =
+    kCertificateLessonsQuery.isFetching ||
+    kCertificatesQuery.isFetching;
+  const printFormOptions = CANDIDATE_PRINT_FORM_OPTIONS.filter((label) => {
+    if (label === "100 ceza puanı belgesi") return hasPenaltyPointsLicenseClass;
+    if (label === "Direksiyon takip çizelgesi") return !hasPenaltyPointsLicenseClass;
+    return true;
+  });
   const hasExistingLicenseInfo = candidateHasExistingLicense(candidate);
   const existingLicense = hasExistingLicenseInfo && candidate.existingLicenseType
     ? existingLicenseTypeLabel(candidate.existingLicenseType)
@@ -1053,7 +1101,35 @@ function CandidateHero({
   };
 
   const handlePrintForm = async (label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]) => {
-    if ((label !== "Kayıt sözleşmesi" && label !== "İmza örneği") || contractGenerating) return;
+    if (contractGenerating) return;
+
+    if (label === "K Belgesi") {
+      if (!latestValidKCertificate) {
+        showToast("Yazdırılabilecek geçerli K belgesi bulunamadı.", "error");
+        return;
+      }
+      setPrintFormsOpen(false);
+      setContractGenerating(true);
+      try {
+        await printCandidateKCertificatePdf({
+          candidate,
+          row: latestValidKCertificate,
+          lessons: kCertificateLessons,
+          routeName: null,
+          t,
+        });
+      } catch (error) {
+        const message = error instanceof Error
+          ? error.message
+          : "K belgesi dosyası hazırlanamadı.";
+        showToast(message, "error");
+      } finally {
+        setContractGenerating(false);
+      }
+      return;
+    }
+
+    if (label !== "Kayıt sözleşmesi" && label !== "İmza örneği") return;
     setPrintFormsOpen(false);
 
     if (label === "İmza örneği") {
@@ -1194,10 +1270,15 @@ function CandidateHero({
               </button>
               {printFormsOpen ? (
                 <div className="candidate-detail-print-popover" role="menu" aria-label="Form yazdır">
-                  {CANDIDATE_PRINT_FORM_OPTIONS.map((label) => (
+                  {printFormOptions.map((label) => (
                     <button
                       className="candidate-detail-print-popover-item"
-                      disabled={contractGenerating || (label !== "Kayıt sözleşmesi" && label !== "İmza örneği")}
+                      disabled={
+                        contractGenerating ||
+                        (label === "K Belgesi"
+                          ? kCertificatePrintLoading || !latestValidKCertificate
+                          : label !== "Kayıt sözleşmesi" && label !== "İmza örneği")
+                      }
                       key={label}
                       onClick={() => void handlePrintForm(label)}
                       role="menuitem"
@@ -2879,8 +2960,15 @@ function LicenseInfoTab({
       }
 
       showToast(t(groupId ? "candidateDetail.license.toast.groupAssigned" : "candidateDetail.license.toast.groupRemoved"));
-    } catch {
-      showToast(t("candidateDetail.license.toast.groupSaveFailed"), "error");
+    } catch (error) {
+      showToast(
+        candidateGroupAssignmentErrorMessage(
+          error,
+          t("candidateDetail.license.toast.groupSaveFailed"),
+          t
+        ),
+        "error"
+      );
       throw new Error("save failed");
     }
   };
@@ -3742,6 +3830,26 @@ function accountingErrorMessage(
   }
   if (firstMessage.includes("Refund amount")) return t("candidateDetail.accounting.error.refundExceeded");
   if (firstMessage.includes("Cancellation reason")) return t("candidateDetail.accounting.error.cancellationReasonRequired");
+  return firstMessage;
+}
+
+function candidateGroupAssignmentErrorMessage(
+  error: unknown,
+  fallback: string,
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string,
+): string {
+  if (!(error instanceof ApiError)) return fallback;
+  const messages = Object.values(error.validationErrors ?? {}).flat();
+  const firstMessage = messages[0];
+  if (!firstMessage) return fallback;
+
+  if (firstMessage.includes("Group capacity") && firstMessage.includes("already full")) {
+    const capacity = firstMessage.match(/\((\d+)\)/)?.[1];
+    return capacity
+      ? t("candidateDetail.license.toast.groupCapacityFullWithCapacity", { capacity })
+      : t("candidateDetail.license.toast.groupCapacityFull");
+  }
+
   return firstMessage;
 }
 
@@ -7861,6 +7969,85 @@ function kCertificateResponseToRow(certificate: CandidateKCertificateResponse): 
   };
 }
 
+function findKCertificateLesson(
+  lessons: TrainingLessonResponse[],
+  row: KCertificateRow
+): TrainingLessonResponse | null {
+  return lessons.find((lesson) => {
+    const lessonDate = dateOnlyInTurkey(lesson.startAtUtc);
+    return lessonDate
+      ? compareDateOnly(lessonDate, row.startDate) >= 0 && compareDateOnly(lessonDate, row.expiryDate) <= 0
+      : false;
+  }) ?? null;
+}
+
+function latestValidKCertificateRow(
+  rows: KCertificateRow[],
+  latestDrivingExamDate: string | null | undefined
+): KCertificateRow | null {
+  const validRows = rows.filter((row) => kCertificateStatus(row, latestDrivingExamDate) === "valid");
+  if (validRows.length === 0) return null;
+  return [...validRows].sort((left, right) => {
+    const startCompare = compareDateOnly(right.startDate, left.startDate);
+    if (startCompare !== 0) return startCompare;
+    const expiryCompare = compareDateOnly(right.expiryDate, left.expiryDate);
+    if (expiryCompare !== 0) return expiryCompare;
+    if (left.persisted !== right.persisted) return right.persisted ? 1 : -1;
+    return 0;
+  })[0];
+}
+
+async function printCandidateKCertificatePdf({
+  candidate,
+  row,
+  lessons,
+  routeName,
+  t,
+}: {
+  candidate: CandidateResponse;
+  row: KCertificateRow;
+  lessons: TrainingLessonResponse[];
+  routeName: string | null;
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+}): Promise<void> {
+  const printWindow = openCandidateContractPrintWindow("K Belgesi");
+  if (!printWindow) {
+    throw new Error("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.");
+  }
+
+  const lesson = findKCertificateLesson(lessons, row);
+  try {
+    const [institution, managerResponse, instructor, vehicle, biometricPhoto] = await Promise.all([
+      fetchOptional(getInstitutionSettings()),
+      fetchOptional(getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 1 })),
+      fetchOptional(lesson?.instructorId ? getInstructor(lesson.instructorId) : null),
+      fetchOptional(lesson?.vehicleId ? getVehicle(lesson.vehicleId) : null),
+      loadCandidateKCertificateBiometricPhoto(candidate),
+    ]);
+    const manager = managerResponse?.items.find((item) => item.isActive && item.role === "manager") ?? null;
+    const managerName = manager
+      ? `${manager.firstName} ${manager.lastName}`.trim()
+      : null;
+    const request = buildCandidateKCertificateRenderPdfRequest({
+      candidate,
+      certificate: row,
+      institution,
+      managerName,
+      lesson,
+      instructor,
+      vehicle,
+      vehicleTypeLabel: vehicleTypeForLicenseClass(candidate.licenseClass, t),
+      routeName,
+      biometricPhoto,
+    });
+    const blob = await renderCandidateContractPdf(request);
+    printCandidateContractPdf(printWindow, blob);
+  } catch (error) {
+    printWindow.close();
+    throw error;
+  }
+}
+
 function CandidateKCertificateSection({
   canManageCandidates,
   candidate,
@@ -7905,9 +8092,6 @@ function CandidateKCertificateSection({
 
   useEffect(() => {
     const controller = new AbortController();
-    const from = new Date(2000, 0, 1);
-    const to = addDays(new Date(), 365);
-    to.setHours(23, 59, 59, 999);
 
     setLoading(true);
     setError(null);
@@ -7916,8 +8100,6 @@ function CandidateKCertificateSection({
         {
           kind: "uygulama",
           candidateId: candidate.id,
-          fromUtc: from.toISOString(),
-          toUtc: to.toISOString(),
         },
         controller.signal
       ),
@@ -7995,24 +8177,6 @@ function CandidateKCertificateSection({
     setDeleteConfirmRowId(null);
   };
 
-  const findKCertificateLesson = (row: KCertificateRow): TrainingLessonResponse | null => {
-    return lessons.find((lesson) => {
-      const lessonDate = dateOnlyInTurkey(lesson.startAtUtc);
-      return lessonDate
-        ? compareDateOnly(lessonDate, row.startDate) >= 0 && compareDateOnly(lessonDate, row.expiryDate) <= 0
-        : false;
-    }) ?? null;
-  };
-
-  const fetchOptional = async <T,>(promise: Promise<T> | null): Promise<T | null> => {
-    if (!promise) return null;
-    try {
-      return await promise;
-    } catch {
-      return null;
-    }
-  };
-
   const openRoutePicker = (row: KCertificateRow, event: MouseEvent<HTMLButtonElement>) => {
     if (printingRowId) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -8033,42 +8197,17 @@ function CandidateKCertificateSection({
     if (printingRowId) return;
     setRoutePickerRow(null);
     setRoutePickerPosition(null);
-    const printWindow = openCandidateContractPrintWindow("K Belgesi");
-    if (!printWindow) {
-      showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
-      return;
-    }
 
     setPrintingRowId(row.id);
     try {
-      const lesson = findKCertificateLesson(row);
-      const [institution, managerResponse, instructor, vehicle, biometricPhoto] = await Promise.all([
-        fetchOptional(getInstitutionSettings()),
-        fetchOptional(getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 1 })),
-        fetchOptional(lesson?.instructorId ? getInstructor(lesson.instructorId) : null),
-        fetchOptional(lesson?.vehicleId ? getVehicle(lesson.vehicleId) : null),
-        loadCandidateKCertificateBiometricPhoto(candidate),
-      ]);
-      const manager = managerResponse?.items.find((item) => item.isActive && item.role === "manager") ?? null;
-      const managerName = manager
-        ? `${manager.firstName} ${manager.lastName}`.trim()
-        : null;
-      const request = buildCandidateKCertificateRenderPdfRequest({
+      await printCandidateKCertificatePdf({
         candidate,
-        certificate: row,
-        institution,
-        managerName,
-        lesson,
-        instructor,
-        vehicle,
-        vehicleTypeLabel: vehicleTypeForLicenseClass(candidate.licenseClass, t),
+        row,
+        lessons,
         routeName,
-        biometricPhoto,
+        t,
       });
-      const blob = await renderCandidateContractPdf(request);
-      printCandidateContractPdf(printWindow, blob);
     } catch (error) {
-      printWindow.close();
       const message = error instanceof Error
         ? error.message
         : "K belgesi dosyası hazırlanamadı.";
@@ -11570,8 +11709,6 @@ function TrainingTab({
         {
           kind: "uygulama",
           candidateId: candidate.id,
-          fromUtc: from.toISOString(),
-          toUtc: to.toISOString(),
         },
         controller.signal
       ),

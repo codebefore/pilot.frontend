@@ -77,12 +77,12 @@ function formatMoney(amount: number | null | undefined): string {
 }
 
 function firstPhone(candidate: CandidateResponse): string | null {
-  return candidate.phoneNumber ?? candidate.contacts?.find((contact) => contact.isPrimary)?.value ?? null;
+  return candidate.phoneNumber ?? candidate.contacts?.find((contact) => contact.type === "phone" && contact.isPrimary)?.value ?? null;
 }
 
 function secondPhone(candidate: CandidateResponse): string | null {
   const primary = firstPhone(candidate);
-  return candidate.contacts?.find((contact) => contact.value !== primary)?.value ?? null;
+  return candidate.contacts?.find((contact) => contact.type === "phone" && contact.value !== primary)?.value ?? null;
 }
 
 function feeRowLessonTotal(row: LicenseClassFeeRowResponse | null): number | null {

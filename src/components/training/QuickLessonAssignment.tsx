@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 
 import { useT } from "../../lib/i18n";
-import { normalizeSearchComparable } from "../../lib/search";
 import type { ClassroomResponse, GroupResponse } from "../../lib/types";
 
 type QuickLessonAssignmentProps = {
@@ -21,7 +20,6 @@ export function QuickLessonAssignment({
 }: QuickLessonAssignmentProps) {
   const t = useT();
   const [visibleGroupCount, setVisibleGroupCount] = useState(10);
-  const [groupSearch, setGroupSearch] = useState("");
   const groupListRef = useRef<HTMLUListElement | null>(null);
   const groupListSentinelRef = useRef<HTMLLIElement | null>(null);
 
@@ -40,16 +38,9 @@ export function QuickLessonAssignment({
         }),
     [groups]
   );
-  const filteredGroups = useMemo(() => {
-    const q = normalizeSearchComparable(groupSearch);
-    if (!q) return sortedGroups;
-    return sortedGroups.filter((group) =>
-      normalizeSearchComparable(group.title).includes(q)
-    );
-  }, [sortedGroups, groupSearch]);
   const visibleGroups = useMemo(
-    () => filteredGroups.slice(0, visibleGroupCount),
-    [filteredGroups, visibleGroupCount]
+    () => sortedGroups.slice(0, visibleGroupCount),
+    [sortedGroups, visibleGroupCount]
   );
 
   useEffect(() => {
@@ -57,7 +48,7 @@ export function QuickLessonAssignment({
     if (groupListRef.current) {
       groupListRef.current.scrollTop = 0;
     }
-  }, [groups, groupSearch]);
+  }, [groups]);
 
   const toggle = (id: string) => {
     if (isLoading) return;
@@ -69,24 +60,24 @@ export function QuickLessonAssignment({
 
   const showMoreGroups = useCallback(() => {
     setVisibleGroupCount((current) =>
-      current >= filteredGroups.length
+      current >= sortedGroups.length
         ? current
-        : Math.min(current + 10, filteredGroups.length)
+        : Math.min(current + 10, sortedGroups.length)
     );
-  }, [filteredGroups.length]);
+  }, [sortedGroups.length]);
 
   useEffect(() => {
     const el = groupListRef.current;
-    if (!el || visibleGroupCount >= filteredGroups.length) return;
+    if (!el || visibleGroupCount >= sortedGroups.length) return;
     if (el.scrollHeight <= el.clientHeight + 1) {
       showMoreGroups();
     }
-  }, [filteredGroups.length, showMoreGroups, visibleGroupCount]);
+  }, [showMoreGroups, sortedGroups.length, visibleGroupCount]);
 
   useEffect(() => {
     const root = groupListRef.current;
     const sentinel = groupListSentinelRef.current;
-    if (!root || !sentinel || visibleGroupCount >= filteredGroups.length) return;
+    if (!root || !sentinel || visibleGroupCount >= sortedGroups.length) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -99,7 +90,7 @@ export function QuickLessonAssignment({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [filteredGroups.length, showMoreGroups, visibleGroupCount]);
+  }, [showMoreGroups, sortedGroups.length, visibleGroupCount]);
 
   const handleGroupsScroll = (event: UIEvent<HTMLUListElement>) => {
     const el = event.currentTarget;
@@ -110,13 +101,6 @@ export function QuickLessonAssignment({
 
   return (
     <div className="training-quick-assign">
-      <input
-        className="training-quick-group-search"
-        onChange={(event) => setGroupSearch(event.target.value)}
-        placeholder={t("training.filter.searchPlaceholder")}
-        type="search"
-        value={groupSearch}
-      />
       <ul
         className="training-filters-list training-filters-list-scroll"
         onScroll={handleGroupsScroll}
@@ -158,12 +142,12 @@ export function QuickLessonAssignment({
             </li>
           );
         })}
-        {filteredGroups.length === 0 ? (
+        {sortedGroups.length === 0 ? (
           <li className="training-filters-empty">
             {t("training.filter.noMatches")}
           </li>
         ) : null}
-        {visibleGroups.length < filteredGroups.length ? (
+        {visibleGroups.length < sortedGroups.length ? (
           <li
             aria-hidden="true"
             className="training-filters-scroll-sentinel"

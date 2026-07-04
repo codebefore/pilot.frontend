@@ -16,6 +16,7 @@ interface CandidateGroupSummary {
   groupId: string;
   title: string;
   startDate: string | null;
+  createdAtUtc?: string;
   term: GroupTermRef;
   assignedAtUtc: string;
 }

@@ -32,6 +32,9 @@ export type CandidateSortField =
   | "licenseClass"
   | "status"
   | "groupTitle"
+  | "groupCreatedAtUtc"
+  | "eSinavDate"
+  | "drivingExamDate"
   | "examAttemptCount"
   | "drivingExamAttemptCount"
   | "drivingExamAttendanceStatus"
@@ -66,7 +69,7 @@ export interface GetCandidatesParams extends QueryParams {
   hasExamResult?: boolean;
   mebExamResult?: string;
   examStatus?: readonly string[];
-  examAttemptCount?: readonly number[];
+  examAttemptCount?: readonly string[];
   drivingExamAttendanceStatus?: string;
   licenseClasses?: readonly LicenseClass[];
   firstName?: string;

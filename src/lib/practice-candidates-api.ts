@@ -8,11 +8,28 @@ const trainingRequestOptions = (signal?: AbortSignal) => ({
 });
 
 export type PracticeCandidateTab = "all" | "havuz" | "basarisiz" | "randevulu";
+export type PracticeCandidateSortField =
+  | "name"
+  | "licenseClass"
+  | "groupTitle"
+  | "theoryExamDate"
+  | "drivingExamDate"
+  | "attemptNumber"
+  | "progress"
+  | "lastPracticeLessonAt";
+export type PracticeCandidateSortDirection = "asc" | "desc";
 
 export type PracticeCandidateListItem = {
   candidateId: string;
   registrationNumber: string;
   fullName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  gender?: string | null;
+  photo?: {
+    documentId: string;
+    kind: string;
+  } | null;
   licenseClass: string;
   groupId: string | null;
   groupTitle: string | null;
@@ -26,9 +43,34 @@ export type PracticeCandidateListItem = {
   tabStatus: Exclude<PracticeCandidateTab, "all">;
 };
 
+export type PracticeCandidateTabCounts = {
+  all: number;
+  havuz: number;
+  basarisiz: number;
+  randevulu: number;
+};
+
+export type PracticeCandidateFilterOptions = {
+  licenseClasses: string[];
+  groups: {
+    id: string;
+    title: string;
+  }[];
+};
+
+export type PracticeCandidateListResponse = PagedResponse<PracticeCandidateListItem> & {
+  tabCounts: PracticeCandidateTabCounts;
+  filterOptions: PracticeCandidateFilterOptions;
+};
+
 export interface GetPracticeCandidatesParams extends QueryParams {
   tab?: PracticeCandidateTab;
   search?: string;
+  licenseClasses?: readonly string[];
+  groupIds?: readonly string[];
+  attemptNumbers?: readonly number[];
+  sortBy?: PracticeCandidateSortField;
+  sortDir?: PracticeCandidateSortDirection;
   page?: number;
   pageSize?: number;
 }
@@ -36,8 +78,8 @@ export interface GetPracticeCandidatesParams extends QueryParams {
 export function getPracticeCandidates(
   params?: GetPracticeCandidatesParams,
   signal?: AbortSignal
-): Promise<PagedResponse<PracticeCandidateListItem>> {
-  return httpGet<PagedResponse<PracticeCandidateListItem>>(
+): Promise<PracticeCandidateListResponse> {
+  return httpGet<PracticeCandidateListResponse>(
     "/api/training/practice-candidates",
     params,
     trainingRequestOptions(signal)

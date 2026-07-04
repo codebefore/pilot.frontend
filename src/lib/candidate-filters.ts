@@ -6,14 +6,23 @@ export type TriState = "" | "true" | "false";
 export type CandidateExamStatusFilterValue =
   | "havuz"
   | "randevulu"
+  | "e_sinav_havuz"
+  | "direksiyon_havuz"
   | "e_sinav_randevulu"
   | "direksiyon_randevulu"
+  | "e_sinav_basarisiz"
+  | "direksiyon_basarisiz"
+  | "direksiyon_basarili"
   | "basarisiz"
   | "basarili"
   | "parked"
   | "graduated"
   | "dropped";
-export type CandidateExamAttemptCountFilterValue = "1" | "2" | "3" | "4" | "5";
+type CandidateExamAttemptNumberFilterValue = "1" | "2" | "3" | "4" | "5";
+export type CandidateExamAttemptCountFilterValue =
+  | CandidateExamAttemptNumberFilterValue
+  | `e_sinav_${CandidateExamAttemptNumberFilterValue}`
+  | `direksiyon_${CandidateExamAttemptNumberFilterValue}`;
 
 /**
  * Extended filter state for the Filtreler sidebar. All fields are stored as
@@ -175,8 +184,6 @@ export function filtersToQuery(filters: CandidateFilterState) {
     examAttemptCount:
       filters.examAttemptCount.length > 0
         ? filters.examAttemptCount
-            .map((value) => numericOrUndefined(value))
-            .filter((value): value is number => value !== undefined)
         : undefined,
     drivingExamAttendanceStatus: filters.drivingExamAttendanceStatus || undefined,
     existingLicenseTypes:

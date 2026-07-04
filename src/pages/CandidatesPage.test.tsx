@@ -28,7 +28,8 @@ const getLicenseClassFeeMatrixMock = vi.fn();
 const createCandidateExamResultSyncJobMock = vi.fn();
 const createESinavExamResultSyncJobMock = vi.fn();
 const getMebbisJobMock = vi.fn();
-const getMebbisSessionStatusMock = vi.fn();
+const getLocalAgentMebbisSessionMock = vi.fn();
+const ensureMebbisSessionMock = vi.fn();
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -162,6 +163,28 @@ vi.mock("../lib/license-class-fee-matrix-api", async () => {
   };
 });
 
+vi.mock("../lib/local-agent-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/local-agent-api")>(
+    "../lib/local-agent-api"
+  );
+  return {
+    ...actual,
+    getLocalAgentMebbisSession: (...args: Parameters<typeof actual.getLocalAgentMebbisSession>) =>
+      getLocalAgentMebbisSessionMock(...args),
+  };
+});
+
+vi.mock("../lib/queries/use-mebbis-session", () => ({
+  MEBBIS_SESSION_REQUIRED_MESSAGE: "MEBBİS oturumu açılmalı.",
+  useMebbisSessionGuard: () => ({
+    disabled: false,
+    ensureSessionAsync: ensureMebbisSessionMock,
+    message: "MEBBİS oturumu açılmalı.",
+    sessionOpen: true,
+    warnSessionRequired: vi.fn(),
+  }),
+}));
+
 vi.mock("../lib/mebbis-jobs-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/mebbis-jobs-api")>(
     "../lib/mebbis-jobs-api"
@@ -174,8 +197,6 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
       createESinavExamResultSyncJobMock(...args),
     getMebbisJob: (...args: Parameters<typeof actual.getMebbisJob>) =>
       getMebbisJobMock(...args),
-    getMebbisSessionStatus: (...args: Parameters<typeof actual.getMebbisSessionStatus>) =>
-      getMebbisSessionStatusMock(...args),
   };
 });
 
@@ -252,7 +273,8 @@ describe("CandidatesPage tabs", () => {
     createCandidateExamResultSyncJobMock.mockReset();
     createESinavExamResultSyncJobMock.mockReset();
     getMebbisJobMock.mockReset();
-    getMebbisSessionStatusMock.mockReset();
+    getLocalAgentMebbisSessionMock.mockReset();
+    ensureMebbisSessionMock.mockReset();
     searchCandidateTagsMock.mockResolvedValue([]);
     getExamScheduleOptionsMock.mockResolvedValue([]);
     getExamCodesMock.mockResolvedValue([]);
@@ -313,7 +335,15 @@ describe("CandidatesPage tabs", () => {
       leaseOwnerClientId: null,
       leaseExpiresAtUtc: null,
     });
-    getMebbisSessionStatusMock.mockResolvedValue({ isOpen: true });
+    getLocalAgentMebbisSessionMock.mockResolvedValue({
+      status: "connected",
+      message: "MEBBIS bağlantısı açık.",
+      currentUrl: "https://mebbis.meb.gov.tr/",
+      mebbisUser: "meb-user",
+      requiresVerificationCode: false,
+      updatedAtUtc: new Date().toISOString(),
+    });
+    ensureMebbisSessionMock.mockResolvedValue(true);
     assignCandidateGroupMock.mockResolvedValue({
       id: "assignment-1",
       candidateId: "cand-1",
@@ -348,14 +378,14 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 0,
       totalPages: 1,
     });
@@ -373,7 +403,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ page: 1, pageSize: 20 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.status).toBeUndefined();
     expect(callArgs.candidateTab).toBeUndefined();
   });
@@ -386,7 +416,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ page: 1, pageSize: 20 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.eSinavTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
 
@@ -409,7 +439,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "basarisiz",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -422,9 +452,35 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "randevulu",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
+    });
+  });
+
+  it("renders e-sinav tab candidate counts", async () => {
+    getCandidatesMock.mockImplementation((params) => {
+      const counts: Record<string, number> = {
+        havuz: 7,
+        basarisiz: 2,
+        randevulu: 5,
+      };
+      const tabCount = typeof params?.eSinavTab === "string" ? counts[params.eSinavTab] ?? 0 : 0;
+      return Promise.resolve({
+        items: [],
+        page: params?.page ?? 1,
+        pageSize: params?.pageSize ?? 20,
+        totalCount: tabCount,
+        totalPages: 1,
+      });
+    });
+
+    renderESinavPage();
+
+    await waitFor(() => {
+      expect(within(screen.getByRole("button", { name: "Havuz" })).getByText("7")).toBeInTheDocument();
+      expect(within(screen.getByRole("button", { name: "Başarısız" })).getByText("2")).toBeInTheDocument();
+      expect(within(screen.getByRole("button", { name: "Randevulu" })).getByText("5")).toBeInTheDocument();
     });
   });
 
@@ -459,7 +515,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -506,7 +562,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -530,7 +586,7 @@ describe("CandidatesPage tabs", () => {
     });
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({ page: 1, pageSize: 20 });
+    expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.drivingExamTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
 
@@ -553,7 +609,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "basarisiz",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -566,7 +622,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "randevulu",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -594,33 +650,35 @@ describe("CandidatesPage tabs", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /100000001/i }));
 
+    let codeQuery: Record<string, unknown> | undefined;
     await waitFor(() => {
-      expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          drivingExamCode: "100000001",
-          page: 1,
-          pageSize: 20,
-        })
-      );
+      codeQuery = getCandidatesMock.mock.calls
+        .map((call) => call[0] as Record<string, unknown>)
+        .find((params) =>
+          params.drivingExamCode === "100000001" &&
+          params.page === 1 &&
+          params.pageSize === 100
+        );
+      expect(codeQuery).toBeDefined();
     });
-    const codeQuery = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
-    expect(codeQuery.drivingExamTab).toBeUndefined();
-    expect(codeQuery.status).toBeUndefined();
+    expect(codeQuery!.drivingExamTab).toBeUndefined();
+    expect(codeQuery!.status).toBeUndefined();
 
     fireEvent.click(screen.getByRole("tab", { name: "Sınav Tarihleri" }));
 
+    let dateQuery: Record<string, unknown> | undefined;
     await waitFor(() => {
-      expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          status: "active",
-          drivingExamTab: "havuz",
-          page: 1,
-          pageSize: 20,
-        })
-      );
+      dateQuery = getCandidatesMock.mock.calls
+        .map((call) => call[0] as Record<string, unknown>)
+        .find((params) =>
+          params.status === "active" &&
+          params.drivingExamTab === "havuz" &&
+          params.page === 1 &&
+          params.pageSize === 100
+        );
+      expect(dateQuery).toBeDefined();
     });
-    const dateQuery = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
-    expect(dateQuery.drivingExamCode).toBeUndefined();
+    expect(dateQuery!.drivingExamCode).toBeUndefined();
   });
 
   it("loads e-sinav date options without the havuz tab constraint", async () => {
@@ -927,7 +985,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-06-12",
           eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -952,7 +1010,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-05-12",
           eSinavScheduleId: "e_sinav-2026-05-12",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -990,7 +1048,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           eSinavTab: "basarisiz",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -1061,7 +1119,7 @@ describe("CandidatesPage tabs", () => {
           drivingExamDate: "2026-06-13",
           drivingExamScheduleId: "uygulama-2026-06-13",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -1107,7 +1165,7 @@ describe("CandidatesPage tabs", () => {
           status: "active",
           drivingExamTab: "randevulu",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -1149,7 +1207,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 8,
       totalPages: 1,
     });
@@ -1229,7 +1287,7 @@ describe("CandidatesPage tabs", () => {
       expect(lastCall.candidateTab).toBeUndefined();
       expect(lastCall.status).toBeUndefined();
       expect(lastCall.page).toBe(1);
-      expect(lastCall.pageSize).toBe(20);
+      expect(lastCall.pageSize).toBe(100);
     });
   });
 
@@ -1268,7 +1326,7 @@ describe("CandidatesPage tabs", () => {
         expect.objectContaining({
           status: "graduated",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -1706,7 +1764,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 8,
       totalPages: 1,
     });
@@ -1724,6 +1782,19 @@ describe("CandidatesPage tabs", () => {
     expect(screen.getAllByText("Dosya Yakan / Ayrılan").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Park").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Direksiyon başarısız")).toBeInTheDocument();
+
+    const attemptHeader = screen.getByRole("columnheader", { name: /Sınav Hakkı/ });
+    fireEvent.click(within(attemptHeader).getByLabelText("Sınav Hakkı"));
+    const attemptMenu = await screen.findByRole("dialog");
+    expect(within(attemptMenu).getByRole("checkbox", { name: "E-sınav 1/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).getByRole("checkbox", { name: "E-sınav 2/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).getByRole("checkbox", { name: "E-sınav 3/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).getByRole("checkbox", { name: "E-sınav 4/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).getByRole("checkbox", { name: "Direksiyon 1/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).getByRole("checkbox", { name: "Direksiyon 2/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).getByRole("checkbox", { name: "Direksiyon 3/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).getByRole("checkbox", { name: "Direksiyon 4/4" })).toBeInTheDocument();
+    expect(within(attemptMenu).queryByRole("checkbox", { name: "Direksiyon 5/5" })).not.toBeInTheDocument();
   });
 
   it("keeps e-sinav date hidden and attempt visible but out of the picker", async () => {
@@ -1833,7 +1904,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -1944,7 +2015,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2055,7 +2126,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2101,7 +2172,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2173,14 +2244,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 20,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [candidate],
         page: 1,
-        pageSize: 20,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       });
@@ -2295,14 +2366,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 20,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [{ ...candidate, eSinavScore: 60 }],
         page: 1,
-        pageSize: 20,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       });
@@ -2410,14 +2481,14 @@ describe("CandidatesPage tabs", () => {
       .mockResolvedValueOnce({
         items: [candidate],
         page: 1,
-        pageSize: 20,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       })
       .mockResolvedValue({
         items: [{ ...candidate, mebExamResult: null, eSinavScore: null }],
         page: 1,
-        pageSize: 20,
+        pageSize: 100,
         totalCount: 1,
         totalPages: 1,
       });
@@ -2524,7 +2595,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2590,7 +2661,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2631,7 +2702,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2682,7 +2753,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2760,7 +2831,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2801,7 +2872,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2844,7 +2915,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -2912,7 +2983,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -2961,7 +3032,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3050,7 +3121,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 2,
       totalPages: 1,
     });
@@ -3108,7 +3179,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3169,7 +3240,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3258,7 +3329,7 @@ describe("CandidatesPage tabs", () => {
           eSinavDate: "2026-06-12",
           eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
-          pageSize: 20,
+          pageSize: 100,
         })
       );
     });
@@ -3296,7 +3367,7 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => {
       expect(createESinavExamResultSyncJobMock).toHaveBeenCalledTimes(1);
     });
-    expect(getMebbisSessionStatusMock).toHaveBeenCalled();
+    expect(ensureMebbisSessionMock).toHaveBeenCalled();
     expect(createESinavExamResultSyncJobMock).toHaveBeenCalledWith("2026-06-12", "09:00");
     expect(createCandidateExamResultSyncJobMock).not.toHaveBeenCalled();
     await waitFor(() => {
@@ -3363,7 +3434,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3501,7 +3572,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3620,7 +3691,7 @@ describe("CandidatesPage tabs", () => {
     getCandidatesMock.mockResolvedValue({
       items: [candidate],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3763,7 +3834,7 @@ describe("CandidatesPage tabs", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });
@@ -3803,18 +3874,18 @@ describe("CandidatesPage sorting", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 0,
       totalPages: 1,
     });
   });
 
-  it("sends the default created date sort on initial load", async () => {
+  it("sends the default group created date sort on initial load", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs.sortBy).toBe("createdAtUtc");
+    expect(callArgs.sortBy).toBe("groupCreatedAtUtc");
     expect(callArgs.sortDir).toBe("desc");
   });
 
@@ -3883,6 +3954,73 @@ describe("CandidatesPage sorting", () => {
   });
 
   it("sends sort params for exam and financial columns", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "20000000114",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: null,
+          eSinavAttemptCount: 2,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 0,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+        {
+          id: "cand-2",
+          firstName: "Mehmet",
+          lastName: "Kaya",
+          nationalId: "12345678902",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: null,
+          eSinavAttemptCount: 3,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 0,
+          totalFee: 0,
+          totalPaid: 0,
+          totalDebt: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 2,
+      totalPages: 1,
+    });
+
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
@@ -3900,27 +4038,21 @@ describe("CandidatesPage sorting", () => {
 
     fireEvent.click(within(examAttemptHeader).getByLabelText("Sınav Hakkı"));
     const examAttemptMenu = await screen.findByRole("dialog");
-    fireEvent.click(within(examAttemptMenu).getByRole("checkbox", { name: "2. Hak" }));
+    fireEvent.click(within(examAttemptMenu).getByRole("checkbox", { name: "E-sınav 2/4" }));
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          examAttemptCount: [2],
+          examAttemptCount: ["e_sinav_2"],
           page: 1,
         })
       );
     });
 
-    fireEvent.click(within(examAttemptMenu).getByRole("checkbox", { name: "3. Hak" }));
-
-    await waitFor(() => {
-      expect(getCandidatesMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          examAttemptCount: [2, 3],
-          page: 1,
-        })
-      );
-    });
+    expect(within(examAttemptMenu).getByRole("checkbox", { name: "E-sınav 1/4" })).toBeInTheDocument();
+    expect(within(examAttemptMenu).getByRole("checkbox", { name: "E-sınav 2/4" })).toBeInTheDocument();
+    expect(within(examAttemptMenu).getByRole("checkbox", { name: "E-sınav 3/4" })).toBeInTheDocument();
+    expect(within(examAttemptMenu).getByRole("checkbox", { name: "E-sınav 4/4" })).toBeInTheDocument();
 
     const totalDebtHeader = screen.getByRole("columnheader", { name: /Toplam Borç/ });
     fireEvent.click(within(totalDebtHeader).getAllByRole("button", { name: /Toplam Borç/ })[0]);
@@ -3935,7 +4067,42 @@ describe("CandidatesPage sorting", () => {
     });
   });
 
-  it("uses page-specific attempt count filter labels and options", async () => {
+  it("uses content-specific attempt count filter labels and options", async () => {
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "cand-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "20000000114",
+          phoneNumber: null,
+          email: null,
+          birthDate: null,
+          gender: null,
+          licenseClass: "B",
+          existingLicenseType: null,
+          existingLicenseIssuedAt: null,
+          existingLicenseNumber: null,
+          existingLicenseIssuedProvince: null,
+          existingLicensePre2016: false,
+          status: "active",
+          currentGroup: null,
+          documentSummary: null,
+          mebExamDate: null,
+          mebExamResult: null,
+          eSinavAttemptCount: 1,
+          drivingExamDate: null,
+          drivingExamAttemptCount: 0,
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-02T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
     renderESinavPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
@@ -3943,8 +4110,10 @@ describe("CandidatesPage sorting", () => {
 
     const menu = await screen.findByRole("dialog");
     expect(within(menu).getByText("Hak")).toBeInTheDocument();
-    expect(within(menu).getByRole("checkbox", { name: "4. Hak" })).toBeInTheDocument();
-    expect(within(menu).queryByRole("checkbox", { name: "5. Hak" })).not.toBeInTheDocument();
+    expect(within(menu).getByRole("checkbox", { name: "E-sınav 1/4" })).toBeInTheDocument();
+    expect(within(menu).getByRole("checkbox", { name: "E-sınav 4/4" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("checkbox", { name: "Direksiyon 1/4" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("checkbox", { name: "Direksiyon 5/5" })).not.toBeInTheDocument();
   });
 
   it("sends sort and filter params for driving exam attendance status", async () => {
@@ -3981,7 +4150,7 @@ describe("CandidatesPage sorting", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 2,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 25,
       totalPages: 3,
     });
@@ -4029,7 +4198,7 @@ describe("CandidatesPage filter panel", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 0,
       totalPages: 1,
     });
@@ -4111,7 +4280,7 @@ describe("CandidatesPage filter panel", () => {
     getCandidatesMock.mockResolvedValue({
       items: [],
       page: 2,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 25,
       totalPages: 3,
     });
@@ -4216,23 +4385,34 @@ describe("CandidatesPage filter panel", () => {
     const examStatusHeader = screen.getByRole("columnheader", { name: /Sınav Durumu/ });
     fireEvent.click(within(examStatusHeader).getByLabelText("Sınav Durumu"));
     const examStatusMenu = await screen.findByRole("dialog");
-    fireEvent.click(within(examStatusMenu).getByRole("checkbox", { name: "E-Sınav randevulu" }));
+    expect(within(examStatusMenu).getByRole("checkbox", { name: "E-Sınav Havuz" })).toBeInTheDocument();
+    expect(within(examStatusMenu).getByRole("checkbox", { name: "E-Sınav Başarısız" })).toBeInTheDocument();
+    expect(within(examStatusMenu).getByRole("checkbox", { name: "E-Sınav Randevulu" })).toBeInTheDocument();
+    expect(within(examStatusMenu).getByRole("checkbox", { name: "Direksiyon Havuz" })).toBeInTheDocument();
+    expect(within(examStatusMenu).getByRole("checkbox", { name: "Direksiyon Başarısız" })).toBeInTheDocument();
+    expect(within(examStatusMenu).getByRole("checkbox", { name: "Direksiyon Randevulu" })).toBeInTheDocument();
+    expect(within(examStatusMenu).queryByRole("checkbox", { name: "Direksiyon Başarılı" })).not.toBeInTheDocument();
+    expect(within(examStatusMenu).queryByRole("checkbox", { name: "havuz" })).not.toBeInTheDocument();
+    expect(within(examStatusMenu).queryByRole("checkbox", { name: "başarısız" })).not.toBeInTheDocument();
+    expect(within(examStatusMenu).queryByRole("checkbox", { name: "başarılı" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(examStatusMenu).getByRole("checkbox", { name: "E-Sınav Havuz" }));
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          examStatus: ["e_sinav_randevulu"],
+          examStatus: ["e_sinav_havuz"],
           page: 1,
         })
       );
     });
 
-    fireEvent.click(within(examStatusMenu).getByRole("checkbox", { name: "Direksiyon randevulu" }));
+    fireEvent.click(within(examStatusMenu).getByRole("checkbox", { name: "Direksiyon Başarısız" }));
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
+          examStatus: ["e_sinav_havuz", "direksiyon_basarisiz"],
           page: 1,
         })
       );
@@ -4247,7 +4427,7 @@ describe("CandidatesPage filter panel", () => {
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          examStatus: ["e_sinav_randevulu", "direksiyon_randevulu"],
+          examStatus: ["e_sinav_havuz", "direksiyon_basarisiz"],
           totalFeeMin: 1000,
           totalFeeMax: 5000,
           page: 1,
@@ -4336,7 +4516,7 @@ describe("CandidatesPage gender rendering", () => {
         },
       ],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 3,
       totalPages: 1,
     });
@@ -4396,7 +4576,7 @@ describe("CandidatesPage bulk status update", () => {
     getCandidatesMock.mockResolvedValue({
       items: candidates,
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       totalCount: 1,
       totalPages: 1,
     });

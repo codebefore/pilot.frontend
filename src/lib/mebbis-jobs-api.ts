@@ -158,14 +158,6 @@ export type MebbisExtensionPairResponse = {
   apiToken: string;
 };
 
-export type MebbisSessionStatusResponse = {
-  isOpen: boolean;
-  clientId: string | null;
-  lastSeenAtUtc: string | null;
-  lastKnownMebbisUser: string | null;
-  extensionHeartbeatFreshSeconds: number;
-};
-
 const mebbisRequestOptions = (signal?: AbortSignal) => ({
   baseUrl: getMebbisApiBaseUrl(),
   signal,
@@ -237,16 +229,6 @@ export async function pairMebbisExtensionClient(
     "/api/mebbis/extension-clients/pair",
     { displayName },
     mebbisRequestOptions()
-  );
-}
-
-export async function getMebbisSessionStatus(
-  signal?: AbortSignal
-): Promise<MebbisSessionStatusResponse> {
-  return httpGet<MebbisSessionStatusResponse>(
-    "/api/mebbis/session/status",
-    undefined,
-    mebbisRequestOptions(signal)
   );
 }
 

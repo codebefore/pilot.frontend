@@ -134,6 +134,70 @@ describe("candidate contract print", () => {
     expect(request.values.mevcutehliyettipi).toBe("-");
   });
 
+  it("uses only phone contacts for the secondary phone placeholder", () => {
+    const request = buildCandidateContractRenderPdfRequest({
+      candidate: {
+        ...candidate,
+        contacts: [
+          {
+            id: "contact-address",
+            type: "address",
+            label: "Adres",
+            value: "Adres satırı telefon alanına basılmamalı",
+            isPrimary: false,
+            displayOrder: 0,
+            ownerName: null,
+          },
+          {
+            id: "contact-phone",
+            type: "phone",
+            label: "Telefon",
+            value: "5552223344",
+            isPrimary: false,
+            displayOrder: 1,
+            ownerName: "Anne",
+          },
+        ],
+      },
+      accounting,
+      contractYear: 2026,
+      theoryFeeRow,
+      practiceFeeRow,
+      institution,
+      managerName: null,
+    });
+
+    expect(request.values.kursiyertelefon2).toBe("+90 555 222 33 44");
+    expect(request.values.kursiyertelefon2).not.toContain("Adres");
+  });
+
+  it("leaves secondary phone empty when the candidate has no second phone contact", () => {
+    const request = buildCandidateContractRenderPdfRequest({
+      candidate: {
+        ...candidate,
+        contacts: [
+          {
+            id: "contact-address",
+            type: "address",
+            label: "Adres",
+            value: "Adres satırı telefon alanına basılmamalı",
+            isPrimary: false,
+            displayOrder: 0,
+            ownerName: null,
+          },
+        ],
+      },
+      accounting,
+      contractYear: 2026,
+      theoryFeeRow,
+      practiceFeeRow,
+      institution,
+      managerName: null,
+    });
+
+    expect(request.values.kursiyertelefon2).toBe("-");
+  });
+
   it("builds PDF render request values for the signature sample", () => {
     const request = buildCandidateSignatureSampleRenderPdfRequest(candidate);
 

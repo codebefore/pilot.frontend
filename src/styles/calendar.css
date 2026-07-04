@@ -222,52 +222,6 @@
   text-decoration: underline;
 }
 
-.training-quick-group-search {
-  width: 100%;
-  height: 30px;
-  min-width: 0;
-  margin: -2px 0 2px;
-  padding: 0 9px;
-  border: 1px solid var(--gray-200);
-  border-radius: 6px;
-  background: var(--gray-50);
-  color: var(--gray-800);
-  font-size: 12px;
-  font-weight: 500;
-  outline: none;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.training-quick-group-search::placeholder {
-  color: var(--gray-400);
-  font-weight: 500;
-}
-
-.training-quick-group-search:focus {
-  border-color: var(--brand);
-  background: var(--white);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 14%, transparent);
-}
-
-.training-filters-search {
-  width: 100%;
-  margin: 4px 0 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--gray-200);
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--gray-800);
-  background: var(--white);
-}
-
-.training-filters-search:focus {
-  outline: none;
-  border-color: var(--gray-400);
-}
-
 /* Sidebar listeleri max ~12 satır gösterir, fazlası içeride kayar. */
 .training-filters-list-scroll {
   max-height: 360px;
@@ -510,12 +464,16 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 
 .practice-picker-controls {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .practice-picker-search {
-  width: 100%;
+  flex: 0 1 360px;
+  width: min(360px, 100%);
+  margin-left: auto;
   padding: 8px 12px;
   font-size: 13px;
   border: 1px solid var(--gray-200);
@@ -537,7 +495,6 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   border: 1px solid var(--gray-200);
   border-radius: 8px;
   padding: 2px;
-  align-self: flex-start;
 }
 .practice-picker-stage-tab {
   appearance: none;
@@ -611,6 +568,32 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   user-select: none;
 }
 
+.practice-picker-select-th,
+.practice-picker-select-td {
+  width: 42px;
+  min-width: 42px;
+  text-align: center;
+}
+
+.practice-picker-select-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.practice-picker-select-control.switch-toggle {
+  min-width: 24px;
+}
+
+.practice-picker-select-th input,
+.practice-picker-select-td input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .practice-picker-th-sort {
   cursor: pointer;
   transition: color 0.1s, background 0.1s;
@@ -646,6 +629,11 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   align-items: center;
   gap: 8px;
   font-weight: 600;
+  min-width: 190px;
+}
+
+.practice-picker-avatar {
+  flex: 0 0 auto;
 }
 
 .practice-picker-row-name small {

@@ -51,6 +51,7 @@ import {
 import {
   assignCandidateGroup,
   getCandidateById,
+  getCandidates,
   createCandidateTag,
   updateCandidate,
   type GetCandidatesParams,
@@ -138,7 +139,7 @@ const TAB_KEYS: CandidateTab[] = [
 ];
 const DEFAULT_TAB: CandidateTab = "all";
 
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
 const TEXT_DEBOUNCE_MS = 300;
 const BULK_STATUS_OPTIONS = CANDIDATE_STATUS_OPTIONS;
@@ -150,9 +151,53 @@ type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
 
 const COLUMN_DRAG_MIME_TYPE = "application/x-pilot-candidate-column";
+const DEFAULT_CANDIDATE_SORT: SortState = { field: "groupCreatedAtUtc", direction: "desc" };
 
 function candidateListTabLabel(value: CandidateTab, t: ReturnType<typeof useT>): string {
   return value === "all" ? t("common.all") : candidateStatusLabel(value);
+}
+
+function defaultCandidateSortForScope(
+  pageScope: CandidateColumnPageScope,
+  tab: CandidateListTabKey
+): SortState {
+  if (pageScope === "uygulama") {
+    if (tab === "all" || tab === "havuz") return { field: "eSinavDate", direction: "desc" };
+    if (tab === "randevulu") return { field: "drivingExamDate", direction: "asc" };
+    if (tab === "basarisiz") return { field: "drivingExamDate", direction: "desc" };
+  }
+  return DEFAULT_CANDIDATE_SORT;
+}
+
+function readCandidateSort(storageKey: string, fallback: SortState): SortState {
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<NonNullable<SortState>> | null;
+    if (
+      parsed &&
+      typeof parsed.field === "string" &&
+      typeof parsed.direction === "string" &&
+      (parsed.direction === "asc" || parsed.direction === "desc")
+    ) {
+      return { field: parsed.field as CandidateSortField, direction: parsed.direction };
+    }
+  } catch {
+    // Ignore corrupt or inaccessible localStorage and fall back to the page default.
+  }
+  return fallback;
+}
+
+function writeCandidateSort(storageKey: string, sort: SortState): void {
+  try {
+    if (sort) {
+      window.localStorage.setItem(storageKey, JSON.stringify(sort));
+    } else {
+      window.localStorage.removeItem(storageKey);
+    }
+  } catch {
+    // localStorage can be unavailable in private contexts; sorting still works in memory.
+  }
 }
 
 export type CandidateColumnId =
@@ -919,6 +964,90 @@ function candidateExamAttemptDisplayLimit(
     : 4;
 }
 
+type CandidateAttemptFilterStage = "e_sinav" | "direksiyon";
+type CandidateAttemptFilterOption = {
+  value: CandidateFilterState["examAttemptCount"][number];
+  label: string;
+};
+
+function candidateAttemptFilterStageLabel(stage: CandidateAttemptFilterStage): string {
+  return stage === "e_sinav" ? "E-sınav" : "Direksiyon";
+}
+
+function candidateAttemptFilterValue(
+  stage: CandidateAttemptFilterStage,
+  attempt: number
+): CandidateFilterState["examAttemptCount"][number] {
+  return `${stage}_${attempt}` as CandidateFilterState["examAttemptCount"][number];
+}
+
+function candidateAttemptFilterOption(
+  stage: CandidateAttemptFilterStage,
+  attempt: number,
+  limit: number
+): CandidateAttemptFilterOption {
+  return {
+    value: candidateAttemptFilterValue(stage, attempt),
+    label: `${candidateAttemptFilterStageLabel(stage)} ${attempt}/${limit}`,
+  };
+}
+
+function parseCandidateAttemptFilterValue(
+  value: CandidateFilterState["examAttemptCount"][number]
+): { stage: CandidateAttemptFilterStage; attempt: number; limit: number } | null {
+  const match = value.match(/^(e_sinav|direksiyon)_([1-5])$/);
+  if (!match) return null;
+  const stage = match[1] as CandidateAttemptFilterStage;
+  const attempt = Number(match[2]);
+  return {
+    stage,
+    attempt,
+    limit: stage === "e_sinav" ? 4 : Math.max(4, attempt),
+  };
+}
+
+function candidateAttemptFilterOptions(
+  selectedValues: CandidateFilterState["examAttemptCount"],
+  columnId: CandidateColumnId,
+  pageScope: CandidateColumnPageScope
+): CandidateAttemptFilterOption[] {
+  const options = new Map<CandidateFilterState["examAttemptCount"][number], CandidateAttemptFilterOption>();
+
+  for (const value of selectedValues) {
+    const parsed = parseCandidateAttemptFilterValue(value);
+    if (parsed) {
+      options.set(value, candidateAttemptFilterOption(parsed.stage, parsed.attempt, parsed.limit));
+    }
+  }
+
+  const stages: { stage: CandidateAttemptFilterStage; limit: number }[] =
+    pageScope === "all"
+      ? [
+          { stage: "e_sinav", limit: 4 },
+          { stage: "direksiyon", limit: 4 },
+        ]
+      : columnId === "drivingExamAttemptCount"
+        ? [{ stage: "direksiyon", limit: 4 }]
+        : [{ stage: "e_sinav", limit: 4 }];
+
+  for (const { stage, limit } of stages) {
+    for (let attempt = 1; attempt <= limit; attempt += 1) {
+      const option = candidateAttemptFilterOption(stage, attempt, limit);
+        options.set(option.value, option);
+    }
+  }
+
+  return Array.from(options.values()).sort(
+    (a, b) => {
+      const parsedA = parseCandidateAttemptFilterValue(a.value);
+      const parsedB = parseCandidateAttemptFilterValue(b.value);
+      if (!parsedA || !parsedB) return a.label.localeCompare(b.label, "tr");
+      if (parsedA.stage !== parsedB.stage) return parsedA.stage === "e_sinav" ? -1 : 1;
+      return parsedA.attempt - parsedB.attempt;
+    }
+  );
+}
+
 function EditableESinavScoreCell({
   disabled,
   disabledTitle,
@@ -1139,6 +1268,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "eSinavDate",
     pageScope: "eSinav",
     labelKey: "candidates.col.eSinavDate",
+    sortField: "eSinavDate",
     renderCell: (c) => formatDateTR(c.mebExamDate),
     skeletonWidth: 88,
   },
@@ -1187,6 +1317,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "drivingExamDate",
     pageScope: "uygulama",
     labelKey: "candidates.col.drivingExamDate",
+    sortField: "drivingExamDate",
     headerClassName: "cand-driving-exam-date-th",
     cellClassName: "cand-driving-exam-date-td",
     renderCell: (c) => formatDateTR(c.drivingExamDate),
@@ -1619,6 +1750,7 @@ type CandidatesPageProps = {
   showBulkStatusAction?: boolean;
   showFiltersAction?: boolean;
   showTabs?: boolean;
+  showTabCounts?: boolean;
   defaultTab?: CandidateTab;
   groupColumnMode?: "group" | "term";
   examDateSidebar?: ExamDateSidebarConfig;
@@ -1639,6 +1771,7 @@ export function CandidatesPage({
   showBulkStatusAction = true,
   showFiltersAction = true,
   showTabs = true,
+  showTabCounts = false,
   defaultTab = DEFAULT_TAB,
   groupColumnMode = "group",
   examDateSidebar,
@@ -1744,7 +1877,34 @@ export function CandidatesPage({
     },
     [columnPageScope, tab]
   );
-  const [sort, setSort] = useState<SortState>({ field: "createdAtUtc", direction: "desc" });
+  const defaultSort = useMemo(
+    () => defaultCandidateSortForScope(columnPageScope, tab),
+    [columnPageScope, tab]
+  );
+  const sortStorageKey = useMemo(
+    () => [
+      "candidates.sort",
+      columnStorageKey,
+      columnPageScope,
+      tab,
+      user?.id ? `user.${user.id}` : null,
+    ].filter(Boolean).join("."),
+    [columnPageScope, columnStorageKey, tab, user?.id]
+  );
+  const hasHydratedSortStorage = useRef(false);
+  const pendingSortStorageHydrationKey = useRef<string | null>(null);
+  const [sort, setSort] = useState<SortState>(() =>
+    readCandidateSort(
+      [
+        "candidates.sort",
+        columnStorageKey,
+        columnPageScope,
+        resolvedTabConfig.defaultTab,
+        user?.id ? `user.${user.id}` : null,
+      ].filter(Boolean).join("."),
+      defaultCandidateSortForScope(columnPageScope, resolvedTabConfig.defaultTab)
+    )
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [examScheduleModalOpen, setExamScheduleModalOpen] = useState(false);
   const [examCodeModalOpen, setExamCodeModalOpen] = useState(false);
@@ -2509,6 +2669,23 @@ export function CandidatesPage({
   }, [resolvedTabConfig.defaultTab]);
 
   useEffect(() => {
+    if (hasHydratedSortStorage.current) {
+      pendingSortStorageHydrationKey.current = sortStorageKey;
+    } else {
+      hasHydratedSortStorage.current = true;
+    }
+    setSort(readCandidateSort(sortStorageKey, defaultSort));
+  }, [defaultSort, sortStorageKey]);
+
+  useEffect(() => {
+    if (pendingSortStorageHydrationKey.current === sortStorageKey) {
+      pendingSortStorageHydrationKey.current = null;
+      return;
+    }
+    writeCandidateSort(sortStorageKey, sort);
+  }, [sort, sortStorageKey]);
+
+  useEffect(() => {
     setSelectedExamDate("");
     setSelectedExamScheduleId("");
     setSelectedDrivingExamCode("");
@@ -2555,12 +2732,68 @@ export function CandidatesPage({
     tab,
   ]);
 
+  const tabCountBaseRequestParams = useMemo<GetCandidatesParams>(() => {
+    const {
+      hasPhoto: _hasPhoto,
+      hasMissingDocuments: _hasMissingDocuments,
+      missingDocumentCountMin: _missingDocumentCountMin,
+      missingDocumentCountMax: _missingDocumentCountMax,
+      ...candidateFilterParams
+    } = filtersToQuery(debouncedFilters);
+    return {
+      search: normalizeTextQuery(debouncedSearch),
+      tags: activeTags.length > 0 ? activeTags : undefined,
+      ...candidateFilterParams,
+      page: 1,
+      pageSize: 1,
+    };
+  }, [
+    activeTags,
+    debouncedFilters,
+    debouncedSearch,
+  ]);
+
   const candidatesQuery = useCandidates(candidatesRequestParams, true);
+  const tabCountsQuery = useQuery({
+    queryKey: [
+      "candidate-tab-counts",
+      columnStorageKey,
+      resolvedTabConfig.tabs.map((item) => item.key),
+      tabCountBaseRequestParams,
+    ],
+    enabled: showTabCounts && showTabs && !isDrivingExamCodeTabActive,
+    queryFn: async ({ signal }) => {
+      const entries = await Promise.all(
+        resolvedTabConfig.tabs.map(async (tabOption) => {
+          const response = await getCandidates(
+            {
+              ...tabCountBaseRequestParams,
+              ...resolvedTabConfig.buildParams(tabOption.key),
+              page: 1,
+              pageSize: 1,
+            },
+            signal
+          );
+          return [tabOption.key, response.totalCount ?? response.items.length] as const;
+        })
+      );
+
+      return Object.fromEntries(entries) as Record<CandidateListTabKey, number>;
+    },
+  });
   const candidates = candidatesQuery.data?.items ?? [];
   const totalPages =
     candidatesQuery.data?.totalPages ??
     Math.max(1, Math.ceil((candidatesQuery.data?.totalCount ?? 0) / (candidatesQuery.data?.pageSize || pageSize)));
   const loading = candidatesQuery.isLoading;
+  const tabsWithCounts = useMemo(
+    () =>
+      resolvedTabConfig.tabs.map((tabOption) => ({
+        ...tabOption,
+        count: tabCountsQuery.data?.[tabOption.key],
+      })),
+    [resolvedTabConfig.tabs, tabCountsQuery.data]
+  );
   const compactLicenseClassOptions = useMemo(
     () =>
       mergeLicenseClassOptionsWithValues(licenseClassOptions, [
@@ -3828,7 +4061,7 @@ export function CandidatesPage({
         <PageTabs
           active={examDateTabNeutral ? "" : tab}
           onChange={handleTabChange}
-          tabs={resolvedTabConfig.tabs}
+          tabs={tabsWithCounts}
         />
       )}
       <div className="search-box">
@@ -4749,14 +4982,15 @@ function buildCandidateColumnFilterControl(
   }
 
   if (columnId === "eSinavAttemptCount" || columnId === "drivingExamAttemptCount") {
-    const attemptOptions =
-      pageScope === "eSinav" && columnId === "eSinavAttemptCount"
-        ? ["1", "2", "3", "4"]
-        : ["1", "2", "3", "4", "5"];
+    const attemptOptions = candidateAttemptFilterOptions(
+      filters.examAttemptCount,
+      columnId,
+      pageScope
+    );
     return (
       <CheckboxListPopover
         onChange={(next) => setFilter("examAttemptCount", next as CandidateFilterState["examAttemptCount"])}
-        options={attemptOptions.map((value) => ({ value, label: `${value}. Hak` }))}
+        options={attemptOptions}
         placeholder={columnLabel}
         triggerVariant="icon"
         title={columnLabel}
@@ -4770,11 +5004,12 @@ function buildCandidateColumnFilterControl(
       <CheckboxListPopover
         onChange={(next) => setFilter("examStatus", next as CandidateFilterState["examStatus"])}
         options={[
-          { value: "havuz", label: t("candidatesPage.examStatus.pool") },
-          { value: "e_sinav_randevulu", label: "E-Sınav randevulu" },
-          { value: "direksiyon_randevulu", label: "Direksiyon randevulu" },
-          { value: "basarisiz", label: t("candidatesPage.examStatus.failed") },
-          { value: "basarili", label: t("candidatesPage.examStatus.passed") },
+          { value: "e_sinav_havuz", label: "E-Sınav Havuz" },
+          { value: "e_sinav_basarisiz", label: "E-Sınav Başarısız" },
+          { value: "e_sinav_randevulu", label: "E-Sınav Randevulu" },
+          { value: "direksiyon_havuz", label: "Direksiyon Havuz" },
+          { value: "direksiyon_basarisiz", label: "Direksiyon Başarısız" },
+          { value: "direksiyon_randevulu", label: "Direksiyon Randevulu" },
           { value: "parked", label: candidateStatusLabel("parked") },
           { value: "graduated", label: candidateStatusLabel("graduated") },
           { value: "dropped", label: candidateStatusLabel("dropped") },

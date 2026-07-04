@@ -38,6 +38,7 @@ export function ExamUygulamaPage() {
       showBulkStatusAction={true}
       showCreateCandidateAction={false}
       showFiltersAction={false}
+      showTabCounts={true}
       tabConfig={{
         tabs,
         defaultTab: "havuz",

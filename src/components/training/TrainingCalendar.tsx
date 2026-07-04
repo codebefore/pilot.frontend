@@ -101,6 +101,7 @@ type TrainingCalendarProps = {
   kind: TrainingEventKind;
   /** Branş katalogundan türetilen renk/label/notes-detect helper'ı. */
   branchHelpers: BranchHelpers;
+  simulatorVehicleIds?: Set<string>;
   onSelectEvent?: (event: TrainingCalendarEvent) => void;
   onSelectSlot?: (slot: { start: Date; end: Date }) => void;
   /** Event alt/üst kenarından resize edilince çağrılır. */
@@ -172,6 +173,7 @@ export function TrainingCalendar({
   events,
   kind: _kind,
   branchHelpers,
+  simulatorVehicleIds,
   onSelectEvent,
   onSelectSlot,
   onEventResize,
@@ -396,6 +398,21 @@ export function TrainingCalendar({
       // korusun (yoksa hepsi "practice" rengiyle çıkardı).
       const classes = ["training-event", `training-event-${event.kind}`];
       if (event.dimmed) classes.push("training-event-dimmed");
+      if (
+        event.kind === "uygulama" &&
+        event.vehicleId &&
+        simulatorVehicleIds?.has(event.vehicleId)
+      ) {
+        classes.push("training-event-simulator");
+        return {
+          className: classes.join(" "),
+          style: {
+            backgroundColor: "#53c3e9",
+            borderColor: "#2aa6cf",
+            color: "var(--white)",
+          },
+        };
+      }
       const branchCode =
         event.kind === "uygulama"
           ? "practice"
@@ -412,7 +429,7 @@ export function TrainingCalendar({
           }
         : { className: classes.join(" ") };
     },
-    [branchHelpers]
+    [branchHelpers, simulatorVehicleIds]
   );
 
   type InteractionArgs = { event: TrainingCalendarEvent; start: Date | string; end: Date | string };

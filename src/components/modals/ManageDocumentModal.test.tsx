@@ -13,7 +13,8 @@ const uploadDocumentMock = vi.fn();
 const openAuthorizedFileMock = vi.fn();
 const downloadAuthorizedFileMock = vi.fn();
 const printAuthorizedFileMock = vi.fn();
-const getMebbisSessionStatusMock = vi.fn();
+const getLocalAgentMebbisSessionMock = vi.fn();
+const ensureMebbisSessionMock = vi.fn();
 const createCandidateEducationInfoUploadJobMock = vi.fn();
 const createCandidateHealthReportUploadJobMock = vi.fn();
 const getMebbisJobMock = vi.fn();
@@ -22,6 +23,28 @@ vi.mock("../../lib/authorized-files", () => ({
   openAuthorizedFile: (...args: unknown[]) => openAuthorizedFileMock(...args),
   downloadAuthorizedFile: (...args: unknown[]) => downloadAuthorizedFileMock(...args),
   printAuthorizedFile: (...args: unknown[]) => printAuthorizedFileMock(...args),
+}));
+
+vi.mock("../../lib/local-agent-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/local-agent-api")>(
+    "../../lib/local-agent-api"
+  );
+  return {
+    ...actual,
+    getLocalAgentMebbisSession: (...args: Parameters<typeof actual.getLocalAgentMebbisSession>) =>
+      getLocalAgentMebbisSessionMock(...args),
+  };
+});
+
+vi.mock("../../lib/queries/use-mebbis-session", () => ({
+  MEBBIS_SESSION_REQUIRED_MESSAGE: "MEBBİS oturumu açılmalı.",
+  useMebbisSessionGuard: () => ({
+    disabled: false,
+    ensureSessionAsync: ensureMebbisSessionMock,
+    message: "MEBBİS oturumu açılmalı.",
+    sessionOpen: true,
+    warnSessionRequired: vi.fn(),
+  }),
 }));
 
 vi.mock("../../lib/documents-api", async () => {
@@ -52,8 +75,6 @@ vi.mock("../../lib/mebbis-jobs-api", async () => {
   );
   return {
     ...actual,
-    getMebbisSessionStatus: (...args: Parameters<typeof actual.getMebbisSessionStatus>) =>
-      getMebbisSessionStatusMock(...args),
     createCandidateEducationInfoUploadJob: (
       ...args: Parameters<typeof actual.createCandidateEducationInfoUploadJob>
     ) => createCandidateEducationInfoUploadJobMock(...args),
@@ -78,20 +99,23 @@ describe("ManageDocumentModal", () => {
     openAuthorizedFileMock.mockReset();
     downloadAuthorizedFileMock.mockReset();
     printAuthorizedFileMock.mockReset();
-    getMebbisSessionStatusMock.mockReset();
+    getLocalAgentMebbisSessionMock.mockReset();
+    ensureMebbisSessionMock.mockReset();
     createCandidateEducationInfoUploadJobMock.mockReset();
     createCandidateHealthReportUploadJobMock.mockReset();
     getMebbisJobMock.mockReset();
     openAuthorizedFileMock.mockResolvedValue(undefined);
     downloadAuthorizedFileMock.mockResolvedValue(undefined);
     printAuthorizedFileMock.mockResolvedValue(undefined);
-    getMebbisSessionStatusMock.mockResolvedValue({
-      isOpen: true,
-      clientId: "extension-1",
-      lastSeenAtUtc: new Date().toISOString(),
-      lastKnownMebbisUser: "meb-user",
-      extensionHeartbeatFreshSeconds: 60,
+    getLocalAgentMebbisSessionMock.mockResolvedValue({
+      status: "connected",
+      message: "MEBBIS bağlantısı açık.",
+      currentUrl: "https://mebbis.meb.gov.tr/",
+      mebbisUser: "meb-user",
+      requiresVerificationCode: false,
+      updatedAtUtc: new Date().toISOString(),
     });
+    ensureMebbisSessionMock.mockResolvedValue(true);
     createCandidateEducationInfoUploadJobMock.mockResolvedValue({
       id: "job-1",
       jobType: "candidate_education_info_upload",
@@ -205,8 +229,10 @@ describe("ManageDocumentModal", () => {
     );
 
     await screen.findByDisplayValue("Mevcut Kurum");
+    const mebbisButton = screen.getByRole("button", { name: "Mebbis Aktar" });
+    await waitFor(() => expect(mebbisButton).not.toBeDisabled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Mebbis Aktar" }));
+    fireEvent.click(mebbisButton);
 
     await waitFor(() => {
       expect(createCandidateHealthReportUploadJobMock).toHaveBeenCalledWith("cand-1");
@@ -279,8 +305,10 @@ describe("ManageDocumentModal", () => {
     );
 
     await screen.findByDisplayValue("Anadolu Lisesi");
+    const mebbisButton = screen.getByRole("button", { name: "Mebbis Aktar" });
+    await waitFor(() => expect(mebbisButton).not.toBeDisabled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Mebbis Aktar" }));
+    fireEvent.click(mebbisButton);
 
     await waitFor(() => {
       expect(createCandidateEducationInfoUploadJobMock).toHaveBeenCalledWith("cand-1");
@@ -329,8 +357,10 @@ describe("ManageDocumentModal", () => {
     );
 
     await screen.findByDisplayValue("Mevcut Kurum");
+    const mebbisButton = screen.getByRole("button", { name: "Mebbis Aktar" });
+    await waitFor(() => expect(mebbisButton).not.toBeDisabled());
 
-    fireEvent.click(screen.getByRole("button", { name: "Mebbis Aktar" }));
+    fireEvent.click(mebbisButton);
 
     await waitFor(() => {
       expect(createCandidateHealthReportUploadJobMock).toHaveBeenCalledWith("cand-1");

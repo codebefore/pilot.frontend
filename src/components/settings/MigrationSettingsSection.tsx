@@ -994,32 +994,43 @@ export function MigrationSettingsSection() {
 
               <div className="settings-surface-body">
                 <div className="settings-module-list">
-                  {group.actions.map((action, actionIndex) => (
-                    <div className="settings-module-item" key={action.titleKey}>
-                      <div className="settings-module-copy">
-                        <span className="settings-module-order">
-                          {previousActionCount + actionIndex + 1}
-                        </span>
-                        <div>
-                          <strong>{t(action.titleKey)}</strong>
-                          <span>{t(action.descriptionKey)}</span>
+                  {group.actions.map((action, actionIndex) => {
+                    const requiresMebbisSession = MEBBIS_SESSION_REQUIRED_ACTIONS.has(action.key);
+                    const sessionBlocked =
+                      requiresMebbisSession &&
+                      action.enabled &&
+                      !runningAction &&
+                      mebbisSessionGuard.disabled;
+
+                    return (
+                      <div className="settings-module-item" key={action.titleKey}>
+                        <div className="settings-module-copy">
+                          <span className="settings-module-order">
+                            {previousActionCount + actionIndex + 1}
+                          </span>
+                          <div>
+                            <strong>{t(action.titleKey)}</strong>
+                            <span>{t(action.descriptionKey)}</span>
+                          </div>
                         </div>
+                        <button
+                          aria-disabled={sessionBlocked}
+                          className={`btn btn-${action.tone ?? "secondary"} btn-sm`}
+                          disabled={!action.enabled || Boolean(runningAction)}
+                          onClick={() => void runMigrationAction(action)}
+                          title={sessionBlocked ? mebbisSessionGuard.message : undefined}
+                          type="button"
+                        >
+                          <MebIcon size={14} />
+                          {runningAction === action.key
+                            ? t(action.runningLabelKey ?? "settings.migration.action.running")
+                            : action.enabled
+                              ? t(action.buttonLabelKey ?? "settings.migration.action.run")
+                              : t("settings.migration.action.pending")}
+                        </button>
                       </div>
-                      <button
-                        className={`btn btn-${action.tone ?? "secondary"} btn-sm`}
-                        disabled={!action.enabled || Boolean(runningAction)}
-                        onClick={() => void runMigrationAction(action)}
-                        type="button"
-                      >
-                        <MebIcon size={14} />
-                        {runningAction === action.key
-                          ? t(action.runningLabelKey ?? "settings.migration.action.running")
-                          : action.enabled
-                            ? t(action.buttonLabelKey ?? "settings.migration.action.run")
-                            : t("settings.migration.action.pending")}
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </section>

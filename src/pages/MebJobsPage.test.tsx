@@ -14,7 +14,9 @@ const cancelAllMebbisJobsMock = vi.fn();
 const retryMebbisJobsMock = vi.fn();
 const createCandidateLookupJobMock = vi.fn();
 const getMebbisJobQueueStatusMock = vi.fn();
-const getMebbisSessionStatusMock = vi.fn();
+const getLocalAgentMebbisSessionMock = vi.fn();
+const ensureMebbisSessionMock = vi.fn();
+let mebbisSessionDisabled = false;
 
 vi.mock("../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/candidates-api")>(
@@ -26,6 +28,29 @@ vi.mock("../lib/candidates-api", async () => {
     getCandidates: (...args: Parameters<typeof actual.getCandidates>) => getCandidatesMock(...args),
   };
 });
+
+vi.mock("../lib/local-agent-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/local-agent-api")>(
+    "../lib/local-agent-api"
+  );
+
+  return {
+    ...actual,
+    getLocalAgentMebbisSession: (...args: Parameters<typeof actual.getLocalAgentMebbisSession>) =>
+      getLocalAgentMebbisSessionMock(...args),
+  };
+});
+
+vi.mock("../lib/queries/use-mebbis-session", () => ({
+  MEBBIS_SESSION_REQUIRED_MESSAGE: "MEBBİS oturumu açılmalı.",
+  useMebbisSessionGuard: () => ({
+    disabled: mebbisSessionDisabled,
+    ensureSessionAsync: ensureMebbisSessionMock,
+    message: "MEBBİS oturumu açılmalı.",
+    sessionOpen: !mebbisSessionDisabled,
+    warnSessionRequired: vi.fn(),
+  }),
+}));
 
 vi.mock("../lib/mebbis-jobs-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/mebbis-jobs-api")>(
@@ -50,8 +75,6 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
       createCandidateLookupJobMock(...args),
     getMebbisJobQueueStatus: (...args: Parameters<typeof actual.getMebbisJobQueueStatus>) =>
       getMebbisJobQueueStatusMock(...args),
-    getMebbisSessionStatus: (...args: Parameters<typeof actual.getMebbisSessionStatus>) =>
-      getMebbisSessionStatusMock(...args),
   };
 });
 
@@ -134,7 +157,9 @@ describe("MebJobsPage", () => {
     retryMebbisJobsMock.mockReset();
     createCandidateLookupJobMock.mockReset();
     getMebbisJobQueueStatusMock.mockReset();
-    getMebbisSessionStatusMock.mockReset();
+    getLocalAgentMebbisSessionMock.mockReset();
+    ensureMebbisSessionMock.mockReset();
+    mebbisSessionDisabled = false;
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     getCandidatesMock.mockResolvedValue({
@@ -169,13 +194,15 @@ describe("MebJobsPage", () => {
       },
     ]);
     listMebbisJobStepsMock.mockResolvedValue([]);
-    getMebbisSessionStatusMock.mockResolvedValue({
-      isOpen: true,
-      clientId: "extension-1",
-      lastSeenAtUtc: new Date().toISOString(),
-      lastKnownMebbisUser: "meb-user",
-      extensionHeartbeatFreshSeconds: 60,
+    getLocalAgentMebbisSessionMock.mockResolvedValue({
+      status: "connected",
+      message: "MEBBIS bağlantısı açık.",
+      currentUrl: "https://mebbis.meb.gov.tr/",
+      mebbisUser: "meb-user",
+      requiresVerificationCode: false,
+      updatedAtUtc: new Date().toISOString(),
     });
+    ensureMebbisSessionMock.mockResolvedValue(true);
     getMebbisJobQueueStatusMock.mockResolvedValue({
       streamsEnabled: true,
       streamName: "mebbis-jobs",
@@ -257,46 +284,23 @@ describe("MebJobsPage", () => {
   });
 
   it("warns and does not open new job flow when MEBBIS session is closed", async () => {
-    getMebbisSessionStatusMock.mockResolvedValueOnce({
-      isOpen: false,
-      clientId: null,
-      lastSeenAtUtc: null,
-      lastKnownMebbisUser: null,
-      extensionHeartbeatFreshSeconds: 60,
-    }).mockResolvedValueOnce({
-      isOpen: false,
-      clientId: null,
-      lastSeenAtUtc: null,
-      lastKnownMebbisUser: null,
-      extensionHeartbeatFreshSeconds: 60,
-    });
+    mebbisSessionDisabled = true;
+    ensureMebbisSessionMock.mockResolvedValue(false);
     renderPage({ mebjobs: "full" });
 
     const newJobButton = await screen.findByRole("button", { name: /Yeni MEB İşi/ });
     await waitFor(() =>
-      expect(newJobButton).toHaveAttribute("aria-disabled", "false")
+      expect(newJobButton).toHaveAttribute("aria-disabled", "true")
     );
 
     fireEvent.click(newJobButton);
 
-    expect(await screen.findByText("MEBBİS oturumu açılmalı.")).toBeInTheDocument();
+    await waitFor(() => expect(ensureMebbisSessionMock).toHaveBeenCalledTimes(1));
     expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
   });
 
   it("refetches and blocks new job flow when cached MEBBIS session turns closed", async () => {
-    getMebbisSessionStatusMock.mockResolvedValueOnce({
-      isOpen: true,
-      clientId: "extension-1",
-      lastSeenAtUtc: new Date().toISOString(),
-      lastKnownMebbisUser: "meb-user",
-      extensionHeartbeatFreshSeconds: 60,
-    }).mockResolvedValueOnce({
-      isOpen: false,
-      clientId: null,
-      lastSeenAtUtc: null,
-      lastKnownMebbisUser: null,
-      extensionHeartbeatFreshSeconds: 60,
-    });
+    ensureMebbisSessionMock.mockResolvedValue(false);
     renderPage({ mebjobs: "full" });
 
     const newJobButton = await screen.findByRole("button", { name: /Yeni MEB İşi/ });
@@ -304,8 +308,7 @@ describe("MebJobsPage", () => {
 
     fireEvent.click(newJobButton);
 
-    expect(await screen.findByText("MEBBİS oturumu açılmalı.")).toBeInTheDocument();
-    expect(getMebbisSessionStatusMock).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(ensureMebbisSessionMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
   });

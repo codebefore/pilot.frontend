@@ -15,7 +15,7 @@ export function PageToolbar({ title, actions }: PageToolbarProps) {
 }
 
 type PageTabsProps<K extends string> = {
-  tabs: { key: K; label: string }[];
+  tabs: { key: K; label: string; count?: number }[];
   active: K | "";
   onChange: (key: K) => void;
 };
@@ -31,6 +31,11 @@ export function PageTabs<K extends string>({ tabs, active, onChange }: PageTabsP
           type="button"
         >
           {tab.label}
+          {typeof tab.count === "number" ? (
+            <span aria-hidden="true" className="page-tab-count">
+              {tab.count}
+            </span>
+          ) : null}
         </button>
       ))}
     </div>
