@@ -11794,7 +11794,6 @@ function TrainingTab({
                 branchHelpers={branchHelpers}
                 events={calendarEvents}
                 focusDate={calendarFocusDate}
-                initialView="agenda"
                 kind="uygulama"
                 readOnly
               />

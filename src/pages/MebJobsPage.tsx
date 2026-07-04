@@ -561,7 +561,7 @@ export function MebJobsPage() {
             </button>
           </>
         }
-        title="Meb Sync"
+        title="Local Agent"
       />
 
       <div className="jobs-summary">

@@ -42,6 +42,7 @@ import { groupKeys } from "../lib/queries/use-groups";
 import { useMebbisSessionGuard } from "../lib/queries/use-mebbis-session";
 import {
   createPracticeScheduleImportJob,
+  createPracticeScheduleSyncJob,
   createTheoryScheduleImportJob,
   createTheoryScheduleSyncJob,
   getMebbisJob,
@@ -496,6 +497,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [isMebbisTransferLoading, setIsMebbisTransferLoading] = useState(false);
   const [isMebbisImportLoading, setIsMebbisImportLoading] = useState(false);
   const [isMebbisPracticeImportLoading, setIsMebbisPracticeImportLoading] = useState(false);
+  const [isMebbisPracticeTransferLoading, setIsMebbisPracticeTransferLoading] = useState(false);
   const [mebbisImportedFocusDate, setMebbisImportedFocusDate] = useState<Date | null>(null);
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
@@ -2206,6 +2208,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
               ? "training.toast.mebbisImportCompleted"
               : job.jobType === "practice_schedule_import"
                 ? "training.toast.mebbisPracticeImportCompleted"
+                : job.jobType === "practice_schedule_sync"
+                  ? "training.toast.mebbisPracticeTransferCompleted"
                 : "training.toast.mebbisTransferCompleted"
           ));
           return;
@@ -2219,6 +2223,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
           showToast(t(
             job.jobType === "practice_schedule_import"
               ? "training.toast.mebbisPracticeImportNeedsManualAction"
+              : job.jobType === "practice_schedule_sync"
+                ? "training.toast.mebbisPracticeTransferNeedsManualAction"
               : "training.toast.mebbisTransferNeedsManualAction"
           ));
           return;
@@ -2233,6 +2239,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
         showToast(t(
           job.jobType === "practice_schedule_import"
             ? "training.toast.mebbisPracticeImportStillRunning"
+            : job.jobType === "practice_schedule_sync"
+              ? "training.toast.mebbisPracticeTransferStillRunning"
             : "training.toast.mebbisTransferStillRunning"
         ));
       } catch (error) {
@@ -2250,6 +2258,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
         showToast(t(
           fallbackJobType === "practice_schedule_import"
             ? "training.toast.mebbisPracticeImportStillRunning"
+            : fallbackJobType === "practice_schedule_sync"
+              ? "training.toast.mebbisPracticeTransferStillRunning"
             : "training.toast.mebbisTransferStillRunning"
         ));
       }
@@ -2366,6 +2376,36 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
   };
 
+  const handleCreatePracticeScheduleSyncJob = async () => {
+    if (!canManageMebJobs) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+    if (!selectedPracticeCandidate) {
+      showToast(t("training.toast.selectCandidateForMebbisPracticeTransfer"));
+      return;
+    }
+
+    setIsMebbisPracticeTransferLoading(true);
+    try {
+      const job = await createPracticeScheduleSyncJob(selectedPracticeCandidate.id);
+      notifyMebbisJobQueued(job.id, job.jobType);
+      void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      showToast(t("training.toast.mebbisPracticeTransferQueued"));
+      scheduleMebbisJobPoll(job.id, selectedPracticeCandidate.id, job.jobType);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof ApiError
+          ? Object.values(error.validationErrors ?? {})[0]?.[0] ??
+            t("training.toast.mebbisPracticeTransferFailed")
+          : t("training.toast.mebbisPracticeTransferFailed");
+      showToast(message);
+    } finally {
+      setIsMebbisPracticeTransferLoading(false);
+    }
+  };
+
   const handleBulkDeleteGroupLessons = async () => {
     if (!canManageTraining) return;
     if (!bulkDeleteGroup) return;
@@ -2429,13 +2469,18 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const activeMebbisPracticeImportJob = Object.values(activeMebbisTrainingJobs).find(
     (job) => job.jobType === "practice_schedule_import"
   );
+  const activeMebbisPracticeTransferJob = Object.values(activeMebbisTrainingJobs).find(
+    (job) => job.jobType === "practice_schedule_sync"
+  );
   const activeMebbisStatusGroupId =
     activeMebbisImportJob?.entityId ?? activeMebbisTransferJob?.entityId ?? null;
   const activeMebbisStatusGroup = activeMebbisStatusGroupId
     ? groups.find((group) => group.id === activeMebbisStatusGroupId)
     : null;
-  const activeMebbisStatusCandidate = activeMebbisPracticeImportJob?.entityId
-    ? candidates.find((candidate) => candidate.id === activeMebbisPracticeImportJob.entityId)
+  const activeMebbisStatusCandidateId =
+    activeMebbisPracticeTransferJob?.entityId ?? activeMebbisPracticeImportJob?.entityId ?? null;
+  const activeMebbisStatusCandidate = activeMebbisStatusCandidateId
+    ? candidates.find((candidate) => candidate.id === activeMebbisStatusCandidateId)
     : null;
   const activeMebbisStatusMessage = activeMebbisImportJob
     ? t("training.mebbis.importRunning", {
@@ -2445,7 +2490,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
       ? t("training.mebbis.transferRunning", {
           group: activeMebbisStatusGroup?.title ?? "",
         })
-      : activeMebbisPracticeImportJob
+      : activeMebbisPracticeTransferJob
+        ? t("training.mebbis.practiceTransferRunning", {
+            candidate: formatCandidateName(activeMebbisStatusCandidate),
+          })
+        : activeMebbisPracticeImportJob
         ? t("training.mebbis.practiceImportRunning", {
             candidate: formatCandidateName(activeMebbisStatusCandidate),
           })
@@ -2601,6 +2650,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                       !isBulkDeleteLoading &&
                       !isMebbisImportLoading &&
                       !isMebbisTransferLoading &&
+                      !isMebbisPracticeTransferLoading &&
                       !isMebbisPracticeImportLoading &&
                       mebbisSessionGuard.disabled
                     }
@@ -2610,6 +2660,37 @@ export function TrainingPage({ type }: TrainingPageProps) {
                       isBulkDeleteLoading ||
                       isMebbisImportLoading ||
                       isMebbisTransferLoading ||
+                      isMebbisPracticeTransferLoading ||
+                      isMebbisPracticeImportLoading
+                    }
+                    onClick={handleCreatePracticeScheduleSyncJob}
+                    title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
+                    type="button"
+                  >
+                    <MebIcon size={14} />
+                    {isMebbisPracticeTransferLoading
+                      ? t("training.mebbis.transferQueuing")
+                      : t("training.mebbis.transfer")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    aria-disabled={
+                      canManageMebJobs &&
+                      !isQuickAssignLoading &&
+                      !isBulkDeleteLoading &&
+                      !isMebbisImportLoading &&
+                      !isMebbisTransferLoading &&
+                      !isMebbisPracticeTransferLoading &&
+                      !isMebbisPracticeImportLoading &&
+                      mebbisSessionGuard.disabled
+                    }
+                    disabled={
+                      !canManageMebJobs ||
+                      isQuickAssignLoading ||
+                      isBulkDeleteLoading ||
+                      isMebbisImportLoading ||
+                      isMebbisTransferLoading ||
+                      isMebbisPracticeTransferLoading ||
                       isMebbisPracticeImportLoading
                     }
                     onClick={handleCreatePracticeScheduleImportJob}

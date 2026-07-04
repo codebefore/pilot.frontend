@@ -1083,6 +1083,7 @@ export interface TrainingLessonResponse {
   candidateName: string | null;
   vehicleId: string | null;
   vehiclePlate: string | null;
+  vehicleIsSimulator: boolean;
   classroomId: string | null;
   classroomName: string | null;
   branchCode: string | null;

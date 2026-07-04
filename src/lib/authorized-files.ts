@@ -16,10 +16,11 @@ export async function openAuthorizedFile(url: string): Promise<void> {
 }
 
 export async function downloadAuthorizedFile(url: string, filename?: string | null): Promise<void> {
-  const objectUrl = await createAuthorizedObjectUrl(url);
+  const file = await fetchAuthorizedFile(url);
+  const objectUrl = URL.createObjectURL(file.blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
-  anchor.download = filename?.trim() || "dosya";
+  anchor.download = resolveDownloadFileName(filename, file);
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
@@ -55,6 +56,16 @@ export async function printAuthorizedFile(url: string, title: string): Promise<v
 }
 
 export async function fetchAuthorizedBlob(url: string, signal?: AbortSignal): Promise<Blob> {
+  return (await fetchAuthorizedFile(url, signal)).blob;
+}
+
+type AuthorizedFile = {
+  blob: Blob;
+  contentType: string;
+  fileName: string | null;
+};
+
+async function fetchAuthorizedFile(url: string, signal?: AbortSignal): Promise<AuthorizedFile> {
   const headers = new Headers();
   const token = getStoredAccessToken();
   if (token) {
@@ -68,7 +79,56 @@ export async function fetchAuthorizedBlob(url: string, signal?: AbortSignal): Pr
   if (!response.ok) {
     throw new Error(`File request failed with status ${response.status}`);
   }
-  return response.blob();
+  return {
+    blob: await response.blob(),
+    contentType: response.headers.get("content-type") ?? "",
+    fileName: readContentDispositionFileName(response.headers.get("content-disposition")),
+  };
+}
+
+function resolveDownloadFileName(requestedFileName: string | null | undefined, file: AuthorizedFile): string {
+  return normalizeFileNameForContentType(
+    file.fileName?.trim() || requestedFileName?.trim() || "dosya",
+    file.blob.type || file.contentType
+  );
+}
+
+function normalizeFileNameForContentType(fileName: string, contentType: string): string {
+  const extension = extensionForContentType(contentType);
+  if (!extension) {
+    return fileName;
+  }
+
+  const dotIndex = fileName.lastIndexOf(".");
+  const baseName = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
+  return `${baseName || "dosya"}${extension}`;
+}
+
+function extensionForContentType(contentType: string): string | null {
+  switch (contentType.toLowerCase()) {
+    case "image/jpeg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    case "application/pdf":
+      return ".pdf";
+    default:
+      return null;
+  }
+}
+
+function readContentDispositionFileName(contentDisposition: string | null): string | null {
+  if (!contentDisposition) {
+    return null;
+  }
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
+  if (utf8Match) {
+    return decodeURIComponent(utf8Match[1].trim().replace(/^"|"$/g, ""));
+  }
+
+  const match = /filename="?([^";]+)"?/i.exec(contentDisposition);
+  return match?.[1]?.trim() || null;
 }
 
 function escapeHtml(value: string): string {

@@ -1219,6 +1219,55 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   border-color: var(--brand-dark);
 }
 
+.training-event-hover-popover {
+  position: fixed;
+  z-index: 2200;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  padding: 10px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+  color: var(--gray-900);
+  pointer-events: none;
+}
+
+.training-event-hover-title {
+  margin-bottom: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-900);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.training-event-hover-list {
+  display: grid;
+  gap: 6px;
+}
+
+.training-event-hover-row {
+  display: grid;
+  grid-template-columns: minmax(78px, auto) 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.training-event-hover-row > span {
+  color: var(--gray-500);
+  font-weight: 600;
+}
+
+.training-event-hover-row > strong {
+  min-width: 0;
+  color: var(--gray-900);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
 /* Dimmed event — görünür grupta ama görünmez eğitmen tarafından
  * verilen ders; "burası başka eğitmen için dolu" sinyali. Şeffaf
  * (opacity 0.32), dashed border, çapraz tarama deseni; etkileşimsiz. */

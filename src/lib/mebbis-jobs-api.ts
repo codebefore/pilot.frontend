@@ -432,6 +432,14 @@ export async function createPracticeScheduleImportJob(candidateId: string): Prom
   );
 }
 
+export async function createPracticeScheduleSyncJob(candidateId: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    `/api/mebbis/jobs/candidates/${candidateId}/practice-schedule-sync`,
+    {},
+    mebbisRequestOptions()
+  );
+}
+
 export async function createGroupInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/groups/import",
@@ -520,6 +528,7 @@ export function mebbisJobTypeLabel(jobType: string, t: ReturnType<typeof useT>):
     theory_schedule_sync: "mebbisJobType.theoryScheduleSync",
     theory_schedule_import: "mebbisJobType.theoryScheduleImport",
     practice_schedule_import: "mebbisJobType.practiceScheduleImport",
+    practice_schedule_sync: "mebbisJobType.practiceScheduleSync",
     institution_inventory_import: "mebbisJobType.institutionInventoryImport",
     license_class_inventory_import: "mebbisJobType.licenseClassInventoryImport",
     group_inventory_import: "mebbisJobType.groupInventoryImport",

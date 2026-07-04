@@ -3,7 +3,9 @@ import {
   useMemo,
   useState,
   type ComponentType,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, type CalendarProps, type View } from "react-big-calendar";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -169,6 +171,75 @@ const CALENDAR_FORMATS = {
   dayHeaderFormat: "d MMMM yyyy, EEEE",
 };
 
+type HoverPopoverState = {
+  event: TrainingCalendarEvent;
+  top: number;
+  left: number;
+};
+
+function formatCalendarTimeRange(start: Date, end: Date): string {
+  return `${format(start, "HH:mm")} - ${format(end, "HH:mm")}`;
+}
+
+function buildEventPopoverRows(event: TrainingCalendarEvent): Array<{ label: string; value: string }> {
+  const rows: Array<{ label: string; value: string }> = [
+    { label: "Saat", value: formatCalendarTimeRange(event.start, event.end) },
+  ];
+
+  if (event.kind === "uygulama") {
+    rows.unshift(
+      { label: "Aday", value: event.candidateName?.trim() || "-" },
+      { label: "Araç plakası", value: event.vehiclePlate?.trim() || event.groupName || "-" },
+      { label: "Eğitmen", value: event.instructorName || "-" }
+    );
+  } else {
+    rows.unshift(
+      { label: "Dönem", value: event.termName || "-" },
+      { label: "Grup", value: event.groupName || "-" },
+      { label: "Eğitmen", value: event.instructorName || "-" }
+    );
+    if (event.location) {
+      rows.push({ label: "Derslik", value: event.location });
+    }
+    if (event.candidateCount > 0) {
+      rows.push({ label: "Aday sayısı", value: String(event.candidateCount) });
+    }
+  }
+
+  if (event.licenseClass && event.licenseClass !== "-") {
+    rows.push({ label: "Sınıf", value: event.licenseClass });
+  }
+  if (event.notes?.trim()) {
+    rows.push({ label: event.kind === "teorik" ? "Ders" : "Not", value: event.notes.trim() });
+  }
+
+  return rows;
+}
+
+function TrainingEventHoverPopover({ event, top, left }: HoverPopoverState) {
+  const title = event.kind === "uygulama" ? "Direksiyon eğitimi" : "Teorik eğitim";
+  const rows = buildEventPopoverRows(event);
+
+  return createPortal(
+    <div
+      className="training-event-hover-popover"
+      role="tooltip"
+      style={{ top, left }}
+    >
+      <div className="training-event-hover-title">{title}</div>
+      <div className="training-event-hover-list">
+        {rows.map((row) => (
+          <div className="training-event-hover-row" key={`${row.label}:${row.value}`}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function TrainingCalendar({
   events,
   kind: _kind,
@@ -188,6 +259,7 @@ export function TrainingCalendar({
 }: TrainingCalendarProps) {
   const { lang } = useLanguage();
   const [view, setView] = useState<View>(initialView);
+  const [hoverPopover, setHoverPopover] = useState<HoverPopoverState | null>(null);
   // Hafta görünümü açılışta 2 gün öncesinden başlasın — kullanıcı
   // yakın geçmişte olanı hızlıca görsün, gelecek de aynı pencerede.
   const [date, setDate] = useState<Date>(() => {
@@ -305,6 +377,24 @@ export function TrainingCalendar({
     [durationHours, onDurationHoursChange]
   );
 
+  const showEventPopover = (event: TrainingCalendarEvent, target: HTMLElement) => {
+    if (event.preview || event.busyMarker) return;
+    const rect = target.getBoundingClientRect();
+    const width = 260;
+    const padding = 12;
+    const left = Math.max(
+      padding,
+      Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - padding)
+    );
+    const top = Math.max(
+      padding,
+      Math.min(rect.bottom + 8, window.innerHeight - 240)
+    );
+    setHoverPopover({ event, top, left });
+  };
+
+  const hideEventPopover = () => setHoverPopover(null);
+
   const EventComponent = useMemo(
     () => ({ event }: { event: TrainingCalendarEvent }) => {
       const BusyIcons = () => {
@@ -342,7 +432,13 @@ export function TrainingCalendar({
       const isUygulama = event.kind === "uygulama";
       if (event.displayLessonNumber) {
         return (
-          <div className="training-event-content training-event-lesson-number">
+          <div
+            className="training-event-content training-event-lesson-number"
+            onMouseEnter={(mouseEvent: ReactMouseEvent<HTMLDivElement>) =>
+              showEventPopover(event, mouseEvent.currentTarget)
+            }
+            onMouseLeave={hideEventPopover}
+          >
             {event.busyReasons?.length ? <BusyIcons /> : null}
             <span>{event.displayLessonNumber}</span>
           </div>
@@ -355,7 +451,13 @@ export function TrainingCalendar({
         ? event.candidateName
         : event.notes?.trim() || null;
       return (
-        <div className="training-event-content">
+        <div
+          className="training-event-content"
+          onMouseEnter={(mouseEvent: ReactMouseEvent<HTMLDivElement>) =>
+            showEventPopover(event, mouseEvent.currentTarget)
+          }
+          onMouseLeave={hideEventPopover}
+        >
           {event.busyReasons?.length ? <BusyIcons /> : null}
           {topLine ? (
             <div className="training-event-type">{topLine}</div>
@@ -483,6 +585,7 @@ export function TrainingCalendar({
     // pozisyon yok (görsel ve davranış birebir).
     step: 60,
     timeslots: 1,
+    tooltipAccessor: () => "",
     style: { height: "100%", minHeight: 0 },
     view,
     views: {
@@ -499,6 +602,7 @@ export function TrainingCalendar({
   return (
     <div className="training-calendar">
       <DnDCalendar {...calendarProps} />
+      {hoverPopover ? <TrainingEventHoverPopover {...hoverPopover} /> : null}
     </div>
   );
 }
