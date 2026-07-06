@@ -395,7 +395,7 @@ describe("CandidatesPage tabs", () => {
     vi.useRealTimers();
   });
 
-  it("defaults to the all tab without sending a status filter", async () => {
+  it("defaults to the active tab and sends the active status filter", async () => {
     renderPage();
 
     await waitFor(() => {
@@ -404,7 +404,7 @@ describe("CandidatesPage tabs", () => {
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
     expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
-    expect(callArgs.status).toBeUndefined();
+    expect(callArgs.status).toBe("active");
     expect(callArgs.candidateTab).toBeUndefined();
   });
 
@@ -1398,7 +1398,7 @@ describe("CandidatesPage tabs", () => {
 
   it("falls back to the shared column order without creating user-specific preferences", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.all",
+      "candidates.columns.v19.active",
       JSON.stringify(["name", "photo"])
     );
 
@@ -1409,12 +1409,12 @@ describe("CandidatesPage tabs", () => {
       (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")
     );
     expect(headers).toEqual(["", "Ad Soyad", "Resim", ""]);
-    expect(localStorage.getItem("candidates.columns.v19.all.user.test-user")).toBeNull();
+    expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull();
   });
 
   it("stores user-specific candidate column order after dragging a header", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.all.user.test-user",
+      "candidates.columns.v19.active.user.test-user",
       JSON.stringify(["photo", "name", "nationalId"])
     );
 
@@ -1436,7 +1436,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.drop(nameHeader, { dataTransfer });
 
     await waitFor(() =>
-      expect(localStorage.getItem("candidates.columns.v19.all.user.test-user")).toBe(
+      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBe(
         JSON.stringify(["photo", "nationalId", "name"])
       )
     );
@@ -1444,11 +1444,11 @@ describe("CandidatesPage tabs", () => {
 
   it("removes user-specific candidate column preferences when resetting columns", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.all",
+      "candidates.columns.v19.active",
       JSON.stringify(["name", "photo"])
     );
     localStorage.setItem(
-      "candidates.columns.v19.all.user.test-user",
+      "candidates.columns.v19.active.user.test-user",
       JSON.stringify(["photo", "name", "nationalId"])
     );
 
@@ -1465,7 +1465,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(within(picker).getByRole("button", { name: "Varsayılana dön" }));
 
     await waitFor(() =>
-      expect(localStorage.getItem("candidates.columns.v19.all.user.test-user")).toBeNull()
+      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull()
     );
     const headers = screen.getAllByRole("columnheader").map((header) =>
       (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")

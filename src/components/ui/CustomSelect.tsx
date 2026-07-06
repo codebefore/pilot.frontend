@@ -16,9 +16,10 @@ import {
   type SelectHTMLAttributes,
   type UIEventHandler,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 
 type CustomSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & {
+  commitOnTypeahead?: boolean;
   onMenuScroll?: UIEventHandler<HTMLDivElement>;
   openOnFocus?: boolean;
   placeholder?: string;
@@ -31,6 +32,14 @@ type SelectOption = {
   secondaryLabel?: string;
   value: string;
 };
+
+function normalizeTypeaheadText(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 function parseOptions(children: CustomSelectProps["children"]): SelectOption[] {
   return Children.toArray(children).flatMap((child) => {
@@ -61,6 +70,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     "aria-label": ariaLabel,
     children,
     className,
+    commitOnTypeahead = false,
     defaultValue,
     disabled = false,
     name,
@@ -80,6 +90,15 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hiddenSelectRef = useRef<HTMLSelectElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const activeIndexRef = useRef(0);
+  const lastDispatchedValueRef = useRef<string | null>(null);
+  const pendingActiveIndexRef = useRef<number | null>(null);
+  const suppressNextEnterOpenRef = useRef(false);
+  const typeaheadValueRef = useRef<string | null>(null);
+  const typeaheadRef = useRef<{ query: string; timeoutId: number | null }>({
+    query: "",
+    timeoutId: null,
+  });
   const listboxId = useId();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -95,14 +114,28 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     options.find((option) => option.value === "");
   const selectedIndex = Math.max(0, options.findIndex((option) => option.value === currentValue));
 
+  const setActiveOptionIndex = (index: number) => {
+    activeIndexRef.current = index;
+    setActiveIndex(index);
+  };
+
   useEffect(() => {
     if (value === undefined) return;
     setInternalValue(String(value));
-  }, [value]);
+    lastDispatchedValueRef.current = String(value);
+    if (commitOnTypeahead) {
+      setOpen(false);
+    }
+  }, [commitOnTypeahead, value]);
 
   useEffect(() => {
     if (!open) return;
-    setActiveIndex(selectedIndex);
+    if (pendingActiveIndexRef.current !== null) {
+      setActiveOptionIndex(pendingActiveIndexRef.current);
+      pendingActiveIndexRef.current = null;
+    } else {
+      setActiveOptionIndex(selectedIndex);
+    }
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -114,18 +147,10 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
       }
     };
 
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
     document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, selectedIndex]);
 
@@ -168,6 +193,24 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const option = menuRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[activeIndex];
+    option?.scrollIntoView?.({ block: "nearest" });
+    if (typeaheadValueRef.current) {
+      option?.focus();
+    }
+  }, [activeIndex, open]);
+
+  useEffect(
+    () => () => {
+      if (typeaheadRef.current.timeoutId !== null) {
+        window.clearTimeout(typeaheadRef.current.timeoutId);
+      }
+    },
+    []
+  );
+
   const assignRefs = (node: HTMLSelectElement | null) => {
     hiddenSelectRef.current = node;
 
@@ -187,7 +230,16 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     onChange?.(event);
   };
 
+  const closeMenuNow = () => {
+    if (!open) {
+      setOpen(false);
+      return;
+    }
+    flushSync(() => setOpen(false));
+  };
+
   const dispatchValue = (nextValue: string) => {
+    lastDispatchedValueRef.current = nextValue;
     const hiddenSelect = hiddenSelectRef.current;
 
     if (!hiddenSelect) {
@@ -206,33 +258,91 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
   };
 
   const commitValue = (nextValue: string) => {
+    typeaheadValueRef.current = null;
+    closeMenuNow();
     const hiddenSelect = hiddenSelectRef.current;
 
     if (!hiddenSelect) {
       if (value === undefined) {
         setInternalValue(nextValue);
       }
-      setOpen(false);
       return;
     }
 
     dispatchValue(nextValue);
     hiddenSelect.focus();
     hiddenSelect.blur();
-    setOpen(false);
+  };
+
+  const commitValueIfChanged = (nextValue: string) => {
+    if (lastDispatchedValueRef.current === nextValue || hiddenSelectRef.current?.value === nextValue) {
+      typeaheadValueRef.current = null;
+      closeMenuNow();
+      return;
+    }
+    commitValue(nextValue);
   };
 
   const moveActiveOption = (direction: 1 | -1) => {
     if (options.length === 0) return;
 
-    let nextIndex = activeIndex;
+    let nextIndex = activeIndexRef.current;
     for (let attempt = 0; attempt < options.length; attempt += 1) {
       nextIndex = (nextIndex + direction + options.length) % options.length;
       if (!options[nextIndex]?.disabled) {
-        setActiveIndex(nextIndex);
+        typeaheadValueRef.current = null;
+        setActiveOptionIndex(nextIndex);
         return;
       }
     }
+  };
+
+  const moveToTypeaheadOption = (key: string) => {
+    if (key.length !== 1 || options.length === 0) return false;
+    const normalizedKey = normalizeTypeaheadText(key);
+    if (!normalizedKey) return false;
+
+    if (typeaheadRef.current.timeoutId !== null) {
+      window.clearTimeout(typeaheadRef.current.timeoutId);
+    }
+    const nextQuery = `${typeaheadRef.current.query}${normalizedKey}`;
+    typeaheadRef.current.query = nextQuery;
+    typeaheadRef.current.timeoutId = window.setTimeout(() => {
+      typeaheadRef.current.query = "";
+      typeaheadRef.current.timeoutId = null;
+    }, 700);
+
+    const startIndex = open ? activeIndexRef.current + 1 : selectedIndex + 1;
+    const findMatch = (query: string) => {
+      for (let offset = 0; offset < options.length; offset += 1) {
+        const index = (startIndex + offset) % options.length;
+        const option = options[index];
+        if (!option || option.disabled || option.value === "") continue;
+        if (normalizeTypeaheadText(option.label).startsWith(query)) {
+          return index;
+        }
+      }
+      return -1;
+    };
+
+    let nextIndex = findMatch(nextQuery);
+    if (nextIndex < 0 && nextQuery.length > 1) {
+      typeaheadRef.current.query = normalizedKey;
+      nextIndex = findMatch(normalizedKey);
+    }
+    if (nextIndex < 0) return false;
+
+    if (commitOnTypeahead) {
+      suppressNextEnterOpenRef.current = true;
+      commitValue(options[nextIndex]?.value ?? "");
+      return true;
+    }
+
+    pendingActiveIndexRef.current = nextIndex;
+    typeaheadValueRef.current = options[nextIndex]?.value ?? null;
+    setActiveOptionIndex(nextIndex);
+    setOpen(true);
+    return true;
   };
 
   const triggerClassName = [
@@ -262,6 +372,16 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
   const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
 
+    if (
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      moveToTypeaheadOption(event.key)
+    ) {
+      event.preventDefault();
+      return;
+    }
+
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!open) {
@@ -274,10 +394,21 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
 
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
+      if (!open && commitOnTypeahead && suppressNextEnterOpenRef.current) {
+        suppressNextEnterOpenRef.current = false;
+        return;
+      }
+      const typeaheadOption = typeaheadValueRef.current
+        ? options.find((option) => option.value === typeaheadValueRef.current)
+        : null;
+      if (typeaheadOption && !typeaheadOption.disabled) {
+        commitValueIfChanged(typeaheadOption.value);
+        return;
+      }
       if (open) {
-        const activeOption = options[activeIndex];
+        const activeOption = options[activeIndexRef.current];
         if (activeOption && !activeOption.disabled) {
-          commitValue(activeOption.value);
+          commitValueIfChanged(activeOption.value);
         }
         return;
       }
@@ -288,13 +419,18 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     if (event.key === "Escape" && open) {
       event.preventDefault();
       event.stopPropagation();
+      typeaheadValueRef.current = null;
       setOpen(false);
       return;
     }
 
     if (event.key === "Tab" && open) {
-      const activeOption = options[activeIndex];
+      const activeOption =
+        (typeaheadValueRef.current
+          ? options.find((option) => option.value === typeaheadValueRef.current)
+          : null) ?? options[activeIndexRef.current];
       if (activeOption && !activeOption.disabled) {
+        typeaheadValueRef.current = null;
         dispatchValue(activeOption.value);
       }
       setOpen(false);
@@ -302,6 +438,74 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
 
     onKeyDown?.(event as unknown as ReactKeyboardEvent<HTMLSelectElement>);
   };
+
+  useEffect(() => {
+    if (!open || disabled) return;
+
+    const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as Node | null;
+      if (target && rootRef.current?.contains(target)) return;
+
+      const fromMenu = target ? menuRef.current?.contains(target) : false;
+      const fromDocumentSurface =
+        target === document ||
+        target === document.body ||
+        target === document.documentElement;
+      if (!fromMenu && !fromDocumentSurface) return;
+      if (fromMenu && event.key === "Enter") return;
+
+      if (
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        moveToTypeaheadOption(event.key)
+      ) {
+        event.preventDefault();
+        return;
+      }
+
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        moveActiveOption(event.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        const typeaheadOption = typeaheadValueRef.current
+          ? options.find((option) => option.value === typeaheadValueRef.current)
+          : null;
+        const activeOption = typeaheadOption ?? options[activeIndexRef.current];
+        if (activeOption && !activeOption.disabled) {
+          commitValueIfChanged(activeOption.value);
+        }
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        typeaheadValueRef.current = null;
+        setOpen(false);
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const typeaheadOption = typeaheadValueRef.current
+          ? options.find((option) => option.value === typeaheadValueRef.current)
+          : null;
+        const activeOption = typeaheadOption ?? options[activeIndexRef.current];
+        if (activeOption && !activeOption.disabled) {
+          typeaheadValueRef.current = null;
+          dispatchValue(activeOption.value);
+        }
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleDocumentKeyDown);
+    return () => document.removeEventListener("keydown", handleDocumentKeyDown);
+  }, [disabled, open, options, selectedIndex]);
 
   const handleTriggerFocus = () => {
     if (disabled || !openOnFocus) return;
@@ -382,6 +586,11 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
                 .join(" ")}
               disabled={option.disabled}
               onClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
+                event.preventDefault();
+                commitValue(option.value);
+              }}
+              onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
                 event.preventDefault();
                 commitValue(option.value);
               }}

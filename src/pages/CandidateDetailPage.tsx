@@ -1683,6 +1683,15 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
   const t = useT();
   const [tagsSaving, setTagsSaving] = useState(false);
   const noPermissionTitle = t("common.noPermission");
+  const institutionSettingsQuery = useQuery({
+    queryKey: ["settings", "institution-settings"],
+    queryFn: ({ signal }) => getInstitutionSettings(signal),
+    staleTime: 5 * 60 * 1000,
+  });
+  const institutionAddressDefaults = useMemo(
+    () => buildInstitutionAddressDefaults(institutionSettingsQuery.data),
+    [institutionSettingsQuery.data]
+  );
 
   const saveGeneralField = async (
     patch: Partial<CandidateUpsertRequest>,
@@ -1862,6 +1871,7 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
             <CandidateContactsEditor
               canManageCandidates={canManageCandidates}
               candidate={candidate}
+              addressDefaults={institutionAddressDefaults}
               title={t("candidateDetail.license.section.contacts")}
               onSave={saveGeneralField}
             />
@@ -2039,11 +2049,13 @@ function buildDocumentJourneyStage(
 }
 
 function CandidateContactsEditor({
+  addressDefaults,
   canManageCandidates,
   candidate,
   title,
   onSave,
 }: {
+  addressDefaults: AddressContactDefaults;
   canManageCandidates: boolean;
   candidate: CandidateResponse;
   title: string;
@@ -2216,6 +2228,7 @@ function CandidateContactsEditor({
               contact={contact}
               key={`${contact.id || contact.type}-${index}`}
               label={label}
+              addressDefaults={addressDefaults}
               canManageCandidates={canManageCandidates}
               onDelete={() => deleteContact(contact)}
               onSave={(value, ownerName) => updateContact(contact, value, ownerName)}
@@ -2227,6 +2240,7 @@ function CandidateContactsEditor({
             draftId={draft.id}
             inputType={contactInputType(draft.type)}
             isPhone={draft.type === "phone"}
+            addressDefaults={addressDefaults}
             canManageCandidates={canManageCandidates}
             key={draft.id}
             label={t("candidateDetail.contacts.newKind", { singular: contactTypeLabel(draft.type, t) })}
@@ -2268,6 +2282,33 @@ type AddressContactParts = {
   district: string;
 };
 
+type AddressContactDefaults = Pick<AddressContactParts, "province" | "district">;
+
+function buildInstitutionAddressDefaults(
+  institution: { city: string | null; district: string | null } | null | undefined
+): AddressContactDefaults {
+  const province = resolveTurkeyProvinceValue(institution?.city);
+  const district = resolveTurkeyDistrictValue(province, institution?.district);
+  return {
+    province,
+    district: province ? district : "",
+  };
+}
+
+function applyAddressDefaults(
+  parts: AddressContactParts,
+  defaults: AddressContactDefaults
+): AddressContactParts {
+  if (!defaults.province) return parts;
+  const province = parts.province || defaults.province;
+  const district = parts.district || (province === defaults.province ? defaults.district : "");
+  return {
+    ...parts,
+    province,
+    district,
+  };
+}
+
 function parseAddressContactValue(value: string): AddressContactParts {
   const trimmed = value.trim();
   const provinceFirstMatch = /^(?<province>[^/,-]+)\s*\/\s*(?<district>[^,-]+)\s*[-,]\s*(?<detail>.+)$/u.exec(trimmed);
@@ -2294,12 +2335,14 @@ function buildAddressContactValue(parts: AddressContactParts): string {
 }
 
 function CandidateContactRow({
+  addressDefaults,
   contact,
   label,
   canManageCandidates,
   onSave,
   onDelete,
 }: {
+  addressDefaults: AddressContactDefaults;
   contact: CandidateContactResponse;
   label: string;
   canManageCandidates: boolean;
@@ -2316,11 +2359,13 @@ function CandidateContactRow({
   const trimmedValue = value.trim();
   const isPhone = contact.type === "phone";
   const isAddress = contact.type === "address";
-  const [addressParts, setAddressParts] = useState<AddressContactParts>(() => parseAddressContactValue(contact.value));
+  const [addressParts, setAddressParts] = useState<AddressContactParts>(() =>
+    applyAddressDefaults(parseAddressContactValue(contact.value), addressDefaults)
+  );
   const composedAddressValue = buildAddressContactValue(addressParts);
   const hasIncompleteAddress =
     isAddress &&
-    (addressParts.detail.trim().length === 0 || !addressParts.province || !addressParts.district);
+    (!addressParts.province || !addressParts.district);
   const isInvalidPhone = isPhone && trimmedValue.length > 0 && !isValidContactPhone(trimmedValue);
   const validationMessage =
     error ??
@@ -2335,11 +2380,12 @@ function CandidateContactRow({
     (!isPhone || ownerName.trim() === (contact.ownerName ?? ""));
 
   useEffect(() => {
+    if (editing) return;
     setValue(contact.value);
-    setAddressParts(parseAddressContactValue(contact.value));
+    setAddressParts(applyAddressDefaults(parseAddressContactValue(contact.value), addressDefaults));
     setOwnerName(contact.ownerName ?? "");
     setDeleteConfirmOpen(false);
-  }, [contact.ownerName, contact.value]);
+  }, [addressDefaults, contact.ownerName, contact.value, editing]);
 
   const save = async () => {
     const nextValue = isAddress ? composedAddressValue : trimmedValue;
@@ -2450,7 +2496,7 @@ function CandidateContactRow({
               disabled={saving}
               onClick={() => {
                 setValue(contact.value);
-                setAddressParts(parseAddressContactValue(contact.value));
+                setAddressParts(applyAddressDefaults(parseAddressContactValue(contact.value), addressDefaults));
                 setOwnerName(contact.ownerName ?? "");
                 setError(null);
                 setEditing(false);
@@ -2516,12 +2562,13 @@ function CandidateContactRow({
           ) : null}
         </div>
       </div>
-      {validationMessage ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
+      {validationMessage && !isAddress ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
     </div>
   );
 }
 
 function CandidateContactDraftRow({
+  addressDefaults,
   draftId,
   label,
   inputType,
@@ -2530,6 +2577,7 @@ function CandidateContactDraftRow({
   onCreate,
   onCancel,
 }: {
+  addressDefaults: AddressContactDefaults;
   draftId: string;
   label: string;
   inputType: "text" | "tel" | "textarea";
@@ -2540,7 +2588,10 @@ function CandidateContactDraftRow({
 }) {
   const t = useT();
   const [value, setValue] = useState("");
-  const [addressParts, setAddressParts] = useState<AddressContactParts>({ detail: "", province: "", district: "" });
+  const [addressParts, setAddressParts] = useState<AddressContactParts>(() => ({
+    detail: "",
+    ...addressDefaults,
+  }));
   const [ownerName, setOwnerName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -2549,7 +2600,7 @@ function CandidateContactDraftRow({
   const composedAddressValue = buildAddressContactValue(addressParts);
   const hasIncompleteAddress =
     isAddress &&
-    (addressParts.detail.trim().length === 0 || !addressParts.province || !addressParts.district);
+    (!addressParts.province || !addressParts.district);
   const isInvalidPhone = isPhone && trimmedValue.length > 0 && !isValidContactPhone(trimmedValue);
   const validationMessage =
     error ??
@@ -2559,6 +2610,12 @@ function CandidateContactDraftRow({
         ? t("candidateDetail.contacts.error.addressIncomplete")
         : null);
   const noPermissionTitle = t("common.noPermission");
+
+  useEffect(() => {
+    if (!addressDefaults.province) return;
+    if (value.trim() || addressParts.detail.trim() || addressParts.province || addressParts.district) return;
+    setAddressParts({ detail: "", ...addressDefaults });
+  }, [addressDefaults, addressParts.detail, addressParts.district, addressParts.province, value]);
 
   const save = async () => {
     const nextValue = isAddress ? composedAddressValue : trimmedValue;
@@ -2650,7 +2707,7 @@ function CandidateContactDraftRow({
           <XIcon size={13} />
         </button>
       </div>
-      {validationMessage ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
+      {validationMessage && !isAddress ? <span className="candidate-contact-validation">{validationMessage}</span> : null}
     </div>
   );
 }
@@ -2707,6 +2764,7 @@ function AddressContactFields({
               district: resolveTurkeyDistrictValue(value.province, event.target.value),
             });
           }}
+          openOnFocus
           placeholder={t("candidateDetail.contacts.addressDistrict")}
           size="sm"
           value={value.district}
@@ -8555,6 +8613,7 @@ function buildCandidateDocumentChecklistItems({
     valueItem(t("candidateDetail.documents.checklistItem.birthDate"), candidate.birthDate ? formatDateTR(candidate.birthDate) : null),
     valueItem(t("candidateDetail.documents.checklistItem.fatherName"), candidate.fatherName),
     documentItem(t("candidateDetail.documents.checklistItem.identityCopy"), "identity_card"),
+    documentItem(t("candidateDetail.documents.checklistItem.applicationForm"), "application_form"),
     valueItem(t("candidateDetail.documents.checklistItem.requestedLicenseType"), candidate.licenseClass),
     hasExistingLicense
       ? valueItem(
@@ -8592,7 +8651,6 @@ function buildCandidateDocumentChecklistItems({
     },
     metadataItem(t("candidateDetail.documents.checklistItem.contractDate"), "contract_back", "contract_date"),
     documentItem(t("candidateDetail.documents.checklistItem.signatureSample"), "signature_sample"),
-    documentItem(t("candidateDetail.documents.checklistItem.applicationForm"), "application_form"),
     documentItem(t("candidateDetail.documents.checklistItem.biometricPhoto"), "biometric_photo"),
     documentItem(t("candidateDetail.documents.checklistItem.webcamPhoto"), "webcam_photo"),
     documentItem(t("candidateDetail.documents.checklistItem.educationCertificate"), "education_certificate"),
@@ -11345,10 +11403,10 @@ function DocRow({
   const canUploadFile = status !== "uploaded";
   const canDeleteFile = !!upload?.hasFile;
   const hasDocumentAvailable = status !== "missing";
-  const canAnalyzeOcr = !!upload?.hasFile && metadataFields.length > 0;
+  const canAnalyzeOcr = type.key !== "contract_back" && !!upload?.hasFile && metadataFields.length > 0;
 
   return (
-    <li className={`candidate-detail-doc-row status-${status}${showsImagePreview ? " is-photo" : ""}`}>
+    <li className={`candidate-detail-doc-row status-${status} doc-type-${type.key}${showsImagePreview ? " is-photo" : ""}`}>
       <div className={`candidate-detail-doc-status-marker ${status}`} aria-hidden="true" />
       <div className="candidate-detail-doc-main">
         {showsImagePreview ? (

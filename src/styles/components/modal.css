@@ -23,7 +23,7 @@
   animation: modalIn .2s ease-out;
 }
 .modal:has(.candidate-detail-doc-checklist-modal) {
-  max-width: min(820px, calc(100vw - 40px));
+  max-width: min(1040px, calc(100vw - 40px));
 }
 .modal:has(.candidate-detail-doc-transfer-modal) {
   max-width: min(920px, calc(100vw - 40px));

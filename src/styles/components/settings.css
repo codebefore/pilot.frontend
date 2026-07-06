@@ -2005,12 +2005,17 @@
   min-width: 0;
   box-sizing: border-box;
   display: block;
-  column-count: 2;
+  column-count: 3;
   column-gap: 12px;
   max-height: min(62vh, 620px);
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 4px;
+}
+@media (max-width: 960px) {
+  .candidate-detail-doc-checklist--modal {
+    column-count: 2;
+  }
 }
 @media (max-width: 720px) {
   .candidate-detail-doc-checklist--modal {
@@ -2115,6 +2120,11 @@
   background: color-mix(in srgb, var(--gray-50, #f9fafb) 80%, var(--white));
   box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
 }
+.candidate-detail-doc-row.doc-type-biometric_photo .candidate-detail-doc-photo-preview,
+.candidate-detail-doc-row.doc-type-webcam_photo .candidate-detail-doc-photo-preview {
+  width: calc(96px * 394 / 512);
+  border-radius: 9px;
+}
 .candidate-detail-doc-photo-preview.is-a4 {
   width: 120px;
   height: 170px;
@@ -2130,6 +2140,10 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+.candidate-detail-doc-row.doc-type-biometric_photo .candidate-detail-doc-photo-preview img,
+.candidate-detail-doc-row.doc-type-webcam_photo .candidate-detail-doc-photo-preview img {
+  object-fit: contain;
 }
 .candidate-detail-doc-photo-preview-btn {
   all: unset;

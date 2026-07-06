@@ -137,7 +137,7 @@ const TAB_KEYS: CandidateTab[] = [
   "graduated",
   "dropped",
 ];
-const DEFAULT_TAB: CandidateTab = "all";
+const DEFAULT_TAB: CandidateTab = "active";
 
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
