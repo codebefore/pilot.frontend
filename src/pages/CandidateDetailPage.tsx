@@ -97,7 +97,10 @@ import {
 } from "../lib/turkey-address-options";
 import { buildTermLabel } from "../lib/term-label";
 import { ApiError } from "../lib/http";
-import { cropImageFileTopHalf } from "../lib/image-preprocess";
+import {
+  SCANNED_BIOMETRIC_TOP_CROP_PERCENT,
+  cropImageFileTopPercent,
+} from "../lib/image-preprocess";
 import { formatNationalId } from "../lib/national-id";
 import {
   createAuthorizedObjectUrl,
@@ -10513,7 +10516,11 @@ function CandidateDocumentUploadPopover({
     let cropFile = file;
     if (source === "scanner" && isBiometricPhotoDocumentType(documentTypeKey)) {
       try {
-        cropFile = await cropImageFileTopHalf(file, toJpegFileName(file.name));
+        cropFile = await cropImageFileTopPercent(
+          file,
+          toJpegFileName(file.name),
+          SCANNED_BIOMETRIC_TOP_CROP_PERCENT
+        );
       } catch {
         cropFile = file;
       }

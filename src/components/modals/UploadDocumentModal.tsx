@@ -13,7 +13,10 @@ import { z } from "zod";
 
 import { getCandidates } from "../../lib/candidates-api";
 import { getDocumentTypes, uploadDocument } from "../../lib/documents-api";
-import { cropImageFileTopHalf } from "../../lib/image-preprocess";
+import {
+  SCANNED_BIOMETRIC_TOP_CROP_PERCENT,
+  cropImageFileTopPercent,
+} from "../../lib/image-preprocess";
 import { useLanguage, useT } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { ApiError } from "../../lib/http";
@@ -453,7 +456,11 @@ export function UploadDocumentModal({
     if (isCropSupportedUpload(selectedFile)) {
       if (source === "scanner" && isBiometricPhotoDocumentType(activeDocumentType?.key)) {
         try {
-          selectedFile = await cropImageFileTopHalf(selectedFile, toJpegFileName(selectedFile.name));
+          selectedFile = await cropImageFileTopPercent(
+            selectedFile,
+            toJpegFileName(selectedFile.name),
+            SCANNED_BIOMETRIC_TOP_CROP_PERCENT
+          );
         } catch {
           selectedFile = file;
         }

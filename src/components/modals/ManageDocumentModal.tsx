@@ -16,7 +16,10 @@ import {
   openAuthorizedFile,
   printAuthorizedFile,
 } from "../../lib/authorized-files";
-import { cropImageFileTopHalf } from "../../lib/image-preprocess";
+import {
+  SCANNED_BIOMETRIC_TOP_CROP_PERCENT,
+  cropImageFileTopPercent,
+} from "../../lib/image-preprocess";
 import {
   deleteCandidateDocument,
   getCandidateDocuments,
@@ -594,7 +597,11 @@ export function ManageDocumentModal({
       let cropFile = file;
       if (source === "scanner" && isBiometricPhotoDocumentType(activeDocumentType?.key)) {
         try {
-          cropFile = await cropImageFileTopHalf(file, toJpegFileName(file.name));
+          cropFile = await cropImageFileTopPercent(
+            file,
+            toJpegFileName(file.name),
+            SCANNED_BIOMETRIC_TOP_CROP_PERCENT
+          );
         } catch {
           cropFile = file;
         }

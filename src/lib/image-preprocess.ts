@@ -1,4 +1,10 @@
-export function cropImageFileTopHalf(file: File, fileName: string): Promise<File> {
+export const SCANNED_BIOMETRIC_TOP_CROP_PERCENT = 0.35;
+
+export function cropImageFileTopPercent(
+  file: File,
+  fileName: string,
+  percent: number
+): Promise<File> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const url = URL.createObjectURL(file);
@@ -6,7 +12,7 @@ export function cropImageFileTopHalf(file: File, fileName: string): Promise<File
     image.onload = () => {
       try {
         const sourceWidth = image.naturalWidth;
-        const sourceHeight = Math.floor(image.naturalHeight / 2);
+        const sourceHeight = Math.floor(image.naturalHeight * percent);
         if (sourceWidth <= 0 || sourceHeight <= 0) {
           reject(new Error("invalid-image-size"));
           return;
