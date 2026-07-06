@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { getCandidates } from "../../lib/candidates-api";
 import { getDocumentTypes, uploadDocument } from "../../lib/documents-api";
+import { cropImageFileTopHalf } from "../../lib/image-preprocess";
 import { useLanguage, useT } from "../../lib/i18n";
 import { applyApiErrorsToForm } from "../../lib/form-errors";
 import { ApiError } from "../../lib/http";
@@ -88,6 +89,7 @@ type CropRect = {
 };
 
 type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
+type CaptureSource = "camera" | "scanner" | "file";
 
 const DEFAULT_PHOTO_CROP_PERCENT = 80;
 const PHOTO_CROP_DOCUMENT_TYPE_KEYS = new Set(["biometric_photo", "webcam_photo"]);
@@ -441,23 +443,33 @@ export function UploadDocumentModal({
     setCaptureRotating(false);
   };
 
-  const handleSelectedFile = (file: File | null) => {
+  const handleSelectedFile = async (file: File | null, source: CaptureSource = "file") => {
     if (!file) {
       clearCapture();
       setSelectedFile(null);
       return;
     }
-    if (file.size > MAX_BYTES) {
+    let selectedFile = file;
+    if (isCropSupportedUpload(selectedFile)) {
+      if (source === "scanner" && isBiometricPhotoDocumentType(activeDocumentType?.key)) {
+        try {
+          selectedFile = await cropImageFileTopHalf(selectedFile, toJpegFileName(selectedFile.name));
+        } catch {
+          selectedFile = file;
+        }
+      }
+    }
+    if (selectedFile.size > MAX_BYTES) {
       clearCapture();
-      setSelectedFile(file);
+      setSelectedFile(selectedFile);
       return;
     }
-    if (isCropSupportedUpload(file)) {
-      openCropForFile(file);
+    if (isCropSupportedUpload(selectedFile)) {
+      openCropForFile(selectedFile);
       return;
     }
     clearCapture();
-    setSelectedFile(file);
+    setSelectedFile(selectedFile);
   };
 
   const startCamera = async (facing: "environment" | "user" = cameraFacing) => {
@@ -920,7 +932,7 @@ export function UploadDocumentModal({
             </div>
             <DocumentScannerModal
               onClose={() => setScannerOpen(false)}
-              onScanned={(file) => handleSelectedFile(file)}
+              onScanned={(file) => handleSelectedFile(file, "scanner")}
               open={scannerOpen}
             />
             {cameraOpen ? (

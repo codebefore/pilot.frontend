@@ -16,6 +16,7 @@ import {
   openAuthorizedFile,
   printAuthorizedFile,
 } from "../../lib/authorized-files";
+import { cropImageFileTopHalf } from "../../lib/image-preprocess";
 import {
   deleteCandidateDocument,
   getCandidateDocuments,
@@ -180,6 +181,7 @@ type CropRect = {
 };
 
 type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
+type CaptureSource = "camera" | "scanner" | "file";
 
 const DEFAULT_PHOTO_CROP_PERCENT = 80;
 const PHOTO_CROP_DOCUMENT_TYPE_KEYS = new Set(["biometric_photo", "webcam_photo"]);
@@ -581,7 +583,7 @@ export function ManageDocumentModal({
     setCaptureRotating(false);
   };
 
-  const handleSelectedFile = (file: File | null) => {
+  const handleSelectedFile = async (file: File | null, source: CaptureSource = "file") => {
     setFileError(null);
     if (!file) {
       clearCapture();
@@ -589,7 +591,15 @@ export function ManageDocumentModal({
       return;
     }
     if (isCropSupportedUpload(file)) {
-      openCropForFile(file);
+      let cropFile = file;
+      if (source === "scanner" && isBiometricPhotoDocumentType(activeDocumentType?.key)) {
+        try {
+          cropFile = await cropImageFileTopHalf(file, toJpegFileName(file.name));
+        } catch {
+          cropFile = file;
+        }
+      }
+      openCropForFile(cropFile);
       return;
     }
     clearCapture();
@@ -1383,7 +1393,7 @@ export function ManageDocumentModal({
                 </div>
                 <DocumentScannerModal
                   onClose={() => setScannerOpen(false)}
-                  onScanned={(file) => handleSelectedFile(file)}
+                  onScanned={(file) => handleSelectedFile(file, "scanner")}
                   open={scannerOpen}
                 />
                 {cameraOpen ? (
