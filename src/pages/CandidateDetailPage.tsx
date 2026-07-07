@@ -6577,6 +6577,9 @@ function printAccountingReceipt({
 
   const escape = escapePaymentPlanPrintHtml;
   const isNarrow = profile.id === "thermal-58";
+  const pageSize = profile.id === "a4"
+    ? "A4 portrait"
+    : `${profile.paperWidthMm}mm ${profile.pageHeightMm}mm`;
   printWindow.document.write(`<!doctype html>
     <html lang="tr">
       <head>
@@ -6584,7 +6587,7 @@ function printAccountingReceipt({
         <title>${escape(title)} #${escape(receiptNumber)}</title>
         <style>
           @page {
-            size: ${profile.paperWidthMm}mm ${profile.pageHeightMm}mm;
+            size: ${pageSize};
             margin: ${profile.marginTopMm}mm ${profile.marginRightMm}mm ${profile.marginBottomMm}mm ${profile.marginLeftMm}mm;
           }
           * { box-sizing: border-box; }
@@ -6640,7 +6643,7 @@ function printAccountingReceipt({
 }
 
 type ReceiptPrintProfile = {
-  id: "thermal-58" | "thermal-80";
+  id: "thermal-58" | "thermal-80" | "a4";
   label: string;
   marginBottomMm: number;
   marginLeftMm: number;
@@ -6652,6 +6655,17 @@ type ReceiptPrintProfile = {
 };
 
 const RECEIPT_PRINT_PROFILES: ReceiptPrintProfile[] = [
+  {
+    id: "a4",
+    label: "A4",
+    paperWidthMm: 210,
+    printWidthMm: 120,
+    marginLeftMm: 45,
+    marginRightMm: 45,
+    marginTopMm: 20,
+    marginBottomMm: 20,
+    pageHeightMm: 297,
+  },
   {
     id: "thermal-58",
     label: "58 mm Termal",
@@ -6746,7 +6760,9 @@ function AccountingReceiptModal({
                   >
                     <span>{profile.label}</span>
                     <small>
-                      {profile.paperWidthMm} mm kağıt · {profile.printWidthMm} mm baskı
+                      {profile.id === "a4"
+                        ? "A4 sayfa · 120 mm makbuz"
+                        : `${profile.paperWidthMm} mm kağıt · ${profile.printWidthMm} mm baskı`}
                     </small>
                   </button>
                 ))}
