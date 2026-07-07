@@ -4320,10 +4320,7 @@ export function CandidatesPage({
                       <option value="">{t("candidates.bulk.datePlaceholder")}</option>
                       {displayedExamDateOptions.map((option) => (
                         <option
-                          data-secondary={[
-                            option.examCode,
-                            `(${option.candidateCount}/${option.capacity})`,
-                          ].filter(Boolean).join(" ")}
+                          data-secondary={option.examCode ?? undefined}
                           key={option.id}
                           value={option.id}
                         >

@@ -16,7 +16,7 @@ describe("downloadAuthorizedFile", () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-file");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     vi.stubGlobal("fetch", vi.fn(async () =>
-      new Response(new Blob(["jpg"], { type: "image/jpeg" }), {
+      new Response("jpg", {
         headers: { "content-type": "image/jpeg" },
         status: 200,
       })
@@ -36,7 +36,7 @@ describe("downloadAuthorizedFile", () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-file");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     vi.stubGlobal("fetch", vi.fn(async () =>
-      new Response(new Blob(["%PDF-1.4"], { type: "application/pdf" }), {
+      new Response("%PDF-1.4", {
         headers: { "content-type": "application/pdf" },
         status: 200,
       })

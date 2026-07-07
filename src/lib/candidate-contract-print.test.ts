@@ -315,7 +315,7 @@ describe("candidate contract print", () => {
 
   it("posts the render request and returns a PDF blob", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(new Blob(["%PDF-1.4"], { type: "application/pdf" }), {
+      new Response("%PDF-1.4", {
         status: 200,
         headers: { "Content-Type": "application/pdf" },
       })

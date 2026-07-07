@@ -146,6 +146,7 @@ describe("PermissionsPage", () => {
       "İstatistikler",
       "Kullanıcılar",
       "Referanslar",
+      "Güzergahlar",
       "Varsayılan Ücretler",
       "Kasalar",
     ]);
