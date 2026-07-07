@@ -24,6 +24,7 @@ const createUnscheduledCandidateExamAttemptChargeMock = vi.fn();
 const updateCandidateExamAttemptMock = vi.fn();
 const chargeCandidateExamAttemptMock = vi.fn();
 const markCandidateExamAttemptSelfPaidMock = vi.fn();
+const getCandidateAccountingMock = vi.fn();
 const getLicenseClassFeeMatrixMock = vi.fn();
 const createCandidateExamResultSyncJobMock = vi.fn();
 const createESinavExamResultSyncJobMock = vi.fn();
@@ -151,6 +152,17 @@ vi.mock("../lib/candidate-exam-attempts-api", async () => {
   };
 });
 
+vi.mock("../lib/candidate-accounting-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/candidate-accounting-api")>(
+    "../lib/candidate-accounting-api"
+  );
+  return {
+    ...actual,
+    getCandidateAccounting: (...args: Parameters<typeof actual.getCandidateAccounting>) =>
+      getCandidateAccountingMock(...args),
+  };
+});
+
 vi.mock("../lib/license-class-fee-matrix-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/license-class-fee-matrix-api")>(
     "../lib/license-class-fee-matrix-api"
@@ -269,6 +281,7 @@ describe("CandidatesPage tabs", () => {
     updateCandidateExamAttemptMock.mockReset();
     chargeCandidateExamAttemptMock.mockReset();
     markCandidateExamAttemptSelfPaidMock.mockReset();
+    getCandidateAccountingMock.mockReset();
     getLicenseClassFeeMatrixMock.mockReset();
     createCandidateExamResultSyncJobMock.mockReset();
     createESinavExamResultSyncJobMock.mockReset();
@@ -284,6 +297,7 @@ describe("CandidatesPage tabs", () => {
     updateCandidateExamAttemptMock.mockResolvedValue({});
     chargeCandidateExamAttemptMock.mockResolvedValue({});
     markCandidateExamAttemptSelfPaidMock.mockResolvedValue({});
+    getCandidateAccountingMock.mockResolvedValue({ movements: [], payments: [], refunds: [], invoices: [] });
     getLicenseClassFeeMatrixMock.mockResolvedValue({ year: 2026, vatRate: 20, rows: [] });
     createCandidateExamResultSyncJobMock.mockImplementation((candidateId: string) =>
       Promise.resolve({
@@ -484,7 +498,7 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("does not show the unscheduled exam charge action on the e-sinav candidate list", async () => {
+  it("shows the unscheduled exam charge action on the e-sinav candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -527,11 +541,12 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
+    expect(await screen.findByText("Tarihsiz e-sınav borçlandırması")).toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
-  it("does not show the unscheduled exam charge action on the uygulama candidate list", async () => {
+  it("shows the unscheduled exam charge action on the uygulama candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -574,7 +589,8 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
+    expect(await screen.findByText("Tarihsiz direksiyon sınav borçlandırması")).toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
@@ -626,6 +642,57 @@ describe("CandidatesPage tabs", () => {
         })
       );
     });
+  });
+
+  it("hides the unscheduled exam charge action on the uygulama randevulu tab", async () => {
+    const candidate = {
+      id: "cand-1",
+      firstName: "Eren",
+      lastName: "Test",
+      nationalId: "52925238938",
+      phoneNumber: "55533322112213",
+      email: null,
+      birthDate: null,
+      gender: null,
+      licenseClass: "B",
+      existingLicenseType: null,
+      existingLicenseIssuedAt: null,
+      existingLicenseNumber: null,
+      existingLicenseIssuedProvince: null,
+      existingLicensePre2016: false,
+      status: "active",
+      mebExamDate: null,
+      drivingExamDate: "2026-06-12",
+      eSinavAttemptCount: 1,
+      drivingExamAttemptCount: 1,
+      currentGroup: null,
+      documentSummary: null,
+      mebExamResult: null,
+      createdAtUtc: "2026-04-01T10:00:00Z",
+      updatedAtUtc: "2026-04-02T10:00:00Z",
+    };
+
+    getCandidatesMock.mockResolvedValue({
+      items: [candidate],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
+    getCandidateByIdMock.mockResolvedValue(candidate);
+
+    renderUygulamaPage();
+
+    await screen.findByText("Eren Test");
+    fireEvent.click(screen.getByRole("button", { name: "Randevulu" }));
+
+    await waitFor(() => {
+      expect(getCandidatesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ drivingExamTab: "randevulu" })
+      );
+    });
+
+    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
   });
 
   it("filters by driving exam code only while the code sidebar tab is active", async () => {
