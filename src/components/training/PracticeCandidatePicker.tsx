@@ -25,6 +25,9 @@ import {
 
 type PracticeCandidatePickerProps = {
   onAssign: (candidateId: string) => void;
+  onSelectionChange: (candidateIds: Set<string>) => void;
+  refreshToken?: number;
+  selectedCandidateIds: Set<string>;
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -134,7 +137,12 @@ function splitCandidateFullName(fullName: string): { firstName: string; lastName
   };
 }
 
-export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerProps) {
+export function PracticeCandidatePicker({
+  onAssign,
+  onSelectionChange,
+  refreshToken = 0,
+  selectedCandidateIds,
+}: PracticeCandidatePickerProps) {
   const t = useT();
   const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState("");
@@ -143,7 +151,6 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<PracticeCandidateListItem[]>([]);
   const [photoByCandidateId, setPhotoByCandidateId] = useState<Map<string, CandidatePickerPhoto>>(new Map());
-  const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [totalPages, setTotalPages] = useState(0);
   const [tabCounts, setTabCounts] = useState<PracticeCandidateTabCounts>(emptyTabCounts);
   const [filterOptions, setFilterOptions] = useState<PracticeCandidateFilterOptions>(emptyFilterOptions);
@@ -202,7 +209,7 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [debouncedSearch, filters, page, sort, tab]);
+  }, [debouncedSearch, filters, page, refreshToken, sort, tab]);
 
   useEffect(() => {
     const candidateIds = items.map((item) => item.candidateId);
@@ -382,12 +389,10 @@ export function PracticeCandidatePicker({ onAssign }: PracticeCandidatePickerPro
   };
 
   const toggleCandidateSelection = (candidateId: string) => {
-    setSelectedCandidateIds((current) => {
-      const next = new Set(current);
-      if (next.has(candidateId)) next.delete(candidateId);
-      else next.add(candidateId);
-      return next;
-    });
+    const next = new Set(selectedCandidateIds);
+    if (next.has(candidateId)) next.delete(candidateId);
+    else next.add(candidateId);
+    onSelectionChange(next);
   };
 
   const formatHours = (value: number) => {

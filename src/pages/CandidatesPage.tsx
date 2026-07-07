@@ -4014,19 +4014,19 @@ export function CandidatesPage({
                     </td>
                   ) : null}
                   {visibleColumns.map((col) => {
-                    const opensDrawer = col.id === "photo" || col.id === "name";
+                    const opensDetail = col.id === "photo" || col.id === "name";
                     return (
                       <td
                         className={`${col.cellClassName ?? ""} cand-row-cell${
-                          opensDrawer ? " cand-row-cell--drawer" : ""
+                          opensDetail ? "" : " cand-row-cell--drawer"
                         }`}
                         key={col.id}
                         onClick={() =>
-                          opensDrawer
-                            ? openDrawer(c.id)
-                            : navigate(`/candidates/${c.id}`, { state: detailReturnState })
+                          opensDetail
+                            ? navigate(`/candidates/${c.id}`, { state: detailReturnState })
+                            : openDrawer(c.id)
                         }
-                        title={opensDrawer ? t("candidates.title.quickPreview") : t("candidates.title.goToDetail")}
+                        title={opensDetail ? t("candidates.title.goToDetail") : t("candidates.title.quickPreview")}
                       >
                         {col.renderCell(c, columnPageScope)}
                       </td>

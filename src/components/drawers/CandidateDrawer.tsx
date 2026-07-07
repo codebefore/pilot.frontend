@@ -59,7 +59,6 @@ import { Drawer, DrawerRow, DrawerSection } from "../ui/Drawer";
 import { PageLoadError } from "../ui/PageLoadError";
 import { EditableRow } from "../ui/EditableRow";
 import { LocalizedDateInput } from "../ui/LocalizedDateInput";
-import { PanelListSkeleton } from "../ui/Skeleton";
 import type { SelectOption } from "../ui/EditableRow";
 import { useToast } from "../ui/Toast";
 
@@ -177,6 +176,32 @@ type ExistingLicenseDraft = {
   issuedProvince: string;
 };
 
+function CandidateDrawerShimmer({ label }: { label: string }) {
+  return (
+    <div aria-busy="true" className="candidate-drawer-shimmer">
+      <div className="candidate-drawer-shimmer-watermark">{label}</div>
+      <div className="drawer-profile-summary candidate-drawer-shimmer-profile">
+        <span className="skeleton" style={{ width: 64, height: 64, borderRadius: "999px" }} />
+        <div className="drawer-profile-meta">
+          <span className="skeleton" style={{ width: 178, height: 16 }} />
+          <span className="skeleton" style={{ width: 126, height: 12 }} />
+        </div>
+      </div>
+      {Array.from({ length: 3 }).map((_, sectionIndex) => (
+        <section className="drawer-section candidate-drawer-shimmer-section" key={sectionIndex}>
+          <span className="skeleton" style={{ width: 96 + sectionIndex * 18, height: 10 }} />
+          {Array.from({ length: sectionIndex === 0 ? 5 : 4 }).map((__, rowIndex) => (
+            <div className="drawer-row" key={rowIndex}>
+              <span className="skeleton" style={{ width: 74 + ((sectionIndex + rowIndex) * 11) % 36, height: 12 }} />
+              <span className="skeleton" style={{ width: 116 + ((sectionIndex + rowIndex) * 17) % 70, height: 14 }} />
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Translate the first structured validation error the server returned and
  * return the resolved message. Unknown codes fall back to the server's
@@ -235,6 +260,7 @@ export function CandidateDrawer({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [revisioningCount, setRevisioningCount] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [missingDocs, setMissingDocs] = useState<string[] | null>(null);
@@ -273,6 +299,15 @@ export function CandidateDrawer({
     void queryClient.invalidateQueries({ queryKey: ["payments"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const runWithRevisionState = async <T,>(work: () => Promise<T>): Promise<T> => {
+    setRevisioningCount((current) => current + 1);
+    try {
+      return await work();
+    } finally {
+      setRevisioningCount((current) => Math.max(0, current - 1));
+    }
   };
 
   useEffect(() => {
@@ -357,7 +392,8 @@ export function CandidateDrawer({
   const saveField = async (patch: Partial<CandidateUpsertRequest>) => {
     if (!canManageCandidates) return;
     if (!candidate || !candidateId) return;
-    try {
+    return runWithRevisionState(async () => {
+      try {
       const updated = await updateCandidate(candidateId, {
         firstName: candidate.firstName,
         lastName: candidate.lastName,
@@ -406,7 +442,7 @@ export function CandidateDrawer({
       setCandidate(updated);
       invalidateCandidateDrawerDependents();
       onUpdated?.();
-    } catch (error) {
+      } catch (error) {
       if (error instanceof ApiError) {
         // 409 on RowVersion means someone else updated this candidate while
         // we held the drawer open. Our cached `candidate.rowVersion` is stale
@@ -437,7 +473,8 @@ export function CandidateDrawer({
       }
       showToast(t("candidate.validation.generic"), "error");
       throw new Error("save failed");
-    }
+      }
+    });
   };
 
   const eSinavAttemptCount = candidate?.eSinavAttemptCount ?? 1;
@@ -615,7 +652,8 @@ export function CandidateDrawer({
   const saveGroup = async (groupId: string) => {
     if (!canManageCandidates) return;
     if (!candidateId) return;
-    try {
+    return runWithRevisionState(async () => {
+      try {
       if (!groupId) {
         await removeActiveGroupAssignment(candidateId);
         setCandidate((current) => current ? { ...current, currentGroup: null } : current);
@@ -630,10 +668,11 @@ export function CandidateDrawer({
       }
       invalidateCandidateDrawerDependents();
       onUpdated?.();
-    } catch {
+      } catch {
       showToast(t("candidateDrawer.toast.groupAssignFailed"), "error");
       throw new Error("save failed");
-    }
+      }
+    });
   };
 
   const loadGroupOptions = async (signal?: AbortSignal): Promise<SelectOption[]> => {
@@ -678,6 +717,7 @@ export function CandidateDrawer({
 
   if (!candidateId) return null;
 
+  const maskCandidateDrawerForRevision = true;
   const title = loading
     ? t("candidateDrawer.title")
     : candidate
@@ -715,13 +755,20 @@ export function CandidateDrawer({
 
   const whatsappUrl = buildWhatsAppUrl(candidate?.phoneNumber);
   const profileContactText = formatPhoneDisplay(candidate?.phoneNumber);
+  const revisioning = maskCandidateDrawerForRevision || revisioningCount > 0;
+  const revisionLabel = t("candidateDrawer.revising");
 
   return (
     <Drawer actions={actions} onClose={onClose} open title={title}>
       {loading ? (
-        <PanelListSkeleton rows={6} />
+        <CandidateDrawerShimmer label={t("candidateDrawer.loadingPreparing")} />
       ) : candidate ? (
-        <>
+        <div
+          aria-busy={revisioning}
+          className={`candidate-drawer-content${revisioning ? " is-revising" : ""}${
+            maskCandidateDrawerForRevision ? " is-masked-for-revision" : ""
+          }`}
+        >
           <div className="drawer-profile-summary">
             <span className="drawer-profile-avatar-shell">
               <CandidateAvatar
@@ -1254,7 +1301,12 @@ export function CandidateDrawer({
             </DrawerSection>
           )}
 
-        </>
+          {revisioning && (
+            <div className="candidate-drawer-revision-overlay" role="status">
+              <CandidateDrawerShimmer label={revisionLabel} />
+            </div>
+          )}
+        </div>
       ) : loadError ? (
         <PageLoadError
           variant="card"

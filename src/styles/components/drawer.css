@@ -65,6 +65,113 @@
   padding: 16px 20px;
 }
 
+.candidate-drawer-content {
+  position: relative;
+  min-height: 100%;
+}
+.candidate-drawer-content.is-revising {
+  overflow: hidden;
+}
+.candidate-drawer-content.is-revising > :not(.candidate-drawer-revision-overlay) {
+  opacity: .58;
+  filter: saturate(.75);
+  pointer-events: none;
+}
+.candidate-drawer-content.is-masked-for-revision > :not(.candidate-drawer-revision-overlay) {
+  opacity: 0;
+}
+.detail-drawer:has(.candidate-drawer-content.is-masked-for-revision) .drawer-header h3 {
+  color: transparent;
+}
+.detail-drawer:has(.candidate-drawer-content.is-masked-for-revision) .drawer-header h3::after {
+  content: "Aday Detayı";
+  color: var(--gray-900);
+}
+.detail-drawer:has(.candidate-drawer-content.is-masked-for-revision) .drawer-actions {
+  display: none;
+}
+.candidate-drawer-shimmer {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+}
+.candidate-drawer-shimmer::after,
+.candidate-drawer-revision-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 34%,
+    rgba(255,255,255,.72) 46%,
+    transparent 58%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  animation: drawerRevisionSweep 1.35s ease-in-out infinite;
+}
+.candidate-drawer-shimmer-profile .drawer-profile-meta {
+  display: grid;
+  gap: 9px;
+}
+.candidate-drawer-shimmer-section {
+  display: grid;
+  gap: 10px;
+}
+.candidate-drawer-shimmer-section .drawer-row {
+  min-height: 34px;
+}
+.candidate-drawer-shimmer-watermark,
+.candidate-drawer-revision-watermark {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%) rotate(-22deg);
+  width: max-content;
+  max-width: 92%;
+  color: color-mix(in srgb, var(--brand) 12%, transparent);
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+.candidate-drawer-revision-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  min-height: 100%;
+  overflow: hidden;
+  background: var(--white);
+  pointer-events: none;
+}
+.candidate-drawer-revision-card {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 8px 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--gray-200));
+  border-radius: 8px;
+  color: var(--brand-dark);
+  background: color-mix(in srgb, var(--white) 86%, var(--brand-50, #eff6ff));
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@keyframes drawerRevisionSweep {
+  0% { background-position: 140% 0; }
+  100% { background-position: -80% 0; }
+}
+
 /* ─── STEP TRACKER ─── */
 .step-tracker {
   display: flex;
@@ -225,4 +332,3 @@
 /* ─── DRAWER ROW VALUE TONE ─── */
 .drawer-row .value.brand { color: var(--brand); }
 .drawer-row .value.danger { color: var(--red); font-weight: 700; }
-

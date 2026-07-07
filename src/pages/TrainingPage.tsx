@@ -498,11 +498,22 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [isMebbisImportLoading, setIsMebbisImportLoading] = useState(false);
   const [isMebbisPracticeImportLoading, setIsMebbisPracticeImportLoading] = useState(false);
   const [isMebbisPracticeTransferLoading, setIsMebbisPracticeTransferLoading] = useState(false);
+  const [selectedPracticeCandidateIds, setSelectedPracticeCandidateIds] = useState<Set<string>>(new Set());
+  const [practiceCandidatePickerRefreshToken, setPracticeCandidatePickerRefreshToken] = useState(0);
   const [mebbisImportedFocusDate, setMebbisImportedFocusDate] = useState<Date | null>(null);
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.classList.add("training-page-active");
+    document.body.classList.add("training-page-active");
+    return () => {
+      document.documentElement.classList.remove("training-page-active");
+      document.body.classList.remove("training-page-active");
+    };
+  }, []);
 
   useEffect(() => {
     const sidebar = filtersSidebarRef.current;
@@ -2092,6 +2103,14 @@ export function TrainingPage({ type }: TrainingPageProps) {
         : null,
     [candidates, quickSettings.candidateId, type]
   );
+  const practiceImportCandidateIds = useMemo(() => {
+    if (type !== "uygulama") return [];
+    if (selectedPracticeCandidateIds.size > 0) {
+      return Array.from(selectedPracticeCandidateIds);
+    }
+    return selectedPracticeCandidate ? [selectedPracticeCandidate.id] : [];
+  }, [selectedPracticeCandidate, selectedPracticeCandidateIds, type]);
+  const selectedPracticeImportCandidateCount = practiceImportCandidateIds.length;
   const selectedCandidateLessonCount = useMemo(() => {
     if (type !== "uygulama" || !quickSettings.candidateId) return 0;
     return eventsWithSelectedCandidateLessons.filter(
@@ -2146,6 +2165,22 @@ export function TrainingPage({ type }: TrainingPageProps) {
     });
   };
 
+  const clearSelectedPracticeCandidate = (candidateId: string) => {
+    setSelectedPracticeCandidateIds((current) => {
+      if (!current.has(candidateId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.delete(candidateId);
+      return next;
+    });
+  };
+
+  const refreshPracticeCandidatePicker = () => {
+    setPracticeCandidatePickerRefreshToken((current) => current + 1);
+  };
+
   const scheduleMebbisJobPoll = (
     jobId: string,
     entityId: string,
@@ -2197,6 +2232,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
               entityId,
               getMebbisImportExpectedLessonCount(job.resultJson)
             );
+            clearSelectedPracticeCandidate(entityId);
+            refreshPracticeCandidatePicker();
           }
           invalidateTrainingLessons();
           void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
@@ -2349,20 +2386,49 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const handleCreatePracticeScheduleImportJob = async () => {
     if (!canManageMebJobs) return;
     if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
-    if (!selectedPracticeCandidate) {
+    const candidateIds = practiceImportCandidateIds;
+    if (candidateIds.length === 0) {
       showToast(t("training.toast.selectCandidateForMebbisPracticeImport"));
       return;
     }
 
     setIsMebbisPracticeImportLoading(true);
     try {
-      const job = await createPracticeScheduleImportJob(selectedPracticeCandidate.id);
-      notifyMebbisJobQueued(job.id, job.jobType);
+      const results = await Promise.allSettled(
+        candidateIds.map(async (candidateId) => ({
+          candidateId,
+          job: await createPracticeScheduleImportJob(candidateId),
+        }))
+      );
+      const queued = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
+      );
+      const failedCount = results.length - queued.length;
+      for (const { candidateId, job } of queued) {
+        notifyMebbisJobQueued(job.id, job.jobType);
+        scheduleMebbisJobPoll(job.id, candidateId, job.jobType);
+      }
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      showToast(t("training.toast.mebbisPracticeImportQueued"));
-      scheduleMebbisJobPoll(job.id, selectedPracticeCandidate.id, job.jobType);
+      if (queued.length > 0) {
+        showToast(
+          queued.length === 1
+            ? t("training.toast.mebbisPracticeImportQueued")
+            : t("training.toast.mebbisPracticeImportQueuedForCandidates", {
+                count: queued.length,
+              })
+        );
+      }
+      if (failedCount > 0) {
+        showToast(
+          failedCount === 1
+            ? t("training.toast.mebbisPracticeImportFailed")
+            : t("training.toast.mebbisPracticeImportFailedForCandidates", {
+                count: failedCount,
+              })
+        );
+      }
     } catch (error) {
       console.error(error);
       const message =
@@ -2469,6 +2535,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const activeMebbisPracticeImportJob = Object.values(activeMebbisTrainingJobs).find(
     (job) => job.jobType === "practice_schedule_import"
   );
+  const activeMebbisPracticeImportJobs = Object.values(activeMebbisTrainingJobs).filter(
+    (job) => job.jobType === "practice_schedule_import"
+  );
   const activeMebbisPracticeTransferJob = Object.values(activeMebbisTrainingJobs).find(
     (job) => job.jobType === "practice_schedule_sync"
   );
@@ -2494,7 +2563,11 @@ export function TrainingPage({ type }: TrainingPageProps) {
         ? t("training.mebbis.practiceTransferRunning", {
             candidate: formatCandidateName(activeMebbisStatusCandidate),
           })
-        : activeMebbisPracticeImportJob
+      : activeMebbisPracticeImportJobs.length > 1
+        ? t("training.mebbis.practiceImportRunningForCandidates", {
+            count: activeMebbisPracticeImportJobs.length,
+          })
+      : activeMebbisPracticeImportJob
         ? t("training.mebbis.practiceImportRunning", {
             candidate: formatCandidateName(activeMebbisStatusCandidate),
           })
@@ -2505,7 +2578,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
       <div className="training-page-shell">
         <PageToolbar
         actions={
-          type === "teorik" || showBackToCandidateList || selectedTheoryGroup || selectedPracticeCandidate ? (
+          type === "teorik" ||
+          type === "uygulama" ||
+          showBackToCandidateList ||
+          selectedTheoryGroup ||
+          selectedPracticeCandidate ||
+          selectedPracticeImportCandidateCount > 0 ? (
             <>
               {selectedTheoryGroup ? (
                 <>
@@ -2704,6 +2782,45 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   </button>
                 </>
               ) : null}
+              {!selectedPracticeCandidate && selectedPracticeImportCandidateCount > 0 ? (
+                <>
+                  <span className="candidate-bulk-count">
+                    {t("training.mebbis.practiceImportSelectedCount", {
+                      count: selectedPracticeImportCandidateCount,
+                    })}
+                  </span>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    aria-disabled={
+                      canManageMebJobs &&
+                      !isQuickAssignLoading &&
+                      !isBulkDeleteLoading &&
+                      !isMebbisImportLoading &&
+                      !isMebbisTransferLoading &&
+                      !isMebbisPracticeTransferLoading &&
+                      !isMebbisPracticeImportLoading &&
+                      mebbisSessionGuard.disabled
+                    }
+                    disabled={
+                      !canManageMebJobs ||
+                      isQuickAssignLoading ||
+                      isBulkDeleteLoading ||
+                      isMebbisImportLoading ||
+                      isMebbisTransferLoading ||
+                      isMebbisPracticeTransferLoading ||
+                      isMebbisPracticeImportLoading
+                    }
+                    onClick={handleCreatePracticeScheduleImportJob}
+                    title={!canManageMebJobs ? noPermissionTitle : mebbisSessionGuard.disabled ? mebbisSessionGuard.message : undefined}
+                    type="button"
+                  >
+                    <MebIcon size={14} />
+                    {isMebbisPracticeImportLoading
+                      ? t("training.mebbis.importQueuing")
+                      : t("training.mebbis.import")}
+                  </button>
+                </>
+              ) : null}
               {showBackToCandidateList ? (
                 <button
                   className="btn btn-secondary btn-sm"
@@ -2793,6 +2910,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 onAssign={(id) => {
                   setQuickSettings((prev) => ({ ...prev, candidateId: id }));
                 }}
+                onSelectionChange={setSelectedPracticeCandidateIds}
+                refreshToken={practiceCandidatePickerRefreshToken}
+                selectedCandidateIds={selectedPracticeCandidateIds}
               />
             ) : (
               <div className="training-calendar-wrap">

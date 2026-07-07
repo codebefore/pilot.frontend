@@ -14,8 +14,15 @@
 }
 
 /* ─── Sayfa layout: sidebar + takvim ──────────────────────── */
+html.training-page-active,
+body.training-page-active {
+  height: 100%;
+  overflow: hidden;
+}
+
 .main:has(.training-page-shell) {
   height: calc(100dvh - var(--header-h));
+  max-height: calc(100dvh - var(--header-h));
   min-height: 0;
   overflow: hidden;
 }
@@ -23,7 +30,8 @@
 .training-page-shell {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - var(--header-h));
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   overflow: hidden;
   overflow-anchor: none;
@@ -31,6 +39,10 @@
 
 .training-page-shell > .page-toolbar {
   flex: 0 0 auto;
+}
+
+.training-page-shell > .page-toolbar .toolbar-actions {
+  min-height: 32px;
 }
 
 .training-layout-wrap {
@@ -73,10 +85,11 @@
 }
 
 .training-layout {
+  box-sizing: border-box;
   display: flex;
   gap: 12px;
   align-items: stretch;
-  padding: 0 14px;
+  padding: 0 14px 14px;
   flex: 1 1 auto;
   height: auto;
   max-height: none;
@@ -93,6 +106,7 @@
 }
 
 .training-calendar-wrap {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -386,6 +400,7 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow: hidden;
   padding: 0;
 }
 
@@ -538,8 +553,8 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 .practice-picker-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
-  margin-bottom: 25px;
   overflow: auto;
+  overflow-anchor: none;
   border: 1px solid var(--gray-200);
   border-radius: 8px;
   background: var(--white);
@@ -576,6 +591,7 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 }
 
 .practice-picker-select-control {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -590,6 +606,10 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 .practice-picker-select-th input,
 .practice-picker-select-td input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -820,6 +840,7 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 
 .practice-picker-pagination {
   display: flex;
+  flex: 0 0 auto;
   justify-content: flex-end;
   align-items: center;
   gap: 10px;
