@@ -257,14 +257,14 @@ describe("candidate contract print", () => {
     const request = buildCandidateDrivingTrackingListRenderPdfRequest({
       candidate: {
         ...candidate,
-        licenseClass: "B-OTOMATIK",
+        licenseClass: "A2-OTOMATIK",
       },
       managerName: null,
       lessons: [],
     });
 
-    expect(request.sheetName).toBe("B");
-    expect(request.values.kursiyerehliyettipi).toBe("B-OTOMATIK");
+    expect(request.sheetName).toBe("A2");
+    expect(request.values.kursiyerehliyettipi).toBe("A2-OTOMATIK");
   });
 
   it("posts the render request and returns a PDF blob", async () => {

@@ -1009,7 +1009,7 @@ function CandidateHero({
   const hasPenaltyPointsLicenseClass = isPenaltyPointsLicenseClass(candidate.licenseClass);
   const kCertificateLessons = kCertificateLessonsQuery.data?.items ?? [];
   const kCertificateRows = [
-    ...buildKCertificateRows(kCertificateLessons, candidate.registrationNumber, candidate.id),
+    ...buildKCertificateRows(kCertificateLessons, candidate.nationalId, candidate.id),
     ...(kCertificatesQuery.data ?? []).map(kCertificateResponseToRow),
   ];
   const latestValidKCertificate = latestValidKCertificateRow(kCertificateRows, candidate.drivingExamDate);
@@ -1333,6 +1333,8 @@ function CandidateHero({
                         contractGenerating ||
                         (label === "K Belgesi"
                           ? kCertificatePrintLoading || !latestValidKCertificate
+                          : label === "Direksiyon takip çizelgesi"
+                          ? false
                           : label !== "Kayıt sözleşmesi" && label !== "İmza örneği")
                       }
                       key={label}
@@ -8364,14 +8366,14 @@ function kCertificateStatus(
 
 function buildKCertificateRows(
   lessons: TrainingLessonResponse[],
-  candidateRegistrationNumber: string,
+  candidateNationalId: string,
   candidateId: string
 ): KCertificateRow[] {
   const sortedLessons = [...lessons]
     .filter((lesson) => lesson.kind === "uygulama")
     .sort((left, right) => new Date(left.startAtUtc).getTime() - new Date(right.startAtUtc).getTime());
   const rows: KCertificateRow[] = [];
-  const candidateNumber = candidateRegistrationNumber.trim() || candidateId.slice(0, 8);
+  const candidateNumber = normalizeKCertificateDocumentPrefix(candidateNationalId) || candidateId.slice(0, 8);
 
   for (const lesson of sortedLessons) {
     const lessonStartDate = dateOnlyInTurkey(lesson.startAtUtc);
@@ -8385,7 +8387,7 @@ function buildKCertificateRows(
         startDate: lessonStartDate,
         expiryDate: addDaysToISODate(lessonStartDate, 180),
         lastLessonEndDate: lessonEndDate,
-        documentNumber: `K-${candidateNumber}-${rows.length + 1}`,
+        documentNumber: `${candidateNumber}-${rows.length + 1}`,
       });
       continue;
     }
@@ -8396,6 +8398,11 @@ function buildKCertificateRows(
   }
 
   return rows;
+}
+
+function normalizeKCertificateDocumentPrefix(candidateNationalId: string): string {
+  const digits = candidateNationalId.replace(/\D/g, "");
+  return digits || candidateNationalId.trim();
 }
 
 function kCertificateResponseToRow(certificate: CandidateKCertificateResponse): KCertificateRow {
@@ -8584,8 +8591,8 @@ function CandidateKCertificateSection({
   }, [routePickerRow]);
 
   const rows = useMemo(
-    () => buildKCertificateRows(lessons, candidate.registrationNumber, candidate.id),
-    [candidate.id, candidate.registrationNumber, lessons]
+    () => buildKCertificateRows(lessons, candidate.nationalId, candidate.id),
+    [candidate.id, candidate.nationalId, lessons]
   );
   const visibleBaseRows = useMemo(
     () => rows.filter((row) => !hiddenRowIds.includes(row.id)),
