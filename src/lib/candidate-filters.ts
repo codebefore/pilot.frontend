@@ -175,7 +175,7 @@ export function filtersToQuery(filters: CandidateFilterState) {
       filters.licenseClasses.length > 0 ? filters.licenseClasses : undefined,
     gender: filters.gender || undefined,
     groupIds: filters.groupIds.length > 0 ? filters.groupIds : undefined,
-    termIds: filters.termIds.length > 0 ? filters.termIds : undefined,
+    termIds: undefined,
     hasPhoto: triToBool(filters.hasPhoto),
     hasExamResult: triToBool(filters.hasExamResult),
     hasMissingDocuments: triToBool(filters.hasMissingDocuments),

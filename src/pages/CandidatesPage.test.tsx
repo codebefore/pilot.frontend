@@ -84,6 +84,10 @@ vi.mock("../lib/groups-api", async () => {
   );
   return {
     ...actual,
+    getAllGroups: async (...args: Parameters<typeof actual.getAllGroups>) => {
+      const result = await getGroupsMock({ page: 1, pageSize: 200 }, args[1]);
+      return result.items;
+    },
     getGroups: (...args: Parameters<typeof actual.getGroups>) => getGroupsMock(...args),
   };
 });
@@ -4314,6 +4318,80 @@ describe("CandidatesPage filter panel", () => {
     expect(screen.getByPlaceholderText("Ad")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Soyad")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("TC Kimlik")).toBeInTheDocument();
+  });
+
+  it("shows only concrete term-group-branch options in the period group filter", async () => {
+    getGroupsMock.mockResolvedValue({
+      items: [
+        {
+          id: "group-1a",
+          title: "Bozuk Başlık",
+          term: {
+            id: "term-july",
+            monthDate: "2026-07-01",
+            sequence: 1,
+            name: null,
+          },
+          groupNumber: 1,
+          groupBranch: "A",
+          groupSortCode: 20260711,
+          capacity: 20,
+          assignedCandidateCount: 0,
+          activeCandidateCount: 0,
+          licenseClassCounts: [],
+          candidatePreview: [],
+          startDate: "2026-07-10",
+          mebStatus: null,
+          createdAtUtc: "2026-07-01T10:00:00Z",
+          updatedAtUtc: "2026-07-01T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
+          id: "term-like-group",
+          title: "TEMMUZ 2026",
+          term: {
+            id: "term-july",
+            monthDate: "2026-07-01",
+            sequence: 1,
+            name: null,
+          },
+          groupNumber: null,
+          groupBranch: null,
+          groupSortCode: null,
+          capacity: 20,
+          assignedCandidateCount: 0,
+          activeCandidateCount: 0,
+          licenseClassCounts: [],
+          candidatePreview: [],
+          startDate: "2026-07-10",
+          mebStatus: null,
+          createdAtUtc: "2026-07-01T10:00:00Z",
+          updatedAtUtc: "2026-07-01T10:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      page: 1,
+      pageSize: 200,
+      totalCount: 2,
+      totalPages: 1,
+    });
+
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /Filtreler/ }));
+    await waitFor(() => {
+      expect(getGroupsMock).toHaveBeenCalledWith(
+        { page: 1, pageSize: 200 },
+        expect.any(AbortSignal)
+      );
+    });
+
+    const filterPanel = screen.getByRole("complementary", { name: "Filtreler" });
+    fireEvent.click(within(filterPanel).getByRole("button", { name: "Dönem / Grup" }));
+
+    expect(await screen.findByText("TEMMUZ 2026 - 1A")).toBeInTheDocument();
+    expect(screen.queryByLabelText("TEMMUZ 2026")).not.toBeInTheDocument();
   });
 
   it("sends firstName to the candidates query when typed into the filter input", async () => {

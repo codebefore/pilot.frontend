@@ -5,7 +5,6 @@ import { GroupDrawer } from "./GroupDrawer";
 import { renderWithProviders } from "../../test/render-with-providers";
 import { ApiError } from "../../lib/http";
 
-const navigateMock = vi.hoisted(() => vi.fn());
 const getGroupByIdMock = vi.fn();
 const deleteGroupMock = vi.fn();
 const getCandidatesMock = vi.fn();
@@ -13,14 +12,6 @@ const getCandidateDocumentsMock = vi.fn();
 const updateGroupMock = vi.fn();
 const assignCandidateGroupMock = vi.fn();
 const removeActiveGroupAssignmentMock = vi.fn();
-
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
-  return {
-    ...actual,
-    useNavigate: () => navigateMock,
-  };
-});
 
 vi.mock("../../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/groups-api")>("../../lib/groups-api");
@@ -98,7 +89,6 @@ describe("GroupDrawer", () => {
     updateGroupMock.mockReset();
     assignCandidateGroupMock.mockReset();
     removeActiveGroupAssignmentMock.mockReset();
-    navigateMock.mockReset();
     getCandidatesMock.mockResolvedValue({ items: [], page: 1, pageSize: 100, totalCount: 0, totalPages: 0 });
     getCandidateDocumentsMock.mockResolvedValue([]);
     assignCandidateGroupMock.mockResolvedValue({
@@ -317,9 +307,7 @@ describe("GroupDrawer", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Grup Sil" }));
     fireEvent.click(screen.getByRole("button", { name: "Evet, Sil" }));
 
-    expect(
-      await screen.findByText("Group cannot be deleted while it still has active candidates.")
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Aktif adayı olan grup silinemez")).toBeInTheDocument();
   });
 
   it("does not search candidates until the second character in the add-candidate search", async () => {
@@ -423,7 +411,7 @@ describe("GroupDrawer", () => {
     });
   });
 
-  it("shows assigned candidates with an avatar and opens candidate detail when clicked", async () => {
+  it("shows assigned candidates with an avatar and links candidate detail in a new tab", async () => {
     getGroupByIdMock.mockResolvedValue(buildGroup({
       activeCandidates: [
         {
@@ -441,12 +429,12 @@ describe("GroupDrawer", () => {
 
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
 
-    const candidateButton = await screen.findByRole("button", { name: /Ayse Demir/ });
+    const candidateLink = await screen.findByRole("link", { name: /Ayse Demir/ });
     expect(screen.getByText("AD")).toBeInTheDocument();
 
-    fireEvent.click(candidateButton);
-
-    expect(navigateMock).toHaveBeenCalledWith("/candidates/candidate-1");
+    expect(candidateLink).toHaveAttribute("href", "/candidates/candidate-1");
+    expect(candidateLink).toHaveAttribute("target", "_blank");
+    expect(candidateLink).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   it("asks for confirmation before removing an assigned candidate", async () => {

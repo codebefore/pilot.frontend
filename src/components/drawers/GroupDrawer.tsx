@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 
 import {
   assignCandidateGroup,
@@ -88,7 +87,6 @@ function getTrainingLessonDurationHours(lesson: TrainingLessonResponse): number 
 export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdated, onDeleted }: GroupDrawerProps) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const t = useT();
   const { lang } = useLanguage();
   const dateInputLang = lang === "tr" ? "tr-TR" : undefined;
@@ -408,10 +406,6 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     }
   };
 
-  const openCandidateDetail = (candidateId: string) => {
-    navigate(`/candidates/${candidateId}`);
-  };
-
   const handleRemoveCandidate = async (candidate: { candidateId: string; firstName: string; lastName: string }) => {
     if (!canManageGroups) return;
     if (!groupId) return;
@@ -616,13 +610,14 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                       previewOnClick
                       size={32}
                     />
-                    <button
+                    <a
                       className="candidate-list-text"
-                      onClick={() => openCandidateDetail(c.candidateId)}
-                      type="button"
+                      href={`/candidates/${c.candidateId}`}
+                      rel="noopener noreferrer"
+                      target="_blank"
                     >
                       <span className="candidate-name">{c.firstName} {c.lastName}</span>
-                    </button>
+                    </a>
                   </div>
                   <div className="group-candidate-remove-anchor">
                     <button

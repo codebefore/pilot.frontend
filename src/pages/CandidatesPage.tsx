@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { candidateKeys, useCandidates, useCandidateTags } from "../lib/queries/use-candidates";
-import { groupKeys, useGroups } from "../lib/queries/use-groups";
+import { groupKeys } from "../lib/queries/use-groups";
 import { useMebbisSessionGuard } from "../lib/queries/use-mebbis-session";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -37,10 +37,10 @@ import {
   filtersToQuery,
   splitTermGroupFilterValues,
   termGroupGroupFilterValue,
-  termGroupTermFilterValue,
   type CandidateFilterState,
 } from "../lib/candidate-filters";
 import { formatLocalDateOnly, todayLocalDateOnly } from "../lib/date-only";
+import { buildGroupCode, isValidGroupCodeParts } from "../lib/group-code";
 import { formatPhoneDisplay } from "../lib/phone";
 import {
   assignCandidatesToExamDate,
@@ -66,7 +66,7 @@ import {
   updateCandidateExamAttempt,
 } from "../lib/candidate-exam-attempts-api";
 import { getCandidateAccounting } from "../lib/candidate-accounting-api";
-import { getGroups } from "../lib/groups-api";
+import { getAllGroups, getGroups } from "../lib/groups-api";
 import { getDocumentChecklist } from "../lib/documents-api";
 import { getVehicles } from "../lib/vehicles-api";
 import { getInstructors } from "../lib/instructors-api";
@@ -2065,8 +2065,11 @@ export function CandidatesPage({
   const allTags: CandidateTag[] = allTagsQuery.data ?? [];
 
   // Group catalog for the "Grup" column header filter.
-  const headerGroupCatalogQuery = useGroups({ pageSize: 200 }, true);
-  const headerGroupCatalog: GroupResponse[] = headerGroupCatalogQuery.data?.items ?? [];
+  const headerGroupCatalogQuery = useQuery({
+    queryKey: [...groupKeys.lists(), "all-for-candidate-filter"],
+    queryFn: ({ signal }) => getAllGroups(undefined, signal),
+  });
+  const headerGroupCatalog: GroupResponse[] = headerGroupCatalogQuery.data ?? [];
 
   const defaultVisibleColumnIds = useMemo<CandidateColumnId[]>(() => {
     if (defaultVisibleColumnIdsProp) return defaultVisibleColumnIdsProp;
@@ -2615,16 +2618,22 @@ export function CandidatesPage({
     const terms = Array.from(
       new Map(headerGroupCatalog.map((group) => [group.term.id, group.term])).values()
     ).sort(compareTermsDesc);
-    return [
-      ...terms.map((term) => ({
-        value: termGroupTermFilterValue(term.id),
-        label: buildTermLabel(term, terms, lang),
-      })),
-      ...headerGroupCatalog.map((group) => ({
+    return headerGroupCatalog
+      .filter((group) => isValidGroupCodeParts(group.groupNumber, group.groupBranch))
+      .sort((a, b) => {
+        const sortCodeCompare = (b.groupSortCode ?? 0) - (a.groupSortCode ?? 0);
+        if (sortCodeCompare !== 0) return sortCodeCompare;
+        const termCompare = compareTermsDesc(a.term, b.term);
+        if (termCompare !== 0) return termCompare;
+        return `${a.groupNumber}${a.groupBranch}`.localeCompare(`${b.groupNumber}${b.groupBranch}`, lang);
+      })
+      .map((group) => ({
         value: termGroupGroupFilterValue(group.id),
-        label: buildGroupHeading(group.title, group.term, terms, lang),
-      })),
-    ];
+        label: `${buildTermLabel(group.term, terms, lang)} - ${buildGroupCode(
+          String(group.groupNumber),
+          group.groupBranch ?? ""
+        )}`,
+      }));
   }, [headerGroupCatalog, lang]);
 
   const pickerOptions: ColumnOption[] = resolvedColumns
@@ -5102,7 +5111,7 @@ function buildCandidateColumnFilterControl(
       <CheckboxListPopover
         onChange={(next) => {
           const parsed = splitTermGroupFilterValues(next);
-          setFilter("termIds", parsed.termIds);
+          setFilter("termIds", []);
           setFilter("groupIds", parsed.groupIds);
         }}
         options={periodGroupOptions}

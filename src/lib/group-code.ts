@@ -1,6 +1,6 @@
-export const GROUP_NUMBER_VALUES = ["1", "2", "3", "4", "5"] as const;
+export const GROUP_NUMBER_VALUES = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
-export const GROUP_BRANCH_VALUES = Array.from({ length: 26 }, (_, index) =>
+export const GROUP_BRANCH_VALUES = Array.from({ length: 8 }, (_, index) =>
   String.fromCharCode(65 + index)
 );
 
@@ -11,6 +11,19 @@ type GroupCodeParts = {
 
 export function buildGroupCode(groupNumber: string, groupBranch: string): string {
   return `${groupNumber.trim()}${groupBranch.trim().toUpperCase()}`;
+}
+
+export function isValidGroupCodeParts(
+  groupNumber: unknown,
+  groupBranch: unknown
+): groupNumber is number {
+  return (
+    typeof groupNumber === "number" &&
+    Number.isInteger(groupNumber) &&
+    GROUP_NUMBER_VALUES.includes(String(groupNumber) as (typeof GROUP_NUMBER_VALUES)[number]) &&
+    typeof groupBranch === "string" &&
+    GROUP_BRANCH_VALUES.includes(groupBranch.trim().toUpperCase())
+  );
 }
 
 export function parseGroupTitle(title: string): GroupCodeParts | null {

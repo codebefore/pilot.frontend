@@ -1001,6 +1001,9 @@ export interface GroupResponse {
   id: string;
   title: string;
   term: GroupTermRef;
+  groupNumber: number | null;
+  groupBranch: string | null;
+  groupSortCode: number | null;
   capacity: number;
   assignedCandidateCount: number;
   activeCandidateCount: number;

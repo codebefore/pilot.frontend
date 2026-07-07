@@ -1310,7 +1310,7 @@ function CandidateHero({
                 <span aria-hidden="true" className="candidate-detail-hero-sep">·</span>
               </>
             ) : null}
-            <span>İstanbul</span>
+            <span>{candidate.birthPlace?.trim() || "—"}</span>
           </div>
           <div className="candidate-detail-hero-meta candidate-detail-hero-meta--group">
             <span>{groupLine || "—"}</span>

@@ -55,4 +55,17 @@ describe("countActiveCandidateFilters", () => {
       totalDebtMax: 2500,
     });
   });
+
+  it("does not send legacy term-only filters to candidate queries", () => {
+    expect(
+      filtersToQuery({
+        ...EMPTY_CANDIDATE_FILTERS,
+        termIds: ["term-1"],
+        groupIds: ["group-1"],
+      })
+    ).toMatchObject({
+      termIds: undefined,
+      groupIds: ["group-1"],
+    });
+  });
 });

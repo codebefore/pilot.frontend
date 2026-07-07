@@ -33,6 +33,24 @@ export function getGroups(
   ).then((response) => enrichGroupListWithCandidatePhotos(response, signal));
 }
 
+export async function getAllGroups(
+  params?: Omit<GetGroupsParams, "page" | "pageSize">,
+  signal?: AbortSignal
+): Promise<GroupResponse[]> {
+  const pageSize = 200;
+  const firstPage = await getGroups({ ...params, page: 1, pageSize }, signal);
+  const items = [...firstPage.items];
+  const totalPages =
+    firstPage.totalPages ?? Math.ceil(firstPage.totalCount / firstPage.pageSize);
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const result = await getGroups({ ...params, page, pageSize }, signal);
+    items.push(...result.items);
+  }
+
+  return items;
+}
+
 export function getGroupById(id: string, signal?: AbortSignal): Promise<GroupDetailResponse> {
   return httpGet<GroupDetailResponse>(
     `/api/training/groups/${id}`,

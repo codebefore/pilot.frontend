@@ -9,13 +9,13 @@ import {
   combineTermGroupFilterValues,
   splitTermGroupFilterValues,
   termGroupGroupFilterValue,
-  termGroupTermFilterValue,
 } from "../../lib/candidate-filters";
-import { getGroups } from "../../lib/groups-api";
+import { getAllGroups } from "../../lib/groups-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
 } from "../../lib/status-maps";
-import { buildGroupHeading, buildTermLabel, compareTermsDesc } from "../../lib/term-label";
+import { buildGroupCode, isValidGroupCodeParts } from "../../lib/group-code";
+import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import type {
   CandidateGenderValue,
   GroupResponse,
@@ -97,8 +97,8 @@ export function CandidateFilterPanel({
     if (!open || groups.length > 0) return;
 
     const controller = new AbortController();
-    getGroups({ pageSize: 200 }, controller.signal)
-      .then((result) => setGroups(result.items))
+    getAllGroups(undefined, controller.signal)
+      .then((items) => setGroups(items))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setGroups([]);
@@ -116,44 +116,36 @@ export function CandidateFilterPanel({
     ).sort(compareTermsDesc);
   }, [groups]);
 
-  const termOptions = useMemo(
-    () =>
-      uniqueTerms.map((term) => ({
-        value: term.id,
-        label: buildTermLabel(term, uniqueTerms, lang === "tr" ? "tr" : "en"),
-      })),
-    [uniqueTerms, lang]
-  );
-
   const groupOptions = useMemo(() => {
     return [...groups]
+      .filter((group) => isValidGroupCodeParts(group.groupNumber, group.groupBranch))
       .sort((a, b) => {
+        const sortCodeCompare = (b.groupSortCode ?? 0) - (a.groupSortCode ?? 0);
+        if (sortCodeCompare !== 0) return sortCodeCompare;
         const termCompare = compareTermsDesc(a.term, b.term);
         if (termCompare !== 0) return termCompare;
-        return a.title.localeCompare(b.title, lang === "tr" ? "tr" : "en");
+        return `${a.groupNumber}${a.groupBranch}`.localeCompare(
+          `${b.groupNumber}${b.groupBranch}`,
+          lang === "tr" ? "tr" : "en"
+        );
       })
       .map((group) => ({
         value: group.id,
-        label: buildGroupHeading(
-          group.title,
+        label: `${buildTermLabel(
           group.term,
           uniqueTerms.length > 0 ? uniqueTerms : [group.term],
           lang === "tr" ? "tr" : "en"
-        ),
+        )} - ${buildGroupCode(String(group.groupNumber), group.groupBranch ?? "")}`,
       }));
   }, [groups, lang, uniqueTerms]);
   const termGroupOptions = useMemo(
     () => [
-      ...termOptions.map((option) => ({
-        value: termGroupTermFilterValue(option.value),
-        label: option.label,
-      })),
       ...groupOptions.map((option) => ({
         value: termGroupGroupFilterValue(option.value),
         label: option.label,
       })),
     ],
-    [groupOptions, termOptions]
+    [groupOptions]
   );
   const termGroupValues = useMemo(
     () => combineTermGroupFilterValues(filters),
@@ -161,7 +153,7 @@ export function CandidateFilterPanel({
   );
   const handleTermGroupChange = (next: string[]) => {
     const parsed = splitTermGroupFilterValues(next);
-    onChange("termIds", parsed.termIds);
+    onChange("termIds", []);
     onChange("groupIds", parsed.groupIds);
   };
 
