@@ -296,6 +296,7 @@ const CANDIDATE_PRINT_FORM_OPTIONS = [
   "Ücretsiz kursiyer formu",
   "Direksiyon takip çizelgesi",
   "K Belgesi",
+  "K Belgesi Matbu",
   "100 ceza puanı belgesi",
 ] as const;
 
@@ -1159,7 +1160,7 @@ function CandidateHero({
       return;
     }
 
-    if (label === "K Belgesi") {
+    if (label === "K Belgesi" || label === "K Belgesi Matbu") {
       if (!latestValidKCertificate) {
         showToast("Yazdırılabilecek geçerli K belgesi bulunamadı.", "error");
         return;
@@ -1172,6 +1173,8 @@ function CandidateHero({
           row: latestValidKCertificate,
           lessons: kCertificateLessons,
           routeName: null,
+          templateKey: label === "K Belgesi Matbu" ? "k-certificate-matbu" : "k-certificate",
+          title: label,
           t,
         });
       } catch (error) {
@@ -1331,7 +1334,7 @@ function CandidateHero({
                       className="candidate-detail-print-popover-item"
                       disabled={
                         contractGenerating ||
-                        (label === "K Belgesi"
+                        (label === "K Belgesi" || label === "K Belgesi Matbu"
                           ? kCertificatePrintLoading || !latestValidKCertificate
                           : label === "Direksiyon takip çizelgesi"
                           ? false
@@ -8449,15 +8452,19 @@ async function printCandidateKCertificatePdf({
   row,
   lessons,
   routeName,
+  templateKey = "k-certificate",
+  title = "K Belgesi",
   t,
 }: {
   candidate: CandidateResponse;
   row: KCertificateRow;
   lessons: TrainingLessonResponse[];
   routeName: string | null;
+  templateKey?: "k-certificate" | "k-certificate-matbu";
+  title?: string;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }): Promise<void> {
-  const printWindow = openCandidateContractPrintWindow("K Belgesi");
+  const printWindow = openCandidateContractPrintWindow(title);
   if (!printWindow) {
     throw new Error("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.");
   }
@@ -8486,6 +8493,7 @@ async function printCandidateKCertificatePdf({
       vehicleTypeLabel: vehicleTypeForLicenseClass(candidate.licenseClass, t),
       routeName,
       biometricPhoto,
+      templateKey,
     });
     const blob = await renderCandidateContractPdf(request);
     printCandidateContractPdf(printWindow, blob);

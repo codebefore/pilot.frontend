@@ -241,6 +241,7 @@ describe("candidate contract print", () => {
       vehicle: null,
       vehicleTypeLabel: "Motosiklet",
       routeName: "Güzergah 1",
+      templateKey: "k-certificate-matbu",
       biometricPhoto: {
         base64: "abc",
         contentType: "image/png",
@@ -249,7 +250,7 @@ describe("candidate contract print", () => {
       },
     });
 
-    expect(request.templateKey).toBe("k-certificate");
+    expect(request.templateKey).toBe("k-certificate-matbu");
     expect(request.values.belgeno).toBe("K-42");
     expect(request.values.kurumkisaadi).toBe("Pilot Kurs");
     expect(request.values.kurumadresi).toBe("Kurum adresi");

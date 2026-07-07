@@ -36,6 +36,7 @@ export type CandidateKCertificateRenderInput = {
   vehicleTypeLabel: string | null;
   routeName: string | null;
   biometricPhoto?: CandidateContractImageInput | null;
+  templateKey?: Extract<CandidateContractTemplateKey, "k-certificate" | "k-certificate-matbu">;
 };
 
 export type CandidateDrivingTrackingListRenderInput = {
@@ -56,6 +57,7 @@ export type CandidateContractTemplateKey =
   | "registration-contract"
   | "signature-sample"
   | "k-certificate"
+  | "k-certificate-matbu"
   | "driving-tracking-list";
 
 export type CandidateContractImageInput = {
@@ -273,6 +275,7 @@ export function buildCandidateKCertificateRenderPdfRequest({
   vehicleTypeLabel,
   routeName,
   biometricPhoto,
+  templateKey = "k-certificate",
 }: CandidateKCertificateRenderInput): CandidateContractRenderPdfRequest {
   const institutionName = institution?.institutionOfficialName ?? institution?.institutionName ?? null;
   const instructorNameParts = splitFullName(
@@ -283,7 +286,7 @@ export function buildCandidateKCertificateRenderPdfRequest({
 
   return {
     fileName: kCertificateFileName(candidate, certificate.documentNumber),
-    templateKey: "k-certificate",
+    templateKey,
     images: biometricPhoto
       ? {
           kursiyerbiyometrikfotograf: biometricPhoto,
