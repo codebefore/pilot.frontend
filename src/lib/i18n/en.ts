@@ -1463,6 +1463,8 @@ export const en: Record<TranslationKey, string> = {
   "header.sidebarToggle": "Open or close sidebar",
   "header.languageToggle": "Change language",
   "header.mebbisToggle": "MEBBIS connection",
+  "header.mebbis.liveView": "Live view",
+  "header.mebbis.liveViewHint": "When enabled, supported MEBBIS jobs run in a visible browser.",
   "header.mebbis.status.inactive": "Off",
   "header.mebbis.status.starting": "Connecting",
   "header.mebbis.status.waitingVerification": "Code needed",

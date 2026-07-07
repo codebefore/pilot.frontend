@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthInstitution } from "../../lib/auth-storage";
 import type { LocalAgentMebbisSessionResponse } from "../../lib/local-agent-api";
+import { MEBBIS_LIVE_VIEW_STORAGE_KEY } from "../../lib/mebbis-live-view";
 import { renderWithProviders } from "../../test/render-with-providers";
 import { Header } from "./Header";
 
@@ -98,6 +99,7 @@ function renderHeader(onInstitutionChange = vi.fn().mockResolvedValue(undefined)
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   localAgentMocks.readStoredLocalAgentToken.mockReturnValue(null);
   localAgentMocks.getLocalAgentHealth.mockResolvedValue({
     status: "ok",
@@ -178,5 +180,34 @@ describe("Header MEBBİS connection", () => {
 
     await waitFor(() => expect(localAgentMocks.openLocalAgentMebbisHomeView).toHaveBeenCalledTimes(1));
     expect(localAgentMocks.startLocalAgentMebbisSession).not.toHaveBeenCalled();
+  });
+
+  it("hides the live view toggle until MEBBİS is connected", async () => {
+    localAgentMocks.readStoredLocalAgentToken.mockReturnValue("local-agent-token");
+    localAgentMocks.getLocalAgentMebbisSession.mockResolvedValue(mebbisSession("inactive"));
+    renderHeader();
+
+    expect(screen.queryByRole("button", { name: "Canlı izle" })).not.toBeInTheDocument();
+    await waitFor(() => expect(localAgentMocks.getLocalAgentMebbisSession).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Canlı izle" })).not.toBeInTheDocument();
+  });
+
+  it("persists the live view toggle from the header when MEBBİS is connected", async () => {
+    localAgentMocks.readStoredLocalAgentToken.mockReturnValue("local-agent-token");
+    localAgentMocks.getLocalAgentMebbisSession.mockResolvedValue(mebbisSession("connected"));
+    renderHeader();
+
+    const liveViewToggle = await screen.findByRole("button", { name: "Canlı izle" });
+    expect(liveViewToggle).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(liveViewToggle);
+
+    expect(liveViewToggle).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBe("true");
+
+    fireEvent.click(liveViewToggle);
+
+    expect(liveViewToggle).toHaveAttribute("aria-pressed", "false");
+    expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBe("false");
   });
 });

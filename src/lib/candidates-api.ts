@@ -27,12 +27,12 @@ const trainingRequestOptions = (signal?: AbortSignal) => ({
 /** Backend-supported sort fields for GET /api/candidates. */
 export type CandidateSortField =
   | "createdAtUtc"
+  | "groupSortCode"
   | "name"
   | "nationalId"
   | "licenseClass"
   | "status"
   | "groupTitle"
-  | "groupCreatedAtUtc"
   | "eSinavDate"
   | "drivingExamDate"
   | "examAttemptCount"

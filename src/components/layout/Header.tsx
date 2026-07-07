@@ -17,6 +17,7 @@ import {
   type LocalAgentMebbisSessionResponse,
   type LocalAgentMebbisSessionStatus,
 } from "../../lib/local-agent-api";
+import { readMebbisLiveViewEnabled, writeMebbisLiveViewEnabled } from "../../lib/mebbis-live-view";
 import { pairMebbisExtensionClient } from "../../lib/mebbis-jobs-api";
 import { ExternalLinkIcon, MenuIcon } from "../icons";
 import { useToast } from "../ui/Toast";
@@ -108,6 +109,7 @@ function HeaderMebbisConnection() {
   const [session, setSession] = useState<LocalAgentMebbisSessionResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [openingMebbisHome, setOpeningMebbisHome] = useState(false);
+  const [liveViewEnabled, setLiveViewEnabled] = useState(() => readMebbisLiveViewEnabled());
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +136,7 @@ function HeaderMebbisConnection() {
 
   const status = normalizeMebbisStatus(session?.status);
   const active = status === "starting" || status === "waiting_verification" || status === "connected" || status === "stopping";
+  const showLiveViewToggle = status === "connected";
   const transitionLocked = busy || status === "starting" || status === "stopping";
   const statusText = t(MEBBIS_STATUS_LABELS[status]);
   const statusMessage = error ?? session?.error ?? session?.message ?? statusText;
@@ -189,6 +192,14 @@ function HeaderMebbisConnection() {
     } finally {
       setOpeningMebbisHome(false);
     }
+  }
+
+  function handleLiveViewToggle(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const next = !liveViewEnabled;
+    setLiveViewEnabled(next);
+    writeMebbisLiveViewEnabled(next);
   }
 
   function beginOperation() {
@@ -399,6 +410,19 @@ function HeaderMebbisConnection() {
           <ExternalLinkIcon size={14} />
         </span>
       </button>
+
+      {showLiveViewToggle && (
+        <button
+          aria-pressed={liveViewEnabled}
+          className="header-mebbis-live-view"
+          onClick={handleLiveViewToggle}
+          title={t("header.mebbis.liveViewHint")}
+          type="button"
+        >
+          <span className="header-mebbis-live-view-switch" data-active={liveViewEnabled} aria-hidden="true" />
+          <span>{t("header.mebbis.liveView")}</span>
+        </button>
+      )}
 
       {popoverOpen && (
         <div className="header-mebbis-popover" role="dialog" aria-label={popoverTitle}>

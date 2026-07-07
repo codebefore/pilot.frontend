@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { applyRuntimeConfig } from "./api";
+import { MEBBIS_LIVE_VIEW_STORAGE_KEY } from "./mebbis-live-view";
 import {
   createCandidateEducationInfoUploadJob,
   createCandidateExamResultSyncJob,
@@ -19,6 +20,7 @@ describe("mebbis jobs api", () => {
   beforeEach(() => {
     applyRuntimeConfig(undefined);
     vi.restoreAllMocks();
+    localStorage.clear();
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -123,6 +125,24 @@ describe("mebbis jobs api", () => {
     );
     expect(init?.method).toBe("POST");
     expect(init?.body).toBe(JSON.stringify({ isFree: true }));
+  });
+
+  it("adds liveView to MEBBIS job create bodies only when header live view is enabled", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    localStorage.setItem(MEBBIS_LIVE_VIEW_STORAGE_KEY, "true");
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createCandidateTermEnrollJob("candidate-1", { registrationFee: 8750 });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(init?.body).toBe(JSON.stringify({ registrationFee: 8750, liveView: true }));
   });
 
   it("creates candidate exam result sync jobs on the MEBBIS base url", async () => {

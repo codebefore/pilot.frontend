@@ -1765,6 +1765,160 @@
 .candidate-detail-doc-transfer-actions .btn-danger {
   margin-left: auto;
 }
+.candidate-detail-doc-transfer-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--blue-200, #bbd8fd) 70%, var(--gray-200));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--blue-50, #eff7ff) 58%, var(--white));
+}
+.candidate-detail-doc-transfer-progress.is-running {
+  border-color: color-mix(in srgb, var(--blue-300, #8dbefb) 78%, var(--gray-200));
+  background: color-mix(in srgb, var(--blue-50, #eff7ff) 78%, var(--white));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--blue-400, #62a5f9) 22%, transparent);
+}
+.candidate-detail-doc-transfer-progress.is-error {
+  border-color: color-mix(in srgb, var(--red-300, #fca5a5) 82%, var(--gray-200));
+  background: color-mix(in srgb, var(--red-50, #fef2f2) 72%, var(--white));
+}
+.candidate-detail-doc-transfer-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.candidate-detail-doc-transfer-progress-head strong {
+  color: var(--gray-900);
+  font-size: 13px;
+}
+.candidate-detail-doc-transfer-progress-head span,
+.candidate-detail-doc-transfer-progress-current,
+.candidate-detail-doc-transfer-progress-message {
+  color: var(--gray-600);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.candidate-detail-doc-transfer-progress-message {
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--red-200, #fecaca) 80%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--red-50, #fef2f2) 78%, var(--white));
+  color: var(--red-700, #b91c1c);
+  font-weight: 600;
+}
+.candidate-detail-doc-transfer-progress-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 128px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.candidate-detail-doc-transfer-progress-issues li {
+  display: grid;
+  grid-template-columns: minmax(92px, 132px) minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--red-200, #fecaca) 72%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--red-50, #fef2f2) 58%, var(--white));
+}
+.candidate-detail-doc-transfer-progress-issues strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--red-800, #991b1b);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate-detail-doc-transfer-progress-issues span {
+  min-width: 0;
+  color: var(--red-700, #b91c1c);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.candidate-detail-doc-transfer-progress-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate-detail-doc-transfer-progress-spinner {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--blue-600, #2578e8) 22%, transparent);
+  border-top-color: var(--blue-600, #2578e8);
+  border-radius: 999px;
+  animation: candidate-doc-transfer-spin 700ms linear infinite;
+}
+.candidate-detail-doc-transfer-progress-bar {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gray-200) 80%, transparent);
+}
+.candidate-detail-doc-transfer-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue-600, #2578e8);
+  transition: width 180ms ease;
+}
+.candidate-detail-doc-transfer-progress-bar.is-determinate span {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--blue-600, #2578e8) 92%, var(--white)),
+      color-mix(in srgb, var(--blue-600, #2578e8) 92%, var(--white)) 8px,
+      var(--blue-600, #2578e8) 8px,
+      var(--blue-600, #2578e8) 16px
+    );
+  background-size: 24px 24px;
+}
+.candidate-detail-doc-transfer-progress.is-running .candidate-detail-doc-transfer-progress-bar.is-determinate span {
+  animation: candidate-doc-transfer-bar 750ms linear infinite;
+}
+.candidate-detail-doc-transfer-progress-bar.is-indeterminate span {
+  width: 42%;
+  min-width: 72px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--blue-600, #2578e8) 20%, transparent),
+      var(--blue-600, #2578e8),
+      color-mix(in srgb, var(--blue-600, #2578e8) 20%, transparent)
+    );
+  animation: candidate-doc-transfer-indeterminate 950ms ease-in-out infinite;
+}
+@keyframes candidate-doc-transfer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes candidate-doc-transfer-bar {
+  to {
+    background-position: 24px 0;
+  }
+}
+@keyframes candidate-doc-transfer-indeterminate {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
 .candidate-detail-doc-transfer-row {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr) 112px;
@@ -1904,6 +2058,16 @@
   }
   .candidate-detail-doc-transfer-actions .btn-danger {
     margin-left: 0;
+  }
+  .candidate-detail-doc-transfer-progress-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .candidate-detail-doc-transfer-progress-current {
+    white-space: normal;
+  }
+  .candidate-detail-doc-transfer-progress-issues li {
+    grid-template-columns: minmax(0, 1fr);
   }
   .candidate-detail-doc-transfer-row {
     grid-template-columns: 72px minmax(0, 1fr);

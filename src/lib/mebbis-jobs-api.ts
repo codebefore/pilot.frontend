@@ -1,6 +1,7 @@
 import { getMebbisApiBaseUrl } from "./api";
 import { httpGet, httpPost } from "./http";
 import type { TranslationKey, useT } from "./i18n";
+import { readMebbisLiveViewEnabled } from "./mebbis-live-view";
 import type { JobStatus } from "../types";
 
 type MebbisJobStatus =
@@ -163,6 +164,14 @@ const mebbisRequestOptions = (signal?: AbortSignal) => ({
   signal,
 });
 
+type MebbisJobCreateBody = Record<string, unknown>;
+
+function withMebbisLiveView<TBody extends MebbisJobCreateBody>(body: TBody): TBody & { liveView?: true } {
+  return readMebbisLiveViewEnabled()
+    ? { ...body, liveView: true }
+    : body;
+}
+
 export async function listMebbisJobs(
   params: MebbisJobListParams = {},
   signal?: AbortSignal
@@ -275,7 +284,7 @@ export async function retryMebbisJobs(input: {
 export async function createCandidateLookupJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/lookup`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -283,7 +292,7 @@ export async function createCandidateLookupJob(candidateId: string): Promise<Meb
 export async function createCandidateSyncJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/sync`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -301,7 +310,7 @@ export async function createCandidateTermEnrollJob(
 
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/term-enroll`,
-    body,
+    withMebbisLiveView(body),
     mebbisRequestOptions()
   );
 }
@@ -309,7 +318,7 @@ export async function createCandidateTermEnrollJob(
 export async function createCandidateExamResultSyncJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/exam-result-sync`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -320,7 +329,7 @@ export async function createESinavExamResultSyncJob(
 ): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/exam-results/e-sinav",
-    examTime ? { examDate, examTime } : { examDate },
+    withMebbisLiveView(examTime ? { examDate, examTime } : { examDate }),
     mebbisRequestOptions()
   );
 }
@@ -331,7 +340,7 @@ export async function createCandidateSyncByNationalIdJob(
 ): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/candidates/sync-by-national-id",
-    candidateStatusHint ? { nationalId, candidateStatusHint } : { nationalId },
+    withMebbisLiveView(candidateStatusHint ? { nationalId, candidateStatusHint } : { nationalId }),
     mebbisRequestOptions()
   );
 }
@@ -339,7 +348,7 @@ export async function createCandidateSyncByNationalIdJob(
 export async function createCandidateNationalIdImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/candidates/national-ids/import",
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -347,7 +356,7 @@ export async function createCandidateNationalIdImportJob(): Promise<MebbisJobRes
 export async function createCandidatePhotoImportJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/photo/import`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -355,7 +364,7 @@ export async function createCandidatePhotoImportJob(candidateId: string): Promis
 export async function createCandidatePhotoUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/photo/upload`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -363,7 +372,7 @@ export async function createCandidatePhotoUploadJob(candidateId: string): Promis
 export async function createCandidateWebcamPhotoUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/webcam-photo/upload`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -371,7 +380,7 @@ export async function createCandidateWebcamPhotoUploadJob(candidateId: string): 
 export async function createCandidateEducationInfoUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/education-info/upload`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -379,7 +388,7 @@ export async function createCandidateEducationInfoUploadJob(candidateId: string)
 export async function createCandidateHealthReportUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/health-report/upload`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -387,7 +396,7 @@ export async function createCandidateHealthReportUploadJob(candidateId: string):
 export async function createCandidateCriminalRecordUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/criminal-record/upload`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -395,7 +404,7 @@ export async function createCandidateCriminalRecordUploadJob(candidateId: string
 export async function createCandidateSignatureUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/signature/upload`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -403,7 +412,7 @@ export async function createCandidateSignatureUploadJob(candidateId: string): Pr
 export async function createCandidateContractUploadJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/contract/upload`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -411,7 +420,7 @@ export async function createCandidateContractUploadJob(candidateId: string): Pro
 export async function createTheoryScheduleSyncJob(groupId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/groups/${groupId}/theory-schedule-sync`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -419,7 +428,7 @@ export async function createTheoryScheduleSyncJob(groupId: string): Promise<Mebb
 export async function createTheoryScheduleImportJob(groupId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/groups/${groupId}/theory-schedule-import`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -427,7 +436,7 @@ export async function createTheoryScheduleImportJob(groupId: string): Promise<Me
 export async function createPracticeScheduleImportJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/practice-schedule-import`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -435,7 +444,7 @@ export async function createPracticeScheduleImportJob(candidateId: string): Prom
 export async function createPracticeScheduleSyncJob(candidateId: string): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     `/api/mebbis/jobs/candidates/${candidateId}/practice-schedule-sync`,
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -443,7 +452,7 @@ export async function createPracticeScheduleSyncJob(candidateId: string): Promis
 export async function createGroupInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/groups/import",
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -451,7 +460,7 @@ export async function createGroupInventoryImportJob(): Promise<MebbisJobResponse
 export async function createInstitutionInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/institution/import",
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -459,7 +468,7 @@ export async function createInstitutionInventoryImportJob(): Promise<MebbisJobRe
 export async function createLicenseClassInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/license-classes/import",
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -467,7 +476,7 @@ export async function createLicenseClassInventoryImportJob(): Promise<MebbisJobR
 export async function createClassroomInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/classrooms/import",
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -475,7 +484,7 @@ export async function createClassroomInventoryImportJob(): Promise<MebbisJobResp
 export async function createVehicleInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/vehicles/import",
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }
@@ -483,7 +492,7 @@ export async function createVehicleInventoryImportJob(): Promise<MebbisJobRespon
 export async function createInstructorInventoryImportJob(): Promise<MebbisJobResponse> {
   return httpPost<MebbisJobResponse>(
     "/api/mebbis/jobs/instructors/import",
-    {},
+    withMebbisLiveView({}),
     mebbisRequestOptions()
   );
 }

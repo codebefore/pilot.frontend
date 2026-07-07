@@ -3947,12 +3947,40 @@ describe("CandidatesPage sorting", () => {
     });
   });
 
-  it("sends the default group created date sort on initial load", async () => {
+  it("sends the default group sort code sort on initial load", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     const callArgs = getCandidatesMock.mock.calls[0]?.[0];
-    expect(callArgs.sortBy).toBe("groupCreatedAtUtc");
+    expect(callArgs.sortBy).toBe("groupSortCode");
+    expect(callArgs.sortDir).toBe("desc");
+  });
+
+  it("falls back to the group sort code default when localStorage contains an unsupported sort", async () => {
+    localStorage.setItem(
+      "candidates.sort.v20.all.active.user.test-user",
+      JSON.stringify({ field: "unsupportedSort", direction: "desc" })
+    );
+
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    const callArgs = getCandidatesMock.mock.calls[0]?.[0];
+    expect(callArgs.sortBy).toBe("groupSortCode");
+    expect(callArgs.sortDir).toBe("desc");
+  });
+
+  it("ignores the previous candidate sort storage key", async () => {
+    localStorage.setItem(
+      "candidates.sort.candidates.columns.v19.all.active.user.test-user",
+      JSON.stringify({ field: "createdAtUtc", direction: "desc" })
+    );
+
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    const callArgs = getCandidatesMock.mock.calls[0]?.[0];
+    expect(callArgs.sortBy).toBe("groupSortCode");
     expect(callArgs.sortDir).toBe("desc");
   });
 
@@ -4007,12 +4035,14 @@ describe("CandidatesPage sorting", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Grup" }));
+    const groupHeader = screen.getByRole("button", { name: "Grup" });
+    fireEvent.click(groupHeader);
+    fireEvent.click(groupHeader);
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
           status: "graduated",
-          sortBy: "groupTitle",
+          sortBy: "groupSortCode",
           sortDir: "asc",
           page: 1,
         })

@@ -153,21 +153,35 @@ type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
 
 const COLUMN_DRAG_MIME_TYPE = "application/x-pilot-candidate-column";
-const DEFAULT_CANDIDATE_SORT: SortState = { field: "groupCreatedAtUtc", direction: "desc" };
+const CANDIDATE_SORT_STORAGE_VERSION = "v20";
+const DEFAULT_CANDIDATE_SORT: SortState = { field: "groupSortCode", direction: "desc" };
+const CANDIDATE_SORT_FIELDS = new Set<CandidateSortField>([
+  "createdAtUtc",
+  "groupSortCode",
+  "name",
+  "nationalId",
+  "licenseClass",
+  "status",
+  "groupTitle",
+  "eSinavDate",
+  "drivingExamDate",
+  "examAttemptCount",
+  "drivingExamAttemptCount",
+  "drivingExamAttendanceStatus",
+  "examStatus",
+  "totalFee",
+  "totalPaid",
+  "totalDebt",
+]);
 
 function candidateListTabLabel(value: CandidateTab, t: ReturnType<typeof useT>): string {
   return value === "all" ? t("common.all") : candidateStatusLabel(value);
 }
 
 function defaultCandidateSortForScope(
-  pageScope: CandidateColumnPageScope,
-  tab: CandidateListTabKey
+  _pageScope: CandidateColumnPageScope,
+  _tab: CandidateListTabKey
 ): SortState {
-  if (pageScope === "uygulama") {
-    if (tab === "all" || tab === "havuz") return { field: "eSinavDate", direction: "desc" };
-    if (tab === "randevulu") return { field: "drivingExamDate", direction: "asc" };
-    if (tab === "basarisiz") return { field: "drivingExamDate", direction: "desc" };
-  }
   return DEFAULT_CANDIDATE_SORT;
 }
 
@@ -175,13 +189,16 @@ function readCandidateSort(storageKey: string, fallback: SortState): SortState {
   try {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as Partial<NonNullable<SortState>> | null;
+    const parsed = JSON.parse(raw) as { field?: unknown; direction?: unknown } | null;
     if (
       parsed &&
       typeof parsed.field === "string" &&
       typeof parsed.direction === "string" &&
       (parsed.direction === "asc" || parsed.direction === "desc")
     ) {
+      if (!CANDIDATE_SORT_FIELDS.has(parsed.field as CandidateSortField)) {
+        return fallback;
+      }
       return { field: parsed.field as CandidateSortField, direction: parsed.direction };
     }
   } catch {
@@ -1276,7 +1293,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
   {
     id: "group",
     labelKey: "candidates.col.group",
-    sortField: "groupTitle",
+    sortField: "groupSortCode",
     renderCell: (c) => formatGroupWithTerm(c, "tr"),
     skeletonWidth: 110,
   },
@@ -1906,12 +1923,12 @@ export function CandidatesPage({
   const sortStorageKey = useMemo(
     () => [
       "candidates.sort",
-      columnStorageKey,
+      CANDIDATE_SORT_STORAGE_VERSION,
       columnPageScope,
       tab,
       user?.id ? `user.${user.id}` : null,
     ].filter(Boolean).join("."),
-    [columnPageScope, columnStorageKey, tab, user?.id]
+    [columnPageScope, tab, user?.id]
   );
   const hasHydratedSortStorage = useRef(false);
   const pendingSortStorageHydrationKey = useRef<string | null>(null);
@@ -1919,7 +1936,7 @@ export function CandidatesPage({
     readCandidateSort(
       [
         "candidates.sort",
-        columnStorageKey,
+        CANDIDATE_SORT_STORAGE_VERSION,
         columnPageScope,
         resolvedTabConfig.defaultTab,
         user?.id ? `user.${user.id}` : null,

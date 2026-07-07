@@ -1461,6 +1461,8 @@ export const tr = {
   "header.sidebarToggle": "Sol menüyü aç/kapat",
   "header.languageToggle": "Dili değiştir",
   "header.mebbisToggle": "MEBBİS bağlantısı",
+  "header.mebbis.liveView": "Canlı izle",
+  "header.mebbis.liveViewHint": "Açıkken desteklenen MEBBİS işleri görünür tarayıcıda çalışır.",
   "header.mebbis.status.inactive": "Kapalı",
   "header.mebbis.status.starting": "Bağlanıyor",
   "header.mebbis.status.waitingVerification": "Kod gerekli",

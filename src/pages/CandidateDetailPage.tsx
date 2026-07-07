@@ -9359,6 +9359,16 @@ function CandidateDocumentOneByOneTransferModal({
   const [transferringTypeId, setTransferringTypeId] = useState<string | null>(null);
   const [batchTransferRunning, setBatchTransferRunning] = useState(false);
   const [batchTransferStep, setBatchTransferStep] = useState<string | null>(null);
+  const [batchTransferProgress, setBatchTransferProgress] = useState<{
+    completed: number;
+    current: string | null;
+    issues?: Array<{ label: string; message: string }>;
+    message?: string;
+    needsReview: number;
+    tone?: "error" | "running";
+    succeeded: number;
+    total: number;
+  } | null>(null);
   const noDocumentPermissionTitle = t("common.noPermission");
   const candidateAddress =
     candidate.address?.trim() ||
@@ -9448,7 +9458,26 @@ function CandidateDocumentOneByOneTransferModal({
     }
     return null;
   };
-  const queueAndWaitDocumentTransfer = async (type: DocumentTypeResponse): Promise<"succeeded" | "stopped"> => {
+  const canContinueDocumentTransferAfterTermEnrollMessage = (message: string | null) => {
+    const normalized = message
+      ?.trim()
+      .toLocaleLowerCase("tr-TR")
+      .replace(/\s+/g, " ") ?? "";
+    return normalized.includes("mtsas modülünde sınav aşasında") ||
+      normalized.includes("mtsas modulunde sinav asamasinda");
+  };
+  const getBatchTransferTypes = () => documentTypes.filter((type) => {
+    if (!isMebbisJobDocument(type)) return false;
+    if (!shouldShowMebbisDocumentTransferAction(type.key)) return false;
+    if (!isDocumentReadyForMebbisTransfer(type)) return false;
+    const upload = uploadsByKey.get(type.key) ?? null;
+    const contractBackUpload = type.key === "contract_front" ? uploadsByKey.get("contract_back") ?? null : null;
+    const isTransferred = type.key === "contract_front"
+      ? upload?.isMebbisTransferred === true && contractBackUpload?.isMebbisTransferred === true
+      : upload?.isMebbisTransferred === true;
+    return !isTransferred;
+  });
+  const queueAndWaitDocumentTransfer = async (type: DocumentTypeResponse): Promise<"succeeded" | "needs_review"> => {
     const messages = documentTransferMessages(type);
     const job = await createDocumentTransferJob(type);
     notifyMebbisJobQueued(job.id, job.jobType);
@@ -9456,7 +9485,7 @@ function CandidateDocumentOneByOneTransferModal({
     const latestJob = await waitForTerminalMebbisJob(job.id);
     if (!latestJob) {
       showToast(messages.running);
-      return "stopped";
+      return "needs_review";
     }
     if (latestJob.status === "succeeded") {
       await onRefresh();
@@ -9464,7 +9493,7 @@ function CandidateDocumentOneByOneTransferModal({
       return "succeeded";
     }
     showToast(candidateTermEnrollJobTerminalMessage(latestJob, messages.manual), "error");
-    return "stopped";
+    return "needs_review";
   };
 
   const handleEnrollTermAndTransfer = async () => {
@@ -9475,6 +9504,14 @@ function CandidateDocumentOneByOneTransferModal({
 
     setBatchTransferRunning(true);
     setBatchTransferStep("Dönem kaydı");
+    setBatchTransferProgress({
+      completed: 0,
+      current: "Dönem kaydı",
+      needsReview: 0,
+      succeeded: 0,
+      tone: "running",
+      total: 0,
+    });
     try {
       const termJob = await createCandidateTermEnrollJob(candidateId, {
         registrationFee: contractFee,
@@ -9484,47 +9521,141 @@ function CandidateDocumentOneByOneTransferModal({
       showToast(t("candidateDetail.documents.toast.termSyncQueued"));
       const termResult = await waitForTerminalMebbisJob(termJob.id);
       if (!termResult) {
+        setBatchTransferProgress({
+          completed: 0,
+          current: null,
+          issues: [{ label: "Dönem kaydı", message: t("candidateDetail.documents.toast.termSyncStillRunning") }],
+          message: t("candidateDetail.documents.toast.termSyncStillRunning"),
+          needsReview: 1,
+          succeeded: 0,
+          tone: "error",
+          total: 0,
+        });
         showToast(t("candidateDetail.documents.toast.termSyncStillRunning"));
         return;
       }
+      let termEnrollMessage: string | null = null;
       if (termResult.status !== "succeeded") {
-        showToast(
-          candidateTermEnrollJobTerminalMessage(termResult, t("candidateDetail.documents.toast.termSyncNeedsReview")),
-          "error"
+        termEnrollMessage = candidateTermEnrollJobTerminalMessage(
+          termResult,
+          t("candidateDetail.documents.toast.termSyncNeedsReview")
         );
-        return;
+        setBatchTransferProgress({
+          completed: 0,
+          current: null,
+          issues: [{ label: "Dönem kaydı", message: termEnrollMessage }],
+          message: termEnrollMessage,
+          needsReview: 1,
+          succeeded: 0,
+          tone: "error",
+          total: 0,
+        });
+        showToast(termEnrollMessage, "error");
+        if (!canContinueDocumentTransferAfterTermEnrollMessage(termEnrollMessage)) {
+          return;
+        }
+      } else {
+        await onRefresh();
+        showToast(t("candidateDetail.documents.toast.termSyncCompleted"));
       }
 
-      await onRefresh();
-      showToast(t("candidateDetail.documents.toast.termSyncCompleted"));
-
-      const transferTypes = documentTypes.filter((type) => {
-        if (!isMebbisJobDocument(type)) return false;
-        if (!shouldShowMebbisDocumentTransferAction(type.key)) return false;
-        if (!isDocumentReadyForMebbisTransfer(type)) return false;
-        const upload = uploadsByKey.get(type.key) ?? null;
-        const contractBackUpload = type.key === "contract_front" ? uploadsByKey.get("contract_back") ?? null : null;
-        const isTransferred = type.key === "contract_front"
-          ? upload?.isMebbisTransferred === true && contractBackUpload?.isMebbisTransferred === true
-          : upload?.isMebbisTransferred === true;
-        return canRetryMebbisDocumentTransfer(type.key, isTransferred);
-      });
+      const transferTypes = getBatchTransferTypes();
 
       if (transferTypes.length === 0) {
-        showToast("Dönem kaydı tamamlandı; aktarılacak uygun evrak bulunamadı.");
+        setBatchTransferProgress(null);
+        if (termEnrollMessage) {
+          showToast("Dönem kaydı kontrol gerektiriyor; aktarılacak uygun evrak bulunamadı.", "error");
+        } else {
+          showToast("Dönem kaydı tamamlandı; aktarılacak uygun evrak bulunamadı.");
+        }
         await handleOpenMebbisCandidateAddressPage();
         return;
       }
 
+      let succeededCount = 0;
+      let needsReviewCount = 0;
+      setBatchTransferProgress({
+        completed: 0,
+        current: documentTransferDisplayName(transferTypes[0]),
+        issues: termEnrollMessage ? [{ label: "Dönem kaydı", message: termEnrollMessage }] : undefined,
+        needsReview: 0,
+        succeeded: 0,
+        tone: "running",
+        total: transferTypes.length,
+      });
       for (const type of transferTypes) {
         setTransferringTypeId(type.id);
         setBatchTransferStep(documentTransferDisplayName(type));
-        const result = await queueAndWaitDocumentTransfer(type);
+        setBatchTransferProgress((progress) => progress
+          ? { ...progress, current: documentTransferDisplayName(type) }
+          : progress);
+        let result: "succeeded" | "needs_review";
+        try {
+          result = await queueAndWaitDocumentTransfer(type);
+        } catch (error) {
+          needsReviewCount += 1;
+          const message = documentMebbisTransferErrorMessage(
+            error,
+            t("candidateDetail.documents.oneByOne.toast.transferFailed", { name: documentTransferDisplayName(type) })
+          );
+          setBatchTransferProgress((progress) => progress
+            ? {
+                ...progress,
+                completed: progress.completed + 1,
+                current: null,
+                issues: [
+                  ...(progress.issues ?? []),
+                  { label: documentTransferDisplayName(type), message },
+                ],
+                needsReview: progress.needsReview + 1,
+              }
+            : progress);
+          showToast(message, "error");
+          setTransferringTypeId(null);
+          continue;
+        }
         setTransferringTypeId(null);
-        if (result !== "succeeded") return;
+        if (result === "succeeded") {
+          succeededCount += 1;
+          setBatchTransferProgress((progress) => progress
+            ? {
+                ...progress,
+                completed: progress.completed + 1,
+                current: null,
+                succeeded: progress.succeeded + 1,
+              }
+            : progress);
+        } else {
+          needsReviewCount += 1;
+          const message = documentTransferMessages(type).manual;
+          setBatchTransferProgress((progress) => progress
+            ? {
+                ...progress,
+                completed: progress.completed + 1,
+                current: null,
+                issues: [
+                  ...(progress.issues ?? []),
+                  { label: documentTransferDisplayName(type), message },
+                ],
+                needsReview: progress.needsReview + 1,
+              }
+            : progress);
+        }
       }
 
-      showToast("Dönem kaydı ve evrak aktarımları tamamlandı.");
+      if (needsReviewCount > 0) {
+        showToast(
+          `${termEnrollMessage ? "Dönem kaydı kontrol gerektiriyor" : "Dönem kaydı tamamlandı"}; ${succeededCount} evrak aktarıldı, ${needsReviewCount} evrak kontrol gerektiriyor.`,
+          "error"
+        );
+      } else if (termEnrollMessage) {
+        showToast(
+          `Dönem kaydı kontrol gerektiriyor; ${succeededCount} evrak aktarıldı.`,
+          "error"
+        );
+      } else {
+        showToast("Dönem kaydı ve evrak aktarımları tamamlandı.");
+      }
       await handleOpenMebbisCandidateAddressPage();
     } catch (error) {
       const fallback = "Döneme kaydet ve aktar işlemi başlatılamadı.";
@@ -9547,6 +9678,7 @@ function CandidateDocumentOneByOneTransferModal({
     const upload = uploadsByKey.get(type.key) ?? null;
     if (getCandidateDocumentStatus(upload) === "missing") return;
     if (!canRetryMebbisDocumentTransfer(type.key, upload?.isMebbisTransferred === true)) return;
+    setBatchTransferProgress(null);
     setTransferringTypeId(type.id);
     try {
       if (requiresMebbisJob) {
@@ -9574,15 +9706,24 @@ function CandidateDocumentOneByOneTransferModal({
       setTransferringTypeId(null);
     }
   };
+  const batchTransferProgressPercent = batchTransferProgress && batchTransferProgress.total > 0
+    ? Math.round((batchTransferProgress.completed / batchTransferProgress.total) * 100)
+    : 0;
+  const plannedBatchTransferTotal = getBatchTransferTypes().length;
+  const handleCloseTransferModal = () => {
+    if (transferringTypeId || batchTransferRunning) return;
+    setBatchTransferProgress(null);
+    onClose();
+  };
 
   return (
     <Modal
       footer={
-        <button className="btn btn-secondary" disabled={!!transferringTypeId || batchTransferRunning} onClick={onClose} type="button">
+        <button className="btn btn-secondary" disabled={!!transferringTypeId || batchTransferRunning} onClick={handleCloseTransferModal} type="button">
           {t("common.close")}
         </button>
       }
-      onClose={onClose}
+      onClose={handleCloseTransferModal}
       open={open}
       title={t("candidateDetail.documents.button.mebbisActions")}
     >
@@ -9665,6 +9806,65 @@ function CandidateDocumentOneByOneTransferModal({
             {t("candidateDetail.documents.button.removeFromTerm")}
           </button>
         </div>
+        {batchTransferProgress ? (
+          <div className={`candidate-detail-doc-transfer-progress ${batchTransferProgress.tone === "error" ? "is-error" : "is-running"}`} role="status" aria-live="polite">
+            <div className="candidate-detail-doc-transfer-progress-head">
+              <strong>
+                {batchTransferProgress.total > 0
+                  ? `Evrak aktarımı ${batchTransferProgress.completed}/${batchTransferProgress.total}`
+                  : batchTransferProgress.tone === "error"
+                    ? "Dönem kaydı kontrol gerektiriyor"
+                    : "Dönem kaydı hazırlanıyor"}
+              </strong>
+              {batchTransferProgress.total > 0 ? (
+                <span>
+                  {batchTransferProgress.succeeded} aktarıldı · {batchTransferProgress.needsReview} kontrol
+                </span>
+              ) : null}
+            </div>
+            {batchTransferProgress.current ? (
+              <div className="candidate-detail-doc-transfer-progress-current">
+                <span className="candidate-detail-doc-transfer-progress-spinner" aria-hidden="true" />
+                Şu an: {batchTransferProgress.current}
+              </div>
+            ) : null}
+            {batchTransferProgress.message ? (
+              <div className="candidate-detail-doc-transfer-progress-message">
+                {batchTransferProgress.message}
+              </div>
+            ) : null}
+            {batchTransferProgress.issues && batchTransferProgress.issues.length > 0 ? (
+              <ul className="candidate-detail-doc-transfer-progress-issues">
+                {batchTransferProgress.issues.map((issue, index) => (
+                  <li key={`${issue.label}-${index}`}>
+                    <strong>{issue.label}</strong>
+                    <span>{issue.message}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {batchTransferProgress.total > 0 ? (
+              <div className="candidate-detail-doc-transfer-progress-bar is-determinate" aria-hidden="true">
+                <span style={{ width: `${batchTransferProgressPercent}%` }} />
+              </div>
+            ) : batchTransferProgress.tone !== "error" ? (
+              <div className="candidate-detail-doc-transfer-progress-bar is-indeterminate" aria-hidden="true">
+                <span />
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="candidate-detail-doc-transfer-progress is-idle" role="status" aria-live="polite">
+            <div className="candidate-detail-doc-transfer-progress-head">
+              <strong>Aktarılacak evrak: {plannedBatchTransferTotal}</strong>
+              <span>
+                {plannedBatchTransferTotal > 0
+                  ? "Döneme Kaydet ve Aktar başlatılınca ilerleme burada görünecek."
+                  : "Aktarıma hazır evrak yok."}
+              </span>
+            </div>
+          </div>
+        )}
         <ul className="candidate-detail-doc-transfer-list">
           {documentTypes.map((type) => {
             if (type.key === "contract_back") return null;
