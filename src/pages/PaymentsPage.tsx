@@ -68,6 +68,7 @@ type DetailColumnId =
   | "receiptNumber"
   | "method"
   | "cashRegister"
+  | "cancelledBy"
   | "description";
 type DetailSortField = Exclude<DetailColumnId, "photo">;
 type PaymentsPageProps = {
@@ -264,6 +265,7 @@ const DETAIL_COLUMNS: {
   { id: "receiptNumber", labelKey: "payments.col.receiptNumber", sortable: true },
   { id: "method", labelKey: "payments.col.method", sortable: true, filterable: true },
   { id: "cashRegister", labelKey: "payments.col.cashRegister", sortable: true, filterable: true },
+  { id: "cancelledBy", labelKey: "payments.col.cancelledBy", sortable: true, filterable: true },
   { id: "description", labelKey: "payments.col.description", sortable: true },
 ];
 
@@ -664,6 +666,12 @@ function rowCashRegisterLabel(row: PaymentDetailRow, t: ReturnType<typeof useT>)
   if (row.kind === "refund") return row.refund.cashRegister?.name ?? t("payments.cashRegister.empty");
   if (row.kind === "cancelledDebt") return "-";
   return cashRegisterLabel(row.payment, t);
+}
+
+function rowCancelledByLabel(row: PaymentDetailRow): string {
+  return row.kind === "cancelledDebt"
+    ? row.installment.cancelledByName?.trim() || "-"
+    : "-";
 }
 
 function rowDescription(row: PaymentDetailRow, t: ReturnType<typeof useT>): string {
@@ -1118,6 +1126,7 @@ function rowSortValue(
   if (field === "receiptNumber") return rowReceiptNumber(row);
   if (field === "method") return rowMethodLabel(row, t);
   if (field === "cashRegister") return rowCashRegisterLabel(row, t);
+  if (field === "cancelledBy") return rowCancelledByLabel(row);
   return rowDescription(row, t);
 }
 
@@ -1131,6 +1140,7 @@ function rowFilterValue(row: PaymentDetailRow, field: DetailSortField, t: Return
   if (field === "receiptNumber") return rowReceiptNumber(row);
   if (field === "method") return rowMethodLabel(row, t);
   if (field === "cashRegister") return rowCashRegisterLabel(row, t);
+  if (field === "cancelledBy") return rowCancelledByLabel(row);
   return rowDescription(row, t);
 }
 
@@ -2117,6 +2127,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         if (column.id === "cancelKind" && detailTab !== "cancelled") {
           return false;
         }
+        if (column.id === "cancelledBy" && detailTab !== "cancelledDebt") {
+          return false;
+        }
         return visibleDetailColumns.includes(column.id);
       }).map((column) => ({
         ...column,
@@ -2127,7 +2140,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const detailColumnOptions = useMemo<ColumnOption[]>(
     () =>
       DETAIL_COLUMNS
-        .filter((column) => column.id !== "cancelKind" || detailTab === "cancelled")
+        .filter((column) => {
+          if (column.id === "cancelKind") return detailTab === "cancelled";
+          if (column.id === "cancelledBy") return detailTab === "cancelledDebt";
+          return true;
+        })
         .map((column) => ({
           id: column.id,
           label: t(column.labelKey),
@@ -2950,6 +2967,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (columnId === "receiptNumber") return rowReceiptNumber(row);
     if (columnId === "method") return rowMethodLabel(row, t);
     if (columnId === "cashRegister") return rowCashRegisterLabel(row, t);
+    if (columnId === "cancelledBy") return rowCancelledByLabel(row);
     return rowDescription(row, t);
   };
 

@@ -4,6 +4,7 @@ import {
   getStoredAccessToken,
   getStoredActiveInstitutionId,
   getStoredUserId,
+  getStoredUserName,
   notifyInstitutionRequired,
   notifyRefreshUnauthorized,
   notifySessionRefreshed,
@@ -306,7 +307,18 @@ function buildHeaders(base?: HeadersInit, options?: RequestOptions): HeadersInit
   if (userId) {
     headers.set("X-User-Id", userId);
   }
+  const userName = getStoredUserName();
+  if (userName) {
+    headers.set("X-User-Name-Encoded", encodeURIComponent(userName));
+    if (isAsciiHeaderValue(userName)) {
+      headers.set("X-User-Name", userName);
+    }
+  }
   return headers;
+}
+
+function isAsciiHeaderValue(value: string): boolean {
+  return /^[\x20-\x7E]+$/.test(value);
 }
 
 async function fetchWithAuthRetry(url: string, init: RequestInit): Promise<Response> {

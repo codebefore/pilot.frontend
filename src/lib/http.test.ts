@@ -147,6 +147,41 @@ describe("http client", () => {
     expect(headers.get("Authorization")).toBe("Bearer token");
     expect(headers.get("X-Institution-Id")).toBe("institution-1");
     expect(headers.get("X-User-Id")).toBe("user-1");
+    expect(headers.get("X-User-Name")).toBe("Test User");
+    expect(headers.get("X-User-Name-Encoded")).toBe("Test%20User");
+  });
+
+  it("sends non-ASCII user names only in the encoded actor header", async () => {
+    writeStoredAuthSession({
+      accessToken: "token",
+      expiresAtUtc: new Date(Date.now() + 60_000).toISOString(),
+      refreshToken: "refresh-token",
+      refreshTokenExpiresAtUtc: new Date(Date.now() + 120_000).toISOString(),
+      user: {
+        id: "user-1",
+        phone: "5551112233",
+        name: "İşıl Şahin",
+        roleName: "Operator",
+        isSuperAdmin: false,
+      },
+      institutions: [],
+      activeInstitution: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    await expect(httpGet<{ ok: boolean }>("/api/test")).resolves.toEqual({ ok: true });
+
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers);
+    expect(headers.get("X-User-Name")).toBeNull();
+    expect(headers.get("X-User-Name-Encoded")).toBe("%C4%B0%C5%9F%C4%B1l%20%C5%9Eahin");
   });
 
   it("can omit active institution id for global catalog reads", async () => {
@@ -197,6 +232,8 @@ describe("http client", () => {
     expect(headers.get("Authorization")).toBe("Bearer token");
     expect(headers.get("X-Institution-Id")).toBeNull();
     expect(headers.get("X-User-Id")).toBe("user-1");
+    expect(headers.get("X-User-Name")).toBe("Test User");
+    expect(headers.get("X-User-Name-Encoded")).toBe("Test%20User");
   });
 
   it("refreshes the session and retries once on unauthorized responses", async () => {

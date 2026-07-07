@@ -235,6 +235,18 @@ export function getStoredUserId(): string | null {
   }
 }
 
+export function getStoredUserName(): string | null {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as Partial<AuthSession>;
+    const name = session.user?.name;
+    return typeof name === "string" && name.trim() ? name.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function notifyUnauthorized(): void {
   window.dispatchEvent(new Event("pilot:unauthorized"));
 }

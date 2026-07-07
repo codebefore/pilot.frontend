@@ -307,6 +307,8 @@ export interface CandidateAccountingMovementResponse {
   lastPaidAtUtc: string | null;
   cancelledAtUtc: string | null;
   cancellationReason: string | null;
+  cancelledByUserId?: string | null;
+  cancelledByName?: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -559,6 +561,8 @@ export interface PaymentInstallmentOverviewResponse {
   paymentStatus: PaymentInstallmentPaymentStatus;
   cancelledAtUtc: string | null;
   cancellationReason: string | null;
+  cancelledByUserId?: string | null;
+  cancelledByName?: string | null;
 }
 
 interface CandidateReusableDocumentResponse {

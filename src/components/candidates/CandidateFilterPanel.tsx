@@ -14,7 +14,11 @@ import { getAllGroups } from "../../lib/groups-api";
 import {
   CANDIDATE_GENDER_OPTIONS,
 } from "../../lib/status-maps";
-import { buildGroupCode, isValidGroupCodeParts } from "../../lib/group-code";
+import {
+  buildGroupCode,
+  resolveGroupCodeParts,
+  type GroupCodeParts,
+} from "../../lib/group-code";
 import { buildTermLabel, compareTermsDesc } from "../../lib/term-label";
 import type {
   CandidateGenderValue,
@@ -24,7 +28,7 @@ import type {
 import {
   mergeLicenseClassOptionsWithValues,
   useExistingLicenseTypeOptions,
-  useLicenseClassOptions,
+  useLicenseClassFilterOptions,
 } from "../../lib/use-license-class-options";
 import { CheckboxListPopover } from "../ui/CheckboxListPopover";
 import { CustomSelect } from "../ui/CustomSelect";
@@ -48,6 +52,17 @@ type CandidateFilterPanelProps = {
   ) => void;
   onClearAll: () => void;
 };
+
+function getGroupOptionSortCode(group: GroupResponse, parts: GroupCodeParts): number {
+  if (typeof group.groupSortCode === "number") return group.groupSortCode;
+
+  const [year, month] = group.term.monthDate.split("-").map(Number);
+  const groupNumber = Number(parts.groupNumber);
+  const branchCode = parts.groupBranch.charCodeAt(0) - 64;
+  if (![year, month, groupNumber, branchCode].every(Number.isFinite)) return 0;
+
+  return year * 10000 + month * 100 + groupNumber * 10 + branchCode;
+}
 
 /**
  * Collapsible sidebar filter panel for the Candidates page. Renders as a
@@ -76,7 +91,7 @@ export function CandidateFilterPanel({
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const wasOpenRef = useRef(false);
   const [groups, setGroups] = useState<GroupResponse[]>([]);
-  const { options: licenseClassOptions } = useLicenseClassOptions();
+  const { options: licenseClassOptions } = useLicenseClassFilterOptions();
   const { options: existingLicenseTypeOptions } = useExistingLicenseTypeOptions();
   const visibleLicenseClassOptions = useMemo(
     () => mergeLicenseClassOptionsWithValues(licenseClassOptions, filters.licenseClasses),
@@ -118,24 +133,36 @@ export function CandidateFilterPanel({
 
   const groupOptions = useMemo(() => {
     return [...groups]
-      .filter((group) => isValidGroupCodeParts(group.groupNumber, group.groupBranch))
+      .map((group) => ({
+        group,
+        parts: resolveGroupCodeParts({
+          groupNumber: group.groupNumber,
+          groupBranch: group.groupBranch,
+          title: group.title,
+        }),
+      }))
+      .filter(
+        (value): value is { group: GroupResponse; parts: GroupCodeParts } =>
+          value.parts !== null
+      )
       .sort((a, b) => {
-        const sortCodeCompare = (b.groupSortCode ?? 0) - (a.groupSortCode ?? 0);
+        const sortCodeCompare =
+          getGroupOptionSortCode(b.group, b.parts) - getGroupOptionSortCode(a.group, a.parts);
         if (sortCodeCompare !== 0) return sortCodeCompare;
-        const termCompare = compareTermsDesc(a.term, b.term);
+        const termCompare = compareTermsDesc(a.group.term, b.group.term);
         if (termCompare !== 0) return termCompare;
-        return `${a.groupNumber}${a.groupBranch}`.localeCompare(
-          `${b.groupNumber}${b.groupBranch}`,
+        return buildGroupCode(a.parts.groupNumber, a.parts.groupBranch).localeCompare(
+          buildGroupCode(b.parts.groupNumber, b.parts.groupBranch),
           lang === "tr" ? "tr" : "en"
         );
       })
-      .map((group) => ({
+      .map(({ group, parts }) => ({
         value: group.id,
         label: `${buildTermLabel(
           group.term,
           uniqueTerms.length > 0 ? uniqueTerms : [group.term],
           lang === "tr" ? "tr" : "en"
-        )} - ${buildGroupCode(String(group.groupNumber), group.groupBranch ?? "")}`,
+        )} - ${buildGroupCode(parts.groupNumber, parts.groupBranch)}`,
       }));
   }, [groups, lang, uniqueTerms]);
   const termGroupOptions = useMemo(

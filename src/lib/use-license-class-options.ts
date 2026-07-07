@@ -58,6 +58,12 @@ export function mergeLicenseClassOptionsWithValues(
   return [...options, ...appended];
 }
 
+export function getLicenseClassOptionsFromDefinitions(
+  items: LicenseClassDefinitionResponse[]
+): LicenseClassOption[] {
+  return uniqueTargetOptions(items);
+}
+
 export function findLicenseClassDefinitionIdForSelection(
   items: readonly LicenseClassDefinitionResponse[],
   licenseClass: string,
@@ -137,7 +143,20 @@ export function useLicenseClassOptions() {
     queryFn: ({ signal }) => getActiveLicenseClassDefinitions(signal),
   });
   const options = useMemo(
-    () => uniqueTargetOptions((query.data ?? []).filter((item) => !item.existingLicenseType)),
+    () => getLicenseClassOptionsFromDefinitions(query.data ?? []),
+    [query.data]
+  );
+
+  return { options, loading: query.isLoading };
+}
+
+export function useLicenseClassFilterOptions() {
+  const query = useQuery({
+    queryKey: ACTIVE_LICENSE_CLASS_DEFINITIONS_QUERY_KEY,
+    queryFn: ({ signal }) => getActiveLicenseClassDefinitions(signal),
+  });
+  const options = useMemo(
+    () => getLicenseClassOptionsFromDefinitions(query.data ?? []),
     [query.data]
   );
 

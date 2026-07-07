@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildCandidateContractRenderPdfRequest,
+  buildCandidateDrivingTrackingListRenderPdfRequest,
   buildCandidateSignatureSampleRenderPdfRequest,
   openCandidateContractPrintWindow,
   printCandidateContractPdf,
@@ -12,6 +13,7 @@ import type {
   CandidateAccountingSummaryResponse,
   CandidateResponse,
   LicenseClassFeeRowResponse,
+  TrainingLessonResponse,
 } from "./types";
 
 const candidate = {
@@ -208,6 +210,61 @@ describe("candidate contract print", () => {
       kursiyersoyadi: "Yılmaz",
       kursiyertckimlikno: "12345678901",
     });
+  });
+
+  it("builds PDF render request values for the driving tracking list", () => {
+    const request = buildCandidateDrivingTrackingListRenderPdfRequest({
+      candidate,
+      managerName: "Mehmet Müdür",
+      lessons: [
+        {
+          id: "lesson-2",
+          kind: "uygulama",
+          startAtUtc: "2026-07-08T09:00:00Z",
+          endAtUtc: "2026-07-08T11:00:00Z",
+          vehiclePlate: "34 ABC 123",
+          instructorName: "Ali Usta",
+        },
+        {
+          id: "lesson-1",
+          kind: "uygulama",
+          startAtUtc: "2026-07-07T07:00:00Z",
+          endAtUtc: "2026-07-07T09:00:00Z",
+          vehiclePlate: "34 DEF 456",
+          instructorName: "Veli Usta",
+        },
+      ] as TrainingLessonResponse[],
+    });
+
+    expect(request.fileName).toBe("ayşe-yılmaz-direksiyon-takip-listesi.pdf");
+    expect(request.templateKey).toBe("driving-tracking-list");
+    expect(request.sheetName).toBe("B");
+    expect(request.values.kursiyeradi).toBe("Ayşe");
+    expect(request.values.kursiyersoyadi).toBe("Yılmaz");
+    expect(request.values.kursiyertckimlikno).toBe("12345678901");
+    expect(request.values.kursiyerehliyettipi).toBe("B");
+    expect(request.values.kurummudur).toBe("Mehmet Müdür");
+    expect(request.values.birincidireksiyonderstarihi).toBe("07.07.2026");
+    expect(request.values.birincidireksiyonderssaati).toBe("10:00-12:00");
+    expect(request.values.birincidersaracplakasi).toBe("34 DEF 456");
+    expect(request.values.birincidersustaogretici).toBe("Veli Usta");
+    expect(request.values.ikincidireksiyonderstarihi).toBe("08.07.2026");
+    expect(request.values.ikincidireksiyonderssaati).toBe("12:00-14:00");
+    expect(request.values.ucuncudireksiyonderstarihi).toBe("-");
+  });
+
+  it("uses the base license class as the driving tracking list sheet name", () => {
+    const request = buildCandidateDrivingTrackingListRenderPdfRequest({
+      candidate: {
+        ...candidate,
+        licenseClass: "B-OTOMATIK",
+      },
+      managerName: null,
+      lessons: [],
+    });
+
+    expect(request.sheetName).toBe("B");
+    expect(request.values.kursiyerehliyettipi).toBe("B-OTOMATIK");
   });
 
   it("posts the render request and returns a PDF blob", async () => {

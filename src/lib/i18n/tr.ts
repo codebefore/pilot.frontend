@@ -714,6 +714,7 @@ export const tr = {
   "payments.col.receiptNumber": "Makbuz No",
   "payments.col.method": "Yöntem",
   "payments.col.cashRegister": "Kasa",
+  "payments.col.cancelledBy": "Silen Kullanıcı",
   "payments.col.description": "Açıklama",
   "payments.col.term": "Dönem",
   "payments.col.service": "Hizmet",

@@ -40,7 +40,11 @@ import {
   type CandidateFilterState,
 } from "../lib/candidate-filters";
 import { formatLocalDateOnly, todayLocalDateOnly } from "../lib/date-only";
-import { buildGroupCode, isValidGroupCodeParts } from "../lib/group-code";
+import {
+  buildGroupCode,
+  resolveGroupCodeParts,
+  type GroupCodeParts,
+} from "../lib/group-code";
 import { formatPhoneDisplay } from "../lib/phone";
 import {
   assignCandidatesToExamDate,
@@ -122,7 +126,7 @@ import type {
 } from "../lib/types";
 import {
   mergeLicenseClassOptionsWithValues,
-  useLicenseClassOptions,
+  useLicenseClassFilterOptions,
 } from "../lib/use-license-class-options";
 import { useColumnVisibility } from "../lib/use-column-visibility";
 import { candidateHasExistingLicense } from "./CandidateDetailPage.helpers";
@@ -183,6 +187,17 @@ function defaultCandidateSortForScope(
   _tab: CandidateListTabKey
 ): SortState {
   return DEFAULT_CANDIDATE_SORT;
+}
+
+function getGroupOptionSortCode(group: GroupResponse, parts: GroupCodeParts): number {
+  if (typeof group.groupSortCode === "number") return group.groupSortCode;
+
+  const [year, month] = group.term.monthDate.split("-").map(Number);
+  const groupNumber = Number(parts.groupNumber);
+  const branchCode = parts.groupBranch.charCodeAt(0) - 64;
+  if (![year, month, groupNumber, branchCode].every(Number.isFinite)) return 0;
+
+  return year * 10000 + month * 100 + groupNumber * 10 + branchCode;
 }
 
 function readCandidateSort(storageKey: string, fallback: SortState): SortState {
@@ -1607,7 +1622,6 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "licenseClass",
     "documents",
     "group",
-    "status",
     "groupStartDate",
     "totalFee",
     "totalPaid",
@@ -1619,7 +1633,6 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
-    "status",
     "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
@@ -1632,7 +1645,6 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
-    "status",
     "eSinavAttemptCount",
     "eSinavPoolStatus",
     "totalFee",
@@ -1645,7 +1657,6 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
-    "status",
     "graduationDate",
     "eSinavAttemptCount",
     "eSinavPoolStatus",
@@ -1659,7 +1670,6 @@ const DEFAULT_VISIBLE_CANDIDATE_COLUMN_IDS_BY_TAB: Record<CandidateTab, Candidat
     "name",
     "licenseClass",
     "group",
-    "status",
     "terminationReason",
     "terminationDate",
     "eSinavPoolStatus",
@@ -1802,7 +1812,7 @@ type CandidatesPageProps = {
 
 export function CandidatesPage({
   title,
-  columnStorageKey = "candidates.columns.v19",
+  columnStorageKey = "candidates.columns.v20",
   defaultVisibleColumnIds: defaultVisibleColumnIdsProp,
   columnLabelOverrides,
   showCreateCandidateAction = true,
@@ -1825,7 +1835,7 @@ export function CandidatesPage({
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
   const mebbisSessionGuard = useMebbisSessionGuard();
   const noPermissionTitle = t("common.noPermission");
-  const { options: licenseClassOptions } = useLicenseClassOptions();
+  const { options: licenseClassOptions } = useLicenseClassFilterOptions();
   const columnPageScope: CandidateColumnPageScope =
     examDateSidebar?.field === "eSinavDate"
       ? "eSinav"
@@ -2619,19 +2629,34 @@ export function CandidatesPage({
       new Map(headerGroupCatalog.map((group) => [group.term.id, group.term])).values()
     ).sort(compareTermsDesc);
     return headerGroupCatalog
-      .filter((group) => isValidGroupCodeParts(group.groupNumber, group.groupBranch))
-      .sort((a, b) => {
-        const sortCodeCompare = (b.groupSortCode ?? 0) - (a.groupSortCode ?? 0);
-        if (sortCodeCompare !== 0) return sortCodeCompare;
-        const termCompare = compareTermsDesc(a.term, b.term);
-        if (termCompare !== 0) return termCompare;
-        return `${a.groupNumber}${a.groupBranch}`.localeCompare(`${b.groupNumber}${b.groupBranch}`, lang);
-      })
       .map((group) => ({
+        group,
+        parts: resolveGroupCodeParts({
+          groupNumber: group.groupNumber,
+          groupBranch: group.groupBranch,
+          title: group.title,
+        }),
+      }))
+      .filter(
+        (value): value is { group: GroupResponse; parts: GroupCodeParts } =>
+          value.parts !== null
+      )
+      .sort((a, b) => {
+        const sortCodeCompare =
+          getGroupOptionSortCode(b.group, b.parts) - getGroupOptionSortCode(a.group, a.parts);
+        if (sortCodeCompare !== 0) return sortCodeCompare;
+        const termCompare = compareTermsDesc(a.group.term, b.group.term);
+        if (termCompare !== 0) return termCompare;
+        return buildGroupCode(a.parts.groupNumber, a.parts.groupBranch).localeCompare(
+          buildGroupCode(b.parts.groupNumber, b.parts.groupBranch),
+          lang
+        );
+      })
+      .map(({ group, parts }) => ({
         value: termGroupGroupFilterValue(group.id),
         label: `${buildTermLabel(group.term, terms, lang)} - ${buildGroupCode(
-          String(group.groupNumber),
-          group.groupBranch ?? ""
+          parts.groupNumber,
+          parts.groupBranch
         )}`,
       }));
   }, [headerGroupCatalog, lang]);

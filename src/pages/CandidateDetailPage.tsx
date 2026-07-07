@@ -149,6 +149,7 @@ import {
 } from "../lib/status-maps";
 import { toTurkishUpperCase } from "../lib/text-format";
 import {
+  buildCandidateDrivingTrackingListRenderPdfRequest,
   buildCandidateKCertificateRenderPdfRequest,
   buildCandidateContractRenderPdfRequest,
   buildCandidateSignatureSampleRenderPdfRequest,
@@ -1106,6 +1107,57 @@ function CandidateHero({
 
   const handlePrintForm = async (label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]) => {
     if (contractGenerating) return;
+
+    if (label === "Direksiyon takip çizelgesi") {
+      setPrintFormsOpen(false);
+      setContractGenerating(true);
+      const printWindow = openCandidateContractPrintWindow("Direksiyon Takip Çizelgesi");
+      if (!printWindow) {
+        setContractGenerating(false);
+        showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+        return;
+      }
+
+      try {
+        const [lessonResponse, managerResponse] = await Promise.all([
+          kCertificateLessonsQuery.data
+            ? Promise.resolve(kCertificateLessonsQuery.data)
+            : kCertificateLessonsQuery.refetch().then((result) => result.data),
+          managerQuery.data
+            ? Promise.resolve(managerQuery.data)
+            : managerQuery.refetch().then((result) => result.data),
+        ]);
+        if (!lessonResponse || !managerResponse) {
+          throw new Error("Direksiyon takip çizelgesi için ders veya müdür bilgileri yüklenemedi.");
+        }
+
+        const practiceLessons = lessonResponse.items.filter((lesson) => lesson.kind === "uygulama");
+        if (practiceLessons.length === 0) {
+          throw new Error("Direksiyon takip çizelgesi için uygulama dersi bulunamadı.");
+        }
+
+        const manager = managerResponse.items.find((item) => item.isActive && item.role === "manager") ?? null;
+        const managerName = manager
+          ? `${manager.firstName} ${manager.lastName}`.trim()
+          : null;
+        const request = buildCandidateDrivingTrackingListRenderPdfRequest({
+          candidate,
+          lessons: practiceLessons,
+          managerName,
+        });
+        const blob = await renderCandidateContractPdf(request);
+        printCandidateContractPdf(printWindow, blob);
+      } catch (error) {
+        printWindow.close();
+        const message = error instanceof Error
+          ? error.message
+          : "Direksiyon takip çizelgesi hazırlanamadı.";
+        showToast(message, "error");
+      } finally {
+        setContractGenerating(false);
+      }
+      return;
+    }
 
     if (label === "K Belgesi") {
       if (!latestValidKCertificate) {
@@ -3817,6 +3869,95 @@ function buildCoursePaymentPlanMovements(
   });
 }
 
+function escapePaymentPlanPrintHtml(value: string | number | null | undefined): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function printPaymentPlanPdf({
+  candidate,
+  movements,
+  totalAmount,
+}: {
+  candidate: CandidateResponse;
+  movements: ReturnType<typeof buildCoursePaymentPlanMovements>;
+  totalAmount: number;
+}): boolean {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return false;
+
+  const candidateName = [candidate.firstName, candidate.lastName].filter(Boolean).join(" ").trim() || "Aday";
+  const printedAt = new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date());
+  const title = `${candidateName} ödeme planı`;
+
+  printWindow.document.write(`<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapePaymentPlanPrintHtml(title)}</title>
+        <style>
+          @page { size: A4 portrait; margin: 14mm; }
+          body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
+          h1 { font-size: 20px; margin: 0 0 4px; }
+          .meta { color: #4b5563; display: grid; gap: 4px; font-size: 12px; margin: 0 0 18px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; text-align: left; }
+          th { background: #f3f4f6; font-weight: 700; }
+          td.amount, th.amount { text-align: right; }
+          tfoot td { background: #f9fafb; font-weight: 700; }
+        </style>
+      </head>
+      <body>
+        <h1>Ödeme Planı</h1>
+        <div class="meta">
+          <span>Aday: ${escapePaymentPlanPrintHtml(candidateName)}</span>
+          <span>TC: ${escapePaymentPlanPrintHtml(formatNationalId(candidate.nationalId))}</span>
+          <span>Kayıt No: ${escapePaymentPlanPrintHtml(candidate.registrationNumber || "—")}</span>
+          <span>Yazdırma: ${escapePaymentPlanPrintHtml(printedAt)}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Taksit</th>
+              <th>Vade Tarihi</th>
+              <th class="amount">Tutar</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${movements
+              .map(
+                (movement, index) => `
+                  <tr>
+                    <td>${index + 1}. Taksit</td>
+                    <td>${escapePaymentPlanPrintHtml(formatDateTR(movement.dueDate))}</td>
+                    <td class="amount">${escapePaymentPlanPrintHtml(formatCurrencyTRY(movement.amount))}</td>
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">Toplam</td>
+              <td class="amount">${escapePaymentPlanPrintHtml(formatCurrencyTRY(totalAmount))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+    </html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  return true;
+}
+
 function parseMoneyInput(value: string): number | null {
   const raw = value.trim().replace(/\s/g, "");
   if (!raw) return null;
@@ -4265,6 +4406,8 @@ function AccountingTab({
   onDeleteInvoice: (invoiceId: string) => void;
 }) {
   const t = useT();
+  const { activeInstitution } = useAuth();
+  const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const handledAccountingQueryRef = useRef("");
   const [cashRegisters, setCashRegisters] = useState<CashRegisterResponse[]>([]);
@@ -4511,6 +4654,17 @@ function AccountingTab({
       customDueDates: {},
       previewOpen: false,
     });
+  };
+  const handlePrintPaymentPlan = () => {
+    if (!hasValidPaymentPlan || parsedPaymentPlanAmount == null || paymentPlanPreviewMovements.length === 0) return;
+    const opened = printPaymentPlanPdf({
+      candidate,
+      movements: paymentPlanPreviewMovements,
+      totalAmount: parsedPaymentPlanAmount,
+    });
+    if (!opened) {
+      showToast("PDF çıktısı için açılır pencereye izin verin.", "error");
+    }
   };
   const selectPaymentMethod = (method: CandidatePaymentMethod) => {
     const firstRegister = cashRegisters.find((register) => register.type === cashRegisterTypeForMethod(method));
@@ -4958,6 +5112,14 @@ function AccountingTab({
               Önizleme
             </button>
             <button
+              className="btn btn-secondary"
+              disabled={!hasValidPaymentPlan}
+              onClick={handlePrintPaymentPlan}
+              type="button"
+            >
+              PDF Yazdır
+            </button>
+            <button
               className="btn btn-primary"
               disabled={!canSavePaymentPlan}
               onClick={() => {
@@ -5310,6 +5472,7 @@ function AccountingTab({
 
       <AccountingReceiptModal
         candidate={candidate}
+        institutionName={activeInstitution?.name ?? null}
         onClose={() => setReceiptPayment(null)}
         payment={receiptPayment}
       />
@@ -6370,25 +6533,226 @@ function renderAccountingRefundCell({
   return "—";
 }
 
+function printAccountingReceipt({
+  amount,
+  brand,
+  candidateLabel,
+  candidateName,
+  collectorLabel,
+  method,
+  methodLabel,
+  nationalId,
+  nationalIdLabel,
+  paidAt,
+  paidAtLabel,
+  receiptNumber,
+  receiptNumberLabel,
+  signatureLabel,
+  title,
+  type,
+  typeLabel,
+  profile,
+}: {
+  amount: string;
+  brand: string;
+  candidateLabel: string;
+  candidateName: string;
+  collectorLabel: string;
+  method: string;
+  methodLabel: string;
+  nationalId: string;
+  nationalIdLabel: string;
+  paidAt: string;
+  paidAtLabel: string;
+  receiptNumber: string;
+  receiptNumberLabel: string;
+  signatureLabel: string;
+  title: string;
+  type: string;
+  typeLabel: string;
+  profile: ReceiptPrintProfile;
+}): boolean {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return false;
+
+  const escape = escapePaymentPlanPrintHtml;
+  const isNarrow = profile.id === "thermal-58";
+  printWindow.document.write(`<!doctype html>
+    <html lang="tr">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escape(title)} #${escape(receiptNumber)}</title>
+        <style>
+          @page {
+            size: ${profile.paperWidthMm}mm ${profile.pageHeightMm}mm;
+            margin: ${profile.marginTopMm}mm ${profile.marginRightMm}mm ${profile.marginBottomMm}mm ${profile.marginLeftMm}mm;
+          }
+          * { box-sizing: border-box; }
+          html, body { width: ${profile.printWidthMm}mm; }
+          body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
+          .receipt { display: flex; flex-direction: column; gap: ${isNarrow ? 8 : 12}px; width: ${profile.printWidthMm}mm; }
+          .head { border-bottom: 1px solid #d1d5db; display: grid; gap: 4px; padding-bottom: ${isNarrow ? 8 : 10}px; }
+          .brand { display: grid; gap: 2px; }
+          .brand strong { font-size: ${isNarrow ? 12 : 15}px; line-height: 1.2; }
+          .brand span, .number, dt, .footer span { color: #4b5563; font-size: ${isNarrow ? 8 : 10}px; }
+          .number { font-weight: 700; white-space: nowrap; }
+          .amount { border: 1px solid #86efac; border-radius: 6px; color: #166534; font-size: ${isNarrow ? 18 : 24}px; font-weight: 800; padding: ${isNarrow ? 8 : 10}px; text-align: center; }
+          dl { display: grid; gap: ${isNarrow ? 7 : 10}px; grid-template-columns: ${isNarrow ? "1fr" : "repeat(2, minmax(0, 1fr))"}; margin: 0; }
+          dt { letter-spacing: .04em; text-transform: uppercase; }
+          dd { font-size: ${isNarrow ? 10 : 12}px; font-weight: 700; margin: 2px 0 0; overflow-wrap: anywhere; }
+          .footer { display: grid; gap: ${isNarrow ? 12 : 18}px; grid-template-columns: 1fr 1fr; padding-top: ${isNarrow ? 20 : 28}px; }
+          .footer span { border-top: 1px solid #d1d5db; padding-top: 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="head">
+            <div class="brand">
+              <strong>${escape(brand)}</strong>
+              <span>${escape(title)}</span>
+            </div>
+            <div class="number">#${escape(receiptNumber)}</div>
+          </div>
+          <div class="amount">${escape(amount)}</div>
+          <dl>
+            <div><dt>${escape(receiptNumberLabel)}</dt><dd>${escape(receiptNumber)}</dd></div>
+            <div><dt>${escape(candidateLabel)}</dt><dd>${escape(candidateName)}</dd></div>
+            <div><dt>${escape(nationalIdLabel)}</dt><dd>${escape(nationalId)}</dd></div>
+            <div><dt>${escape(typeLabel)}</dt><dd>${escape(type)}</dd></div>
+            <div><dt>${escape(paidAtLabel)}</dt><dd>${escape(paidAt)}</dd></div>
+            <div><dt>${escape(methodLabel)}</dt><dd>${escape(method)}</dd></div>
+          </dl>
+          <div class="footer">
+            <span>${escape(collectorLabel)}</span>
+            <span>${escape(signatureLabel)}</span>
+          </div>
+        </div>
+        <script>
+          window.addEventListener("load", () => {
+            window.focus();
+            window.print();
+          });
+        </script>
+      </body>
+    </html>`);
+  printWindow.document.close();
+  return true;
+}
+
+type ReceiptPrintProfile = {
+  id: "thermal-58" | "thermal-80";
+  label: string;
+  marginBottomMm: number;
+  marginLeftMm: number;
+  marginRightMm: number;
+  marginTopMm: number;
+  pageHeightMm: number;
+  paperWidthMm: number;
+  printWidthMm: number;
+};
+
+const RECEIPT_PRINT_PROFILES: ReceiptPrintProfile[] = [
+  {
+    id: "thermal-58",
+    label: "58 mm Termal",
+    paperWidthMm: 58,
+    printWidthMm: 48,
+    marginLeftMm: 5,
+    marginRightMm: 5,
+    marginTopMm: 3,
+    marginBottomMm: 3,
+    pageHeightMm: 140,
+  },
+  {
+    id: "thermal-80",
+    label: "80 mm Termal",
+    paperWidthMm: 80,
+    printWidthMm: 72,
+    marginLeftMm: 4,
+    marginRightMm: 4,
+    marginTopMm: 3,
+    marginBottomMm: 3,
+    pageHeightMm: 140,
+  },
+];
+
 function AccountingReceiptModal({
   candidate,
+  institutionName,
   payment,
   onClose,
 }: {
   candidate: CandidateResponse;
+  institutionName: string | null;
   payment: CandidateAccountingSummaryResponse["payments"][number] | null;
   onClose: () => void;
 }) {
   const t = useT();
+  const { showToast } = useToast();
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
   if (!payment) return null;
   const receiptNumber = payment.number?.trim() || payment.id.slice(0, 8).toLocaleUpperCase("tr-TR");
+  const receiptBrand = institutionName?.trim() || t("candidateDetail.accounting.receipt.brand");
+  const printReceipt = (profile: ReceiptPrintProfile) => {
+    setPrintMenuOpen(false);
+    const opened = printAccountingReceipt({
+      amount: formatCurrencyTRY(payment.amount),
+      brand: receiptBrand,
+      candidateLabel: t("common.field.candidate"),
+      candidateName: `${candidate.firstName} ${candidate.lastName}`.trim(),
+      collectorLabel: t("candidateDetail.accounting.receipt.collector"),
+      method: t(paymentMethodLabelKey(payment.paymentMethod)),
+      methodLabel: t("candidateDetail.accounting.field.method"),
+      nationalId: formatNationalId(candidate.nationalId),
+      nationalIdLabel: t("common.field.nationalId"),
+      paidAt: formatDateTimeTR(payment.paidAtUtc),
+      paidAtLabel: t("candidateDetail.accounting.field.paymentDate"),
+      receiptNumber,
+      receiptNumberLabel: t("payments.col.receiptNumber"),
+      signatureLabel: t("candidateDetail.accounting.receipt.signature"),
+      title: t("candidateDetail.accounting.receipt.title"),
+      type: t(accountingTypeLabelKey(payment.type)),
+      typeLabel: t("candidateDetail.accounting.col.type"),
+      profile,
+    });
+    if (!opened) {
+      showToast("Makbuz yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+    }
+  };
 
   return (
     <Modal
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} type="button">{t("common.close")}</button>
-          <button className="btn btn-primary" onClick={() => window.print()} type="button">{t("candidateDetail.accounting.action.print")}</button>
+          <div className="candidate-receipt-print-menu-wrap">
+            <button
+              aria-expanded={printMenuOpen}
+              className="btn btn-primary"
+              onClick={() => setPrintMenuOpen((open) => !open)}
+              type="button"
+            >
+              {t("candidateDetail.accounting.action.print")}
+            </button>
+            {printMenuOpen ? (
+              <div className="candidate-receipt-print-menu" role="menu" aria-label="Makbuz yazdırma boyutu">
+                {RECEIPT_PRINT_PROFILES.map((profile) => (
+                  <button
+                    className="candidate-receipt-print-menu-item"
+                    key={profile.id}
+                    onClick={() => printReceipt(profile)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <span>{profile.label}</span>
+                    <small>
+                      {profile.paperWidthMm} mm kağıt · {profile.printWidthMm} mm baskı
+                    </small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </>
       }
       onClose={onClose}
@@ -6398,7 +6762,7 @@ function AccountingReceiptModal({
       <div className="candidate-payment-receipt">
         <div className="candidate-payment-receipt-head">
           <div>
-            <strong>{t("candidateDetail.accounting.receipt.brand")}</strong>
+            <strong>{receiptBrand}</strong>
             <span>{t("candidateDetail.accounting.receipt.title")}</span>
           </div>
           <div className="candidate-payment-receipt-no">
@@ -6413,8 +6777,6 @@ function AccountingReceiptModal({
           <div><dt>{t("candidateDetail.accounting.col.type")}</dt><dd>{t(accountingTypeLabelKey(payment.type))}</dd></div>
           <div><dt>{t("candidateDetail.accounting.field.paymentDate")}</dt><dd>{renderFinanceDateTime(payment.paidAtUtc)}</dd></div>
           <div><dt>{t("candidateDetail.accounting.field.method")}</dt><dd>{t(paymentMethodLabelKey(payment.paymentMethod))}</dd></div>
-          <div><dt>{t("candidateDetail.accounting.col.cashRegister")}</dt><dd>{payment.cashRegister?.name ?? "—"}</dd></div>
-          <div><dt>{t("candidateDetail.accounting.field.description")}</dt><dd>{payment.note ?? "—"}</dd></div>
         </dl>
         <div className="candidate-payment-receipt-footer">
           <span>{t("candidateDetail.accounting.receipt.collector")}</span>

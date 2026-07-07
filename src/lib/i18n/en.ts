@@ -716,6 +716,7 @@ export const en: Record<TranslationKey, string> = {
   "payments.col.receiptNumber": "Receipt No",
   "payments.col.method": "Method",
   "payments.col.cashRegister": "Cash Register",
+  "payments.col.cancelledBy": "Deleted By",
   "payments.col.description": "Description",
   "payments.col.term": "Term",
   "payments.col.service": "Service",

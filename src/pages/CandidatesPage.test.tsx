@@ -1362,10 +1362,10 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("lets the user show and hide the status column from the picker", async () => {
+  it("hides the status column by default outside the Tümü tab but lets the user show it", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
-    expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: /^Durum$/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Sütunlar"));
     const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
@@ -1376,10 +1376,15 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(within(picker).getByLabelText("Durum"));
 
     await waitFor(() => {
-      expect(screen.queryByRole("columnheader", { name: /^Durum$/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
     });
+  });
 
-    fireEvent.click(within(picker).getByLabelText("Durum"));
+  it("shows the status column by default on the Tümü tab", async () => {
+    renderPage();
+    await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
 
     await waitFor(() => {
       expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
@@ -1469,7 +1474,7 @@ describe("CandidatesPage tabs", () => {
 
   it("falls back to the shared column order without creating user-specific preferences", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.active",
+      "candidates.columns.v20.active",
       JSON.stringify(["name", "photo"])
     );
 
@@ -1480,12 +1485,12 @@ describe("CandidatesPage tabs", () => {
       (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")
     );
     expect(headers).toEqual(["", "Ad Soyad", "Resim", ""]);
-    expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull();
+    expect(localStorage.getItem("candidates.columns.v20.active.user.test-user")).toBeNull();
   });
 
   it("stores user-specific candidate column order after dragging a header", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.active.user.test-user",
+      "candidates.columns.v20.active.user.test-user",
       JSON.stringify(["photo", "name", "nationalId"])
     );
 
@@ -1507,7 +1512,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.drop(nameHeader, { dataTransfer });
 
     await waitFor(() =>
-      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBe(
+      expect(localStorage.getItem("candidates.columns.v20.active.user.test-user")).toBe(
         JSON.stringify(["photo", "nationalId", "name"])
       )
     );
@@ -1515,11 +1520,11 @@ describe("CandidatesPage tabs", () => {
 
   it("removes user-specific candidate column preferences when resetting columns", async () => {
     localStorage.setItem(
-      "candidates.columns.v19.active",
+      "candidates.columns.v20.active",
       JSON.stringify(["name", "photo"])
     );
     localStorage.setItem(
-      "candidates.columns.v19.active.user.test-user",
+      "candidates.columns.v20.active.user.test-user",
       JSON.stringify(["photo", "name", "nationalId"])
     );
 
@@ -1536,7 +1541,7 @@ describe("CandidatesPage tabs", () => {
     fireEvent.click(within(picker).getByRole("button", { name: "Varsayılana dön" }));
 
     await waitFor(() =>
-      expect(localStorage.getItem("candidates.columns.v19.active.user.test-user")).toBeNull()
+      expect(localStorage.getItem("candidates.columns.v20.active.user.test-user")).toBeNull()
     );
     const headers = screen.getAllByRole("columnheader").map((header) =>
       (header.textContent?.trim() || header.getAttribute("aria-label") || "").replace(/[↕▲▼]/g, "")
@@ -4347,6 +4352,29 @@ describe("CandidatesPage filter panel", () => {
           rowVersion: 1,
         },
         {
+          id: "legacy-group-2b",
+          title: "TEMMUZ 2026 - 2B",
+          term: {
+            id: "term-july",
+            monthDate: "2026-07-01",
+            sequence: 1,
+            name: null,
+          },
+          groupNumber: null,
+          groupBranch: null,
+          groupSortCode: null,
+          capacity: 20,
+          assignedCandidateCount: 0,
+          activeCandidateCount: 0,
+          licenseClassCounts: [],
+          candidatePreview: [],
+          startDate: "2026-07-10",
+          mebStatus: null,
+          createdAtUtc: "2026-07-01T10:00:00Z",
+          updatedAtUtc: "2026-07-01T10:00:00Z",
+          rowVersion: 1,
+        },
+        {
           id: "term-like-group",
           title: "TEMMUZ 2026",
           term: {
@@ -4372,7 +4400,7 @@ describe("CandidatesPage filter panel", () => {
       ],
       page: 1,
       pageSize: 200,
-      totalCount: 2,
+      totalCount: 3,
       totalPages: 1,
     });
 
@@ -4391,6 +4419,7 @@ describe("CandidatesPage filter panel", () => {
     fireEvent.click(within(filterPanel).getByRole("button", { name: "Dönem / Grup" }));
 
     expect(await screen.findByText("TEMMUZ 2026 - 1A")).toBeInTheDocument();
+    expect(await screen.findByText("TEMMUZ 2026 - 2B")).toBeInTheDocument();
     expect(screen.queryByLabelText("TEMMUZ 2026")).not.toBeInTheDocument();
   });
 

@@ -38,14 +38,25 @@ export type CandidateKCertificateRenderInput = {
   biometricPhoto?: CandidateContractImageInput | null;
 };
 
+export type CandidateDrivingTrackingListRenderInput = {
+  candidate: CandidateResponse;
+  lessons: TrainingLessonResponse[];
+  managerName: string | null;
+};
+
 export type CandidateContractRenderPdfRequest = {
   values: Record<string, string>;
   fileName: string;
   templateKey?: CandidateContractTemplateKey;
   images?: Record<string, CandidateContractImageInput>;
+  sheetName?: string;
 };
 
-export type CandidateContractTemplateKey = "registration-contract" | "signature-sample" | "k-certificate";
+export type CandidateContractTemplateKey =
+  | "registration-contract"
+  | "signature-sample"
+  | "k-certificate"
+  | "driving-tracking-list";
 
 export type CandidateContractImageInput = {
   base64: string;
@@ -131,6 +142,10 @@ function kCertificateFileName(candidate: CandidateResponse, documentNumber: stri
   return candidatePdfFileName(candidate, suffix);
 }
 
+function drivingTrackingListFileName(candidate: CandidateResponse): string {
+  return candidatePdfFileName(candidate, "direksiyon-takip-listesi");
+}
+
 function splitFullName(fullName: string | null | undefined): { firstName: string | null; lastName: string | null } {
   const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: null, lastName: null };
@@ -139,6 +154,31 @@ function splitFullName(fullName: string | null | undefined): { firstName: string
     firstName: parts.slice(0, -1).join(" "),
     lastName: parts[parts.length - 1],
   };
+}
+
+function formatLessonDateTR(value: string | null | undefined): string {
+  if (!value) return emptyValue;
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Istanbul",
+  }).format(new Date(value));
+}
+
+function formatLessonTimeTR(value: string | null | undefined): string {
+  if (!value) return emptyValue;
+  return new Intl.DateTimeFormat("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Istanbul",
+  }).format(new Date(value));
+}
+
+function formatLessonTimeRangeTR(lesson: TrainingLessonResponse | null | undefined): string {
+  if (!lesson) return emptyValue;
+  return `${formatLessonTimeTR(lesson.startAtUtc)}-${formatLessonTimeTR(lesson.endAtUtc)}`;
 }
 
 export function buildCandidateContractRenderPdfRequest({
@@ -277,6 +317,74 @@ export function buildCandidateKCertificateRenderPdfRequest({
       ustaogreticiehliyetverildigiyer: clean(instructor?.driverLicenseIssuedPlace),
       aracplaka: clean(vehicle?.plateNumber ?? lesson?.vehiclePlate),
     },
+  };
+}
+
+const drivingLessonPlaceholderPrefixes = [
+  "birinci",
+  "ikinci",
+  "ucuncu",
+  "dorduncu",
+  "besinci",
+  "altinci",
+  "yedinci",
+  "sekizinci",
+  "dokuzuncu",
+  "onuncu",
+  "onbirinci",
+  "onikinci",
+  "onucuncu",
+  "ondorduncu",
+  "onbesinci",
+  "onaltinci",
+  "onyedinci",
+  "onsekizinci",
+  "ondokuzuncu",
+  "yirminci",
+  "yirmibirinci",
+  "yirmiikinci",
+] as const;
+
+function drivingTrackingListSheetName(candidate: CandidateResponse): string {
+  return candidate.licenseClass
+    .trim()
+    .toLocaleUpperCase("tr-TR")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-YN-OTOMATIK$/u, "")
+    .replace(/-OTOMATIK$/u, "")
+    .replace(/-2016$/u, "");
+}
+
+export function buildCandidateDrivingTrackingListRenderPdfRequest({
+  candidate,
+  lessons,
+  managerName,
+}: CandidateDrivingTrackingListRenderInput): CandidateContractRenderPdfRequest {
+  const practiceLessons = [...lessons]
+    .filter((lesson) => lesson.kind === "uygulama")
+    .sort((left, right) => new Date(left.startAtUtc).getTime() - new Date(right.startAtUtc).getTime())
+    .slice(0, drivingLessonPlaceholderPrefixes.length);
+  const values: Record<string, string> = {
+    kursiyeradi: clean(candidate.firstName),
+    kursiyersoyadi: clean(candidate.lastName),
+    kursiyertckimlikno: clean(candidate.nationalId),
+    kursiyerehliyettipi: clean(candidate.licenseClass),
+    kurummudur: clean(managerName),
+  };
+
+  drivingLessonPlaceholderPrefixes.forEach((prefix, index) => {
+    const lesson = practiceLessons[index] ?? null;
+    values[`${prefix}direksiyonderstarihi`] = lesson ? formatLessonDateTR(lesson.startAtUtc) : emptyValue;
+    values[`${prefix}direksiyonderssaati`] = lesson ? formatLessonTimeRangeTR(lesson) : emptyValue;
+    values[`${prefix}dersaracplakasi`] = clean(lesson?.vehiclePlate);
+    values[`${prefix}dersustaogretici`] = clean(lesson?.instructorName);
+  });
+
+  return {
+    fileName: drivingTrackingListFileName(candidate),
+    templateKey: "driving-tracking-list",
+    sheetName: drivingTrackingListSheetName(candidate),
+    values,
   };
 }
 
