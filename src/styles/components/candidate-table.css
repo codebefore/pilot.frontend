@@ -700,11 +700,13 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   min-width: 72px;
 }
 .cand-table tbody tr:has(.cand-inline-edit-cell .custom-select-menu),
+.cand-table tbody tr:has(.cand-inline-edit-cell .localized-date-popover),
 .cand-table tbody tr:has(.cand-inline-edit-cell .localized-time-popover) {
   position: relative;
   z-index: 80;
 }
 .cand-row-cell:has(.cand-inline-edit-cell .custom-select-menu),
+.cand-row-cell:has(.cand-inline-edit-cell .localized-date-popover),
 .cand-row-cell:has(.cand-inline-edit-cell .localized-time-popover) {
   position: relative;
   z-index: 90;
@@ -712,11 +714,14 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
 .cand-inline-edit-cell:has(.custom-select-menu),
 .cand-inline-edit-cell .custom-select:has(.custom-select-menu),
 .cand-inline-edit-cell .custom-select-menu,
+.cand-inline-edit-cell:has(.localized-date-popover),
+.cand-inline-edit-cell .localized-date-popover,
 .cand-inline-edit-cell:has(.localized-time-popover),
 .cand-inline-edit-cell .localized-time-popover {
   z-index: 1200;
 }
 .table-wrap:has(.cand-inline-edit-cell .custom-select-menu),
+.table-wrap:has(.cand-inline-edit-cell .localized-date-popover),
 .table-wrap:has(.cand-inline-edit-cell .localized-time-popover) {
   padding-bottom: 280px;
 }

@@ -15,6 +15,7 @@ type PracticeEducationPopoverProps = {
 
 const POPOVER_OFFSET = 8;
 const POPOVER_WIDTH = 240;
+const POPOVER_Z_INDEX = 2200;
 
 const OPTIONS: PracticeEducationType[] = [
   "normal",
@@ -84,7 +85,7 @@ export function PracticeEducationPopover({
         top: coords.top,
         left: coords.left,
         width: POPOVER_WIDTH,
-        zIndex: 100,
+        zIndex: POPOVER_Z_INDEX,
       }}
     >
       <div className="branch-popover-header">

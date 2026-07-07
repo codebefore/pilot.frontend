@@ -3015,7 +3015,12 @@ export function CandidatesPage({
     return fallback;
   };
 
-  const handleExamDateEdit = async (option: ExamScheduleOption, date: string, time?: string) => {
+  const handleExamDateEdit = async (
+    option: ExamScheduleOption,
+    date: string,
+    time?: string,
+    capacity?: number
+  ) => {
     if (!canManageGroups) return;
     if (editingExamScheduleId) {
       return;
@@ -3028,7 +3033,7 @@ export function CandidatesPage({
         date,
         examCodeId: option.examCodeId ?? null,
         time: option.examType === "e_sinav" ? (time ?? option.time) : undefined,
-        capacity: option.capacity,
+        capacity: capacity ?? option.capacity,
       });
       if (selectedExamScheduleId === option.id) {
         setSelectedExamDate(date);

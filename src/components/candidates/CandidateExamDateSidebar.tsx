@@ -20,7 +20,7 @@ type CandidateExamDateSidebarProps = {
   onCodeSelect?: (code: string) => void;
   onSidebarTabChange?: (tab: "dates" | "codes") => void;
   onDelete?: (option: ExamScheduleOption) => void;
-  onEdit?: (option: ExamScheduleOption, date: string, time?: string) => void;
+  onEdit?: (option: ExamScheduleOption, date: string, time?: string, capacity?: number) => void;
   deletingOptionId?: string | null;
   actions?: { label: string; onClick: () => void; disabled?: boolean; title?: string }[];
   codeOptions?: ExamCodeOption[];
@@ -97,6 +97,8 @@ export function CandidateExamDateSidebar({
   const [editingDateId, setEditingDateId] = useState<string | null>(null);
   const [editingDateValue, setEditingDateValue] = useState("");
   const [editingTimeValue, setEditingTimeValue] = useState("");
+  const [editingCapacityValue, setEditingCapacityValue] = useState("");
+  const [editingCapacityError, setEditingCapacityError] = useState("");
   const [editingCodeLocalId, setEditingCodeLocalId] = useState<string | null>(null);
   const [editingCodeValue, setEditingCodeValue] = useState("");
   const [editingCodeError, setEditingCodeError] = useState("");
@@ -194,15 +196,36 @@ export function CandidateExamDateSidebar({
     setEditingDateId(option.id);
     setEditingDateValue(option.date);
     setEditingTimeValue(option.time);
+    setEditingCapacityValue(String(option.capacity));
+    setEditingCapacityError("");
   };
   const submitDateEdit = (option: ExamScheduleOption) => {
     if (!canManageMutations) return;
     const trimmedTime = editingTimeValue.trim();
     const nextTime = showTime ? trimmedTime : undefined;
+    const shouldEditCapacity = summaryMode === "capacity";
+    const nextCapacity = Number.parseInt(editingCapacityValue, 10);
+    if (shouldEditCapacity && (!Number.isFinite(nextCapacity) || nextCapacity < 1)) {
+      setEditingCapacityError(t("examDateSidebar.error.capacityMin"));
+      return;
+    }
+    if (shouldEditCapacity && nextCapacity < option.candidateCount) {
+      setEditingCapacityError(
+        t("examDateSidebar.error.capacityBelowCandidates", { count: option.candidateCount })
+      );
+      return;
+    }
     const dateUnchanged = editingDateValue === option.date;
     const timeUnchanged = !showTime || nextTime === option.time;
-    if (!editingDateValue || (dateUnchanged && timeUnchanged)) {
+    const capacityUnchanged = !shouldEditCapacity || nextCapacity === option.capacity;
+    if (!editingDateValue || (dateUnchanged && timeUnchanged && capacityUnchanged)) {
       setEditingDateId(null);
+      setEditingCapacityError("");
+      return;
+    }
+    setEditingCapacityError("");
+    if (shouldEditCapacity && !capacityUnchanged) {
+      onEdit?.(option, editingDateValue, nextTime, nextCapacity);
       return;
     }
     onEdit?.(option, editingDateValue, nextTime);
@@ -472,18 +495,40 @@ export function CandidateExamDateSidebar({
                       size="sm"
                       value={editingDateValue}
                     />
-                    {showTime ? (
-                      <LocalizedTimeInput
-                        ariaLabel="Sınav saati"
-                        className="exam-date-option-edit-trigger exam-date-option-edit-time-trigger"
+	                    {showTime ? (
+	                      <LocalizedTimeInput
+	                        ariaLabel="Sınav saati"
+	                        className="exam-date-option-edit-trigger exam-date-option-edit-time-trigger"
                         disabled={!canManageMutations}
                         onChange={setEditingTimeValue}
                         size="sm"
-                        value={editingTimeValue}
-                      />
+	                        value={editingTimeValue}
+	                      />
+	                    ) : null}
+                    {summaryMode === "capacity" ? (
+                      <>
+                        <input
+                          aria-invalid={editingCapacityError ? "true" : undefined}
+                          aria-label={t("examDateSidebar.aria.capacity")}
+                          className="exam-date-option-edit-input exam-date-option-edit-capacity-input"
+                          disabled={!canManageMutations}
+                          min={Math.max(1, option.candidateCount)}
+                          onChange={(event) => {
+                            setEditingCapacityValue(event.target.value);
+                            setEditingCapacityError("");
+                          }}
+                          type="number"
+                          value={editingCapacityValue}
+                        />
+                        {editingCapacityError ? (
+                          <div className="exam-date-option-edit-error">
+                            {editingCapacityError}
+                          </div>
+                        ) : null}
+                      </>
                     ) : null}
-                  </div>
-                </div>
+	                  </div>
+	                </div>
               ) : (
                 <button
                   aria-pressed={selectedOptionId === option.id}

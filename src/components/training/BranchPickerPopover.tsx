@@ -19,6 +19,7 @@ type BranchPickerPopoverProps = {
 
 const POPOVER_OFFSET = 8;
 const POPOVER_WIDTH = 220;
+const POPOVER_Z_INDEX = 2200;
 
 /**
  * Tıklanan slotun yanında çıkan kompakt branş seçici.
@@ -90,7 +91,7 @@ export function BranchPickerPopover({
         top: coords.top,
         left: coords.left,
         width: POPOVER_WIDTH,
-        zIndex: 100,
+        zIndex: POPOVER_Z_INDEX,
       }}
     >
       {slotInfo ? <div className="branch-popover-header">{slotInfo}</div> : null}

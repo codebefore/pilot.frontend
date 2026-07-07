@@ -257,6 +257,10 @@
   font-size: 12px;
   font-weight: 700;
 }
+.exam-date-option-edit-capacity-input {
+  width: 100%;
+  height: 26px;
+}
 .exam-date-option-edit-fields .localized-date-trigger {
   min-height: 26px;
   height: 26px;
