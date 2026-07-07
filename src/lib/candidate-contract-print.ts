@@ -287,11 +287,13 @@ export function buildCandidateKCertificateRenderPdfRequest({
     images: biometricPhoto
       ? {
           kursiyerbiyometrikfotograf: biometricPhoto,
+          kursiyerfoto: biometricPhoto,
         }
       : undefined,
     values: {
       adayno: clean(candidate.nationalId),
       aracturu: clean(vehicleTypeLabel),
+      belgeno: clean(certificate.documentNumber),
       guzergah: clean(routeName),
       kbelgesibaslangictarihi: formatDateTR(certificate.startDate),
       kbelgesibitistarihi: formatDateTR(certificate.expiryDate),
@@ -300,6 +302,8 @@ export function buildCandidateKCertificateRenderPdfRequest({
       kursil: clean(institution?.city),
       kursilce: clean(institution?.district),
       kursadresi: clean(institution?.institutionAddress),
+      kurumadresi: clean(institution?.institutionAddress),
+      kurumkisaadi: clean(institution?.institutionName),
       kursiyertckimlikno: clean(candidate.nationalId),
       kursiyeradi: clean(candidate.firstName),
       kursiyersoyadi: clean(candidate.lastName),
@@ -308,6 +312,7 @@ export function buildCandidateKCertificateRenderPdfRequest({
       kursiyerdogumtarihi: formatDateTR(candidate.birthDate),
       kursiyeradresi: clean(candidate.address),
       kursiyerbiyometrikfotograf: "",
+      kursiyerfoto: "",
       ustaogreticikimlikno: clean(instructor?.nationalId),
       ustaogreticiadi: clean(instructorNameParts.firstName),
       ustaogreticisoyadi: clean(instructorNameParts.lastName),

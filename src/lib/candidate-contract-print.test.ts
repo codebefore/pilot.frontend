@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildCandidateContractRenderPdfRequest,
   buildCandidateDrivingTrackingListRenderPdfRequest,
+  buildCandidateKCertificateRenderPdfRequest,
   buildCandidateSignatureSampleRenderPdfRequest,
   openCandidateContractPrintWindow,
   printCandidateContractPdf,
@@ -210,6 +211,51 @@ describe("candidate contract print", () => {
       kursiyersoyadi: "Yılmaz",
       kursiyertckimlikno: "12345678901",
     });
+  });
+
+  it("builds K certificate request values for the matbu template aliases", () => {
+    const request = buildCandidateKCertificateRenderPdfRequest({
+      candidate: {
+        ...candidate,
+        fatherName: "Ahmet",
+        birthPlace: "Ankara",
+        birthDate: "1995-05-10",
+      },
+      certificate: {
+        documentNumber: "K-42",
+        startDate: "2026-07-08",
+        expiryDate: "2026-07-15",
+        lastLessonEndDate: null,
+      },
+      institution,
+      managerName: "Mehmet Müdür",
+      lesson: {
+        id: "lesson-1",
+        kind: "uygulama",
+        startAtUtc: "2026-07-08T09:00:00Z",
+        endAtUtc: "2026-07-08T11:00:00Z",
+        vehiclePlate: "34 ABC 123",
+        instructorName: "Ali Usta",
+      } as TrainingLessonResponse,
+      instructor: null,
+      vehicle: null,
+      vehicleTypeLabel: "Motosiklet",
+      routeName: "Güzergah 1",
+      biometricPhoto: {
+        base64: "abc",
+        contentType: "image/png",
+        widthCm: 2.4,
+        heightCm: 3.2,
+      },
+    });
+
+    expect(request.templateKey).toBe("k-certificate");
+    expect(request.values.belgeno).toBe("K-42");
+    expect(request.values.kurumkisaadi).toBe("Pilot Kurs");
+    expect(request.values.kurumadresi).toBe("Kurum adresi");
+    expect(request.values.kursiyerfoto).toBe("");
+    expect(request.images?.kursiyerbiyometrikfotograf?.base64).toBe("abc");
+    expect(request.images?.kursiyerfoto?.base64).toBe("abc");
   });
 
   it("builds PDF render request values for the driving tracking list", () => {
