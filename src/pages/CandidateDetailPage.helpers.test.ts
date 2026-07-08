@@ -4,6 +4,7 @@ import {
   candidateHasExistingLicense,
   canRetryMebbisDocumentTransfer,
   hasExistingLicenseValue,
+  isPenaltyPointsLicenseClass,
   shouldShowMebbisDocumentTransferAction,
 } from "./CandidateDetailPage.helpers";
 
@@ -20,6 +21,16 @@ describe("CandidateDetailPage helpers", () => {
     expect(hasExistingLicenseValue("-")).toBe(false);
     expect(hasExistingLicenseValue("none")).toBe(false);
     expect(hasExistingLicenseValue("exempt")).toBe(false);
+  });
+
+  it("detects 100CP penalty point license class across common formats", () => {
+    expect(isPenaltyPointsLicenseClass("100CP")).toBe(true);
+    expect(isPenaltyPointsLicenseClass("100 cp")).toBe(true);
+    expect(isPenaltyPointsLicenseClass("100-CP")).toBe(true);
+    expect(isPenaltyPointsLicenseClass("100_CP")).toBe(true);
+    expect(isPenaltyPointsLicenseClass("100 ceza puanı")).toBe(true);
+    expect(isPenaltyPointsLicenseClass("B")).toBe(false);
+    expect(isPenaltyPointsLicenseClass(null)).toBe(false);
   });
 
   it("allows MEBBIS job document transfer retry even after it was marked transferred", () => {

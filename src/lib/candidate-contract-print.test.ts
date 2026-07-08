@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildCandidateApplicationFormRenderPdfRequest,
   buildCandidateContractRenderPdfRequest,
   buildCandidateDrivingTrackingListRenderPdfRequest,
   buildCandidateKCertificateRenderPdfRequest,
@@ -24,9 +25,15 @@ const candidate = {
   nationalId: "12345678901",
   phoneNumber: "5551112233",
   address: "Aday adresi",
+  motherName: "Fatma",
+  fatherName: "Ahmet",
+  birthDate: "1995-05-10",
+  birthPlace: "Ankara",
   licenseClass: "B",
-  hasExistingLicense: false,
-  existingLicenseType: null,
+  hasExistingLicense: true,
+  existingLicenseType: "A2",
+  existingLicenseIssuedAt: "2020-06-15",
+  existingLicenseIssuedProvince: "İstanbul",
 } as CandidateResponse;
 
 const accounting = {
@@ -213,6 +220,39 @@ describe("candidate contract print", () => {
     });
   });
 
+  it("builds PDF render request values for the application form", () => {
+    const request = buildCandidateApplicationFormRenderPdfRequest({
+      candidate,
+      institution,
+      managerName: "Mehmet Müdür",
+      biometricPhoto: {
+        base64: "abc",
+        contentType: "image/png",
+        widthCm: 2.4,
+        heightCm: 3.2,
+      },
+    });
+
+    expect(request.fileName).toBe("ayşe-yılmaz-muracaat-formu.pdf");
+    expect(request.templateKey).toBe("application-form");
+    expect(request.values.adayadi).toBe("Ayşe");
+    expect(request.values.adaysoyadi).toBe("Yılmaz");
+    expect(request.values.adaytckimlikno).toBe("12345678901");
+    expect(request.values.adaytel).toBe("+90 555 111 22 33");
+    expect(request.values.adayanneadi).toBe("Fatma");
+    expect(request.values.adaybabadi).toBe("Ahmet");
+    expect(request.values.adaydogumtarihi).toBe("10.05.1995");
+    expect(request.values.adaydogumyeri).toBe("Ankara");
+    expect(request.values.adayehliyettipi).toBe("B");
+    expect(request.values.adaymevcutehliyettipi).toBe("A2");
+    expect(request.values.mevcutehliyetipiverilistarihi).toBe("15.06.2020");
+    expect(request.values.mevcutehliyettipiverildigiyer).toBe("İstanbul");
+    expect(request.values.kursresmiadi).toBe("Pilot Motorlu Taşıt Sürücüleri Kursu");
+    expect(request.values.kurummuduru).toBe("Mehmet Müdür");
+    expect(request.values.adaybiyometrikresim).toBe("");
+    expect(request.images?.adaybiyometrikresim?.base64).toBe("abc");
+  });
+
   it("builds K certificate request values for the matbu template aliases", () => {
     const request = buildCandidateKCertificateRenderPdfRequest({
       candidate: {
@@ -225,7 +265,7 @@ describe("candidate contract print", () => {
         documentNumber: "K-42",
         startDate: "2026-07-08",
         expiryDate: "2026-07-15",
-        lastLessonEndDate: null,
+        lastLessonEndDate: "2026-07-08",
       },
       institution,
       managerName: "Mehmet Müdür",

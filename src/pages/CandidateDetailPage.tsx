@@ -114,7 +114,7 @@ import {
   useCandidateLicenseClassOptions,
   useExistingLicenseTypeOptions,
 } from "../lib/use-license-class-options";
-import { openLocalAgentMebbisCandidateStatusView, openLocalAgentMebbisPageView } from "../lib/local-agent-api";
+import { openLocalAgentMebbisPageView } from "../lib/local-agent-api";
 import {
   analyzeCandidateDocumentOcr,
   deleteCandidateDocument,
@@ -149,6 +149,7 @@ import {
 } from "../lib/status-maps";
 import { toTurkishUpperCase } from "../lib/text-format";
 import {
+  buildCandidateApplicationFormRenderPdfRequest,
   buildCandidateDrivingTrackingListRenderPdfRequest,
   buildCandidateKCertificateRenderPdfRequest,
   buildCandidateContractRenderPdfRequest,
@@ -199,6 +200,7 @@ import {
   dateOnlyAt,
   formatTimelineDate,
   isExistingLicenseCopyType,
+  isPenaltyPointsLicenseClass,
   normalizeLicenseOptionKey,
   nowDateTimeLocal,
   shouldShowMebbisDocumentTransferAction,
@@ -299,10 +301,6 @@ const CANDIDATE_PRINT_FORM_OPTIONS = [
   "K Belgesi Matbu",
   "100 ceza puanı belgesi",
 ] as const;
-
-function isPenaltyPointsLicenseClass(licenseClass: string | null | undefined): boolean {
-  return (licenseClass ?? "").replace(/\s+/g, "").toLocaleUpperCase("tr-TR") === "100CP";
-}
 
 async function fetchOptional<T>(promise: Promise<T> | null): Promise<T | null> {
   if (!promise) return null;
@@ -957,10 +955,6 @@ function CandidateHero({
   const { showToast } = useToast();
   const mebbisSessionGuard = useMebbisSessionGuard();
   const [openingMebbisStatus, setOpeningMebbisStatus] = useState(false);
-  const [mebbisStatusSnapshot, setMebbisStatusSnapshot] = useState<{
-    html: string;
-    currentUrl: string | null;
-  } | null>(null);
   const [printFormsOpen, setPrintFormsOpen] = useState(false);
   const [contractGenerating, setContractGenerating] = useState(false);
   const printFormsRef = useRef<HTMLDivElement>(null);
@@ -1020,6 +1014,8 @@ function CandidateHero({
   const printFormOptions = CANDIDATE_PRINT_FORM_OPTIONS.filter((label) => {
     if (label === "100 ceza puanı belgesi") return hasPenaltyPointsLicenseClass;
     if (label === "Direksiyon takip çizelgesi") return !hasPenaltyPointsLicenseClass;
+    if (label === "Ücretsiz kursiyer formu") return !hasPenaltyPointsLicenseClass;
+    if (label === "K Belgesi" || label === "K Belgesi Matbu") return !hasPenaltyPointsLicenseClass;
     return true;
   });
   const hasExistingLicenseInfo = candidateHasExistingLicense(candidate);
@@ -1087,15 +1083,11 @@ function CandidateHero({
     if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     setOpeningMebbisStatus(true);
     try {
-      const response = await openLocalAgentMebbisCandidateStatusView(candidate.nationalId);
-      if (!response.htmlSnapshot) {
-        showToast("MEBBIS aday durum ekranı okunamadı.", "error");
-        return;
-      }
-      setMebbisStatusSnapshot({
-        html: response.htmlSnapshot,
-        currentUrl: response.currentUrl ?? null,
+      const nationalId = candidate.nationalId.replace(/\D/g, "");
+      const response = await openLocalAgentMebbisPageView("https://mebbis.meb.gov.tr/SKT/skt02009.aspx", {
+        nationalId: nationalId.length === 11 ? nationalId : null,
       });
+      showToast(response.message || "MEBBIS aday durum sayfası açıldı.");
     } catch (error) {
       const message = error instanceof Error
         ? error.message
@@ -1108,6 +1100,54 @@ function CandidateHero({
 
   const handlePrintForm = async (label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]) => {
     if (contractGenerating) return;
+
+    if (label === "Müracaat formu") {
+      setPrintFormsOpen(false);
+      setContractGenerating(true);
+      const printWindow = openCandidateContractPrintWindow("Müracaat Formu");
+      if (!printWindow) {
+        setContractGenerating(false);
+        showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+        return;
+      }
+
+      try {
+        const [institution, managerResponse, biometricPhoto] = await Promise.all([
+          institutionSettingsQuery.data
+            ? Promise.resolve(institutionSettingsQuery.data)
+            : institutionSettingsQuery.refetch().then((result) => result.data ?? null),
+          managerQuery.data
+            ? Promise.resolve(managerQuery.data)
+            : managerQuery.refetch().then((result) => result.data),
+          loadCandidateKCertificateBiometricPhoto(candidate),
+        ]);
+        if (!managerResponse) {
+          throw new Error("Müracaat formu için müdür bilgisi yüklenemedi.");
+        }
+
+        const manager = managerResponse.items.find((item) => item.isActive && item.role === "manager") ?? null;
+        const managerName = manager
+          ? `${manager.firstName} ${manager.lastName}`.trim()
+          : null;
+        const request = buildCandidateApplicationFormRenderPdfRequest({
+          candidate,
+          institution: institution ?? null,
+          managerName,
+          biometricPhoto,
+        });
+        const blob = await renderCandidateContractPdf(request);
+        printCandidateContractPdf(printWindow, blob);
+      } catch (error) {
+        printWindow.close();
+        const message = error instanceof Error
+          ? error.message
+          : "Müracaat formu hazırlanamadı.";
+        showToast(message, "error");
+      } finally {
+        setContractGenerating(false);
+      }
+      return;
+    }
 
     if (label === "Direksiyon takip çizelgesi") {
       setPrintFormsOpen(false);
@@ -1336,6 +1376,8 @@ function CandidateHero({
                         contractGenerating ||
                         (label === "K Belgesi" || label === "K Belgesi Matbu"
                           ? kCertificatePrintLoading || !latestValidKCertificate
+                          : label === "Müracaat formu"
+                          ? false
                           : label === "Direksiyon takip çizelgesi"
                           ? false
                           : label !== "Kayıt sözleşmesi" && label !== "İmza örneği")
@@ -1407,21 +1449,6 @@ function CandidateHero({
           </div>
         </div>
       </header>
-      <Modal
-        onClose={() => setMebbisStatusSnapshot(null)}
-        open={Boolean(mebbisStatusSnapshot)}
-        title="MEBBIS Aday Durumu"
-      >
-        {mebbisStatusSnapshot ? (
-          <div className="candidate-mebbis-status-snapshot">
-            <iframe
-              sandbox="allow-popups allow-popups-to-escape-sandbox"
-              srcDoc={mebbisStatusSnapshot.html}
-              title="MEBBIS Aday Durumu"
-            />
-          </div>
-        ) : null}
-      </Modal>
     </>
   );
 }

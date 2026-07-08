@@ -444,6 +444,7 @@ describe("GroupsPage", () => {
     });
 
     renderWithProviders(<GroupsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Kartlar" }));
 
     const primarySectionHeading = await screen.findByRole("heading", { name: "NİSAN 2026" });
     const primarySection = primarySectionHeading.closest("section");
@@ -547,6 +548,7 @@ describe("GroupsPage", () => {
     ));
 
     renderWithProviders(<GroupsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Kartlar" }));
 
     const heading = await screen.findByText("NİSAN 2026 - 1A");
     const card = heading.closest(".group-card") as HTMLElement | null;
@@ -558,10 +560,10 @@ describe("GroupsPage", () => {
     expect(within(card).getByText("Kontenjan")).toBeInTheDocument();
     expect(within(card).getByText("2 / 20")).toBeInTheDocument();
     expect(within(card).getByText("MEB Durumu")).toBeInTheDocument();
-    expect(await within(card).findByText("1/2")).toBeInTheDocument();
+    expect(await within(card).findByText("1 / 2")).toBeInTheDocument();
   });
 
-  it("groups list view into term sections and keeps a single column picker", async () => {
+  it("defaults to list view grouped into term sections and keeps a single column picker", async () => {
     getTermsMock.mockResolvedValueOnce({
       items: [term1, term2],
       page: 1,
@@ -615,9 +617,6 @@ describe("GroupsPage", () => {
     });
 
     renderWithProviders(<GroupsPage />);
-
-    await screen.findByText("NİSAN 2026 - 1A");
-    fireEvent.click(screen.getByRole("button", { name: "Liste" }));
 
     expect(await screen.findByRole("heading", { name: "NİSAN 2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "NİSAN 2026 / 2 - EK DÖNEM" })).toBeInTheDocument();
@@ -739,12 +738,13 @@ describe("GroupsPage", () => {
     });
 
     renderWithProviders(<GroupsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Kartlar" }));
 
     expect(await screen.findByRole("img", { name: "Ada Yilmaz" })).toBeInTheDocument();
     expect(screen.getByText("MK")).toBeInTheDocument();
   });
 
-  it("supports switching to list view", async () => {
+  it("opens in list view by default", async () => {
     getGroupsMock.mockResolvedValueOnce({
       items: [
         {
@@ -759,9 +759,26 @@ describe("GroupsPage", () => {
           capacity: 20,
           assignedCandidateCount: 5,
           activeCandidateCount: 5,
+          licenseClassCounts: [{ licenseClass: "B", count: 1 }],
           startDate: "2026-04-10",
           mebStatus: "sent",
-          candidatePreview: [],
+          candidatePreview: [
+            {
+              candidateId: "candidate-preview-photo",
+              firstName: "Ada",
+              lastName: "Yilmaz",
+              photo: {
+                documentId: "doc-1",
+                kind: "biometric_photo",
+              },
+            },
+            {
+              candidateId: "candidate-preview-initials",
+              firstName: "Mert",
+              lastName: "Kaya",
+              photo: null,
+            },
+          ],
           createdAtUtc: "2026-04-12T10:00:00Z",
           updatedAtUtc: "2026-04-12T10:00:00Z",
         },
@@ -771,16 +788,62 @@ describe("GroupsPage", () => {
       totalCount: 1,
       totalPages: 1,
     });
+    getGroupByIdMock.mockResolvedValueOnce({
+      id: "group-list-1",
+      title: "1A",
+      term: {
+        id: "term-1",
+        monthDate: "2026-04-01",
+        sequence: 1,
+        name: null,
+      },
+      capacity: 20,
+      assignedCandidateCount: 5,
+      activeCandidateCount: 1,
+      startDate: "2026-04-10",
+      mebStatus: "sent",
+      candidatePreview: [],
+      activeCandidates: [
+        {
+          candidateId: "candidate-without-mebbis-doc",
+          firstName: "Ada",
+          lastName: "Yilmaz",
+          nationalId: "11111111111",
+          phoneNumber: null,
+          photo: null,
+          status: "active",
+          mebSyncStatus: null,
+          assignedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+      createdAtUtc: "2026-04-12T10:00:00Z",
+      updatedAtUtc: "2026-04-12T10:00:00Z",
+    });
 
     renderWithProviders(<GroupsPage />);
-
-    await screen.findByText("NİSAN 2026 - 1A");
-    fireEvent.click(screen.getByRole("button", { name: "Liste" }));
 
     expect(await screen.findByRole("heading", { name: "NİSAN 2026" })).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: "Grup" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Kontenjan" })).toBeInTheDocument();
-    expect(screen.getByText("NİSAN 2026 - 1A")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Ehliyet Tipi" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Meb" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Adaylar" })).toBeInTheDocument();
+    const row = screen.getByText("NİSAN 2026 - 1A").closest("tr");
+    expect(row).not.toBeNull();
+    if (!row) {
+      throw new Error("Expected group row");
+    }
+    const cells = within(row).getAllByRole("cell");
+    const licenseClassCell = cells[2];
+    expect(within(licenseClassCell).getByTitle("B: 1 aday")).toBeInTheDocument();
+    expect(within(licenseClassCell).getByText("1")).toBeInTheDocument();
+    expect(within(licenseClassCell).getByText("B")).toBeInTheDocument();
+    const candidatePreviewCell = cells[cells.length - 2];
+    expect(candidatePreviewCell).toBeDefined();
+    expect(await within(candidatePreviewCell!).findByRole("img", { name: "Ada Yilmaz" })).toBeInTheDocument();
+    expect(within(candidatePreviewCell!).getByText("MK")).toBeInTheDocument();
+    expect(within(candidatePreviewCell!).getByText("+3")).toBeInTheDocument();
+    expect(await screen.findByText("0 / 1")).toBeInTheDocument();
   });
 
   it("lets the user add optional columns from the picker in list view", async () => {

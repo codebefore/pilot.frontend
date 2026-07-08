@@ -187,9 +187,9 @@ describe("Header MEBBİS connection", () => {
     localAgentMocks.getLocalAgentMebbisSession.mockResolvedValue(mebbisSession("inactive"));
     renderHeader();
 
-    expect(screen.queryByRole("button", { name: "Canlı izle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Canlı İzle" })).not.toBeInTheDocument();
     await waitFor(() => expect(localAgentMocks.getLocalAgentMebbisSession).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: "Canlı izle" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Canlı İzle" })).not.toBeInTheDocument();
   });
 
   it("persists the live view toggle from the header when MEBBİS is connected", async () => {
@@ -197,7 +197,7 @@ describe("Header MEBBİS connection", () => {
     localAgentMocks.getLocalAgentMebbisSession.mockResolvedValue(mebbisSession("connected"));
     renderHeader();
 
-    const liveViewToggle = await screen.findByRole("button", { name: "Canlı izle" });
+    const liveViewToggle = await screen.findByRole("button", { name: "Canlı İzle" });
     expect(liveViewToggle).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(liveViewToggle);

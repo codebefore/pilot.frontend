@@ -44,9 +44,12 @@ type GroupViewMode = "cards" | "list";
 type GroupColumnId =
   | "name"
   | "capacity"
+  | "licenseClass"
+  | "mebbisDocuments"
   | "activeCandidates"
   | "startDate"
   | "mebStatus"
+  | "candidatePreview"
   | "createdAtUtc"
   | "updatedAtUtc";
 type GroupTermLabelItem = GroupResponse["term"] | TermResponse;
@@ -56,9 +59,12 @@ type GroupColumnDef = {
   labelKey:
     | "groups.table.name"
     | "groups.table.capacity"
+    | "groups.table.licenseClass"
+    | "groups.table.mebbisDocuments"
     | "groups.table.activeCandidates"
     | "groups.table.startDate"
     | "groups.table.mebStatus"
+    | "groups.table.candidatePreview"
     | "groups.table.createdAtUtc"
     | "groups.table.updatedAtUtc";
   headerClassName?: string;
@@ -98,6 +104,18 @@ const GROUP_COLUMNS: GroupColumnDef[] = [
     renderCell: (group) => `${group.assignedCandidateCount} / ${group.capacity}`,
   },
   {
+    id: "licenseClass",
+    labelKey: "groups.table.licenseClass",
+    skeletonWidth: 92,
+    renderCell: () => null,
+  },
+  {
+    id: "mebbisDocuments",
+    labelKey: "groups.table.mebbisDocuments",
+    skeletonWidth: 48,
+    renderCell: () => null,
+  },
+  {
     id: "activeCandidates",
     labelKey: "groups.table.activeCandidates",
     skeletonWidth: 44,
@@ -116,6 +134,12 @@ const GROUP_COLUMNS: GroupColumnDef[] = [
     renderCell: (group) => renderGroupMebStatusPill(group.mebStatus),
   },
   {
+    id: "candidatePreview",
+    labelKey: "groups.table.candidatePreview",
+    skeletonWidth: 96,
+    renderCell: () => null,
+  },
+  {
     id: "createdAtUtc",
     labelKey: "groups.table.createdAtUtc",
     skeletonWidth: 88,
@@ -132,8 +156,11 @@ const GROUP_COLUMN_IDS: GroupColumnId[] = GROUP_COLUMNS.map((column) => column.i
 const DEFAULT_VISIBLE_GROUP_COLUMN_IDS: GroupColumnId[] = [
   "name",
   "capacity",
+  "licenseClass",
+  "mebbisDocuments",
   "startDate",
   "mebStatus",
+  "candidatePreview",
 ];
 const DEFAULT_LOADING_TERM_SECTION_COUNT = 2;
 const DEFAULT_LOADING_ROWS_PER_SECTION = 3;
@@ -212,7 +239,7 @@ export function GroupsPage() {
   const [confirmDeleteTermId, setConfirmDeleteTermId] = useState<string | null>(null);
   const [deletingTerm, setDeletingTerm] = useState(false);
 
-  const [viewMode, setViewMode] = useState<GroupViewMode>("cards");
+  const [viewMode, setViewMode] = useState<GroupViewMode>("list");
   const [search, setSearch] = useState("");
   const [groupPage, setGroupPage] = useState(1);
   const [groupMebbisDocumentSummaries, setGroupMebbisDocumentSummaries] =
@@ -526,13 +553,13 @@ export function GroupsPage() {
     return Array.from({ length: DEFAULT_LOADING_TERM_SECTION_COUNT }, () => null);
   }, [selectedTerm, sortedTerms]);
 
-  const visibleGroupCardGroups = useMemo(
-    () => viewMode === "cards" ? visibleTermSections.flatMap((section) => section.groups) : [],
-    [viewMode, visibleTermSections]
+  const visibleMebbisSummaryGroups = useMemo(
+    () => visibleTermSections.flatMap((section) => section.groups),
+    [visibleTermSections]
   );
 
   useEffect(() => {
-    const pendingGroups = visibleGroupCardGroups.filter((group) =>
+    const pendingGroups = visibleMebbisSummaryGroups.filter((group) =>
       group.activeCandidateCount > 0 &&
       !groupMebbisDocumentSummaries[group.id] &&
       !requestedGroupMebbisSummaryIdsRef.current.has(group.id)
@@ -604,23 +631,84 @@ export function GroupsPage() {
         }
       })();
     });
-  }, [groupMebbisSummaryRefreshKey, visibleGroupCardGroups]);
+  }, [groupMebbisSummaryRefreshKey, visibleMebbisSummaryGroups]);
 
   const emptyMessage = t("groups.empty.noGroupsForTab");
 
   const getGroupMebbisDocumentSummaryText = (group: GroupResponse) => {
     const summary = groupMebbisDocumentSummaries[group.id];
     if (!summary) {
-      return group.activeCandidateCount > 0 ? `.../${group.activeCandidateCount}` : "0/0";
+      return group.activeCandidateCount > 0 ? `... / ${group.activeCandidateCount}` : "0 / 0";
     }
 
     return summary.loading
-      ? `.../${summary.totalCount}`
-      : `${summary.transferredCount}/${summary.totalCount}`;
+      ? `... / ${summary.totalCount}`
+      : `${summary.transferredCount} / ${summary.totalCount}`;
   };
 
-  const renderGroupCard = (group: GroupResponse) => {
+  const renderGroupCandidatePreview = (group: GroupResponse, variant: "card" | "table") => {
+    const preview = group.candidatePreview ?? [];
+    if (preview.length === 0) return null;
+
+    const stackClassName = variant === "card" ? "group-card-avatar-stack" : "group-table-avatar-stack";
+    const avatarClassName = variant === "card" ? "group-card-avatar" : "group-table-avatar";
+    const overflowClassName = variant === "card" ? "group-card-avatar-overflow" : "group-table-avatar-overflow";
+
+    return (
+      <div className={stackClassName}>
+        {preview.map((candidate) => (
+          <CandidateAvatar
+            candidate={{
+              id: candidate.candidateId,
+              firstName: candidate.firstName,
+              lastName: candidate.lastName,
+              photo: candidate.photo ?? null,
+            }}
+            className={avatarClassName}
+            key={candidate.candidateId}
+            previewOnClick
+            size={variant === "card" ? 28 : 24}
+          />
+        ))}
+        {group.activeCandidateCount > preview.length && (
+          <span className={overflowClassName}>
+            +{group.activeCandidateCount - preview.length}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const renderGroupLicenseClassChips = (group: GroupResponse) => {
     const licenseClassCounts = group.licenseClassCounts ?? [];
+    if (licenseClassCounts.length === 0) return null;
+
+    return (
+      <div className="group-card-license-chips">
+        {licenseClassCounts.map((entry) => (
+          <span
+            className="group-card-license-chip"
+            key={entry.licenseClass}
+            title={t("groups.card.licenseChipTooltip", {
+              licenseClass: entry.licenseClass,
+              count: entry.count,
+            })}
+          >
+            <strong>{entry.count}</strong>
+            <span>{formatLicenseClassDisplay(entry.licenseClass)}</span>
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  const renderGroupNameCell = (group: GroupResponse) => (
+    <div className="group-table-name-content">
+      <span>{buildGroupHeading(group.title, group.term, termLabelContext, lang)}</span>
+    </div>
+  );
+
+  const renderGroupCard = (group: GroupResponse) => {
     const groupHeading = buildGroupHeading(group.title, group.term, termLabelContext, lang);
 
     return (
@@ -646,47 +734,9 @@ export function GroupsPage() {
             <span className="label">{t("groups.card.startDate")}</span>
             <span className="value">{formatDateTR(group.startDate)}</span>
           </div>
-          {licenseClassCounts.length > 0 && (
-            <div className="group-card-license-chips">
-              {licenseClassCounts.map((entry) => (
-                <span
-                  className="group-card-license-chip"
-                  key={entry.licenseClass}
-                  title={t("groups.card.licenseChipTooltip", {
-                    licenseClass: entry.licenseClass,
-                    count: entry.count,
-                  })}
-                >
-                  <strong>{entry.count}</strong>
-                  <span>{formatLicenseClassDisplay(entry.licenseClass)}</span>
-                </span>
-              ))}
-            </div>
-          )}
+          {renderGroupLicenseClassChips(group)}
         </div>
-        {(group.candidatePreview?.length ?? 0) > 0 && (
-          <div className="group-card-avatar-stack">
-            {(group.candidatePreview ?? []).map((candidate) => (
-              <CandidateAvatar
-                candidate={{
-                  id: candidate.candidateId,
-                  firstName: candidate.firstName,
-                  lastName: candidate.lastName,
-                  photo: candidate.photo ?? null,
-                }}
-                className="group-card-avatar"
-                key={candidate.candidateId}
-                previewOnClick
-                size={28}
-              />
-            ))}
-            {group.activeCandidateCount > (group.candidatePreview?.length ?? 0) && (
-              <span className="group-card-avatar-overflow">
-                +{group.activeCandidateCount - (group.candidatePreview?.length ?? 0)}
-              </span>
-            )}
-          </div>
-        )}
+        {renderGroupCandidatePreview(group, "card")}
       </div>
     );
   };
@@ -762,7 +812,15 @@ export function GroupsPage() {
             >
               {visibleColumns.map((column) => (
                 <td className={column.cellClassName} key={column.id}>
-                  {column.renderCell(group, termLabelContext, lang)}
+                  {column.id === "mebbisDocuments"
+                    ? getGroupMebbisDocumentSummaryText(group)
+                    : column.id === "name"
+                    ? renderGroupNameCell(group)
+                    : column.id === "licenseClass"
+                    ? renderGroupLicenseClassChips(group)
+                    : column.id === "candidatePreview"
+                    ? renderGroupCandidatePreview(group, "table")
+                    : column.renderCell(group, termLabelContext, lang)}
                 </td>
               ))}
               <td className="col-picker-td" />

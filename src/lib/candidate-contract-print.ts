@@ -39,6 +39,13 @@ export type CandidateKCertificateRenderInput = {
   templateKey?: Extract<CandidateContractTemplateKey, "k-certificate" | "k-certificate-matbu">;
 };
 
+export type CandidateApplicationFormRenderInput = {
+  candidate: CandidateResponse;
+  institution: InstitutionSettingsResponse | null;
+  managerName: string | null;
+  biometricPhoto?: CandidateContractImageInput | null;
+};
+
 export type CandidateDrivingTrackingListRenderInput = {
   candidate: CandidateResponse;
   lessons: TrainingLessonResponse[];
@@ -55,6 +62,7 @@ export type CandidateContractRenderPdfRequest = {
 
 export type CandidateContractTemplateKey =
   | "registration-contract"
+  | "application-form"
   | "signature-sample"
   | "k-certificate"
   | "k-certificate-matbu"
@@ -135,6 +143,10 @@ function contractFileName(candidate: CandidateResponse): string {
 
 function signatureSampleFileName(candidate: CandidateResponse): string {
   return candidatePdfFileName(candidate, "imza-ornegi");
+}
+
+function applicationFormFileName(candidate: CandidateResponse): string {
+  return candidatePdfFileName(candidate, "muracaat-formu");
 }
 
 function kCertificateFileName(candidate: CandidateResponse, documentNumber: string | null | undefined): string {
@@ -260,6 +272,48 @@ export function buildCandidateSignatureSampleRenderPdfRequest(
       kursiyeradi: clean(candidate.firstName),
       kursiyersoyadi: clean(candidate.lastName),
       kursiyertckimlikno: clean(candidate.nationalId),
+    },
+  };
+}
+
+export function buildCandidateApplicationFormRenderPdfRequest({
+  candidate,
+  institution,
+  managerName,
+  biometricPhoto,
+}: CandidateApplicationFormRenderInput): CandidateContractRenderPdfRequest {
+  const hasExistingLicense =
+    candidate.hasExistingLicense === true || hasExistingLicenseValue(candidate.existingLicenseType);
+  const existingLicenseType = hasExistingLicense ? candidate.existingLicenseType : null;
+  const existingLicenseIssuedAt = hasExistingLicense ? candidate.existingLicenseIssuedAt : null;
+  const existingLicenseIssuedProvince = hasExistingLicense ? candidate.existingLicenseIssuedProvince : null;
+
+  return {
+    fileName: applicationFormFileName(candidate),
+    templateKey: "application-form",
+    images: biometricPhoto
+      ? {
+          adaybiyometrikresim: biometricPhoto,
+        }
+      : undefined,
+    values: {
+      adayadi: clean(candidate.firstName),
+      adaysoyadi: clean(candidate.lastName),
+      adaytckimlikno: clean(candidate.nationalId),
+      adaytel: formatPhoneDisplay(firstPhone(candidate), emptyValue),
+      adayanneadi: clean(candidate.motherName),
+      adaybabadi: clean(candidate.fatherName),
+      adaydogumtarihi: formatDateTR(candidate.birthDate),
+      adaydogumyeri: clean(candidate.birthPlace),
+      adayehliyettipi: clean(candidate.licenseClass),
+      adaymevcutehliyettipi: clean(existingLicenseType),
+      adaybiyometrikresim: "",
+      kursresmiadi: clean(institution?.institutionOfficialName ?? institution?.institutionName),
+      kurummuduru: clean(managerName),
+      mevcutehliyettipitarihi: formatDateTR(existingLicenseIssuedAt),
+      mevcutehliyetipiverilistarihi: formatDateTR(existingLicenseIssuedAt),
+      mevcutehliyettipiverildigiyer: clean(existingLicenseIssuedProvince),
+      tarih: formatDateTR(new Date().toISOString()),
     },
   };
 }

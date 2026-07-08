@@ -10,6 +10,11 @@ export function candidateHasExistingLicense(candidate: Pick<CandidateResponse, "
   return candidate.hasExistingLicense === true || hasExistingLicenseValue(candidate.existingLicenseType);
 }
 
+export function isPenaltyPointsLicenseClass(licenseClass: string | null | undefined): boolean {
+  const key = normalizeLicenseOptionKey(licenseClass ?? "");
+  return key === "100CP" || key === "100CEZAPUANI" || key === "100CEZAPUAN";
+}
+
 export function isExistingLicenseCopyType(type: DocumentTypeResponse): boolean {
   const normalizedName = type.name.trim().toLocaleLowerCase("tr-TR");
   return (

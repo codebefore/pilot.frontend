@@ -1980,8 +1980,8 @@ export function CandidatesPage({
   const [unscheduledExamChargeLoading, setUnscheduledExamChargeLoading] = useState(false);
   const [unscheduledExamChargeSaving, setUnscheduledExamChargeSaving] = useState(false);
   const isDrivingExamRandevuluTab = examDateSidebar?.examType === "uygulama" && tab === "randevulu";
-  const canShowUnscheduledExamChargeAction = !isDrivingExamRandevuluTab;
-  const showUnscheduledExamChargePrompt = Boolean(unscheduledExamChargePrompt) && !isDrivingExamRandevuluTab;
+  const canShowUnscheduledExamChargeAction = false;
+  const showUnscheduledExamChargePrompt = Boolean(unscheduledExamChargePrompt) && canShowUnscheduledExamChargeAction;
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);

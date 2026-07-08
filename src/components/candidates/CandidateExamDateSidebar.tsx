@@ -495,16 +495,18 @@ export function CandidateExamDateSidebar({
                       size="sm"
                       value={editingDateValue}
                     />
-	                    {showTime ? (
-	                      <LocalizedTimeInput
-	                        ariaLabel="Sınav saati"
-	                        className="exam-date-option-edit-trigger exam-date-option-edit-time-trigger"
+                    {showTime ? (
+                      <LocalizedTimeInput
+                        allowManualInput
+                        ariaLabel="Sınav saati"
+                        className="exam-date-option-edit-trigger exam-date-option-edit-time-trigger"
                         disabled={!canManageMutations}
                         onChange={setEditingTimeValue}
                         size="sm"
-	                        value={editingTimeValue}
-	                      />
-	                    ) : null}
+                        stepMinutes={15}
+                        value={editingTimeValue}
+                      />
+                    ) : null}
                     {summaryMode === "capacity" ? (
                       <>
                         <input

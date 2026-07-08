@@ -404,7 +404,7 @@
 }
 .localized-date-field:has(.localized-date-popover),
 .localized-date-field:has(.localized-time-popover) {
-  z-index: 900;
+  z-index: 1300;
 }
 .localized-date-trigger {
   display: flex;
@@ -502,7 +502,7 @@
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  z-index: 900;
+  z-index: 1300;
   width: 296px;
   max-width: min(100vw - 32px, 296px);
   background: var(--white);

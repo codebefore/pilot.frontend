@@ -513,6 +513,9 @@
   font-size: 11px;
   color: var(--gray-500);
 }
+.group-table .group-card-license-chips {
+  margin-top: 0;
+}
 .group-term-table-wrap {
   padding: 0;
 }
@@ -589,6 +592,29 @@
 .group-table-name {
   font-weight: 700;
   color: var(--gray-900);
+}
+.group-table-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.group-table-avatar {
+  display: inline-flex;
+}
+.group-table-avatar-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* ─── TAG INPUT (candidate tags) ─── */

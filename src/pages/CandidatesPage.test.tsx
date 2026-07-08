@@ -502,7 +502,7 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("shows the unscheduled exam charge action on the e-sinav candidate list", async () => {
+  it("hides the unscheduled exam charge action on the e-sinav candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -545,12 +545,11 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
-    expect(await screen.findByText("Tarihsiz e-sınav borçlandırması")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
-  it("shows the unscheduled exam charge action on the uygulama candidate list", async () => {
+  it("hides the unscheduled exam charge action on the uygulama candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -593,8 +592,7 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
-    expect(await screen.findByText("Tarihsiz direksiyon sınav borçlandırması")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
@@ -998,15 +996,14 @@ describe("CandidatesPage tabs", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /13\.06\.2026 sınav tarihini düzenle/i }));
-    fireEvent.click(screen.getByLabelText("Sınav saati"));
-    fireEvent.click(screen.getByRole("option", { name: "10:05" }));
+    fireEvent.change(screen.getByLabelText("Sınav saati"), { target: { value: "10:20" } });
     fireEvent.click(screen.getByRole("button", { name: /13\.06\.2026 sınav tarihini kaydet/i }));
 
     await waitFor(() => {
       expect(onEdit).toHaveBeenCalledWith(
         expect.objectContaining({ date: "2026-06-13", time: "09:05" }),
         "2026-06-13",
-        "10:05"
+        "10:20"
       );
     });
   });
