@@ -827,6 +827,7 @@ describe("GroupsPage", () => {
     expect(screen.getByRole("columnheader", { name: "Kontenjan" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Ehliyet Tipi" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Meb" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "MEB Durumu" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Adaylar" })).toBeInTheDocument();
     const row = screen.getByText("NİSAN 2026 - 1A").closest("tr");
     expect(row).not.toBeNull();
@@ -834,11 +835,11 @@ describe("GroupsPage", () => {
       throw new Error("Expected group row");
     }
     const cells = within(row).getAllByRole("cell");
-    const licenseClassCell = cells[2];
+    const licenseClassCell = cells[cells.length - 2];
     expect(within(licenseClassCell).getByTitle("B: 1 aday")).toBeInTheDocument();
     expect(within(licenseClassCell).getByText("1")).toBeInTheDocument();
     expect(within(licenseClassCell).getByText("B")).toBeInTheDocument();
-    const candidatePreviewCell = cells[cells.length - 2];
+    const candidatePreviewCell = cells[cells.length - 3];
     expect(candidatePreviewCell).toBeDefined();
     expect(await within(candidatePreviewCell!).findByRole("img", { name: "Ada Yilmaz" })).toBeInTheDocument();
     expect(within(candidatePreviewCell!).getByText("MK")).toBeInTheDocument();

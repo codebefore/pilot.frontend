@@ -82,7 +82,7 @@ import {
 } from "../lib/exam-schedules-api";
 import { deleteExamCode, getExamCodes, updateExamCode } from "../lib/exam-codes-api";
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
-import { createESinavExamResultSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
+import { createDrivingExamResultSyncJob, createESinavExamResultSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
   DRIVING_EXAM_TIME_SLOT_LABELS,
@@ -3049,8 +3049,8 @@ export function CandidatesPage({
 
   const handleSelectedExamDateMebbisResultSync = async () => {
     if (!canManageMebJobs || mebbisExamResultSyncRunning) return;
-    if (!examDateSidebar || examDateSidebar.field !== "eSinavDate" || !selectedExamDate) {
-      showToast("Önce bir e-sınav tarihi seçmelisin.", "error");
+    if (!examDateSidebar || !["eSinavDate", "drivingExamDate"].includes(examDateSidebar.field) || !selectedExamDate) {
+      showToast("Önce bir sınav tarihi seçmelisin.", "error");
       return;
     }
     if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
@@ -3058,14 +3058,18 @@ export function CandidatesPage({
     setMebbisExamResultSyncRunning(true);
     try {
       const selectedExamSchedule = displayedExamDateOptions.find((option) => option.id === selectedExamScheduleId);
-      const job = await createESinavExamResultSyncJob(selectedExamDate, selectedExamSchedule?.time);
+      const isDrivingExam = examDateSidebar.field === "drivingExamDate";
+      const job = isDrivingExam
+        ? await createDrivingExamResultSyncJob(selectedExamDate)
+        : await createESinavExamResultSyncJob(selectedExamDate, selectedExamSchedule?.time);
       window.dispatchEvent(new CustomEvent("pilot:mebbis-job-queued", {
         detail: { jobId: job.id, jobType: job.jobType }
       }));
 
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
-      showToast(`${formatDateTR(selectedExamDate)} e-sınav sonuç sorgulama işi kuyruğa alındı.`);
+      const examLabel = isDrivingExam ? "direksiyon" : "e-sınav";
+      showToast(`${formatDateTR(selectedExamDate)} ${examLabel} sonuç sorgulama işi kuyruğa alındı.`);
       const startedAt = Date.now();
       while (Date.now() - startedAt < MEBBIS_EXAM_RESULT_POLL_TIMEOUT_MS) {
         await delay(MEBBIS_EXAM_RESULT_POLL_INTERVAL_MS);
@@ -3082,20 +3086,20 @@ export function CandidatesPage({
               void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
             }, refreshDelay);
           }
-          showToast(`${formatDateTR(selectedExamDate)} e-sınav sonuçları güncellendi.`);
+          showToast(`${formatDateTR(selectedExamDate)} ${examLabel} sonuçları güncellendi.`);
           return;
         }
         if (["failed", "needs_manual_action", "cancelled"].includes(latestJob.status)) {
           void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
           void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "queue", "status"] });
-          const terminalMessage = latestJob.errorMessage || "MEBBİS e-sınav sonucu sorgulama manuel kontrol gerektiriyor.";
+          const terminalMessage = latestJob.errorMessage || `MEBBİS ${examLabel} sonucu sorgulama manuel kontrol gerektiriyor.`;
           showToast(terminalMessage, "error");
           return;
         }
       }
-      showToast("MEBBİS e-sınav sonucu sorgulama işi devam ediyor.");
+      showToast(`MEBBİS ${examLabel} sonucu sorgulama işi devam ediyor.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "MEBBİS e-sınav sonucu çekme işleri oluşturulamadı.";
+      const message = error instanceof Error ? error.message : "MEBBİS sınav sonucu çekme işi oluşturulamadı.";
       showToast(message, "error");
     } finally {
       setMebbisExamResultSyncRunning(false);
@@ -3207,11 +3211,11 @@ export function CandidatesPage({
     ];
   })();
 
-  const showMebbisExamResultSyncAction = examDateSidebar?.field === "eSinavDate";
+  const showMebbisExamResultSyncAction = examDateSidebar?.field === "eSinavDate" || examDateSidebar?.field === "drivingExamDate";
   const mebbisExamResultSyncTitle = !canManageMebJobs
     ? noPermissionTitle
     : !selectedExamDate
-      ? "Önce bir e-sınav tarihi seç"
+      ? "Önce bir sınav tarihi seç"
       : mebbisSessionGuard.disabled
         ? mebbisSessionGuard.message
         : undefined;

@@ -28,6 +28,7 @@ const getCandidateAccountingMock = vi.fn();
 const getLicenseClassFeeMatrixMock = vi.fn();
 const createCandidateExamResultSyncJobMock = vi.fn();
 const createESinavExamResultSyncJobMock = vi.fn();
+const createDrivingExamResultSyncJobMock = vi.fn();
 const getMebbisJobMock = vi.fn();
 const getLocalAgentMebbisSessionMock = vi.fn();
 const ensureMebbisSessionMock = vi.fn();
@@ -211,6 +212,8 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
       createCandidateExamResultSyncJobMock(...args),
     createESinavExamResultSyncJob: (...args: Parameters<typeof actual.createESinavExamResultSyncJob>) =>
       createESinavExamResultSyncJobMock(...args),
+    createDrivingExamResultSyncJob: (...args: Parameters<typeof actual.createDrivingExamResultSyncJob>) =>
+      createDrivingExamResultSyncJobMock(...args),
     getMebbisJob: (...args: Parameters<typeof actual.getMebbisJob>) =>
       getMebbisJobMock(...args),
   };
@@ -289,6 +292,7 @@ describe("CandidatesPage tabs", () => {
     getLicenseClassFeeMatrixMock.mockReset();
     createCandidateExamResultSyncJobMock.mockReset();
     createESinavExamResultSyncJobMock.mockReset();
+    createDrivingExamResultSyncJobMock.mockReset();
     getMebbisJobMock.mockReset();
     getLocalAgentMebbisSessionMock.mockReset();
     ensureMebbisSessionMock.mockReset();
@@ -323,6 +327,22 @@ describe("CandidatesPage tabs", () => {
     );
     createESinavExamResultSyncJobMock.mockResolvedValue({
       id: "job-e-sinav-date",
+      jobType: "candidate_exam_result_sync",
+      entityType: "institution",
+      entityId: null,
+      status: "pending",
+      priority: 0,
+      payloadJson: null,
+      resultJson: null,
+      errorMessage: null,
+      attemptCount: 0,
+      maxAttemptCount: 1,
+      nextAttemptAtUtc: null,
+      leaseOwnerClientId: null,
+      leaseExpiresAtUtc: null,
+    });
+    createDrivingExamResultSyncJobMock.mockResolvedValue({
+      id: "job-driving-date",
       jobType: "candidate_exam_result_sync",
       entityType: "institution",
       entityId: null,
@@ -3448,6 +3468,39 @@ describe("CandidatesPage tabs", () => {
     });
     await waitFor(() => {
       expect(getCandidatesMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it("queues one MEBBIS driving result sync job for the selected exam date", async () => {
+    getExamScheduleOptionsMock.mockResolvedValue([
+      examScheduleOption("2026-06-28", {
+        examType: "uygulama",
+        candidateCount: 4,
+      }),
+    ]);
+    getCandidatesMock.mockImplementation((params) => Promise.resolve({
+      items: [],
+      page: params?.page ?? 1,
+      pageSize: params?.pageSize ?? 100,
+      totalCount: 0,
+      totalPages: 1,
+    }));
+
+    renderUygulamaPage();
+
+    const examDateButton = (await screen.findByText("4/20")).closest("button");
+    expect(examDateButton).not.toBeNull();
+    fireEvent.click(examDateButton!);
+    fireEvent.click(screen.getByRole("button", { name: "Sonuç Sorgulama" }));
+
+    await waitFor(() => {
+      expect(createDrivingExamResultSyncJobMock).toHaveBeenCalledTimes(1);
+    });
+    expect(ensureMebbisSessionMock).toHaveBeenCalled();
+    expect(createDrivingExamResultSyncJobMock).toHaveBeenCalledWith("2026-06-28");
+    expect(createESinavExamResultSyncJobMock).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(getMebbisJobMock).toHaveBeenCalledWith("job-driving-date");
     });
   });
 

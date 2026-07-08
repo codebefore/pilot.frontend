@@ -48,7 +48,6 @@ type GroupColumnId =
   | "mebbisDocuments"
   | "activeCandidates"
   | "startDate"
-  | "mebStatus"
   | "candidatePreview"
   | "createdAtUtc"
   | "updatedAtUtc";
@@ -63,7 +62,6 @@ type GroupColumnDef = {
     | "groups.table.mebbisDocuments"
     | "groups.table.activeCandidates"
     | "groups.table.startDate"
-    | "groups.table.mebStatus"
     | "groups.table.candidatePreview"
     | "groups.table.createdAtUtc"
     | "groups.table.updatedAtUtc";
@@ -104,12 +102,6 @@ const GROUP_COLUMNS: GroupColumnDef[] = [
     renderCell: (group) => `${group.assignedCandidateCount} / ${group.capacity}`,
   },
   {
-    id: "licenseClass",
-    labelKey: "groups.table.licenseClass",
-    skeletonWidth: 92,
-    renderCell: () => null,
-  },
-  {
     id: "mebbisDocuments",
     labelKey: "groups.table.mebbisDocuments",
     skeletonWidth: 48,
@@ -128,15 +120,15 @@ const GROUP_COLUMNS: GroupColumnDef[] = [
     renderCell: (group) => formatDateTR(group.startDate),
   },
   {
-    id: "mebStatus",
-    labelKey: "groups.table.mebStatus",
-    skeletonWidth: 76,
-    renderCell: (group) => renderGroupMebStatusPill(group.mebStatus),
-  },
-  {
     id: "candidatePreview",
     labelKey: "groups.table.candidatePreview",
     skeletonWidth: 96,
+    renderCell: () => null,
+  },
+  {
+    id: "licenseClass",
+    labelKey: "groups.table.licenseClass",
+    skeletonWidth: 92,
     renderCell: () => null,
   },
   {
@@ -156,11 +148,10 @@ const GROUP_COLUMN_IDS: GroupColumnId[] = GROUP_COLUMNS.map((column) => column.i
 const DEFAULT_VISIBLE_GROUP_COLUMN_IDS: GroupColumnId[] = [
   "name",
   "capacity",
-  "licenseClass",
   "mebbisDocuments",
   "startDate",
-  "mebStatus",
   "candidatePreview",
+  "licenseClass",
 ];
 const DEFAULT_LOADING_TERM_SECTION_COUNT = 2;
 const DEFAULT_LOADING_ROWS_PER_SECTION = 3;
@@ -890,9 +881,7 @@ export function GroupsPage() {
               {visibleColumns.map((column) => (
                 <td className={column.cellClassName} key={column.id}>
                   <span
-                    className={
-                      column.id === "mebStatus" ? "skeleton skeleton-pill" : "skeleton"
-                    }
+                    className="skeleton"
                     style={{ width: `${column.skeletonWidth + (index * 9) % 28}px` }}
                   />
                 </td>

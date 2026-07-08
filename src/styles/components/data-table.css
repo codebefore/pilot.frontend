@@ -50,9 +50,9 @@
 }
 .documents-term-th,
 .documents-term-td {
-  width: 92px;
-  min-width: 92px;
-  max-width: 92px;
+  width: 136px;
+  min-width: 136px;
+  max-width: 136px;
 }
 .documents-summary-th,
 .documents-summary-td {
@@ -157,6 +157,21 @@
 .documents-summary-partial,
 .documents-summary-complete {
   font-weight: 700;
+}
+.documents-term-th .sortable-th-shell {
+  gap: 4px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.documents-term-th .sortable-th-filter {
+  min-width: 74px;
+}
+.documents-term-th .custom-select-trigger {
+  height: 24px;
+  padding: 0 6px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .documents-summary-empty {
   color: var(--red);

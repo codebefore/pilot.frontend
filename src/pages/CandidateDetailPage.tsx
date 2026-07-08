@@ -9433,6 +9433,16 @@ function DocumentsTab({
       setCandidateSyncRunning(false);
     }
   };
+  const handleOpenMebbisDocumentCheck = async () => {
+    if (!mebbisDocumentCheckUrl) return;
+    if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
+    try {
+      const response = await openLocalAgentMebbisPageView(mebbisDocumentCheckUrl);
+      showToast(response.message || "MEBBİS evrak kontrol sayfası açıldı.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "MEBBİS evrak kontrol sayfası açılamadı.", "error");
+    }
+  };
 
   return (
     <div className="candidate-detail-tab-content">
@@ -9522,6 +9532,22 @@ function DocumentsTab({
                     type="button"
                   >
                     {t("candidateDetail.documents.button.mebbisActions")}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    aria-disabled={!mebbisDocumentCheckUrl || mebbisSessionGuard.disabled}
+                    disabled={!mebbisDocumentCheckUrl}
+                    onClick={() => void handleOpenMebbisDocumentCheck()}
+                    title={
+                      !mebbisDocumentCheckUrl
+                        ? "Evrak kontrol için TC ve dönem bilgisi gerekli."
+                        : mebbisSessionGuard.disabled
+                          ? mebbisSessionGuard.message
+                          : "Mevcut MEBBİS oturumunda evrak kontrol sayfasını aç"
+                    }
+                    type="button"
+                  >
+                    Evrak Kontrol
                   </button>
                   <button
                     className="btn btn-danger btn-sm"

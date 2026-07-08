@@ -5,6 +5,7 @@ import { MEBBIS_LIVE_VIEW_STORAGE_KEY } from "./mebbis-live-view";
 import {
   createCandidateEducationInfoUploadJob,
   createCandidateExamResultSyncJob,
+  createDrivingExamResultSyncJob,
   createESinavExamResultSyncJob,
   createCandidateHealthReportUploadJob,
   createCandidateNationalIdImportJob,
@@ -201,6 +202,27 @@ describe("mebbis jobs api", () => {
 
     const [, init] = vi.mocked(fetch).mock.calls[0];
     expect(init?.body).toBe(JSON.stringify({ examDate: "2026-06-12" }));
+  });
+
+  it("creates date-level driving exam result sync jobs on the MEBBIS base url", async () => {
+    applyRuntimeConfig({
+      mebbisApiBaseUrl: "http://127.0.0.1:5090",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "job-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await createDrivingExamResultSyncJob("2026-06-28");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe(
+      "http://127.0.0.1:5090/api/mebbis/jobs/exam-results/uygulama"
+    );
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBe(JSON.stringify({ examDate: "2026-06-28" }));
   });
 
   it("creates candidate education info upload jobs on the MEBBIS base url", async () => {

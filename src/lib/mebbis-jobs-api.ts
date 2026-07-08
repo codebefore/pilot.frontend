@@ -334,6 +334,14 @@ export async function createESinavExamResultSyncJob(
   );
 }
 
+export async function createDrivingExamResultSyncJob(examDate: string): Promise<MebbisJobResponse> {
+  return httpPost<MebbisJobResponse>(
+    "/api/mebbis/jobs/exam-results/uygulama",
+    withMebbisLiveView({ examDate }),
+    mebbisRequestOptions()
+  );
+}
+
 export async function createCandidateSyncByNationalIdJob(
   nationalId: string,
   candidateStatusHint?: string

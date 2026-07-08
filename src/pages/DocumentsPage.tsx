@@ -791,7 +791,7 @@ export function DocumentsPage() {
   );
   const documentColumnOptions: ColumnOption[] = [
     { id: "candidate", label: t("documents.col.candidate"), locked: true },
-    { id: "licenseClass", label: "Ehliyet Tipi", locked: true },
+    { id: "licenseClass", label: "Ehlyt", locked: true },
     { id: "term", label: t("documentsPage.col.term"), locked: true },
     { id: "advancePayment", label: t("documentsPage.col.advancePayment"), locked: true },
     ...requiredDocumentTypes.map((documentType) => ({
@@ -1160,14 +1160,14 @@ export function DocumentsPage() {
                         )
                       }
                       options={filterLicenseClassOptions}
-                      placeholder="Ehliyet Tipi"
+                      placeholder="Ehlyt"
                       searchable={filterLicenseClassOptions.length > 8}
-                      title="Ehliyet Tipi"
+                      title="Ehlyt"
                       triggerVariant="icon"
                       values={candidateFilters.licenseClasses}
                     />
                   }
-                  label="Ehliyet"
+                  label="Ehlyt"
                   onToggle={handleSortToggle}
                   sort={sort}
                 />
@@ -1175,24 +1175,25 @@ export function DocumentsPage() {
                   className="documents-term-th"
                   field="term"
                   filterControl={
-                    <TableHeaderFilter
-                      active={candidateFilters.groupIds.length > 0}
-                      onChange={(value) =>
+                    <CustomSelect
+                      aria-label={t("documentsPage.filter.term")}
+                      onChange={(event) =>
                         handleCandidateFilterChange(
                           "groupIds",
-                          value === "" ? [] : [value]
+                          event.target.value === "" ? [] : [event.target.value]
                         )
                       }
-                      options={[
-                        { value: "", label: t("common.all") },
-                        ...bulkGroupOptions.map((group) => ({
-                          value: group.id,
-                          label: buildGroupHeading(group.title, group.term, [group.term], lang),
-                        })),
-                      ]}
+                      size="sm"
                       title={t("documentsPage.filter.term")}
                       value={candidateFilters.groupIds[0] ?? ""}
-                    />
+                    >
+                      <option value="">{t("common.all")}</option>
+                      {bulkGroupOptions.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {buildGroupHeading(group.title, group.term, [group.term], lang)}
+                        </option>
+                      ))}
+                    </CustomSelect>
                   }
                   label={t("documentsPage.filter.term")}
                   onToggle={handleSortToggle}
