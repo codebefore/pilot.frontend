@@ -724,13 +724,17 @@ function DrivingExamSelectCell({
 
 function examFeeStatusLabel(status: CandidateExamFeeStatus | null | undefined, t: ReturnType<typeof useT>): string {
   if (status === "paid") return t("candidatesPage.examFee.paid");
+  if (status === "partially_paid") return t("candidatesPage.examFee.partiallyPaid");
+  if (status === "partially_refunded") return t("candidatesPage.examFee.partiallyRefunded");
+  if (status === "refunded") return t("candidatesPage.examFee.refunded");
+  if (status === "cancelled") return t("candidatesPage.examFee.cancelled");
   if (status === "charged") return t("candidatesPage.examFee.charged");
   return t("candidatesPage.examFee.pending");
 }
 
 function examFeeStatusPill(status: CandidateExamFeeStatus | null | undefined): JobStatus {
-  if (status === "paid") return "success";
-  if (status === "charged") return "warning";
+  if (status === "paid" || status === "refunded" || status === "cancelled") return "success";
+  if (status === "charged" || status === "partially_paid" || status === "partially_refunded") return "warning";
   return "queued";
 }
 
