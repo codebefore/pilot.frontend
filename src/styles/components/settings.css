@@ -4277,6 +4277,10 @@
   flex-direction: column;
   gap: 0;
 }
+.settings-form-divider {
+  border-top: 1px solid var(--gray-200);
+  margin: 2px 0 18px;
+}
 .instructor-license-section {
   border-top: 1px solid var(--gray-200);
   margin-top: 16px;

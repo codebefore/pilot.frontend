@@ -46,6 +46,14 @@ export type CandidateApplicationFormRenderInput = {
   biometricPhoto?: CandidateContractImageInput | null;
 };
 
+export type CandidatePenaltyPointsCertificateRenderInput = {
+  candidate: CandidateResponse;
+  institution: InstitutionSettingsResponse | null;
+  managerName: string | null;
+  lessons: TrainingLessonResponse[];
+  biometricPhoto?: CandidateContractImageInput | null;
+};
+
 export type CandidateDrivingTrackingListRenderInput = {
   candidate: CandidateResponse;
   lessons: TrainingLessonResponse[];
@@ -63,6 +71,7 @@ export type CandidateContractRenderPdfRequest = {
 export type CandidateContractTemplateKey =
   | "registration-contract"
   | "application-form"
+  | "penalty-points-certificate"
   | "signature-sample"
   | "k-certificate"
   | "k-certificate-matbu"
@@ -147,6 +156,10 @@ function signatureSampleFileName(candidate: CandidateResponse): string {
 
 function applicationFormFileName(candidate: CandidateResponse): string {
   return candidatePdfFileName(candidate, "muracaat-formu");
+}
+
+function penaltyPointsCertificateFileName(candidate: CandidateResponse): string {
+  return candidatePdfFileName(candidate, "100-ceza-puani-belgesi");
 }
 
 function kCertificateFileName(candidate: CandidateResponse, documentNumber: string | null | undefined): string {
@@ -314,6 +327,69 @@ export function buildCandidateApplicationFormRenderPdfRequest({
       mevcutehliyetipiverilistarihi: formatDateTR(existingLicenseIssuedAt),
       mevcutehliyettipiverildigiyer: clean(existingLicenseIssuedProvince),
       tarih: formatDateTR(new Date().toISOString()),
+    },
+  };
+}
+
+export function buildCandidatePenaltyPointsCertificateRenderPdfRequest({
+  candidate,
+  institution,
+  managerName,
+  lessons,
+  biometricPhoto,
+}: CandidatePenaltyPointsCertificateRenderInput): CandidateContractRenderPdfRequest {
+  const theoryLessons = [...lessons]
+    .filter((lesson) => lesson.kind === "teorik")
+    .sort((left, right) => new Date(left.startAtUtc).getTime() - new Date(right.startAtUtc).getTime());
+  const firstTheoryLesson = theoryLessons[0] ?? null;
+  const lastTheoryLesson = theoryLessons[theoryLessons.length - 1] ?? null;
+  const birthYear = candidate.birthDate?.slice(0, 4) ?? null;
+  const groupStartDate = candidate.currentGroup?.startDate ?? firstTheoryLesson?.startAtUtc;
+  const theoryEndDate = lastTheoryLesson?.endAtUtc;
+  const fullName = [candidate.firstName, candidate.lastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    fileName: penaltyPointsCertificateFileName(candidate),
+    templateKey: "penalty-points-certificate",
+    images: biometricPhoto
+      ? {
+          biyometrikfoto: biometricPhoto,
+          biyometrik: biometricPhoto,
+        }
+      : undefined,
+    values: {
+      adi: clean(candidate.firstName),
+      adayadi: clean(candidate.firstName),
+      soyadi: clean(candidate.lastName),
+      adaysoyadi: clean(candidate.lastName),
+      adayadsoyad: clean(fullName),
+      tckimlikno: clean(candidate.nationalId),
+      adaytc: clean(candidate.nationalId),
+      "adaytc]": clean(candidate.nationalId),
+      anneadi: clean(candidate.motherName),
+      adayanaadi: clean(candidate.motherName),
+      babadi: clean(candidate.fatherName),
+      adaybabaadi: clean(candidate.fatherName),
+      dogumyeri: clean(candidate.birthPlace),
+      adaydogumyeri: clean(candidate.birthPlace),
+      dogumtarihi: formatDateTR(candidate.birthDate),
+      adaydogumyili: clean(birthYear),
+      ehliyettipi: clean(candidate.licenseClass),
+      biyometrikfoto: "",
+      biyometrik: "",
+      kursilce: clean(institution?.district),
+      kursresmiadi: clean(institution?.institutionOfficialName ?? institution?.institutionName),
+      kurskisaadi: clean(institution?.institutionName),
+      kursmuduru: clean(managerName),
+      kurummuduru: clean(managerName),
+      ilcemilliegitimmuduru: clean(institution?.districtNationalEducationDirector),
+      grupbaslangictarihi: formatDateTR(groupStartDate),
+      grupbaslangic: formatDateTR(groupStartDate),
+      grupteorikdersbitistarihi: formatDateTR(theoryEndDate),
+      grupteorikdersbitis: formatDateTR(theoryEndDate),
     },
   };
 }

@@ -39,6 +39,8 @@ const institutionSettings = {
   institutionAddress: "Adres",
   institutionPhone: "5550000000",
   institutionEmail: null,
+  districtNationalEducationDirector: "İlçe Müdürü",
+  districtNationalEducationBranchManager: "Şube Müdürü",
   city: null,
   district: null,
   buildingCapacity: 60,
@@ -121,8 +123,16 @@ describe("GeneralInstitutionSection", () => {
 
     const nameInput = await screen.findByPlaceholderText("Örn. Pilot Sürücü Kursu");
     fireEvent.change(nameInput, { target: { value: "Pilot Kurs Güncel" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Diğer Bilgiler" }));
     fireEvent.change(screen.getByLabelText("Banka Adı"), { target: { value: "Halkbank" } });
     fireEvent.change(screen.getByLabelText("IBAN"), { target: { value: "TR111111111111111111111111" } });
+    fireEvent.change(screen.getByLabelText("İlçe Milli Eğitim Müdürü"), {
+      target: { value: "Yeni İlçe Müdürü" },
+    });
+    fireEvent.change(screen.getByLabelText("İlçe Milli Eğitim Şube Müdürü"), {
+      target: { value: "Yeni Şube Müdürü" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
@@ -131,6 +141,8 @@ describe("GeneralInstitutionSection", () => {
           institutionName: "Pilot Kurs Güncel",
           bankName: "Halkbank",
           iban: "TR111111111111111111111111",
+          districtNationalEducationDirector: "Yeni İlçe Müdürü",
+          districtNationalEducationBranchManager: "Yeni Şube Müdürü",
           rowVersion: 7,
         })
       );

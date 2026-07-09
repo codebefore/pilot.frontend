@@ -40,6 +40,8 @@ type InstitutionImportValues = {
   institutionAddress: string;
   institutionPhone: string;
   institutionEmail: string;
+  districtNationalEducationDirector: string;
+  districtNationalEducationBranchManager: string;
   city: string;
   district: string;
   buildingCapacity: number | null;
@@ -95,6 +97,8 @@ const EMPTY_VALUES: InstitutionImportValues = {
   institutionAddress: "",
   institutionPhone: "",
   institutionEmail: "",
+  districtNationalEducationDirector: "",
+  districtNationalEducationBranchManager: "",
   city: "",
   district: "",
   buildingCapacity: null,
@@ -121,6 +125,8 @@ function fromResponse(response: InstitutionSettingsResponse): InstitutionImportV
     institutionAddress: response.institutionAddress ?? "",
     institutionPhone: normalizeGeneralPhone(response.institutionPhone),
     institutionEmail: response.institutionEmail ?? "",
+    districtNationalEducationDirector: response.districtNationalEducationDirector ?? "",
+    districtNationalEducationBranchManager: response.districtNationalEducationBranchManager ?? "",
     city,
     district: resolveTurkeyDistrictValue(city, response.district),
     buildingCapacity: response.buildingCapacity ?? null,
@@ -147,6 +153,8 @@ function toUpsertRequest(
     institutionAddress: values.institutionAddress.trim() || null,
     institutionPhone: normalizeGeneralPhone(values.institutionPhone) || null,
     institutionEmail: values.institutionEmail.trim() || null,
+    districtNationalEducationDirector: values.districtNationalEducationDirector.trim() || null,
+    districtNationalEducationBranchManager: values.districtNationalEducationBranchManager.trim() || null,
     city: values.city.trim() || null,
     district: values.district.trim() || null,
     buildingCapacity: values.buildingCapacity,

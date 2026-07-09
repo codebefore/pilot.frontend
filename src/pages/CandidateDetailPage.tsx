@@ -152,6 +152,7 @@ import {
   buildCandidateApplicationFormRenderPdfRequest,
   buildCandidateDrivingTrackingListRenderPdfRequest,
   buildCandidateKCertificateRenderPdfRequest,
+  buildCandidatePenaltyPointsCertificateRenderPdfRequest,
   buildCandidateContractRenderPdfRequest,
   buildCandidateSignatureSampleRenderPdfRequest,
   openCandidateContractPrintWindow,
@@ -1149,6 +1150,63 @@ function CandidateHero({
       return;
     }
 
+    if (label === "100 ceza puanı belgesi") {
+      setPrintFormsOpen(false);
+      setContractGenerating(true);
+      const printWindow = openCandidateContractPrintWindow("100 Ceza Puanı Belgesi");
+      if (!printWindow) {
+        setContractGenerating(false);
+        showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+        return;
+      }
+
+      try {
+        const [institution, managerResponse, lessonResponse, biometricPhoto] = await Promise.all([
+          institutionSettingsQuery.data
+            ? Promise.resolve(institutionSettingsQuery.data)
+            : institutionSettingsQuery.refetch().then((result) => result.data ?? null),
+          managerQuery.data
+            ? Promise.resolve(managerQuery.data)
+            : managerQuery.refetch().then((result) => result.data),
+          getTrainingLessons(
+            {
+              kind: "teorik",
+              ...(candidate.currentGroup?.groupId
+                ? { groupId: candidate.currentGroup.groupId }
+                : { candidateId: candidate.id }),
+            }
+          ),
+          loadCandidateKCertificateBiometricPhoto(candidate),
+        ]);
+        if (!managerResponse) {
+          throw new Error("100 ceza puanı belgesi için müdür bilgisi yüklenemedi.");
+        }
+
+        const manager = managerResponse.items.find((item) => item.isActive && item.role === "manager") ?? null;
+        const managerName = manager
+          ? `${manager.firstName} ${manager.lastName}`.trim()
+          : null;
+        const request = buildCandidatePenaltyPointsCertificateRenderPdfRequest({
+          candidate,
+          institution: institution ?? null,
+          managerName,
+          lessons: lessonResponse.items,
+          biometricPhoto,
+        });
+        const blob = await renderCandidateContractPdf(request);
+        printCandidateContractPdf(printWindow, blob);
+      } catch (error) {
+        printWindow.close();
+        const message = error instanceof Error
+          ? error.message
+          : "100 ceza puanı belgesi hazırlanamadı.";
+        showToast(message, "error");
+      } finally {
+        setContractGenerating(false);
+      }
+      return;
+    }
+
     if (label === "Direksiyon takip çizelgesi") {
       setPrintFormsOpen(false);
       setContractGenerating(true);
@@ -1377,6 +1435,8 @@ function CandidateHero({
                         (label === "K Belgesi" || label === "K Belgesi Matbu"
                           ? kCertificatePrintLoading || !latestValidKCertificate
                           : label === "Müracaat formu"
+                          ? false
+                          : label === "100 ceza puanı belgesi"
                           ? false
                           : label === "Direksiyon takip çizelgesi"
                           ? false

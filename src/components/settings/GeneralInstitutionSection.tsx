@@ -34,6 +34,8 @@ type GeneralFormValues = {
   institutionAddress: string;
   institutionPhone: string;
   institutionEmail: string;
+  districtNationalEducationDirector: string;
+  districtNationalEducationBranchManager: string;
   city: string;
   district: string;
   buildingCapacity: string;
@@ -48,7 +50,7 @@ type GeneralFormValues = {
 };
 
 type GeneralFormErrors = Partial<Record<keyof GeneralFormValues, string>>;
-type GeneralInstitutionTab = "institution" | "founder";
+type GeneralInstitutionTab = "institution" | "other" | "founder";
 
 const EMPTY_VALUES: GeneralFormValues = {
   institutionName: "",
@@ -57,6 +59,8 @@ const EMPTY_VALUES: GeneralFormValues = {
   institutionAddress: "",
   institutionPhone: "",
   institutionEmail: "",
+  districtNationalEducationDirector: "",
+  districtNationalEducationBranchManager: "",
   city: "",
   district: "",
   buildingCapacity: "",
@@ -98,6 +102,8 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
     institutionAddress: response.institutionAddress ?? "",
     institutionPhone: normalizeGeneralPhone(response.institutionPhone),
     institutionEmail: response.institutionEmail ?? "",
+    districtNationalEducationDirector: response.districtNationalEducationDirector ?? "",
+    districtNationalEducationBranchManager: response.districtNationalEducationBranchManager ?? "",
     city,
     district: resolveTurkeyDistrictValue(city, response.district),
     buildingCapacity: response.buildingCapacity == null ? "" : String(response.buildingCapacity),
@@ -124,6 +130,8 @@ function toUpsertRequest(
     institutionAddress: values.institutionAddress.trim() || null,
     institutionPhone: normalizeGeneralPhone(values.institutionPhone) || null,
     institutionEmail: values.institutionEmail.trim() || null,
+    districtNationalEducationDirector: values.districtNationalEducationDirector.trim() || null,
+    districtNationalEducationBranchManager: values.districtNationalEducationBranchManager.trim() || null,
     city: values.city.trim() || null,
     district: values.district.trim() || null,
     buildingCapacity: values.buildingCapacity.trim()
@@ -175,6 +183,8 @@ export function GeneralInstitutionSection() {
   const institutionCodeId = useId();
   const institutionPhoneId = useId();
   const institutionEmailId = useId();
+  const districtNationalEducationDirectorId = useId();
+  const districtNationalEducationBranchManagerId = useId();
   const buildingCapacityId = useId();
   const bankNameId = useId();
   const ibanId = useId();
@@ -358,6 +368,13 @@ export function GeneralInstitutionSection() {
       ) {
         setActiveTab("institution");
       } else if (
+        nextErrors.bankName ||
+        nextErrors.iban ||
+        nextErrors.districtNationalEducationDirector ||
+        nextErrors.districtNationalEducationBranchManager
+      ) {
+        setActiveTab("other");
+      } else if (
         nextErrors.founderName ||
         nextErrors.founderTaxId ||
         nextErrors.founderTaxOffice ||
@@ -507,6 +524,7 @@ export function GeneralInstitutionSection() {
   const tabs: { key: GeneralInstitutionTab; label: string }[] = [
     { key: "institution", label: t("settings.general.section.institution") },
     { key: "founder", label: t("settings.general.section.founder") },
+    { key: "other", label: t("settings.general.section.other") },
   ];
 
   if (loading) {
@@ -680,37 +698,6 @@ export function GeneralInstitutionSection() {
               </div>
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label" htmlFor={bankNameId}>
-                  {t("settings.general.field.bankName")}
-                </label>
-                <input
-                  id={bankNameId}
-                  className={errors.bankName ? "form-input error" : "form-input"}
-                  disabled={!canManageSettings}
-                  onChange={handleInput("bankName")}
-                  placeholder={t("settings.general.placeholder.bankName")}
-                  value={values.bankName}
-                />
-                {errors.bankName ? <div className="form-error">{errors.bankName}</div> : null}
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor={ibanId}>
-                  {t("settings.general.field.iban")}
-                </label>
-                <input
-                  id={ibanId}
-                  className={errors.iban ? "form-input error" : "form-input"}
-                  disabled={!canManageSettings}
-                  onChange={handleInput("iban")}
-                  placeholder={t("settings.general.placeholder.iban")}
-                  value={values.iban}
-                />
-                {errors.iban ? <div className="form-error">{errors.iban}</div> : null}
-              </div>
-            </div>
-
             <div className="form-row full">
               <div className="form-group">
                 <label className="form-label" htmlFor={addressId}>
@@ -783,6 +770,87 @@ export function GeneralInstitutionSection() {
                     </span>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      ) : null}
+
+      {activeTab === "other" ? (
+      <section className="settings-surface">
+        <div className="settings-surface-header">
+          <div className="settings-surface-title">
+            {t("settings.general.section.other")}
+          </div>
+        </div>
+        <div className="settings-surface-body">
+          <div className="settings-form">
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label" htmlFor={bankNameId}>
+                  {t("settings.general.field.bankName")}
+                </label>
+                <input
+                  id={bankNameId}
+                  className={errors.bankName ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
+                  onChange={handleInput("bankName")}
+                  placeholder={t("settings.general.placeholder.bankName")}
+                  value={values.bankName}
+                />
+                {errors.bankName ? <div className="form-error">{errors.bankName}</div> : null}
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor={ibanId}>
+                  {t("settings.general.field.iban")}
+                </label>
+                <input
+                  id={ibanId}
+                  className={errors.iban ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
+                  onChange={handleInput("iban")}
+                  placeholder={t("settings.general.placeholder.iban")}
+                  value={values.iban}
+                />
+                {errors.iban ? <div className="form-error">{errors.iban}</div> : null}
+              </div>
+            </div>
+
+            <div className="settings-form-divider" />
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label" htmlFor={districtNationalEducationDirectorId}>
+                  {t("settings.general.field.districtNationalEducationDirector")}
+                </label>
+                <input
+                  id={districtNationalEducationDirectorId}
+                  className={errors.districtNationalEducationDirector ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
+                  onChange={handleInput("districtNationalEducationDirector")}
+                  placeholder={t("settings.general.placeholder.districtNationalEducationDirector")}
+                  value={values.districtNationalEducationDirector}
+                />
+                {errors.districtNationalEducationDirector ? (
+                  <div className="form-error">{errors.districtNationalEducationDirector}</div>
+                ) : null}
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor={districtNationalEducationBranchManagerId}>
+                  {t("settings.general.field.districtNationalEducationBranchManager")}
+                </label>
+                <input
+                  id={districtNationalEducationBranchManagerId}
+                  className={errors.districtNationalEducationBranchManager ? "form-input error" : "form-input"}
+                  disabled={!canManageSettings}
+                  onChange={handleInput("districtNationalEducationBranchManager")}
+                  placeholder={t("settings.general.placeholder.districtNationalEducationBranchManager")}
+                  value={values.districtNationalEducationBranchManager}
+                />
+                {errors.districtNationalEducationBranchManager ? (
+                  <div className="form-error">{errors.districtNationalEducationBranchManager}</div>
+                ) : null}
               </div>
             </div>
           </div>

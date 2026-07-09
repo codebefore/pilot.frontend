@@ -5,6 +5,7 @@ import {
   buildCandidateContractRenderPdfRequest,
   buildCandidateDrivingTrackingListRenderPdfRequest,
   buildCandidateKCertificateRenderPdfRequest,
+  buildCandidatePenaltyPointsCertificateRenderPdfRequest,
   buildCandidateSignatureSampleRenderPdfRequest,
   openCandidateContractPrintWindow,
   printCandidateContractPdf,
@@ -80,6 +81,7 @@ const institution = {
   district: "Kadıköy",
   bankName: "Ziraat Bankası",
   iban: "TR000000000000000000000000",
+  districtNationalEducationDirector: "İlçe Milli Eğitim Müdürü",
 } as InstitutionSettingsResponse;
 
 const theoryFeeRow = {
@@ -251,6 +253,82 @@ describe("candidate contract print", () => {
     expect(request.values.kurummuduru).toBe("Mehmet Müdür");
     expect(request.values.adaybiyometrikresim).toBe("");
     expect(request.images?.adaybiyometrikresim?.base64).toBe("abc");
+  });
+
+  it("builds PDF render request values for the 100 penalty points certificate", () => {
+    const request = buildCandidatePenaltyPointsCertificateRenderPdfRequest({
+      candidate: {
+        ...candidate,
+        licenseClass: "100CP",
+        currentGroup: {
+          groupId: "group-1",
+          title: "100 CP Grubu",
+          startDate: "2026-07-01",
+          term: {
+            id: "term-1",
+            monthDate: "2026-07-01",
+            sequence: 1,
+            name: "2026/7",
+          },
+          assignedAtUtc: "2026-07-01T00:00:00Z",
+        },
+      },
+      institution,
+      managerName: "Mehmet Müdür",
+      lessons: [
+        {
+          id: "lesson-1",
+          kind: "teorik",
+          startAtUtc: "2026-07-02T07:00:00Z",
+          endAtUtc: "2026-07-02T09:00:00Z",
+        },
+        {
+          id: "lesson-2",
+          kind: "teorik",
+          startAtUtc: "2026-07-04T07:00:00Z",
+          endAtUtc: "2026-07-04T09:00:00Z",
+        },
+      ] as TrainingLessonResponse[],
+      biometricPhoto: {
+        base64: "abc",
+        contentType: "image/png",
+        widthCm: 2.4,
+        heightCm: 3.2,
+      },
+    });
+
+    expect(request.fileName).toBe("ayşe-yılmaz-100-ceza-puani-belgesi.pdf");
+    expect(request.templateKey).toBe("penalty-points-certificate");
+    expect(request.values.adi).toBe("Ayşe");
+    expect(request.values.adayadi).toBe("Ayşe");
+    expect(request.values.soyadi).toBe("Yılmaz");
+    expect(request.values.adaysoyadi).toBe("Yılmaz");
+    expect(request.values.adayadsoyad).toBe("Ayşe Yılmaz");
+    expect(request.values.tckimlikno).toBe("12345678901");
+    expect(request.values["adaytc]"]).toBe("12345678901");
+    expect(request.values.anneadi).toBe("Fatma");
+    expect(request.values.adayanaadi).toBe("Fatma");
+    expect(request.values.babadi).toBe("Ahmet");
+    expect(request.values.adaybabaadi).toBe("Ahmet");
+    expect(request.values.dogumyeri).toBe("Ankara");
+    expect(request.values.adaydogumyeri).toBe("Ankara");
+    expect(request.values.dogumtarihi).toBe("10.05.1995");
+    expect(request.values.adaydogumyili).toBe("1995");
+    expect(request.values.ehliyettipi).toBe("100CP");
+    expect(request.values.kursilce).toBe("Kadıköy");
+    expect(request.values.kursresmiadi).toBe("Pilot Motorlu Taşıt Sürücüleri Kursu");
+    expect(request.values.kurskisaadi).toBe("Pilot Kurs");
+    expect(request.values.kursmuduru).toBe("Mehmet Müdür");
+    expect(request.values.kurummuduru).toBe("Mehmet Müdür");
+    expect(request.values.ilcemilliegitimmuduru).toBe("İlçe Milli Eğitim Müdürü");
+    expect(request.values.grupbaslangictarihi).toBe("01.07.2026");
+    expect(request.values.grupbaslangic).toBe("01.07.2026");
+    expect(request.values.grupteorikdersbitistarihi).toBe("04.07.2026");
+    expect(request.values.grupteorikdersbitis).toBe("04.07.2026");
+    expect(request.values.biyometrikfoto).toBe("");
+    expect(request.values.biyometrik).toBe("");
+    expect(request.images?.biyometrikfoto?.base64).toBe("abc");
+    expect(request.images?.biyometrik?.base64).toBe("abc");
   });
 
   it("builds K certificate request values for the matbu template aliases", () => {

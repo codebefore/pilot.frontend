@@ -36,6 +36,8 @@ export interface InstitutionSettingsResponse {
   institutionAddress: string | null;
   institutionPhone: string | null;
   institutionEmail: string | null;
+  districtNationalEducationDirector: string | null;
+  districtNationalEducationBranchManager: string | null;
   city: string | null;
   district: string | null;
   buildingCapacity: number | null;
@@ -72,6 +74,8 @@ export interface InstitutionSettingsUpsertRequest {
   institutionAddress: string | null;
   institutionPhone: string | null;
   institutionEmail: string | null;
+  districtNationalEducationDirector: string | null;
+  districtNationalEducationBranchManager: string | null;
   city: string | null;
   district: string | null;
   buildingCapacity: number | null;
