@@ -4,6 +4,7 @@ import {
   buildCandidateApplicationFormRenderPdfRequest,
   buildCandidateContractRenderPdfRequest,
   buildCandidateDrivingTrackingListRenderPdfRequest,
+  buildCandidateFreeCandidateFormRenderPdfRequest,
   buildCandidateKCertificateRenderPdfRequest,
   buildCandidatePenaltyPointsCertificateRenderPdfRequest,
   buildCandidateSignatureSampleRenderPdfRequest,
@@ -113,10 +114,16 @@ describe("candidate contract print", () => {
     expect(request.fileName).toBe("ayşe-yılmaz-kayit-sozlesmesi.pdf");
     expect(request.templateKey).toBe("registration-contract");
     expect(request.values.kursiyeradi).toBe("Ayşe");
+    expect(request.values.adayadisoyadi).toBe("Ayşe Yılmaz");
+    expect(request.values.adaytc).toBe("12345678901");
+    expect(request.values.adayadresi).toBe("Aday adresi");
+    expect(request.values.adaytelefon1).toBe("+90 555 111 22 33");
     expect(request.values.kurumresmiadi).toBe("Pilot Motorlu Taşıt Sürücüleri Kursu");
     expect(request.values["yıl"]).toBe("2026");
     expect(request.values.kurumbankaadi).toBe("Ziraat Bankası");
     expect(request.values.kurummudur).toBe("Mehmet Müdür");
+    expect(request.values.kurummuduru).toBe("Mehmet Müdür");
+    expect(request.values.kurummuduruimza).toBe("\u200B");
     expect(request.values.kursiyertelefon1).toBe("+90 555 111 22 33");
     expect(request.values.kurumtelefon).toBe("+90 555 000 00 00");
     expect(request.values.sozlesmetoplam).toBe("10.400,00");
@@ -144,6 +151,26 @@ describe("candidate contract print", () => {
     });
 
     expect(request.values.mevcutehliyettipi).toBe("-");
+  });
+
+  it("builds PDF render request for the blank-fee registration contract template", () => {
+    const request = buildCandidateContractRenderPdfRequest({
+      candidate,
+      accounting,
+      contractYear: 2026,
+      theoryFeeRow,
+      practiceFeeRow,
+      institution,
+      managerName: "Mehmet Müdür",
+      templateKey: "registration-contract-blank-fee",
+    });
+
+    expect(request.fileName).toBe("ayşe-yılmaz-kayit-sozlesmesi-ucret-bos.pdf");
+    expect(request.templateKey).toBe("registration-contract-blank-fee");
+    expect(request.values.adayadisoyadi).toBe("Ayşe Yılmaz");
+    expect(request.values.adaytc).toBe("12345678901");
+    expect(request.values.kurumadresi).toBe("Kurum adresi");
+    expect(request.values.kurummuduruimza).toBe("\u200B");
   });
 
   it("uses only phone contacts for the secondary phone placeholder", () => {
@@ -257,6 +284,21 @@ describe("candidate contract print", () => {
     expect(request.values.kurummuduru).toBe("Mehmet Müdür");
     expect(request.values.adaybiyometrikresim).toBe("");
     expect(request.images?.adaybiyometrikresim?.base64).toBe("abc");
+  });
+
+  it("builds PDF render request values for the free candidate form", () => {
+    const request = buildCandidateFreeCandidateFormRenderPdfRequest({
+      candidate,
+      institution,
+    });
+
+    expect(request.fileName).toBe("ayşe-yılmaz-ucretsiz-kursiyer-formu.pdf");
+    expect(request.templateKey).toBe("free-candidate-form");
+    expect(request.values).toEqual({
+      adayadisoyadi: "Ayşe Yılmaz",
+      adaytc: "12345678901",
+      kurumresmiadi: "Pilot Motorlu Taşıt Sürücüleri Kursu",
+    });
   });
 
   it("builds PDF render request values for the 100 penalty points certificate", () => {

@@ -14,6 +14,7 @@ import type {
 } from "./types";
 
 const emptyValue = "-";
+const blankValue = "\u200B";
 
 export type CandidateContractDocumentInput = {
   candidate: CandidateResponse;
@@ -23,6 +24,7 @@ export type CandidateContractDocumentInput = {
   practiceFeeRow: LicenseClassFeeRowResponse | null;
   institution: InstitutionSettingsResponse | null;
   managerName: string | null;
+  templateKey?: Extract<CandidateContractTemplateKey, "registration-contract" | "registration-contract-blank-fee">;
 };
 
 export type CandidateKCertificateRenderInput = {
@@ -44,6 +46,11 @@ export type CandidateApplicationFormRenderInput = {
   institution: InstitutionSettingsResponse | null;
   managerName: string | null;
   biometricPhoto?: CandidateContractImageInput | null;
+};
+
+export type CandidateFreeCandidateFormRenderInput = {
+  candidate: CandidateResponse;
+  institution: InstitutionSettingsResponse | null;
 };
 
 export type CandidatePenaltyPointsCertificateRenderInput = {
@@ -70,7 +77,9 @@ export type CandidateContractRenderPdfRequest = {
 
 export type CandidateContractTemplateKey =
   | "registration-contract"
+  | "registration-contract-blank-fee"
   | "application-form"
+  | "free-candidate-form"
   | "penalty-points-certificate"
   | "signature-sample"
   | "k-certificate"
@@ -146,8 +155,8 @@ function candidatePdfFileName(candidate: CandidateResponse, suffix: string): str
   return `${slug || "kursiyer"}-${suffix}.pdf`;
 }
 
-function contractFileName(candidate: CandidateResponse): string {
-  return candidatePdfFileName(candidate, "kayit-sozlesmesi");
+function contractFileName(candidate: CandidateResponse, blankFee = false): string {
+  return candidatePdfFileName(candidate, blankFee ? "kayit-sozlesmesi-ucret-bos" : "kayit-sozlesmesi");
 }
 
 function signatureSampleFileName(candidate: CandidateResponse): string {
@@ -156,6 +165,10 @@ function signatureSampleFileName(candidate: CandidateResponse): string {
 
 function applicationFormFileName(candidate: CandidateResponse): string {
   return candidatePdfFileName(candidate, "muracaat-formu");
+}
+
+function freeCandidateFormFileName(candidate: CandidateResponse): string {
+  return candidatePdfFileName(candidate, "ucretsiz-kursiyer-formu");
 }
 
 function penaltyPointsCertificateFileName(candidate: CandidateResponse): string {
@@ -215,6 +228,7 @@ export function buildCandidateContractRenderPdfRequest({
   practiceFeeRow,
   institution,
   managerName,
+  templateKey = "registration-contract",
 }: CandidateContractDocumentInput): CandidateContractRenderPdfRequest {
   const total = contractTotal(theoryFeeRow, practiceFeeRow);
   const practiceHours = practiceFeeRow?.lessonHours ?? null;
@@ -228,17 +242,26 @@ export function buildCandidateContractRenderPdfRequest({
     candidate.hasExistingLicense === true || hasExistingLicenseValue(candidate.existingLicenseType)
       ? candidate.existingLicenseType
       : null;
+  const fullName = [candidate.firstName, candidate.lastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
 
   return {
-    fileName: contractFileName(candidate),
-    templateKey: "registration-contract",
+    fileName: contractFileName(candidate, templateKey === "registration-contract-blank-fee"),
+    templateKey,
     values: {
       kursiyeradi: clean(candidate.firstName),
       kursiyersoyadi: clean(candidate.lastName),
+      adayadisoyadi: clean(fullName),
       kursiyertckimlikno: clean(candidate.nationalId),
+      adaytc: clean(candidate.nationalId),
       kursiyeradresi: clean(candidate.address),
+      adayadresi: clean(candidate.address),
       kursiyertelefon1: formatPhoneDisplay(firstPhone(candidate), emptyValue),
+      adaytelefon1: formatPhoneDisplay(firstPhone(candidate), emptyValue),
       kursiyertelefon2: formatPhoneDisplay(secondPhone(candidate), emptyValue),
+      adaytelefon2: formatPhoneDisplay(secondPhone(candidate), emptyValue),
       ehliyettipi: clean(candidate.licenseClass),
       mevcutehliyettipi: clean(existingLicense),
       kurumresmiadi: clean(institutionName),
@@ -247,6 +270,8 @@ export function buildCandidateContractRenderPdfRequest({
       kurumadresi: clean(institution?.institutionAddress),
       kurumtelefon: formatPhoneDisplay(institution?.institutionPhone, emptyValue),
       kurummudur: clean(managerName),
+      kurummuduru: clean(managerName),
+      kurummuduruimza: blankValue,
       kurumbankaadi: clean(institution?.bankName),
       kurumiban: clean(institution?.iban),
       sozlesmetoplam: formatMoney(total),
@@ -341,6 +366,26 @@ export function buildCandidateApplicationFormRenderPdfRequest({
       mevcutehliyetipiverilistarihi: formatDateTR(existingLicenseIssuedAt),
       mevcutehliyettipiverildigiyer: clean(existingLicenseIssuedProvince),
       tarih: formatDateTR(new Date().toISOString()),
+    },
+  };
+}
+
+export function buildCandidateFreeCandidateFormRenderPdfRequest({
+  candidate,
+  institution,
+}: CandidateFreeCandidateFormRenderInput): CandidateContractRenderPdfRequest {
+  const fullName = [candidate.firstName, candidate.lastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    fileName: freeCandidateFormFileName(candidate),
+    templateKey: "free-candidate-form",
+    values: {
+      adayadisoyadi: clean(fullName),
+      adaytc: clean(candidate.nationalId),
+      kurumresmiadi: clean(institution?.institutionOfficialName ?? institution?.institutionName),
     },
   };
 }
@@ -445,11 +490,14 @@ export function buildCandidateKCertificateRenderPdfRequest({
       adayno: clean(candidate.nationalId),
       aracturu: clean(vehicleTypeLabel),
       belgeno: clean(certificate.documentNumber),
+      kbelgesibelgeno: clean(certificate.documentNumber),
+      tcno: clean(certificate.documentNumber),
       guzergah: clean(routeName),
       kbelgesibaslangictarihi: formatDateTR(certificate.startDate),
       kbelgesibitistarihi: formatDateTR(certificate.expiryDate),
       kursresmiadi: clean(institutionName),
       kursmuduru: clean(managerName),
+      kurummuduru: clean(managerName),
       kursil: clean(institution?.city),
       kursilce: clean(institution?.district),
       kursadresi: clean(institution?.institutionAddress),
@@ -462,6 +510,7 @@ export function buildCandidateKCertificateRenderPdfRequest({
       kursiyerdogumyeri: clean(candidate.birthPlace),
       kursiyerdogumtarihi: formatDateTR(candidate.birthDate),
       kursiyeradresi: clean(candidate.address),
+      kursiyertelefon: formatPhoneDisplay(firstPhone(candidate), emptyValue),
       kursiyerbiyometrikfotograf: "",
       kursiyerfoto: "",
       ustaogreticikimlikno: clean(instructor?.nationalId),

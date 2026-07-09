@@ -151,6 +151,7 @@ import { toTurkishUpperCase } from "../lib/text-format";
 import {
   buildCandidateApplicationFormRenderPdfRequest,
   buildCandidateDrivingTrackingListRenderPdfRequest,
+  buildCandidateFreeCandidateFormRenderPdfRequest,
   buildCandidateKCertificateRenderPdfRequest,
   buildCandidatePenaltyPointsCertificateRenderPdfRequest,
   buildCandidateContractRenderPdfRequest,
@@ -295,6 +296,7 @@ type HeroDocumentKey = (typeof HERO_DOCUMENT_KEYS)[number];
 const CANDIDATE_PRINT_FORM_OPTIONS = [
   "Müracaat formu",
   "Kayıt sözleşmesi",
+  "Kayıt sözleşmesi (Ucret Bos)",
   "İmza örneği",
   "Ücretsiz kursiyer formu",
   "Direksiyon takip çizelgesi",
@@ -1150,6 +1152,38 @@ function CandidateHero({
       return;
     }
 
+    if (label === "Ücretsiz kursiyer formu") {
+      setPrintFormsOpen(false);
+      setContractGenerating(true);
+      const printWindow = openCandidateContractPrintWindow("Ücretsiz Kursiyer Formu");
+      if (!printWindow) {
+        setContractGenerating(false);
+        showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+        return;
+      }
+
+      try {
+        const institution = institutionSettingsQuery.data
+          ? institutionSettingsQuery.data
+          : await institutionSettingsQuery.refetch().then((result) => result.data ?? null);
+        const request = buildCandidateFreeCandidateFormRenderPdfRequest({
+          candidate,
+          institution,
+        });
+        const blob = await renderCandidateContractPdf(request);
+        printCandidateContractPdf(printWindow, blob);
+      } catch (error) {
+        printWindow.close();
+        const message = error instanceof Error
+          ? error.message
+          : "Ücretsiz kursiyer formu hazırlanamadı.";
+        showToast(message, "error");
+      } finally {
+        setContractGenerating(false);
+      }
+      return;
+    }
+
     if (label === "100 ceza puanı belgesi") {
       setPrintFormsOpen(false);
       setContractGenerating(true);
@@ -1286,7 +1320,7 @@ function CandidateHero({
       return;
     }
 
-    if (label !== "Kayıt sözleşmesi" && label !== "İmza örneği") return;
+    if (label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ucret Bos)" && label !== "İmza örneği") return;
     setPrintFormsOpen(false);
 
     if (label === "İmza örneği") {
@@ -1347,7 +1381,8 @@ function CandidateHero({
       : null;
 
     setContractGenerating(true);
-    const printWindow = openCandidateContractPrintWindow("Kursiyer Kayıt Sözleşmesi");
+    const isBlankFeeContract = label === "Kayıt sözleşmesi (Ucret Bos)";
+    const printWindow = openCandidateContractPrintWindow(isBlankFeeContract ? "Kursiyer Kayıt Sözleşmesi (Ücret Boş)" : "Kursiyer Kayıt Sözleşmesi");
     if (!printWindow) {
       setContractGenerating(false);
       showToast("Yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
@@ -1363,6 +1398,7 @@ function CandidateHero({
         practiceFeeRow,
         institution: institutionSettingsQuery.data ?? null,
         managerName,
+        templateKey: isBlankFeeContract ? "registration-contract-blank-fee" : "registration-contract",
       });
       const blob = await renderCandidateContractPdf(request);
       printCandidateContractPdf(printWindow, blob);
@@ -1436,11 +1472,13 @@ function CandidateHero({
                           ? kCertificatePrintLoading || !latestValidKCertificate
                           : label === "Müracaat formu"
                           ? false
+                          : label === "Ücretsiz kursiyer formu"
+                          ? false
                           : label === "100 ceza puanı belgesi"
                           ? false
                           : label === "Direksiyon takip çizelgesi"
                           ? false
-                          : label !== "Kayıt sözleşmesi" && label !== "İmza örneği")
+                          : label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ucret Bos)" && label !== "İmza örneği")
                       }
                       key={label}
                       onClick={() => void handlePrintForm(label)}
@@ -6744,8 +6782,11 @@ function printAccountingReceipt({
 
   const escape = escapePaymentPlanPrintHtml;
   const isNarrow = profile.id === "thermal-58";
+  const isTwoUp = profile.copyCount === 2;
   const pageSize = profile.id === "a4"
     ? "A4 portrait"
+    : profile.id === "a4-landscape-2up"
+      ? "A4 landscape"
     : `${profile.paperWidthMm}mm ${profile.pageHeightMm}mm`;
   const balanceRowsHtml = balanceRows.length > 0
     ? balanceRows.map((row) => `<div><span>${escape(row.dueDate)}</span><strong>${escape(row.amount)}</strong></div>`).join("")
@@ -6753,6 +6794,45 @@ function printAccountingReceipt({
   const logoHtml = logoUrl
     ? `<img alt="" class="logo" src="${escape(logoUrl)}" />`
     : "";
+  const receiptHtml = `<div class="receipt">
+    <h1>${escape(title)}</h1>
+    <div class="head">
+      <div class="brand">
+        ${logoHtml}
+        <strong>${escape(brand)}</strong>
+      </div>
+    </div>
+    <div class="section-title">${escape(candidateLabel)}</div>
+    <dl>
+      <div><dt>Adı Soyadı</dt><dd>${escape(candidateName)}</dd></div>
+      <div><dt>${escape(nationalIdLabel)}</dt><dd>${escape(nationalId)}</dd></div>
+    </dl>
+    <div class="section-title">Ödeme Bilgileri</div>
+    <dl>
+      <div><dt>Borç Türü</dt><dd>${escape(debtTypeLabel)}</dd></div>
+      <div><dt>${escape(dueDateLabel)}</dt><dd>${escape(dueDate)}</dd></div>
+      <div><dt>${escape(receiptNumberLabel)}</dt><dd>${escape(receiptNumber)}</dd></div>
+      <div><dt>${escape(paidDateLabel)}</dt><dd>${escape(paidDate)}</dd></div>
+      <div><dt>${escape(paidTimeLabel)}</dt><dd>${escape(paidTime)}</dd></div>
+      <div><dt>${escape(methodLabel)}</dt><dd>${escape(method)}</dd></div>
+      <div class="collection"><dt>Tahsilat</dt><dd>${escape(amount)}</dd></div>
+    </dl>
+    <div class="section-title">${escape(collectorLabel)}</div>
+    <dl>
+      <div><dt>Adı Soyadı</dt><dd>${escape(collectorName)}</dd></div>
+      <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
+    </dl>
+    <div class="section-title">${escape(payerLabel)}</div>
+    <dl>
+      <div><dt>Adı Soyadı</dt><dd>&nbsp;</dd></div>
+      <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
+    </dl>
+    <div class="section-title">${escape(remainingBalanceLabel)}</div>
+    <div class="balance">${balanceRowsHtml}</div>
+    <div class="balance-total"><span>${escape(totalLabel)}</span><strong>${escape(totalDebt)}</strong></div>
+    <div class="thanks">Teşekkür Ederiz.</div>
+  </div>`;
+  const receiptsHtml = Array.from({ length: profile.copyCount ?? 1 }, () => receiptHtml).join("");
   printWindow.document.write(`<!doctype html>
     <html lang="tr">
       <head>
@@ -6764,8 +6844,9 @@ function printAccountingReceipt({
             margin: ${profile.marginTopMm}mm ${profile.marginRightMm}mm ${profile.marginBottomMm}mm ${profile.marginLeftMm}mm;
           }
           * { box-sizing: border-box; }
-          html, body { width: ${profile.printWidthMm}mm; }
+          html, body { width: ${isTwoUp ? "100%" : `${profile.printWidthMm}mm`}; }
           body { color: #1a1a2e; font-family: Arial, sans-serif; margin: 0; }
+          .sheet { ${isTwoUp ? `display: grid; grid-template-columns: repeat(2, ${profile.printWidthMm}mm); gap: 8mm; justify-content: center; align-items: start; width: 100%;` : "display: block;"} }
           .receipt { display: flex; flex-direction: column; gap: ${isNarrow ? 5 : 8}px; width: ${profile.printWidthMm}mm; }
           h1 { font-size: ${isNarrow ? 12 : 16}px; margin: 0; text-align: center; }
           .head { display: grid; gap: 2px; padding-bottom: ${isNarrow ? 2 : 3}px; text-align: center; }
@@ -6791,44 +6872,7 @@ function printAccountingReceipt({
         </style>
       </head>
       <body>
-        <div class="receipt">
-          <h1>${escape(title)}</h1>
-          <div class="head">
-            <div class="brand">
-              ${logoHtml}
-              <strong>${escape(brand)}</strong>
-            </div>
-          </div>
-          <div class="section-title">${escape(candidateLabel)}</div>
-          <dl>
-            <div><dt>Adı Soyadı</dt><dd>${escape(candidateName)}</dd></div>
-            <div><dt>${escape(nationalIdLabel)}</dt><dd>${escape(nationalId)}</dd></div>
-          </dl>
-          <div class="section-title">Ödeme Bilgileri</div>
-          <dl>
-            <div><dt>Borç Türü</dt><dd>${escape(debtTypeLabel)}</dd></div>
-            <div><dt>${escape(dueDateLabel)}</dt><dd>${escape(dueDate)}</dd></div>
-            <div><dt>${escape(receiptNumberLabel)}</dt><dd>${escape(receiptNumber)}</dd></div>
-            <div><dt>${escape(paidDateLabel)}</dt><dd>${escape(paidDate)}</dd></div>
-            <div><dt>${escape(paidTimeLabel)}</dt><dd>${escape(paidTime)}</dd></div>
-            <div><dt>${escape(methodLabel)}</dt><dd>${escape(method)}</dd></div>
-            <div class="collection"><dt>Tahsilat</dt><dd>${escape(amount)}</dd></div>
-          </dl>
-          <div class="section-title">${escape(collectorLabel)}</div>
-          <dl>
-            <div><dt>Adı Soyadı</dt><dd>${escape(collectorName)}</dd></div>
-            <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
-          </dl>
-          <div class="section-title">${escape(payerLabel)}</div>
-          <dl>
-            <div><dt>Adı Soyadı</dt><dd>&nbsp;</dd></div>
-            <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
-          </dl>
-          <div class="section-title">${escape(remainingBalanceLabel)}</div>
-          <div class="balance">${balanceRowsHtml}</div>
-          <div class="balance-total"><span>${escape(totalLabel)}</span><strong>${escape(totalDebt)}</strong></div>
-          <div class="thanks">Teşekkür Ederiz.</div>
-        </div>
+        <div class="sheet">${receiptsHtml}</div>
         <script>
           window.addEventListener("load", () => {
             window.focus();
@@ -6842,8 +6886,9 @@ function printAccountingReceipt({
 }
 
 type ReceiptPrintProfile = {
-  id: "thermal-58" | "thermal-80" | "a4";
+  id: "thermal-58" | "thermal-80" | "a4" | "a4-landscape-2up";
   label: string;
+  copyCount?: number;
   marginBottomMm: number;
   marginLeftMm: number;
   marginRightMm: number;
@@ -6864,6 +6909,18 @@ const RECEIPT_PRINT_PROFILES: ReceiptPrintProfile[] = [
     marginTopMm: 20,
     marginBottomMm: 20,
     pageHeightMm: 297,
+  },
+  {
+    id: "a4-landscape-2up",
+    label: "A4 Yatay (2 Makbuz)",
+    paperWidthMm: 297,
+    printWidthMm: 130,
+    copyCount: 2,
+    marginLeftMm: 10,
+    marginRightMm: 10,
+    marginTopMm: 10,
+    marginBottomMm: 10,
+    pageHeightMm: 210,
   },
   {
     id: "thermal-58",
@@ -6992,6 +7049,8 @@ function AccountingReceiptModal({
                     <small>
                       {profile.id === "a4"
                         ? "A4 sayfa · 120 mm makbuz"
+                        : profile.id === "a4-landscape-2up"
+                          ? "A4 yatay · yan yana 2 makbuz"
                         : `${profile.paperWidthMm} mm kağıt · ${profile.printWidthMm} mm baskı`}
                     </small>
                   </button>
