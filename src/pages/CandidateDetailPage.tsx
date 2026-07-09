@@ -71,7 +71,7 @@ import {
 import { getCashRegisters } from "../lib/cash-registers-api";
 import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
-import { getInstitutionSettings } from "../lib/institution-settings-api";
+import { getInstitutionLogoObjectUrl, getInstitutionSettings } from "../lib/institution-settings-api";
 import { getInstructor, getInstructors } from "../lib/instructors-api";
 import { getGroupById, getGroups } from "../lib/groups-api";
 import { getTrainingBranchDefinitions } from "../lib/training-branch-definitions-api";
@@ -4504,6 +4504,12 @@ function AccountingTab({
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const handledAccountingQueryRef = useRef("");
+  const institutionSettingsQuery = useQuery({
+    queryKey: ["settings", "institution-settings"],
+    queryFn: ({ signal }) => getInstitutionSettings(signal),
+    staleTime: 5 * 60 * 1000,
+  });
+  const [receiptLogoUrl, setReceiptLogoUrl] = useState<string | null>(null);
   const [cashRegisters, setCashRegisters] = useState<CashRegisterResponse[]>([]);
   const [debtModal, setDebtModal] = useState<{
     open: boolean;
@@ -4586,6 +4592,34 @@ function AccountingTab({
   const [refundNote, setRefundNote] = useState("");
   const [sectionSummaryOpen, setSectionSummaryOpen] = useState(false);
   const [feeSuggestionsOpen, setFeeSuggestionsOpen] = useState(false);
+
+  useEffect(() => {
+    const logo = institutionSettingsQuery.data?.logo ?? null;
+    if (!logo) {
+      setReceiptLogoUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+    getInstitutionLogoObjectUrl(
+      logo,
+      institutionSettingsQuery.data?.updatedAtUtc ?? institutionSettingsQuery.data?.rowVersion?.toString(),
+      controller.signal
+    )
+      .then((url) => {
+        objectUrl = url;
+        setReceiptLogoUrl(url);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setReceiptLogoUrl(null);
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [institutionSettingsQuery.data?.logo, institutionSettingsQuery.data?.rowVersion, institutionSettingsQuery.data?.updatedAtUtc]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -5567,8 +5601,10 @@ function AccountingTab({
       </Modal>
 
       <AccountingReceiptModal
+        accounting={accounting}
         candidate={candidate}
         institutionName={activeInstitution?.name ?? null}
+        institutionLogoUrl={receiptLogoUrl}
         onClose={() => setReceiptPayment(null)}
         payment={receiptPayment}
       />
@@ -6645,42 +6681,62 @@ function renderAccountingRefundCell({
 }
 
 function printAccountingReceipt({
+  balanceRows,
   amount,
   brand,
   candidateLabel,
   candidateName,
   collectorLabel,
+  collectorName,
+  debtTypeLabel,
+  dueDate,
+  dueDateLabel,
+  logoUrl,
   method,
   methodLabel,
   nationalId,
   nationalIdLabel,
-  paidAt,
-  paidAtLabel,
+  paidDate,
+  paidDateLabel,
+  paidTime,
+  paidTimeLabel,
+  payerLabel,
   receiptNumber,
   receiptNumberLabel,
+  remainingBalanceLabel,
   signatureLabel,
   title,
-  type,
-  typeLabel,
+  totalDebt,
+  totalLabel,
   profile,
 }: {
+  balanceRows: Array<{ dueDate: string; amount: string }>;
   amount: string;
   brand: string;
   candidateLabel: string;
   candidateName: string;
   collectorLabel: string;
+  collectorName: string;
+  debtTypeLabel: string;
+  dueDate: string;
+  dueDateLabel: string;
+  logoUrl: string | null;
   method: string;
   methodLabel: string;
   nationalId: string;
   nationalIdLabel: string;
-  paidAt: string;
-  paidAtLabel: string;
+  paidDate: string;
+  paidDateLabel: string;
+  paidTime: string;
+  paidTimeLabel: string;
+  payerLabel: string;
   receiptNumber: string;
   receiptNumberLabel: string;
+  remainingBalanceLabel: string;
   signatureLabel: string;
   title: string;
-  type: string;
-  typeLabel: string;
+  totalDebt: string;
+  totalLabel: string;
   profile: ReceiptPrintProfile;
 }): boolean {
   const printWindow = window.open("", "_blank");
@@ -6691,6 +6747,12 @@ function printAccountingReceipt({
   const pageSize = profile.id === "a4"
     ? "A4 portrait"
     : `${profile.paperWidthMm}mm ${profile.pageHeightMm}mm`;
+  const balanceRowsHtml = balanceRows.length > 0
+    ? balanceRows.map((row) => `<div><span>${escape(row.dueDate)}</span><strong>${escape(row.amount)}</strong></div>`).join("")
+    : `<div><span>—</span><strong>—</strong></div>`;
+  const logoHtml = logoUrl
+    ? `<img alt="" class="logo" src="${escape(logoUrl)}" />`
+    : "";
   printWindow.document.write(`<!doctype html>
     <html lang="tr">
       <head>
@@ -6703,43 +6765,69 @@ function printAccountingReceipt({
           }
           * { box-sizing: border-box; }
           html, body { width: ${profile.printWidthMm}mm; }
-          body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
-          .receipt { display: flex; flex-direction: column; gap: ${isNarrow ? 8 : 12}px; width: ${profile.printWidthMm}mm; }
-          .head { border-bottom: 1px solid #d1d5db; display: grid; gap: 4px; padding-bottom: ${isNarrow ? 8 : 10}px; }
-          .brand { display: grid; gap: 2px; }
-          .brand strong { font-size: ${isNarrow ? 12 : 15}px; line-height: 1.2; }
-          .brand span, .number, dt, .footer span { color: #4b5563; font-size: ${isNarrow ? 8 : 10}px; }
-          .number { font-weight: 700; white-space: nowrap; }
-          .amount { border: 1px solid #86efac; border-radius: 6px; color: #166534; font-size: ${isNarrow ? 18 : 24}px; font-weight: 800; padding: ${isNarrow ? 8 : 10}px; text-align: center; }
-          dl { display: grid; gap: ${isNarrow ? 7 : 10}px; grid-template-columns: ${isNarrow ? "1fr" : "repeat(2, minmax(0, 1fr))"}; margin: 0; }
+          body { color: #1a1a2e; font-family: Arial, sans-serif; margin: 0; }
+          .receipt { display: flex; flex-direction: column; gap: ${isNarrow ? 5 : 8}px; width: ${profile.printWidthMm}mm; }
+          h1 { font-size: ${isNarrow ? 12 : 16}px; margin: 0; text-align: center; }
+          .head { display: grid; gap: 2px; padding-bottom: ${isNarrow ? 2 : 3}px; text-align: center; }
+          .brand { display: grid; gap: 2px; justify-items: center; }
+          .logo { display: block; max-height: ${isNarrow ? 22 : 30}px; max-width: ${isNarrow ? 34 : 46}mm; object-fit: contain; }
+          .brand strong { font-size: ${isNarrow ? 11 : 14}px; line-height: 1.15; }
+          .brand span, .number, dt { color: #C91683; font-size: ${isNarrow ? 7 : 9}px; }
+          .number { font-weight: 800; white-space: nowrap; }
+          dl { display: grid; gap: ${isNarrow ? 4 : 6}px; grid-template-columns: ${isNarrow ? "1fr" : "repeat(2, minmax(0, 1fr))"}; margin: 0; }
+          dl .collection { background: #FFF4FB; border: 1px solid #FBC4E7; border-radius: 6px; padding: ${isNarrow ? 4 : 5}px; }
+          dl .collection dd { font-weight: 800; }
           dt { letter-spacing: .04em; text-transform: uppercase; }
-          dd { font-size: ${isNarrow ? 10 : 12}px; font-weight: 700; margin: 2px 0 0; overflow-wrap: anywhere; }
-          .footer { display: grid; gap: ${isNarrow ? 12 : 18}px; grid-template-columns: 1fr 1fr; padding-top: ${isNarrow ? 20 : 28}px; }
-          .footer span { border-top: 1px solid #d1d5db; padding-top: 8px; }
+          dd { font-size: ${isNarrow ? 9 : 11}px; font-weight: 700; margin: 1px 0 0; overflow-wrap: anywhere; }
+          .section-title { align-items: center; color: #C91683; display: flex; font-size: ${isNarrow ? 7 : 9}px; font-weight: 800; gap: 6px; letter-spacing: .02em; text-transform: uppercase; }
+          .section-title::before, .section-title::after { background: #FBC4E7; content: ""; flex: 1; height: 1px; }
+          .balance { display: grid; gap: 0; }
+          .balance div { border-bottom: 1px solid #e5e7eb; display: grid; grid-template-columns: 1fr 1fr; min-height: ${isNarrow ? 14 : 18}px; }
+          .balance span, .balance strong { align-items: center; display: flex; font-size: ${isNarrow ? 8 : 10}px; padding: 2px 5px; }
+          .balance strong { justify-content: flex-end; }
+          .balance-total { background: #FFF4FB; border: 1px solid #FBC4E7; border-radius: 6px; color: #1a1a2e; display: grid; font-weight: 800; grid-template-columns: 1fr 1fr; margin-top: 3px; overflow: hidden; }
+          .balance-total span, .balance-total strong { padding: ${isNarrow ? 4 : 5}px; }
+          .thanks { border-top: 1px dashed #FBC4E7; color: #C91683; font-size: ${isNarrow ? 9 : 11}px; font-weight: 800; padding-top: 5px; text-align: center; }
         </style>
       </head>
       <body>
         <div class="receipt">
+          <h1>${escape(title)}</h1>
           <div class="head">
             <div class="brand">
+              ${logoHtml}
               <strong>${escape(brand)}</strong>
-              <span>${escape(title)}</span>
             </div>
-            <div class="number">#${escape(receiptNumber)}</div>
           </div>
-          <div class="amount">${escape(amount)}</div>
+          <div class="section-title">${escape(candidateLabel)}</div>
           <dl>
-            <div><dt>${escape(receiptNumberLabel)}</dt><dd>${escape(receiptNumber)}</dd></div>
-            <div><dt>${escape(candidateLabel)}</dt><dd>${escape(candidateName)}</dd></div>
+            <div><dt>Adı Soyadı</dt><dd>${escape(candidateName)}</dd></div>
             <div><dt>${escape(nationalIdLabel)}</dt><dd>${escape(nationalId)}</dd></div>
-            <div><dt>${escape(typeLabel)}</dt><dd>${escape(type)}</dd></div>
-            <div><dt>${escape(paidAtLabel)}</dt><dd>${escape(paidAt)}</dd></div>
-            <div><dt>${escape(methodLabel)}</dt><dd>${escape(method)}</dd></div>
           </dl>
-          <div class="footer">
-            <span>${escape(collectorLabel)}</span>
-            <span>${escape(signatureLabel)}</span>
-          </div>
+          <div class="section-title">Ödeme Bilgileri</div>
+          <dl>
+            <div><dt>Borç Türü</dt><dd>${escape(debtTypeLabel)}</dd></div>
+            <div><dt>${escape(dueDateLabel)}</dt><dd>${escape(dueDate)}</dd></div>
+            <div><dt>${escape(receiptNumberLabel)}</dt><dd>${escape(receiptNumber)}</dd></div>
+            <div><dt>${escape(paidDateLabel)}</dt><dd>${escape(paidDate)}</dd></div>
+            <div><dt>${escape(paidTimeLabel)}</dt><dd>${escape(paidTime)}</dd></div>
+            <div><dt>${escape(methodLabel)}</dt><dd>${escape(method)}</dd></div>
+            <div class="collection"><dt>Tahsilat</dt><dd>${escape(amount)}</dd></div>
+          </dl>
+          <div class="section-title">${escape(collectorLabel)}</div>
+          <dl>
+            <div><dt>Adı Soyadı</dt><dd>${escape(collectorName)}</dd></div>
+            <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
+          </dl>
+          <div class="section-title">${escape(payerLabel)}</div>
+          <dl>
+            <div><dt>Adı Soyadı</dt><dd>&nbsp;</dd></div>
+            <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
+          </dl>
+          <div class="section-title">${escape(remainingBalanceLabel)}</div>
+          <div class="balance">${balanceRowsHtml}</div>
+          <div class="balance-total"><span>${escape(totalLabel)}</span><strong>${escape(totalDebt)}</strong></div>
+          <div class="thanks">Teşekkür Ederiz.</div>
         </div>
         <script>
           window.addEventListener("load", () => {
@@ -6786,7 +6874,7 @@ const RECEIPT_PRINT_PROFILES: ReceiptPrintProfile[] = [
     marginRightMm: 5,
     marginTopMm: 3,
     marginBottomMm: 3,
-    pageHeightMm: 140,
+    pageHeightMm: 220,
   },
   {
     id: "thermal-80",
@@ -6797,18 +6885,22 @@ const RECEIPT_PRINT_PROFILES: ReceiptPrintProfile[] = [
     marginRightMm: 4,
     marginTopMm: 3,
     marginBottomMm: 3,
-    pageHeightMm: 140,
+    pageHeightMm: 220,
   },
 ];
 
 function AccountingReceiptModal({
+  accounting,
   candidate,
   institutionName,
+  institutionLogoUrl,
   payment,
   onClose,
 }: {
+  accounting: CandidateAccountingSummaryResponse | null;
   candidate: CandidateResponse;
   institutionName: string | null;
+  institutionLogoUrl: string | null;
   payment: CandidateAccountingSummaryResponse["payments"][number] | null;
   onClose: () => void;
 }) {
@@ -6818,26 +6910,53 @@ function AccountingReceiptModal({
   if (!payment) return null;
   const receiptNumber = payment.number?.trim() || payment.id.slice(0, 8).toLocaleUpperCase("tr-TR");
   const receiptBrand = institutionName?.trim() || t("candidateDetail.accounting.receipt.brand");
+  const paymentDateTime = financeDateTimeParts(payment.paidAtUtc);
+  const movementById = new Map((accounting?.movements ?? []).map((movement) => [movement.id, movement]));
+  const allocatedMovements = payment.allocations
+    .map((allocation) => movementById.get(allocation.movementId))
+    .filter((movement): movement is CandidateAccountingSummaryResponse["movements"][number] => Boolean(movement));
+  const primaryMovement = allocatedMovements[0] ?? accounting?.movements.find((movement) => movement.type === payment.type) ?? null;
+  const remainingMovements = (accounting?.movements ?? [])
+    .filter((movement) => movement.status !== "cancelled" && movement.remainingAmount > 0)
+    .sort((left, right) => left.dueDate.localeCompare(right.dueDate))
+    .slice(0, 3);
+  const balanceRows = remainingMovements.map((movement) => ({
+    dueDate: formatDateTR(movement.dueDate),
+    amount: formatCurrencyTRY(movement.remainingAmount),
+  }));
+  const totalDebt = formatCurrencyTRY(accounting?.totalDebtAmount ?? accounting?.totalMovementAmount ?? payment.amount);
+  const collectorName = payment.createdByName?.trim() || "—";
+  const debtTypeLabel = t(accountingTypeLabelKey(payment.type));
   const printReceipt = (profile: ReceiptPrintProfile) => {
     setPrintMenuOpen(false);
     const opened = printAccountingReceipt({
+      balanceRows,
       amount: formatCurrencyTRY(payment.amount),
       brand: receiptBrand,
       candidateLabel: t("common.field.candidate"),
       candidateName: `${candidate.firstName} ${candidate.lastName}`.trim(),
       collectorLabel: t("candidateDetail.accounting.receipt.collector"),
+      collectorName,
+      debtTypeLabel,
+      dueDate: primaryMovement ? formatDateTR(primaryMovement.dueDate) : "—",
+      dueDateLabel: t("candidateDetail.accounting.col.dueDate"),
+      logoUrl: institutionLogoUrl,
       method: t(paymentMethodLabelKey(payment.paymentMethod)),
       methodLabel: t("candidateDetail.accounting.field.method"),
       nationalId: formatNationalId(candidate.nationalId),
       nationalIdLabel: t("common.field.nationalId"),
-      paidAt: formatDateTimeTR(payment.paidAtUtc),
-      paidAtLabel: t("candidateDetail.accounting.field.paymentDate"),
+      paidDate: paymentDateTime?.date ?? "—",
+      paidDateLabel: t("candidateDetail.accounting.field.paymentDate"),
+      paidTime: paymentDateTime?.time ?? "—",
+      paidTimeLabel: "Ödeme Saati",
+      payerLabel: "Ödeme Yapan",
       receiptNumber,
       receiptNumberLabel: t("payments.col.receiptNumber"),
+      remainingBalanceLabel: "Kalan Bakiye Bilgileri",
       signatureLabel: t("candidateDetail.accounting.receipt.signature"),
       title: t("candidateDetail.accounting.receipt.title"),
-      type: t(accountingTypeLabelKey(payment.type)),
-      typeLabel: t("candidateDetail.accounting.col.type"),
+      totalDebt,
+      totalLabel: "Toplam",
       profile,
     });
     if (!opened) {
@@ -6887,30 +7006,91 @@ function AccountingReceiptModal({
       title={t("candidateDetail.accounting.receipt.title")}
     >
       <div className="candidate-payment-receipt">
+        <h1 className="candidate-payment-receipt-title">{t("candidateDetail.accounting.receipt.title")}</h1>
         <div className="candidate-payment-receipt-head">
           <div>
+            {institutionLogoUrl ? (
+              <img alt="" className="candidate-payment-receipt-logo" src={institutionLogoUrl} />
+            ) : null}
             <strong>{receiptBrand}</strong>
-            <span>{t("candidateDetail.accounting.receipt.title")}</span>
-          </div>
-          <div className="candidate-payment-receipt-no">
-            #{receiptNumber}
           </div>
         </div>
-        <div className="candidate-payment-receipt-amount">{formatCurrencyTRY(payment.amount)}</div>
-        <dl className="candidate-payment-receipt-grid">
-          <div><dt>{t("payments.col.receiptNumber")}</dt><dd>{receiptNumber}</dd></div>
-          <div><dt>{t("common.field.candidate")}</dt><dd>{candidate.firstName} {candidate.lastName}</dd></div>
-          <div><dt>{t("common.field.nationalId")}</dt><dd>{formatNationalId(candidate.nationalId)}</dd></div>
-          <div><dt>{t("candidateDetail.accounting.col.type")}</dt><dd>{t(accountingTypeLabelKey(payment.type))}</dd></div>
-          <div><dt>{t("candidateDetail.accounting.field.paymentDate")}</dt><dd>{renderFinanceDateTime(payment.paidAtUtc)}</dd></div>
-          <div><dt>{t("candidateDetail.accounting.field.method")}</dt><dd>{t(paymentMethodLabelKey(payment.paymentMethod))}</dd></div>
-        </dl>
-        <div className="candidate-payment-receipt-footer">
-          <span>{t("candidateDetail.accounting.receipt.collector")}</span>
-          <span>{t("candidateDetail.accounting.receipt.signature")}</span>
-        </div>
+        <ReceiptSection title="Kursiyer">
+          <ReceiptRow label="Adı Soyadı" value={`${candidate.firstName} ${candidate.lastName}`.trim()} align="left" />
+          <ReceiptRow label="T.C." value={formatNationalId(candidate.nationalId)} align="left" />
+        </ReceiptSection>
+        <ReceiptSection title="Ödeme Bilgileri">
+          <ReceiptRow label="Borç Türü" value={debtTypeLabel} />
+          <ReceiptRow label="Vade Tarihi" value={primaryMovement ? formatDateTR(primaryMovement.dueDate) : "—"} />
+          <ReceiptRow label="Makbuz No" value={receiptNumber} />
+          <ReceiptRow label="Ödeme Tarihi" value={paymentDateTime?.date ?? "—"} />
+          <ReceiptRow label="Ödeme Saati" value={paymentDateTime?.time ?? "—"} />
+          <ReceiptRow label="Yöntem" value={t(paymentMethodLabelKey(payment.paymentMethod))} />
+          <ReceiptRow label="Tahsilat" value={formatCurrencyTRY(payment.amount)} tone="total" />
+        </ReceiptSection>
+        <ReceiptSection title="Ödeme Alan">
+          <ReceiptRow label="Adı Soyadı" value={collectorName} align="left" />
+          <ReceiptRow label="İmza" value="" signature />
+        </ReceiptSection>
+        <ReceiptSection title="Ödeme Yapan">
+          <ReceiptRow label="Adı Soyadı" value="" align="left" />
+          <ReceiptRow label="İmza" value="" signature />
+        </ReceiptSection>
+        <ReceiptSection title="Kalan Bakiye Bilgileri">
+          {balanceRows.length > 0 ? (
+            balanceRows.map((row, index) => (
+              <ReceiptBalanceRow amount={row.amount} dueDate={row.dueDate} key={`${row.dueDate}-${index}`} />
+            ))
+          ) : (
+            <ReceiptBalanceRow amount="—" dueDate="—" />
+          )}
+          <div className="candidate-payment-receipt-total">
+            <span>Toplam</span>
+            <strong>{totalDebt}</strong>
+          </div>
+        </ReceiptSection>
+        <div className="candidate-payment-receipt-thanks">Teşekkür Ederiz.</div>
       </div>
     </Modal>
+  );
+}
+
+function ReceiptSection({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <section className="candidate-payment-receipt-section">
+      <h2>{title}</h2>
+      <div className="candidate-payment-receipt-rows">{children}</div>
+    </section>
+  );
+}
+
+function ReceiptRow({
+  align = "right",
+  label,
+  signature = false,
+  tone,
+  value,
+}: {
+  align?: "left" | "right";
+  label: string;
+  signature?: boolean;
+  tone?: "total";
+  value: ReactNode;
+}) {
+  return (
+    <div className={`candidate-payment-receipt-row${signature ? " signature" : ""}${tone === "total" ? " total-tone" : ""}`}>
+      <div className="candidate-payment-receipt-label">{label}</div>
+      <div className={`candidate-payment-receipt-value ${align}`}>{value}</div>
+    </div>
+  );
+}
+
+function ReceiptBalanceRow({ amount, dueDate }: { amount: string; dueDate: string }) {
+  return (
+    <div className="candidate-payment-receipt-balance-row">
+      <span>{dueDate}</span>
+      <strong>{amount}</strong>
+    </div>
   );
 }
 

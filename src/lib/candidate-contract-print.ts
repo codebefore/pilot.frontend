@@ -278,6 +278,11 @@ export function buildCandidateContractRenderPdfRequest({
 export function buildCandidateSignatureSampleRenderPdfRequest(
   candidate: CandidateResponse
 ): CandidateContractRenderPdfRequest {
+  const fullName = [candidate.firstName, candidate.lastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+
   return {
     fileName: signatureSampleFileName(candidate),
     templateKey: "signature-sample",
@@ -285,6 +290,8 @@ export function buildCandidateSignatureSampleRenderPdfRequest(
       kursiyeradi: clean(candidate.firstName),
       kursiyersoyadi: clean(candidate.lastName),
       kursiyertckimlikno: clean(candidate.nationalId),
+      adaysadisoyadi: clean(fullName),
+      adaytc: clean(candidate.nationalId),
     },
   };
 }
@@ -300,6 +307,11 @@ export function buildCandidateApplicationFormRenderPdfRequest({
   const existingLicenseType = hasExistingLicense ? candidate.existingLicenseType : null;
   const existingLicenseIssuedAt = hasExistingLicense ? candidate.existingLicenseIssuedAt : null;
   const existingLicenseIssuedProvince = hasExistingLicense ? candidate.existingLicenseIssuedProvince : null;
+  const fullName = [candidate.firstName, candidate.lastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+  const institutionName = institution?.institutionOfficialName ?? institution?.institutionName;
 
   return {
     fileName: applicationFormFileName(candidate),
@@ -312,6 +324,7 @@ export function buildCandidateApplicationFormRenderPdfRequest({
     values: {
       adayadi: clean(candidate.firstName),
       adaysoyadi: clean(candidate.lastName),
+      adayadisoyadi: clean(fullName),
       adaytckimlikno: clean(candidate.nationalId),
       adaytel: formatPhoneDisplay(firstPhone(candidate), emptyValue),
       adayanneadi: clean(candidate.motherName),
@@ -321,7 +334,8 @@ export function buildCandidateApplicationFormRenderPdfRequest({
       adayehliyettipi: clean(candidate.licenseClass),
       adaymevcutehliyettipi: clean(existingLicenseType),
       adaybiyometrikresim: "",
-      kursresmiadi: clean(institution?.institutionOfficialName ?? institution?.institutionName),
+      kursresmiadi: clean(institutionName),
+      kurumresmiadi: clean(institutionName),
       kurummuduru: clean(managerName),
       mevcutehliyettipitarihi: formatDateTR(existingLicenseIssuedAt),
       mevcutehliyetipiverilistarihi: formatDateTR(existingLicenseIssuedAt),
@@ -358,6 +372,7 @@ export function buildCandidatePenaltyPointsCertificateRenderPdfRequest({
       ? {
           biyometrikfoto: biometricPhoto,
           biyometrik: biometricPhoto,
+          adaybiyometrik: biometricPhoto,
         }
       : undefined,
     values: {
@@ -380,9 +395,12 @@ export function buildCandidatePenaltyPointsCertificateRenderPdfRequest({
       ehliyettipi: clean(candidate.licenseClass),
       biyometrikfoto: "",
       biyometrik: "",
+      adaybiyometrik: "",
       kursilce: clean(institution?.district),
+      kurumilce: clean(institution?.district),
       kursresmiadi: clean(institution?.institutionOfficialName ?? institution?.institutionName),
       kurskisaadi: clean(institution?.institutionName),
+      kurumkisaadi: clean(institution?.institutionName),
       kursmuduru: clean(managerName),
       kurummuduru: clean(managerName),
       ilcemilliegitimmuduru: clean(institution?.districtNationalEducationDirector),

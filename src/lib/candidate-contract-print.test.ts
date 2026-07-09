@@ -219,6 +219,8 @@ describe("candidate contract print", () => {
       kursiyeradi: "Ayşe",
       kursiyersoyadi: "Yılmaz",
       kursiyertckimlikno: "12345678901",
+      adaysadisoyadi: "Ayşe Yılmaz",
+      adaytc: "12345678901",
     });
   });
 
@@ -239,6 +241,7 @@ describe("candidate contract print", () => {
     expect(request.templateKey).toBe("application-form");
     expect(request.values.adayadi).toBe("Ayşe");
     expect(request.values.adaysoyadi).toBe("Yılmaz");
+    expect(request.values.adayadisoyadi).toBe("Ayşe Yılmaz");
     expect(request.values.adaytckimlikno).toBe("12345678901");
     expect(request.values.adaytel).toBe("+90 555 111 22 33");
     expect(request.values.adayanneadi).toBe("Fatma");
@@ -250,6 +253,7 @@ describe("candidate contract print", () => {
     expect(request.values.mevcutehliyetipiverilistarihi).toBe("15.06.2020");
     expect(request.values.mevcutehliyettipiverildigiyer).toBe("İstanbul");
     expect(request.values.kursresmiadi).toBe("Pilot Motorlu Taşıt Sürücüleri Kursu");
+    expect(request.values.kurumresmiadi).toBe("Pilot Motorlu Taşıt Sürücüleri Kursu");
     expect(request.values.kurummuduru).toBe("Mehmet Müdür");
     expect(request.values.adaybiyometrikresim).toBe("");
     expect(request.images?.adaybiyometrikresim?.base64).toBe("abc");
@@ -305,6 +309,7 @@ describe("candidate contract print", () => {
     expect(request.values.adaysoyadi).toBe("Yılmaz");
     expect(request.values.adayadsoyad).toBe("Ayşe Yılmaz");
     expect(request.values.tckimlikno).toBe("12345678901");
+    expect(request.values.adaytc).toBe("12345678901");
     expect(request.values["adaytc]"]).toBe("12345678901");
     expect(request.values.anneadi).toBe("Fatma");
     expect(request.values.adayanaadi).toBe("Fatma");
@@ -316,8 +321,10 @@ describe("candidate contract print", () => {
     expect(request.values.adaydogumyili).toBe("1995");
     expect(request.values.ehliyettipi).toBe("100CP");
     expect(request.values.kursilce).toBe("Kadıköy");
+    expect(request.values.kurumilce).toBe("Kadıköy");
     expect(request.values.kursresmiadi).toBe("Pilot Motorlu Taşıt Sürücüleri Kursu");
     expect(request.values.kurskisaadi).toBe("Pilot Kurs");
+    expect(request.values.kurumkisaadi).toBe("Pilot Kurs");
     expect(request.values.kursmuduru).toBe("Mehmet Müdür");
     expect(request.values.kurummuduru).toBe("Mehmet Müdür");
     expect(request.values.ilcemilliegitimmuduru).toBe("İlçe Milli Eğitim Müdürü");
@@ -327,8 +334,10 @@ describe("candidate contract print", () => {
     expect(request.values.grupteorikdersbitis).toBe("04.07.2026");
     expect(request.values.biyometrikfoto).toBe("");
     expect(request.values.biyometrik).toBe("");
+    expect(request.values.adaybiyometrik).toBe("");
     expect(request.images?.biyometrikfoto?.base64).toBe("abc");
     expect(request.images?.biyometrik?.base64).toBe("abc");
+    expect(request.images?.adaybiyometrik?.base64).toBe("abc");
   });
 
   it("builds K certificate request values for the matbu template aliases", () => {
