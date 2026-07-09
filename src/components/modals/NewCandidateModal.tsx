@@ -55,17 +55,15 @@ function isValidTurkishNationalId(value: string) {
 const newCandidateSchema = z.object({
   tc: z
     .string()
-    .min(1, "common.required")
-    .regex(/^\d{11}$/, "newCandidate.error.tcDigits")
-    .refine((v) => isValidTurkishNationalId(v), "newCandidate.error.tcInvalid"),
+    .refine((v) => !v.trim() || /^\d{11}$/.test(v.trim()), "newCandidate.error.tcDigits")
+    .refine((v) => !v.trim() || isValidTurkishNationalId(v), "newCandidate.error.tcInvalid"),
   referenceName: z.string(),
   className: z.string().min(1, "common.required"),
   firstName: z.string().min(1, "common.required").min(2, "common.minChars2"),
   lastName: z.string().min(1, "common.required").min(2, "common.minChars2"),
   phone: z
     .string()
-    .min(1, "common.required")
-    .refine((v) => isPhoneStartingWith5(v), "newCandidate.error.phoneStartWith5"),
+    .refine((v) => !v.trim() || isPhoneStartingWith5(v), "newCandidate.error.phoneStartWith5"),
   hasExistingLicense: z.boolean(),
   existingLicenseType: z.string(),
   existingLicenseIssuedAt: z.string(),
@@ -358,7 +356,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
       const candidate = await createCandidate({
         firstName: data.firstName,
         lastName: data.lastName,
-        nationalId: data.tc,
+        nationalId: data.tc.trim() || null,
         referenceName: data.referenceName.trim() || null,
         phoneNumber: data.phone.trim() || null,
         // Quick registration captures only identity + phone + license class.
@@ -561,7 +559,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label" htmlFor={tcInputId}>{t("common.field.nationalId")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={tcInputId}>{t("common.field.nationalId")}</label>
             <input
               id={tcInputId}
               className={fieldClass(!!errors.tc, "form-input")}
@@ -636,7 +634,7 @@ export function NewCandidateModal({ open, canManage = true, onClose, onSubmit }:
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label" htmlFor={phoneInputId}>{t("common.field.phone")}<RequiredMark /></label>
+            <label className="form-label" htmlFor={phoneInputId}>{t("common.field.phone")}</label>
             <input
               id={phoneInputId}
               className={fieldClass(!!errors.phone, "form-input")}

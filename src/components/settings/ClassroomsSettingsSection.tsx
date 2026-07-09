@@ -6,15 +6,16 @@ import { ClassroomFormModal } from "../modals/ClassroomFormModal";
 import { ColumnPicker } from "../ui/ColumnPicker";
 import { Pagination } from "../ui/Pagination";
 import { SearchInput } from "../ui/SearchInput";
-import { StatusPill } from "../ui/StatusPill";
 import { TableHeaderFilter } from "../ui/TableHeaderFilter";
 import { useToast } from "../ui/Toast";
 import { useAuth } from "../../lib/auth";
+import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
 import { candidateKeys } from "../../lib/queries/use-candidates";
 import {
   getClassrooms,
+  updateClassroomActive,
   type ClassroomActivityFilter,
   type ClassroomSortDirection,
   type ClassroomSortField,
@@ -62,7 +63,13 @@ const DEFAULT_FILTERS: ClassroomFilters = {
 
 function buildColumns(
   t: ReturnType<typeof useT>,
-  branchMetadataById: Map<string, TrainingBranchDefinitionResponse>
+  branchMetadataById: Map<string, TrainingBranchDefinitionResponse>,
+  options: {
+    canManage: boolean;
+    noPermissionTitle: string;
+    savingActiveId: string | null;
+    onActiveToggle: (classroom: ClassroomResponse, nextActive: boolean) => void;
+  }
 ): ClassroomColumnDef[] {
   return [
     {
@@ -116,14 +123,23 @@ function buildColumns(
       labelKey: "settings.classrooms.columns.isActive",
       sortField: "isActive",
       renderCell: (classroom) => (
-        <StatusPill
-          label={
-            classroom.isActive
+        <label
+          className="switch-toggle switch-toggle-sm"
+          title={!options.canManage ? options.noPermissionTitle : undefined}
+        >
+          <input
+            checked={classroom.isActive}
+            disabled={!options.canManage || options.savingActiveId === classroom.id}
+            onChange={(event) => options.onActiveToggle(classroom, event.target.checked)}
+            type="checkbox"
+          />
+          <span className="switch-toggle-control" aria-hidden="true" />
+          <span>
+            {classroom.isActive
               ? t("settings.classrooms.filter.isActive.active")
-              : t("settings.classrooms.filter.isActive.inactive")
-          }
-          status={classroom.isActive ? "success" : "manual"}
-        />
+              : t("settings.classrooms.filter.isActive.inactive")}
+          </span>
+        </label>
       ),
       skeletonWidth: 70,
       skeletonKind: "pill",
@@ -157,6 +173,7 @@ export function ClassroomsSettingsSection() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ClassroomResponse | null>(null);
   const [branches, setBranches] = useState<TrainingBranchDefinitionResponse[]>([]);
+  const [savingActiveId, setSavingActiveId] = useState<string | null>(null);
 
   const branchesQuery = useQuery({
     gcTime: SETTINGS_QUERY_CACHE_MS,
@@ -178,9 +195,6 @@ export function ClassroomsSettingsSection() {
       ),
     [branchesQuery.data]
   );
-
-  const columns = buildColumns(t, branchMetadataById);
-  const visibleColumns = columns.filter((column) => isVisible(column.id));
 
   const listQueryParams = useMemo(
     () => ({
@@ -279,6 +293,51 @@ export function ClassroomsSettingsSection() {
         : t("settings.classrooms.toast.created")
     );
   };
+
+  const refreshClassroomDependents = () => {
+    setRefreshKey((current) => current + 1);
+    void queryClient.invalidateQueries({ queryKey: ["settings", "classrooms"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "lessons"] });
+    void queryClient.invalidateQueries({ queryKey: candidateKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const handleActiveToggle = async (classroom: ClassroomResponse, nextActive: boolean) => {
+    if (!canManageTraining || savingActiveId) return;
+    setSavingActiveId(classroom.id);
+    try {
+      const updated = await updateClassroomActive(classroom.id, {
+        isActive: nextActive,
+        rowVersion: classroom.rowVersion,
+      });
+      setItems((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
+      refreshClassroomDependents();
+      showToast(t("settings.classrooms.toast.updated"));
+    } catch (error) {
+      showToast(
+        error instanceof ApiError && error.status === 409
+          ? t("classroom.validation.concurrencyConflict")
+          : t("classroom.validation.generic"),
+        "error"
+      );
+      refreshClassroomDependents();
+    } finally {
+      setSavingActiveId(null);
+    }
+  };
+
+  const columns = buildColumns(t, branchMetadataById, {
+    canManage: canManageTraining,
+    noPermissionTitle,
+    savingActiveId,
+    onActiveToggle: (classroom, nextActive) => {
+      void handleActiveToggle(classroom, nextActive);
+    },
+  });
+  const visibleColumns = columns.filter((column) => isVisible(column.id));
 
   return (
     <>

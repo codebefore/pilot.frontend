@@ -198,4 +198,21 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("link", { name: /Güzergahlar/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Genel/i })).not.toBeInTheDocument();
   });
+
+  it("hides document type settings from non-super-admin document users", async () => {
+    renderSettingsPage("/settings/definitions/document-types", {
+      user: {
+        id: "document-user",
+        phone: "5000000003",
+        name: "Document User",
+        roleName: "Evrak",
+        isSuperAdmin: false,
+      },
+      permissions: { documents: "full", settings: "view" },
+    });
+
+    expect(await screen.findByText("General Section Mock")).toBeInTheDocument();
+    expect(screen.queryByText("Document Types Section Mock")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Evrak Türleri/i })).not.toBeInTheDocument();
+  });
 });

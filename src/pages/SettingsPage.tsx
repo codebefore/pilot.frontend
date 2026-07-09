@@ -30,6 +30,7 @@ type SettingsNavItem = {
   to?: string;
   badge?: string;
   permissionAreas: readonly string[];
+  superAdminOnly?: boolean;
 };
 
 type SettingsNavGroup = {
@@ -111,6 +112,7 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         descriptionKey: "settings.nav.documentTypes.description",
         to: "/settings/definitions/document-types",
         permissionAreas: ["documentTypes", "documents"],
+        superAdminOnly: true,
       },
       {
         labelKey: "settings.nav.cashRegisters.label",
@@ -171,13 +173,21 @@ export function SettingsPage() {
   const visibleGroups = SETTINGS_NAV_GROUPS
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => canViewAnyArea(user, permissions, item.permissionAreas)),
+      items: group.items.filter(
+        (item) =>
+          (!item.superAdminOnly || user?.isSuperAdmin === true) &&
+          canViewAnyArea(user, permissions, item.permissionAreas)
+      ),
     }))
     .filter((group) => group.items.length > 0);
   const firstVisiblePath = visibleGroups.flatMap((group) => group.items).find((item) => item.to)?.to ?? "/profile";
 
   const requireSettingsPermission = (areas: readonly string[], element: ReactElement) =>
     canViewAnyArea(user, permissions, areas) ? element : <Navigate replace to={firstVisiblePath} />;
+  const requireSuperAdminSettingsPermission = (areas: readonly string[], element: ReactElement) =>
+    user?.isSuperAdmin === true && canViewAnyArea(user, permissions, areas)
+      ? element
+      : <Navigate replace to={firstVisiblePath} />;
 
   return (
     <>
@@ -273,7 +283,7 @@ export function SettingsPage() {
                 path="definitions/fees/*"
               />
               <Route
-                element={requireSettingsPermission(["documentTypes", "documents"], <DocumentTypesPage embedded />)}
+                element={requireSuperAdminSettingsPermission(["documentTypes", "documents"], <DocumentTypesPage embedded />)}
                 path="definitions/document-types"
               />
               <Route

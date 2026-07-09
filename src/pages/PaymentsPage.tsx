@@ -89,7 +89,8 @@ type InvoiceColumnId =
   | "vatRate"
   | "vatAmount"
   | "total"
-  | "notes";
+  | "notes"
+  | "operator";
 type InvoiceSortField = Exclude<InvoiceColumnId, "photo">;
 type InvoiceAnalysisColumnId =
   | "photo"
@@ -107,7 +108,7 @@ type CashSummaryColumnId =
   | "selectedInflow"
   | "selectedOutflow";
 type CashSummarySortField = CashSummaryColumnId;
-type CashMovementColumnId = "cashRegister" | "date" | "description" | "amount";
+type CashMovementColumnId = "cashRegister" | "date" | "description" | "amount" | "operator";
 type CashMovementSortField = CashMovementColumnId;
 type InstallmentColumnId =
   | "photo"
@@ -118,7 +119,8 @@ type InstallmentColumnId =
   | "dueDate"
   | "amount"
   | "remainingAmount"
-  | "description";
+  | "description"
+  | "operator";
 type InstallmentSortField = Exclude<InstallmentColumnId, "photo">;
 type DebtColumnId =
   | "photo"
@@ -129,7 +131,8 @@ type DebtColumnId =
   | "teorikSinav"
   | "direksiyonSinav"
   | "diger"
-  | "total";
+  | "total"
+  | "operator";
 type DebtSortField = Exclude<DebtColumnId, "photo">;
 type PeriodStatsColumnId =
   | "licenseClass"
@@ -265,11 +268,13 @@ const DETAIL_COLUMNS: {
   { id: "receiptNumber", labelKey: "payments.col.receiptNumber", sortable: true },
   { id: "method", labelKey: "payments.col.method", sortable: true, filterable: true },
   { id: "cashRegister", labelKey: "payments.col.cashRegister", sortable: true, filterable: true },
-  { id: "cancelledBy", labelKey: "payments.col.cancelledBy", sortable: true, filterable: true },
   { id: "description", labelKey: "payments.col.description", sortable: true },
+  { id: "cancelledBy", labelKey: "payments.col.cancelledBy", sortable: true, filterable: true },
 ];
 
-const DEFAULT_DETAIL_COLUMNS = DETAIL_COLUMNS.map((column) => column.id);
+const DEFAULT_DETAIL_COLUMNS = DETAIL_COLUMNS
+  .filter((column) => column.id !== "cancelledBy")
+  .map((column) => column.id);
 
 const INVOICE_COLUMNS: {
   id: InvoiceColumnId;
@@ -293,10 +298,11 @@ const INVOICE_COLUMNS: {
   { id: "notes", labelKey: "payments.col.notes", sortable: true },
   { id: "invoiceType", labelKey: "payments.col.invoiceType", sortable: true, filterable: true },
   { id: "invoiceNo", labelKey: "payments.col.invoiceNo", sortable: true },
+  { id: "operator", labelKey: "payments.col.cancelledBy", sortable: true, filterable: true },
 ];
 
 const DEFAULT_INVOICE_COLUMNS = INVOICE_COLUMNS
-  .filter((column) => column.id !== "invoiceType" && column.id !== "invoiceNo")
+  .filter((column) => column.id !== "invoiceType" && column.id !== "invoiceNo" && column.id !== "operator")
   .map((column) => column.id);
 
 const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
@@ -375,6 +381,7 @@ type CashMovementRow = {
   date: string;
   description: string;
   amount: number;
+  operator: string;
 };
 
 const CASH_MOVEMENT_COLUMNS: {
@@ -388,7 +395,12 @@ const CASH_MOVEMENT_COLUMNS: {
   { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
   { id: "date", labelKey: "payments.col.date", sortable: true },
   { id: "description", labelKey: "payments.col.description", sortable: true },
+  { id: "operator", labelKey: "payments.col.cancelledBy", sortable: true, filterable: true },
 ];
+
+const DEFAULT_CASH_MOVEMENT_COLUMNS = CASH_MOVEMENT_COLUMNS
+  .filter((column) => column.id !== "operator")
+  .map((column) => column.id);
 
 const INSTALLMENT_COLUMNS: {
   id: InstallmentColumnId;
@@ -406,7 +418,12 @@ const INSTALLMENT_COLUMNS: {
   { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
   { id: "remainingAmount", labelKey: "payments.col.remainingBalance", sortable: true, numeric: true },
   { id: "description", labelKey: "payments.col.description", sortable: true },
+  { id: "operator", labelKey: "payments.col.cancelledBy", sortable: true, filterable: true },
 ];
+
+const DEFAULT_INSTALLMENT_COLUMNS = INSTALLMENT_COLUMNS
+  .filter((column) => column.id !== "operator")
+  .map((column) => column.id);
 
 type DebtRow = {
   candidate: PaymentCandidateSummaryResponse;
@@ -415,6 +432,7 @@ type DebtRow = {
   direksiyonSinav: number;
   diger: number;
   total: number;
+  operator: string;
 };
 
 const DEBT_COLUMNS: {
@@ -433,7 +451,12 @@ const DEBT_COLUMNS: {
   { id: "direksiyonSinav", labelKey: "payments.col.practiceExamBalance", sortable: true, numeric: true },
   { id: "diger", labelKey: "payments.col.otherBalance", sortable: true, numeric: true },
   { id: "total", labelKey: "payments.col.total", sortable: true, numeric: true },
+  { id: "operator", labelKey: "payments.col.cancelledBy", sortable: true, filterable: true },
 ];
+
+const DEFAULT_DEBT_COLUMNS = DEBT_COLUMNS
+  .filter((column) => column.id !== "operator")
+  .map((column) => column.id);
 
 const PERIOD_STATS_COLUMNS: {
   id: PeriodStatsColumnId;
@@ -669,9 +692,11 @@ function rowCashRegisterLabel(row: PaymentDetailRow, t: ReturnType<typeof useT>)
 }
 
 function rowCancelledByLabel(row: PaymentDetailRow): string {
-  return row.kind === "cancelledDebt"
-    ? row.installment.cancelledByName?.trim() || "-"
-    : "-";
+  if (row.kind === "cancelledDebt") return row.installment.cancelledByName?.trim() || "-";
+  if (row.kind === "cancelled") return row.payment.cancelledByName?.trim() || "-";
+  if (row.kind === "refund") return row.refund.createdByName?.trim() || "-";
+  if (row.kind === "payment") return row.payment.createdByName?.trim() || "-";
+  return "-";
 }
 
 function rowDescription(row: PaymentDetailRow, t: ReturnType<typeof useT>): string {
@@ -805,6 +830,7 @@ function installmentSortValue(
   if (field === "dueDate") return installment.dueDate;
   if (field === "amount") return installment.amount;
   if (field === "remainingAmount") return installment.remainingAmount;
+  if (field === "operator") return installment.createdByName?.trim() || "-";
   return installmentDescription(installment);
 }
 
@@ -822,6 +848,7 @@ function installmentFilterValue(
   if (field === "dueDate") return dateKey(installment.dueDate);
   if (field === "amount") return String(installment.amount);
   if (field === "remainingAmount") return String(installment.remainingAmount);
+  if (field === "operator") return installment.createdByName?.trim() || "-";
   return installmentDescription(installment);
 }
 
@@ -886,6 +913,7 @@ function debtSortValue(
   if (field === "licenseClass") {
     return licenseClassLabel(row.candidate.licenseClass, licenseClassLabelByCode);
   }
+  if (field === "operator") return row.operator;
   return row[field];
 }
 
@@ -899,6 +927,7 @@ function debtFilterValue(
   if (field === "licenseClass") {
     return licenseClassLabel(row.candidate.licenseClass, licenseClassLabelByCode);
   }
+  if (field === "operator") return row.operator;
   return String(row[field]);
 }
 
@@ -990,6 +1019,7 @@ function invoiceSortValue(
   if (field === "vatRate") return invoice.vatRate;
   if (field === "vatAmount") return invoice.vatAmount;
   if (field === "total") return invoice.totalAmount;
+  if (field === "operator") return invoice.createdByName?.trim() || "-";
   return invoiceNotes(invoice);
 }
 
@@ -1014,6 +1044,7 @@ function invoiceFilterValue(
   if (field === "vatRate") return String(invoice.vatRate);
   if (field === "vatAmount") return String(invoice.vatAmount);
   if (field === "total") return String(invoice.totalAmount);
+  if (field === "operator") return invoice.createdByName?.trim() || "-";
   return invoiceNotes(invoice);
 }
 
@@ -1086,6 +1117,7 @@ function cashMovementSortValue(
   if (field === "amount") return row.amount;
   if (field === "cashRegister") return row.cashRegister;
   if (field === "date") return row.date;
+  if (field === "operator") return row.operator;
   return row.description;
 }
 
@@ -1449,6 +1481,15 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const [visibleInvoiceColumns, setVisibleInvoiceColumns] = useState<
     InvoiceColumnId[]
   >(DEFAULT_INVOICE_COLUMNS);
+  const [visibleCashMovementColumns, setVisibleCashMovementColumns] = useState<
+    CashMovementColumnId[]
+  >(DEFAULT_CASH_MOVEMENT_COLUMNS);
+  const [visibleInstallmentColumns, setVisibleInstallmentColumns] = useState<
+    InstallmentColumnId[]
+  >(DEFAULT_INSTALLMENT_COLUMNS);
+  const [visibleDebtColumns, setVisibleDebtColumns] = useState<DebtColumnId[]>(
+    DEFAULT_DEBT_COLUMNS,
+  );
   const [visibleInvoiceAnalysisColumns, setVisibleInvoiceAnalysisColumns] =
     useState<InvoiceAnalysisColumnId[]>(DEFAULT_INVOICE_ANALYSIS_COLUMNS);
 
@@ -1824,6 +1865,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         direksiyonSinav: 0,
         diger: 0,
         total: 0,
+        operator: "-",
       };
       rows.set(candidate.id, row);
       return row;
@@ -1844,6 +1886,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
         row[debtBucketForType(installment.type)] += installment.remainingAmount;
         row.total += installment.remainingAmount;
+        if (installment.createdByName?.trim()) {
+          row.operator = installment.createdByName.trim();
+        }
       });
 
     return Array.from(rows.values());
@@ -1902,6 +1947,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
             payment.installmentDescription ||
             t(PAYMENT_TYPE_KEY[payment.type]),
           amount: payment.amount,
+          operator: payment.createdByName?.trim() || "-",
         });
       });
 
@@ -1916,6 +1962,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           date: refund.refundedAtUtc,
           description: refund.note?.trim() || t("payments.movement.refund"),
           amount: refund.amount,
+          operator: refund.createdByName?.trim() || "-",
         });
       });
 
@@ -1930,6 +1977,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           date: movement.occurredAtUtc ?? movement.occurredDate,
           description: movement.note?.trim() || cashMovementTypeLabel(movement.type, t),
           amount: movement.amount,
+          operator: movement.createdByName?.trim() || "-",
         });
       });
 
@@ -2127,9 +2175,6 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
         if (column.id === "cancelKind" && detailTab !== "cancelled") {
           return false;
         }
-        if (column.id === "cancelledBy" && detailTab !== "cancelledDebt") {
-          return false;
-        }
         return visibleDetailColumns.includes(column.id);
       }).map((column) => ({
         ...column,
@@ -2142,7 +2187,6 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       DETAIL_COLUMNS
         .filter((column) => {
           if (column.id === "cancelKind") return detailTab === "cancelled";
-          if (column.id === "cancelledBy") return detailTab === "cancelledDebt";
           return true;
         })
         .map((column) => ({
@@ -2150,6 +2194,51 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           label: t(column.labelKey),
         })),
     [detailTab, t],
+  );
+  const cashMovementColumns = useMemo(
+    () =>
+      CASH_MOVEMENT_COLUMNS.filter((column) =>
+        visibleCashMovementColumns.includes(column.id),
+      ),
+    [visibleCashMovementColumns],
+  );
+  const cashMovementColumnOptions = useMemo<ColumnOption[]>(
+    () =>
+      CASH_MOVEMENT_COLUMNS.map((column) => ({
+        id: column.id,
+        label: t(column.labelKey),
+      })),
+    [t],
+  );
+  const installmentColumns = useMemo(
+    () =>
+      INSTALLMENT_COLUMNS.filter((column) =>
+        visibleInstallmentColumns.includes(column.id),
+      ),
+    [visibleInstallmentColumns],
+  );
+  const installmentColumnOptions = useMemo<ColumnOption[]>(
+    () =>
+      INSTALLMENT_COLUMNS.map((column) => ({
+        id: column.id,
+        label: t(column.labelKey),
+      })),
+    [t],
+  );
+  const debtColumns = useMemo(
+    () =>
+      DEBT_COLUMNS.filter((column) =>
+        visibleDebtColumns.includes(column.id),
+      ),
+    [visibleDebtColumns],
+  );
+  const debtColumnOptions = useMemo<ColumnOption[]>(
+    () =>
+      DEBT_COLUMNS.map((column) => ({
+        id: column.id,
+        label: t(column.labelKey),
+      })),
+    [t],
   );
   const invoiceColumns = useMemo(
     () =>
@@ -2820,6 +2909,66 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     setVisibleInvoiceColumns(DEFAULT_INVOICE_COLUMNS);
   };
 
+  const toggleCashMovementColumn = (columnId: CashMovementColumnId) => {
+    setVisibleCashMovementColumns((current) => {
+      if (current.includes(columnId)) {
+        return current.length === 1
+          ? current
+          : current.filter((id) => id !== columnId);
+      }
+      return CASH_MOVEMENT_COLUMNS.map((column) => column.id).filter(
+        (id) => current.includes(id) || id === columnId,
+      );
+    });
+  };
+
+  const isCashMovementColumnVisible = (columnId: string) =>
+    visibleCashMovementColumns.includes(columnId as CashMovementColumnId);
+
+  const resetCashMovementColumns = () => {
+    setVisibleCashMovementColumns(DEFAULT_CASH_MOVEMENT_COLUMNS);
+  };
+
+  const toggleInstallmentColumn = (columnId: InstallmentColumnId) => {
+    setVisibleInstallmentColumns((current) => {
+      if (current.includes(columnId)) {
+        return current.length === 1
+          ? current
+          : current.filter((id) => id !== columnId);
+      }
+      return INSTALLMENT_COLUMNS.map((column) => column.id).filter(
+        (id) => current.includes(id) || id === columnId,
+      );
+    });
+  };
+
+  const isInstallmentColumnVisible = (columnId: string) =>
+    visibleInstallmentColumns.includes(columnId as InstallmentColumnId);
+
+  const resetInstallmentColumns = () => {
+    setVisibleInstallmentColumns(DEFAULT_INSTALLMENT_COLUMNS);
+  };
+
+  const toggleDebtColumn = (columnId: DebtColumnId) => {
+    setVisibleDebtColumns((current) => {
+      if (current.includes(columnId)) {
+        return current.length === 1
+          ? current
+          : current.filter((id) => id !== columnId);
+      }
+      return DEBT_COLUMNS.map((column) => column.id).filter(
+        (id) => current.includes(id) || id === columnId,
+      );
+    });
+  };
+
+  const isDebtColumnVisible = (columnId: string) =>
+    visibleDebtColumns.includes(columnId as DebtColumnId);
+
+  const resetDebtColumns = () => {
+    setVisibleDebtColumns(DEFAULT_DEBT_COLUMNS);
+  };
+
   const toggleInvoiceAnalysisColumn = (columnId: InvoiceAnalysisColumnId) => {
     setVisibleInvoiceAnalysisColumns((current) => {
       if (current.includes(columnId)) {
@@ -3006,6 +3155,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (columnId === "vatRate") return `%${invoice.vatRate}`;
     if (columnId === "vatAmount") return money(invoice.vatAmount);
     if (columnId === "total") return money(invoice.totalAmount);
+    if (columnId === "operator") return invoice.createdByName?.trim() || "-";
     return invoiceNotes(invoice);
   };
 
@@ -3090,6 +3240,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (columnId === "dueDate") return formatDateTR(installment.dueDate);
     if (columnId === "amount") return money(installment.amount);
     if (columnId === "remainingAmount") return money(installment.remainingAmount);
+    if (columnId === "operator") return installment.createdByName?.trim() || "-";
     return installmentDescription(installment);
   };
 
@@ -3112,6 +3263,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     if (columnId === "licenseClass") {
       return licenseClassLabel(row.candidate.licenseClass, licenseClassLabelByCode);
     }
+    if (columnId === "operator") return row.operator;
     return money(row[columnId]);
   };
 
@@ -3825,7 +3977,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   <table className="data-table finance-payments-table">
                     <thead>
                       <tr>
-                        {INSTALLMENT_COLUMNS.map((column) => {
+                        {installmentColumns.map((column) => {
                           const isActive = installmentSort.field === column.id;
                           const indicator = isActive
                             ? installmentSort.direction === "asc"
@@ -3905,6 +4057,19 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                             </th>
                           );
                         })}
+                        <th className="col-picker-th">
+                          <ColumnPicker
+                            columns={installmentColumnOptions}
+                            isVisible={isInstallmentColumnVisible}
+                            menuTitle={t("payments.menu.financeColumns")}
+                            onReset={resetInstallmentColumns}
+                            onToggle={(columnId) =>
+                              toggleInstallmentColumn(columnId as InstallmentColumnId)
+                            }
+                            resetLabel={t("payments.menu.resetDefault")}
+                            triggerTitle="Kolonlar"
+                          />
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3912,7 +4077,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                         <tr>
                           <td
                             className="data-table-empty"
-                            colSpan={INSTALLMENT_COLUMNS.length}
+                            colSpan={installmentColumns.length + 1}
                           >
                             Seçili filtrelerle bakiye vadesi bulunamadı.
                           </td>
@@ -3920,7 +4085,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                       ) : (
                         installmentRows.map((installment) => (
                           <tr key={installment.id}>
-                            {INSTALLMENT_COLUMNS.map((column) => (
+                            {installmentColumns.map((column) => (
                               <td
                                 className={[
                                   column.numeric ? "finance-matrix-amount" : "",
@@ -3936,6 +4101,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 {renderInstallmentCell(installment, column.id)}
                               </td>
                             ))}
+                            <td className="col-picker-td" />
                           </tr>
                         ))
                       )}
@@ -3947,7 +4113,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                   <table className="data-table finance-payments-table">
                     <thead>
                       <tr>
-                        {DEBT_COLUMNS.map((column) => {
+                        {debtColumns.map((column) => {
                           const isActive = debtSort.field === column.id;
                           const indicator = isActive
                             ? debtSort.direction === "asc"
@@ -4027,6 +4193,19 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                             </th>
                           );
                         })}
+                        <th className="col-picker-th">
+                          <ColumnPicker
+                            columns={debtColumnOptions}
+                            isVisible={isDebtColumnVisible}
+                            menuTitle={t("payments.menu.financeColumns")}
+                            onReset={resetDebtColumns}
+                            onToggle={(columnId) =>
+                              toggleDebtColumn(columnId as DebtColumnId)
+                            }
+                            resetLabel={t("payments.menu.resetDefault")}
+                            triggerTitle="Kolonlar"
+                          />
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -4034,7 +4213,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                         <tr>
                           <td
                             className="data-table-empty"
-                            colSpan={DEBT_COLUMNS.length}
+                            colSpan={debtColumns.length + 1}
                           >
                             Seçili filtrelerle bakiye bulunamadı.
                           </td>
@@ -4042,7 +4221,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                       ) : (
                         debtRows.map((row) => (
                           <tr key={row.candidate.id}>
-                            {DEBT_COLUMNS.map((column) => (
+                            {debtColumns.map((column) => (
                               <td
                                 className={[
                                   column.numeric ? "finance-matrix-amount" : "",
@@ -4058,6 +4237,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                                 {renderDebtCell(row, column.id)}
                               </td>
                             ))}
+                            <td className="col-picker-td" />
                           </tr>
                         ))
                       )}
@@ -4581,7 +4761,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                 <table className="data-table finance-payments-table finance-cash-movements-table">
                   <thead>
                     <tr>
-                      {CASH_MOVEMENT_COLUMNS.map((column) => {
+                      {cashMovementColumns.map((column) => {
                         const isActive = cashMovementSort.field === column.id;
                         const indicator = isActive
                           ? cashMovementSort.direction === "asc"
@@ -4650,19 +4830,32 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                           </th>
                         );
                       })}
+                      <th className="col-picker-th">
+                        <ColumnPicker
+                          columns={cashMovementColumnOptions}
+                          isVisible={isCashMovementColumnVisible}
+                          menuTitle={t("payments.menu.financeColumns")}
+                          onReset={resetCashMovementColumns}
+                          onToggle={(columnId) =>
+                            toggleCashMovementColumn(columnId as CashMovementColumnId)
+                          }
+                          resetLabel={t("payments.menu.resetDefault")}
+                          triggerTitle="Kolonlar"
+                        />
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {cashMovementRows.length === 0 ? (
                       <tr>
-                        <td className="data-table-empty" colSpan={CASH_MOVEMENT_COLUMNS.length}>
+                        <td className="data-table-empty" colSpan={cashMovementColumns.length + 1}>
                           Kasa hareketi bulunamadı.
                         </td>
                       </tr>
                     ) : (
                       cashMovementRows.map((row) => (
                         <tr className={`finance-detail-row type-${row.type === "Giriş" ? "payment" : "refund"}`} key={row.id}>
-                          {CASH_MOVEMENT_COLUMNS.map((column) => (
+                          {cashMovementColumns.map((column) => (
                             <td
                               className={[
                                 column.id === "description"
@@ -4684,6 +4877,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                               {renderCashMovementCell(row, column.id)}
                             </td>
                           ))}
+                          <td className="col-picker-td" />
                         </tr>
                       ))
                     )}
@@ -4705,7 +4899,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
               <table className="data-table finance-payments-table finance-cash-movements-table">
                 <thead>
                   <tr>
-                    {CASH_MOVEMENT_COLUMNS.map((column) => {
+                    {cashMovementColumns.map((column) => {
                       const isActive = cashMovementSort.field === column.id;
                       const indicator = isActive
                         ? cashMovementSort.direction === "asc"
@@ -4774,19 +4968,32 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                         </th>
                       );
                     })}
+                    <th className="col-picker-th">
+                      <ColumnPicker
+                        columns={cashMovementColumnOptions}
+                        isVisible={isCashMovementColumnVisible}
+                        menuTitle={t("payments.menu.financeColumns")}
+                        onReset={resetCashMovementColumns}
+                        onToggle={(columnId) =>
+                          toggleCashMovementColumn(columnId as CashMovementColumnId)
+                        }
+                        resetLabel={t("payments.menu.resetDefault")}
+                        triggerTitle="Kolonlar"
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {cashMovementRows.length === 0 ? (
                     <tr>
-                      <td className="data-table-empty" colSpan={CASH_MOVEMENT_COLUMNS.length}>
+                      <td className="data-table-empty" colSpan={cashMovementColumns.length + 1}>
                         Kasa hareketi bulunamadı.
                       </td>
                     </tr>
                   ) : (
                     cashMovementRows.map((row) => (
                       <tr className={`finance-detail-row type-${row.type === "Giriş" ? "payment" : "refund"}`} key={row.id}>
-                        {CASH_MOVEMENT_COLUMNS.map((column) => (
+                        {cashMovementColumns.map((column) => (
                           <td
                             className={[
                               column.id === "description"
@@ -4808,6 +5015,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                             {renderCashMovementCell(row, column.id)}
                           </td>
                         ))}
+                        <td className="col-picker-td" />
                       </tr>
                     ))
                   )}

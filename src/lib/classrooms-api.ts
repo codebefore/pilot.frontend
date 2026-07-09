@@ -1,5 +1,5 @@
 import { getTrainingApiBaseUrl } from "./api";
-import { httpGet, httpPost, httpPut, type QueryParams } from "./http";
+import { httpGet, httpPatch, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   ClassroomListResponse,
   ClassroomResponse,
@@ -56,6 +56,17 @@ export function updateClassroom(
 ): Promise<ClassroomResponse> {
   return httpPut<ClassroomResponse>(
     `/api/training/classrooms/${id}`,
+    body,
+    trainingRequestOptions()
+  );
+}
+
+export function updateClassroomActive(
+  id: string,
+  body: { isActive: boolean; rowVersion: number }
+): Promise<ClassroomResponse> {
+  return httpPatch<ClassroomResponse>(
+    `/api/training/classrooms/${id}/active`,
     body,
     trainingRequestOptions()
   );

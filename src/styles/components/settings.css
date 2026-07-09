@@ -3032,6 +3032,9 @@
   width: 150px;
   overflow-wrap: anywhere;
 }
+.candidate-accounting-ledger-table .candidate-accounting-col-cancelledBy {
+  width: 160px;
+}
 .candidate-accounting-ledger-table .candidate-accounting-col-actions {
   width: 96px;
 }

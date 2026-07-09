@@ -66,7 +66,7 @@ export interface CandidateResponse {
   registrationNumber: string;
   firstName: string;
   lastName: string;
-  nationalId: string;
+  nationalId: string | null;
   identitySerialNumber: string | null;
   motherName: string | null;
   fatherName: string | null;
@@ -152,7 +152,7 @@ export type CandidateGenderValue = "female" | "male" | "unspecified";
 export interface CandidateUpsertRequest {
   firstName: string;
   lastName: string;
-  nationalId: string;
+  nationalId: string | null;
   identitySerialNumber?: string | null;
   motherName?: string | null;
   fatherName?: string | null;
@@ -309,6 +309,8 @@ export interface CandidateAccountingMovementResponse {
   cancellationReason: string | null;
   cancelledByUserId?: string | null;
   cancelledByName?: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -336,6 +338,10 @@ export interface CandidateAccountingPaymentResponse {
   status: CandidateAccountingStatus;
   cancelledAtUtc: string | null;
   cancellationReason: string | null;
+  cancelledByUserId?: string | null;
+  cancelledByName?: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
   allocations: CandidateAccountingPaymentAllocationResponse[];
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -352,6 +358,8 @@ export interface CandidateAccountingRefundResponse {
   amount: number;
   refundedAtUtc: string;
   note: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
 }
@@ -367,6 +375,8 @@ export interface CandidateAccountingInvoiceResponse {
   vatAmount: number;
   totalAmount: number;
   notes: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
   rowVersion: number;
@@ -488,6 +498,10 @@ export interface PaymentMovementResponse {
   status: CandidateAccountingStatus;
   cancelledAtUtc: string | null;
   cancellationReason: string | null;
+  cancelledByUserId?: string | null;
+  cancelledByName?: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
 }
 
 export interface PaymentRefundMovementResponse {
@@ -501,6 +515,8 @@ export interface PaymentRefundMovementResponse {
   amount: number;
   refundedAtUtc: string;
   note: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
 }
 
 export type CashRegisterMovementType = "inflow" | "outflow" | "transfer_in" | "transfer_out";
@@ -515,6 +531,8 @@ export interface CashRegisterMovementResponse {
   occurredAtUtc?: string | null;
   note: string | null;
   transferGroupId: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
 }
 
 export interface CashRegisterMovementCreateRequest {
@@ -545,6 +563,8 @@ export interface PaymentInvoiceOverviewResponse {
   vatAmount: number;
   totalAmount: number;
   notes: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
 }
 
 export interface PaymentInstallmentOverviewResponse {
@@ -563,6 +583,8 @@ export interface PaymentInstallmentOverviewResponse {
   cancellationReason: string | null;
   cancelledByUserId?: string | null;
   cancelledByName?: string | null;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
 }
 
 interface CandidateReusableDocumentResponse {

@@ -208,6 +208,37 @@ describe("NewCandidateModal", () => {
     });
   });
 
+  it("allows quick registration without national ID and phone", async () => {
+    renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
+
+    fireEvent.change(screen.getByPlaceholderText("Adı"), {
+      target: { value: "Ada" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Soyadı"), {
+      target: { value: "Yilmaz" },
+    });
+
+    await waitFor(() => {
+      const select = document.querySelector<HTMLSelectElement>('select[name="className"]');
+      expect([...select!.options].map((option) => option.value)).toContain("B");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(createCandidateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          firstName: "Ada",
+          lastName: "Yilmaz",
+          nationalId: null,
+          phoneNumber: null,
+          licenseClass: "B",
+          status: "pre_registered",
+        })
+      );
+    });
+  });
+
   it("rejects invalid Turkish national IDs before submit", async () => {
     renderWithProviders(<NewCandidateModal onClose={() => {}} onSubmit={() => {}} open />);
 

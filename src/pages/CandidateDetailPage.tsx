@@ -4320,6 +4320,7 @@ type AccountingLedgerColumnId =
   | "refundedAmount"
   | "paidAt"
   | "createdAt"
+  | "cancelledBy"
   | "actions";
 
 type AccountingLedgerSortField = Exclude<AccountingLedgerColumnId, "actions">;
@@ -4347,10 +4348,11 @@ const ACCOUNTING_LEDGER_COLUMNS: Array<{
   { id: "method", labelKey: "candidateDetail.accounting.col.method", sortField: "method" },
   { id: "cashRegister", labelKey: "candidateDetail.accounting.col.cashRegister", sortField: "cashRegister" },
   { id: "description", labelKey: "candidateDetail.accounting.col.description", sortField: "description" },
-  { id: "actions", labelKey: "candidateDetail.accounting.col.actions", locked: true },
   { id: "refundedAmount", labelKey: "candidateDetail.accounting.col.refund", sortField: "refundedAmount" },
   { id: "number", labelKey: "candidateDetail.accounting.col.number", sortField: "number" },
   { id: "createdAt", labelKey: "candidateDetail.accounting.col.createdAt", sortField: "createdAt" },
+  { id: "cancelledBy", labelKey: "candidateDetail.accounting.col.cancelledBy", sortField: "cancelledBy" },
+  { id: "actions", labelKey: "candidateDetail.accounting.col.actions", locked: true },
 ];
 
 const DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS: AccountingLedgerColumnId[] = [
@@ -5088,6 +5090,7 @@ function AccountingTab({
                 <th>Tutar</th>
                 <th>KDV</th>
                 <th>Toplam Tutar</th>
+                <th>{t("candidateDetail.accounting.col.cancelledBy")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -5100,6 +5103,7 @@ function AccountingTab({
                   <td>{formatCurrencyTRY(invoice.subtotal)}</td>
                   <td>%{invoice.vatRate} · {formatCurrencyTRY(invoice.vatAmount)}</td>
                   <td>{formatCurrencyTRY(invoice.totalAmount)}</td>
+                  <td>{invoice.createdByName?.trim() || "—"}</td>
                   <td>
                     <button
                       className="btn btn-secondary btn-sm"
@@ -5783,13 +5787,15 @@ function AccountingMovementSection({
       "candidate-accounting-ledger-columns:v2:",
       "candidate-accounting-ledger-columns:v3:",
       "candidate-accounting-ledger-columns:v4:",
+      "candidate-accounting-ledger-columns:v5:",
+      "candidate-accounting-ledger-columns:v6:",
     ];
     for (const prefix of stalePrefixes) {
       localStorage.removeItem(`${prefix}${title}`);
     }
   }, [title]);
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    `candidate-accounting-ledger-columns:v5:${title}`,
+    `candidate-accounting-ledger-columns:v7:${title}`,
     ACCOUNTING_LEDGER_COLUMNS.map((column) => column.id),
     DEFAULT_ACCOUNTING_LEDGER_VISIBLE_COLUMNS
   );
@@ -6299,6 +6305,10 @@ function accountingMovementSortValue(
       return movement.lastPaidAtUtc ?? "";
     case "createdAt":
       return movement.createdAtUtc;
+    case "cancelledBy":
+      return movement.status === "cancelled"
+        ? movement.cancelledByName?.trim() ?? ""
+        : movement.createdByName?.trim() ?? "";
     default:
       return "";
   }
@@ -6393,6 +6403,10 @@ function renderAccountingMovementCell({
     return renderFinanceDateTime(movement.createdAtUtc);
   }
   if (columnId === "createdAt") return renderFinanceDateTime(movement.createdAtUtc);
+  if (columnId === "cancelledBy") {
+    if (movement.status === "cancelled") return movement.cancelledByName?.trim() || "—";
+    return movement.createdByName?.trim() || "—";
+  }
 
   if (!canPay && !canCreateInvoice && !canCancelMovement) {
     return "—";
@@ -6494,6 +6508,10 @@ function renderAccountingPaymentCell({
   }
   if (columnId === "paidAt") return renderFinanceDateTime(payment.cancelledAtUtc ?? payment.paidAtUtc);
   if (columnId === "createdAt") return renderFinanceDateTime(payment.createdAtUtc);
+  if (columnId === "cancelledBy") {
+    if (payment.status === "cancelled") return payment.cancelledByName?.trim() || "—";
+    return payment.createdByName?.trim() || "—";
+  }
 
   if (payment.status === "cancelled") return "—";
 
@@ -6562,6 +6580,7 @@ function renderAccountingRefundCell({
   if (columnId === "refundedAmount") return formatCurrencyTRY(amount);
   if (columnId === "paidAt") return renderFinanceDateTime(refund.refundedAtUtc);
   if (columnId === "createdAt") return renderFinanceDateTime(refund.createdAtUtc);
+  if (columnId === "cancelledBy") return refund.createdByName?.trim() || "—";
   return "—";
 }
 

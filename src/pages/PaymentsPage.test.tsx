@@ -456,6 +456,8 @@ describe("PaymentsPage permissions", () => {
           status: "cancelled",
           cancelledAtUtc: `${today}T10:30:00Z`,
           cancellationReason: "Yanlış tahsilat",
+          cancelledByUserId: "user-cancelled-payment",
+          cancelledByName: "Ayse Yilmaz",
         },
       ],
     });
@@ -467,7 +469,116 @@ describe("PaymentsPage permissions", () => {
     const cancelledRow = await screen.findByRole("row", { name: /Iptal Aday/ });
     expect(within(cancelledRow).getByText("TAH-CANCEL")).toBeInTheDocument();
     expect(within(cancelledRow).getByText("Yanlış tahsilat")).toBeInTheDocument();
+    expect(within(cancelledRow).queryByText("Ayse Yilmaz")).not.toBeInTheDocument();
     expect(within(cancelledRow).getByText("₺250")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kolonlar" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "İşlem Yapan" }));
+
+    expect(within(cancelledRow).getByText("Ayse Yilmaz")).toBeInTheDocument();
+    const table = cancelledRow.closest("table");
+    expect(table).not.toBeNull();
+    const headerLabels = within(table as HTMLTableElement)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent ?? "");
+    expect(headerLabels[headerLabels.length - 2]).toContain("İşlem Yapan");
+  });
+
+  it("keeps operator as the rightmost data column in deleted debts", async () => {
+    const today = todayDateOnly();
+    const candidate = paymentCandidate({
+      id: "candidate-cancelled-debt",
+      firstName: "Silinen",
+      lastName: "Borc",
+    });
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      installments: [
+        {
+          id: "installment-cancelled",
+          candidate,
+          type: "kurs",
+          sequence: 1,
+          dueDate: today,
+          amount: 750,
+          paidAmount: 0,
+          remainingAmount: 750,
+          description: "Silinen kurs borcu",
+          status: "cancelled",
+          paymentStatus: "cancelled",
+          cancelledAtUtc: `${today}T12:00:00Z`,
+          cancellationReason: "Hatalı borç",
+          cancelledByUserId: "user-cancelled-debt",
+          cancelledByName: "Mehmet Demir",
+        },
+      ],
+    });
+
+    renderBalancesPage();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Silinen Borçlar" }));
+
+    const cancelledDebtRow = await screen.findByRole("row", { name: /Silinen Borc/ });
+    expect(within(cancelledDebtRow).queryByText("Mehmet Demir")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kolonlar" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "İşlem Yapan" }));
+
+    expect(within(cancelledDebtRow).getByText("Mehmet Demir")).toBeInTheDocument();
+    const table = cancelledDebtRow.closest("table");
+    expect(table).not.toBeNull();
+    const headerLabels = within(table as HTMLTableElement)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent ?? "");
+    expect(headerLabels[headerLabels.length - 2]).toContain("İşlem Yapan");
+  });
+
+  it("shows operator for refunds in the refunds tab", async () => {
+    const today = todayDateOnly();
+    const candidate = paymentCandidate({
+      id: "candidate-refund-operator",
+      firstName: "Iade",
+      lastName: "Aday",
+    });
+
+    getPaymentsOverviewMock.mockResolvedValue({
+      ...paymentsOverview,
+      refunds: [
+        {
+          id: "refund-operator",
+          paymentId: "payment-operator",
+          candidate,
+          type: "kurs",
+          number: null,
+          cashRegisterId: "cash-1",
+          cashRegister: paymentsOverview.cashRegisters[0],
+          amount: 150,
+          refundedAtUtc: `${today}T11:00:00Z`,
+          note: "İade işlemi",
+          createdByUserId: "user-refund",
+          createdByName: "Zeynep Kaya",
+        },
+      ],
+    });
+
+    renderCollectionsPage();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "İade" }));
+
+    const refundRow = await screen.findByRole("row", { name: /Iade Aday/ });
+    expect(within(refundRow).queryByText("Zeynep Kaya")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kolonlar" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "İşlem Yapan" }));
+
+    expect(within(refundRow).getByText("Zeynep Kaya")).toBeInTheDocument();
+    const table = refundRow.closest("table");
+    expect(table).not.toBeNull();
+    const headerLabels = within(table as HTMLTableElement)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent ?? "");
+    expect(headerLabels[headerLabels.length - 2]).toContain("İşlem Yapan");
   });
 
   it("keeps refunded collections in the collections matrix as gross collections", async () => {
