@@ -98,7 +98,9 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ id: string; firstName: string; lastName: string; nationalId: string }[]>([]);
+  const [searchResults, setSearchResults] = useState<
+    { id: string; firstName: string; lastName: string; nationalId: string | null }[]
+  >([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);

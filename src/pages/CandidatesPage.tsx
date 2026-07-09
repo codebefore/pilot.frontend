@@ -1521,7 +1521,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
         loadMissingDocumentNames={async (signal) => {
           const result = await getDocumentChecklist({
             status: "missing",
-            search: c.nationalId,
+            search: c.nationalId ?? undefined,
             page: 1,
             pageSize: 1,
           }, signal);
@@ -1994,7 +1994,7 @@ export function CandidatesPage({
   const [unscheduledExamChargeLoading, setUnscheduledExamChargeLoading] = useState(false);
   const [unscheduledExamChargeSaving, setUnscheduledExamChargeSaving] = useState(false);
   const isDrivingExamRandevuluTab = examDateSidebar?.examType === "uygulama" && tab === "randevulu";
-  const canShowUnscheduledExamChargeAction = false;
+  const canShowUnscheduledExamChargeAction = !isDrivingExamRandevuluTab;
   const showUnscheduledExamChargePrompt = Boolean(unscheduledExamChargePrompt) && canShowUnscheduledExamChargeAction;
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -3447,7 +3447,7 @@ export function CandidatesPage({
 
     const rows = rowsToExport.map((candidate): readonly (string | number)[] => [
       `${candidate.firstName} ${candidate.lastName}`.trim(),
-      candidate.nationalId,
+      candidate.nationalId ?? "",
       formatPhoneDisplay(candidate.phoneNumber),
       formatDateTR(candidate.birthDate),
       formatOptionalText(candidateGenderLabel(candidate.gender)),
@@ -4464,7 +4464,11 @@ export function CandidatesPage({
                         {canShowUnscheduledExamChargeAction ? (
                           <button
                             className="btn btn-secondary btn-sm"
-                            disabled={!canManageCandidates || unscheduledExamChargeLoading}
+                            disabled={
+                              selectedCount === 0 ||
+                              !canManageCandidates ||
+                              unscheduledExamChargeLoading
+                            }
                             onClick={openUnscheduledExamChargeAction}
                             title={!canManageCandidates ? noPermissionTitle : undefined}
                             type="button"
@@ -4529,7 +4533,11 @@ export function CandidatesPage({
                         {canShowUnscheduledExamChargeAction ? (
                           <button
                             className="btn btn-secondary btn-sm"
-                            disabled={!canManageCandidates || unscheduledExamChargeLoading}
+                            disabled={
+                              selectedCount === 0 ||
+                              !canManageCandidates ||
+                              unscheduledExamChargeLoading
+                            }
                             onClick={openUnscheduledExamChargeAction}
                             title={!canManageCandidates ? noPermissionTitle : undefined}
                             type="button"

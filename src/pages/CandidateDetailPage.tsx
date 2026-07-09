@@ -1083,7 +1083,7 @@ function CandidateHero({
     if (!(await mebbisSessionGuard.ensureSessionAsync())) return;
     setOpeningMebbisStatus(true);
     try {
-      const nationalId = candidate.nationalId.replace(/\D/g, "");
+      const nationalId = candidate.nationalId?.replace(/\D/g, "") ?? "";
       const response = await openLocalAgentMebbisPageView("https://mebbis.meb.gov.tr/SKT/skt02009.aspx", {
         nationalId: nationalId.length === 11 ? nationalId : null,
       });
@@ -3409,11 +3409,11 @@ function LicenseInfoTab({
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={noPermissionTitle}
-              displayValue={candidate.nationalId}
+              displayValue={candidate.nationalId ?? ""}
               inputType="tel"
-              inputValue={candidate.nationalId}
+              inputValue={candidate.nationalId ?? ""}
               label={t("common.field.nationalId")}
-              onSave={(value) => saveApplicationField({ nationalId: value.trim() }, t("candidateDetail.license.toast.nationalIdUpdated"))}
+              onSave={(value) => saveApplicationField({ nationalId: value.trim() || null }, t("candidateDetail.license.toast.nationalIdUpdated"))}
             />
             <EditableRow
               disabled={!canManageCandidates}
@@ -4156,7 +4156,7 @@ function documentMebbisTransferErrorMessage(error: unknown, fallback: string): s
 }
 
 function buildCandidateMebbisDocumentCheckUrl(candidate: CandidateResponse): string | null {
-  const nationalId = candidate.nationalId.replace(/\D/g, "");
+  const nationalId = candidate.nationalId?.replace(/\D/g, "") ?? "";
   const monthDate = candidate.currentGroup?.term?.monthDate ?? "";
   const match = monthDate.match(/^(\d{4})-(\d{2})/);
   if (nationalId.length !== 11 || !match) return null;
@@ -4164,7 +4164,7 @@ function buildCandidateMebbisDocumentCheckUrl(candidate: CandidateResponse): str
 }
 
 function buildCandidateMebbisPageSelection(candidate: CandidateResponse) {
-  const nationalId = candidate.nationalId.replace(/\D/g, "");
+  const nationalId = candidate.nationalId?.replace(/\D/g, "") ?? "";
   const monthDate = candidate.currentGroup?.term?.monthDate ?? "";
   const match = monthDate.match(/^(\d{4})-(\d{2})/);
   const addressValue =
@@ -8415,14 +8415,14 @@ function kCertificateStatus(
 
 function buildKCertificateRows(
   lessons: TrainingLessonResponse[],
-  candidateNationalId: string,
+  candidateNationalId: string | null | undefined,
   candidateId: string
 ): KCertificateRow[] {
   const sortedLessons = [...lessons]
     .filter((lesson) => lesson.kind === "uygulama")
     .sort((left, right) => new Date(left.startAtUtc).getTime() - new Date(right.startAtUtc).getTime());
   const rows: KCertificateRow[] = [];
-  const candidateNumber = normalizeKCertificateDocumentPrefix(candidateNationalId) || candidateId.slice(0, 8);
+  const candidateNumber = normalizeKCertificateDocumentPrefix(candidateNationalId ?? "") || candidateId.slice(0, 8);
 
   for (const lesson of sortedLessons) {
     const lessonStartDate = dateOnlyInTurkey(lesson.startAtUtc);

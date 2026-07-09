@@ -354,7 +354,7 @@ export function CandidateDrawer({
     }
     const controller = new AbortController();
     getDocumentChecklist(
-      { status: "missing", search: candidate.nationalId, page: 1, pageSize: 1 },
+      { status: "missing", candidateIds: [candidate.id], page: 1, pageSize: 1 },
       controller.signal
     )
       .then((result) => setMissingDocs(result.items[0]?.missingDocumentNames ?? []))
@@ -818,11 +818,11 @@ export function CandidateDrawer({
             <EditableRow
               disabled={!canManageCandidates}
               disabledTitle={candidateEditDisabledTitle}
-              displayValue={candidate.nationalId}
+              displayValue={candidate.nationalId ?? ""}
               inputType="tel"
-              inputValue={candidate.nationalId}
+              inputValue={candidate.nationalId ?? ""}
               label={t("common.field.nationalId")}
-              onSave={(v) => saveField({ nationalId: v })}
+              onSave={(v) => saveField({ nationalId: v || null })}
             />
             <EditableRow
               disabled={!canManageCandidates}
