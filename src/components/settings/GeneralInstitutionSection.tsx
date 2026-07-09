@@ -17,6 +17,12 @@ import { ApiError } from "../../lib/http";
 import { useT, type TranslationKey, currentLocale } from "../../lib/i18n";
 import { canManageArea } from "../../lib/permissions";
 import {
+  RECEIPT_PRINT_PROFILE_OPTIONS,
+  readReceiptPrintProfileId,
+  writeReceiptPrintProfileId,
+  type ReceiptPrintProfileId,
+} from "../../lib/receipt-print-settings";
+import {
   getTurkeyDistrictOptions,
   resolveTurkeyDistrictValue,
   resolveTurkeyProvinceValue,
@@ -211,6 +217,9 @@ export function GeneralInstitutionSection() {
   const [values, setValues] = useState<GeneralFormValues>(EMPTY_VALUES);
   const [errors, setErrors] = useState<GeneralFormErrors>({});
   const [activeTab, setActiveTab] = useState<GeneralInstitutionTab>("institution");
+  const [receiptPrintProfileId, setReceiptPrintProfileId] = useState<ReceiptPrintProfileId>(() =>
+    readReceiptPrintProfileId()
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -496,6 +505,11 @@ export function GeneralInstitutionSection() {
     } finally {
       setRemovingLogo(false);
     }
+  };
+
+  const handleReceiptPrintProfileChange = (profileId: ReceiptPrintProfileId) => {
+    setReceiptPrintProfileId(profileId);
+    writeReceiptPrintProfileId(profileId);
   };
 
   const founderNameLabelKey: TranslationKey =
@@ -817,8 +831,6 @@ export function GeneralInstitutionSection() {
               </div>
             </div>
 
-            <div className="settings-form-divider" />
-
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label" htmlFor={districtNationalEducationDirectorId}>
@@ -978,6 +990,42 @@ export function GeneralInstitutionSection() {
           {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
         </button>
       </div>
+
+      {activeTab === "other" ? (
+        <section className="settings-surface settings-receipt-profile-surface">
+          <div className="settings-surface-header">
+            <div className="settings-surface-title">
+              {t("settings.general.receiptPrintProfile.label")}
+            </div>
+          </div>
+          <div className="settings-surface-body">
+            <div className="settings-receipt-profile-grid" role="radiogroup" aria-label={t("settings.general.receiptPrintProfile.label")}>
+              {RECEIPT_PRINT_PROFILE_OPTIONS.map((option) => {
+                const active = receiptPrintProfileId === option.id;
+                return (
+                  <button
+                    aria-checked={active}
+                    className={active ? "settings-receipt-profile-option active" : "settings-receipt-profile-option"}
+                    key={option.id}
+                    onClick={() => handleReceiptPrintProfileChange(option.id)}
+                    role="radio"
+                    type="button"
+                  >
+                    <span className="settings-receipt-profile-check" aria-hidden="true" />
+                    <span className="settings-receipt-profile-copy">
+                      <strong>{t(option.labelKey as TranslationKey)}</strong>
+                      <small>{t(option.descriptionKey as TranslationKey)}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className="settings-panel-note">
+              {t("settings.general.receiptPrintProfile.note")}
+            </span>
+          </div>
+        </section>
+      ) : null}
     </form>
   );
 }

@@ -103,6 +103,10 @@ import {
 } from "../lib/image-preprocess";
 import { formatNationalId } from "../lib/national-id";
 import {
+  readReceiptPrintProfileId,
+  type ReceiptPrintProfileId,
+} from "../lib/receipt-print-settings";
+import {
   createAuthorizedObjectUrl,
   downloadAuthorizedFile,
   fetchAuthorizedBlob,
@@ -171,6 +175,7 @@ import type {
   CandidateExistingLicenseRequest,
   CandidateUpsertRequest,
   CandidateAccountingInvoiceResponse,
+  CandidateAccountingPaymentResponse,
   CandidateAccountingSummaryResponse,
   CandidateAccountingType,
   CandidateExamAttemptResponse,
@@ -296,7 +301,7 @@ type HeroDocumentKey = (typeof HERO_DOCUMENT_KEYS)[number];
 const CANDIDATE_PRINT_FORM_OPTIONS = [
   "Müracaat formu",
   "Kayıt sözleşmesi",
-  "Kayıt sözleşmesi (Ucret Bos)",
+  "Kayıt sözleşmesi (Ücret Boş)",
   "İmza örneği",
   "Ücretsiz kursiyer formu",
   "Direksiyon takip çizelgesi",
@@ -304,6 +309,27 @@ const CANDIDATE_PRINT_FORM_OPTIONS = [
   "K Belgesi Matbu",
   "100 ceza puanı belgesi",
 ] as const;
+
+function candidatePrintFormDisplayLabel(label: (typeof CANDIDATE_PRINT_FORM_OPTIONS)[number]): string {
+  switch (label) {
+    case "Müracaat formu":
+      return "Müracaat Formu";
+    case "Kayıt sözleşmesi":
+      return "Kayıt Sözleşmesi";
+    case "Kayıt sözleşmesi (Ücret Boş)":
+      return "Kayıt Sözleşmesi (Ücret Boş)";
+    case "İmza örneği":
+      return "İmza Örneği";
+    case "Ücretsiz kursiyer formu":
+      return "Ücretsiz Kursiyer Formu";
+    case "Direksiyon takip çizelgesi":
+      return "Direksiyon Takip Çizelgesi";
+    case "100 ceza puanı belgesi":
+      return "100 Ceza Puanı Belgesi";
+    default:
+      return label;
+  }
+}
 
 async function fetchOptional<T>(promise: Promise<T> | null): Promise<T | null> {
   if (!promise) return null;
@@ -669,12 +695,12 @@ export function CandidateDetailPage() {
     paidAtUtc: string,
     note: string | null,
     movementId: string | null = null,
-  ) => {
-    if (!canManagePayments) return;
-    if (!candidate || paymentSaving) return;
+  ): Promise<CandidateAccountingPaymentResponse | null> => {
+    if (!canManagePayments) return null;
+    if (!candidate || paymentSaving) return null;
     setPaymentSaving(true);
     try {
-      await createCandidateAccountingPayment(candidate.id, {
+      const payment = await createCandidateAccountingPayment(candidate.id, {
         type,
         amount,
         movementId,
@@ -685,8 +711,10 @@ export function CandidateDetailPage() {
       });
       await refreshAccounting();
       showToast(t("candidateDetail.accounting.toast.paymentRecorded"));
+      return payment;
     } catch (error) {
       showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.paymentRecordFailed"), t), "error");
+      return null;
     } finally {
       setPaymentSaving(false);
     }
@@ -926,7 +954,7 @@ export function CandidateDetailPage() {
                 }
                 onCreateMovements={handleCreateMovements}
                 onCreatePayment={(type, amount, method, cashRegisterId, paidAtUtc, note, movementId) =>
-                  void handleCreatePayment(type, amount, method, cashRegisterId, paidAtUtc, note, movementId)
+                  handleCreatePayment(type, amount, method, cashRegisterId, paidAtUtc, note, movementId)
                 }
                 onDeleteInvoice={(invoiceId) => void handleDeleteInvoice(invoiceId)}
                 onRefundPayment={(paymentId, amount, cashRegisterId, note) =>
@@ -1300,14 +1328,13 @@ function CandidateHero({
       setPrintFormsOpen(false);
       setContractGenerating(true);
       try {
-        await printCandidateKCertificatePdf({
-          candidate,
-          row: latestValidKCertificate,
-          lessons: kCertificateLessons,
-          routeName: null,
-          templateKey: label === "K Belgesi Matbu" ? "k-certificate-matbu" : "k-certificate",
-          title: label,
-          t,
+	        await printCandidateKCertificatePdf({
+	          candidate,
+	          row: latestValidKCertificate,
+	          lessons: kCertificateLessons,
+	          templateKey: label === "K Belgesi Matbu" ? "k-certificate-matbu" : "k-certificate",
+	          title: label,
+	          t,
         });
       } catch (error) {
         const message = error instanceof Error
@@ -1320,7 +1347,7 @@ function CandidateHero({
       return;
     }
 
-    if (label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ucret Bos)" && label !== "İmza örneği") return;
+    if (label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ücret Boş)" && label !== "İmza örneği") return;
     setPrintFormsOpen(false);
 
     if (label === "İmza örneği") {
@@ -1381,7 +1408,7 @@ function CandidateHero({
       : null;
 
     setContractGenerating(true);
-    const isBlankFeeContract = label === "Kayıt sözleşmesi (Ucret Bos)";
+    const isBlankFeeContract = label === "Kayıt sözleşmesi (Ücret Boş)";
     const printWindow = openCandidateContractPrintWindow(isBlankFeeContract ? "Kursiyer Kayıt Sözleşmesi (Ücret Boş)" : "Kursiyer Kayıt Sözleşmesi");
     if (!printWindow) {
       setContractGenerating(false);
@@ -1478,14 +1505,14 @@ function CandidateHero({
                           ? false
                           : label === "Direksiyon takip çizelgesi"
                           ? false
-                          : label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ucret Bos)" && label !== "İmza örneği")
+                          : label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ücret Boş)" && label !== "İmza örneği")
                       }
                       key={label}
                       onClick={() => void handlePrintForm(label)}
                       role="menuitem"
                       type="button"
                     >
-                      {label}
+                      {candidatePrintFormDisplayLabel(label)}
                     </button>
                   ))}
                 </div>
@@ -4520,7 +4547,7 @@ function AccountingTab({
     paidAtUtc: string,
     note: string | null,
     movementId: string | null
-  ) => void;
+  ) => Promise<CandidateAccountingPaymentResponse | null>;
   onCancelMovement: (movementId: string, cancellationReason: string) => void;
   onCancelPayment: (paymentId: string, cancellationReason: string) => void;
   onRefundPayment: (paymentId: string, amount: number | null, cashRegisterId: string | null, note: string | null) => void;
@@ -4630,6 +4657,7 @@ function AccountingTab({
   const [refundNote, setRefundNote] = useState("");
   const [sectionSummaryOpen, setSectionSummaryOpen] = useState(false);
   const [feeSuggestionsOpen, setFeeSuggestionsOpen] = useState(false);
+  const [paymentReceiptPromptOpen, setPaymentReceiptPromptOpen] = useState(false);
 
   useEffect(() => {
     const logo = institutionSettingsQuery.data?.logo ?? null;
@@ -4861,6 +4889,7 @@ function AccountingTab({
       note: movementDescription,
       movementId,
     });
+    setPaymentReceiptPromptOpen(false);
   };
   const openInvoiceModal = (
     invoice: CandidateAccountingInvoiceResponse | null = null,
@@ -4889,6 +4918,93 @@ function AccountingTab({
     if (!canManagePayments) return;
     setCancelMovement(movement);
     setMovementCancelReason("");
+  };
+  const printSavedPaymentReceipt = (savedPayment: CandidateAccountingPaymentResponse, targetWindow?: Window | null) => {
+    const receiptNumber = savedPayment.number?.trim() || savedPayment.id.slice(0, 8).toLocaleUpperCase("tr-TR");
+    const receiptBrand = activeInstitution?.name?.trim() || t("candidateDetail.accounting.receipt.brand");
+    const paymentDateTime = financeDateTimeParts(savedPayment.paidAtUtc);
+    const movementById = new Map((accounting?.movements ?? []).map((movement) => [movement.id, movement]));
+    const allocatedMovements = savedPayment.allocations
+      .map((allocation) => movementById.get(allocation.movementId))
+      .filter((movement): movement is CandidateAccountingSummaryResponse["movements"][number] => Boolean(movement));
+    const primaryMovement = allocatedMovements[0] ?? accounting?.movements.find((movement) => movement.type === savedPayment.type) ?? null;
+    const paidByMovement = new Map<string, number>();
+    for (const allocation of savedPayment.allocations) {
+      paidByMovement.set(allocation.movementId, (paidByMovement.get(allocation.movementId) ?? 0) + allocation.amount);
+    }
+    const balanceRows = (accounting?.movements ?? [])
+      .filter((movement) => movement.status !== "cancelled")
+      .map((movement) => ({
+        ...movement,
+        remainingAmount: Math.max(0, movement.remainingAmount - (paidByMovement.get(movement.id) ?? 0)),
+      }))
+      .filter((movement) => movement.remainingAmount > 0)
+      .sort((left, right) => left.dueDate.localeCompare(right.dueDate))
+      .slice(0, 3)
+      .map((movement) => ({
+        dueDate: formatDateTR(movement.dueDate),
+        amount: formatCurrencyTRY(movement.remainingAmount),
+      }));
+    const profileId = readReceiptPrintProfileId();
+    const profile = RECEIPT_PRINT_PROFILES.find((item) => item.id === profileId) ?? RECEIPT_PRINT_PROFILES[0];
+    const opened = printAccountingReceipt({
+      balanceRows,
+      amount: formatCurrencyTRY(savedPayment.amount),
+      brand: receiptBrand,
+      candidateLabel: "Kursiyer",
+      candidateName: `${candidate.firstName} ${candidate.lastName}`.trim(),
+      collectorLabel: t("candidateDetail.accounting.receipt.collector"),
+      collectorName: savedPayment.createdByName?.trim() || "—",
+      debtTypeLabel: t(accountingTypeLabelKey(savedPayment.type)),
+      dueDate: primaryMovement ? formatDateTR(primaryMovement.dueDate) : "—",
+      dueDateLabel: t("candidateDetail.accounting.col.dueDate"),
+      logoUrl: receiptLogoUrl,
+      method: t(paymentMethodLabelKey(savedPayment.paymentMethod)),
+      methodLabel: t("candidateDetail.accounting.field.method"),
+      nationalId: formatNationalId(candidate.nationalId),
+      nationalIdLabel: t("common.field.nationalId"),
+      paidDate: paymentDateTime?.date ?? "—",
+      paidDateLabel: t("candidateDetail.accounting.field.paymentDate"),
+      paidTime: paymentDateTime?.time ?? "—",
+      paidTimeLabel: "Ödeme Saati",
+      payerLabel: "Ödeme Yapan",
+      receiptNumber,
+      receiptNumberLabel: t("payments.col.receiptNumber"),
+      remainingBalanceLabel: "Kalan Bakiye Bilgileri",
+      signatureLabel: t("candidateDetail.accounting.receipt.signature"),
+      title: t("candidateDetail.accounting.receipt.title"),
+      totalDebt: formatCurrencyTRY(Math.max(0, (accounting?.totalDebtAmount ?? accounting?.totalMovementAmount ?? savedPayment.amount) - savedPayment.amount)),
+      totalLabel: "Toplam",
+      profile,
+      targetWindow,
+    });
+    if (!opened) {
+      showToast("Makbuz yazdırma penceresi açılamadı. Tarayıcı popup iznini kontrol edin.", "error");
+    }
+  };
+  const submitPayment = (shouldPrintReceipt: boolean) => {
+    if (!canSavePayment || parsedPaymentAmount == null) return;
+    setPaymentReceiptPromptOpen(false);
+    const receiptWindow = shouldPrintReceipt ? window.open("", "_blank") : null;
+    void (async () => {
+      const savedPayment = await onCreatePayment(
+        paymentModal.type,
+        parsedPaymentAmount,
+        paymentModal.method,
+        paymentModal.cashRegisterId || null,
+        fromApplicationDateTimeLocalValue(paymentModal.paidAtUtc),
+        paymentModal.note.trim() || null,
+        paymentModal.movementId || null
+      );
+      if (!savedPayment) {
+        receiptWindow?.close();
+        return;
+      }
+      setPaymentModal((current) => ({ ...current, open: false }));
+      if (shouldPrintReceipt) {
+        printSavedPaymentReceipt(savedPayment, receiptWindow);
+      }
+    })();
   };
   const noPermissionTitle = "Yetkiniz yok.";
   useEffect(() => {
@@ -5465,33 +5581,51 @@ function AccountingTab({
       <Modal
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setPaymentModal((current) => ({ ...current, open: false }))} type="button">
-              Vazgeç
-            </button>
             <button
-              className="btn btn-primary"
-              disabled={!canSavePayment}
+              className="btn btn-secondary"
               onClick={() => {
-                if (!canSavePayment || parsedPaymentAmount == null) return;
-                onCreatePayment(
-                  paymentModal.type,
-                  parsedPaymentAmount,
-                  paymentModal.method,
-                  paymentModal.cashRegisterId || null,
-                  fromApplicationDateTimeLocalValue(paymentModal.paidAtUtc),
-                  paymentModal.note.trim() || null,
-                  paymentModal.movementId || null
-                );
+                setPaymentReceiptPromptOpen(false);
                 setPaymentModal((current) => ({ ...current, open: false }));
               }}
-              title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
-              {paymentSaving ? t("common.saving") : t("candidateDetail.accounting.savePayment")}
+              Vazgeç
             </button>
+            <div className="candidate-payment-save-confirm-wrap">
+              {paymentReceiptPromptOpen && (
+                <div className="candidate-payment-save-confirm" role="dialog" aria-label="Makbuz yazdırma seçimi">
+                  <div className="candidate-payment-save-confirm-copy">
+                    <strong>Makbuz yazdırmak istiyor musunuz?</strong>
+                  </div>
+                  <div className="candidate-payment-save-confirm-actions">
+                    <button className="btn btn-secondary" disabled={paymentSaving} onClick={() => submitPayment(false)} type="button">
+                      Hayır
+                    </button>
+                    <button className="btn btn-primary" disabled={paymentSaving} onClick={() => submitPayment(true)} type="button">
+                      Evet
+                    </button>
+                  </div>
+                </div>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={!canSavePayment}
+                onClick={() => {
+                  if (!canSavePayment) return;
+                  setPaymentReceiptPromptOpen(true);
+                }}
+                title={!canManagePayments ? noPermissionTitle : undefined}
+                type="button"
+              >
+                {paymentSaving ? t("common.saving") : t("candidateDetail.accounting.savePayment")}
+              </button>
+            </div>
           </>
         }
-        onClose={() => setPaymentModal((current) => ({ ...current, open: false }))}
+        onClose={() => {
+          setPaymentReceiptPromptOpen(false);
+          setPaymentModal((current) => ({ ...current, open: false }));
+        }}
         open={paymentModal.open}
         title={t("candidateDetail.accounting.modal.collectPayment")}
       >
@@ -6747,6 +6881,7 @@ function printAccountingReceipt({
   totalDebt,
   totalLabel,
   profile,
+  targetWindow,
 }: {
   balanceRows: Array<{ dueDate: string; amount: string }>;
   amount: string;
@@ -6776,8 +6911,9 @@ function printAccountingReceipt({
   totalDebt: string;
   totalLabel: string;
   profile: ReceiptPrintProfile;
+  targetWindow?: Window | null;
 }): boolean {
-  const printWindow = window.open("", "_blank");
+  const printWindow = targetWindow ?? window.open("", "_blank");
   if (!printWindow) return false;
 
   const escape = escapePaymentPlanPrintHtml;
@@ -6789,50 +6925,62 @@ function printAccountingReceipt({
       ? "A4 landscape"
     : `${profile.paperWidthMm}mm ${profile.pageHeightMm}mm`;
   const balanceRowsHtml = balanceRows.length > 0
-    ? balanceRows.map((row) => `<div><span>${escape(row.dueDate)}</span><strong>${escape(row.amount)}</strong></div>`).join("")
-    : `<div><span>—</span><strong>—</strong></div>`;
+    ? balanceRows.map((row) => `<div class="candidate-payment-receipt-balance-row"><span>${escape(row.dueDate)}</span><strong>${escape(row.amount)}</strong></div>`).join("")
+    : `<div class="candidate-payment-receipt-balance-row"><span>—</span><strong>—</strong></div>`;
   const logoHtml = logoUrl
-    ? `<img alt="" class="logo" src="${escape(logoUrl)}" />`
+    ? `<img alt="" class="candidate-payment-receipt-logo" src="${escape(logoUrl)}" />`
     : "";
-  const receiptHtml = `<div class="receipt">
-    <h1>${escape(title)}</h1>
-    <div class="head">
-      <div class="brand">
+  const rowHtml = (
+    label: string,
+    value: string,
+    options: { align?: "left" | "right"; signature?: boolean; tone?: "total" } = {}
+  ) => {
+    const classes = [
+      "candidate-payment-receipt-row",
+      options.signature ? "signature" : "",
+      options.tone === "total" ? "total-tone" : "",
+    ].filter(Boolean).join(" ");
+    return `<div class="${classes}"><div class="candidate-payment-receipt-label">${escape(label)}</div><div class="candidate-payment-receipt-value ${options.align ?? "right"}">${escape(value)}</div></div>`;
+  };
+  const sectionHtml = (sectionTitle: string, rows: string) =>
+    `<section class="candidate-payment-receipt-section"><h2>${escape(sectionTitle)}</h2><div class="candidate-payment-receipt-rows">${rows}</div></section>`;
+  const receiptHtml = `<div class="candidate-payment-receipt">
+    <h1 class="candidate-payment-receipt-title">${escape(title)}</h1>
+    <div class="candidate-payment-receipt-head">
+      <div>
         ${logoHtml}
         <strong>${escape(brand)}</strong>
       </div>
     </div>
-    <div class="section-title">${escape(candidateLabel)}</div>
-    <dl>
-      <div><dt>Adı Soyadı</dt><dd>${escape(candidateName)}</dd></div>
-      <div><dt>${escape(nationalIdLabel)}</dt><dd>${escape(nationalId)}</dd></div>
-    </dl>
-    <div class="section-title">Ödeme Bilgileri</div>
-    <dl>
-      <div><dt>Borç Türü</dt><dd>${escape(debtTypeLabel)}</dd></div>
-      <div><dt>${escape(dueDateLabel)}</dt><dd>${escape(dueDate)}</dd></div>
-      <div><dt>${escape(receiptNumberLabel)}</dt><dd>${escape(receiptNumber)}</dd></div>
-      <div><dt>${escape(paidDateLabel)}</dt><dd>${escape(paidDate)}</dd></div>
-      <div><dt>${escape(paidTimeLabel)}</dt><dd>${escape(paidTime)}</dd></div>
-      <div><dt>${escape(methodLabel)}</dt><dd>${escape(method)}</dd></div>
-      <div class="collection"><dt>Tahsilat</dt><dd>${escape(amount)}</dd></div>
-    </dl>
-    <div class="section-title">${escape(collectorLabel)}</div>
-    <dl>
-      <div><dt>Adı Soyadı</dt><dd>${escape(collectorName)}</dd></div>
-      <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
-    </dl>
-    <div class="section-title">${escape(payerLabel)}</div>
-    <dl>
-      <div><dt>Adı Soyadı</dt><dd>&nbsp;</dd></div>
-      <div><dt>${escape(signatureLabel)}</dt><dd>&nbsp;</dd></div>
-    </dl>
-    <div class="section-title">${escape(remainingBalanceLabel)}</div>
-    <div class="balance">${balanceRowsHtml}</div>
-    <div class="balance-total"><span>${escape(totalLabel)}</span><strong>${escape(totalDebt)}</strong></div>
-    <div class="thanks">Teşekkür Ederiz.</div>
+    ${sectionHtml(candidateLabel, [
+      rowHtml("Adı Soyadı", candidateName, { align: "left" }),
+      rowHtml(nationalIdLabel, nationalId, { align: "left" }),
+    ].join(""))}
+    ${sectionHtml("Ödeme Bilgileri", [
+      rowHtml("Borç Türü", debtTypeLabel),
+      rowHtml(dueDateLabel, dueDate),
+      rowHtml(receiptNumberLabel, receiptNumber),
+      rowHtml(paidDateLabel, paidDate),
+      rowHtml(paidTimeLabel, paidTime),
+      rowHtml(methodLabel, method),
+      rowHtml("Tahsilat", amount, { tone: "total" }),
+    ].join(""))}
+    ${sectionHtml(collectorLabel, [
+      rowHtml("Adı Soyadı", collectorName, { align: "left" }),
+      rowHtml(signatureLabel, "", { signature: true }),
+    ].join(""))}
+    ${sectionHtml(payerLabel, [
+      rowHtml("Adı Soyadı", "", { align: "left" }),
+      rowHtml(signatureLabel, "", { signature: true }),
+    ].join(""))}
+    <section class="candidate-payment-receipt-section">
+      <h2>${escape(remainingBalanceLabel)}</h2>
+      <div class="candidate-payment-receipt-rows">${balanceRowsHtml}</div>
+      <div class="candidate-payment-receipt-total"><span>${escape(totalLabel)}</span><strong>${escape(totalDebt)}</strong></div>
+    </section>
+    <div class="candidate-payment-receipt-thanks">Teşekkür Ederiz.</div>
   </div>`;
-  const receiptsHtml = Array.from({ length: profile.copyCount ?? 1 }, () => receiptHtml).join("");
+  const receiptsHtml = Array.from({ length: profile.copyCount ?? 1 }, () => receiptHtml).join(isTwoUp ? '<div class="cut-line" aria-hidden="true"></div>' : "");
   printWindow.document.write(`<!doctype html>
     <html lang="tr">
       <head>
@@ -6846,29 +6994,38 @@ function printAccountingReceipt({
           * { box-sizing: border-box; }
           html, body { width: ${isTwoUp ? "100%" : `${profile.printWidthMm}mm`}; }
           body { color: #1a1a2e; font-family: Arial, sans-serif; margin: 0; }
-          .sheet { ${isTwoUp ? `display: grid; grid-template-columns: repeat(2, ${profile.printWidthMm}mm); gap: 8mm; justify-content: center; align-items: start; width: 100%;` : "display: block;"} }
-          .receipt { display: flex; flex-direction: column; gap: ${isNarrow ? 5 : 8}px; width: ${profile.printWidthMm}mm; }
-          h1 { font-size: ${isNarrow ? 12 : 16}px; margin: 0; text-align: center; }
-          .head { display: grid; gap: 2px; padding-bottom: ${isNarrow ? 2 : 3}px; text-align: center; }
-          .brand { display: grid; gap: 2px; justify-items: center; }
-          .logo { display: block; max-height: ${isNarrow ? 22 : 30}px; max-width: ${isNarrow ? 34 : 46}mm; object-fit: contain; }
-          .brand strong { font-size: ${isNarrow ? 11 : 14}px; line-height: 1.15; }
-          .brand span, .number, dt { color: #C91683; font-size: ${isNarrow ? 7 : 9}px; }
-          .number { font-weight: 800; white-space: nowrap; }
-          dl { display: grid; gap: ${isNarrow ? 4 : 6}px; grid-template-columns: ${isNarrow ? "1fr" : "repeat(2, minmax(0, 1fr))"}; margin: 0; }
-          dl .collection { background: #FFF4FB; border: 1px solid #FBC4E7; border-radius: 6px; padding: ${isNarrow ? 4 : 5}px; }
-          dl .collection dd { font-weight: 800; }
-          dt { letter-spacing: .04em; text-transform: uppercase; }
-          dd { font-size: ${isNarrow ? 9 : 11}px; font-weight: 700; margin: 1px 0 0; overflow-wrap: anywhere; }
-          .section-title { align-items: center; color: #C91683; display: flex; font-size: ${isNarrow ? 7 : 9}px; font-weight: 800; gap: 6px; letter-spacing: .02em; text-transform: uppercase; }
-          .section-title::before, .section-title::after { background: #FBC4E7; content: ""; flex: 1; height: 1px; }
-          .balance { display: grid; gap: 0; }
-          .balance div { border-bottom: 1px solid #e5e7eb; display: grid; grid-template-columns: 1fr 1fr; min-height: ${isNarrow ? 14 : 18}px; }
-          .balance span, .balance strong { align-items: center; display: flex; font-size: ${isNarrow ? 8 : 10}px; padding: 2px 5px; }
-          .balance strong { justify-content: flex-end; }
-          .balance-total { background: #FFF4FB; border: 1px solid #FBC4E7; border-radius: 6px; color: #1a1a2e; display: grid; font-weight: 800; grid-template-columns: 1fr 1fr; margin-top: 3px; overflow: hidden; }
-          .balance-total span, .balance-total strong { padding: ${isNarrow ? 4 : 5}px; }
-          .thanks { border-top: 1px dashed #FBC4E7; color: #C91683; font-size: ${isNarrow ? 9 : 11}px; font-weight: 800; padding-top: 5px; text-align: center; }
+          .sheet { ${isTwoUp ? `display: grid; grid-template-columns: ${profile.printWidthMm}mm 1px ${profile.printWidthMm}mm; column-gap: 16mm; justify-content: center; align-items: stretch; width: 100%;` : "display: block;"} }
+          .cut-line { ${isTwoUp ? "border-left: 1px dashed #cbd5e1; min-height: 100%;" : "display: none;"} }
+          .candidate-payment-receipt { color: #1a1a2e; display: flex; flex-direction: column; gap: ${isNarrow ? 5 : 8}px; width: ${profile.printWidthMm}mm; }
+          .candidate-payment-receipt-title { color: #1a1a2e; font-size: ${isNarrow ? 12 : 16}px; font-weight: 800; line-height: 1.2; margin: 0; text-align: center; }
+          .candidate-payment-receipt-head { display: flex; justify-content: center; padding-bottom: ${isNarrow ? 1 : 2}px; text-align: center; }
+          .candidate-payment-receipt-head div:first-child { align-items: center; display: flex; flex-direction: column; gap: ${isNarrow ? 3 : 5}px; }
+          .candidate-payment-receipt-logo { display: block; max-height: ${isNarrow ? 22 : 30}px; max-width: ${isNarrow ? 34 : 46}mm; object-fit: contain; }
+          .candidate-payment-receipt-head strong { color: #1a1a2e; font-size: ${isNarrow ? 11 : 14}px; line-height: 1.15; }
+          .candidate-payment-receipt-section { display: flex; flex-direction: column; gap: ${isNarrow ? 3 : 5}px; }
+          .candidate-payment-receipt-section h2 { align-items: center; color: #C91683; display: flex; font-size: ${isNarrow ? 7 : 9}px; font-weight: 800; gap: 6px; letter-spacing: .02em; margin: 0; text-transform: uppercase; }
+          .candidate-payment-receipt-section h2::before, .candidate-payment-receipt-section h2::after { background: #FBC4E7; content: ""; flex: 1; height: 1px; }
+          .candidate-payment-receipt-rows { display: flex; flex-direction: column; }
+          .candidate-payment-receipt-row { background: #ffffff; border-bottom: 1px solid #e5e7eb; display: grid; grid-template-columns: 42% 58%; min-height: ${isNarrow ? 18 : 23}px; }
+          .candidate-payment-receipt-row:first-child { border-top: 1px solid #e5e7eb; }
+          .candidate-payment-receipt-row.signature { min-height: ${isNarrow ? 26 : 36}px; }
+          .candidate-payment-receipt-row.total-tone { background: #FFF4FB; border: 1px solid #FBC4E7; border-radius: 6px; margin-top: 3px; overflow: hidden; }
+          .candidate-payment-receipt-row.total-tone + .candidate-payment-receipt-row { border-top: 0; }
+          .candidate-payment-receipt-label, .candidate-payment-receipt-value { min-width: 0; padding: ${isNarrow ? 3 : 5}px ${isNarrow ? 5 : 6}px; font-size: ${isNarrow ? 8 : 10}px; }
+          .candidate-payment-receipt-label { align-items: center; background: #f9fafb; border-right: 1px solid #e5e7eb; color: #3d3d50; display: flex; font-size: ${isNarrow ? 7 : 9}px; font-weight: 800; text-transform: uppercase; }
+          .candidate-payment-receipt-row.total-tone .candidate-payment-receipt-label { background: transparent; color: #1a1a2e; }
+          .candidate-payment-receipt-value { font-weight: 600; overflow-wrap: anywhere; text-align: right; }
+          .candidate-payment-receipt-value.left { text-align: left; }
+          .candidate-payment-receipt-row.total-tone .candidate-payment-receipt-value { color: #1a1a2e; font-weight: 800; }
+          .candidate-payment-receipt-balance-row { border-bottom: 1px solid #e5e7eb; display: grid; grid-template-columns: 56% 44%; min-height: ${isNarrow ? 18 : 23}px; }
+          .candidate-payment-receipt-balance-row:first-child { border-top: 1px solid #e5e7eb; }
+          .candidate-payment-receipt-balance-row span, .candidate-payment-receipt-balance-row strong { min-width: 0; padding: ${isNarrow ? 3 : 5}px ${isNarrow ? 5 : 6}px; font-size: ${isNarrow ? 8 : 10}px; }
+          .candidate-payment-receipt-balance-row span { text-align: center; }
+          .candidate-payment-receipt-balance-row strong { text-align: right; }
+          .candidate-payment-receipt-total { background: #FFF4FB; border: 1px solid #FBC4E7; border-radius: 6px; color: #1a1a2e; display: grid; font-weight: 800; grid-template-columns: 38% 62%; margin-top: 3px; overflow: hidden; }
+          .candidate-payment-receipt-total span, .candidate-payment-receipt-total strong { padding: ${isNarrow ? 4 : 5}px ${isNarrow ? 5 : 6}px; font-size: ${isNarrow ? 8 : 10}px; font-weight: 800; }
+          .candidate-payment-receipt-total strong { text-align: right; }
+          .candidate-payment-receipt-thanks { border-top: 1px dashed #FBC4E7; color: #C91683; font-size: ${isNarrow ? 9 : 11}px; font-weight: 800; margin-top: 2px; padding-top: 5px; text-align: center; }
         </style>
       </head>
       <body>
@@ -6886,7 +7043,7 @@ function printAccountingReceipt({
 }
 
 type ReceiptPrintProfile = {
-  id: "thermal-58" | "thermal-80" | "a4" | "a4-landscape-2up";
+  id: ReceiptPrintProfileId;
   label: string;
   copyCount?: number;
   marginBottomMm: number;
@@ -6914,7 +7071,7 @@ const RECEIPT_PRINT_PROFILES: ReceiptPrintProfile[] = [
     id: "a4-landscape-2up",
     label: "A4 Yatay (2 Makbuz)",
     paperWidthMm: 297,
-    printWidthMm: 130,
+    printWidthMm: 104,
     copyCount: 2,
     marginLeftMm: 10,
     marginRightMm: 10,
@@ -6963,7 +7120,6 @@ function AccountingReceiptModal({
 }) {
   const t = useT();
   const { showToast } = useToast();
-  const [printMenuOpen, setPrintMenuOpen] = useState(false);
   if (!payment) return null;
   const receiptNumber = payment.number?.trim() || payment.id.slice(0, 8).toLocaleUpperCase("tr-TR");
   const receiptBrand = institutionName?.trim() || t("candidateDetail.accounting.receipt.brand");
@@ -6984,13 +7140,14 @@ function AccountingReceiptModal({
   const totalDebt = formatCurrencyTRY(accounting?.totalDebtAmount ?? accounting?.totalMovementAmount ?? payment.amount);
   const collectorName = payment.createdByName?.trim() || "—";
   const debtTypeLabel = t(accountingTypeLabelKey(payment.type));
-  const printReceipt = (profile: ReceiptPrintProfile) => {
-    setPrintMenuOpen(false);
+  const printReceipt = () => {
+    const selectedProfileId = readReceiptPrintProfileId();
+    const profile = RECEIPT_PRINT_PROFILES.find((item) => item.id === selectedProfileId) ?? RECEIPT_PRINT_PROFILES[0];
     const opened = printAccountingReceipt({
       balanceRows,
       amount: formatCurrencyTRY(payment.amount),
       brand: receiptBrand,
-      candidateLabel: t("common.field.candidate"),
+      candidateLabel: "Kursiyer",
       candidateName: `${candidate.firstName} ${candidate.lastName}`.trim(),
       collectorLabel: t("candidateDetail.accounting.receipt.collector"),
       collectorName,
@@ -7026,38 +7183,9 @@ function AccountingReceiptModal({
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} type="button">{t("common.close")}</button>
-          <div className="candidate-receipt-print-menu-wrap">
-            <button
-              aria-expanded={printMenuOpen}
-              className="btn btn-primary"
-              onClick={() => setPrintMenuOpen((open) => !open)}
-              type="button"
-            >
-              {t("candidateDetail.accounting.action.print")}
-            </button>
-            {printMenuOpen ? (
-              <div className="candidate-receipt-print-menu" role="menu" aria-label="Makbuz yazdırma boyutu">
-                {RECEIPT_PRINT_PROFILES.map((profile) => (
-                  <button
-                    className="candidate-receipt-print-menu-item"
-                    key={profile.id}
-                    onClick={() => printReceipt(profile)}
-                    role="menuitem"
-                    type="button"
-                  >
-                    <span>{profile.label}</span>
-                    <small>
-                      {profile.id === "a4"
-                        ? "A4 sayfa · 120 mm makbuz"
-                        : profile.id === "a4-landscape-2up"
-                          ? "A4 yatay · yan yana 2 makbuz"
-                        : `${profile.paperWidthMm} mm kağıt · ${profile.printWidthMm} mm baskı`}
-                    </small>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <button className="btn btn-primary" onClick={printReceipt} type="button">
+            {t("candidateDetail.accounting.action.print")}
+          </button>
         </>
       }
       onClose={onClose}
@@ -8804,7 +8932,7 @@ async function printCandidateKCertificatePdf({
   candidate: CandidateResponse;
   row: KCertificateRow;
   lessons: TrainingLessonResponse[];
-  routeName: string | null;
+  routeName?: string | null;
   templateKey?: "k-certificate" | "k-certificate-matbu";
   title?: string;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
@@ -8816,11 +8944,12 @@ async function printCandidateKCertificatePdf({
 
   const lesson = findKCertificateLesson(lessons, row);
   try {
-    const [institution, managerResponse, instructor, vehicle, biometricPhoto] = await Promise.all([
+    const [institution, managerResponse, instructor, vehicle, resolvedRouteName, biometricPhoto] = await Promise.all([
       fetchOptional(getInstitutionSettings()),
       fetchOptional(getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 1 })),
       fetchOptional(lesson?.instructorId ? getInstructor(lesson.instructorId) : null),
       fetchOptional(lesson?.vehicleId ? getVehicle(lesson.vehicleId) : null),
+      routeName === undefined ? resolveKCertificateRouteName(lesson) : Promise.resolve(routeName),
       loadCandidateKCertificateBiometricPhoto(candidate),
     ]);
     const manager = managerResponse?.items.find((item) => item.isActive && item.role === "manager") ?? null;
@@ -8836,7 +8965,7 @@ async function printCandidateKCertificatePdf({
       instructor,
       vehicle,
       vehicleTypeLabel: vehicleTypeForLicenseClass(candidate.licenseClass, t),
-      routeName,
+      routeName: resolvedRouteName,
       biometricPhoto,
       templateKey,
     });
@@ -8846,6 +8975,21 @@ async function printCandidateKCertificatePdf({
     printWindow.close();
     throw error;
   }
+}
+
+async function resolveKCertificateRouteName(lesson: TrainingLessonResponse | null): Promise<string | null> {
+  if (!lesson?.vehicleId) {
+    throw new Error("K belgesi için araç plakası bulunamadı.");
+  }
+
+  const routes = await getCandidateReferences({ includeInactive: false, kind: "route" });
+  const route = routes.find((item) =>
+    item.isActive && (item.vehicleIds ?? []).includes(lesson.vehicleId ?? "")
+  );
+  if (!route) {
+    throw new Error("Bu araç plakasına bağlı aktif güzergah bulunamadı.");
+  }
+  return route.name;
 }
 
 function CandidateKCertificateSection({
@@ -8865,20 +9009,7 @@ function CandidateKCertificateSection({
   const [saving, setSaving] = useState(false);
   const [printingRowId, setPrintingRowId] = useState<string | null>(null);
   const [deleteConfirmRowId, setDeleteConfirmRowId] = useState<string | null>(null);
-  const [routePickerRow, setRoutePickerRow] = useState<KCertificateRow | null>(null);
-  const [routePickerPosition, setRoutePickerPosition] = useState<{ top: number; left: number; width: number } | null>(null);
-  const routePickerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const routeOptionsQuery = useQuery({
-    enabled: routePickerRow != null,
-    queryKey: ["settings", "candidate-routes", { includeInactive: false, kind: "route" }],
-    queryFn: ({ signal }) => getCandidateReferences({ includeInactive: false, kind: "route" }, signal),
-    staleTime: 5 * 60 * 1000,
-  });
-  const routeOptions = useMemo(
-    () => (routeOptionsQuery.data ?? []).filter((item) => item.isActive),
-    [routeOptionsQuery.data]
-  );
 
   const invalidateKCertificateDependents = () => {
     void queryClient.invalidateQueries({ queryKey: candidateKeys.detail(candidate.id) });
@@ -8921,28 +9052,6 @@ function CandidateKCertificateSection({
     return () => controller.abort();
   }, [candidate.id]);
 
-  useEffect(() => {
-    if (!routePickerRow) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (target && routePickerRef.current?.contains(target)) return;
-      setRoutePickerRow(null);
-      setRoutePickerPosition(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setRoutePickerRow(null);
-        setRoutePickerPosition(null);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [routePickerRow]);
-
   const rows = useMemo(
     () => buildKCertificateRows(lessons, candidate.nationalId, candidate.id),
     [candidate.id, candidate.nationalId, lessons]
@@ -8977,26 +9086,8 @@ function CandidateKCertificateSection({
     setDeleteConfirmRowId(null);
   };
 
-  const openRoutePicker = (row: KCertificateRow, event: MouseEvent<HTMLButtonElement>) => {
+  const printKCertificate = async (row: KCertificateRow) => {
     if (printingRowId) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const width = 320;
-    const left = Math.min(
-      window.innerWidth - width - 12,
-      Math.max(12, rect.right - width)
-    );
-    setRoutePickerPosition({
-      top: rect.bottom + 6,
-      left,
-      width,
-    });
-    setRoutePickerRow(row);
-  };
-
-  const printKCertificate = async (row: KCertificateRow, routeName: string) => {
-    if (printingRowId) return;
-    setRoutePickerRow(null);
-    setRoutePickerPosition(null);
 
     setPrintingRowId(row.id);
     try {
@@ -9004,7 +9095,6 @@ function CandidateKCertificateSection({
         candidate,
         row,
         lessons,
-        routeName,
         t,
       });
     } catch (error) {
@@ -9069,12 +9159,12 @@ function CandidateKCertificateSection({
                   </td>
                   <td>
                     <div className="candidate-k-certificate-row-actions">
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={saving || printingRowId != null}
-                        onClick={(event) => openRoutePicker(row, event)}
-                        type="button"
-                      >
+	                      <button
+	                        className="btn btn-secondary btn-sm"
+	                        disabled={saving || printingRowId != null}
+	                        onClick={() => void printKCertificate(row)}
+	                        type="button"
+	                      >
                         <PrintIcon size={14} />
                         {printingRowId === row.id ? "Hazırlanıyor" : "Yazdır"}
                       </button>
@@ -9093,45 +9183,7 @@ function CandidateKCertificateSection({
           </tbody>
           </table>
         </div>
-        {routePickerRow && routePickerPosition
-          ? createPortal(
-              <div
-                className="candidate-k-certificate-route-popover"
-                ref={routePickerRef}
-                role="menu"
-                aria-label="Güzergah seç"
-                style={{
-                  top: routePickerPosition.top,
-                  left: routePickerPosition.left,
-                  width: routePickerPosition.width,
-                }}
-              >
-                <div className="candidate-k-certificate-route-popover-title">Güzergah seç</div>
-                {routeOptionsQuery.isLoading ? (
-                  <div className="candidate-k-certificate-route-popover-note">Güzergahlar yükleniyor...</div>
-                ) : routeOptionsQuery.isError ? (
-                  <div className="candidate-k-certificate-route-popover-note error">Güzergah listesi yüklenemedi.</div>
-                ) : routeOptions.length === 0 ? (
-                  <div className="candidate-k-certificate-route-popover-note">Aktif güzergah bulunmuyor.</div>
-                ) : (
-                  routeOptions.map((route) => (
-                    <button
-                      className="candidate-k-certificate-route-option"
-                      disabled={printingRowId != null}
-                      key={route.id}
-                      onClick={() => void printKCertificate(routePickerRow, route.name)}
-                      role="menuitem"
-                      type="button"
-                    >
-                      {route.name}
-                    </button>
-                  ))
-                )}
-              </div>,
-              document.body
-            )
-          : null}
-    </section>
+	    </section>
   );
 }
 

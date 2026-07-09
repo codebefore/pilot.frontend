@@ -10,6 +10,7 @@ export interface CandidateReferenceResponse {
   id: string;
   kind?: CandidateReferenceKind;
   name: string;
+  vehicleIds?: string[];
   displayOrder: number;
   isActive: boolean;
   createdAtUtc: string;
@@ -26,6 +27,7 @@ export type CandidateReferenceKind = "reference" | "route";
 interface CandidateReferenceUpsertRequest {
   kind?: CandidateReferenceKind;
   name: string;
+  vehicleIds?: string[];
   displayOrder: number;
   isActive: boolean;
   rowVersion?: number;

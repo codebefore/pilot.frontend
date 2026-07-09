@@ -8,6 +8,7 @@ const getCandidateReferencesMock = vi.fn();
 const createCandidateReferenceMock = vi.fn();
 const updateCandidateReferenceMock = vi.fn();
 const deleteCandidateReferenceMock = vi.fn();
+const getVehiclesMock = vi.fn();
 
 vi.mock("../../lib/candidate-references-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/candidate-references-api")>(
@@ -27,12 +28,24 @@ vi.mock("../../lib/candidate-references-api", async () => {
   };
 });
 
+vi.mock("../../lib/vehicles-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/vehicles-api")>(
+    "../../lib/vehicles-api"
+  );
+
+  return {
+    ...actual,
+    getVehicles: (...args: Parameters<typeof actual.getVehicles>) => getVehiclesMock(...args),
+  };
+});
+
 describe("ReferencesSettingsSection", () => {
   beforeEach(() => {
     getCandidateReferencesMock.mockReset();
     createCandidateReferenceMock.mockReset();
     updateCandidateReferenceMock.mockReset();
     deleteCandidateReferenceMock.mockReset();
+    getVehiclesMock.mockReset();
 
     getCandidateReferencesMock.mockResolvedValue([
       {
@@ -45,6 +58,44 @@ describe("ReferencesSettingsSection", () => {
         rowVersion: 1,
       },
     ]);
+    getVehiclesMock.mockResolvedValue({
+      items: [
+        {
+          id: "vehicle-1",
+          plateNumber: "34 ABC 123",
+          brand: "Renault",
+          model: "Clio",
+          status: "idle",
+          isActive: true,
+          isSimulator: false,
+          transmissionType: "manual",
+          vehicleType: "automobile",
+          licenseClasses: ["B"],
+          ownershipType: "owned",
+          fuelType: "gasoline",
+          modelYear: null,
+          color: null,
+          odometerValue: null,
+          odometerUnit: "km",
+          registrationDate: null,
+          serviceStartDate: null,
+          latestInsuranceEndDate: null,
+          latestInspectionEndDate: null,
+          latestCascoEndDate: null,
+          accidentNotes: null,
+          otherDetails: null,
+          notes: null,
+          createdAtUtc: "2026-01-01T00:00:00Z",
+          updatedAtUtc: "2026-01-01T00:00:00Z",
+          rowVersion: 1,
+        },
+      ],
+      summary: { activeCount: 1, inUseCount: 0, maintenanceCount: 0, idleCount: 1 },
+      page: 1,
+      pageSize: 1000,
+      totalCount: 1,
+      totalPages: 1,
+    });
   });
 
   it("disables reference mutations for candidates view-only users", async () => {
@@ -102,14 +153,60 @@ describe("ReferencesSettingsSection", () => {
     fireEvent.change(screen.getByPlaceholderText("Güzergah adı"), {
       target: { value: "Sahil" },
     });
+    fireEvent.click(await screen.findByLabelText("34 ABC 123 · Renault Clio"));
     fireEvent.click(screen.getByRole("button", { name: "Ekle" }));
 
     expect(await screen.findByText("Güzergah eklendi")).toBeInTheDocument();
     expect(createCandidateReferenceMock).toHaveBeenCalledWith({
       kind: "route",
       name: "Sahil",
+      vehicleIds: ["vehicle-1"],
       displayOrder: 200,
       isActive: true,
+    });
+  });
+
+  it("updates route vehicle toggles", async () => {
+    getCandidateReferencesMock.mockResolvedValue([
+      {
+        id: "route-1",
+        kind: "route",
+        name: "Sahil",
+        vehicleIds: [],
+        displayOrder: 200,
+        isActive: true,
+        createdAtUtc: "2026-01-01T00:00:00Z",
+        updatedAtUtc: "2026-01-01T00:00:00Z",
+        rowVersion: 7,
+      },
+    ]);
+    updateCandidateReferenceMock.mockResolvedValue({
+      id: "route-1",
+      kind: "route",
+      name: "Sahil",
+      vehicleIds: ["vehicle-1"],
+      displayOrder: 200,
+      isActive: true,
+      createdAtUtc: "2026-01-01T00:00:00Z",
+      updatedAtUtc: "2026-01-01T00:00:00Z",
+      rowVersion: 8,
+    });
+
+    renderWithProviders(<ReferencesSettingsSection variant="routes" />);
+
+    expect(await screen.findByText("Sahil")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Düzenle"));
+    fireEvent.click(await screen.findByLabelText("34 ABC 123 · Renault Clio"));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    expect(await screen.findByText("Güzergah güncellendi")).toBeInTheDocument();
+    expect(updateCandidateReferenceMock).toHaveBeenCalledWith("route-1", {
+      kind: "route",
+      name: "Sahil",
+      vehicleIds: ["vehicle-1"],
+      displayOrder: 200,
+      isActive: true,
+      rowVersion: 7,
     });
   });
 });
