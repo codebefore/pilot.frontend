@@ -350,6 +350,14 @@ function rangesOverlap(
   return otherStart.getTime() < end.getTime() && otherEnd.getTime() > start.getTime();
 }
 
+function uniqueEventsById(source: TrainingCalendarEvent[]) {
+  const byId = new Map<string, TrainingCalendarEvent>();
+  source.forEach((event) => {
+    if (!byId.has(event.id)) byId.set(event.id, event);
+  });
+  return [...byId.values()];
+}
+
 function getMebbisImportExpectedLessonCount(resultJson: string | null): number | null {
   if (!resultJson) return null;
   try {
@@ -475,6 +483,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const vehicles: VehicleResponse[] = vehiclesQuery.data?.items ?? EMPTY_VEHICLES;
   const simulatorVehicleIds = useMemo(
     () => new Set(vehicles.filter((vehicle) => vehicle.isSimulator).map((vehicle) => vehicle.id)),
+    [vehicles]
+  );
+  const activeVehicleFilterKeys = useMemo(
+    () => new Set(vehicles.filter((vehicle) => vehicle.isActive).map(vehicleFilterKey)),
     [vehicles]
   );
 
@@ -768,6 +780,20 @@ export function TrainingPage({ type }: TrainingPageProps) {
     setMebbisImportedFocusDate(null);
   }, [quickSettings.candidateId, type]);
 
+  useEffect(() => {
+    if (type !== "uygulama") return;
+    setVisibleGroups((prev) => {
+      const next = new Set([...prev].filter((key) => activeVehicleFilterKeys.has(key)));
+      return next.size === prev.size ? prev : next;
+    });
+    setQuickSettings((prev) => {
+      if (!prev.vehicleId || vehicles.some((vehicle) => vehicle.id === prev.vehicleId && vehicle.isActive)) {
+        return prev;
+      }
+      return { ...prev, vehicleId: "" };
+    });
+  }, [activeVehicleFilterKeys, type, vehicles]);
+
   // Backend'den gelen event.groupName ile groups state'indeki group.title
   // genelde aynı olmalı; ama tutarsızlık olursa groupId üzerinden de eşleştir.
   const groupTitleById = useMemo(
@@ -910,11 +936,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
   }, [type, visibleInstructors]);
 
   const instructorAvailabilityQuery = useQuery({
-    queryKey: ["training", "lessons", "availability", "instructor", selectedTheoryInstructorId, overlayWindow],
+    queryKey: [
+      "training",
+      "lessons",
+      "availability",
+      "instructor-all-kinds",
+      selectedTheoryInstructorId,
+      overlayWindow,
+    ],
     queryFn: ({ signal }) =>
       getTrainingLessons(
         {
-          kind: "teorik",
           fromUtc: overlayWindow.fromUtc,
           toUtc: overlayWindow.toUtc,
           instructorId: selectedTheoryInstructorId,
@@ -968,11 +1000,17 @@ export function TrainingPage({ type }: TrainingPageProps) {
   }, [type, vehicles, visibleGroups]);
 
   const practiceInstructorAvailabilityQuery = useQuery({
-    queryKey: ["training", "lessons", "availability", "practice-instructor", selectedPracticeInstructorId, overlayWindow],
+    queryKey: [
+      "training",
+      "lessons",
+      "availability",
+      "practice-instructor-all-kinds",
+      selectedPracticeInstructorId,
+      overlayWindow,
+    ],
     queryFn: ({ signal }) =>
       getTrainingLessons(
         {
-          kind: "uygulama",
           fromUtc: overlayWindow.fromUtc,
           toUtc: overlayWindow.toUtc,
           instructorId: selectedPracticeInstructorId,
@@ -1062,14 +1100,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
   }, [type, quickSettings.groupId, groups]);
 
   const visibleEvents = useMemo(() => {
-    const uniqueEventsById = (source: TrainingCalendarEvent[]) => {
-      const byId = new Map<string, TrainingCalendarEvent>();
-      source.forEach((event) => {
-        if (!byId.has(event.id)) byId.set(event.id, event);
-      });
-      return [...byId.values()];
-    };
-
     const theoryLessonNumberById = new Map<string, number>();
     const theoryEventsByGroupAndBranch = new Map<string, TrainingCalendarEvent[]>();
     for (const event of uniqueEventsById([...events, ...theoryEventsForOverlay])) {
@@ -1174,10 +1204,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
         );
       const busyMarkers = new Map<string, TrainingCalendarEvent>();
       for (const event of theoryAvailabilityEvents) {
-        if (event.kind !== "teorik") continue;
         if (visibleEventIds.has(event.id)) continue;
         if (overlapsVisibleEvent(event)) continue;
-        if (quickSettings.groupId && event.groupId === quickSettings.groupId) continue;
+        if (
+          quickSettings.groupId &&
+          event.kind === "teorik" &&
+          event.groupId === quickSettings.groupId
+        ) {
+          continue;
+        }
 
         const busyReasons: TrainingBusyReason[] = [];
         if (selectedTheoryInstructorId && event.instructorId === selectedTheoryInstructorId) {
@@ -1205,10 +1240,15 @@ export function TrainingPage({ type }: TrainingPageProps) {
         );
       const busyMarkers = new Map<string, TrainingCalendarEvent>();
       for (const event of practiceAvailabilityEvents) {
-        if (event.kind !== "uygulama") continue;
         if (visibleEventIds.has(event.id)) continue;
         if (overlapsVisibleEvent(event)) continue;
-        if (quickSettings.candidateId && event.candidateId === quickSettings.candidateId) continue;
+        if (
+          quickSettings.candidateId &&
+          event.kind === "uygulama" &&
+          event.candidateId === quickSettings.candidateId
+        ) {
+          continue;
+        }
 
         const busyReasons: TrainingBusyReason[] = [];
         if (selectedPracticeInstructorId && event.instructorId === selectedPracticeInstructorId) {
@@ -1786,13 +1826,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
       }
       const instructorConflictEvents = practiceInstructorAvailabilityQuery.data
         ? practiceInstructorAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
-        : events;
+        : uniqueEventsById([...events, ...theoryEventsForOverlay]);
       const vehicleConflictEvents = practiceVehicleAvailabilityQuery.data
         ? practiceVehicleAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
         : events;
       const instructorBusy = instructorConflictEvents.some(
         (event) =>
-          event.kind === "uygulama" &&
           event.instructorId === derivedInstructorId &&
           rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
       );
@@ -1878,10 +1917,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
     }
     const instructorConflictEvents = instructorAvailabilityQuery.data
       ? instructorAvailabilityQuery.data.items.map(trainingLessonToCalendarEvent)
-      : events;
+      : uniqueEventsById([...events, ...practiceEventsForOverlay]);
     const instructorBusy = instructorConflictEvents.some(
       (event) =>
-        event.kind === "teorik" &&
         event.instructorId === derivedInstructorId &&
         rangesOverlap(snappedStart, snappedEnd, event.start, event.end)
     );

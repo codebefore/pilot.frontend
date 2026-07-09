@@ -145,6 +145,8 @@ export class LocalAgentError extends Error {
   }
 }
 
+export const LOCAL_AGENT_UNAVAILABLE_MESSAGE = "MEBBİS uygulaması kapalıdır.";
+
 export function getLocalAgentUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${getLocalAgentBaseUrl()}${normalizedPath}`;
@@ -155,7 +157,7 @@ export async function getLocalAgentHealth(signal?: AbortSignal): Promise<LocalAg
 }
 
 export async function pairLocalAgent(signal?: AbortSignal): Promise<LocalAgentPairResponse> {
-  const response = await fetch(getLocalAgentUrl("/pair"), {
+  const response = await requestLocalAgent("/pair", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
@@ -167,7 +169,7 @@ export async function pairLocalAgent(signal?: AbortSignal): Promise<LocalAgentPa
 }
 
 export async function pairLocalAgentInMemory(signal?: AbortSignal): Promise<LocalAgentPairResponse> {
-  const response = await fetch(getLocalAgentUrl("/pair"), {
+  const response = await requestLocalAgent("/pair", {
     method: "POST",
     signal,
   });
@@ -179,7 +181,7 @@ export async function checkLocalAgentUpdate(
   input: { apiBaseUrl: string; channel: string },
   signal?: AbortSignal
 ): Promise<LocalAgentUpdateStatusResponse> {
-  const response = await fetch(getLocalAgentUrl("/updates/check"), {
+  const response = await requestLocalAgent("/updates/check", {
     method: "POST",
     headers: buildLocalAgentTokenHeaders(token, true),
     body: JSON.stringify({
@@ -215,7 +217,7 @@ export async function startLocalAgentMebbisSession(
   input: { apiBaseUrl: string; extensionToken?: string | null; debugVisible?: boolean },
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisSessionResponse> {
-  const response = await fetch(getLocalAgentUrl("/mebbis/session/start"), {
+  const response = await requestLocalAgent("/mebbis/session/start", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
     body: JSON.stringify({
@@ -232,7 +234,7 @@ export async function submitLocalAgentMebbisVerificationCode(
   code: string,
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisSessionResponse> {
-  const response = await fetch(getLocalAgentUrl("/mebbis/session/verification-code"), {
+  const response = await requestLocalAgent("/mebbis/session/verification-code", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
     body: JSON.stringify({ code }),
@@ -244,7 +246,7 @@ export async function submitLocalAgentMebbisVerificationCode(
 export async function stopLocalAgentMebbisSession(
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisSessionResponse> {
-  const response = await fetch(getLocalAgentUrl("/mebbis/session/stop"), {
+  const response = await requestLocalAgent("/mebbis/session/stop", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
     body: JSON.stringify({}),
@@ -257,7 +259,7 @@ export async function openLocalAgentMebbisCandidateStatusView(
   nationalId: string,
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisCandidateStatusViewResponse> {
-  const response = await fetch(getLocalAgentUrl("/mebbis/candidate-status/view"), {
+  const response = await requestLocalAgent("/mebbis/candidate-status/view", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
     body: JSON.stringify({ nationalId }),
@@ -270,7 +272,7 @@ export async function openLocalAgentMebbisCandidateStatusView(
 export async function openLocalAgentMebbisHomeView(
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisPageViewResponse> {
-  const response = await fetch(getLocalAgentUrl("/mebbis/home/view"), {
+  const response = await requestLocalAgent("/mebbis/home/view", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
     body: JSON.stringify({}),
@@ -285,7 +287,7 @@ export async function openLocalAgentMebbisPageView(
   selection?: LocalAgentMebbisPageViewSelection,
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisPageViewResponse> {
-  const response = await fetch(getLocalAgentUrl("/mebbis/page/view"), {
+  const response = await requestLocalAgent("/mebbis/page/view", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
     body: JSON.stringify({ url, ...selection }),
@@ -305,7 +307,7 @@ export async function createLocalAgentScanJob(
   settings: LocalAgentScanSettings,
   signal?: AbortSignal
 ): Promise<CreateLocalAgentScanJobResponse> {
-  const response = await fetch(getLocalAgentUrl("/scan-jobs"), {
+  const response = await requestLocalAgent("/scan-jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scannerId, settings }),
@@ -322,7 +324,7 @@ export async function getLocalAgentScanJob(
 }
 
 export async function getLocalAgentScanJobResult(jobId: string, signal?: AbortSignal): Promise<Blob> {
-  const response = await fetch(getLocalAgentUrl(`/scan-jobs/${encodeURIComponent(jobId)}/result`), {
+  const response = await requestLocalAgent(`/scan-jobs/${encodeURIComponent(jobId)}/result`, {
     cache: "no-store",
     signal,
   });
@@ -333,12 +335,21 @@ export async function getLocalAgentScanJobResult(jobId: string, signal?: AbortSi
 }
 
 async function getLocalAgentJson<T>(path: string, signal?: AbortSignal, includeToken = false): Promise<T> {
-  const response = await fetch(getLocalAgentUrl(path), {
+  const response = await requestLocalAgent(path, {
     cache: "no-store",
     headers: includeToken ? buildLocalAgentHeaders(false) : undefined,
     signal,
   });
   return handleLocalAgentJson<T>(response);
+}
+
+async function requestLocalAgent(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(getLocalAgentUrl(path), init);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new LocalAgentError(LOCAL_AGENT_UNAVAILABLE_MESSAGE);
+  }
 }
 
 function buildLocalAgentHeaders(json: boolean): HeadersInit {

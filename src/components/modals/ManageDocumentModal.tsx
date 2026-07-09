@@ -12,6 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import {
+  createAuthorizedObjectUrl,
   downloadAuthorizedFile,
   openAuthorizedFile,
   printAuthorizedFile,
@@ -21,6 +22,7 @@ import {
   cropImageFileTopPercent,
 } from "../../lib/image-preprocess";
 import {
+  analyzeCandidateDocumentOcr,
   deleteCandidateDocument,
   getCandidateDocuments,
   getCandidateDocumentDownloadUrl,
@@ -510,6 +512,9 @@ export function ManageDocumentModal({
   const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
   const [cropSaving, setCropSaving] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [replacementPreviewUrl, setReplacementPreviewUrl] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState<
     "mebbis" | "delete" | "download" | "print" | null
   >(null);
@@ -842,6 +847,12 @@ export function ManageDocumentModal({
     candidateId && document?.hasFile
       ? getCandidateDocumentDownloadUrl(candidateId, document.id, { inline: true })
       : null;
+  const canPreviewImage = !!document?.hasFile && !!document.contentType?.startsWith("image/");
+  const canAnalyzeOcr =
+    !!candidateId &&
+    !!document?.hasFile &&
+    activeDocumentType?.key !== "contract_back" &&
+    metadataFields.length > 0;
   const isMebbisTransferred = document?.isMebbisTransferred ?? false;
   const isMebbisJobDocument =
     activeDocumentType?.key === "education_certificate" ||
@@ -853,8 +864,48 @@ export function ManageDocumentModal({
     activeDocumentType?.key === "criminal_record";
   const mebbisToggleRequiresJob = isMebbisJobDocument;
   const canUseMebbisToggle = mebbisToggleRequiresJob ? canManageMebJobs : canManageDocuments;
-  const busy = submitting || actionPending !== null;
+  const busy = submitting || actionPending !== null || ocrLoading;
   const noPermissionTitle = t("common.noPermission");
+
+  useEffect(() => {
+    if (!fileUrl || !canPreviewImage) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+    createAuthorizedObjectUrl(fileUrl, controller.signal)
+      .then((url) => {
+        objectUrl = url;
+        if (!controller.signal.aborted) setPreviewUrl(url);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setPreviewUrl(null);
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setPreviewUrl(null);
+    };
+  }, [canPreviewImage, fileUrl]);
+
+  useEffect(() => {
+    if (!replacementFile || !replacementFile.type.startsWith("image/")) {
+      setReplacementPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(replacementFile);
+    setReplacementPreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+      setReplacementPreviewUrl(null);
+    };
+  }, [replacementFile]);
 
   const setMetadataValue = (key: string, value: string) => {
     setMetadataValues((current) => ({ ...current, [key]: value }));
@@ -894,6 +945,50 @@ export function ManageDocumentModal({
       }
       return next;
     });
+  };
+
+  const handleAnalyzeOcr = async () => {
+    if (!candidateId || !document || !canAnalyzeOcr || ocrLoading) return;
+    setOcrLoading(true);
+    try {
+      const suggestion = await analyzeCandidateDocumentOcr(candidateId, document.id);
+      const nextValues = { ...metadataValues };
+      let appliedCount = 0;
+      for (const field of metadataFields) {
+        const value = suggestion.metadata?.[field.key];
+        if (value != null && String(value).trim() !== "") {
+          nextValues[field.key] = String(value);
+          appliedCount += 1;
+        }
+      }
+      if (appliedCount === 0) {
+        showToast(t("candidateDetail.documents.ocr.empty"));
+        return;
+      }
+      let metadataToSend: Record<string, string> = {};
+      for (const field of metadataFields) {
+        const value = (nextValues[field.key] ?? "").trim();
+        if (value !== "") metadataToSend[field.key] = value;
+      }
+      metadataToSend = applyDocumentMetadataDefaults(activeDocumentType, metadataToSend);
+      const updated = await updateCandidateDocument(candidateId, document.id, {
+        note: document.note ?? null,
+        metadata: metadataToSend,
+      });
+      setDocument(updated);
+      setMetadataValues(nextValues);
+      setMetadataErrors({});
+      invalidateDocumentMutationDependents();
+      showToast(t("candidateDetail.documents.row.toast.ocrApplied", {
+        name: activeDocumentType?.name ?? document.documentTypeName,
+      }));
+    } catch {
+      showToast(t("candidateDetail.documents.row.toast.ocrReadFailed", {
+        name: activeDocumentType?.name ?? document.documentTypeName,
+      }), "error");
+    } finally {
+      setOcrLoading(false);
+    }
   };
 
   const submit = handleSubmit(async (data) => {
@@ -1241,6 +1336,11 @@ export function ManageDocumentModal({
                   </>
                 )}
               </div>
+              {previewUrl ? (
+                <div className="documents-manage-preview">
+                  <img alt={activeDocumentType?.name ?? document.documentTypeName} src={previewUrl} />
+                </div>
+              ) : null}
               <div className="documents-manage-actions">
                 {document.hasFile && (
                   <button
@@ -1274,6 +1374,17 @@ export function ManageDocumentModal({
                     type="button"
                   >
                     {t("documents.manage.print")}
+                  </button>
+                )}
+                {canAnalyzeOcr && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy || !canManageDocuments}
+                    onClick={() => void handleAnalyzeOcr()}
+                    title={!canManageDocuments ? noPermissionTitle : undefined}
+                    type="button"
+                  >
+                    {ocrLoading ? "Okunuyor..." : "OCR"}
                   </button>
                 )}
                 <button
@@ -1403,6 +1514,14 @@ export function ManageDocumentModal({
                   onScanned={(file) => handleSelectedFile(file, "scanner")}
                   open={scannerOpen}
                 />
+                {replacementPreviewUrl && !capturedUrl ? (
+                  <div className="documents-manage-preview upload-doc-selected-preview">
+                    <img
+                      alt={activeDocumentType?.name ?? t("documents.manage.newFile")}
+                      src={replacementPreviewUrl}
+                    />
+                  </div>
+                ) : null}
                 {cameraOpen ? (
                   <div className="candidate-doc-camera-panel upload-doc-camera-panel">
                     <div className="candidate-doc-camera-frame">

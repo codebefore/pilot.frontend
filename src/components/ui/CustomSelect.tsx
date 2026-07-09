@@ -68,6 +68,7 @@ function parseOptions(children: CustomSelectProps["children"]): SelectOption[] {
 export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(function CustomSelect(
   {
     "aria-label": ariaLabel,
+    autoFocus = false,
     children,
     className,
     commitOnTypeahead = false,
@@ -88,6 +89,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
   forwardedRef
 ) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
   const hiddenSelectRef = useRef<HTMLSelectElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const activeIndexRef = useRef(0);
@@ -210,6 +212,11 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
     },
     []
   );
+
+  useEffect(() => {
+    if (!autoFocus || disabled) return;
+    triggerRef.current?.focus();
+  }, [autoFocus, disabled]);
 
   const assignRefs = (node: HTMLSelectElement | null) => {
     hiddenSelectRef.current = node;
@@ -525,6 +532,7 @@ export const CustomSelect = forwardRef<HTMLSelectElement, CustomSelectProps>(fun
         onClick={handleTriggerClick}
         onFocus={handleTriggerFocus}
         onKeyDown={handleTriggerKeyDown}
+        ref={triggerRef}
         role="button"
         tabIndex={disabled ? -1 : 0}
         title={title}

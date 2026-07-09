@@ -64,7 +64,7 @@ export function LocalizedTimeInput({
   id,
   name,
   onBlur,
-  placeholder = "HH:mm",
+  placeholder = "SS:DD",
   size = "md",
   inputRef,
   allowManualInput = false,

@@ -1381,6 +1381,26 @@
   flex-wrap: wrap;
 }
 
+.documents-manage-preview {
+  align-items: center;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-100);
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  max-height: 420px;
+  overflow: auto;
+  padding: 10px;
+}
+
+.documents-manage-preview img {
+  display: block;
+  max-height: 390px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
 .documents-manage-empty {
   color: var(--gray-500);
   text-align: center;

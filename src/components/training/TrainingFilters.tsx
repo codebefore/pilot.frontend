@@ -34,6 +34,8 @@ type VehicleFilterOption = {
   isSimulator: boolean;
 };
 
+const SIMULATOR_LICENSE_CLASS_LABEL = "SIM";
+
 function getLicenseClassSortRank(licenseClass: string): number {
   const ranks = licenseClass
     .split(",")
@@ -69,13 +71,12 @@ function getVehicleFilterLabel(vehicle: VehicleResponse, fallbackLabel: string):
 
 function vehicleFilterOptionFromCatalog(
   vehicle: VehicleResponse,
-  fallbackLabel: string,
-  allLicenseClassLabel: string
+  fallbackLabel: string
 ): VehicleFilterOption {
   return {
     key: getVehicleFilterKey(vehicle),
     label: getVehicleFilterLabel(vehicle, fallbackLabel),
-    licenseClass: vehicle.isSimulator ? allLicenseClassLabel : vehicle.licenseClasses.join(", "),
+    licenseClass: vehicle.isSimulator ? SIMULATOR_LICENSE_CLASS_LABEL : vehicle.licenseClasses.join(", "),
     isSimulator: vehicle.isSimulator,
   };
 }
@@ -142,50 +143,24 @@ export function TrainingFilters({
       .sort((a, b) => a.name.localeCompare(b.name, "tr"));
   }, [ownEvents, eligibleInstructorIds, allInstructors, expiredInstructorIds]);
 
-  // Araç listesi (sadece uygulama tarafında): aktif kataloğun tamamı +
-  // event'lerde plakası geçen araçlar (öncelikli sıra).
+  // Araç listesi (sadece uygulama tarafında): yalnız aktif araç kataloğu.
+  // Silinen araçlar eski ders event'lerinde kalabilir; bunları burada tekrar
+  // seçilebilir filtre seçeneğine dönüştürmeyiz.
   const noVehicleLabel = t("training.filter.noVehicle");
   const vehicles = useMemo(() => {
     if (kind !== "uygulama") return [];
     const map = new Map<string, VehicleFilterOption>();
-    const catalogById = new Map(allVehiclesCatalog.map((vehicle) => [vehicle.id, vehicle]));
-    const allLicenseClassLabel = t("common.all");
-    ownEvents.forEach((e) => {
-      const catalogVehicle = e.vehicleId ? catalogById.get(e.vehicleId) : undefined;
-      if (catalogVehicle) {
-        const option = vehicleFilterOptionFromCatalog(
-          catalogVehicle,
-          noVehicleLabel,
-          allLicenseClassLabel
-        );
-        if (!map.has(option.key)) {
-          map.set(option.key, option);
-        }
-        return;
-      }
-      const eventVehiclePlate = e.vehiclePlate?.trim();
-      const key = e.vehicleId || eventVehiclePlate || noVehicleLabel;
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          label: eventVehiclePlate || noVehicleLabel,
-          licenseClass: "",
-          isSimulator: false,
-        });
-      }
-    });
     allVehiclesCatalog
       .filter((v) => v.isActive)
       .forEach((v) => {
         const option = vehicleFilterOptionFromCatalog(
           v,
-          noVehicleLabel,
-          allLicenseClassLabel
+          noVehicleLabel
         );
         map.set(option.key, option);
       });
     return Array.from(map.values()).sort(compareVehicleFilterOptions);
-  }, [ownEvents, allVehiclesCatalog, kind, noVehicleLabel, t]);
+  }, [allVehiclesCatalog, kind, noVehicleLabel, t]);
 
   return (
     <aside className="training-filters">

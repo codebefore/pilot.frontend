@@ -638,7 +638,11 @@ function DrivingExamTimeCell({
   const label = value === "—" ? "—" : DRIVING_EXAM_TIME_SLOT_LABELS.get(value) ?? value;
   if (!candidate.drivingExamAttemptId) return "—";
   return (
-    <div className="cand-inline-edit-cell" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="cand-inline-edit-cell"
+      onClick={(event) => event.stopPropagation()}
+      title={disabled ? disabledTitle : undefined}
+    >
       {editing ? (
         <LocalizedTimeInput
           ariaLabel={t("candidatesPage.aria.examTime")}
@@ -689,14 +693,20 @@ function DrivingExamSelectCell({
   onSave: (value: string) => void;
 }) {
   return (
-    <div className="cand-inline-edit-cell" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="cand-inline-edit-cell"
+      onClick={(event) => event.stopPropagation()}
+      title={disabled ? disabledTitle : undefined}
+    >
       {editing ? (
         <CustomSelect
+          autoFocus
           aria-label={ariaLabel}
           className="cand-inline-edit-select"
           disabled={disabled}
           onBlur={onCancel}
           onChange={(event) => onSave(event.target.value)}
+          openOnFocus
           size="sm"
           value={value}
         >
@@ -2395,7 +2405,13 @@ export function CandidatesPage({
                 candidate={candidate}
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "time"}
                 disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
-                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
+                disabledTitle={
+                  savingPracticeCandidateId === candidate.id
+                    ? t("common.saving")
+                    : !canManageCandidates
+                      ? noPermissionTitle
+                      : undefined
+                }
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "time" })}
                 onCancel={() => setEditingPracticeCell(null)}
                 onSave={(time) => savePracticeAttemptField(candidate, { time })}
@@ -2433,7 +2449,13 @@ export function CandidatesPage({
                   !canManageCandidates ||
                   !candidate.drivingExamAttemptId
                 }
-                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
+                disabledTitle={
+                  savingPracticeCandidateId === candidate.id
+                    ? t("common.saving")
+                    : !canManageCandidates
+                      ? noPermissionTitle
+                      : undefined
+                }
                 ariaLabel={t("candidateDetail.exam.aria.examStatus")}
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "attendance" })}
                 onCancel={() => setEditingPracticeCell(null)}
@@ -2469,7 +2491,13 @@ export function CandidatesPage({
                   !candidate.drivingExamAttemptId ||
                   candidate.drivingExamAttendanceStatus !== "attended"
                 }
-                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
+                disabledTitle={
+                  savingPracticeCandidateId === candidate.id
+                    ? t("common.saving")
+                    : !canManageCandidates
+                      ? noPermissionTitle
+                      : undefined
+                }
                 ariaLabel={t("candidateDetail.exam.aria.examResult")}
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "result" })}
                 onCancel={() => setEditingPracticeCell(null)}
@@ -2495,7 +2523,13 @@ export function CandidatesPage({
                 }))}
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "vehicle"}
                 disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
-                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
+                disabledTitle={
+                  savingPracticeCandidateId === candidate.id
+                    ? t("common.saving")
+                    : !canManageCandidates
+                      ? noPermissionTitle
+                      : undefined
+                }
                 ariaLabel={t("candidates.aria.plate")}
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "vehicle" })}
                 onCancel={() => setEditingPracticeCell(null)}
@@ -2517,7 +2551,13 @@ export function CandidatesPage({
                 }))}
                 editing={editingPracticeCell?.candidateId === candidate.id && editingPracticeCell.field === "instructor"}
                 disabled={savingPracticeCandidateId === candidate.id || !canManageCandidates}
-                disabledTitle={!canManageCandidates ? noPermissionTitle : undefined}
+                disabledTitle={
+                  savingPracticeCandidateId === candidate.id
+                    ? t("common.saving")
+                    : !canManageCandidates
+                      ? noPermissionTitle
+                      : undefined
+                }
                 ariaLabel={t("candidates.aria.instructor")}
                 onEdit={() => setEditingPracticeCell({ candidateId: candidate.id, field: "instructor" })}
                 onCancel={() => setEditingPracticeCell(null)}

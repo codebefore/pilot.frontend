@@ -369,6 +369,7 @@ export function UploadDocumentModal({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
+  const [selectedFilePreviewUrl, setSelectedFilePreviewUrl] = useState<string | null>(null);
   const [captureRotating, setCaptureRotating] = useState(false);
   const [crop, setCrop] = useState<CropRect>(() => defaultCropRect());
   const [cropSaving, setCropSaving] = useState(false);
@@ -405,6 +406,7 @@ export function UploadDocumentModal({
 
   const selectedCandidateId = watch("candidateId");
   const selectedDocumentTypeId = watch("documentTypeId");
+  const selectedFile = watch("file");
   const isPhysicallyAvailable = watch("isPhysicallyAvailable");
 
   const stopCamera = () => {
@@ -652,6 +654,20 @@ export function UploadDocumentModal({
   }, [capturedUrl]);
 
   useEffect(() => {
+    if (!selectedFile || !selectedFile.type.startsWith("image/")) {
+      setSelectedFilePreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setSelectedFilePreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+      setSelectedFilePreviewUrl(null);
+    };
+  }, [selectedFile]);
+
+  useEffect(() => {
     if (!open) return;
 
     if (documentTypesProp && documentTypesProp.length > 0) {
@@ -722,21 +738,6 @@ export function UploadDocumentModal({
     }
   };
 
-  const validateMetadata = (): boolean => {
-    const errorsNext: Record<string, string> = {};
-    for (const field of metadataFields) {
-      const value = (metadataValues[field.key] ?? "").trim();
-      if (field.isRequired && value === "") {
-        errorsNext[field.key] = t("uploadDoc.errors.metadataRequired").replace(
-          "{label}",
-          field.label
-        );
-      }
-    }
-    setMetadataErrors(errorsNext);
-    return Object.keys(errorsNext).length === 0;
-  };
-
   const submit = handleSubmit(async (data) => {
     if (!canManage) return;
 
@@ -757,8 +758,6 @@ export function UploadDocumentModal({
       });
       return;
     }
-
-    if (!validateMetadata()) return;
 
     let metadataToSend: Record<string, string> = {};
     for (const field of metadataFields) {
@@ -942,6 +941,14 @@ export function UploadDocumentModal({
               onScanned={(file) => handleSelectedFile(file, "scanner")}
               open={scannerOpen}
             />
+            {selectedFilePreviewUrl && !capturedUrl ? (
+              <div className="documents-manage-preview upload-doc-selected-preview">
+                <img
+                  alt={activeDocumentType?.name ?? t("candidateDetail.documents.upload.capturedAlt")}
+                  src={selectedFilePreviewUrl}
+                />
+              </div>
+            ) : null}
             {cameraOpen ? (
               <div className="candidate-doc-camera-panel upload-doc-camera-panel">
                 <div className="candidate-doc-camera-frame">

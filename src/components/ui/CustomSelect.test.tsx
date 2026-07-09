@@ -111,6 +111,19 @@ describe("CustomSelect", () => {
     expect(onMenuScroll).toHaveBeenCalledTimes(1);
   });
 
+  it("opens on mount when autoFocus and openOnFocus are enabled", async () => {
+    render(
+      <CustomSelect autoFocus aria-label="Sınav durumu" openOnFocus value="attended">
+        <option value="">—</option>
+        <option value="attended">Girdi</option>
+        <option value="absent">Girmedi</option>
+      </CustomSelect>
+    );
+
+    expect(screen.getByRole("button", { name: "Girdi" })).toHaveFocus();
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
+  });
+
   it("does not commit arrow-key navigation until the user confirms", async () => {
     const onChange = vi.fn();
     render(
