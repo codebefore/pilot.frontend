@@ -206,14 +206,17 @@ describe("finance api routing", () => {
   it("routes fee matrix calls to the runtime finance base url", async () => {
     applyRuntimeConfig({ financeApiBaseUrl: "http://127.0.0.1:5093" });
 
-    await getLicenseClassFeeMatrix(2026, { targetLicenseClass: "B" });
+    await getLicenseClassFeeMatrix(2026, {
+      targetLicenseClass: "B",
+      licenseClassDefinitionId: "11111111-1111-1111-1111-111111111111",
+    });
     await bulkApplyLicenseClassFeeMatrix(2026, {
       field: "vatIncludedHourlyRate",
       value: 500,
     });
 
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
-      "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026?targetLicenseClass=B"
+      "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026?targetLicenseClass=B&licenseClassDefinitionId=11111111-1111-1111-1111-111111111111"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
       "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026/bulk-apply"

@@ -1,4 +1,4 @@
-import type { CandidateResponse, DocumentTypeResponse } from "../lib/types";
+import type { CandidateResponse, DocumentTypeResponse, LicenseClassFeeRowResponse } from "../lib/types";
 import type { useT } from "../lib/i18n";
 
 export function hasExistingLicenseValue(value: string | null | undefined): boolean {
@@ -8,6 +8,57 @@ export function hasExistingLicenseValue(value: string | null | undefined): boole
 
 export function candidateHasExistingLicense(candidate: Pick<CandidateResponse, "hasExistingLicense" | "existingLicenseType">): boolean {
   return candidate.hasExistingLicense === true || hasExistingLicenseValue(candidate.existingLicenseType);
+}
+
+export function shouldShowEmptyLicenseFeeWarning(
+  theoryRow: Pick<LicenseClassFeeRowResponse, "institutionTheoryExamFee"> | null | undefined,
+  practiceRow: Pick<LicenseClassFeeRowResponse, "institutionPracticeExamFee"> | null | undefined
+): boolean {
+  return (
+    theoryRow?.institutionTheoryExamFee == null &&
+    practiceRow?.institutionPracticeExamFee == null
+  );
+}
+
+export function calculateLicenseContractTotal(
+  theoryRow: Pick<LicenseClassFeeRowResponse, "lessonHours"> | null | undefined,
+  practiceRow: Pick<LicenseClassFeeRowResponse, "lessonHours"> | null | undefined,
+  theoryHourlyRate: number | null,
+  practiceHourlyRate: number | null
+): number | null {
+  const hasTheory = theoryHourlyRate != null && Number.isFinite(theoryHourlyRate);
+  const hasPractice = practiceHourlyRate != null && Number.isFinite(practiceHourlyRate);
+  if (!hasTheory && !hasPractice) return null;
+
+  const total =
+    (hasTheory ? theoryHourlyRate * (theoryRow?.lessonHours ?? 0) : 0) +
+    (hasPractice ? practiceHourlyRate * (practiceRow?.lessonHours ?? 0) : 0);
+  return Math.round(total * 100) / 100;
+}
+
+export function parseTurkishMoneyInput(value: string): number | null {
+  const compact = value.trim().replace(/\s/g, "");
+  if (!compact) return null;
+
+  let normalized = compact;
+  if (compact.includes(",")) {
+    if ((compact.match(/,/g) ?? []).length !== 1) return null;
+    normalized = compact.replace(/\./g, "").replace(",", ".");
+  } else {
+    const dotCount = (compact.match(/\./g) ?? []).length;
+    if (dotCount > 1) {
+      normalized = compact.replace(/\./g, "");
+    } else if (dotCount === 1) {
+      const [integerPart, fractionPart] = compact.split(".");
+      if (fractionPart.length === 3 && integerPart.length >= 1 && integerPart.length <= 3) {
+        normalized = `${integerPart}${fractionPart}`;
+      }
+    }
+  }
+
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 export function isPenaltyPointsLicenseClass(licenseClass: string | null | undefined): boolean {

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -69,7 +69,7 @@ import {
   listCandidateKCertificates,
 } from "../lib/candidate-k-certificates-api";
 import { getCashRegisters } from "../lib/cash-registers-api";
-import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
+import { getLicenseClassFeeMatrix, updateLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { getLicenseClassDefinitions } from "../lib/license-class-definitions-api";
 import { getInstitutionLogoObjectUrl, getInstitutionSettings } from "../lib/institution-settings-api";
 import { getInstructor, getInstructors } from "../lib/instructors-api";
@@ -202,6 +202,7 @@ import {
   addHours,
   buildFutureStages,
   calculateAge,
+  calculateLicenseContractTotal,
   canRetryMebbisDocumentTransfer,
   candidateHasExistingLicense,
   dateOnlyAt,
@@ -210,6 +211,8 @@ import {
   isPenaltyPointsLicenseClass,
   normalizeLicenseOptionKey,
   nowDateTimeLocal,
+  parseTurkishMoneyInput,
+  shouldShowEmptyLicenseFeeWarning,
   shouldShowMebbisDocumentTransferAction,
   todayIsoDate,
   vehicleTypeForLicenseClass,
@@ -340,8 +343,17 @@ async function fetchOptional<T>(promise: Promise<T> | null): Promise<T | null> {
   }
 }
 
-const candidateTargetFeeMatrixKey = (year: number, targetLicenseClass: string) =>
-  ["finance", "license-class-fee-matrix", year, targetLicenseClass] as const;
+const candidateTargetFeeMatrixKey = (
+  year: number,
+  targetLicenseClass: string,
+  licenseClassDefinitionId?: string | null
+) => [
+  "finance",
+  "license-class-fee-matrix",
+  year,
+  targetLicenseClass,
+  licenseClassDefinitionId ?? "all-scenarios",
+] as const;
 
 function notifyMebbisJobQueued(jobId: string, jobType: string): void {
   const delays = [0, 250, 1000, 2500];
@@ -833,7 +845,12 @@ export function CandidateDetailPage() {
 
       {!loading && !error && candidate && (
         <>
-          <CandidateHero candidate={candidate} age={age} accounting={accounting} />
+          <CandidateHero
+            candidate={candidate}
+            age={age}
+            accounting={accounting}
+            canManagePayments={canManagePayments}
+          />
           <SecondPracticeRoundBanner
             canManageCandidates={canManageCandidates}
             candidate={candidate}
@@ -973,43 +990,258 @@ export function CandidateDetailPage() {
 
 // Map the target license class code to a coarse vehicle category label so the
 // hero can show e.g. "B'den A2 (Otomobil)" without an extra API lookup.
-function CandidateHero({
+type CandidateDefaultFeeForm = {
+  courseFee: string;
+  institutionTheoryExamFee: string;
+  institutionPracticeExamFee: string;
+  failureRetryFee: string;
+  privateLessonFee: string;
+  mebbisFee: string;
+  contractTheoryExamFee: string;
+  contractPracticeExamFee: string;
+  theoryHourlyRate: string;
+  practiceHourlyRate: string;
+};
+
+const emptyCandidateDefaultFeeForm = (): CandidateDefaultFeeForm => ({
+  courseFee: "",
+  institutionTheoryExamFee: "",
+  institutionPracticeExamFee: "",
+  failureRetryFee: "",
+  privateLessonFee: "",
+  mebbisFee: "",
+  contractTheoryExamFee: "",
+  contractPracticeExamFee: "",
+  theoryHourlyRate: "",
+  practiceHourlyRate: "",
+});
+
+function serializeDefaultFee(value: number | null | undefined): string {
+  return value == null ? "" : String(value);
+}
+
+function parseDefaultFee(value: string): number | null {
+  return parseTurkishMoneyInput(value);
+}
+
+function CandidateDefaultFeeInput({
+  disabled,
+  label,
+  onChange,
+  value,
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="candidate-default-fee-field">
+      <span>{label}</span>
+      <input
+        className="form-input"
+        disabled={disabled}
+        inputMode="decimal"
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="0,00"
+        type="text"
+        value={value}
+      />
+    </label>
+  );
+}
+
+export function CandidateHero({
   candidate,
   age,
   accounting,
+  canManagePayments,
 }: {
   candidate: CandidateResponse;
   age: number | null;
   accounting: CandidateAccountingSummaryResponse | null;
+  canManagePayments: boolean;
 }) {
   const t = useT();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const defaultFeeDialogId = useId();
+  const defaultFeeTitleId = useId();
   const mebbisSessionGuard = useMebbisSessionGuard();
   const [openingMebbisStatus, setOpeningMebbisStatus] = useState(false);
   const [printFormsOpen, setPrintFormsOpen] = useState(false);
+  const [defaultFeesOpen, setDefaultFeesOpen] = useState(false);
+  const [defaultFeesSaving, setDefaultFeesSaving] = useState(false);
+  const [defaultFeeForm, setDefaultFeeForm] = useState<CandidateDefaultFeeForm>(emptyCandidateDefaultFeeForm);
   const [contractGenerating, setContractGenerating] = useState(false);
   const printFormsRef = useRef<HTMLDivElement>(null);
+  const defaultFeePopoverRef = useRef<HTMLDivElement>(null);
   const contractFeeMatrixYear = candidateFeeMatrixYear(candidate);
   const institutionSettingsQuery = useQuery({
+    enabled: printFormsOpen,
     queryKey: ["settings", "institution-settings"],
     queryFn: ({ signal }) => getInstitutionSettings(signal),
     staleTime: 5 * 60 * 1000,
   });
   const managerQuery = useQuery({
+    enabled: printFormsOpen,
     queryKey: ["training", "instructors", "manager", "active"],
     queryFn: ({ signal }) => getInstructors({ activity: "active", role: "manager", page: 1, pageSize: 1 }, signal),
     staleTime: 5 * 60 * 1000,
   });
   const contractFeeMatrixQuery = useQuery({
-    queryKey: candidateTargetFeeMatrixKey(contractFeeMatrixYear, candidate.licenseClass),
+    queryKey: candidateTargetFeeMatrixKey(
+      contractFeeMatrixYear,
+      candidate.licenseClass,
+      candidate.licenseClassDefinitionId
+    ),
     queryFn: ({ signal }) =>
       getLicenseClassFeeMatrix(
         contractFeeMatrixYear,
-        { targetLicenseClass: candidate.licenseClass },
+        {
+          targetLicenseClass: candidate.licenseClass,
+          licenseClassDefinitionId: candidate.licenseClassDefinitionId ?? undefined,
+        },
         signal
     ),
     staleTime: 5 * 60 * 1000,
   });
+  const defaultFeeMatchedRow = useMemo(
+    () => contractFeeMatrixQuery.data
+      ? findCandidateFeeMatrixRow(contractFeeMatrixQuery.data.rows, candidate)
+      : undefined,
+    [candidate, contractFeeMatrixQuery.data]
+  );
+  const defaultFeeProgramId =
+    defaultFeeMatchedRow?.program.id ?? candidate.licenseClassDefinitionId ?? null;
+  const defaultFeeTheoryRow = defaultFeeProgramId && contractFeeMatrixQuery.data
+    ? contractFeeMatrixQuery.data.rows.find(
+        (row) => row.program.id === defaultFeeProgramId && row.lessonType === "theory"
+      ) ?? null
+    : null;
+  const defaultFeePracticeRow = defaultFeeProgramId && contractFeeMatrixQuery.data
+    ? contractFeeMatrixQuery.data.rows.find(
+        (row) => row.program.id === defaultFeeProgramId && row.lessonType === "practice"
+      ) ?? null
+    : null;
+  const showDefaultFeeWarning =
+    contractFeeMatrixQuery.isSuccess &&
+    defaultFeeMatchedRow != null &&
+    shouldShowEmptyLicenseFeeWarning(defaultFeeTheoryRow, defaultFeePracticeRow);
+
+  const openDefaultFees = () => {
+    const program = defaultFeeMatchedRow?.program ?? defaultFeeTheoryRow?.program ?? defaultFeePracticeRow?.program;
+    setPrintFormsOpen(false);
+    setDefaultFeeForm({
+      courseFee: serializeDefaultFee(program?.courseFee),
+      institutionTheoryExamFee: serializeDefaultFee(defaultFeeTheoryRow?.institutionTheoryExamFee),
+      institutionPracticeExamFee: serializeDefaultFee(defaultFeePracticeRow?.institutionPracticeExamFee),
+      failureRetryFee: serializeDefaultFee(program?.failureRetryFee),
+      privateLessonFee: serializeDefaultFee(program?.privateLessonFee),
+      mebbisFee: serializeDefaultFee(program?.mebbisFee),
+      contractTheoryExamFee: serializeDefaultFee(defaultFeeTheoryRow?.contractTheoryExamFee),
+      contractPracticeExamFee: serializeDefaultFee(defaultFeePracticeRow?.contractPracticeExamFee),
+      theoryHourlyRate: serializeDefaultFee(defaultFeeTheoryRow?.vatIncludedHourlyRate),
+      practiceHourlyRate: serializeDefaultFee(defaultFeePracticeRow?.vatIncludedHourlyRate),
+    });
+    setDefaultFeesOpen(true);
+  };
+
+  const updateDefaultFeeForm = (field: keyof CandidateDefaultFeeForm, value: string) => {
+    setDefaultFeeForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const parsedDefaultFees = useMemo(() => ({
+    courseFee: parseDefaultFee(defaultFeeForm.courseFee),
+    institutionTheoryExamFee: parseDefaultFee(defaultFeeForm.institutionTheoryExamFee),
+    institutionPracticeExamFee: parseDefaultFee(defaultFeeForm.institutionPracticeExamFee),
+    failureRetryFee: parseDefaultFee(defaultFeeForm.failureRetryFee),
+    privateLessonFee: parseDefaultFee(defaultFeeForm.privateLessonFee),
+    mebbisFee: parseDefaultFee(defaultFeeForm.mebbisFee),
+    contractTheoryExamFee: parseDefaultFee(defaultFeeForm.contractTheoryExamFee),
+    contractPracticeExamFee: parseDefaultFee(defaultFeeForm.contractPracticeExamFee),
+    theoryHourlyRate: parseDefaultFee(defaultFeeForm.theoryHourlyRate),
+    practiceHourlyRate: parseDefaultFee(defaultFeeForm.practiceHourlyRate),
+  }), [defaultFeeForm]);
+  const defaultFeeContractTotal = calculateLicenseContractTotal(
+    defaultFeeTheoryRow,
+    defaultFeePracticeRow,
+    parsedDefaultFees.theoryHourlyRate,
+    parsedDefaultFees.practiceHourlyRate
+  );
+
+  const saveDefaultFees = async () => {
+    if (!canManagePayments || defaultFeesSaving) return;
+    if (!defaultFeeProgramId) {
+      showToast("Bu ehliyet senaryosu ücret matrisiyle eşleştirilemedi.", "error");
+      return;
+    }
+    const invalidInput = Object.values(defaultFeeForm).some(
+      (value) => value.trim() !== "" && parseDefaultFee(value) == null
+    );
+    if (invalidInput) {
+      showToast("Ücretler 0 veya daha büyük geçerli bir sayı olmalı.", "error");
+      return;
+    }
+
+    const program = defaultFeeMatchedRow?.program ?? defaultFeeTheoryRow?.program ?? defaultFeePracticeRow?.program;
+    setDefaultFeesSaving(true);
+    try {
+      const response = await updateLicenseClassFeeMatrix(contractFeeMatrixYear, {
+        rows: [
+          {
+            licenseClassDefinitionId: defaultFeeProgramId,
+            lessonType: "theory",
+            vatIncludedHourlyRate: parsedDefaultFees.theoryHourlyRate,
+            contractTheoryExamFee: parsedDefaultFees.contractTheoryExamFee,
+            contractPracticeExamFee: null,
+            institutionTheoryExamFee: parsedDefaultFees.institutionTheoryExamFee,
+            institutionPracticeExamFee: null,
+            rowVersion: defaultFeeTheoryRow?.rowVersion ?? null,
+          },
+          {
+            licenseClassDefinitionId: defaultFeeProgramId,
+            lessonType: "practice",
+            vatIncludedHourlyRate: parsedDefaultFees.practiceHourlyRate,
+            contractTheoryExamFee: null,
+            contractPracticeExamFee: parsedDefaultFees.contractPracticeExamFee,
+            institutionTheoryExamFee: null,
+            institutionPracticeExamFee: parsedDefaultFees.institutionPracticeExamFee,
+            rowVersion: defaultFeePracticeRow?.rowVersion ?? null,
+          },
+        ],
+        programs: [{
+          licenseClassDefinitionId: defaultFeeProgramId,
+          courseFee: parsedDefaultFees.courseFee,
+          mebbisFee: parsedDefaultFees.mebbisFee,
+          failureRetryFee: parsedDefaultFees.failureRetryFee,
+          privateLessonFee: parsedDefaultFees.privateLessonFee,
+          educationFee: program?.educationFee ?? null,
+          otherFee1: program?.otherFee1 ?? null,
+          rowVersion: program?.yearFeeRowVersion ?? null,
+        }],
+      });
+      queryClient.setQueryData(
+        candidateTargetFeeMatrixKey(
+          contractFeeMatrixYear,
+          candidate.licenseClass,
+          candidate.licenseClassDefinitionId
+        ),
+        response
+      );
+      void queryClient.invalidateQueries({ queryKey: ["finance", "license-class-fee-matrix"] });
+      void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidate.id] });
+      setDefaultFeesOpen(false);
+      showToast("Varsayılan ehliyet ücretleri kaydedildi.");
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 409
+        ? "Ücretler başka bir kullanıcı tarafından güncellendi. Lütfen yeniden deneyin."
+        : "Varsayılan ehliyet ücretleri kaydedilemedi.";
+      showToast(message, "error");
+    } finally {
+      setDefaultFeesSaving(false);
+    }
+  };
   const kCertificateLessonsQuery = useQuery({
     enabled: printFormsOpen,
     queryKey: ["training", "lessons", "k-certificate", candidate.id],
@@ -1375,37 +1607,10 @@ function CandidateHero({
       return;
     }
 
-    if (
-      !accounting ||
-      institutionSettingsQuery.isLoading ||
-      managerQuery.isLoading ||
-      contractFeeMatrixQuery.isLoading ||
-      institutionSettingsQuery.isError ||
-      managerQuery.isError ||
-      contractFeeMatrixQuery.isError
-    ) {
+    if (!accounting) {
       showToast("Sözleşme için kurum, personel veya finans bilgileri yüklenemedi.", "error");
       return;
     }
-
-    const manager = managerQuery.data?.items.find((item) => item.isActive && item.role === "manager") ?? null;
-    const managerName = manager
-      ? `${manager.firstName} ${manager.lastName}`.trim()
-      : null;
-    const matchedFeeRow = contractFeeMatrixQuery.data
-      ? findCandidateFeeMatrixRow(contractFeeMatrixQuery.data.rows, candidate)
-      : undefined;
-    const matchedProgramId = matchedFeeRow?.program.id ?? null;
-    const theoryFeeRow = matchedProgramId && contractFeeMatrixQuery.data
-      ? contractFeeMatrixQuery.data.rows.find(
-          (row) => row.program.id === matchedProgramId && row.lessonType === "theory"
-        ) ?? null
-      : null;
-    const practiceFeeRow = matchedProgramId && contractFeeMatrixQuery.data
-      ? contractFeeMatrixQuery.data.rows.find(
-          (row) => row.program.id === matchedProgramId && row.lessonType === "practice"
-        ) ?? null
-      : null;
 
     setContractGenerating(true);
     const isBlankFeeContract = label === "Kayıt sözleşmesi (Ücret Boş)";
@@ -1417,13 +1622,43 @@ function CandidateHero({
     }
 
     try {
+      const [institution, managerResponse, feeMatrix] = await Promise.all([
+        institutionSettingsQuery.data
+          ? Promise.resolve(institutionSettingsQuery.data)
+          : institutionSettingsQuery.refetch().then((result) => result.data ?? null),
+        managerQuery.data
+          ? Promise.resolve(managerQuery.data)
+          : managerQuery.refetch().then((result) => result.data),
+        contractFeeMatrixQuery.data
+          ? Promise.resolve(contractFeeMatrixQuery.data)
+          : contractFeeMatrixQuery.refetch().then((result) => result.data),
+      ]);
+      if (!managerResponse || !feeMatrix) {
+        throw new Error("Sözleşme için kurum, personel veya finans bilgileri yüklenemedi.");
+      }
+      const manager = managerResponse.items.find((item) => item.isActive && item.role === "manager") ?? null;
+      const managerName = manager
+        ? `${manager.firstName} ${manager.lastName}`.trim()
+        : null;
+      const matchedFeeRow = findCandidateFeeMatrixRow(feeMatrix.rows, candidate);
+      const matchedProgramId = matchedFeeRow?.program.id ?? null;
+      const theoryFeeRow = matchedProgramId
+        ? feeMatrix.rows.find(
+            (row) => row.program.id === matchedProgramId && row.lessonType === "theory"
+          ) ?? null
+        : null;
+      const practiceFeeRow = matchedProgramId
+        ? feeMatrix.rows.find(
+            (row) => row.program.id === matchedProgramId && row.lessonType === "practice"
+          ) ?? null
+        : null;
       const request = buildCandidateContractRenderPdfRequest({
         candidate,
         accounting,
         contractYear: contractFeeMatrixYear,
         theoryFeeRow,
         practiceFeeRow,
-        institution: institutionSettingsQuery.data ?? null,
+        institution,
         managerName,
         templateKey: isBlankFeeContract ? "registration-contract-blank-fee" : "registration-contract",
       });
@@ -1441,16 +1676,34 @@ function CandidateHero({
   };
 
   useEffect(() => {
-    if (!printFormsOpen) return;
+    if (!printFormsOpen && !defaultFeesOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
+      if (defaultFeesOpen) return;
       const target = event.target as Node | null;
-      if (target && printFormsRef.current?.contains(target)) return;
+      if (
+        target &&
+        (printFormsRef.current?.contains(target) || defaultFeePopoverRef.current?.contains(target))
+      ) return;
+      setPrintFormsOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || defaultFeesOpen) return;
       setPrintFormsOpen(false);
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [printFormsOpen]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [defaultFeesOpen, printFormsOpen]);
+
+  useEffect(() => {
+    if (!defaultFeesOpen || !canManagePayments) return;
+    const firstInput = defaultFeePopoverRef.current?.querySelector<HTMLInputElement>("input:not(:disabled)");
+    firstInput?.focus();
+  }, [canManagePayments, defaultFeesOpen]);
 
   return (
     <>
@@ -1477,44 +1730,118 @@ function CandidateHero({
                 <MebIcon size={15} />
                 <span>{openingMebbisStatus ? "Açılıyor..." : "Aday Durum Görüntüle"}</span>
               </button>
-              <button
-                aria-expanded={printFormsOpen}
-                aria-haspopup="menu"
-                className="btn btn-secondary btn-sm candidate-detail-hero-action"
-                disabled={contractGenerating}
-                onClick={() => setPrintFormsOpen((open) => !open)}
-                type="button"
-              >
-                <PrintIcon size={15} />
-                <span>{contractGenerating ? "Hazırlanıyor..." : "Form Yazdır"}</span>
-              </button>
-              {printFormsOpen ? (
-                <div className="candidate-detail-print-popover" role="menu" aria-label="Form yazdır">
-                  {printFormOptions.map((label) => (
-                    <button
-                      className="candidate-detail-print-popover-item"
-                      disabled={
-                        contractGenerating ||
-                        (label === "K Belgesi" || label === "K Belgesi Matbu"
-                          ? kCertificatePrintLoading || !latestValidKCertificate
-                          : label === "Müracaat formu"
-                          ? false
-                          : label === "Ücretsiz kursiyer formu"
-                          ? false
-                          : label === "100 ceza puanı belgesi"
-                          ? false
-                          : label === "Direksiyon takip çizelgesi"
-                          ? false
-                          : label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ücret Boş)" && label !== "İmza örneği")
-                      }
-                      key={label}
-                      onClick={() => void handlePrintForm(label)}
-                      role="menuitem"
-                      type="button"
-                    >
-                      {candidatePrintFormDisplayLabel(label)}
-                    </button>
-                  ))}
+              <div className="candidate-detail-action-popover-anchor">
+                <button
+                  aria-expanded={printFormsOpen}
+                  aria-haspopup="menu"
+                  className="btn btn-secondary btn-sm candidate-detail-hero-action"
+                  disabled={contractGenerating}
+                  onClick={() => {
+                    setDefaultFeesOpen(false);
+                    setPrintFormsOpen((open) => !open);
+                  }}
+                  type="button"
+                >
+                  <PrintIcon size={15} />
+                  <span>{contractGenerating ? "Hazırlanıyor..." : "Form Yazdır"}</span>
+                </button>
+                {printFormsOpen ? (
+                  <div className="candidate-detail-print-popover" role="menu" aria-label="Form yazdır">
+                    {printFormOptions.map((label) => (
+                      <button
+                        className="candidate-detail-print-popover-item"
+                        disabled={
+                          contractGenerating ||
+                          (label === "K Belgesi" || label === "K Belgesi Matbu"
+                            ? kCertificatePrintLoading || !latestValidKCertificate
+                            : label === "Müracaat formu"
+                            ? false
+                            : label === "Ücretsiz kursiyer formu"
+                            ? false
+                            : label === "100 ceza puanı belgesi"
+                            ? false
+                            : label === "Direksiyon takip çizelgesi"
+                            ? false
+                            : label !== "Kayıt sözleşmesi" && label !== "Kayıt sözleşmesi (Ücret Boş)" && label !== "İmza örneği")
+                        }
+                        key={label}
+                        onClick={() => void handlePrintForm(label)}
+                        role="menuitem"
+                        type="button"
+                      >
+                        {candidatePrintFormDisplayLabel(label)}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              {showDefaultFeeWarning ? (
+                <div className="candidate-default-fee-warning-anchor">
+                  <button
+                    aria-controls={defaultFeeDialogId}
+                    aria-expanded={defaultFeesOpen}
+                    aria-haspopup="dialog"
+                    className="candidate-default-fee-warning"
+                    onClick={() => defaultFeesOpen ? setDefaultFeesOpen(false) : openDefaultFees()}
+                    type="button"
+                  >
+                    Ehliyet Tipi Ücret Önerileri Boş!
+                  </button>
+                  {defaultFeesOpen ? createPortal(
+                    <div className="candidate-default-fee-backdrop">
+                      <div
+                        aria-labelledby={defaultFeeTitleId}
+                        aria-modal="true"
+                        className="candidate-default-fee-popover"
+                        id={defaultFeeDialogId}
+                        ref={defaultFeePopoverRef}
+                        role="dialog"
+                      >
+                      <div className="candidate-default-fee-title" id={defaultFeeTitleId}>VARSAYILAN ÜCRET GİRİŞLERİ</div>
+                      <div className="candidate-default-fee-license-grid">
+                        <div><span>MEVCUT</span><strong>{candidateHasExistingLicense(candidate) ? candidate.existingLicenseType || "YOK" : "YOK"}</strong></div>
+                        <div><span>İSTENEN</span><strong>{candidate.licenseClass}</strong></div>
+                      </div>
+
+                      <section className="candidate-default-fee-section">
+                        <h4>KURSİYER FİNANS ÖNERİLERİ</h4>
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="KURS Ü." onChange={(value) => updateDefaultFeeForm("courseFee", value)} value={defaultFeeForm.courseFee} />
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="TEORİK SINAV Ü." onChange={(value) => updateDefaultFeeForm("institutionTheoryExamFee", value)} value={defaultFeeForm.institutionTheoryExamFee} />
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="DİREKSİYON SINAV Ü." onChange={(value) => updateDefaultFeeForm("institutionPracticeExamFee", value)} value={defaultFeeForm.institutionPracticeExamFee} />
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="BAŞARISIZ HAK" onChange={(value) => updateDefaultFeeForm("failureRetryFee", value)} value={defaultFeeForm.failureRetryFee} />
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="ÖZEL DERS" onChange={(value) => updateDefaultFeeForm("privateLessonFee", value)} value={defaultFeeForm.privateLessonFee} />
+                      </section>
+
+                      <section className="candidate-default-fee-section">
+                        <h4>EVRAK AKTARIM ÜCRETİ</h4>
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="MEBBİS" onChange={(value) => updateDefaultFeeForm("mebbisFee", value)} value={defaultFeeForm.mebbisFee} />
+                      </section>
+
+                      <section className="candidate-default-fee-section">
+                        <h4>SÖZLEŞME BASIM GİRDİLERİ</h4>
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="TEORİK SINAV" onChange={(value) => updateDefaultFeeForm("contractTheoryExamFee", value)} value={defaultFeeForm.contractTheoryExamFee} />
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="DİREKSİYON SINAV" onChange={(value) => updateDefaultFeeForm("contractPracticeExamFee", value)} value={defaultFeeForm.contractPracticeExamFee} />
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="TEORİK DERS SAAT ÜCRETİ" onChange={(value) => updateDefaultFeeForm("theoryHourlyRate", value)} value={defaultFeeForm.theoryHourlyRate} />
+                        <CandidateDefaultFeeInput disabled={!canManagePayments || defaultFeesSaving} label="DİREKSİYON DERS SAAT ÜCRETİ" onChange={(value) => updateDefaultFeeForm("practiceHourlyRate", value)} value={defaultFeeForm.practiceHourlyRate} />
+                        <div className="candidate-default-fee-total">
+                          <span>TOPLAM SÖZLEŞME DERS ÜCRETİ</span>
+                          <strong>{defaultFeeContractTotal == null ? "—" : formatCurrencyTRY(defaultFeeContractTotal)}</strong>
+                        </div>
+                      </section>
+
+                      {!canManagePayments ? (
+                        <div className="candidate-default-fee-permission">Bu ücretleri düzenleme yetkiniz yok.</div>
+                      ) : null}
+                      <div className="candidate-default-fee-actions">
+                        <button className="btn btn-secondary btn-sm" disabled={defaultFeesSaving} onClick={() => setDefaultFeesOpen(false)} type="button">DAHA SONRA</button>
+                        <button className="btn btn-primary btn-sm" disabled={!canManagePayments || defaultFeesSaving} onClick={() => void saveDefaultFees()} type="button">
+                          {defaultFeesSaving ? "KAYDEDİLİYOR..." : "KAYDET"}
+                        </button>
+                      </div>
+                      </div>
+                    </div>,
+                    document.body
+                  ) : null}
                 </div>
               ) : null}
             </div>

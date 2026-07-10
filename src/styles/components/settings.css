@@ -210,6 +210,13 @@
   grid-column: 2;
   grid-row: 1 / span 5;
 }
+.candidate-detail-action-popover-anchor,
+.candidate-default-fee-warning-anchor {
+  position: relative;
+}
+.candidate-detail-action-popover-anchor > .candidate-detail-hero-action {
+  width: 100%;
+}
 .candidate-detail-print-popover {
   position: absolute;
   top: calc(100% + 8px);
@@ -221,6 +228,153 @@
   border-radius: 8px;
   background: var(--white);
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+}
+.candidate-default-fee-warning {
+  width: 100%;
+  border: 1px solid #f3b448;
+  border-radius: 7px;
+  background: #fff7df;
+  color: #8a5200;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  padding: 8px 10px;
+  text-align: left;
+}
+.candidate-default-fee-warning:hover {
+  background: #ffefbd;
+}
+.candidate-default-fee-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.38);
+  backdrop-filter: blur(2px);
+}
+.candidate-default-fee-popover {
+  position: relative;
+  width: min(480px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--gray-300) 80%, transparent);
+  border-radius: 10px;
+  background: var(--white);
+  box-shadow: 0 22px 52px rgba(15, 23, 42, 0.2);
+  color: var(--gray-900);
+}
+.candidate-default-fee-title {
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.candidate-default-fee-license-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.candidate-default-fee-license-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: var(--gray-50);
+}
+.candidate-default-fee-license-grid span {
+  color: var(--gray-500);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.candidate-default-fee-license-grid strong {
+  font-size: 14px;
+}
+.candidate-default-fee-section {
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--gray-200);
+}
+.candidate-default-fee-section h4 {
+  margin: 0 0 9px;
+  color: var(--gray-700);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
+.candidate-default-fee-field,
+.candidate-default-fee-total {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 144px;
+  gap: 12px;
+  align-items: center;
+  min-height: 38px;
+}
+.candidate-default-fee-field > span,
+.candidate-default-fee-total > span {
+  color: var(--gray-700);
+  font-size: 11px;
+  font-weight: 700;
+}
+.candidate-default-fee-field .form-input {
+  height: 32px;
+  padding: 5px 8px;
+  text-align: right;
+}
+.candidate-default-fee-total {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--gray-300);
+}
+.candidate-default-fee-total strong {
+  text-align: right;
+  font-size: 13px;
+}
+.candidate-default-fee-permission {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  font-size: 12px;
+}
+.candidate-default-fee-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gray-200);
+}
+@media (max-height: 720px) {
+  .candidate-default-fee-backdrop { padding: 10px; }
+  .candidate-default-fee-popover {
+    width: min(460px, calc(100vw - 20px));
+    padding: 10px 14px;
+  }
+  .candidate-default-fee-title { margin-bottom: 8px; }
+  .candidate-default-fee-license-grid {
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .candidate-default-fee-license-grid > div { padding: 6px 8px; }
+  .candidate-default-fee-section { padding: 6px 0; }
+  .candidate-default-fee-section h4 { margin-bottom: 4px; }
+  .candidate-default-fee-field,
+  .candidate-default-fee-total { min-height: 29px; }
+  .candidate-default-fee-field .form-input {
+    height: 27px;
+    padding: 3px 7px;
+  }
+  .candidate-default-fee-total {
+    margin-top: 2px;
+    padding-top: 4px;
+  }
+  .candidate-default-fee-actions { padding-top: 7px; }
 }
 .candidate-detail-print-popover-item {
   display: flex;
@@ -3977,6 +4131,15 @@
     left: 0;
     right: auto;
     width: min(100%, 280px);
+  }
+  .candidate-default-fee-popover {
+    width: min(100%, calc(100vw - 32px));
+  }
+  .candidate-default-fee-backdrop { padding: 16px; }
+  .candidate-default-fee-field,
+  .candidate-default-fee-total {
+    grid-template-columns: minmax(0, 1fr) 120px;
+    gap: 8px;
   }
   .candidate-finance-action-bar {
     align-items: stretch;

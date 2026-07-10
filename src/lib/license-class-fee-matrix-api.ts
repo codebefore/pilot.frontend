@@ -13,6 +13,7 @@ const financeRequestOptions = (signal?: AbortSignal) => ({
 
 interface GetLicenseClassFeeMatrixOptions {
   targetLicenseClass?: string;
+  licenseClassDefinitionId?: string;
 }
 
 export function getLicenseClassFeeMatrix(
@@ -22,6 +23,7 @@ export function getLicenseClassFeeMatrix(
 ): Promise<LicenseClassFeeMatrixResponse> {
   const params: QueryParams = {
     targetLicenseClass: options?.targetLicenseClass,
+    licenseClassDefinitionId: options?.licenseClassDefinitionId,
   };
 
   return httpGet<LicenseClassFeeMatrixResponse>(

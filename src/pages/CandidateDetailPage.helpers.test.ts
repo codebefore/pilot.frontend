@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   candidateHasExistingLicense,
+  calculateLicenseContractTotal,
   canRetryMebbisDocumentTransfer,
   hasExistingLicenseValue,
   isPenaltyPointsLicenseClass,
+  parseTurkishMoneyInput,
+  shouldShowEmptyLicenseFeeWarning,
   shouldShowMebbisDocumentTransferAction,
 } from "./CandidateDetailPage.helpers";
 
@@ -49,5 +52,43 @@ describe("CandidateDetailPage helpers", () => {
     expect(shouldShowMebbisDocumentTransferAction("contract_front")).toBe(true);
     expect(shouldShowMebbisDocumentTransferAction("contract_back")).toBe(false);
     expect(shouldShowMebbisDocumentTransferAction("health_report")).toBe(true);
+  });
+
+  it("shows the license fee warning only when both institution exam fees are empty", () => {
+    expect(shouldShowEmptyLicenseFeeWarning(undefined, undefined)).toBe(true);
+    expect(shouldShowEmptyLicenseFeeWarning(
+      { institutionTheoryExamFee: null },
+      { institutionPracticeExamFee: null }
+    )).toBe(true);
+    expect(shouldShowEmptyLicenseFeeWarning(
+      { institutionTheoryExamFee: 0 },
+      { institutionPracticeExamFee: null }
+    )).toBe(false);
+    expect(shouldShowEmptyLicenseFeeWarning(
+      { institutionTheoryExamFee: null },
+      { institutionPracticeExamFee: 1500 }
+    )).toBe(false);
+  });
+
+  it("calculates the contract total from lesson hours and VAT-included hourly rates", () => {
+    expect(calculateLicenseContractTotal(
+      { lessonHours: 34 },
+      { lessonHours: 14 },
+      100,
+      200
+    )).toBe(6200);
+    expect(calculateLicenseContractTotal(undefined, undefined, null, null)).toBeNull();
+    expect(calculateLicenseContractTotal({ lessonHours: 34 }, undefined, 0, null)).toBe(0);
+  });
+
+  it("parses Turkish money input without confusing thousands and decimals", () => {
+    expect(parseTurkishMoneyInput("")).toBeNull();
+    expect(parseTurkishMoneyInput("0")).toBe(0);
+    expect(parseTurkishMoneyInput("1.250")).toBe(1250);
+    expect(parseTurkishMoneyInput("12.500,75")).toBe(12500.75);
+    expect(parseTurkishMoneyInput("1250.50")).toBe(1250.5);
+    expect(parseTurkishMoneyInput("1 250,50")).toBe(1250.5);
+    expect(parseTurkishMoneyInput("1,2,3")).toBeNull();
+    expect(parseTurkishMoneyInput("-10")).toBeNull();
   });
 });
