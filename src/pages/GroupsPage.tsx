@@ -14,9 +14,8 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { StatusPill } from "../components/ui/StatusPill";
 import { useToast } from "../components/ui/Toast";
 import { useAuth } from "../lib/auth";
-import { getCandidateDocuments } from "../lib/documents-api";
 import { parseGroupTitle } from "../lib/group-code";
-import { getGroupById, getGroups } from "../lib/groups-api";
+import { enrichGroupListWithCandidatePhotos, getGroupsWithoutCandidatePhotos } from "../lib/groups-api";
 import { ApiError, isAbortError } from "../lib/http";
 import { useLanguage, useT } from "../lib/i18n";
 import { getInstitutionSettings } from "../lib/institution-settings-api";
@@ -45,7 +44,6 @@ type GroupColumnId =
   | "name"
   | "capacity"
   | "licenseClass"
-  | "mebbisDocuments"
   | "activeCandidates"
   | "startDate"
   | "candidatePreview"
@@ -59,7 +57,6 @@ type GroupColumnDef = {
     | "groups.table.name"
     | "groups.table.capacity"
     | "groups.table.licenseClass"
-    | "groups.table.mebbisDocuments"
     | "groups.table.activeCandidates"
     | "groups.table.startDate"
     | "groups.table.candidatePreview"
@@ -79,14 +76,8 @@ type GroupTermSection = {
   activeCandidateCount: number;
 };
 
-type GroupMebbisDocumentSummary = {
-  transferredCount: number;
-  totalCount: number;
-  loading: boolean;
-};
-
 const GROUP_FETCH_PAGE_SIZE = 100;
-const GROUP_COLUMNS_STORAGE_KEY = "groups.columns.v3";
+const GROUP_COLUMNS_STORAGE_KEY = "groups.columns.v4";
 const GROUP_COLUMNS: GroupColumnDef[] = [
   {
     id: "name",
@@ -101,12 +92,6 @@ const GROUP_COLUMNS: GroupColumnDef[] = [
     labelKey: "groups.table.capacity",
     skeletonWidth: 64,
     renderCell: (group) => `${group.assignedCandidateCount} / ${group.capacity}`,
-  },
-  {
-    id: "mebbisDocuments",
-    labelKey: "groups.table.mebbisDocuments",
-    skeletonWidth: 48,
-    renderCell: () => null,
   },
   {
     id: "activeCandidates",
@@ -149,7 +134,6 @@ const GROUP_COLUMN_IDS: GroupColumnId[] = GROUP_COLUMNS.map((column) => column.i
 const DEFAULT_VISIBLE_GROUP_COLUMN_IDS: GroupColumnId[] = [
   "name",
   "capacity",
-  "mebbisDocuments",
   "startDate",
   "candidatePreview",
   "licenseClass",
@@ -234,14 +218,10 @@ export function GroupsPage() {
   const [viewMode, setViewMode] = useState<GroupViewMode>("list");
   const [search, setSearch] = useState("");
   const [groupPage, setGroupPage] = useState(1);
-  const [groupMebbisDocumentSummaries, setGroupMebbisDocumentSummaries] =
-    useState<Record<string, GroupMebbisDocumentSummary>>({});
-  const [groupMebbisSummaryRefreshKey, setGroupMebbisSummaryRefreshKey] = useState(0);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const termLoadMoreRef = useRef<HTMLDivElement | null>(null);
-  const requestedGroupMebbisSummaryIdsRef = useRef<Set<string>>(new Set());
   const visibleColumns = GROUP_COLUMNS.filter((column) => isVisible(column.id));
   const pickerOptions: ColumnOption[] = GROUP_COLUMNS.map((column) => ({
     id: column.id,
@@ -422,7 +402,7 @@ export function GroupsPage() {
       { termId: selectedTermId || undefined, search: effectiveSearch, page: groupPage, pageSize: GROUP_FETCH_PAGE_SIZE },
     ],
     queryFn: ({ signal }) =>
-      getGroups(
+      getGroupsWithoutCandidatePhotos(
         {
           page: groupPage,
           pageSize: GROUP_FETCH_PAGE_SIZE,
@@ -432,7 +412,16 @@ export function GroupsPage() {
         signal
       ),
   });
-  const groups = useMemo<GroupResponse[]>(() => groupsQuery.data?.items ?? [], [groupsQuery.data]);
+  const groupPhotosQuery = useQuery({
+    queryKey: ["groups", "candidate-photos", groupsQuery.dataUpdatedAt],
+    queryFn: ({ signal }) => enrichGroupListWithCandidatePhotos(groupsQuery.data!, signal),
+    enabled: Boolean(groupsQuery.data),
+    retry: false,
+  });
+  const groups = useMemo<GroupResponse[]>(
+    () => (groupPhotosQuery.data ?? groupsQuery.data)?.items ?? [],
+    [groupPhotosQuery.data, groupsQuery.data]
+  );
   const institutionSettingsQuery = useQuery({
     queryKey: ["settings", "institution-settings"],
     queryFn: ({ signal }) => getInstitutionSettings(signal),
@@ -453,18 +442,12 @@ export function GroupsPage() {
   const handleGroupCreated = () => {
     setModalOpen(false);
     showToast(t("groups.created"));
-    requestedGroupMebbisSummaryIdsRef.current.clear();
-    setGroupMebbisDocumentSummaries({});
-    setGroupMebbisSummaryRefreshKey((key) => key + 1);
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
   };
 
   const handleGroupUpdated = () => {
-    requestedGroupMebbisSummaryIdsRef.current.clear();
-    setGroupMebbisDocumentSummaries({});
-    setGroupMebbisSummaryRefreshKey((key) => key + 1);
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
@@ -472,9 +455,6 @@ export function GroupsPage() {
 
   const handleGroupDeleted = () => {
     setSelectedGroupId(null);
-    requestedGroupMebbisSummaryIdsRef.current.clear();
-    setGroupMebbisDocumentSummaries({});
-    setGroupMebbisSummaryRefreshKey((key) => key + 1);
     invalidateGroups();
     invalidateCandidates();
     setTermRefreshKey((k) => k + 1);
@@ -545,98 +525,7 @@ export function GroupsPage() {
     return Array.from({ length: DEFAULT_LOADING_TERM_SECTION_COUNT }, () => null);
   }, [selectedTerm, sortedTerms]);
 
-  const visibleMebbisSummaryGroups = useMemo(
-    () => visibleTermSections.flatMap((section) => section.groups),
-    [visibleTermSections]
-  );
-
-  useEffect(() => {
-    const pendingGroups = visibleMebbisSummaryGroups.filter((group) =>
-      group.activeCandidateCount > 0 &&
-      !groupMebbisDocumentSummaries[group.id] &&
-      !requestedGroupMebbisSummaryIdsRef.current.has(group.id)
-    );
-    if (pendingGroups.length === 0) {
-      return;
-    }
-
-    const abortController = new AbortController();
-    pendingGroups.forEach((group) => {
-      requestedGroupMebbisSummaryIdsRef.current.add(group.id);
-    });
-    setGroupMebbisDocumentSummaries((current) => {
-      const next = { ...current };
-      pendingGroups.forEach((group) => {
-        next[group.id] = {
-          transferredCount: 0,
-          totalCount: group.activeCandidateCount,
-          loading: true,
-        };
-      });
-      return next;
-    });
-
-    pendingGroups.forEach((group) => {
-      void (async () => {
-        try {
-          const detail = await getGroupById(group.id, abortController.signal);
-          const activeCandidates = detail.activeCandidates ?? [];
-          const transferredFlags = await Promise.all(
-            activeCandidates.map(async (candidate) => {
-              try {
-                const documents = await getCandidateDocuments(candidate.candidateId, abortController.signal);
-                return documents.some((document) => document.isMebbisTransferred);
-              } catch (error) {
-                if (isAbortError(error)) {
-                  throw error;
-                }
-                return false;
-              }
-            })
-          );
-
-          if (abortController.signal.aborted) {
-            return;
-          }
-
-          setGroupMebbisDocumentSummaries((current) => ({
-            ...current,
-            [group.id]: {
-              transferredCount: transferredFlags.filter(Boolean).length,
-              totalCount: activeCandidates.length,
-              loading: false,
-            },
-          }));
-        } catch (error) {
-          if (abortController.signal.aborted || isAbortError(error)) {
-            return;
-          }
-
-          setGroupMebbisDocumentSummaries((current) => ({
-            ...current,
-            [group.id]: {
-              transferredCount: 0,
-              totalCount: group.activeCandidateCount,
-              loading: false,
-            },
-          }));
-        }
-      })();
-    });
-  }, [groupMebbisSummaryRefreshKey, visibleMebbisSummaryGroups]);
-
   const emptyMessage = t("groups.empty.noGroupsForTab");
-
-  const getGroupMebbisDocumentSummaryText = (group: GroupResponse) => {
-    const summary = groupMebbisDocumentSummaries[group.id];
-    if (!summary) {
-      return group.activeCandidateCount > 0 ? `... / ${group.activeCandidateCount}` : "0 / 0";
-    }
-
-    return summary.loading
-      ? `... / ${summary.totalCount}`
-      : `${summary.transferredCount} / ${summary.totalCount}`;
-  };
 
   const renderGroupCandidatePreview = (group: GroupResponse, variant: "card" | "table") => {
     const preview = group.candidatePreview ?? [];
@@ -717,10 +606,6 @@ export function GroupsPage() {
             <span className="value">
               {group.assignedCandidateCount} / {group.capacity}
             </span>
-          </div>
-          <div className="drawer-row">
-            <span className="label">MEB Durumu</span>
-            <span className="value">{getGroupMebbisDocumentSummaryText(group)}</span>
           </div>
           <div className="drawer-row">
             <span className="label">{t("groups.card.startDate")}</span>
@@ -804,9 +689,7 @@ export function GroupsPage() {
             >
               {visibleColumns.map((column) => (
                 <td className={column.cellClassName} key={column.id}>
-                  {column.id === "mebbisDocuments"
-                    ? getGroupMebbisDocumentSummaryText(group)
-                    : column.id === "name"
+                  {column.id === "name"
                     ? renderGroupNameCell(group)
                     : column.id === "licenseClass"
                     ? renderGroupLicenseClassChips(group)

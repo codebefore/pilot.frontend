@@ -1,5 +1,5 @@
 import { getFinanceApiBaseUrl } from "./api";
-import { httpDelete, httpGet, httpPost, httpPut } from "./http";
+import { httpDelete, httpGet, httpPost, httpPostBlob, httpPut } from "./http";
 import type {
   CandidateAccountingInvoiceResponse,
   CandidateAccountingInvoiceUpsertRequest,
@@ -141,6 +141,7 @@ export interface CandidateEArchiveSubmissionResponse {
   status: string;
   externalUuid: string | null;
   externalReference: string | null;
+  lastError?: string | null;
 }
 
 export function createCandidateEArchiveSubmission(
@@ -151,5 +152,44 @@ export function createCandidateEArchiveSubmission(
     `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/e-archive-submissions`,
     undefined,
     financeRequestOptions()
+  );
+}
+
+export function getCandidateEArchiveSubmission(
+  candidateId: string,
+  invoiceId: string,
+  signal?: AbortSignal
+): Promise<CandidateEArchiveSubmissionResponse> {
+  return httpGet<CandidateEArchiveSubmissionResponse>(
+    `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/e-archive-submission`,
+    undefined,
+    financeRequestOptions(signal)
+  );
+}
+
+export function downloadCandidateEArchivePdf(
+  candidateId: string,
+  invoiceId: string
+): Promise<Blob> {
+  return httpPostBlob(
+    `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/e-archive-submission/pdf`,
+    undefined,
+    financeRequestOptions()
+  );
+}
+
+export interface CandidateEDocumentRecipientResponse {
+  documentType: "e-invoice" | "e-archive";
+  recipientAlias: string | null;
+}
+
+export function getCandidateEDocumentRecipient(
+  candidateId: string,
+  signal?: AbortSignal
+): Promise<CandidateEDocumentRecipientResponse> {
+  return httpGet<CandidateEDocumentRecipientResponse>(
+    `/api/finance/candidates/${candidateId}/e-document-recipient`,
+    undefined,
+    financeRequestOptions(signal)
   );
 }

@@ -21,7 +21,9 @@ export interface EInvoiceIntegrationUpsertRequest {
   environment: EInvoiceEnvironment;
   taxNumber: string;
   senderAlias: string | null;
-  credentialReference: string | null;
+  username: string | null;
+  password: string | null;
+  connectorGuid: string | null;
   usesEArchive: boolean;
   isEnabled: boolean;
   rowVersion: number | null;

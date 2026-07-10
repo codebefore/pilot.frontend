@@ -17,6 +17,7 @@ import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
 import { EditableRow } from "../components/ui/EditableRow";
 import { CustomSelect } from "../components/ui/CustomSelect";
+import { FileDropInput } from "../components/ui/FileDropInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
@@ -29,7 +30,7 @@ import { PageLoadError } from "../components/ui/PageLoadError";
 import {
   assignCandidateGroup,
   deleteCandidate,
-  getCandidateById,
+  getCandidateByIdWithDocumentOverview,
   removeActiveGroupAssignment,
   setCandidateRegistrationDate,
   setCandidateRegistrationNumber,
@@ -53,10 +54,14 @@ import {
   createCandidateAccountingRefund,
   createCandidateEArchiveSubmission,
   deleteCandidateAccountingInvoice,
+  downloadCandidateEArchivePdf,
   getCandidateAccounting,
+  getCandidateEDocumentRecipient,
+  getCandidateEArchiveSubmission,
   updateCandidateAccountingInvoice,
 } from "../lib/candidate-accounting-api";
 import { getCandidateReferences } from "../lib/candidate-references-api";
+import { getEInvoiceIntegration } from "../lib/e-archive-api";
 import {
   chargeCandidateExamAttempt,
   createCandidateExamAttempt,
@@ -283,7 +288,6 @@ async function loadCandidateKCertificateBiometricPhoto(
   }
 }
 
-const INVOICE_TYPE_OPTIONS = ["Satış", "İade", "İptal"];
 
 type TabKey =
   | "general"
@@ -496,7 +500,19 @@ async function updateCandidateField(
   candidate: CandidateResponse,
   patch: Partial<CandidateUpsertRequest>
 ): Promise<CandidateResponse> {
-  return updateCandidate(candidate.id, buildCandidateUpdatePayload(candidate, patch));
+  const updated = await updateCandidate(candidate.id, buildCandidateUpdatePayload(candidate, patch));
+  return preserveCandidateDocumentOverview(updated, candidate);
+}
+
+function preserveCandidateDocumentOverview(
+  updated: CandidateResponse,
+  previous: CandidateResponse
+): CandidateResponse {
+  return {
+    ...updated,
+    documentSummary: previous.documentSummary,
+    photo: previous.photo,
+  };
 }
 
 export function CandidateDetailPage() {
@@ -528,7 +544,7 @@ export function CandidateDetailPage() {
     refetch: refetchCandidate,
   } = useQuery({
     queryKey: candidateId ? candidateKeys.detail(candidateId) : candidateKeys.detail("__missing__"),
-    queryFn: ({ signal }) => getCandidateById(candidateId as string, signal),
+    queryFn: ({ signal }) => getCandidateByIdWithDocumentOverview(candidateId as string, signal),
     enabled: Boolean(candidateId),
     staleTime: 0,
   });
@@ -779,12 +795,16 @@ export function CandidateDetailPage() {
     payload: {
       invoiceNo: string;
       invoiceType: string;
+      serviceDescription: string;
+      taxExemptionReasonCode?: string | null;
+      taxExemptionReasonName?: string | null;
       invoiceDate: string;
       subtotal: number;
       vatRate: number;
       notes?: string | null;
     },
-    createEArchiveDraft: boolean
+    createEArchiveDraft: boolean,
+    documentFile: File | null
   ) => {
     if (!canManagePayments) return;
     if (!candidate || invoiceSaving) return;
@@ -796,22 +816,41 @@ export function CandidateDetailPage() {
             rowVersion: invoice.rowVersion,
           })
         : await createCandidateAccountingInvoice(candidate.id, payload);
+      if (documentFile) {
+        const candidateDocumentTypes = await queryClient.fetchQuery({
+          queryKey: ["documentTypes", "candidate"],
+          queryFn: ({ signal }) => getDocumentTypes({ module: "candidate", includeInactive: false }, signal),
+        });
+        const invoiceDocumentType = candidateDocumentTypes.find((item) => item.key === "invoice");
+        if (!invoiceDocumentType) {
+          throw new Error("Fatura belge türü bulunamadı.");
+        }
+        await uploadDocument({
+          candidateId: candidate.id,
+          documentTypeId: invoiceDocumentType.id,
+          file: documentFile,
+          note: `Fatura ${savedInvoice.invoiceNo}`,
+        });
+      }
       if (createEArchiveDraft) {
         try {
           await createCandidateEArchiveSubmission(candidate.id, savedInvoice.id);
         } catch (error) {
           await refreshAccounting();
           showToast(
-            accountingErrorMessage(error, "Fatura kaydedildi ancak e-Arşiv taslağı oluşturulamadı.", t),
+            accountingErrorMessage(error, "Fatura kaydedildi ancak e-Belge taslağı oluşturulamadı.", t),
             "error"
           );
           return;
         }
+        await queryClient.invalidateQueries({
+          queryKey: ["finance", "e-archive-submission", candidate.id, savedInvoice.id],
+        });
       }
       await refreshAccounting();
       showToast(
         createEArchiveDraft
-          ? "Fatura kaydedildi ve e-Arşiv taslağı oluşturuldu."
+          ? "Fatura kaydedildi ve e-Belge taslağı oluşturuldu."
           : t(invoice ? "candidateDetail.accounting.toast.invoiceUpdated" : "candidateDetail.accounting.toast.invoiceAdded")
       );
     } catch (error) {
@@ -993,7 +1032,9 @@ export function CandidateDetailPage() {
                 onRefundPayment={(paymentId, amount, cashRegisterId, note) =>
                   void handleRefundPayment(paymentId, amount, cashRegisterId, note)
                 }
-                onSaveInvoice={(invoice, payload, createEArchiveDraft) => void handleSaveInvoice(invoice, payload, createEArchiveDraft)}
+                onSaveInvoice={(invoice, payload, createEArchiveDraft, documentFile) =>
+                  void handleSaveInvoice(invoice, payload, createEArchiveDraft, documentFile)
+                }
                 paymentSaving={paymentSaving}
               />
             )}
@@ -2297,7 +2338,7 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
     }
     try {
       await setCandidateRegistrationNumber(candidate.id, trimmed, candidate.rowVersion);
-      const refreshed = await getCandidateById(candidate.id);
+      const refreshed = await getCandidateByIdWithDocumentOverview(candidate.id);
       onSaved(refreshed);
       showToast(t("candidateDetail.license.toast.registrationNumberUpdated"));
     } catch {
@@ -2314,7 +2355,7 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
     }
     try {
       await setCandidateRegistrationDate(candidate.id, value, candidate.rowVersion);
-      const refreshed = await getCandidateById(candidate.id);
+      const refreshed = await getCandidateByIdWithDocumentOverview(candidate.id);
       onSaved(refreshed);
       showToast(t("candidateDetail.license.toast.registrationDateUpdated"));
     } catch {
@@ -4852,6 +4893,82 @@ const DEFAULT_ACCOUNTING_LEDGER_FILTERS: AccountingLedgerFilters = {
   cashRegister: "all",
 };
 
+function CandidateEArchiveCell({
+  candidateId,
+  invoiceId,
+  canManagePayments,
+}: {
+  candidateId: string;
+  invoiceId: string;
+  canManagePayments: boolean;
+}) {
+  const { showToast } = useToast();
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const submissionQuery = useQuery({
+    queryKey: ["finance", "e-archive-submission", candidateId, invoiceId],
+    queryFn: ({ signal }) => getCandidateEArchiveSubmission(candidateId, invoiceId, signal),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const submission = submissionQuery.data;
+  const statusLabel = submission
+    ? ({
+        queued: "Sırada",
+        sending: "Gönderiliyor",
+        accepted: "Taslak",
+        delivered: "Onaylandı",
+        rejected: "Reddedildi",
+        failed: "Hata",
+        cancelled: "İptal",
+      }[submission.status] ?? submission.status)
+    : submissionQuery.isLoading
+      ? "Kontrol ediliyor"
+      : "Oluşturulmadı";
+
+  const downloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const blob = await downloadCandidateEArchivePdf(candidateId, invoiceId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `e-belge-${invoiceId}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast("e-Belge PDF'i indirilemedi.", "error");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  return (
+    <div className="candidate-accounting-inline-actions">
+      <span>{statusLabel}</span>
+      {submission?.externalUuid ? (
+        <button
+          className="btn btn-secondary btn-sm"
+          disabled={!canManagePayments || pdfLoading}
+          onClick={() => void downloadPdf()}
+          type="button"
+        >
+          {pdfLoading ? "İndiriliyor..." : "PDF"}
+        </button>
+      ) : null}
+      {submission ? (
+        <button
+          className="btn btn-secondary btn-sm"
+          disabled={submissionQuery.isFetching}
+          onClick={() => void submissionQuery.refetch()}
+          type="button"
+        >
+          Yenile
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function AccountingTab({
   accounting,
   accountingLoading,
@@ -4909,12 +5026,16 @@ function AccountingTab({
     payload: {
       invoiceNo: string;
       invoiceType: string;
+      serviceDescription: string;
+      taxExemptionReasonCode?: string | null;
+      taxExemptionReasonName?: string | null;
       invoiceDate: string;
       subtotal: number;
       vatRate: number;
       notes?: string | null;
     },
-    createEArchiveDraft: boolean
+    createEArchiveDraft: boolean,
+    documentFile: File | null
   ) => void;
   onDeleteInvoice: (invoiceId: string) => void;
 }) {
@@ -4982,21 +5103,46 @@ function AccountingTab({
     invoice: CandidateAccountingInvoiceResponse | null;
     invoiceNo: string;
     invoiceType: string;
+    serviceDescription: string;
+    taxExemptionReasonCode: string;
+    taxExemptionReasonName: string;
     invoiceDate: string;
     subtotal: string;
     vatRate: string;
     notes: string;
     createEArchiveDraft: boolean;
+    documentFile: File | null;
   }>({
     open: false,
     invoice: null,
     invoiceNo: "",
     invoiceType: "Satış",
+    serviceDescription: "Sürücü kursu eğitim hizmeti",
+    taxExemptionReasonCode: "",
+    taxExemptionReasonName: "",
     invoiceDate: todayIsoDate(),
     subtotal: "",
     vatRate: "10",
     notes: "",
     createEArchiveDraft: true,
+    documentFile: null,
+  });
+  const [invoiceDeleteConfirmId, setInvoiceDeleteConfirmId] = useState<string | null>(null);
+  const [invoiceActionsOpenId, setInvoiceActionsOpenId] = useState<string | null>(null);
+  const eDocumentIntegrationQuery = useQuery({
+    queryKey: ["finance", "e-document-integration"],
+    queryFn: ({ signal }) => getEInvoiceIntegration(signal),
+    staleTime: 60_000,
+  });
+  const isEDocumentIntegrationActive = Boolean(
+    eDocumentIntegrationQuery.data?.usesEArchive && eDocumentIntegrationQuery.data.isEnabled
+  );
+  const eDocumentRecipientQuery = useQuery({
+    queryKey: ["finance", "e-document-recipient", candidate.id],
+    queryFn: ({ signal }) => getCandidateEDocumentRecipient(candidate.id, signal),
+    enabled: invoiceModal.open && invoiceModal.createEArchiveDraft,
+    retry: false,
+    staleTime: 60_000,
   });
   const [receiptPayment, setReceiptPayment] =
     useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
@@ -5157,17 +5303,34 @@ function AccountingTab({
     (!paymentNeedsRegister || Boolean(paymentModal.cashRegisterId)) &&
     !paymentSaving;
   const invoiceTotal = parseMoneyInput(invoiceModal.subtotal);
-  const invoiceVatRate = 10;
+  const invoiceVatRate = Number(invoiceModal.vatRate);
+  const isInvoiceExemption = invoiceModal.invoiceType === "İstisna";
+  const hasValidInvoiceVatRate =
+    Number.isFinite(invoiceVatRate) && invoiceVatRate > 0 && invoiceVatRate <= 100;
   const invoiceSubtotal =
-    invoiceTotal != null ? Math.round((invoiceTotal / 1.1 + Number.EPSILON) * 100) / 100 : null;
-  const invoiceVatAmount = invoiceTotal != null && invoiceSubtotal != null ? invoiceTotal - invoiceSubtotal : 0;
+    invoiceTotal != null && hasValidInvoiceVatRate
+      ? isInvoiceExemption
+        ? invoiceTotal
+        : Math.round((invoiceTotal / (1 + invoiceVatRate / 100) + Number.EPSILON) * 100) / 100
+      : null;
+  const invoiceVatAmount =
+    invoiceTotal != null && invoiceSubtotal != null
+      ? isInvoiceExemption
+        ? Math.round((invoiceSubtotal * invoiceVatRate / 100 + Number.EPSILON) * 100) / 100
+        : invoiceTotal - invoiceSubtotal
+      : 0;
   const canSaveInvoice =
     canManagePayments &&
-    Boolean(invoiceModal.invoiceNo.trim()) &&
+    (isEDocumentIntegrationActive || Boolean(invoiceModal.invoiceNo.trim())) &&
     Boolean(invoiceModal.invoiceType.trim()) &&
+    Boolean(invoiceModal.serviceDescription.trim()) &&
     Boolean(invoiceModal.invoiceDate) &&
     invoiceSubtotal != null &&
     invoiceSubtotal > 0 &&
+    hasValidInvoiceVatRate &&
+    (!isInvoiceExemption ||
+      (Boolean(invoiceModal.taxExemptionReasonCode.trim()) && Boolean(invoiceModal.taxExemptionReasonName.trim()))) &&
+    (!invoiceModal.createEArchiveDraft || eDocumentRecipientQuery.isSuccess) &&
     !invoiceSaving;
   const canSaveRefund =
     canManagePayments &&
@@ -5257,11 +5420,15 @@ function AccountingTab({
       invoice,
       invoiceNo: invoice?.invoiceNo ?? "",
       invoiceType: invoice?.invoiceType ?? "Satış",
+      serviceDescription: invoice?.serviceDescription ?? "Sürücü kursu eğitim hizmeti",
+      taxExemptionReasonCode: invoice?.taxExemptionReasonCode ?? "",
+      taxExemptionReasonName: invoice?.taxExemptionReasonName ?? "",
       invoiceDate: invoice?.invoiceDate ?? todayIsoDate(),
       subtotal: invoice ? String(invoice.totalAmount) : amount ? String(amount) : "",
       vatRate: "10",
       notes: invoice?.notes ?? "",
-      createEArchiveDraft: true,
+      createEArchiveDraft: isEDocumentIntegrationActive,
+      documentFile: null,
     });
   };
   const openRefundModal = (payment: CandidateAccountingSummaryResponse["payments"][number]) => {
@@ -5695,6 +5862,7 @@ function AccountingTab({
                 <th>Tutar</th>
                 <th>KDV</th>
                 <th>Toplam Tutar</th>
+                <th>e-Belge</th>
                 <th>{t("candidateDetail.accounting.col.cancelledBy")}</th>
                 <th></th>
               </tr>
@@ -5708,26 +5876,84 @@ function AccountingTab({
                   <td>{formatCurrencyTRY(invoice.subtotal)}</td>
                   <td>%{invoice.vatRate} · {formatCurrencyTRY(invoice.vatAmount)}</td>
                   <td>{formatCurrencyTRY(invoice.totalAmount)}</td>
+                  <td>
+                    <CandidateEArchiveCell
+                      canManagePayments={canManagePayments}
+                      candidateId={candidate.id}
+                      invoiceId={invoice.id}
+                    />
+                  </td>
                   <td>{invoice.createdByName?.trim() || "—"}</td>
                   <td>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      disabled={!canManagePayments}
-                      onClick={() => openInvoiceModal(invoice)}
-                      title={!canManagePayments ? noPermissionTitle : undefined}
-                      type="button"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      disabled={!canManagePayments}
-                      onClick={() => onDeleteInvoice(invoice.id)}
-                      title={!canManagePayments ? noPermissionTitle : undefined}
-                      type="button"
-                    >
-                      Sil
-                    </button>
+                    <div className="candidate-detail-action-popover-anchor">
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={!canManagePayments}
+                        onClick={() => {
+                          setInvoiceDeleteConfirmId(null);
+                          setInvoiceActionsOpenId((current) => current === invoice.id ? null : invoice.id);
+                        }}
+                        title={!canManagePayments ? noPermissionTitle : undefined}
+                        type="button"
+                      >
+                        İşlemler
+                      </button>
+                      {invoiceActionsOpenId === invoice.id ? (
+                        <div className="candidate-detail-print-popover" role="menu" aria-label="Fatura işlemleri">
+                          {invoiceDeleteConfirmId === invoice.id ? (
+                            <>
+                              <div className="candidate-payment-save-confirm-copy">
+                                <strong>Fatura silinsin mi?</strong>
+                              </div>
+                              <div className="candidate-payment-save-confirm-actions">
+                                <button className="btn btn-secondary btn-sm" onClick={() => setInvoiceDeleteConfirmId(null)} type="button">
+                                  Hayır
+                                </button>
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  onClick={() => {
+                                    setInvoiceDeleteConfirmId(null);
+                                    setInvoiceActionsOpenId(null);
+                                    onDeleteInvoice(invoice.id);
+                                  }}
+                                  type="button"
+                                >
+                                  Evet
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                className="candidate-detail-print-popover-item"
+                                onClick={() => {
+                                  setInvoiceActionsOpenId(null);
+                                  openInvoiceModal(invoice);
+                                }}
+                                role="menuitem"
+                                type="button"
+                              >
+                                Düzenle
+                              </button>
+                              <button
+                                className="candidate-detail-print-popover-item"
+                                onClick={() => setInvoiceDeleteConfirmId(invoice.id)}
+                                role="menuitem"
+                                type="button"
+                              >
+                                Sil
+                              </button>
+                              <button className="candidate-detail-print-popover-item" disabled role="menuitem" title="İade akışı hazırlanıyor" type="button">
+                                İade
+                              </button>
+                              <button className="candidate-detail-print-popover-item" disabled role="menuitem" title="İptal akışı hazırlanıyor" type="button">
+                                İptal
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -6065,19 +6291,31 @@ function AccountingTab({
                   {
                     invoiceNo: invoiceModal.invoiceNo.trim(),
                     invoiceType: invoiceModal.invoiceType.trim(),
+                    serviceDescription: invoiceModal.serviceDescription.trim(),
+                    taxExemptionReasonCode: isInvoiceExemption
+                      ? invoiceModal.taxExemptionReasonCode.trim()
+                      : null,
+                    taxExemptionReasonName: isInvoiceExemption
+                      ? invoiceModal.taxExemptionReasonName.trim()
+                      : null,
                     invoiceDate: invoiceModal.invoiceDate,
                     subtotal: invoiceSubtotal,
                     vatRate: invoiceVatRate,
                     notes: invoiceModal.notes.trim() || null,
                   },
-                  invoiceModal.createEArchiveDraft
+                  invoiceModal.createEArchiveDraft,
+                  invoiceModal.documentFile
                 );
                 setInvoiceModal((current) => ({ ...current, open: false }));
               }}
               title={!canManagePayments ? noPermissionTitle : undefined}
               type="button"
             >
-              {invoiceSaving ? "Kaydediliyor..." : "Fatura Kaydet"}
+              {invoiceSaving
+                ? "Kaydediliyor..."
+                : invoiceModal.createEArchiveDraft
+                  ? "Kaydet ve Taslak Oluştur"
+                  : "Kaydet"}
             </button>
           </>
         }
@@ -6086,9 +6324,15 @@ function AccountingTab({
         title={invoiceModal.invoice ? t("candidateDetail.accounting.modal.editInvoice") : t("candidateDetail.accounting.modal.addInvoice")}
       >
         <div className="candidate-accounting-modal-form">
+          {!isEDocumentIntegrationActive ? (
+            <label className="form-group">
+              <span className="form-label">Fatura Sayı</span>
+              <input className="form-input" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceNo: event.target.value }))} placeholder="Fatura No" value={invoiceModal.invoiceNo} />
+            </label>
+          ) : null}
           <label className="form-group">
-            <span className="form-label">Fatura No</span>
-            <input className="form-input" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceNo: event.target.value }))} placeholder="Fatura No" value={invoiceModal.invoiceNo} />
+            <span className="form-label">Fatura Tarihi</span>
+            <LocalizedDateInput className="form-input" disabled={!canManagePayments} onChange={(invoiceDate) => setInvoiceModal((current) => ({ ...current, invoiceDate }))} value={invoiceModal.invoiceDate} />
           </label>
           <label className="form-group">
             <span className="form-label">Fatura Tipi</span>
@@ -6098,42 +6342,121 @@ function AccountingTab({
               onChange={(event) => setInvoiceModal((current) => ({ ...current, invoiceType: event.target.value }))}
               value={invoiceModal.invoiceType}
             >
-              {INVOICE_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
+              <option value="Satış">Satış</option>
+              <option value="İstisna">İstisna</option>
             </CustomSelect>
           </label>
           <label className="form-group">
-            <span className="form-label">Fatura Tarihi</span>
-            <LocalizedDateInput className="form-input" disabled={!canManagePayments} onChange={(invoiceDate) => setInvoiceModal((current) => ({ ...current, invoiceDate }))} value={invoiceModal.invoiceDate} />
+            <span className="form-label">Hizmet</span>
+            <input
+              className="form-input"
+              disabled={!canManagePayments}
+              maxLength={500}
+              onChange={(event) => setInvoiceModal((current) => ({ ...current, serviceDescription: event.target.value }))}
+              value={invoiceModal.serviceDescription}
+            />
           </label>
+          {isInvoiceExemption ? (
+            <>
+              <label className="form-group">
+                <span className="form-label">İstisna Kodu</span>
+                <input
+                  className="form-input"
+                  disabled={!canManagePayments}
+                  maxLength={16}
+                  onChange={(event) => setInvoiceModal((current) => ({ ...current, taxExemptionReasonCode: event.target.value }))}
+                  placeholder="Örn. 308"
+                  value={invoiceModal.taxExemptionReasonCode}
+                />
+              </label>
+              <label className="form-group">
+                <span className="form-label">İstisna Açıklaması</span>
+                <input
+                  className="form-input"
+                  disabled={!canManagePayments}
+                  maxLength={500}
+                  onChange={(event) => setInvoiceModal((current) => ({ ...current, taxExemptionReasonName: event.target.value }))}
+                  placeholder="İstisna nedeni"
+                  value={invoiceModal.taxExemptionReasonName}
+                />
+              </label>
+            </>
+          ) : null}
           <label className="form-group">
             <span className="form-label">Toplam Tutar (KDV dahil)</span>
             <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setInvoiceModal((current) => ({ ...current, subtotal: event.target.value }))} placeholder="0,00" value={invoiceModal.subtotal} />
           </label>
           <label className="form-group">
             <span className="form-label">{t("candidateDetail.accounting.field.vatRate")}</span>
-            <input className="form-input" readOnly value="%10" />
+            <CustomSelect
+              className="form-select"
+              disabled={!canManagePayments}
+              onChange={(event) =>
+                setInvoiceModal((current) => ({
+                  ...current,
+                  vatRate: event.target.value === "other" ? "" : event.target.value,
+                }))
+              }
+              value={["1", "10", "20"].includes(invoiceModal.vatRate) ? invoiceModal.vatRate : "other"}
+            >
+              <option value="1">%1</option>
+              <option value="10">%10</option>
+              <option value="20">%20</option>
+              <option value="other">Diğer</option>
+            </CustomSelect>
+            {!["1", "10", "20"].includes(invoiceModal.vatRate) ? (
+              <input
+                className="form-input"
+                disabled={!canManagePayments}
+                inputMode="decimal"
+                max="100"
+                min="0.01"
+                onChange={(event) => setInvoiceModal((current) => ({ ...current, vatRate: event.target.value }))}
+                placeholder="KDV oranı"
+                type="number"
+                value={invoiceModal.vatRate}
+              />
+            ) : null}
           </label>
           <label className="form-group">
-            <span className="form-label">Matrah / KDV</span>
-            <input className="form-input" readOnly value={`Matrah ${formatCurrencyTRY(invoiceSubtotal ?? 0)} · KDV ${formatCurrencyTRY(invoiceVatAmount)}`} />
+            <span className="form-label">{isInvoiceExemption ? "Matrah / Hesaplanan KDV" : "Matrah / KDV"}</span>
+            <input
+              className="form-input"
+              readOnly
+              value={`Matrah ${formatCurrencyTRY(invoiceSubtotal ?? 0)} · ${isInvoiceExemption ? "Hesaplanan KDV" : "KDV"} ${formatCurrencyTRY(invoiceVatAmount)}`}
+            />
           </label>
           <label className="form-group">
             <span className="form-label">Not</span>
             <input className="form-input" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, notes: event.target.value }))} placeholder="Fatura notu" value={invoiceModal.notes} />
           </label>
-          <label className="form-checkbox">
-            <input
-              checked={invoiceModal.createEArchiveDraft}
-              disabled={!canManagePayments}
-              onChange={(event) => setInvoiceModal((current) => ({ ...current, createEArchiveDraft: event.target.checked }))}
-              type="checkbox"
-            />
-            <span>MySoft'ta e-Arşiv taslağı oluştur</span>
-          </label>
+          {!isEDocumentIntegrationActive ? (
+            <div className="form-group">
+              <span className="form-label">Belge Yükle</span>
+              <FileDropInput
+                accept="application/pdf,image/*"
+                disabled={!canManagePayments}
+                file={invoiceModal.documentFile ?? undefined}
+                hint="PDF veya görsel dosyasını buraya sürükleyin"
+                name="invoice-document"
+                onChange={(files) =>
+                  setInvoiceModal((current) => ({ ...current, documentFile: files?.[0] ?? null }))
+                }
+                onClear={() => setInvoiceModal((current) => ({ ...current, documentFile: null }))}
+              />
+            </div>
+          ) : (
+            <label className="switch-toggle">
+              <input
+                checked={invoiceModal.createEArchiveDraft}
+                disabled={!canManagePayments}
+                onChange={(event) => setInvoiceModal((current) => ({ ...current, createEArchiveDraft: event.target.checked }))}
+                type="checkbox"
+              />
+              <span className="switch-toggle-control" aria-hidden="true" />
+              <span>e-Belge taslağı oluştur</span>
+            </label>
+          )}
         </div>
       </Modal>
 
@@ -7969,7 +8292,7 @@ function CandidateExamAttemptsSection({
         candidate.id,
         buildBulkCandidateUpdatePayload(candidate, buildCandidateExamSummaryOverrides(nextAttempts))
       );
-      onCandidateUpdated?.(updated);
+      onCandidateUpdated?.(preserveCandidateDocumentOverview(updated, candidate));
     } catch {
       showToast("Aday sınav özeti güncellenemedi.", "error");
     }

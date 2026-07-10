@@ -17,8 +17,11 @@ vi.mock("../lib/payments-api", async () => {
 
   return {
     ...actual,
-    getPaymentsOverview: (...args: Parameters<typeof actual.getPaymentsOverview>) =>
+    getPaymentsOverviewWithoutCandidatePhotos: (
+      ...args: Parameters<typeof actual.getPaymentsOverviewWithoutCandidatePhotos>
+    ) =>
       getPaymentsOverviewMock(...args),
+    enrichPaymentsOverviewWithCandidatePhotos: vi.fn((response) => Promise.resolve(response)),
     createCashInflow: (...args: Parameters<typeof actual.createCashInflow>) =>
       createCashInflowMock(...args),
     createCashOutflow: (...args: Parameters<typeof actual.createCashOutflow>) =>

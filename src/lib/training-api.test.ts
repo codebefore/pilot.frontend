@@ -105,19 +105,12 @@ describe("training api routing", () => {
       )
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({
-            items: [
-              {
-                candidateId: "candidate-1",
-                summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
-                photo: { documentId: "document-1", kind: "biometric_photo" },
-              },
-            ],
-            page: 1,
-            pageSize: 1,
-            totalCount: 1,
-            totalPages: 1,
-          }),
+          JSON.stringify([
+            {
+              candidateId: "candidate-1",
+              photo: { documentId: "document-1", kind: "biometric_photo" },
+            },
+          ]),
           {
             status: 200,
             headers: { "Content-Type": "application/json" },
@@ -131,8 +124,12 @@ describe("training api routing", () => {
       "http://127.0.0.1:5095/api/training/groups/group-1"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5092/api/documents/candidate-checklist?candidateIds=candidate-1&page=1&pageSize=1"
+      "http://127.0.0.1:5092/api/documents/candidate-photos"
     );
+    expect(vi.mocked(fetch).mock.calls[1][1]?.method).toBe("POST");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body))).toEqual({
+      candidateIds: ["candidate-1"],
+    });
     expect(result.candidatePreview?.[0].photo).toEqual({
       documentId: "document-1",
       kind: "biometric_photo",

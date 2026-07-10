@@ -369,6 +369,9 @@ export interface CandidateAccountingInvoiceResponse {
   candidateId: string;
   invoiceNo: string;
   invoiceType: string;
+  serviceDescription: string;
+  taxExemptionReasonCode?: string | null;
+  taxExemptionReasonName?: string | null;
   invoiceDate: string;
   subtotal: number;
   vatRate: number;
@@ -437,6 +440,9 @@ export interface CandidateAccountingRefundCreateRequest {
 export interface CandidateAccountingInvoiceUpsertRequest {
   invoiceNo: string;
   invoiceType: string;
+  serviceDescription?: string;
+  taxExemptionReasonCode?: string | null;
+  taxExemptionReasonName?: string | null;
   invoiceDate: string;
   subtotal: number;
   vatRate: number;

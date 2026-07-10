@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { MebIcon } from "../icons";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { CheckboxListPopover } from "../ui/CheckboxListPopover";
-import { getDocumentChecklistByCandidateIds } from "../../lib/documents-api";
+import { getCandidatePhotosByCandidateIds } from "../../lib/documents-api";
 import { useT, currentLocale } from "../../lib/i18n";
 import {
   getPracticeCandidates,
@@ -219,7 +219,7 @@ export function PracticeCandidatePicker({
     }
 
     const controller = new AbortController();
-    getDocumentChecklistByCandidateIds(candidateIds, controller.signal)
+    getCandidatePhotosByCandidateIds(candidateIds, controller.signal)
       .then((entries) => {
         if (controller.signal.aborted) return;
         setPhotoByCandidateId(

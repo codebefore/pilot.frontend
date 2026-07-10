@@ -20,7 +20,8 @@ import {
   createCashInflow,
   createCashOutflow,
   createCashTransfer,
-  getPaymentsOverview,
+  enrichPaymentsOverviewWithCandidatePhotos,
+  getPaymentsOverviewWithoutCandidatePhotos,
 } from "../lib/payments-api";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { useAuth } from "../lib/auth";
@@ -1548,15 +1549,22 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const overviewQueryParams = hasDateFilter
     ? { fromDate, statsMonth: overviewStatsMonth, toDate }
     : undefined;
-  const {
-    data: overview = null,
-    isFetching: loading,
-    isError: loadError,
-  } = useQuery({
+  const overviewQuery = useQuery({
     queryKey: ["payments", "overview", overviewQueryParams],
-    queryFn: ({ signal }) => getPaymentsOverview(overviewQueryParams, signal),
+    queryFn: ({ signal }) => getPaymentsOverviewWithoutCandidatePhotos(overviewQueryParams, signal),
     staleTime: 0,
   });
+  const overviewPhotosQuery = useQuery({
+    queryKey: ["payments", "overview-photos", overviewQuery.dataUpdatedAt],
+    queryFn: ({ signal }) => enrichPaymentsOverviewWithCandidatePhotos(overviewQuery.data!, signal),
+    enabled: Boolean(overviewQuery.data),
+    retry: false,
+  });
+  const overview = overviewPhotosQuery.data ?? overviewQuery.data ?? null;
+  const {
+    isFetching: loading,
+    isError: loadError,
+  } = overviewQuery;
 
   const invalidateFinanceData = () => {
     void queryClient.invalidateQueries({ queryKey: ["payments"] });

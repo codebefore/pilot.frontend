@@ -5,6 +5,7 @@ import {
   analyzeCandidateDocumentOcr,
   getCandidateDocumentDownloadUrl,
   getCandidateDocuments,
+  getCandidatePhotosByCandidateIds,
   getDocumentChecklist,
   getDocumentTypes,
   uploadDocument,
@@ -47,6 +48,21 @@ describe("documents api", () => {
 
     const [url] = vi.mocked(fetch).mock.calls[0];
     expect(String(url)).toBe("http://127.0.0.1:5092/api/candidates/candidate-1/documents");
+  });
+
+  it("routes batched candidate photo reads without loading checklists", async () => {
+    applyRuntimeConfig({
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+
+    await getCandidatePhotosByCandidateIds(["candidate-1", "candidate-2"]);
+
+    const [url, options] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe("http://127.0.0.1:5092/api/documents/candidate-photos");
+    expect(options?.method).toBe("POST");
+    expect(JSON.parse(String(options?.body))).toEqual({
+      candidateIds: ["candidate-1", "candidate-2"],
+    });
   });
 
   it("routes checklist and ocr calls to the runtime document base url", async () => {

@@ -35,7 +35,9 @@ type EInvoiceFormValues = {
   environment: EInvoiceEnvironment;
   taxNumber: string;
   senderAlias: string;
-  credentialReference: string;
+  username: string;
+  password: string;
+  connectorGuid: string;
   usesEArchive: boolean;
   isEnabled: boolean;
 };
@@ -48,9 +50,11 @@ const EMPTY_E_INVOICE_VALUES: EInvoiceFormValues = {
   environment: "test",
   taxNumber: "",
   senderAlias: "",
-  credentialReference: "",
-  usesEArchive: false,
-  isEnabled: false,
+  username: "",
+  password: "",
+  connectorGuid: "",
+  usesEArchive: true,
+  isEnabled: true,
 };
 const PILOT_ICON_SRC = "/icon.png?v=20260605";
 const LOCAL_AGENT_WINDOWS_DOWNLOAD_BASE_URL =
@@ -135,8 +139,10 @@ export function IntegrationsSettingsSection() {
             environment: integration.environment,
             taxNumber: integration.taxNumber,
             senderAlias: integration.senderAlias ?? "",
-            credentialReference: "",
-            usesEArchive: integration.usesEArchive,
+            username: "",
+            password: "",
+            connectorGuid: "",
+            usesEArchive: true,
             isEnabled: integration.isEnabled,
           }
         : EMPTY_E_INVOICE_VALUES
@@ -181,9 +187,11 @@ export function IntegrationsSettingsSection() {
           environment: eInvoiceValues.environment,
           taxNumber: eInvoiceValues.taxNumber.trim(),
           senderAlias: eInvoiceValues.senderAlias.trim() || null,
-          credentialReference: eInvoiceValues.credentialReference.trim() || null,
-          usesEArchive: eInvoiceValues.usesEArchive,
-          isEnabled: eInvoiceValues.isEnabled,
+          username: eInvoiceValues.username.trim() || null,
+          password: eInvoiceValues.password || null,
+          connectorGuid: eInvoiceValues.connectorGuid.trim() || null,
+          usesEArchive: true,
+          isEnabled: true,
           rowVersion: eInvoiceState?.rowVersion ?? null,
         });
         setEInvoiceState(response);
@@ -192,7 +200,9 @@ export function IntegrationsSettingsSection() {
           environment: response.environment,
           taxNumber: response.taxNumber,
           senderAlias: response.senderAlias ?? "",
-          credentialReference: "",
+          username: "",
+          password: "",
+          connectorGuid: "",
           usesEArchive: response.usesEArchive,
           isEnabled: response.isEnabled,
         });
@@ -232,16 +242,10 @@ export function IntegrationsSettingsSection() {
     }
   };
 
-  const handleUsesEArchiveChange = async (usesEArchive: boolean) => {
+  const handleDeactivateEInvoiceIntegration = async () => {
     if (!canManageSettings || saving) return;
     setEInvoiceErrors({});
-    setEInvoiceValues((current) => ({
-      ...current,
-      usesEArchive,
-      isEnabled: usesEArchive ? current.isEnabled : false,
-    }));
-
-    if (usesEArchive || !eInvoiceState) return;
+    if (!eInvoiceState) return;
 
     setSaving(true);
     try {
@@ -250,8 +254,10 @@ export function IntegrationsSettingsSection() {
         environment: eInvoiceValues.environment,
         taxNumber: eInvoiceValues.taxNumber.trim(),
         senderAlias: eInvoiceValues.senderAlias.trim() || null,
-        credentialReference: null,
-        usesEArchive: false,
+        username: null,
+        password: null,
+        connectorGuid: null,
+        usesEArchive: true,
         isEnabled: false,
         rowVersion: eInvoiceState.rowVersion,
       });
@@ -261,14 +267,15 @@ export function IntegrationsSettingsSection() {
         environment: response.environment,
         taxNumber: response.taxNumber,
         senderAlias: response.senderAlias ?? "",
-        credentialReference: "",
-        usesEArchive: false,
+        username: "",
+        password: "",
+        connectorGuid: "",
+        usesEArchive: true,
         isEnabled: false,
       });
       queryClient.setQueryData(eInvoiceQueryKey, response);
       showToast(t("settings.integrations.eInvoice.toast.saved"));
     } catch {
-      setEInvoiceValues((current) => ({ ...current, usesEArchive: true }));
       showToast(t("settings.integrations.eInvoice.toast.saveError"), "error");
     } finally {
       setSaving(false);
@@ -674,16 +681,6 @@ export function IntegrationsSettingsSection() {
                     {t("settings.integrations.eInvoice.description")}
                   </p>
                 </div>
-                <label className="switch-toggle settings-inline-status-toggle">
-                  <input
-                    checked={eInvoiceValues.usesEArchive}
-                    disabled={!canManageSettings || saving}
-                    onChange={(event) => void handleUsesEArchiveChange(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span aria-hidden="true" className="switch-toggle-control" />
-                  <span>{t("settings.integrations.eInvoice.usesEArchive")}</span>
-                </label>
               </div>
 
               <div className="settings-surface-body">
@@ -698,21 +695,9 @@ export function IntegrationsSettingsSection() {
                           {t("settings.integrations.eInvoice.connectionDescription")}
                         </span>
                       </div>
-                      <label className="switch-toggle settings-inline-status-toggle">
-                        <input
-                          checked={eInvoiceValues.isEnabled}
-                          disabled={!canManageSettings}
-                          onChange={(event) =>
-                            setEInvoiceValues((current) => ({
-                              ...current,
-                              isEnabled: event.target.checked,
-                            }))
-                          }
-                          type="checkbox"
-                        />
-                        <span aria-hidden="true" className="switch-toggle-control" />
-                        <span>{t("settings.integrations.eInvoice.enabled")}</span>
-                      </label>
+                      <span className="settings-form-helper">
+                        {eInvoiceState?.isEnabled ? "Entegrasyon aktif" : "Entegrasyon pasif"}
+                      </span>
                     </div>
 
                     <div className="settings-form">
@@ -822,42 +807,58 @@ export function IntegrationsSettingsSection() {
                         </div>
                       </div>
 
-                      <div className="form-row full">
+                      <div className="form-row">
                         <div className="form-group">
-                          <label className="form-label" htmlFor="e-archive-credential-reference">
-                            {t("settings.integrations.eInvoice.credentialReference")}
+                          <label className="form-label" htmlFor="e-document-username">
+                            Entegratör Kullanıcı Adı
                           </label>
                           <input
-                            aria-invalid={Boolean(eInvoiceErrors.credentialReference)}
+                            aria-invalid={Boolean(eInvoiceErrors.username)}
                             autoComplete="off"
-                            className={
-                              eInvoiceErrors.credentialReference ? "form-input error" : "form-input"
-                            }
+                            className={eInvoiceErrors.username ? "form-input error" : "form-input"}
                             disabled={!canManageSettings}
-                            id="e-archive-credential-reference"
+                            id="e-document-username"
                             maxLength={256}
                             onChange={(event) =>
                               setEInvoiceValues((current) => ({
                                 ...current,
-                                credentialReference: event.target.value,
+                                username: event.target.value,
                               }))
                             }
-                            placeholder={
-                              eInvoiceState?.credentialConfigured
-                                ? t("settings.integrations.eInvoice.credentialReferencePlaceholder.replace")
-                                : t("settings.integrations.eInvoice.credentialReferencePlaceholder.new")
-                            }
-                            value={eInvoiceValues.credentialReference}
+                            placeholder={eInvoiceState?.credentialConfigured ? "Değiştirmek için kullanıcı adı girin" : "Kullanıcı adı"}
+                            value={eInvoiceValues.username}
                           />
-                          {eInvoiceErrors.credentialReference ? (
-                            <span className="field-error">{eInvoiceErrors.credentialReference}</span>
-                          ) : (
-                            <span className="settings-form-helper">
-                              {eInvoiceState?.credentialConfigured
-                                ? t("settings.integrations.eInvoice.credentialConfigured")
-                                : t("settings.integrations.eInvoice.credentialReferenceHelp")}
-                            </span>
-                          )}
+                          {eInvoiceErrors.username ? <span className="field-error">{eInvoiceErrors.username}</span> : null}
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="e-document-password">Entegratör Şifresi</label>
+                          <input
+                            aria-invalid={Boolean(eInvoiceErrors.password)}
+                            autoComplete="new-password"
+                            className={eInvoiceErrors.password ? "form-input error" : "form-input"}
+                            disabled={!canManageSettings}
+                            id="e-document-password"
+                            onChange={(event) => setEInvoiceValues((current) => ({ ...current, password: event.target.value }))}
+                            placeholder={eInvoiceState?.credentialConfigured ? "Değiştirmek için yeni şifre girin" : "Şifre"}
+                            type="password"
+                            value={eInvoiceValues.password}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row full">
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="e-document-connector-guid">Connector GUID</label>
+                          <input
+                            className="form-input"
+                            disabled={!canManageSettings}
+                            id="e-document-connector-guid"
+                            onChange={(event) => setEInvoiceValues((current) => ({ ...current, connectorGuid: event.target.value }))}
+                            placeholder="MySoft tarafından verilen Connector GUID"
+                            value={eInvoiceValues.connectorGuid}
+                          />
+                          <span className="settings-form-helper">
+                            {eInvoiceState?.credentialConfigured ? "Kimlik bilgileri şifreli olarak kayıtlıdır." : "Kullanıcı adı ve şifre şifrelenerek saklanır."}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -868,6 +869,16 @@ export function IntegrationsSettingsSection() {
 
             {eInvoiceValues.usesEArchive ? (
               <div className="settings-form-actions">
+                {eInvoiceState?.isEnabled ? (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={!canManageSettings || saving}
+                    onClick={() => void handleDeactivateEInvoiceIntegration()}
+                    type="button"
+                  >
+                    Entegrasyonu Pasifleştir
+                  </button>
+                ) : null}
                 <button
                   className="btn btn-secondary btn-sm"
                   disabled={
@@ -934,10 +945,10 @@ function validateEInvoiceValues(
   if (values.senderAlias.trim().length > 256) {
     errors.senderAlias = t("settings.integrations.eInvoice.validation.senderAlias");
   }
-  if (!credentialConfigured && !values.credentialReference.trim()) {
-    errors.credentialReference = t(
-      "settings.integrations.eInvoice.validation.credentialReference"
-    );
+  if (!credentialConfigured && (!values.username.trim() || !values.password)) {
+    errors.username = "Entegratör kullanıcı adı ve şifresi zorunludur.";
+  } else if (Boolean(values.username.trim()) !== Boolean(values.password)) {
+    errors.password = "Kullanıcı adı ve şifre birlikte değiştirilmelidir.";
   }
   return errors;
 }

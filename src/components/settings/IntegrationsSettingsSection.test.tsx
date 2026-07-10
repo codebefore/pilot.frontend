@@ -210,23 +210,23 @@ describe("IntegrationsSettingsSection", () => {
     });
 
     renderWithProviders(<IntegrationsSettingsSection />);
-    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Belge" }));
 
     expect(await screen.findByLabelText("Entegratör Kodu")).toHaveValue("vendor-one");
     expect(screen.getByLabelText("VKN / TCKN")).toHaveValue("1234567890");
     expect(screen.getByLabelText("Gönderici Etiketi")).toHaveValue(
       "urn:mail:defaultpk@institution"
     );
-    expect(screen.getByText(/Kimlik bilgisi referansı tanımlı/)).toBeInTheDocument();
+    expect(screen.getByText(/Kimlik bilgileri şifreli olarak kayıtlıdır/)).toBeInTheDocument();
   });
 
-  it("hides provider fields when the institution uses e-archive", async () => {
+  it("shows provider fields when no integration is configured", async () => {
     renderWithProviders(<IntegrationsSettingsSection />);
-    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Belge" }));
 
     expect(screen.queryByText("e-Arşiv kullanılacak")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Entegratör Kodu")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Kaydet" })).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Entegratör Kodu")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kaydet" })).toBeInTheDocument();
     expect(upsertEInvoiceIntegrationMock).not.toHaveBeenCalled();
   });
 
@@ -244,9 +244,9 @@ describe("IntegrationsSettingsSection", () => {
       rowVersion: 4,
     });
     renderWithProviders(<IntegrationsSettingsSection />);
-    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Belge" }));
 
-    fireEvent.click(await screen.findByLabelText("e-Arşiv kullanıyor"));
+    fireEvent.click(await screen.findByRole("button", { name: "Entegrasyonu Pasifleştir" }));
 
     await waitFor(() => {
       expect(upsertEInvoiceIntegrationMock).toHaveBeenCalledWith({
@@ -254,13 +254,15 @@ describe("IntegrationsSettingsSection", () => {
         environment: "production",
         taxNumber: "1234567890",
         senderAlias: "urn:mail:defaultpk@institution",
-        credentialReference: null,
-        usesEArchive: false,
+        username: null,
+        password: null,
+        connectorGuid: null,
+        usesEArchive: true,
         isEnabled: false,
         rowVersion: 4,
       });
     });
-    expect(screen.queryByRole("button", { name: "Kaydet" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kaydet" })).toBeInTheDocument();
   });
 
   it("tests the saved MySoft connection without exposing credentials", async () => {
@@ -277,7 +279,7 @@ describe("IntegrationsSettingsSection", () => {
       rowVersion: 2,
     });
     renderWithProviders(<IntegrationsSettingsSection />);
-    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Belge" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Bağlantıyı Test Et" }));
 
@@ -288,8 +290,7 @@ describe("IntegrationsSettingsSection", () => {
 
   it("validates and saves e-archive integration details", async () => {
     renderWithProviders(<IntegrationsSettingsSection />);
-    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
-    fireEvent.click(await screen.findByLabelText("e-Arşiv kullanıyor"));
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Belge" }));
 
     fireEvent.change(await screen.findByLabelText("Entegratör Kodu"), {
       target: { value: "vendor-one" },
@@ -300,10 +301,12 @@ describe("IntegrationsSettingsSection", () => {
     fireEvent.change(screen.getByLabelText("Gönderici Etiketi"), {
       target: { value: "urn:mail:defaultpk@institution" },
     });
-    fireEvent.change(screen.getByLabelText("Kimlik Bilgisi Referansı"), {
-      target: { value: "finance/e-archive/institution-secret" },
+    fireEvent.change(screen.getByLabelText("Entegratör Kullanıcı Adı"), {
+      target: { value: "institution-user" },
     });
-    fireEvent.click(screen.getByLabelText("Entegrasyon aktif"));
+    fireEvent.change(screen.getByLabelText("Entegratör Şifresi"), {
+      target: { value: "institution-password" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
 
     await waitFor(() => {
@@ -312,7 +315,9 @@ describe("IntegrationsSettingsSection", () => {
         environment: "test",
         taxNumber: "1234567890",
         senderAlias: "urn:mail:defaultpk@institution",
-        credentialReference: "finance/e-archive/institution-secret",
+        username: "institution-user",
+        password: "institution-password",
+        connectorGuid: null,
         usesEArchive: true,
         isEnabled: true,
         rowVersion: null,

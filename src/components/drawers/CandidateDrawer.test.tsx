@@ -30,7 +30,9 @@ vi.mock("../../lib/candidates-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/candidates-api")>("../../lib/candidates-api");
   return {
     ...actual,
-    getCandidateById: (...args: Parameters<typeof actual.getCandidateById>) => getCandidateByIdMock(...args),
+    getCandidateByIdWithDocumentOverview: (
+      ...args: Parameters<typeof actual.getCandidateByIdWithDocumentOverview>
+    ) => getCandidateByIdMock(...args),
     updateCandidate: (...args: Parameters<typeof actual.updateCandidate>) => updateCandidateMock(...args),
     assignCandidateGroup: (...args: Parameters<typeof actual.assignCandidateGroup>) =>
       assignCandidateGroupMock(...args),

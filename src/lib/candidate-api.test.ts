@@ -9,6 +9,7 @@ import {
   assignCandidateGroup,
   createCandidateTag,
   getCandidateById,
+  getCandidateByIdWithDocumentOverview,
   getCandidateReuseSources,
   getCandidates,
   getCandidatesWithDocumentOverview,
@@ -92,6 +93,41 @@ describe("candidate api routing", () => {
     expect(result.items[0].documentSummary).toBeNull();
   });
 
+  it("enriches candidate detail only when explicitly requested", async () => {
+    applyRuntimeConfig({
+      candidateApiBaseUrl: "http://127.0.0.1:5094",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "candidate-1", photo: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [{
+              candidateId: "candidate-1",
+              summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
+              photo: { documentId: "document-1", kind: "biometric_photo" },
+            }],
+            page: 1,
+            pageSize: 1,
+            totalCount: 1,
+            totalPages: 1,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+
+    const result = await getCandidateByIdWithDocumentOverview("candidate-1");
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(result.photo).toEqual({ documentId: "document-1", kind: "biometric_photo" });
+  });
+
   it("keeps the enriched candidate list helper for photo-dependent consumers", async () => {
     applyRuntimeConfig({
       candidateApiBaseUrl: "http://127.0.0.1:5094",
@@ -163,48 +199,26 @@ describe("candidate api routing", () => {
     ).rejects.toMatchObject({ status: 503 });
   });
 
-  it("enriches updated candidates with biometric document photos", async () => {
+  it("updates candidates without waiting for document enrichment", async () => {
     applyRuntimeConfig({
       candidateApiBaseUrl: "http://127.0.0.1:5094",
       documentApiBaseUrl: "http://127.0.0.1:5092",
     });
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: "candidate-1",
-            firstName: "Ayse",
-            lastName: "Yilmaz",
-            documentSummary: null,
-            photo: null,
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }
-        )
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "candidate-1",
+          firstName: "Ayse",
+          lastName: "Yilmaz",
+          documentSummary: null,
+          photo: null,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
       )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            items: [
-              {
-                candidateId: "candidate-1",
-                summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
-                photo: { documentId: "document-1", kind: "biometric_photo" },
-              },
-            ],
-            page: 1,
-            pageSize: 1,
-            totalCount: 1,
-            totalPages: 1,
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }
-        )
-      );
+    );
 
     const result = await updateCandidate("candidate-1", {
       firstName: "Ayse",
@@ -220,10 +234,8 @@ describe("candidate api routing", () => {
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
       "http://127.0.0.1:5094/api/candidates/candidate-1"
     );
-    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5092/api/documents/candidate-checklist?candidateIds=candidate-1&page=1&pageSize=1"
-    );
-    expect(result.photo).toEqual({ documentId: "document-1", kind: "biometric_photo" });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(result.photo).toBeNull();
   });
 
   it("routes candidate tag commands to the runtime candidate base url", async () => {

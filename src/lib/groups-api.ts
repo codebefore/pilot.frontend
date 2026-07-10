@@ -1,5 +1,5 @@
 import { getTrainingApiBaseUrl } from "./api";
-import { getDocumentChecklistByCandidateIds } from "./documents-api";
+import { getCandidatePhotosByCandidateIds } from "./documents-api";
 import { httpDelete, httpGet, httpPost, httpPut, type QueryParams } from "./http";
 import type {
   GroupCreateRequest,
@@ -26,11 +26,19 @@ export function getGroups(
   params?: GetGroupsParams,
   signal?: AbortSignal
 ): Promise<PagedResponse<GroupResponse>> {
+  return getGroupsWithoutCandidatePhotos(params, signal)
+    .then((response) => enrichGroupListWithCandidatePhotos(response, signal));
+}
+
+export function getGroupsWithoutCandidatePhotos(
+  params?: GetGroupsParams,
+  signal?: AbortSignal
+): Promise<PagedResponse<GroupResponse>> {
   return httpGet<PagedResponse<GroupResponse>>(
     "/api/training/groups",
     params,
     trainingRequestOptions(signal)
-  ).then((response) => enrichGroupListWithCandidatePhotos(response, signal));
+  );
 }
 
 export async function getAllGroups(
@@ -59,7 +67,7 @@ export function getGroupById(id: string, signal?: AbortSignal): Promise<GroupDet
   ).then((response) => enrichGroupDetailWithCandidatePhotos(response, signal));
 }
 
-async function enrichGroupListWithCandidatePhotos(
+export async function enrichGroupListWithCandidatePhotos(
   response: PagedResponse<GroupResponse>,
   signal?: AbortSignal
 ): Promise<PagedResponse<GroupResponse>> {
@@ -128,7 +136,7 @@ async function getCandidatePhotoMap(
   candidateIds: string[],
   signal?: AbortSignal
 ) {
-  const overviewItems = await getDocumentChecklistByCandidateIds(candidateIds, signal).catch(() => null);
+  const overviewItems = await getCandidatePhotosByCandidateIds(candidateIds, signal).catch(() => null);
   if (!overviewItems) {
     return null;
   }

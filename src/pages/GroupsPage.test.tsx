@@ -22,7 +22,10 @@ vi.mock("../lib/groups-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/groups-api")>("../lib/groups-api");
   return {
     ...actual,
-    getGroups: (...args: Parameters<typeof actual.getGroups>) => getGroupsMock(...args),
+    getGroupsWithoutCandidatePhotos: (
+      ...args: Parameters<typeof actual.getGroupsWithoutCandidatePhotos>
+    ) => getGroupsMock(...args),
+    enrichGroupListWithCandidatePhotos: vi.fn((response) => Promise.resolve(response)),
     getGroupById: (...args: Parameters<typeof actual.getGroupById>) => getGroupByIdMock(...args),
     updateGroup: vi.fn(),
   };
@@ -472,7 +475,7 @@ describe("GroupsPage", () => {
     expect(screen.getByText("NİSAN 2026 / 2 - 2A")).toBeInTheDocument();
   });
 
-  it("shows the MEB transfer summary under capacity on each group card", async () => {
+  it("does not load candidate documents for group cards", async () => {
     getGroupsMock.mockResolvedValueOnce({
       items: [
         {
@@ -499,54 +502,6 @@ describe("GroupsPage", () => {
       totalCount: 1,
       totalPages: 1,
     });
-    getGroupByIdMock.mockResolvedValueOnce({
-      id: "group-meb-summary",
-      title: "1A",
-      term: {
-        id: "term-1",
-        monthDate: "2026-04-01",
-        sequence: 1,
-        name: null,
-      },
-      capacity: 20,
-      assignedCandidateCount: 2,
-      activeCandidateCount: 2,
-      startDate: "2026-04-10",
-      mebStatus: "sent",
-      candidatePreview: [],
-      activeCandidates: [
-        {
-          candidateId: "candidate-transferred",
-          firstName: "Ayse",
-          lastName: "Yilmaz",
-          nationalId: "11111111111",
-          phoneNumber: null,
-          photo: null,
-          status: "active",
-          mebSyncStatus: null,
-          assignedAtUtc: "2026-04-12T10:00:00Z",
-        },
-        {
-          candidateId: "candidate-waiting",
-          firstName: "Mehmet",
-          lastName: "Demir",
-          nationalId: "22222222222",
-          phoneNumber: null,
-          photo: null,
-          status: "active",
-          mebSyncStatus: null,
-          assignedAtUtc: "2026-04-12T10:00:00Z",
-        },
-      ],
-      createdAtUtc: "2026-04-12T10:00:00Z",
-      updatedAtUtc: "2026-04-12T10:00:00Z",
-    });
-    getCandidateDocumentsMock.mockImplementation((candidateId: string) => Promise.resolve(
-      candidateId === "candidate-transferred"
-        ? [{ id: "doc-1", isMebbisTransferred: true }]
-        : []
-    ));
-
     renderWithProviders(<GroupsPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Kartlar" }));
 
@@ -559,8 +514,8 @@ describe("GroupsPage", () => {
 
     expect(within(card).getByText("Kontenjan")).toBeInTheDocument();
     expect(within(card).getByText("2 / 20")).toBeInTheDocument();
-    expect(within(card).getByText("MEB Durumu")).toBeInTheDocument();
-    expect(await within(card).findByText("1 / 2")).toBeInTheDocument();
+    expect(within(card).queryByText("MEB Durumu")).not.toBeInTheDocument();
+    expect(getCandidateDocumentsMock).not.toHaveBeenCalled();
   });
 
   it("defaults to list view grouped into term sections and keeps a single column picker", async () => {
@@ -826,7 +781,7 @@ describe("GroupsPage", () => {
     expect(await screen.findByRole("columnheader", { name: "Grup" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Kontenjan" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Ehliyet Tipi" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Meb" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Meb" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "MEB Durumu" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Adaylar" })).toBeInTheDocument();
     const row = screen.getByText("NİSAN 2026 - 1A").closest("tr");
@@ -844,7 +799,7 @@ describe("GroupsPage", () => {
     expect(await within(candidatePreviewCell!).findByRole("img", { name: "Ada Yilmaz" })).toBeInTheDocument();
     expect(within(candidatePreviewCell!).getByText("MK")).toBeInTheDocument();
     expect(within(candidatePreviewCell!).getByText("+3")).toBeInTheDocument();
-    expect(await screen.findByText("0 / 1")).toBeInTheDocument();
+    expect(getCandidateDocumentsMock).not.toHaveBeenCalled();
   });
 
   it("lets the user add optional columns from the picker in list view", async () => {
@@ -926,17 +881,16 @@ describe("GroupsPage", () => {
 
     expect(await screen.findByRole("columnheader", { name: "Grup" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Kontenjan" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Meb" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Meb" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Başlangıç" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Adaylar" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Ehliyet Tipi" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Aktif Aday" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Kayıt" })).not.toBeInTheDocument();
-    expect(localStorage.getItem("groups.columns.v3")).toBe(
+    expect(localStorage.getItem("groups.columns.v4")).toBe(
       JSON.stringify([
         "name",
         "capacity",
-        "mebbisDocuments",
         "startDate",
         "candidatePreview",
         "licenseClass",

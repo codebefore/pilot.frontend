@@ -178,7 +178,16 @@ export function getCandidateById(
     `/api/candidates/${id}`,
     undefined,
     candidateRequestOptions(signal)
-  ).then((candidate) => enrichCandidateWithDocumentOverview(candidate, signal));
+  );
+}
+
+/** Fetches one candidate and enriches it with photo and document checklist data. */
+export async function getCandidateByIdWithDocumentOverview(
+  id: string,
+  signal?: AbortSignal
+): Promise<CandidateResponse> {
+  const candidate = await getCandidateById(id, signal);
+  return enrichCandidateWithDocumentOverview(candidate, signal);
 }
 
 export function getCandidateReuseSources(
@@ -206,7 +215,7 @@ export function updateCandidate(
     `/api/candidates/${id}`,
     body,
     candidateRequestOptions()
-  ).then((candidate) => enrichCandidateWithDocumentOverview(candidate));
+  );
 }
 
 export function setCandidateTheoryExemption(

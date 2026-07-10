@@ -1,5 +1,5 @@
 import { getFinanceApiBaseUrl } from "./api";
-import { getDocumentChecklistByCandidateIds } from "./documents-api";
+import { getCandidatePhotosByCandidateIds } from "./documents-api";
 import { httpGet, httpPost } from "./http";
 import type {
   CashRegisterMovementCreateRequest,
@@ -24,14 +24,22 @@ export function getPaymentsOverview(
   params?: PaymentsOverviewParams,
   signal?: AbortSignal,
 ): Promise<PaymentsOverviewResponse> {
+  return getPaymentsOverviewWithoutCandidatePhotos(params, signal)
+    .then((response) => enrichPaymentsOverviewWithCandidatePhotos(response, signal));
+}
+
+export function getPaymentsOverviewWithoutCandidatePhotos(
+  params?: PaymentsOverviewParams,
+  signal?: AbortSignal,
+): Promise<PaymentsOverviewResponse> {
   return httpGet<PaymentsOverviewResponse>(
     "/api/finance/payments/overview",
     params,
     financeRequestOptions(signal)
-  ).then((response) => enrichPaymentsOverviewWithCandidatePhotos(response, signal));
+  );
 }
 
-async function enrichPaymentsOverviewWithCandidatePhotos(
+export async function enrichPaymentsOverviewWithCandidatePhotos(
   response: PaymentsOverviewResponse,
   signal?: AbortSignal
 ): Promise<PaymentsOverviewResponse> {
@@ -45,7 +53,7 @@ async function enrichPaymentsOverviewWithCandidatePhotos(
     return response;
   }
 
-  const overviewItems = await getDocumentChecklistByCandidateIds(candidateIds, signal).catch(() => null);
+  const overviewItems = await getCandidatePhotosByCandidateIds(candidateIds, signal).catch(() => null);
   if (!overviewItems) {
     return response;
   }

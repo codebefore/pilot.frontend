@@ -223,6 +223,37 @@ export async function getDocumentChecklistByCandidateIds(
   return pages.flatMap((page) => page.items);
 }
 
+type CandidatePhotoOverviewItem = {
+  candidateId: string;
+  photo: NonNullable<DocumentChecklistEntry["photo"]>;
+};
+
+export async function getCandidatePhotosByCandidateIds(
+  candidateIds: readonly string[],
+  signal?: AbortSignal
+): Promise<CandidatePhotoOverviewItem[]> {
+  const distinctCandidateIds = [...new Set(candidateIds.filter(Boolean))];
+  if (distinctCandidateIds.length === 0) {
+    return [];
+  }
+
+  const chunks: string[][] = [];
+  for (let index = 0; index < distinctCandidateIds.length; index += 100) {
+    chunks.push(distinctCandidateIds.slice(index, index + 100));
+  }
+
+  const pages = await Promise.all(
+    chunks.map((chunk) =>
+      httpPost<CandidatePhotoOverviewItem[]>(
+        "/api/documents/candidate-photos",
+        { candidateIds: chunk },
+        documentRequestOptions(signal)
+      )
+    )
+  );
+  return pages.flat();
+}
+
 interface UploadDocumentInput {
   candidateId: string;
   documentTypeId: string;

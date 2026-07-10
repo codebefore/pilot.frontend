@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   assignCandidateGroup,
   deleteCandidate,
-  getCandidateById,
+  getCandidateByIdWithDocumentOverview,
   removeActiveGroupAssignment,
   updateCandidate,
 } from "../../lib/candidates-api";
@@ -323,7 +323,7 @@ export function CandidateDrawer({
     const controller = new AbortController();
     setLoading(true);
     setLoadError(false);
-    getCandidateById(candidateId, controller.signal)
+    getCandidateByIdWithDocumentOverview(candidateId, controller.signal)
       .then((data) => setCandidate(data))
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -439,7 +439,11 @@ export function CandidateDrawer({
         rowVersion: candidate.rowVersion,
         ...patch,
       });
-      setCandidate(updated);
+      setCandidate({
+        ...updated,
+        documentSummary: candidate.documentSummary,
+        photo: candidate.photo,
+      });
       invalidateCandidateDrawerDependents();
       onUpdated?.();
       } catch (error) {
