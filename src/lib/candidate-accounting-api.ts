@@ -131,3 +131,25 @@ export function deleteCandidateAccountingInvoice(
     financeRequestOptions()
   );
 }
+
+export interface CandidateEArchiveSubmissionResponse {
+  id: string;
+  invoiceId: string;
+  candidateId: string;
+  providerCode: string;
+  environment: string;
+  status: string;
+  externalUuid: string | null;
+  externalReference: string | null;
+}
+
+export function createCandidateEArchiveSubmission(
+  candidateId: string,
+  invoiceId: string
+): Promise<CandidateEArchiveSubmissionResponse> {
+  return httpPost<CandidateEArchiveSubmissionResponse>(
+    `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/e-archive-submissions`,
+    undefined,
+    financeRequestOptions()
+  );
+}

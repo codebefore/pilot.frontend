@@ -3,6 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getPlatformApiBaseUrl } from "../../lib/api";
 import {
+  getEInvoiceIntegration,
+  testEInvoiceIntegrationConnection,
+  upsertEInvoiceIntegration,
+  type EInvoiceEnvironment,
+  type EInvoiceIntegrationResponse,
+} from "../../lib/e-archive-api";
+import {
   getInstitutionIntegrations,
   upsertInstitutionIntegrations,
   type InstitutionIntegrationsResponse,
@@ -18,12 +25,33 @@ import {
 } from "../../lib/local-agent-api";
 import { canManageArea } from "../../lib/permissions";
 import { EyeIcon, EyeOffIcon } from "../icons";
+import { CustomSelect } from "../ui/CustomSelect";
 import { SettingsFormSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 
-type IntegrationTab = "downloads" | "ocr" | "whatsapp";
+type IntegrationTab = "downloads" | "ocr" | "whatsapp" | "eInvoice";
+type EInvoiceFormValues = {
+  providerCode: string;
+  environment: EInvoiceEnvironment;
+  taxNumber: string;
+  senderAlias: string;
+  credentialReference: string;
+  usesEArchive: boolean;
+  isEnabled: boolean;
+};
+type EInvoiceFormErrors = Partial<Record<keyof EInvoiceFormValues, string>>;
+
 const SETTINGS_QUERY_CACHE_MS = 5 * 60 * 1000;
 const INTEGRATIONS_QUERY_KEY = ["settings", "integrations"] as const;
+const EMPTY_E_INVOICE_VALUES: EInvoiceFormValues = {
+  providerCode: "",
+  environment: "test",
+  taxNumber: "",
+  senderAlias: "",
+  credentialReference: "",
+  usesEArchive: false,
+  isEnabled: false,
+};
 const PILOT_ICON_SRC = "/icon.png?v=20260605";
 const LOCAL_AGENT_WINDOWS_DOWNLOAD_BASE_URL =
   "https://pilotyanimda.com/downloads/localagent/PilotLocalAgentSetup-win-x64.exe";
@@ -44,12 +72,13 @@ export function IntegrationsSettingsSection() {
   const t = useT();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const { user, permissions } = useAuth();
+  const { user, permissions, activeInstitution } = useAuth();
   const whatsAppAccessTokenId = useId();
   const canManageSettings = canManageArea(user, permissions, "settings");
   const noPermissionTitle = t("common.noPermission");
 
   const [saving, setSaving] = useState(false);
+  const [testingEInvoiceConnection, setTestingEInvoiceConnection] = useState(false);
   const [state, setState] = useState<InstitutionIntegrationsResponse | null>(
     null,
   );
@@ -58,6 +87,9 @@ export function IntegrationsSettingsSection() {
   const [showOcrApiKey, setShowOcrApiKey] = useState(false);
   const [whatsAppAccessToken, setWhatsAppAccessToken] = useState("");
   const [showWhatsAppAccessToken, setShowWhatsAppAccessToken] = useState(false);
+  const [eInvoiceState, setEInvoiceState] = useState<EInvoiceIntegrationResponse | null>(null);
+  const [eInvoiceValues, setEInvoiceValues] = useState<EInvoiceFormValues>(EMPTY_E_INVOICE_VALUES);
+  const [eInvoiceErrors, setEInvoiceErrors] = useState<EInvoiceFormErrors>({});
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({
     status: "idle",
   });
@@ -72,6 +104,18 @@ export function IntegrationsSettingsSection() {
     retry: false,
   });
   const loading = integrationsQuery.isLoading;
+  const eInvoiceQueryKey = [
+    "settings",
+    "e-archive-integration",
+    activeInstitution?.id ?? "none",
+  ] as const;
+  const eInvoiceQuery = useQuery({
+    enabled: Boolean(activeInstitution?.id),
+    gcTime: SETTINGS_QUERY_CACHE_MS,
+    queryKey: eInvoiceQueryKey,
+    queryFn: ({ signal }) => getEInvoiceIntegration(signal),
+    retry: false,
+  });
 
   useEffect(() => {
     if (!integrationsQuery.data) return;
@@ -81,10 +125,36 @@ export function IntegrationsSettingsSection() {
   }, [integrationsQuery.data]);
 
   useEffect(() => {
+    if (eInvoiceQuery.data === undefined) return;
+    const integration = eInvoiceQuery.data;
+    setEInvoiceState(integration);
+    setEInvoiceValues(
+      integration
+        ? {
+            providerCode: integration.providerCode,
+            environment: integration.environment,
+            taxNumber: integration.taxNumber,
+            senderAlias: integration.senderAlias ?? "",
+            credentialReference: "",
+            usesEArchive: integration.usesEArchive,
+            isEnabled: integration.isEnabled,
+          }
+        : EMPTY_E_INVOICE_VALUES
+    );
+    setEInvoiceErrors({});
+  }, [eInvoiceQuery.data]);
+
+  useEffect(() => {
     if (integrationsQuery.isError) {
       showToast(t("settings.integrations.toast.loadError"), "error");
     }
   }, [integrationsQuery.isError, showToast, t]);
+
+  useEffect(() => {
+    if (eInvoiceQuery.isError) {
+      showToast(t("settings.integrations.eInvoice.toast.loadError"), "error");
+    }
+  }, [eInvoiceQuery.isError, showToast, t]);
 
   useEffect(() => {
     return () => {
@@ -96,6 +166,46 @@ export function IntegrationsSettingsSection() {
     event.preventDefault();
     if (!canManageSettings) return;
     if (saving) return;
+    if (activeTab === "eInvoice") {
+      const errors = validateEInvoiceValues(eInvoiceValues, eInvoiceState?.credentialConfigured ?? false, t);
+      setEInvoiceErrors(errors);
+      if (Object.keys(errors).length > 0) {
+        showToast(t("settings.integrations.eInvoice.validation.fixErrors"), "error");
+        return;
+      }
+
+      setSaving(true);
+      try {
+        const response = await upsertEInvoiceIntegration({
+          providerCode: eInvoiceValues.providerCode.trim(),
+          environment: eInvoiceValues.environment,
+          taxNumber: eInvoiceValues.taxNumber.trim(),
+          senderAlias: eInvoiceValues.senderAlias.trim() || null,
+          credentialReference: eInvoiceValues.credentialReference.trim() || null,
+          usesEArchive: eInvoiceValues.usesEArchive,
+          isEnabled: eInvoiceValues.isEnabled,
+          rowVersion: eInvoiceState?.rowVersion ?? null,
+        });
+        setEInvoiceState(response);
+        setEInvoiceValues({
+          providerCode: response.providerCode,
+          environment: response.environment,
+          taxNumber: response.taxNumber,
+          senderAlias: response.senderAlias ?? "",
+          credentialReference: "",
+          usesEArchive: response.usesEArchive,
+          isEnabled: response.isEnabled,
+        });
+        setEInvoiceErrors({});
+        queryClient.setQueryData(eInvoiceQueryKey, response);
+        showToast(t("settings.integrations.eInvoice.toast.saved"));
+      } catch {
+        showToast(t("settings.integrations.eInvoice.toast.saveError"), "error");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (activeTab === "ocr" && !ocrApiKey.trim()) return;
     if (activeTab === "whatsapp" && !whatsAppAccessToken.trim()) return;
 
@@ -119,6 +229,65 @@ export function IntegrationsSettingsSection() {
       showToast(t("settings.integrations.toast.saveError"), "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUsesEArchiveChange = async (usesEArchive: boolean) => {
+    if (!canManageSettings || saving) return;
+    setEInvoiceErrors({});
+    setEInvoiceValues((current) => ({
+      ...current,
+      usesEArchive,
+      isEnabled: usesEArchive ? current.isEnabled : false,
+    }));
+
+    if (usesEArchive || !eInvoiceState) return;
+
+    setSaving(true);
+    try {
+      const response = await upsertEInvoiceIntegration({
+        providerCode: eInvoiceValues.providerCode.trim(),
+        environment: eInvoiceValues.environment,
+        taxNumber: eInvoiceValues.taxNumber.trim(),
+        senderAlias: eInvoiceValues.senderAlias.trim() || null,
+        credentialReference: null,
+        usesEArchive: false,
+        isEnabled: false,
+        rowVersion: eInvoiceState.rowVersion,
+      });
+      setEInvoiceState(response);
+      setEInvoiceValues({
+        providerCode: response.providerCode,
+        environment: response.environment,
+        taxNumber: response.taxNumber,
+        senderAlias: response.senderAlias ?? "",
+        credentialReference: "",
+        usesEArchive: false,
+        isEnabled: false,
+      });
+      queryClient.setQueryData(eInvoiceQueryKey, response);
+      showToast(t("settings.integrations.eInvoice.toast.saved"));
+    } catch {
+      setEInvoiceValues((current) => ({ ...current, usesEArchive: true }));
+      showToast(t("settings.integrations.eInvoice.toast.saveError"), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestEInvoiceConnection = async () => {
+    if (!canManageSettings || testingEInvoiceConnection || !eInvoiceState?.credentialConfigured) {
+      return;
+    }
+
+    setTestingEInvoiceConnection(true);
+    try {
+      await testEInvoiceIntegrationConnection();
+      showToast(t("settings.integrations.eInvoice.toast.connectionSucceeded"));
+    } catch {
+      showToast(t("settings.integrations.eInvoice.toast.connectionFailed"), "error");
+    } finally {
+      setTestingEInvoiceConnection(false);
     }
   };
 
@@ -288,6 +457,15 @@ export function IntegrationsSettingsSection() {
             type="button"
           >
             {t("settings.integrations.whatsApp.title")}
+          </button>
+          <button
+            aria-selected={activeTab === "eInvoice"}
+            className={activeTab === "eInvoice" ? "page-tab active" : "page-tab"}
+            onClick={() => setActiveTab("eInvoice")}
+            role="tab"
+            type="button"
+          >
+            {t("settings.integrations.eInvoice.title")}
           </button>
         </div>
       </div>
@@ -481,6 +659,245 @@ export function IntegrationsSettingsSection() {
         </section>
       ) : null}
 
+      {activeTab === "eInvoice" ? (
+        eInvoiceQuery.isLoading ? (
+          <SettingsFormSkeleton rows={5} />
+        ) : (
+          <>
+            <section className="settings-surface">
+              <div className="settings-surface-header">
+                <div>
+                  <h2 className="settings-surface-title">
+                    {t("settings.integrations.eInvoice.sectionTitle")}
+                  </h2>
+                  <p className="settings-form-helper">
+                    {t("settings.integrations.eInvoice.description")}
+                  </p>
+                </div>
+                <label className="switch-toggle settings-inline-status-toggle">
+                  <input
+                    checked={eInvoiceValues.usesEArchive}
+                    disabled={!canManageSettings || saving}
+                    onChange={(event) => void handleUsesEArchiveChange(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span aria-hidden="true" className="switch-toggle-control" />
+                  <span>{t("settings.integrations.eInvoice.usesEArchive")}</span>
+                </label>
+              </div>
+
+              <div className="settings-surface-body">
+                {eInvoiceValues.usesEArchive ? (
+                  <>
+                    <div className="settings-connection-card">
+                      <div className="settings-connection-copy">
+                        <strong className="settings-connection-title">
+                          {t("settings.integrations.eInvoice.connectionTitle")}
+                        </strong>
+                        <span className="settings-connection-meta">
+                          {t("settings.integrations.eInvoice.connectionDescription")}
+                        </span>
+                      </div>
+                      <label className="switch-toggle settings-inline-status-toggle">
+                        <input
+                          checked={eInvoiceValues.isEnabled}
+                          disabled={!canManageSettings}
+                          onChange={(event) =>
+                            setEInvoiceValues((current) => ({
+                              ...current,
+                              isEnabled: event.target.checked,
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span aria-hidden="true" className="switch-toggle-control" />
+                        <span>{t("settings.integrations.eInvoice.enabled")}</span>
+                      </label>
+                    </div>
+
+                    <div className="settings-form">
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="e-archive-provider-code">
+                            {t("settings.integrations.eInvoice.providerCode")}
+                          </label>
+                          <input
+                            aria-invalid={Boolean(eInvoiceErrors.providerCode)}
+                            className={eInvoiceErrors.providerCode ? "form-input error" : "form-input"}
+                            disabled={!canManageSettings}
+                            id="e-archive-provider-code"
+                            maxLength={64}
+                            onChange={(event) =>
+                              setEInvoiceValues((current) => ({
+                                ...current,
+                                providerCode: event.target.value,
+                              }))
+                            }
+                            placeholder={t("settings.integrations.eInvoice.providerCodePlaceholder")}
+                            value={eInvoiceValues.providerCode}
+                          />
+                          {eInvoiceErrors.providerCode ? (
+                            <span className="field-error">{eInvoiceErrors.providerCode}</span>
+                          ) : (
+                            <span className="settings-form-helper">
+                              {t("settings.integrations.eInvoice.providerCodeHelp")}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="e-archive-environment">
+                            {t("settings.integrations.eInvoice.environment")}
+                          </label>
+                          <CustomSelect
+                            className="form-select"
+                            disabled={!canManageSettings}
+                            id="e-archive-environment"
+                            onChange={(event) =>
+                              setEInvoiceValues((current) => ({
+                                ...current,
+                                environment: event.target.value as EInvoiceEnvironment,
+                              }))
+                            }
+                            value={eInvoiceValues.environment}
+                          >
+                            <option value="test">
+                              {t("settings.integrations.eInvoice.environment.test")}
+                            </option>
+                            <option value="production">
+                              {t("settings.integrations.eInvoice.environment.production")}
+                            </option>
+                          </CustomSelect>
+                        </div>
+                      </div>
+
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="e-archive-tax-number">
+                            {t("settings.integrations.eInvoice.taxNumber")}
+                          </label>
+                          <input
+                            aria-invalid={Boolean(eInvoiceErrors.taxNumber)}
+                            className={eInvoiceErrors.taxNumber ? "form-input error" : "form-input"}
+                            disabled={!canManageSettings}
+                            id="e-archive-tax-number"
+                            inputMode="numeric"
+                            maxLength={11}
+                            onChange={(event) =>
+                              setEInvoiceValues((current) => ({
+                                ...current,
+                                taxNumber: event.target.value.replace(/\D/g, "").slice(0, 11),
+                              }))
+                            }
+                            placeholder={t("settings.integrations.eInvoice.taxNumberPlaceholder")}
+                            value={eInvoiceValues.taxNumber}
+                          />
+                          {eInvoiceErrors.taxNumber ? (
+                            <span className="field-error">{eInvoiceErrors.taxNumber}</span>
+                          ) : null}
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="e-archive-sender-alias">
+                            {t("settings.integrations.eInvoice.senderAlias")}
+                          </label>
+                          <input
+                            aria-invalid={Boolean(eInvoiceErrors.senderAlias)}
+                            className={eInvoiceErrors.senderAlias ? "form-input error" : "form-input"}
+                            disabled={!canManageSettings}
+                            id="e-archive-sender-alias"
+                            maxLength={256}
+                            onChange={(event) =>
+                              setEInvoiceValues((current) => ({
+                                ...current,
+                                senderAlias: event.target.value,
+                              }))
+                            }
+                            placeholder={t("settings.integrations.eInvoice.senderAliasPlaceholder")}
+                            value={eInvoiceValues.senderAlias}
+                          />
+                          {eInvoiceErrors.senderAlias ? (
+                            <span className="field-error">{eInvoiceErrors.senderAlias}</span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="form-row full">
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="e-archive-credential-reference">
+                            {t("settings.integrations.eInvoice.credentialReference")}
+                          </label>
+                          <input
+                            aria-invalid={Boolean(eInvoiceErrors.credentialReference)}
+                            autoComplete="off"
+                            className={
+                              eInvoiceErrors.credentialReference ? "form-input error" : "form-input"
+                            }
+                            disabled={!canManageSettings}
+                            id="e-archive-credential-reference"
+                            maxLength={256}
+                            onChange={(event) =>
+                              setEInvoiceValues((current) => ({
+                                ...current,
+                                credentialReference: event.target.value,
+                              }))
+                            }
+                            placeholder={
+                              eInvoiceState?.credentialConfigured
+                                ? t("settings.integrations.eInvoice.credentialReferencePlaceholder.replace")
+                                : t("settings.integrations.eInvoice.credentialReferencePlaceholder.new")
+                            }
+                            value={eInvoiceValues.credentialReference}
+                          />
+                          {eInvoiceErrors.credentialReference ? (
+                            <span className="field-error">{eInvoiceErrors.credentialReference}</span>
+                          ) : (
+                            <span className="settings-form-helper">
+                              {eInvoiceState?.credentialConfigured
+                                ? t("settings.integrations.eInvoice.credentialConfigured")
+                                : t("settings.integrations.eInvoice.credentialReferenceHelp")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </section>
+
+            {eInvoiceValues.usesEArchive ? (
+              <div className="settings-form-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={
+                    !canManageSettings ||
+                    saving ||
+                    testingEInvoiceConnection ||
+                    !eInvoiceState?.credentialConfigured
+                  }
+                  onClick={() => void handleTestEInvoiceConnection()}
+                  title={!canManageSettings ? noPermissionTitle : undefined}
+                  type="button"
+                >
+                  {testingEInvoiceConnection
+                    ? t("settings.integrations.eInvoice.testingConnection")
+                    : t("settings.integrations.eInvoice.testConnection")}
+                </button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={!canManageSettings || saving}
+                  title={!canManageSettings ? noPermissionTitle : undefined}
+                  type="submit"
+                >
+                  {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
+                </button>
+              </div>
+            ) : null}
+          </>
+        )
+      ) : null}
+
       {activeTab === "whatsapp" ? (
         <div className="settings-form-actions">
           <button
@@ -497,6 +914,32 @@ export function IntegrationsSettingsSection() {
       ) : null}
     </form>
   );
+}
+
+function validateEInvoiceValues(
+  values: EInvoiceFormValues,
+  credentialConfigured: boolean,
+  t: ReturnType<typeof useT>
+): EInvoiceFormErrors {
+  const errors: EInvoiceFormErrors = {};
+  if (!values.usesEArchive) {
+    return errors;
+  }
+  if (!/^[A-Za-z0-9._-]{2,64}$/.test(values.providerCode.trim())) {
+    errors.providerCode = t("settings.integrations.eInvoice.validation.providerCode");
+  }
+  if (!/^\d{10,11}$/.test(values.taxNumber.trim())) {
+    errors.taxNumber = t("settings.integrations.eInvoice.validation.taxNumber");
+  }
+  if (values.senderAlias.trim().length > 256) {
+    errors.senderAlias = t("settings.integrations.eInvoice.validation.senderAlias");
+  }
+  if (!credentialConfigured && !values.credentialReference.trim()) {
+    errors.credentialReference = t(
+      "settings.integrations.eInvoice.validation.credentialReference"
+    );
+  }
+  return errors;
 }
 
 function UpdateCheckResult({ state }: { state: UpdateCheckState }) {

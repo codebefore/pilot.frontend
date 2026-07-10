@@ -51,6 +51,7 @@ import {
   createCandidateAccountingMovements,
   createCandidateAccountingPayment,
   createCandidateAccountingRefund,
+  createCandidateEArchiveSubmission,
   deleteCandidateAccountingInvoice,
   getCandidateAccounting,
   updateCandidateAccountingInvoice,
@@ -782,22 +783,37 @@ export function CandidateDetailPage() {
       subtotal: number;
       vatRate: number;
       notes?: string | null;
-    }
+    },
+    createEArchiveDraft: boolean
   ) => {
     if (!canManagePayments) return;
     if (!candidate || invoiceSaving) return;
     setInvoiceSaving(true);
     try {
-      if (invoice) {
-        await updateCandidateAccountingInvoice(candidate.id, invoice.id, {
-          ...payload,
-          rowVersion: invoice.rowVersion,
-        });
-      } else {
-        await createCandidateAccountingInvoice(candidate.id, payload);
+      const savedInvoice = invoice
+        ? await updateCandidateAccountingInvoice(candidate.id, invoice.id, {
+            ...payload,
+            rowVersion: invoice.rowVersion,
+          })
+        : await createCandidateAccountingInvoice(candidate.id, payload);
+      if (createEArchiveDraft) {
+        try {
+          await createCandidateEArchiveSubmission(candidate.id, savedInvoice.id);
+        } catch (error) {
+          await refreshAccounting();
+          showToast(
+            accountingErrorMessage(error, "Fatura kaydedildi ancak e-Arşiv taslağı oluşturulamadı.", t),
+            "error"
+          );
+          return;
+        }
       }
       await refreshAccounting();
-      showToast(t(invoice ? "candidateDetail.accounting.toast.invoiceUpdated" : "candidateDetail.accounting.toast.invoiceAdded"));
+      showToast(
+        createEArchiveDraft
+          ? "Fatura kaydedildi ve e-Arşiv taslağı oluşturuldu."
+          : t(invoice ? "candidateDetail.accounting.toast.invoiceUpdated" : "candidateDetail.accounting.toast.invoiceAdded")
+      );
     } catch (error) {
       showToast(accountingErrorMessage(error, t("candidateDetail.accounting.toast.invoiceSaveFailed"), t), "error");
     } finally {
@@ -977,7 +993,7 @@ export function CandidateDetailPage() {
                 onRefundPayment={(paymentId, amount, cashRegisterId, note) =>
                   void handleRefundPayment(paymentId, amount, cashRegisterId, note)
                 }
-                onSaveInvoice={(invoice, payload) => void handleSaveInvoice(invoice, payload)}
+                onSaveInvoice={(invoice, payload, createEArchiveDraft) => void handleSaveInvoice(invoice, payload, createEArchiveDraft)}
                 paymentSaving={paymentSaving}
               />
             )}
@@ -1127,7 +1143,11 @@ export function CandidateHero({
   const showDefaultFeeWarning =
     contractFeeMatrixQuery.isSuccess &&
     defaultFeeMatchedRow != null &&
-    shouldShowEmptyLicenseFeeWarning(defaultFeeTheoryRow, defaultFeePracticeRow);
+    shouldShowEmptyLicenseFeeWarning(
+      defaultFeeMatchedRow.program,
+      defaultFeeTheoryRow,
+      defaultFeePracticeRow
+    );
 
   const openDefaultFees = () => {
     const program = defaultFeeMatchedRow?.program ?? defaultFeeTheoryRow?.program ?? defaultFeePracticeRow?.program;
@@ -1220,6 +1240,10 @@ export function CandidateHero({
           otherFee1: program?.otherFee1 ?? null,
           rowVersion: program?.yearFeeRowVersion ?? null,
         }],
+      }, { licenseClassDefinitionId: defaultFeeProgramId });
+      await queryClient.invalidateQueries({
+        queryKey: ["finance", "license-class-fee-matrix"],
+        refetchType: "none",
       });
       queryClient.setQueryData(
         candidateTargetFeeMatrixKey(
@@ -1229,8 +1253,10 @@ export function CandidateHero({
         ),
         response
       );
-      void queryClient.invalidateQueries({ queryKey: ["finance", "license-class-fee-matrix"] });
-      void queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidate.id] });
+      await queryClient.invalidateQueries({
+        queryKey: ["candidates", "accounting", candidate.id],
+        refetchType: "none",
+      });
       setDefaultFeesOpen(false);
       showToast("Varsayılan ehliyet ücretleri kaydedildi.");
     } catch (error) {
@@ -4887,7 +4913,8 @@ function AccountingTab({
       subtotal: number;
       vatRate: number;
       notes?: string | null;
-    }
+    },
+    createEArchiveDraft: boolean
   ) => void;
   onDeleteInvoice: (invoiceId: string) => void;
 }) {
@@ -4959,6 +4986,7 @@ function AccountingTab({
     subtotal: string;
     vatRate: string;
     notes: string;
+    createEArchiveDraft: boolean;
   }>({
     open: false,
     invoice: null,
@@ -4966,8 +4994,9 @@ function AccountingTab({
     invoiceType: "Satış",
     invoiceDate: todayIsoDate(),
     subtotal: "",
-    vatRate: "20",
+    vatRate: "10",
     notes: "",
+    createEArchiveDraft: true,
   });
   const [receiptPayment, setReceiptPayment] =
     useState<CandidateAccountingSummaryResponse["payments"][number] | null>(null);
@@ -5127,11 +5156,11 @@ function AccountingTab({
     parsedPaymentAmount <= paymentOpenBalance &&
     (!paymentNeedsRegister || Boolean(paymentModal.cashRegisterId)) &&
     !paymentSaving;
-  const invoiceSubtotal = parseMoneyInput(invoiceModal.subtotal);
-  const invoiceVatRate = Number(invoiceModal.vatRate);
-  const invoiceVatAmount =
-    invoiceSubtotal != null ? Math.round((invoiceSubtotal * invoiceVatRate / 100) * 100) / 100 : 0;
-  const invoiceTotal = invoiceSubtotal != null ? invoiceSubtotal + invoiceVatAmount : 0;
+  const invoiceTotal = parseMoneyInput(invoiceModal.subtotal);
+  const invoiceVatRate = 10;
+  const invoiceSubtotal =
+    invoiceTotal != null ? Math.round((invoiceTotal / 1.1 + Number.EPSILON) * 100) / 100 : null;
+  const invoiceVatAmount = invoiceTotal != null && invoiceSubtotal != null ? invoiceTotal - invoiceSubtotal : 0;
   const canSaveInvoice =
     canManagePayments &&
     Boolean(invoiceModal.invoiceNo.trim()) &&
@@ -5229,9 +5258,10 @@ function AccountingTab({
       invoiceNo: invoice?.invoiceNo ?? "",
       invoiceType: invoice?.invoiceType ?? "Satış",
       invoiceDate: invoice?.invoiceDate ?? todayIsoDate(),
-      subtotal: invoice ? String(invoice.subtotal) : amount ? String(amount) : "",
-      vatRate: invoice ? String(invoice.vatRate) : "20",
+      subtotal: invoice ? String(invoice.totalAmount) : amount ? String(amount) : "",
+      vatRate: "10",
       notes: invoice?.notes ?? "",
+      createEArchiveDraft: true,
     });
   };
   const openRefundModal = (payment: CandidateAccountingSummaryResponse["payments"][number]) => {
@@ -6030,14 +6060,18 @@ function AccountingTab({
               disabled={!canSaveInvoice}
               onClick={() => {
                 if (!canSaveInvoice || invoiceSubtotal == null) return;
-                onSaveInvoice(invoiceModal.invoice, {
-                  invoiceNo: invoiceModal.invoiceNo.trim(),
-                  invoiceType: invoiceModal.invoiceType.trim(),
-                  invoiceDate: invoiceModal.invoiceDate,
-                  subtotal: invoiceSubtotal,
-                  vatRate: invoiceVatRate,
-                  notes: invoiceModal.notes.trim() || null,
-                });
+                onSaveInvoice(
+                  invoiceModal.invoice,
+                  {
+                    invoiceNo: invoiceModal.invoiceNo.trim(),
+                    invoiceType: invoiceModal.invoiceType.trim(),
+                    invoiceDate: invoiceModal.invoiceDate,
+                    subtotal: invoiceSubtotal,
+                    vatRate: invoiceVatRate,
+                    notes: invoiceModal.notes.trim() || null,
+                  },
+                  invoiceModal.createEArchiveDraft
+                );
                 setInvoiceModal((current) => ({ ...current, open: false }));
               }}
               title={!canManagePayments ? noPermissionTitle : undefined}
@@ -6076,25 +6110,29 @@ function AccountingTab({
             <LocalizedDateInput className="form-input" disabled={!canManagePayments} onChange={(invoiceDate) => setInvoiceModal((current) => ({ ...current, invoiceDate }))} value={invoiceModal.invoiceDate} />
           </label>
           <label className="form-group">
-            <span className="form-label">Tutar</span>
+            <span className="form-label">Toplam Tutar (KDV dahil)</span>
             <input className="form-input" disabled={!canManagePayments} inputMode="decimal" onChange={(event) => setInvoiceModal((current) => ({ ...current, subtotal: event.target.value }))} placeholder="0,00" value={invoiceModal.subtotal} />
           </label>
           <label className="form-group">
             <span className="form-label">{t("candidateDetail.accounting.field.vatRate")}</span>
-	            <CustomSelect className="form-select" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, vatRate: event.target.value }))} value={invoiceModal.vatRate}>
-	              <option value="0">%0</option>
-	              <option value="1">%1</option>
-	              <option value="10">%10</option>
-	              <option value="20">%20</option>
-	            </CustomSelect>
+            <input className="form-input" readOnly value="%10" />
           </label>
           <label className="form-group">
-            <span className="form-label">KDV / Toplam</span>
-            <input className="form-input" readOnly value={`KDV ${formatCurrencyTRY(invoiceVatAmount)} · Toplam ${formatCurrencyTRY(invoiceTotal)}`} />
+            <span className="form-label">Matrah / KDV</span>
+            <input className="form-input" readOnly value={`Matrah ${formatCurrencyTRY(invoiceSubtotal ?? 0)} · KDV ${formatCurrencyTRY(invoiceVatAmount)}`} />
           </label>
           <label className="form-group">
             <span className="form-label">Not</span>
             <input className="form-input" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, notes: event.target.value }))} placeholder="Fatura notu" value={invoiceModal.notes} />
+          </label>
+          <label className="form-checkbox">
+            <input
+              checked={invoiceModal.createEArchiveDraft}
+              disabled={!canManagePayments}
+              onChange={(event) => setInvoiceModal((current) => ({ ...current, createEArchiveDraft: event.target.checked }))}
+              type="checkbox"
+            />
+            <span>MySoft'ta e-Arşiv taslağı oluştur</span>
           </label>
         </div>
       </Modal>

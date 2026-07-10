@@ -2900,7 +2900,53 @@ export function CandidatesPage({
       return Object.fromEntries(entries) as Record<CandidateListTabKey, number>;
     },
   });
-  const candidates = candidatesQuery.data?.items ?? [];
+  const baseCandidates = useMemo(
+    () => candidatesQuery.data?.items ?? [],
+    [candidatesQuery.data?.items]
+  );
+  const candidateIds = useMemo(
+    () => baseCandidates.map((candidate) => candidate.id),
+    [baseCandidates]
+  );
+  const candidateDocumentOverviewQuery = useQuery({
+    queryKey: [
+      "candidates",
+      "document-overview",
+      candidatesQuery.dataUpdatedAt,
+      candidateIds,
+    ],
+    queryFn: ({ signal }) =>
+      getDocumentChecklist(
+        {
+          candidateIds,
+          page: 1,
+          pageSize: candidateIds.length,
+        },
+        signal
+      ),
+    enabled: candidateIds.length > 0,
+    placeholderData: (previousData) => previousData,
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const candidates = useMemo(() => {
+    const overviewItems = candidateDocumentOverviewQuery.data?.items;
+    if (!overviewItems) return baseCandidates;
+
+    const overviewByCandidateId = new Map(
+      overviewItems.map((item) => [item.candidateId, item])
+    );
+    return baseCandidates.map((candidate) => {
+      const overview = overviewByCandidateId.get(candidate.id);
+      return overview
+        ? {
+            ...candidate,
+            documentSummary: overview.summary,
+            photo: overview.photo ?? null,
+          }
+        : candidate;
+    });
+  }, [baseCandidates, candidateDocumentOverviewQuery.data?.items]);
   const totalPages =
     candidatesQuery.data?.totalPages ??
     Math.max(1, Math.ceil((candidatesQuery.data?.totalCount ?? 0) / (candidatesQuery.data?.pageSize || pageSize)));

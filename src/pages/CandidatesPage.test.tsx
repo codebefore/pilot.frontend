@@ -32,6 +32,13 @@ const createDrivingExamResultSyncJobMock = vi.fn();
 const getMebbisJobMock = vi.fn();
 const getLocalAgentMebbisSessionMock = vi.fn();
 const ensureMebbisSessionMock = vi.fn();
+const getDocumentChecklistMock = vi.fn().mockResolvedValue({
+  items: [],
+  page: 1,
+  pageSize: 1,
+  totalCount: 0,
+  totalPages: 1,
+});
 
 vi.mock("../lib/authorized-files", () => ({
   createAuthorizedObjectUrl: (url: string) => Promise.resolve(url),
@@ -68,13 +75,7 @@ vi.mock("../lib/candidates-api", async () => {
 });
 
 vi.mock("../lib/documents-api", () => ({
-  getDocumentChecklist: vi.fn().mockResolvedValue({
-    items: [],
-    page: 1,
-    pageSize: 1,
-    totalCount: 0,
-    totalPages: 1,
-  }),
+  getDocumentChecklist: (...args: unknown[]) => getDocumentChecklistMock(...args),
   getDocumentTypes: vi.fn().mockResolvedValue([]),
   uploadDocument: vi.fn(),
 }));
@@ -2632,7 +2633,13 @@ describe("CandidatesPage tabs", () => {
     expect(screen.queryByText("Kaldı")).not.toBeInTheDocument();
   });
 
-  it("renders biometric photo when present and initials fallback otherwise", async () => {
+  it("renders candidates before document data and hydrates photos afterward", async () => {
+    let resolveDocumentChecklist!: (value: unknown) => void;
+    getDocumentChecklistMock.mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveDocumentChecklist = resolve;
+      })
+    );
     getCandidatesMock.mockResolvedValue({
       items: [
         {
@@ -2652,15 +2659,8 @@ describe("CandidatesPage tabs", () => {
           existingLicensePre2016: false,
           status: "active",
           currentGroup: null,
-          documentSummary: {
-            completedCount: 1,
-            missingCount: 0,
-            totalRequiredCount: 1,
-          },
-          photo: {
-            documentId: "doc-1",
-            kind: "biometric_photo",
-          },
+          documentSummary: null,
+          photo: null,
           createdAtUtc: "2026-04-01T10:00:00Z",
           updatedAtUtc: "2026-04-02T10:00:00Z",
         },
@@ -2698,6 +2698,30 @@ describe("CandidatesPage tabs", () => {
     });
 
     renderPage();
+
+    expect(await screen.findByText("AD")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Ayse Demir" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveDocumentChecklist({
+        items: [
+          {
+            candidateId: "cand-1",
+            summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
+            photo: { documentId: "doc-1", kind: "biometric_photo" },
+          },
+          {
+            candidateId: "cand-2",
+            summary: { completedCount: 0, missingCount: 1, totalRequiredCount: 1 },
+            photo: null,
+          },
+        ],
+        page: 1,
+        pageSize: 2,
+        totalCount: 2,
+        totalPages: 1,
+      });
+    });
 
     const image = await screen.findByRole("img", { name: "Ayse Demir" });
     expect(image).toHaveAttribute(

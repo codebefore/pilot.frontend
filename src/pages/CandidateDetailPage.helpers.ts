@@ -11,13 +11,31 @@ export function candidateHasExistingLicense(candidate: Pick<CandidateResponse, "
 }
 
 export function shouldShowEmptyLicenseFeeWarning(
-  theoryRow: Pick<LicenseClassFeeRowResponse, "institutionTheoryExamFee"> | null | undefined,
-  practiceRow: Pick<LicenseClassFeeRowResponse, "institutionPracticeExamFee"> | null | undefined
+  program: Pick<
+    LicenseClassFeeRowResponse["program"],
+    "courseFee" | "mebbisFee" | "failureRetryFee" | "privateLessonFee"
+  > | null | undefined,
+  theoryRow: Pick<
+    LicenseClassFeeRowResponse,
+    "institutionTheoryExamFee" | "contractTheoryExamFee" | "vatIncludedHourlyRate"
+  > | null | undefined,
+  practiceRow: Pick<
+    LicenseClassFeeRowResponse,
+    "institutionPracticeExamFee" | "contractPracticeExamFee" | "vatIncludedHourlyRate"
+  > | null | undefined
 ): boolean {
-  return (
-    theoryRow?.institutionTheoryExamFee == null &&
-    practiceRow?.institutionPracticeExamFee == null
-  );
+  return [
+    program?.courseFee,
+    program?.mebbisFee,
+    program?.failureRetryFee,
+    program?.privateLessonFee,
+    theoryRow?.institutionTheoryExamFee,
+    practiceRow?.institutionPracticeExamFee,
+    theoryRow?.contractTheoryExamFee,
+    practiceRow?.contractPracticeExamFee,
+    theoryRow?.vatIncludedHourlyRate,
+    practiceRow?.vatIncludedHourlyRate,
+  ].every((value) => value == null);
 }
 
 export function calculateLicenseContractTotal(

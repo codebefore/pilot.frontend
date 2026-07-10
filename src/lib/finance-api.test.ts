@@ -10,6 +10,7 @@ import {
 import {
   bulkApplyLicenseClassFeeMatrix,
   getLicenseClassFeeMatrix,
+  updateLicenseClassFeeMatrix,
 } from "./license-class-fee-matrix-api";
 import { createCashRegister, getCashRegisters } from "./cash-registers-api";
 import { createCashInflow, getPaymentsOverview } from "./payments-api";
@@ -210,6 +211,9 @@ describe("finance api routing", () => {
       targetLicenseClass: "B",
       licenseClassDefinitionId: "11111111-1111-1111-1111-111111111111",
     });
+    await updateLicenseClassFeeMatrix(2026, { rows: [], programs: [] }, {
+      licenseClassDefinitionId: "11111111-1111-1111-1111-111111111111",
+    });
     await bulkApplyLicenseClassFeeMatrix(2026, {
       field: "vatIncludedHourlyRate",
       value: 500,
@@ -219,6 +223,9 @@ describe("finance api routing", () => {
       "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026?targetLicenseClass=B&licenseClassDefinitionId=11111111-1111-1111-1111-111111111111"
     );
     expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
+      "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026?licenseClassDefinitionId=11111111-1111-1111-1111-111111111111"
+    );
+    expect(String(vi.mocked(fetch).mock.calls[2][0])).toBe(
       "http://127.0.0.1:5093/api/finance/license-class-fee-matrix/2026/bulk-apply"
     );
   });

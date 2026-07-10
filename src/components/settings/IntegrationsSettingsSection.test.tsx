@@ -10,6 +10,28 @@ const checkLocalAgentUpdateMock = vi.fn();
 const getLocalAgentHealthMock = vi.fn();
 const getLocalAgentUpdateStatusMock = vi.fn();
 const pairLocalAgentInMemoryMock = vi.fn();
+const getEInvoiceIntegrationMock = vi.fn();
+const upsertEInvoiceIntegrationMock = vi.fn();
+const testEInvoiceIntegrationConnectionMock = vi.fn();
+
+vi.mock("../../lib/e-archive-api", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/e-archive-api")>(
+    "../../lib/e-archive-api"
+  );
+
+  return {
+    ...actual,
+    getEInvoiceIntegration: (
+      ...args: Parameters<typeof actual.getEInvoiceIntegration>
+    ) => getEInvoiceIntegrationMock(...args),
+    upsertEInvoiceIntegration: (
+      ...args: Parameters<typeof actual.upsertEInvoiceIntegration>
+    ) => upsertEInvoiceIntegrationMock(...args),
+    testEInvoiceIntegrationConnection: (
+      ...args: Parameters<typeof actual.testEInvoiceIntegrationConnection>
+    ) => testEInvoiceIntegrationConnectionMock(...args),
+  };
+});
 
 vi.mock("../../lib/institution-settings-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/institution-settings-api")>(
@@ -58,6 +80,9 @@ describe("IntegrationsSettingsSection", () => {
     getLocalAgentHealthMock.mockReset();
     getLocalAgentUpdateStatusMock.mockReset();
     pairLocalAgentInMemoryMock.mockReset();
+    getEInvoiceIntegrationMock.mockReset();
+    upsertEInvoiceIntegrationMock.mockReset();
+    testEInvoiceIntegrationConnectionMock.mockReset();
 
     getInstitutionIntegrationsMock.mockResolvedValue({
       hasOcrApiKey: true,
@@ -87,6 +112,25 @@ describe("IntegrationsSettingsSection", () => {
       updatedAtUtc: "2026-01-01T00:00:00Z",
       releaseNotesUrl: "",
       sizeBytes: 123,
+    });
+    getEInvoiceIntegrationMock.mockResolvedValue(null);
+    upsertEInvoiceIntegrationMock.mockImplementation(async (request) => ({
+      providerCode: request.providerCode,
+      environment: request.environment,
+      taxNumber: request.taxNumber,
+      senderAlias: request.senderAlias,
+      credentialConfigured: true,
+      usesEArchive: request.usesEArchive,
+      isEnabled: request.isEnabled,
+      createdAtUtc: "2026-07-10T00:00:00Z",
+      updatedAtUtc: "2026-07-10T00:00:00Z",
+      rowVersion: 1,
+    }));
+    testEInvoiceIntegrationConnectionMock.mockResolvedValue({
+      succeeded: true,
+      providerCode: "mysoft",
+      environment: "test",
+      checkedAtUtc: "2026-07-10T00:00:00Z",
     });
   });
 
@@ -149,6 +193,131 @@ describe("IntegrationsSettingsSection", () => {
     expect(screen.queryByText("Telefon ID")).not.toBeInTheDocument();
     expect(screen.queryByText("Template Adı")).not.toBeInTheDocument();
     expect(screen.queryByText("Template Dili")).not.toBeInTheDocument();
+  });
+
+  it("shows an institution-scoped e-archive integration tab", async () => {
+    getEInvoiceIntegrationMock.mockResolvedValue({
+      providerCode: "vendor-one",
+      environment: "production",
+      taxNumber: "1234567890",
+      senderAlias: "urn:mail:defaultpk@institution",
+      credentialConfigured: true,
+      usesEArchive: true,
+      isEnabled: true,
+      createdAtUtc: "2026-07-10T00:00:00Z",
+      updatedAtUtc: "2026-07-10T00:00:00Z",
+      rowVersion: 4,
+    });
+
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+
+    expect(await screen.findByLabelText("Entegratör Kodu")).toHaveValue("vendor-one");
+    expect(screen.getByLabelText("VKN / TCKN")).toHaveValue("1234567890");
+    expect(screen.getByLabelText("Gönderici Etiketi")).toHaveValue(
+      "urn:mail:defaultpk@institution"
+    );
+    expect(screen.getByText(/Kimlik bilgisi referansı tanımlı/)).toBeInTheDocument();
+  });
+
+  it("hides provider fields when the institution uses e-archive", async () => {
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+
+    expect(screen.queryByText("e-Arşiv kullanılacak")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Entegratör Kodu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Kaydet" })).not.toBeInTheDocument();
+    expect(upsertEInvoiceIntegrationMock).not.toHaveBeenCalled();
+  });
+
+  it("automatically saves when an existing e-archive integration is turned off", async () => {
+    getEInvoiceIntegrationMock.mockResolvedValue({
+      providerCode: "vendor-one",
+      environment: "production",
+      taxNumber: "1234567890",
+      senderAlias: "urn:mail:defaultpk@institution",
+      credentialConfigured: true,
+      usesEArchive: true,
+      isEnabled: true,
+      createdAtUtc: "2026-07-10T00:00:00Z",
+      updatedAtUtc: "2026-07-10T00:00:00Z",
+      rowVersion: 4,
+    });
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+
+    fireEvent.click(await screen.findByLabelText("e-Arşiv kullanıyor"));
+
+    await waitFor(() => {
+      expect(upsertEInvoiceIntegrationMock).toHaveBeenCalledWith({
+        providerCode: "vendor-one",
+        environment: "production",
+        taxNumber: "1234567890",
+        senderAlias: "urn:mail:defaultpk@institution",
+        credentialReference: null,
+        usesEArchive: false,
+        isEnabled: false,
+        rowVersion: 4,
+      });
+    });
+    expect(screen.queryByRole("button", { name: "Kaydet" })).not.toBeInTheDocument();
+  });
+
+  it("tests the saved MySoft connection without exposing credentials", async () => {
+    getEInvoiceIntegrationMock.mockResolvedValue({
+      providerCode: "mysoft",
+      environment: "test",
+      taxNumber: "1234567890",
+      senderAlias: null,
+      credentialConfigured: true,
+      usesEArchive: true,
+      isEnabled: true,
+      createdAtUtc: "2026-07-10T00:00:00Z",
+      updatedAtUtc: "2026-07-10T00:00:00Z",
+      rowVersion: 2,
+    });
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Bağlantıyı Test Et" }));
+
+    await waitFor(() => {
+      expect(testEInvoiceIntegrationConnectionMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("validates and saves e-archive integration details", async () => {
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "e-Arşiv" }));
+    fireEvent.click(await screen.findByLabelText("e-Arşiv kullanıyor"));
+
+    fireEvent.change(await screen.findByLabelText("Entegratör Kodu"), {
+      target: { value: "vendor-one" },
+    });
+    fireEvent.change(screen.getByLabelText("VKN / TCKN"), {
+      target: { value: "1234567890" },
+    });
+    fireEvent.change(screen.getByLabelText("Gönderici Etiketi"), {
+      target: { value: "urn:mail:defaultpk@institution" },
+    });
+    fireEvent.change(screen.getByLabelText("Kimlik Bilgisi Referansı"), {
+      target: { value: "finance/e-archive/institution-secret" },
+    });
+    fireEvent.click(screen.getByLabelText("Entegrasyon aktif"));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(upsertEInvoiceIntegrationMock).toHaveBeenCalledWith({
+        providerCode: "vendor-one",
+        environment: "test",
+        taxNumber: "1234567890",
+        senderAlias: "urn:mail:defaultpk@institution",
+        credentialReference: "finance/e-archive/institution-secret",
+        usesEArchive: true,
+        isEnabled: true,
+        rowVersion: null,
+      });
+    });
   });
 
   it("checks the installed LocalAgent version against the latest release", async () => {

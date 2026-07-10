@@ -108,6 +108,7 @@ export interface GetCandidatesParams extends QueryParams {
   pageSize?: number;
 }
 
+/** Fetches candidate-owned list data without waiting for document projections. */
 export function getCandidates(
   params?: GetCandidatesParams,
   signal?: AbortSignal
@@ -116,13 +117,15 @@ export function getCandidates(
     "/api/candidates",
     params,
     candidateRequestOptions(signal)
-  ).then((response) => enrichCandidatesWithDocumentOverview(response, signal));
+  );
 }
 
-async function enrichCandidatesWithDocumentOverview(
-  response: PagedResponse<CandidateResponse>,
+/** Fetches candidates and then enriches them with photo and document checklist data. */
+export async function getCandidatesWithDocumentOverview(
+  params?: GetCandidatesParams,
   signal?: AbortSignal
 ): Promise<PagedResponse<CandidateResponse>> {
+  const response = await getCandidates(params, signal);
   if (response.items.length === 0) {
     return response;
   }
@@ -130,15 +133,9 @@ async function enrichCandidatesWithDocumentOverview(
   const overviewItems = await getDocumentChecklistByCandidateIds(
     response.items.map((candidate) => candidate.id),
     signal
-  ).catch(
-    () => null
   );
-  if (!overviewItems) {
-    return response;
-  }
 
   const overviewByCandidateId = new Map(overviewItems.map((item) => [item.candidateId, item]));
-
   return {
     ...response,
     items: response.items.map((candidate) =>

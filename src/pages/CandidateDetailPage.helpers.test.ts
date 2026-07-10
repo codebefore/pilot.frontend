@@ -54,19 +54,25 @@ describe("CandidateDetailPage helpers", () => {
     expect(shouldShowMebbisDocumentTransferAction("health_report")).toBe(true);
   });
 
-  it("shows the license fee warning only when both institution exam fees are empty", () => {
-    expect(shouldShowEmptyLicenseFeeWarning(undefined, undefined)).toBe(true);
+  it("shows the license fee warning only when every default fee is empty", () => {
+    const emptyProgram = { courseFee: null, mebbisFee: null, failureRetryFee: null, privateLessonFee: null };
+    const emptyTheory = { institutionTheoryExamFee: null, contractTheoryExamFee: null, vatIncludedHourlyRate: null };
+    const emptyPractice = { institutionPracticeExamFee: null, contractPracticeExamFee: null, vatIncludedHourlyRate: null };
+    expect(shouldShowEmptyLicenseFeeWarning(undefined, undefined, undefined)).toBe(true);
     expect(shouldShowEmptyLicenseFeeWarning(
-      { institutionTheoryExamFee: null },
-      { institutionPracticeExamFee: null }
+      emptyProgram,
+      emptyTheory,
+      emptyPractice
     )).toBe(true);
     expect(shouldShowEmptyLicenseFeeWarning(
-      { institutionTheoryExamFee: 0 },
-      { institutionPracticeExamFee: null }
+      { ...emptyProgram, courseFee: 0 },
+      emptyTheory,
+      emptyPractice
     )).toBe(false);
     expect(shouldShowEmptyLicenseFeeWarning(
-      { institutionTheoryExamFee: null },
-      { institutionPracticeExamFee: 1500 }
+      emptyProgram,
+      emptyTheory,
+      { ...emptyPractice, institutionPracticeExamFee: 1500 }
     )).toBe(false);
   });
 

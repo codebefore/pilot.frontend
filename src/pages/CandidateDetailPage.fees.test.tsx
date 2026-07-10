@@ -71,7 +71,8 @@ const candidate = {
 
 function feeMatrix(
   theoryFee: number | null,
-  practiceFee: number | null
+  practiceFee: number | null,
+  courseFee: number | null = null
 ): LicenseClassFeeMatrixResponse {
   const program = {
     id: programId,
@@ -84,10 +85,10 @@ function feeMatrix(
     minimumAge: 18,
     theoryLessonHours: 34,
     practiceLessonHours: 14,
-    courseFee: 15000,
-    mebbisFee: 1200,
-    failureRetryFee: 2500,
-    privateLessonFee: 900,
+    courseFee,
+    mebbisFee: null,
+    failureRetryFee: null,
+    privateLessonFee: null,
     educationFee: 777,
     otherFee1: 888,
     yearFeeRowVersion: 7,
@@ -102,11 +103,11 @@ function feeMatrix(
         program,
         lessonType: "theory",
         lessonHours: 34,
-        vatIncludedHourlyRate: 100,
+        vatIncludedHourlyRate: null,
         vatExcludedHourlyRate: null,
         lessonFee: null,
         vatAmount: null,
-        contractTheoryExamFee: 600,
+        contractTheoryExamFee: null,
         contractPracticeExamFee: null,
         institutionTheoryExamFee: theoryFee,
         institutionPracticeExamFee: null,
@@ -118,12 +119,12 @@ function feeMatrix(
         program,
         lessonType: "practice",
         lessonHours: 14,
-        vatIncludedHourlyRate: 200,
+        vatIncludedHourlyRate: null,
         vatExcludedHourlyRate: null,
         lessonFee: null,
         vatAmount: null,
         contractTheoryExamFee: null,
-        contractPracticeExamFee: 700,
+        contractPracticeExamFee: null,
         institutionTheoryExamFee: null,
         institutionPracticeExamFee: practiceFee,
         rowVersion: 4,
@@ -149,7 +150,7 @@ describe("CandidateHero default fee warning", () => {
     mocks.updateFeeMatrix.mockReset();
   });
 
-  it("shows the strip only when both institution exam fees are empty", async () => {
+  it("shows the strip only when all default fees are empty", async () => {
     mocks.getFeeMatrix.mockResolvedValue(feeMatrix(null, null));
     renderHero();
     expect(await screen.findByRole("button", { name: "Ehliyet Tipi Ücret Önerileri Boş!" })).toBeInTheDocument();
@@ -166,7 +167,7 @@ describe("CandidateHero default fee warning", () => {
     const dialog = screen.getByRole("dialog", { name: "VARSAYILAN ÜCRET GİRİŞLERİ" });
     expect(within(dialog).getByText("A2")).toBeInTheDocument();
     expect(within(dialog).getByText("B")).toBeInTheDocument();
-    expect(within(dialog).getByDisplayValue("15000")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("KURS Ü.")).toHaveValue("");
 
     fireEvent.pointerDown(document.body);
     fireEvent.keyDown(document, { key: "Escape" });
@@ -183,6 +184,13 @@ describe("CandidateHero default fee warning", () => {
     expect(screen.queryByText("Ehliyet Tipi Ücret Önerileri Boş!")).not.toBeInTheDocument();
   });
 
+  it("hides the strip when a course fee exists", async () => {
+    mocks.getFeeMatrix.mockResolvedValue(feeMatrix(null, null, 15000));
+    renderHero();
+    await waitFor(() => expect(mocks.getFeeMatrix).toHaveBeenCalled());
+    expect(screen.queryByText("Ehliyet Tipi Ücret Önerileri Boş!")).not.toBeInTheDocument();
+  });
+
   it("does not show an actionable warning when the selected fee program is missing", async () => {
     mocks.getFeeMatrix.mockResolvedValue({ year: 2026, vatRate: 10, rows: [] });
     renderHero();
@@ -193,7 +201,7 @@ describe("CandidateHero default fee warning", () => {
   it("saves the full selected scenario without clearing hidden program fields", async () => {
     const matrix = feeMatrix(null, null);
     mocks.getFeeMatrix.mockResolvedValue(matrix);
-    mocks.updateFeeMatrix.mockResolvedValue(matrix);
+    mocks.updateFeeMatrix.mockResolvedValue(feeMatrix(1250, null));
     renderHero();
 
     fireEvent.click(await screen.findByRole("button", { name: "Ehliyet Tipi Ücret Önerileri Boş!" }));
@@ -217,8 +225,11 @@ describe("CandidateHero default fee warning", () => {
             otherFee1: 888,
             rowVersion: 7,
           })],
-        })
+        }),
+        { licenseClassDefinitionId: programId }
       );
+      expect(mocks.getFeeMatrix).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText("Ehliyet Tipi Ücret Önerileri Boş!")).not.toBeInTheDocument();
     });
   });
 });

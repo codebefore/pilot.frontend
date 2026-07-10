@@ -11,6 +11,7 @@ import {
   getCandidateById,
   getCandidateReuseSources,
   getCandidates,
+  getCandidatesWithDocumentOverview,
   removeActiveGroupAssignment,
   searchCandidateTags,
   updateCandidate,
@@ -51,7 +52,7 @@ describe("candidate api routing", () => {
     );
   });
 
-  it("enriches candidate list items with biometric document photos", async () => {
+  it("returns candidate list items without waiting for document enrichment", async () => {
     applyRuntimeConfig({
       candidateApiBaseUrl: "http://127.0.0.1:5094",
       documentApiBaseUrl: "http://127.0.0.1:5092",
@@ -79,27 +80,6 @@ describe("candidate api routing", () => {
             headers: { "Content-Type": "application/json" },
           }
         )
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            items: [
-              {
-                candidateId: "candidate-1",
-                summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
-                photo: { documentId: "document-1", kind: "biometric_photo" },
-              },
-            ],
-            page: 1,
-            pageSize: 1,
-            totalCount: 1,
-            totalPages: 1,
-          }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }
-        )
       );
 
     const result = await getCandidates({ page: 2, pageSize: 20, search: "Ayse" });
@@ -107,15 +87,80 @@ describe("candidate api routing", () => {
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe(
       "http://127.0.0.1:5094/api/candidates?page=2&pageSize=20&search=Ayse"
     );
-    expect(String(vi.mocked(fetch).mock.calls[1][0])).toBe(
-      "http://127.0.0.1:5092/api/documents/candidate-checklist?candidateIds=candidate-1&page=1&pageSize=1"
-    );
-    expect(result.items[0].photo).toEqual({ documentId: "document-1", kind: "biometric_photo" });
-    expect(result.items[0].documentSummary).toEqual({
-      completedCount: 1,
-      missingCount: 0,
-      totalRequiredCount: 1,
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(result.items[0].photo).toBeNull();
+    expect(result.items[0].documentSummary).toBeNull();
+  });
+
+  it("keeps the enriched candidate list helper for photo-dependent consumers", async () => {
+    applyRuntimeConfig({
+      candidateApiBaseUrl: "http://127.0.0.1:5094",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
     });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [{ id: "candidate-1", firstName: "Ayse", lastName: "Yilmaz", photo: null }],
+            page: 1,
+            pageSize: 100,
+            totalCount: 1,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [{
+              candidateId: "candidate-1",
+              summary: { completedCount: 1, missingCount: 0, totalRequiredCount: 1 },
+              photo: { documentId: "document-1", kind: "biometric_photo" },
+            }],
+            page: 1,
+            pageSize: 1,
+            totalCount: 1,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+
+    const result = await getCandidatesWithDocumentOverview({ page: 1, pageSize: 100 });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(result.items[0].photo).toEqual({
+      documentId: "document-1",
+      kind: "biometric_photo",
+    });
+  });
+
+  it("fails the enriched list when document overview cannot be loaded", async () => {
+    applyRuntimeConfig({
+      candidateApiBaseUrl: "http://127.0.0.1:5094",
+      documentApiBaseUrl: "http://127.0.0.1:5092",
+    });
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            items: [{ id: "candidate-1", firstName: "Ayse", lastName: "Yilmaz", photo: null }],
+            page: 1,
+            pageSize: 100,
+            totalCount: 1,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ title: "Document service unavailable" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+    await expect(
+      getCandidatesWithDocumentOverview({ page: 1, pageSize: 100 })
+    ).rejects.toMatchObject({ status: 503 });
   });
 
   it("enriches updated candidates with biometric document photos", async () => {

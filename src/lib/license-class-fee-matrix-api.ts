@@ -35,10 +35,14 @@ export function getLicenseClassFeeMatrix(
 
 export function updateLicenseClassFeeMatrix(
   year: number,
-  body: LicenseClassFeeMatrixUpsertRequest
+  body: LicenseClassFeeMatrixUpsertRequest,
+  options?: { licenseClassDefinitionId?: string }
 ): Promise<LicenseClassFeeMatrixResponse> {
+  const responseFilter = options?.licenseClassDefinitionId
+    ? `?licenseClassDefinitionId=${encodeURIComponent(options.licenseClassDefinitionId)}`
+    : "";
   return httpPut<LicenseClassFeeMatrixResponse>(
-    `/api/finance/license-class-fee-matrix/${year}`,
+    `/api/finance/license-class-fee-matrix/${year}${responseFilter}`,
     body,
     financeRequestOptions()
   );

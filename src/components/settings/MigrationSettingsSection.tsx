@@ -24,7 +24,10 @@ import {
   getMebbisJob,
   type MebbisJobResponse,
 } from "../../lib/mebbis-jobs-api";
-import { deleteInstitutionCandidates, getCandidates } from "../../lib/candidates-api";
+import {
+  deleteInstitutionCandidates,
+  getCandidatesWithDocumentOverview,
+} from "../../lib/candidates-api";
 import { getGroups } from "../../lib/groups-api";
 import { applyMebbisClassroomInventory } from "../../lib/mebbis-classroom-import";
 import { applyMebbisInstitutionInventory } from "../../lib/mebbis-institution-import";
@@ -674,7 +677,7 @@ export function MigrationSettingsSection() {
   };
 
   const loadCandidatesMissingPhoto = async () => {
-    const firstPage = await getCandidates({ page: 1, pageSize: 100 });
+    const firstPage = await getCandidatesWithDocumentOverview({ page: 1, pageSize: 100 });
     const pageSize = firstPage.pageSize || 100;
     const totalCount = firstPage.totalCount ?? firstPage.items.length;
     const allCandidates = [...firstPage.items];
@@ -682,7 +685,7 @@ export function MigrationSettingsSection() {
 
     while (allCandidates.length < totalCount) {
       const nextPage = page + 1;
-      const response = await getCandidates({ page: nextPage, pageSize });
+      const response = await getCandidatesWithDocumentOverview({ page: nextPage, pageSize });
       if (response.items.length === 0) break;
       allCandidates.push(...response.items);
       page = response.page || nextPage;
