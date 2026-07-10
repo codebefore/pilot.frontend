@@ -889,6 +889,61 @@ describe("GroupsPage", () => {
     expect(screen.getByRole("cell", { name: "5" })).toBeInTheDocument();
   });
 
+  it("uses the current column defaults instead of stale v2 localStorage settings", async () => {
+    localStorage.setItem(
+      "groups.columns.v2",
+      JSON.stringify(["name", "capacity", "startDate"])
+    );
+    getGroupsMock.mockResolvedValueOnce({
+      items: [
+        {
+          id: "group-list-storage-version",
+          title: "1A",
+          term: {
+            id: "term-1",
+            monthDate: "2026-04-01",
+            sequence: 1,
+            name: null,
+          },
+          capacity: 20,
+          assignedCandidateCount: 4,
+          activeCandidateCount: 3,
+          licenseClassCounts: [{ licenseClass: "B", count: 4 }],
+          startDate: "2026-04-10",
+          mebStatus: "sent",
+          candidatePreview: [],
+          createdAtUtc: "2026-04-01T10:00:00Z",
+          updatedAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
+
+    renderWithProviders(<GroupsPage />);
+
+    expect(await screen.findByRole("columnheader", { name: "Grup" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Kontenjan" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Meb" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Başlangıç" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Adaylar" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Ehliyet Tipi" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Aktif Aday" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Kayıt" })).not.toBeInTheDocument();
+    expect(localStorage.getItem("groups.columns.v3")).toBe(
+      JSON.stringify([
+        "name",
+        "capacity",
+        "mebbisDocuments",
+        "startDate",
+        "candidatePreview",
+        "licenseClass",
+      ])
+    );
+  });
+
   it("shows a specific message when term deletion is blocked by active groups", async () => {
     deleteTermMock.mockRejectedValueOnce(
       new ApiError(400, "Bad Request", {

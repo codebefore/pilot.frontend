@@ -86,6 +86,7 @@ type GroupMebbisDocumentSummary = {
 };
 
 const GROUP_FETCH_PAGE_SIZE = 100;
+const GROUP_COLUMNS_STORAGE_KEY = "groups.columns.v3";
 const GROUP_COLUMNS: GroupColumnDef[] = [
   {
     id: "name",
@@ -219,7 +220,7 @@ export function GroupsPage() {
   const canManageGroups = canManageArea(user, permissions, "groups");
   const noPermissionTitle = t("common.noPermission");
   const { isVisible, toggle: toggleColumn } = useColumnVisibility(
-    "groups.columns.v2",
+    GROUP_COLUMNS_STORAGE_KEY,
     GROUP_COLUMN_IDS,
     DEFAULT_VISIBLE_GROUP_COLUMN_IDS
   );

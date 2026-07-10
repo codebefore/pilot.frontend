@@ -1177,6 +1177,18 @@
   text-align: left;
   cursor: pointer;
 }
+.candidate-list-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.candidate-list-heading .candidate-license-class {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .candidate-list-text .candidate-name {
   overflow: hidden;
   color: var(--gray-900);
@@ -1186,9 +1198,25 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.candidate-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .candidate-tc {
   font-size: 11px;
   color: var(--gray-400);
+}
+.candidate-list-meta .candidate-registration-date { color: var(--gray-500); font-size: 11px; }
+.candidate-list-meta .candidate-license-class {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .group-candidate-remove-anchor {
@@ -1297,7 +1325,19 @@
 .candidate-search-results li button:hover { background: var(--gray-50); }
 .candidate-search-results li button:disabled { opacity: .5; cursor: wait; }
 .candidate-search-results .candidate-name { color: var(--gray-900); font-weight: 500; }
+.candidate-search-results .candidate-search-meta { display: flex; align-items: center; gap: 8px; }
 .candidate-search-results .candidate-tc { color: var(--gray-400); font-size: 11px; margin-left: 0; }
+.candidate-search-results .candidate-registration-date { color: var(--gray-500); font-size: 11px; }
+.candidate-search-results .candidate-license-class {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
 
 /* ── Document type metadata field editor (DocumentTypeFormModal) ───── */
 .doc-meta-editor {

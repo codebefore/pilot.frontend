@@ -70,6 +70,14 @@ type TheoryEducationSummary = {
   loading: boolean;
 };
 
+type GroupCandidateMetadata = {
+  nationalId: string | null;
+  licenseClass: string;
+  createdAtUtc: string;
+};
+
+const ASSIGNABLE_CANDIDATE_STATUSES = ["active", "pre_registered"] as const;
+
 function formatLessonHours(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
 }
@@ -99,9 +107,17 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<
-    { id: string; firstName: string; lastName: string; nationalId: string | null }[]
+    {
+      id: string;
+      firstName: string;
+      lastName: string;
+      nationalId: string | null;
+      licenseClass: string;
+      createdAtUtc: string;
+    }[]
   >([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [groupCandidateMetadata, setGroupCandidateMetadata] = useState<Map<string, GroupCandidateMetadata>>(new Map());
   const [removing, setRemoving] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
   const [removeCandidateConfirm, setRemoveCandidateConfirm] = useState<RemoveCandidateConfirmation | null>(null);
@@ -177,6 +193,35 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
       mebStatusConfirmResolveRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!groupId || !group || group.activeCandidates.length === 0) {
+      setGroupCandidateMetadata(new Map());
+      return;
+    }
+
+    const controller = new AbortController();
+    void loadAllGroupCandidates(groupId, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        setGroupCandidateMetadata(new Map(
+          response.items.map((candidate) => [
+            candidate.id,
+            {
+              nationalId: candidate.nationalId,
+              licenseClass: candidate.licenseClass,
+              createdAtUtc: candidate.createdAtUtc,
+            },
+          ])
+        ));
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        setGroupCandidateMetadata(new Map());
+      });
+
+    return () => controller.abort();
+  }, [groupId, group]);
 
   useEffect(() => {
     const activeCandidates = group?.activeCandidates ?? [];
@@ -318,15 +363,29 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
     searchTimerRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const result = await getCandidates(
-          { search: normalizedSearchQuery, pageSize: 100 },
-          controller.signal
+        const results = await Promise.all(
+          ASSIGNABLE_CANDIDATE_STATUSES.map((status) =>
+            getCandidates(
+              { search: normalizedSearchQuery, status, pageSize: 100 },
+              controller.signal
+            )
+          )
         );
         const activeCandidateIds = new Set(group?.activeCandidates.map((c) => c.candidateId) ?? []);
+        const candidatesById = new Map(
+          results.flatMap((result) => result.items).map((candidate) => [candidate.id, candidate])
+        );
         setSearchResults(
-          result.items
+          [...candidatesById.values()]
             .filter((c) => !activeCandidateIds.has(c.id))
-            .map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, nationalId: c.nationalId }))
+            .map((c) => ({
+              id: c.id,
+              firstName: c.firstName,
+              lastName: c.lastName,
+              nationalId: c.nationalId,
+              licenseClass: c.licenseClass,
+              createdAtUtc: c.createdAtUtc,
+            }))
         );
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -618,7 +677,30 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                       rel="noopener noreferrer"
                       target="_blank"
                     >
-                      <span className="candidate-name">{c.firstName} {c.lastName}</span>
+                      <span className="candidate-list-heading">
+                        <span className="candidate-name">{c.firstName} {c.lastName}</span>
+                        {groupCandidateMetadata.has(c.candidateId) ? (
+                          <span
+                            className="candidate-license-class"
+                            title={t("candidates.col.licenseClass")}
+                          >
+                            ({groupCandidateMetadata.get(c.candidateId)?.licenseClass})
+                          </span>
+                        ) : null}
+                      </span>
+                      {groupCandidateMetadata.has(c.candidateId) ? (
+                        <span className="candidate-list-meta">
+                          <span className="candidate-tc">
+                            {formatNationalId(groupCandidateMetadata.get(c.candidateId)?.nationalId ?? null)}
+                          </span>
+                          <span
+                            className="candidate-registration-date"
+                            title={t("groupDrawer.field.registeredAt")}
+                          >
+                            {formatDateTR(groupCandidateMetadata.get(c.candidateId)?.createdAtUtc ?? null)}
+                          </span>
+                        </span>
+                      ) : null}
                     </a>
                   </div>
                   <div className="group-candidate-remove-anchor">
@@ -725,7 +807,15 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
                             type="button"
                           >
                             <span className="candidate-name">{c.firstName} {c.lastName}</span>
-                            <span className="candidate-tc">{formatNationalId(c.nationalId)}</span>
+                            <span className="candidate-search-meta">
+                              <span className="candidate-tc">{formatNationalId(c.nationalId)}</span>
+                              <span className="candidate-registration-date" title={t("groupDrawer.field.registeredAt")}>
+                                {formatDateTR(c.createdAtUtc)}
+                              </span>
+                              <span className="candidate-license-class" title={t("candidates.col.licenseClass")}>
+                                {c.licenseClass}
+                              </span>
+                            </span>
                           </button>
                         </li>
                       ))}
@@ -782,9 +872,13 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
   );
 }
 
-async function loadAllGroupCandidates(groupId: string) {
+async function loadAllGroupCandidates(groupId: string, signal?: AbortSignal) {
   const pageSize = 100;
-  const firstPage = await getCandidates({ groupIds: [groupId], page: 1, pageSize });
+  const getPage = (page: number) => {
+    const params = { groupIds: [groupId], page, pageSize };
+    return signal ? getCandidates(params, signal) : getCandidates(params);
+  };
+  const firstPage = await getPage(1);
   const items = [...firstPage.items];
   const effectivePageSize = firstPage.pageSize || pageSize;
   const totalCount = firstPage.totalCount ?? items.length;
@@ -792,7 +886,7 @@ async function loadAllGroupCandidates(groupId: string) {
 
   while (items.length < totalCount) {
     const nextPage = page + 1;
-    const response = await getCandidates({ groupIds: [groupId], page: nextPage, pageSize });
+    const response = await getPage(nextPage);
     if (response.items.length === 0) break;
     items.push(...response.items);
     page = response.page || nextPage;

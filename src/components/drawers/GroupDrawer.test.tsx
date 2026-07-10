@@ -329,14 +329,15 @@ describe("GroupDrawer", () => {
     });
 
     await waitFor(() => {
-      expect(getCandidatesMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          search: "Ay",
-          pageSize: 100,
-        }),
-        expect.any(AbortSignal)
-      );
+      expect(getCandidatesMock).toHaveBeenCalledTimes(2);
     });
+
+    expect(getCandidatesMock.mock.calls.map(([params]) => params)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ search: "Ay", status: "active", pageSize: 100 }),
+        expect.objectContaining({ search: "Ay", status: "pre_registered", pageSize: 100 }),
+      ])
+    );
   });
 
   it("adds a searched candidate to the group through the transfer endpoint", async () => {
@@ -403,6 +404,8 @@ describe("GroupDrawer", () => {
     });
 
     const candidateButton = await screen.findByRole("button", { name: /Ayse Demir/ });
+    expect(within(candidateButton).getByText("B")).toHaveAttribute("title", "Ehliyet Tipi");
+    expect(within(candidateButton).getByText("12.04.2026")).toHaveAttribute("title", "Kayıt Tarihi");
     fireEvent.click(candidateButton);
 
     await waitFor(() => {
@@ -426,11 +429,30 @@ describe("GroupDrawer", () => {
         },
       ],
     }));
+    getCandidatesMock.mockResolvedValue({
+      items: [
+        {
+          id: "candidate-1",
+          firstName: "Ayse",
+          lastName: "Demir",
+          nationalId: "10000000146",
+          licenseClass: "B",
+          createdAtUtc: "2026-04-12T10:00:00Z",
+        },
+      ],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1,
+      totalPages: 1,
+    });
 
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
 
     const candidateLink = await screen.findByRole("link", { name: /Ayse Demir/ });
     expect(screen.getByText("AD")).toBeInTheDocument();
+    expect(await within(candidateLink).findByText("10000000146")).toBeInTheDocument();
+    expect(within(candidateLink).getByText("12.04.2026")).toHaveAttribute("title", "Kayıt Tarihi");
+    expect(within(candidateLink).getByText("(B)")).toHaveAttribute("title", "Ehliyet Tipi");
 
     expect(candidateLink).toHaveAttribute("href", "/candidates/candidate-1");
     expect(candidateLink).toHaveAttribute("target", "_blank");
