@@ -204,11 +204,11 @@ describe("PaymentsPage permissions", () => {
     expect(await screen.findByText("Kasa Özeti")).toBeInTheDocument();
 
     const inflowButton = document.querySelector<HTMLButtonElement>(".finance-cash-action--inflow");
-    expect(inflowButton).not.toBeNull();
+    if (!inflowButton) throw new Error("Kasa giriş butonu bulunamadı");
     const outflowButton = screen
       .getAllByRole("button", { name: "Çıkış" })
       .find((button) => button.classList.contains("finance-cash-action"));
-    expect(outflowButton).not.toBeUndefined();
+    if (!outflowButton) throw new Error("Kasa çıkış butonu bulunamadı");
     const transferButton = screen.getByRole("button", { name: "Transfer" });
 
     for (const button of [inflowButton, outflowButton, transferButton]) {
