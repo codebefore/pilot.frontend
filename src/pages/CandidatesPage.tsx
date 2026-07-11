@@ -338,6 +338,110 @@ type CandidateColumnDef = {
   skeletonWidth: number;
 };
 
+const CANDIDATE_COLUMN_SHORT_LABELS: Record<"tr" | "en", Partial<Record<CandidateColumnId, string>>> = {
+  tr: {
+    nationalId: "T.C.",
+    motherName: "Anne",
+    fatherName: "Baba",
+    birthDate: "D. Tarihi",
+    existingLicenseType: "Mev. Ehliyet",
+    licenseClass: "Ehliyet",
+    groupStartDate: "Grup Baş.",
+    eSinavDate: "E-Sınav Tar.",
+    eSinavAttemptCount: "Hak",
+    eSinavTheoryExamFeeStatus: "Sınav Ücr.",
+    eSinavRightsExpiryDate: "Hak Bitiş",
+    eSinavPoolStatus: "Sınav Dur.",
+    drivingExamDate: "Dir. Tarihi",
+    drivingExamCode: "Sınav Kodu",
+    drivingExamVehiclePlate: "Plaka",
+    drivingExamInstructor: "U. Öğretici",
+    drivingExamAttemptCount: "Dir. Hakkı",
+    drivingExamAttendanceStatus: "Katılım",
+    drivingExamResultStatus: "Sonuç",
+    drivingExamFeeStatus: "Sınav Ücr.",
+    graduationDate: "Mezuniyet",
+    terminationReason: "Ayrılma Ned.",
+    terminationDate: "Ayrılma Tar.",
+    totalFee: "Ücret",
+    totalPaid: "Ödenen",
+    totalDebt: "Borç",
+    missingDocuments: "Eksik Evr.",
+    createdAtUtc: "Kayıt",
+    updatedAtUtc: "Güncelleme",
+  },
+  en: {
+    nationalId: "ID",
+    motherName: "Mother",
+    fatherName: "Father",
+    birthDate: "Birth",
+    existingLicenseType: "Current Lic.",
+    licenseClass: "License",
+    groupStartDate: "Group Start",
+    eSinavDate: "E-Exam",
+    eSinavAttemptCount: "Attempts",
+    eSinavTheoryExamFeeStatus: "Exam Fee",
+    eSinavRightsExpiryDate: "Expiry",
+    eSinavPoolStatus: "Exam Status",
+    drivingExamDate: "Drive Date",
+    drivingExamVehiclePlate: "Plate",
+    drivingExamInstructor: "Instructor",
+    drivingExamAttemptCount: "Drive Att.",
+    drivingExamAttendanceStatus: "Attendance",
+    drivingExamResultStatus: "Result",
+    drivingExamFeeStatus: "Exam Fee",
+    graduationDate: "Graduation",
+    terminationReason: "Close Reason",
+    terminationDate: "Close Date",
+    totalFee: "Fee",
+    totalPaid: "Paid",
+    totalDebt: "Debt",
+    missingDocuments: "Missing Docs",
+    createdAtUtc: "Created",
+    updatedAtUtc: "Updated",
+  },
+};
+
+const PRACTICE_EXAM_COLUMN_SHORT_LABELS: Record<"tr" | "en", Partial<Record<CandidateColumnId, string>>> = {
+  tr: {
+    name: "Aday",
+    licenseClass: "Ehlyt",
+    group: "Dönem",
+    drivingExamAttemptCount: "Hak",
+    drivingExamAttendanceStatus: "Katılım",
+    drivingExamResultStatus: "Sonuç",
+    drivingExamFeeStatus: "Ücret",
+    drivingExamDate: "Tarih",
+    drivingExamCode: "Kod",
+    drivingExamTime: "Saat",
+    drivingExamVehiclePlate: "Plaka",
+    drivingExamInstructor: "Eğitmen",
+  },
+  en: {
+    name: "Candidate",
+    licenseClass: "License",
+    group: "Term",
+    drivingExamAttemptCount: "Attempt",
+    drivingExamAttendanceStatus: "Attendance",
+    drivingExamResultStatus: "Result",
+    drivingExamFeeStatus: "Fee",
+    drivingExamDate: "Date",
+    drivingExamCode: "Code",
+    drivingExamTime: "Time",
+    drivingExamVehiclePlate: "Plate",
+    drivingExamInstructor: "Instructor",
+  },
+};
+
+function candidateColumnHeaderLabel(
+  id: CandidateColumnId,
+  fullLabel: string,
+  lang: "tr" | "en"
+): string {
+  if (fullLabel.length <= 8) return fullLabel;
+  return CANDIDATE_COLUMN_SHORT_LABELS[lang][id] ?? fullLabel;
+}
+
 function formatOptionalText(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed ? trimmed : "—";
@@ -439,6 +543,15 @@ function examChargeFeeYear(date: string): number {
 
 function normalizeLicenseClassCode(value: string | null | undefined): string {
   return (value ?? "").trim().toLocaleUpperCase("tr-TR");
+}
+
+function formatCandidateLicenseClass(value: string | null | undefined): string {
+  const displayValue = (value ?? "").trim();
+  const normalized = displayValue
+    .toLocaleUpperCase("tr-TR")
+    .replace(/İ/g, "I")
+    .replace(/[\s_]+/g, "-");
+  return normalized === "B-OTOMATIK" ? "B-OTO" : displayValue;
 }
 
 function defaultExamChargeFee(
@@ -1316,7 +1429,7 @@ const CANDIDATE_COLUMNS: CandidateColumnDef[] = [
     id: "licenseClass",
     labelKey: "candidates.col.licenseClass",
     sortField: "licenseClass",
-    renderCell: (c) => c.licenseClass,
+    renderCell: (c) => formatCandidateLicenseClass(c.licenseClass),
     skeletonWidth: 56,
   },
   {
@@ -1995,6 +2108,7 @@ export function CandidatesPage({
   const [unscheduledExamChargeSaving, setUnscheduledExamChargeSaving] = useState(false);
   const isDrivingExamRandevuluTab = examDateSidebar?.examType === "uygulama" && tab === "randevulu";
   const canShowUnscheduledExamChargeAction = !isDrivingExamRandevuluTab;
+  const showUnscheduledExamChargeButton = false;
   const showUnscheduledExamChargePrompt = Boolean(unscheduledExamChargePrompt) && canShowUnscheduledExamChargeAction;
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -2362,7 +2476,9 @@ export function CandidatesPage({
           return {
             ...col,
             renderCell: (candidate: CandidateResponse) =>
-              licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass,
+              formatCandidateLicenseClass(
+                licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass
+              ),
           };
         }
         if (columnPageScope === "eSinav" && col.id === "eSinavDate") {
@@ -4155,6 +4271,9 @@ export function CandidatesPage({
               ) : null}
               {visibleColumns.map((col) => {
                 const label = getColumnLabel(col);
+                const headerLabel = columnPageScope === "uygulama"
+                  ? PRACTICE_EXAM_COLUMN_SHORT_LABELS[lang][col.id] ?? candidateColumnHeaderLabel(col.id, label, lang)
+                  : candidateColumnHeaderLabel(col.id, label, lang);
                 const filterControl = getColumnFilterControl(col);
                 const dragHandlers = columnDragHandlers(col.id);
                 const dragClassName = [
@@ -4170,6 +4289,7 @@ export function CandidatesPage({
                     key={col.id}
                     field={col.sortField}
                     label={label}
+                    displayLabel={headerLabel}
                     onToggle={handleSortToggle}
                     sort={sort}
                   />
@@ -4181,7 +4301,7 @@ export function CandidatesPage({
                     {...dragHandlers}
                   >
                     <div className="sortable-th-shell">
-                      <span>{col.headerLabel ?? label}</span>
+                      <span title={label}>{col.headerLabel ?? headerLabel}</span>
                       {filterControl ? (
                         <div className="sortable-th-filter">{filterControl}</div>
                       ) : null}
@@ -4320,7 +4440,7 @@ export function CandidatesPage({
   );
 
   return (
-    <div className="candidates-page">
+    <div className={`candidates-page candidates-page--${columnPageScope}`}>
       <PageToolbar
         actions={
           <>
@@ -4507,7 +4627,7 @@ export function CandidatesPage({
                             {mebbisExamResultSyncRunning ? "Sorgulanıyor" : "Sonuç Sorgulama"}
                           </button>
                         ) : null}
-                        {canShowUnscheduledExamChargeAction ? (
+                        {showUnscheduledExamChargeButton && canShowUnscheduledExamChargeAction ? (
                           <button
                             className="btn btn-secondary btn-sm"
                             disabled={
@@ -4576,7 +4696,7 @@ export function CandidatesPage({
                         >
                           {t("candidates.bulk.addTag")}
                         </button>
-                        {canShowUnscheduledExamChargeAction ? (
+                        {showUnscheduledExamChargeButton && canShowUnscheduledExamChargeAction ? (
                           <button
                             className="btn btn-secondary btn-sm"
                             disabled={
@@ -4959,6 +5079,7 @@ type SortableThProps = {
   field: CandidateSortField;
   filterControl?: React.ReactNode;
   label: string;
+  displayLabel?: string;
   sort: SortState;
   onToggle: (field: CandidateSortField) => void;
   className?: string;
@@ -4969,6 +5090,7 @@ function SortableTh({
   field,
   filterControl,
   label,
+  displayLabel,
   sort,
   onToggle,
   className,
@@ -4986,14 +5108,15 @@ function SortableTh({
     .filter(Boolean)
     .join(" ");
   return (
-    <th aria-sort={ariaSort} className={thClassName} {...dragHandlers}>
+    <th aria-label={label} aria-sort={ariaSort} className={thClassName} {...dragHandlers}>
       <div className="sortable-th-shell">
         <button
           className="sortable-th-btn"
           onClick={() => onToggle(field)}
+          title={label}
           type="button"
         >
-          <span>{label}</span>
+          <span>{displayLabel ?? label}</span>
           <span className="sortable-th-indicator" aria-hidden="true">
             {indicator}
           </span>

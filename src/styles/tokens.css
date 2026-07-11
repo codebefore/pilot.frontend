@@ -100,7 +100,7 @@
   --hero-bg-end: color-mix(in srgb, var(--gray-900) 68%, var(--blue) 32%);
   --hero-fg: #ffffff;
 
-  --sidebar-w: 260px;
+  --sidebar-w: 224px;
   --header-h: 56px;
 
   --radius: 8px;

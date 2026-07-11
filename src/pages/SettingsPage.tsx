@@ -190,7 +190,7 @@ export function SettingsPage() {
       : <Navigate replace to={firstVisiblePath} />;
 
   return (
-    <>
+    <div className="settings-route">
       {!fullScreenFees ? <PageToolbar title={t("settings.title")} /> : null}
 
       <div className={fullScreenFees ? "settings-page settings-page-fullscreen" : "settings-page"}>
@@ -343,6 +343,6 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

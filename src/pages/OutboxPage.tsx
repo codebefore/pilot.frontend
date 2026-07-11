@@ -163,11 +163,11 @@ export function OutboxPage() {
   const isRefreshing = activeQuery.isFetching || (activeTab === "outbox" && outboxHealthQuery.isFetching);
 
   return (
-    <>
+    <div className="outbox-route">
       <PageToolbar
         actions={
           <button
-            className="btn btn-secondary"
+            className="btn btn-secondary btn-sm"
             disabled={isRefreshing}
             onClick={() => {
               void activeQuery.refetch();
@@ -282,7 +282,7 @@ export function OutboxPage() {
           )}
         </div>
       </Panel>
-    </>
+    </div>
   );
 }
 

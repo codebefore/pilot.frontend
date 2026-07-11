@@ -513,7 +513,7 @@ export function MebJobsPage() {
   };
 
   return (
-    <>
+    <div className="meb-jobs-page">
       <PageToolbar
         actions={
           <>
@@ -841,7 +841,7 @@ export function MebJobsPage() {
         }}
         open={modalOpen}
       />
-    </>
+    </div>
   );
 }
 

@@ -239,7 +239,7 @@ export function InstitutionsPage() {
   );
 
   return (
-    <>
+    <div className="institutions-page">
       <PageToolbar actions={toolbarActions} title="Kurumlar" />
 
       <div className="settings-summary-grid institutions-summary-grid">
@@ -362,7 +362,7 @@ export function InstitutionsPage() {
           void queryClient.invalidateQueries({ queryKey: ["institutions", "list"] });
         }}
       />
-    </>
+    </div>
   );
 }
 

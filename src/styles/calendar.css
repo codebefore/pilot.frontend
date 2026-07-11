@@ -39,10 +39,21 @@ body.training-page-active {
 
 .training-page-shell > .page-toolbar {
   flex: 0 0 auto;
+  gap: 10px;
+  height: 54px;
+  min-height: 54px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.training-page-shell > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
 }
 
 .training-page-shell > .page-toolbar .toolbar-actions {
-  min-height: 32px;
+  min-height: 28px;
+  gap: 6px;
 }
 
 .training-layout-wrap {
@@ -54,20 +65,20 @@ body.training-page-active {
   min-height: 0;
   overflow: hidden;
   overflow-anchor: none;
-  padding-top: 12px;
+  padding-top: 8px;
 }
 
 .training-mebbis-status {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 14px 12px;
-  padding: 10px 12px;
+  margin: 0 8px 8px;
+  padding: 7px 10px;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
   background: #eff6ff;
   color: #1e3a8a;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -87,9 +98,9 @@ body.training-page-active {
 .training-layout {
   box-sizing: border-box;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: stretch;
-  padding: 0 14px 14px;
+  padding: 0 8px 8px;
   flex: 1 1 auto;
   height: auto;
   max-height: none;
@@ -115,10 +126,10 @@ body.training-page-active {
 
 /* ─── Filtre paneli ───────────────────────────────────────── */
 .training-filters {
-  flex: 0 0 200px;
+  flex: 0 0 180px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   padding: 0;
   /* Scroll/sticky artık `.training-filters-sidebar` üzerinde —
    * bu eleman daima sidebar içinde render ediliyor, kendi sticky'sine
@@ -129,7 +140,7 @@ body.training-page-active {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 25px;
+  margin-bottom: 8px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -139,7 +150,7 @@ body.training-page-active {
 
 .training-filters-section {
   margin-top: 0;
-  padding: 12px 10px;
+  padding: 8px;
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
@@ -282,10 +293,10 @@ body.training-page-active {
 .training-filters-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
+  gap: 6px;
+  padding: 3px 4px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--gray-800);
   cursor: pointer;
   transition: background 0.1s;
@@ -572,8 +583,8 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   top: 0;
   z-index: 1;
   text-align: left;
-  padding: 8px 10px;
-  font-size: 10px;
+  padding: 3px 4px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -581,6 +592,28 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   background: var(--gray-50);
   border-bottom: 1px solid var(--gray-200);
   user-select: none;
+}
+
+.practice-picker-table thead th.sortable-th {
+  padding: 0;
+}
+
+.practice-picker-table thead .sortable-th-shell {
+  gap: 3px;
+  padding: 3px 4px;
+}
+
+.practice-picker-table thead .sortable-th-btn {
+  gap: 3px;
+}
+
+.practice-picker-table thead .sortable-th-indicator {
+  font-size: 8px;
+}
+
+.practice-picker-table thead .table-header-filter-trigger {
+  width: 18px;
+  height: 18px;
 }
 
 .practice-picker-select-th,
@@ -625,7 +658,7 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 }
 
 .practice-picker-table tbody td {
-  padding: 8px 10px;
+  padding: 2px 4px;
   border-bottom: 1px solid var(--gray-100);
   color: var(--gray-800);
   vertical-align: middle;
@@ -983,8 +1016,8 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   border-right: 1px solid var(--gray-200);
   color: var(--gray-700);
   border-radius: 0;
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
   cursor: pointer;
@@ -1014,7 +1047,7 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   flex: 1 1 auto;
   text-align: center;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--gray-900);
   text-transform: capitalize;
   padding: 0 6px;
@@ -1716,10 +1749,10 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
 /* ─── Sol panel sarmalı (Hızlı atama + Filtreler) ──────────── */
 /* Sidebar kendi scroll'unu üretmez; scroll sadece iç listelerde olur. */
 .training-filters-sidebar {
-  flex: 0 0 200px;
+  flex: 0 0 180px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   align-self: stretch;
   height: 100%;
   max-height: 100%;
@@ -1739,10 +1772,10 @@ label.training-filters-item-meb-sent > input[type="checkbox"]:checked + .switch-
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
-  padding: 12px 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   flex: 0 1 auto;
   min-height: 0;
   max-height: 250px;

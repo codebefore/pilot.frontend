@@ -2704,7 +2704,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 <div className="payments-export-menu-wrap" ref={exportMenuRef}>
                   <button
                     aria-expanded={exportMenuOpen}
-                    className="btn btn-secondary payments-filter-export"
+                    className="btn btn-secondary btn-sm payments-filter-export"
                     disabled={!canExportTheoryLessons}
                     onClick={() => setExportMenuOpen((open) => !open)}
                     title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}

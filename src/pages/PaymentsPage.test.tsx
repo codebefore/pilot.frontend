@@ -203,8 +203,12 @@ describe("PaymentsPage permissions", () => {
 
     expect(await screen.findByText("Kasa Özeti")).toBeInTheDocument();
 
-    const inflowButton = screen.getByRole("button", { name: "Giriş" });
-    const outflowButton = screen.getByRole("button", { name: "Çıkış" });
+    const inflowButton = document.querySelector<HTMLButtonElement>(".finance-cash-action--inflow");
+    expect(inflowButton).not.toBeNull();
+    const outflowButton = screen
+      .getAllByRole("button", { name: "Çıkış" })
+      .find((button) => button.classList.contains("finance-cash-action"));
+    expect(outflowButton).not.toBeUndefined();
     const transferButton = screen.getByRole("button", { name: "Transfer" });
 
     for (const button of [inflowButton, outflowButton, transferButton]) {
@@ -260,7 +264,7 @@ describe("PaymentsPage permissions", () => {
 
     renderBalancesPage();
 
-    expect(await screen.findByRole("columnheader", { name: /Kalan Bakiye/ })).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: /Kalan/ })).toBeInTheDocument();
     const installmentRow = screen.getByRole("row", { name: /Vadeli Aday/ });
     expect(within(installmentRow).getByText("₺1.000")).toBeInTheDocument();
     expect(within(installmentRow).getByText("₺400")).toBeInTheDocument();
@@ -476,7 +480,7 @@ describe("PaymentsPage permissions", () => {
     expect(within(cancelledRow).getByText("₺250")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Kolonlar" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "İşlem Yapan" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Yetkili" }));
 
     expect(within(cancelledRow).getByText("Ayse Yilmaz")).toBeInTheDocument();
     const table = cancelledRow.closest("table");
@@ -484,7 +488,7 @@ describe("PaymentsPage permissions", () => {
     const headerLabels = within(table as HTMLTableElement)
       .getAllByRole("columnheader")
       .map((header) => header.textContent ?? "");
-    expect(headerLabels[headerLabels.length - 2]).toContain("İşlem Yapan");
+    expect(headerLabels[headerLabels.length - 2]).toContain("Yetkili");
   });
 
   it("keeps operator as the rightmost data column in deleted debts", async () => {
@@ -526,7 +530,7 @@ describe("PaymentsPage permissions", () => {
     expect(within(cancelledDebtRow).queryByText("Mehmet Demir")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Kolonlar" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "İşlem Yapan" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Yetkili" }));
 
     expect(within(cancelledDebtRow).getByText("Mehmet Demir")).toBeInTheDocument();
     const table = cancelledDebtRow.closest("table");
@@ -534,7 +538,7 @@ describe("PaymentsPage permissions", () => {
     const headerLabels = within(table as HTMLTableElement)
       .getAllByRole("columnheader")
       .map((header) => header.textContent ?? "");
-    expect(headerLabels[headerLabels.length - 2]).toContain("İşlem Yapan");
+    expect(headerLabels[headerLabels.length - 2]).toContain("Yetkili");
   });
 
   it("shows operator for refunds in the refunds tab", async () => {
@@ -573,7 +577,7 @@ describe("PaymentsPage permissions", () => {
     expect(within(refundRow).queryByText("Zeynep Kaya")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Kolonlar" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "İşlem Yapan" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Yetkili" }));
 
     expect(within(refundRow).getByText("Zeynep Kaya")).toBeInTheDocument();
     const table = refundRow.closest("table");
@@ -581,7 +585,7 @@ describe("PaymentsPage permissions", () => {
     const headerLabels = within(table as HTMLTableElement)
       .getAllByRole("columnheader")
       .map((header) => header.textContent ?? "");
-    expect(headerLabels[headerLabels.length - 2]).toContain("İşlem Yapan");
+    expect(headerLabels[headerLabels.length - 2]).toContain("Yetkili");
   });
 
   it("keeps refunded collections in the collections matrix as gross collections", async () => {

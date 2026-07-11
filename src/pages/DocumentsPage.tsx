@@ -849,7 +849,7 @@ export function DocumentsPage() {
   ];
 
   return (
-    <>
+    <div className="documents-page">
       <PageToolbar
         actions={
           <>
@@ -1175,25 +1175,20 @@ export function DocumentsPage() {
                   className="documents-term-th"
                   field="term"
                   filterControl={
-                    <CustomSelect
-                      aria-label={t("documentsPage.filter.term")}
-                      onChange={(event) =>
-                        handleCandidateFilterChange(
-                          "groupIds",
-                          event.target.value === "" ? [] : [event.target.value]
-                        )
+                    <CheckboxListPopover
+                      onChange={(next) =>
+                        handleCandidateFilterChange("groupIds", next)
                       }
-                      size="sm"
+                      options={bulkGroupOptions.map((group) => ({
+                        value: group.id,
+                        label: buildGroupHeading(group.title, group.term, [group.term], lang),
+                      }))}
+                      placeholder={t("documentsPage.filter.term")}
+                      searchable={bulkGroupOptions.length > 8}
                       title={t("documentsPage.filter.term")}
-                      value={candidateFilters.groupIds[0] ?? ""}
-                    >
-                      <option value="">{t("common.all")}</option>
-                      {bulkGroupOptions.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {buildGroupHeading(group.title, group.term, [group.term], lang)}
-                        </option>
-                      ))}
-                    </CustomSelect>
+                      triggerVariant="icon"
+                      values={candidateFilters.groupIds}
+                    />
                   }
                   label={t("documentsPage.filter.term")}
                   onToggle={handleSortToggle}
@@ -1464,7 +1459,7 @@ export function DocumentsPage() {
         tags={allTags}
       />
 
-    </>
+    </div>
   );
 }
 

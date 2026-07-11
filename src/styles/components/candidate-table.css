@@ -389,16 +389,30 @@
 }
 
 /* ─── CANDIDATE TABLE (extends data-table) ─── */
-.cand-table th {
+.data-table.cand-table {
+  font-size: 12px;
+}
+.data-table.cand-table th {
   background: var(--white);
   position: sticky;
   top: 0;
+  font-size: 9px;
+}
+.data-table.cand-table th:not(.sortable-th) {
+  padding: 3px 4px;
+}
+.data-table.cand-table .sortable-th-shell {
+  gap: 3px;
+  padding: 3px 4px;
+}
+.data-table.cand-table td {
+  padding: 2px 4px;
 }
 .cand-select-th,
 .cand-select-td {
-  width: 44px;
-  min-width: 44px;
-  max-width: 44px;
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
   padding: 0 !important;
   text-align: center;
   vertical-align: middle;
@@ -432,10 +446,10 @@
 }
 .cand-photo-th,
 .cand-photo-td {
-  width: 52px;
-  min-width: 52px;
-  max-width: 52px;
-  padding: 10px 8px !important;
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 2px 4px !important;
   text-align: center;
 }
 .cand-money-th,
@@ -443,11 +457,11 @@
   text-align: right;
 }
 .cand-truncate-td {
-  max-width: 180px;
+  max-width: 160px;
 }
 .cand-truncate {
   display: block;
-  max-width: 180px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -461,20 +475,28 @@
 }
 .cand-money {
   display: inline-block;
-  min-width: 86px;
+  min-width: 78px;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 .cand-driving-exam-date-th,
 .cand-driving-exam-date-td {
-  min-width: 116px;
+  min-width: 100px;
   white-space: nowrap;
 }
 .cand-driving-exam-code-th,
 .cand-driving-exam-code-td {
-  min-width: 150px;
+  min-width: 128px;
   white-space: nowrap;
+}
+.candidates-page--uygulama .cand-driving-exam-date-th,
+.candidates-page--uygulama .cand-driving-exam-date-td {
+  min-width: 88px;
+}
+.candidates-page--uygulama .cand-driving-exam-code-th,
+.candidates-page--uygulama .cand-driving-exam-code-td {
+  min-width: 108px;
 }
 .cand-debt {
   font-weight: 600;
@@ -498,6 +520,9 @@
   justify-content: center;
   width: var(--candidate-avatar-size);
   height: var(--candidate-avatar-size);
+}
+.cand-table .candidate-avatar {
+  --candidate-avatar-size: 28px;
 }
 .candidate-avatar:not(.instructor-avatar) {
   width: calc(var(--candidate-avatar-size) * 394 / 512);
@@ -690,14 +715,14 @@
   text-decoration: underline;
 }
 
-.cand-name { font-weight: 600; color: var(--gray-900); }
+.cand-name { font-size: 12px; font-weight: 600; color: var(--gray-900); }
 .cand-row-cell { cursor: pointer; }
 .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50, #eff6ff) 30%, transparent); }
 tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50, #eff6ff) 70%, transparent); }
 .cand-inline-edit-cell {
   position: relative;
   z-index: 1;
-  min-width: 72px;
+  min-width: 68px;
 }
 .cand-table tbody tr:has(.cand-inline-edit-cell .custom-select-menu),
 .cand-table tbody tr:has(.cand-inline-edit-cell .localized-date-popover),
@@ -737,6 +762,28 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   text-align: left;
   cursor: pointer;
 }
+.candidates-page--uygulama .cand-inline-edit-cell {
+  min-width: 60px;
+}
+.candidates-page--uygulama .cand-inline-edit-trigger {
+  min-height: 22px;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.candidates-page--uygulama .cand-inline-edit-cell .custom-select-trigger,
+.candidates-page--uygulama .cand-inline-edit-cell .localized-date-trigger {
+  min-height: 22px;
+  height: 22px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+.candidates-page--uygulama .cand-inline-edit-input,
+.candidates-page--uygulama .cand-inline-edit-select {
+  min-width: 72px;
+  height: 22px;
+  padding: 1px 4px;
+  font-size: 11px;
+}
 .cand-inline-edit-trigger:hover:not(:disabled),
 .cand-inline-edit-trigger:focus-visible {
   border-color: var(--gray-200);
@@ -752,10 +799,22 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   width: 100%;
   min-width: 88px;
 }
-.cand-tc   { font-family: 'SF Mono', monospace; font-size: 12px; color: var(--gray-500); }
+.cand-tc   { font-family: 'SF Mono', monospace; font-size: 11px; color: var(--gray-500); }
 .cand-secondary-text {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--gray-500);
+}
+.cand-table .documents-phone-link {
+  font-size: 11px;
+}
+.cand-table .job-status-pill {
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 10px;
+}
+.cand-table .job-status-pill .dot {
+  width: 5px;
+  height: 5px;
 }
 .documents-phone-link {
   display: inline-flex;
@@ -768,7 +827,7 @@ tr:hover .cand-row-cell--drawer { background: color-mix(in srgb, var(--brand-50,
   text-decoration: underline;
 }
 .cand-class-badge {
-  font-size: 11px; font-weight: 700;
+  font-size: 10px; font-weight: 700;
   padding: 2px 8px;
   border-radius: 4px;
   background: var(--brand-light);

@@ -787,7 +787,7 @@ export function GroupsPage() {
   };
 
   return (
-    <div onWheelCapture={handleGroupsPageWheel}>
+    <div className="groups-page" onWheelCapture={handleGroupsPageWheel}>
       <PageToolbar
         actions={
           <>

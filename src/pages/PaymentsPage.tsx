@@ -260,11 +260,11 @@ const DETAIL_COLUMNS: {
   numeric?: boolean;
 }[] = [
   { id: "photo", labelKey: "payments.col.photo" },
-  { id: "candidate", labelKey: "common.field.fullName", sortable: true },
+  { id: "candidate", labelKey: "payments.col.candidate", sortable: true },
   { id: "group", labelKey: "payments.col.groupClass", sortable: true, filterable: true },
   { id: "type", labelKey: "payments.col.paymentType", sortable: true, filterable: true },
   { id: "cancelKind", labelKey: "payments.col.cancelKind", sortable: true, filterable: true },
-  { id: "date", labelKey: "common.field.date", sortable: true },
+  { id: "date", labelKey: "payments.col.date", sortable: true },
   { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
   { id: "receiptNumber", labelKey: "payments.col.receiptNumber", sortable: true },
   { id: "method", labelKey: "payments.col.method", sortable: true, filterable: true },
@@ -285,10 +285,10 @@ const INVOICE_COLUMNS: {
   numeric?: boolean;
 }[] = [
   { id: "photo", labelKey: "payments.col.photo" },
-  { id: "candidate", labelKey: "common.field.fullName", sortable: true },
+  { id: "candidate", labelKey: "payments.col.candidate", sortable: true },
   { id: "group", labelKey: "payments.col.term", sortable: true, filterable: true },
-  { id: "licenseClass", labelKey: "common.field.licenseClass", sortable: true, filterable: true },
-  { id: "date", labelKey: "common.field.date", sortable: true },
+  { id: "licenseClass", labelKey: "payments.col.licenseClass", sortable: true, filterable: true },
+  { id: "date", labelKey: "payments.col.date", sortable: true },
   { id: "service", labelKey: "payments.col.service", sortable: true, filterable: true },
   { id: "quantity", labelKey: "payments.col.quantity", sortable: true, numeric: true },
   { id: "unitPrice", labelKey: "payments.col.unitPrice", sortable: true, numeric: true },
@@ -315,9 +315,9 @@ const INVOICE_ANALYSIS_COLUMNS: {
   sortable?: boolean;
 }[] = [
   { id: "photo", labelKey: "payments.col.photo" },
-  { id: "candidate", labelKey: "common.field.fullName", sortable: true },
+  { id: "candidate", labelKey: "payments.col.candidate", sortable: true },
   { id: "group", labelKey: "payments.col.term", sortable: true },
-  { id: "licenseClass", labelKey: "common.field.licenseClass", sortable: true },
+  { id: "licenseClass", labelKey: "payments.col.licenseClass", sortable: true },
   {
     id: "courseBase",
     labelKey: "payments.col.courseBase",
@@ -3574,7 +3574,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   }
 
   return (
-    <div className="page page-with-toolbar">
+    <div className="page page-with-toolbar payments-page">
       <PageToolbar
         title={
           isBalancesPage

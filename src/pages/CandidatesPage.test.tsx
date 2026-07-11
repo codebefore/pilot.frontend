@@ -523,7 +523,7 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("shows the unscheduled exam charge action on the e-sinav candidate list", async () => {
+  it("hides the unscheduled exam charge action on the e-sinav candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -565,15 +565,12 @@ describe("CandidatesPage tabs", () => {
     renderESinavPage();
 
     await screen.findByText("Eren Test");
-    expect(screen.getByRole("button", { name: "Sınav borçlandır" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    expect(screen.getByRole("button", { name: "Sınav borçlandır" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
-    expect(await screen.findByText("Tarihsiz e-sınav borçlandırması")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
-  it("shows the unscheduled exam charge action on the uygulama candidate list", async () => {
+  it("hides the unscheduled exam charge action on the uygulama candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -616,8 +613,7 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
-    expect(await screen.findByText("Tarihsiz direksiyon sınav borçlandırması")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
@@ -1951,18 +1947,18 @@ describe("CandidatesPage tabs", () => {
     expect(headers).toEqual(
       expect.arrayContaining([
         "Hak",
-        "Sınav Durumu",
-        "Sınav Sonucu",
-        "Sınav Ücreti Durumu",
-        "Son Sınav Tarihi",
-        "Son Sınav Kodu",
+        "Katılım",
+        "Sonuç",
+        "Ücret",
+        "Tarih",
+        "Kod",
       ])
     );
-    expect(headers.indexOf("Sınav Durumu")).toBe(headers.indexOf("Hak") + 1);
-    expect(headers.indexOf("Sınav Sonucu")).toBe(headers.indexOf("Sınav Durumu") + 1);
-    expect(headers.indexOf("Sınav Ücreti Durumu")).toBe(headers.indexOf("Sınav Sonucu") + 1);
-    expect(headers.indexOf("Son Sınav Tarihi")).toBe(headers.indexOf("Sınav Ücreti Durumu") + 1);
-    expect(headers.indexOf("Son Sınav Kodu")).toBe(headers.indexOf("Son Sınav Tarihi") + 1);
+    expect(headers.indexOf("Katılım")).toBe(headers.indexOf("Hak") + 1);
+    expect(headers.indexOf("Sonuç")).toBe(headers.indexOf("Katılım") + 1);
+    expect(headers.indexOf("Ücret")).toBe(headers.indexOf("Sonuç") + 1);
+    expect(headers.indexOf("Tarih")).toBe(headers.indexOf("Ücret") + 1);
+    expect(headers.indexOf("Kod")).toBe(headers.indexOf("Tarih") + 1);
   });
 
   it("updates driving exam attendance status from the exam list and clears result when not attended", async () => {
@@ -4209,7 +4205,7 @@ describe("CandidatesPage sorting", () => {
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     const examAttemptHeader = screen.getByRole("columnheader", { name: /Sınav Hakkı/ });
-    fireEvent.click(within(examAttemptHeader).getAllByRole("button", { name: /Sınav Hakkı/ })[0]);
+    fireEvent.click(within(examAttemptHeader).getByRole("button", { name: "Hak" }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -4239,7 +4235,7 @@ describe("CandidatesPage sorting", () => {
     expect(within(examAttemptMenu).getByRole("checkbox", { name: "E-sınav 4/4" })).toBeInTheDocument();
 
     const totalDebtHeader = screen.getByRole("columnheader", { name: /Toplam Borç/ });
-    fireEvent.click(within(totalDebtHeader).getAllByRole("button", { name: /Toplam Borç/ })[0]);
+    fireEvent.click(within(totalDebtHeader).getByRole("button", { name: "Borç" }));
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -4290,7 +4286,11 @@ describe("CandidatesPage sorting", () => {
     renderESinavPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByLabelText("Hak"));
+    const attemptFilter = screen
+      .getByRole("columnheader", { name: "Hak" })
+      .querySelector<HTMLButtonElement>(".table-header-filter-trigger");
+    expect(attemptFilter).not.toBeNull();
+    fireEvent.click(attemptFilter!);
 
     const menu = await screen.findByRole("dialog");
     expect(within(menu).getByText("Hak")).toBeInTheDocument();
@@ -4305,7 +4305,7 @@ describe("CandidatesPage sorting", () => {
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
     const statusHeader = screen.getByRole("columnheader", { name: /Sınav Durumu/ });
-    fireEvent.click(within(statusHeader).getAllByRole("button", { name: /Sınav Durumu/ })[0]);
+    fireEvent.click(within(statusHeader).getByRole("button", { name: "Katılım" }));
 
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(

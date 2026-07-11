@@ -5,9 +5,18 @@
   gap: var(--page-shell-gap);
   padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
 }
+.settings-route > .page-toolbar {
+  height: 54px;
+  min-height: 54px;
+  padding-block: 0;
+}
+.settings-route > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
 .settings-shell {
   display: grid;
-  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 220px) minmax(0, 1fr);
   gap: var(--page-shell-gap);
   align-items: start;
 }
@@ -4343,12 +4352,12 @@
 .settings-nav-groups {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 .settings-nav-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 .settings-nav-group-title {
   font-size: 11px;
@@ -4360,14 +4369,14 @@
 .settings-nav-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 3px;
 }
 .settings-nav-link {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 0 12px 14px;
+  gap: 8px;
+  padding: 7px 0 7px 10px;
   border-left: 2px solid transparent;
   transition: border-color 0.15s, color 0.15s;
 }
@@ -4385,15 +4394,15 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 .settings-nav-link-title {
   font-size: 13px;
   color: var(--gray-900);
 }
 .settings-nav-link-description {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.3;
   color: var(--gray-500);
 }
 .settings-nav-link-badge {
@@ -4475,6 +4484,76 @@
 .settings-general-toolbar-left .settings-panel-note {
   margin-right: auto;
 }
+
+/* General settings: dense desktop form */
+.settings-general-section {
+  gap: 10px;
+}
+.settings-general-section .settings-tab-toolbar {
+  gap: 10px;
+}
+.settings-general-section .page-tab {
+  gap: 5px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+.settings-general-section .settings-panel-note {
+  font-size: 11px;
+}
+.settings-general-section .settings-tab-toolbar .settings-panel-note {
+  padding-bottom: 6px;
+}
+.settings-general-section .settings-general-toolbar-left {
+  gap: 10px;
+}
+.settings-general-section .settings-surface {
+  gap: 7px;
+}
+.settings-general-section .settings-surface-header {
+  gap: 10px;
+  padding-bottom: 5px;
+}
+.settings-general-section .settings-surface-title {
+  font-size: 14px;
+}
+.settings-general-section .settings-surface-body {
+  gap: 10px;
+}
+.settings-general-section .form-row {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.settings-general-section .form-group {
+  gap: 3px;
+}
+.settings-general-section .form-label {
+  font-size: 11px;
+}
+.settings-general-section .form-input,
+.settings-general-section .form-select {
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.settings-general-section textarea.form-input {
+  min-height: 56px;
+  resize: vertical;
+}
+.settings-general-section .settings-form-actions {
+  min-height: 28px;
+}
+.settings-general-section .settings-receipt-profile-grid {
+  gap: 7px;
+}
+.settings-general-section .settings-receipt-profile-option {
+  grid-template-columns: 15px minmax(0, 1fr);
+  gap: 7px;
+  min-height: 50px;
+  padding: 8px;
+}
+.settings-general-section .settings-receipt-profile-check {
+  width: 15px;
+  height: 15px;
+}
 .settings-surface {
   display: flex;
   flex-direction: column;
@@ -4533,6 +4612,15 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
+}
+.institutions-page > .page-toolbar {
+  height: 54px;
+  min-height: 54px;
+  padding-block: 0;
+}
+.institutions-page > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
 }
 .institutions-summary-card {
   min-height: 76px;
@@ -4944,10 +5032,28 @@
 }
 .settings-table th,
 .settings-table td {
-  padding: 10px 8px;
   border-bottom: 1px solid var(--gray-200);
   text-align: left;
   vertical-align: middle;
+}
+.settings-table th {
+  padding: 3px 4px;
+  font-size: 10px;
+}
+.settings-table td {
+  padding: 2px 4px;
+}
+
+/* Keep all tables embedded in settings at the same compact density. */
+.settings-route .settings-page .data-table th {
+  padding: 3px 4px;
+  font-size: 10px;
+}
+.settings-route .settings-page .data-table td {
+  padding: 2px 4px;
+}
+.settings-route .settings-page .data-table th .sortable-th-shell {
+  padding: 0;
 }
 .settings-color-swatch {
   display: inline-block;
@@ -5130,6 +5236,18 @@
   gap: 8px;
 }
 
+.payments-page > .page-toolbar {
+  height: 54px;
+  min-height: 54px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.payments-page > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
 .payments-filter-toggle.has-filters {
   border-color: var(--brand);
   color: var(--brand);
@@ -5152,7 +5270,7 @@
 
 .payments-tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   padding: 0 var(--page-shell-gutter);
   border-bottom: 1px solid var(--gray-200);
 }
@@ -5160,16 +5278,16 @@
 .payments-tab {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   appearance: none;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--gray-600);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 12px 4px 10px;
+  padding: 8px 4px 7px;
 }
 
 .payments-tab:hover {
@@ -5223,9 +5341,9 @@
 .payments-filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(130px, 1fr)) auto;
-  gap: 12px;
+  gap: 8px;
   align-items: end;
-  padding: var(--page-shell-gap) var(--page-shell-gutter);
+  padding: 10px var(--page-shell-gutter);
 }
 
 .payments-filters--with-period {
@@ -5242,24 +5360,29 @@
 
 .payments-filter-field .form-label {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
+  font-size: 11px;
 }
 
 .payments-filter-reset {
-  height: 37px;
+  height: 32px;
+  padding: 4px 9px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
 .payments-filter-actions {
   display: inline-flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 6px;
   min-width: max-content;
   position: relative;
 }
 
 .payments-filter-export {
-  height: 37px;
+  height: 32px;
+  padding: 4px 9px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
@@ -5299,8 +5422,8 @@
 .finance-matrix-card {
   display: flex;
   flex-direction: column;
-  gap: var(--page-shell-gap);
-  margin: var(--page-shell-gap) var(--page-shell-gutter) var(--page-shell-gap);
+  gap: 10px;
+  margin: 10px var(--page-shell-gutter);
 }
 
 .finance-matrix-card-head {
@@ -5332,23 +5455,31 @@
 }
 
 .finance-matrix-table {
-  min-width: 760px;
+  min-width: 680px;
 }
 
 .finance-payments-table {
-  min-width: 1080px;
+  min-width: 900px;
 }
 
 .finance-payments-table th,
 .finance-payments-table td {
-  padding-left: 18px;
-  padding-right: 18px;
+  padding: 2px 4px;
   white-space: nowrap;
 }
 
 .finance-payments-table thead th {
-  padding-top: 0;
-  padding-bottom: 0;
+  font-size: 9px;
+}
+
+.finance-payments-table thead .sortable-th-shell {
+  gap: 3px;
+  padding: 3px 4px;
+}
+
+.finance-payments-table thead .table-header-filter-trigger {
+  width: 18px;
+  height: 18px;
 }
 
 .finance-payments-table th {
@@ -5360,73 +5491,73 @@
 }
 
 .finance-payments-table .finance-detail-col-photo {
-  width: 56px;
+  width: 40px;
 }
 
 .finance-payments-table .finance-detail-col-candidate {
-  min-width: 170px;
+  min-width: 130px;
 }
 
 .finance-payments-table .finance-detail-col-group {
-  min-width: 130px;
+  min-width: 100px;
 }
 
 .finance-payments-table .finance-detail-col-type,
 .finance-payments-table .finance-detail-col-cancelKind {
-  min-width: 132px;
+  min-width: 100px;
 }
 
 .finance-payments-table .finance-detail-col-date {
-  width: 116px;
+  width: 90px;
 }
 
 .finance-payments-table .finance-detail-col-amount {
-  width: 116px;
+  width: 90px;
 }
 
 .finance-payments-table .finance-detail-col-receiptNumber {
-  width: 126px;
+  width: 100px;
 }
 
 .finance-payments-table .finance-detail-col-method {
-  width: 112px;
+  width: 90px;
   text-align: left;
 }
 
 .finance-payments-table .finance-detail-col-cashRegister {
-  min-width: 150px;
+  min-width: 110px;
 }
 
 .finance-payments-table .finance-detail-col-description {
-  min-width: 190px;
+  min-width: 140px;
 }
 
 .finance-payments-table .finance-col-photo {
-  width: 56px;
+  width: 40px;
 }
 
 .finance-payments-table .finance-col-candidate {
-  min-width: 170px;
-}
-
-.finance-payments-table .finance-col-group {
   min-width: 130px;
 }
 
+.finance-payments-table .finance-col-group {
+  min-width: 100px;
+}
+
 .finance-payments-table .finance-col-licenseClass {
-  min-width: 112px;
+  min-width: 80px;
 }
 
 .finance-payments-table .finance-col-type,
 .finance-payments-table .finance-col-cancelKind,
 .finance-payments-table .finance-col-invoiceType {
-  min-width: 132px;
+  min-width: 100px;
 }
 
 .finance-payments-table .finance-col-date,
 .finance-payments-table .finance-col-dueDate,
 .finance-payments-table .finance-col-lastMovementDate {
-  width: 116px;
+  width: 90px;
 }
 
 .finance-payments-table .finance-col-amount,
@@ -5451,29 +5582,29 @@
 .finance-payments-table .finance-col-subtotal,
 .finance-payments-table .finance-col-vatRate,
 .finance-payments-table .finance-col-vatAmount {
-  width: 118px;
+  width: 90px;
 }
 
 .finance-payments-table .finance-col-receiptNumber,
 .finance-payments-table .finance-col-invoiceNo {
-  width: 126px;
+  width: 100px;
 }
 
 .finance-payments-table .finance-col-method {
-  width: 112px;
+  width: 90px;
   text-align: left;
 }
 
 .finance-payments-table .finance-col-cashRegister,
 .finance-payments-table .finance-col-cancelledBy,
 .finance-payments-table .finance-col-name {
-  min-width: 150px;
+  min-width: 110px;
 }
 
 .finance-payments-table .finance-col-description,
 .finance-payments-table .finance-col-notes,
 .finance-payments-table .finance-col-service {
-  min-width: 190px;
+  min-width: 140px;
 }
 
 .finance-payments-table th.finance-matrix-amount .sortable-th-shell {
@@ -5631,25 +5762,24 @@
 }
 
 .finance-matrix-table thead th {
-  min-width: 150px;
-  padding-top: 14px;
-  padding-bottom: 14px;
+  min-width: 110px;
+  padding: 3px 4px;
+  font-size: 9px;
 }
 
 .finance-matrix-table thead th:first-child {
-  min-width: 180px;
-  padding-left: 18px;
+  min-width: 130px;
+  padding-left: 4px;
 }
 
 .finance-matrix-table thead th:last-child {
-  min-width: 130px;
+  min-width: 90px;
   text-align: right;
 }
 
 .finance-matrix-table th,
 .finance-matrix-table td {
-  padding-left: 18px;
-  padding-right: 18px;
+  padding: 2px 4px;
   white-space: nowrap;
 }
 

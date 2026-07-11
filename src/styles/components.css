@@ -304,23 +304,23 @@
 /* ─── JOBS SUMMARY (small stat row) ─── */
 .jobs-summary {
   display: flex;
-  gap: var(--page-shell-gap);
-  padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
+  gap: 8px;
+  padding: 8px var(--page-shell-gutter) 0;
   flex-wrap: wrap;
 }
 .jobs-summary-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: 7px;
+  padding: 7px 10px;
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  min-width: 140px;
+  min-width: 108px;
 }
-.jobs-summary-card .sum-num  { font-size: 22px; font-weight: 800; }
-.jobs-summary-card .sum-label { font-size: 11px; color: var(--gray-500); font-weight: 600; }
+.jobs-summary-card .sum-num  { font-size: 18px; font-weight: 800; line-height: 1; }
+.jobs-summary-card .sum-label { font-size: 10px; color: var(--gray-500); font-weight: 600; }
 .sum-num.tone-brand  { color: var(--brand); }
 .sum-num.tone-blue   { color: var(--blue); }
 .sum-num.tone-gray   { color: var(--gray-400); }
@@ -332,8 +332,8 @@
 .jobs-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: var(--page-shell-gap) var(--page-shell-gutter);
+  gap: 6px;
+  padding: 7px var(--page-shell-gutter);
   flex-wrap: wrap;
 }
 
@@ -341,10 +341,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 5px 8px;
   color: var(--gray-600);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   border-bottom: 1px solid var(--gray-200);
 }
@@ -398,6 +398,40 @@
 }
 
 /* ─── GROUP GRID ─── */
+.groups-page > .page-toolbar {
+  gap: 10px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.groups-page > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.groups-page > .page-toolbar .toolbar-actions {
+  gap: 6px;
+}
+.groups-page .term-bar {
+  gap: 8px;
+  padding-top: 10px;
+}
+.groups-page .term-bar-select {
+  height: 32px;
+  min-width: 220px;
+  font-size: 12px;
+}
+.groups-page .term-bar .search-box {
+  margin: 0;
+  padding: 0;
+}
+.groups-page .term-bar .search-input {
+  padding: 7px 12px 7px 32px;
+  background-position: 10px center;
+  font-size: 12px;
+}
+.groups-page .view-toggle-btn {
+  width: 34px;
+  height: 32px;
+}
 .groups-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -406,18 +440,19 @@
 }
 .groups-page-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 .group-term-sections {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  padding: var(--page-shell-gap) var(--page-shell-gutter) 48px;
+  gap: 16px;
+  padding: 12px var(--page-shell-gutter) 32px;
 }
 .group-term-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+  gap: 10px;
+  padding: 12px;
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
@@ -426,8 +461,8 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 12px;
+  gap: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--gray-200);
 }
 .group-term-section-copy {
@@ -435,13 +470,13 @@
 }
 .group-term-section-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.2;
   color: var(--gray-900);
 }
 .group-term-section-meta {
-  margin: 4px 0 0;
-  font-size: 13px;
+  margin: 2px 0 0;
+  font-size: 11px;
   color: var(--gray-500);
 }
 .group-term-section-stats {
@@ -450,19 +485,19 @@
   gap: 6px;
 }
 .group-term-section-stat {
-  min-width: 84px;
+  min-width: 68px;
   text-align: center;
 }
 .group-term-section-stat strong {
   display: block;
-  font-size: 18px;
+  font-size: 15px;
   line-height: 1.2;
   color: var(--gray-900);
 }
 .group-term-section-stat span {
   display: block;
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 2px;
+  font-size: 10px;
   color: var(--gray-500);
 }
 .group-term-section-license-group {
@@ -480,10 +515,10 @@
   text-align: center;
 }
 .group-term-section-stat-license strong {
-  font-size: 16px;
+  font-size: 14px;
 }
 .group-term-section-stat-license span {
-  font-size: 11px;
+  font-size: 10px;
 }
 .group-term-section .groups-page-grid {
   padding: 0;
@@ -491,18 +526,18 @@
 .group-card-license-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
+  gap: 4px;
+  margin-top: 8px;
 }
 .group-card-license-chip {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 999px;
   background: var(--gray-100);
   color: var(--gray-700);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
 }
 .group-card-license-chip strong {
@@ -510,7 +545,7 @@
   color: var(--gray-900);
 }
 .group-card-license-chip span {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--gray-500);
 }
 .group-table .group-card-license-chips {
@@ -518,6 +553,12 @@
 }
 .group-term-table-wrap {
   padding: 0;
+}
+.groups-page .group-term-section .panel-header {
+  padding: 10px 12px;
+}
+.groups-page .group-body {
+  padding: 10px 12px;
 }
 @media (max-width: 1100px) {
   .groups-page-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1466,13 +1507,13 @@
 /* Institution settings: logo */
 .settings-logo-row {
   display: flex;
-  gap: 16px;
+  gap: 10px;
   align-items: flex-start;
   flex-wrap: wrap;
 }
 .settings-logo-preview {
-  width: 120px;
-  height: 120px;
+  width: 88px;
+  height: 88px;
   border: 1px dashed var(--gray-300);
   border-radius: 8px;
   display: flex;
@@ -1496,7 +1537,7 @@
 .settings-logo-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   align-items: flex-start;
 }
 .fee-matrix > .settings-surface-header {

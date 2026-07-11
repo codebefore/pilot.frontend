@@ -550,7 +550,7 @@ export function GeneralInstitutionSection() {
   }
 
   return (
-    <form className="settings-section-stack" onSubmit={handleSubmit}>
+    <form className="settings-section-stack settings-general-section" onSubmit={handleSubmit}>
       <div className="settings-tab-toolbar settings-general-toolbar">
         <div className="settings-general-toolbar-left">
           <PageTabs active={activeTab} onChange={setActiveTab} tabs={tabs} />

@@ -15,7 +15,7 @@
   background: var(--gray-50);
 }
 .data-table td {
-  padding: 12px 16px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--gray-100);
   vertical-align: middle;
 }
@@ -32,33 +32,71 @@
   min-width: 100%;
   table-layout: auto;
 }
+.documents-page > .page-toolbar {
+  gap: 10px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.documents-page > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.documents-page > .page-toolbar .toolbar-actions,
+.documents-page .candidate-bulk-toolbar {
+  gap: 6px;
+}
+.documents-page .candidate-bulk-toolbar {
+  min-height: 28px;
+  padding: 0;
+}
+.documents-page .tabs-search-row {
+  gap: 12px;
+}
+.documents-page .page-tab {
+  gap: 5px;
+  padding: 9px 12px;
+  font-size: 12px;
+}
+.documents-page .page-tab-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.documents-page .tabs-search-row .search-input {
+  padding: 7px 12px 7px 32px;
+  background-position: 10px center;
+  font-size: 12px;
+}
+.documents-page .table-wrap.spaced {
+  padding-top: 4px;
+}
 .documents-table th,
 .documents-table td {
   box-sizing: border-box;
 }
 .documents-candidate-th,
 .documents-candidate-td {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
+  width: 110px;
+  min-width: 110px;
+  max-width: 110px;
 }
 .documents-license-th,
 .documents-license-td {
-  width: 64px;
-  min-width: 64px;
-  max-width: 64px;
+  width: 50px;
+  min-width: 50px;
+  max-width: 50px;
 }
 .documents-term-th,
 .documents-term-td {
-  width: 136px;
-  min-width: 136px;
-  max-width: 136px;
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
 }
 .documents-summary-th,
 .documents-summary-td {
-  width: 58px;
-  min-width: 58px;
-  max-width: 58px;
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
 }
 .documents-candidate-td,
 .documents-term-td,
@@ -81,11 +119,11 @@
 }
 .documents-doc-th,
 .documents-doc-td {
-  width: 54px;
-  min-width: 54px;
-  max-width: 54px;
-  padding-left: 6px !important;
-  padding-right: 6px !important;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
   text-align: center !important;
   white-space: nowrap;
 }
@@ -97,8 +135,8 @@
   overflow-y: visible;
 }
 .documents-doc-th {
-  height: 38px;
-  padding: 7px 6px;
+  height: 28px;
+  padding: 3px 4px;
   vertical-align: middle;
   overflow: hidden;
 }
@@ -108,7 +146,7 @@
   overflow: hidden;
   padding: 0;
   text-align: center;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
   font-weight: 700;
   letter-spacing: 0;
@@ -118,15 +156,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 .documents-doc-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -148,8 +186,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   color: var(--gray-400);
   font-weight: 700;
 }
@@ -157,21 +195,6 @@
 .documents-summary-partial,
 .documents-summary-complete {
   font-weight: 700;
-}
-.documents-term-th .sortable-th-shell {
-  gap: 4px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-.documents-term-th .sortable-th-filter {
-  min-width: 74px;
-}
-.documents-term-th .custom-select-trigger {
-  height: 24px;
-  padding: 0 6px;
-  font-size: 11px;
-  letter-spacing: 0;
-  text-transform: none;
 }
 .documents-summary-empty {
   color: var(--red);
@@ -185,14 +208,14 @@
 
 /* Column visibility picker — as a rightmost table header cell */
 .col-picker-th {
-  width: 48px;
-  padding: 0 8px !important;
+  width: 40px;
+  padding: 0 4px !important;
   text-align: center;
   vertical-align: middle !important;
 }
 .col-picker-td {
-  width: 48px;
-  padding: 0 8px;
+  width: 40px;
+  padding: 0 4px;
   text-align: center;
   vertical-align: middle !important;
 }
@@ -514,9 +537,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin: 12px 0 10px;
-  padding: 10px 12px;
+  gap: 10px;
+  margin: 8px 0 6px;
+  padding: 6px 8px;
   border: 1px solid var(--gray-200);
   border-radius: 6px;
   background: var(--surface);
@@ -539,7 +562,7 @@
   min-width: 180px;
 }
 .queue-health-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--gray-900);
 }
@@ -549,7 +572,7 @@
 }
 .queue-health-message {
   color: var(--gray-800);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
 }
 .queue-health-error {
@@ -564,14 +587,72 @@
   display: flex;
   flex: 1;
   flex-wrap: wrap;
-  gap: 8px 14px;
+  gap: 5px 10px;
   color: var(--gray-700);
-  font-size: 12px;
+  font-size: 11px;
+}
+
+/* MEB jobs: dense desktop table */
+.meb-jobs-page > .page-toolbar {
+  min-height: 54px;
+  padding-block: 6px;
+}
+.meb-jobs-page > .queue-health-band {
+  margin-inline: var(--page-shell-gutter);
+}
+.meb-jobs-page > .table-wrap {
+  padding: 4px var(--page-shell-gutter) 32px;
+}
+.meb-jobs-page .data-table th {
+  padding: 3px 4px;
+  font-size: 9px;
+}
+.meb-jobs-page .data-table td {
+  padding: 2px 4px;
+}
+.meb-jobs-page .job-candidate-cell {
+  gap: 0;
+  line-height: 1.2;
+}
+.meb-jobs-page .job-candidate-name,
+.meb-jobs-page .job-type,
+.meb-jobs-page .job-duration {
+  font-size: 11px;
+}
+.meb-jobs-page .job-candidate-secondary,
+.meb-jobs-page .job-time {
+  font-size: 10px;
+}
+.meb-jobs-page .queue-publish-status {
+  min-height: 18px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+.meb-jobs-page .job-status-pill {
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+}
+.meb-jobs-page .job-status-pill .dot {
+  width: 5px;
+  height: 5px;
+}
+.meb-jobs-page .job-row-actions {
+  gap: 4px;
 }
 .outbox-page {
   min-width: 0;
-  --outbox-panel-padding-x: 16px;
-  --outbox-panel-padding-y: 14px;
+  --outbox-panel-padding-x: 8px;
+  --outbox-panel-padding-y: 6px;
+}
+.outbox-route > .page-toolbar {
+  height: 54px;
+  min-height: 54px;
+  padding-block: 0;
+}
+.outbox-route > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
 }
 .panel-body:has(.outbox-page) {
   overflow-x: visible;
@@ -579,14 +660,19 @@
 .outbox-tabs {
   padding-inline: var(--outbox-panel-padding-x);
 }
+.outbox-tabs .page-tab {
+  gap: 5px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
 .outbox-toolbar {
-  padding: 10px var(--outbox-panel-padding-x);
+  padding: 6px var(--outbox-panel-padding-x);
   border-bottom: 1px solid var(--gray-100);
 }
 .outbox-toolbar .filter-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   overflow-x: auto;
   padding-bottom: 2px;
 }
@@ -606,20 +692,20 @@
 .queue-health-band.projection-health {
   display: grid;
   grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
-  gap: 14px;
+  gap: 8px;
   align-items: stretch;
 }
 .projection-health-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
 }
 .projection-health-item {
   min-width: 0;
   border: 1px solid var(--gray-100);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 6px;
+  padding: 6px;
   background: var(--surface);
   text-align: left;
 }
@@ -658,10 +744,10 @@
 .projection-health-item-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 8px;
+  gap: 4px;
+  margin-top: 4px;
   color: var(--gray-600);
-  font-size: 12px;
+  font-size: 10px;
 }
 .projection-health-item-metrics span {
   min-width: 0;
@@ -670,12 +756,12 @@
   white-space: nowrap;
 }
 .projection-health-item-secondary {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 .projection-health-item-error {
-  margin-top: 8px;
+  margin-top: 4px;
   color: var(--danger);
-  font-size: 12px;
+  font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -686,8 +772,17 @@
 }
 .outbox-table th,
 .outbox-table td {
-  padding-left: 12px;
-  padding-right: 12px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.outbox-table th {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 9px;
+}
+.outbox-table td {
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 .outbox-col-event {
   width: 22%;
@@ -754,12 +849,12 @@
 }
 .outbox-table .table-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   justify-content: flex-end;
-  padding-right: 16px;
+  padding-right: 4px;
 }
 .outbox-table .table-actions .btn {
-  min-width: 64px;
+  min-width: 54px;
   justify-content: center;
 }
 .outbox-detail-heading {

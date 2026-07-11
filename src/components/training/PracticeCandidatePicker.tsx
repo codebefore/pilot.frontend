@@ -137,6 +137,11 @@ function splitCandidateFullName(fullName: string): { firstName: string; lastName
   };
 }
 
+function formatPracticeLicenseClass(value: string): string {
+  const normalized = value.trim().toUpperCase().replace(/[\s_]+/g, "-");
+  return normalized === "B-OTOMATIK" ? "B-OTO" : value;
+}
+
 export function PracticeCandidatePicker({
   onAssign,
   onSelectionChange,
@@ -503,7 +508,7 @@ export function PracticeCandidatePicker({
                     </td>
                     <td>
                       <span className="license-class-badge">
-                        {candidate.licenseClass}
+                        {formatPracticeLicenseClass(candidate.licenseClass)}
                       </span>
                     </td>
                     <td className="practice-picker-row-muted">

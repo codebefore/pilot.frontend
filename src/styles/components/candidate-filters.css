@@ -1,8 +1,8 @@
 /* ─── EXAM DATE SIDEBAR (exam candidate pages) ─── */
 .candidates-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
   padding: 0 var(--page-shell-gutter);
 }
@@ -10,7 +10,48 @@
   min-width: 0;
 }
 .candidates-page {
-  --candidates-toolbar-sticky-height: 71px;
+  --candidates-toolbar-sticky-height: 54px;
+}
+.candidates-page > .page-toolbar {
+  gap: 10px;
+  height: var(--candidates-toolbar-sticky-height);
+  min-height: var(--candidates-toolbar-sticky-height);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.candidates-page > .page-toolbar h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.candidates-page > .page-toolbar .toolbar-actions,
+.candidates-page .candidate-bulk-toolbar {
+  gap: 6px;
+}
+.candidates-page .candidate-bulk-toolbar {
+  min-height: 28px;
+  padding: 0;
+}
+.candidates-page .tabs-search-row {
+  gap: 12px;
+}
+.candidates-page .page-tab {
+  gap: 5px;
+  padding: 9px 12px;
+  font-size: 12px;
+}
+.candidates-page .page-tab-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.candidates-page .tabs-search-row .search-input {
+  padding: 7px 12px 7px 32px;
+  background-position: 10px center;
+  font-size: 12px;
+}
+.candidates-page .tabs-search-row.no-tabs .search-box {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 .candidates-page > .page-toolbar {
   position: sticky;
@@ -32,6 +73,9 @@
   padding-left: 0;
   padding-right: 0;
 }
+.candidates-page .table-wrap.spaced {
+  padding-top: 4px;
+}
 .exam-date-sidebar-list {
   position: sticky;
   top: calc(var(--header-h) + 12px);
@@ -39,7 +83,7 @@
   margin-top: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   border-radius: 8px;
 }
 .exam-date-sidebar-list:has(.localized-date-popover),
@@ -50,7 +94,7 @@
   display: flex;
   align-items: stretch;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .exam-date-sidebar-action {
   flex: 1 1 0;
@@ -61,20 +105,20 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  margin-top: 12px;
-  padding: 4px;
+  margin-top: 8px;
+  padding: 3px;
   border: 1px solid var(--gray-200);
   border-radius: 8px;
   background: var(--gray-50);
 }
 .exam-date-sidebar-tab {
   min-width: 0;
-  min-height: 30px;
+  min-height: 26px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--gray-600);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -86,7 +130,7 @@
 .exam-date-option-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .exam-date-option-shell {
   position: relative;
@@ -206,13 +250,13 @@
   justify-content: center;
   gap: 2px;
   width: 100%;
-  min-height: 42px;
-  padding: 4px 6px;
+  min-height: 36px;
+  padding: 3px 6px;
   border-radius: 8px;
   border: 1px solid var(--gray-200);
   background: var(--white);
   color: var(--gray-800);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: normal;
   text-align: left;
@@ -225,13 +269,13 @@
   justify-content: center;
   gap: 2px;
   width: 100%;
-  min-height: 42px;
-  padding: 6px 8px;
+  min-height: 36px;
+  padding: 4px 6px;
   border-radius: 8px;
   border: 1px solid var(--gray-200);
   background: var(--white);
   color: var(--gray-800);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -344,12 +388,12 @@
 }
 .exam-date-option-license {
   color: var(--brand-dark);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
 }
 .exam-date-option-meta {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--gray-500);
   line-height: 1.35;
@@ -369,22 +413,22 @@
 .tag-filter-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   /* Match the shared page gutter used by .page-toolbar / .tabs-search-row /
      .table-wrap so the row lines up with the tabs above and the table below.
      Bottom padding is left to 0 so .table-wrap.spaced's own top gap provides
      the single gap between this row and the table. */
-  padding: 12px var(--page-shell-gutter) 0;
+  padding: 8px var(--page-shell-gutter) 0;
 }
 .tag-filter-chip {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid transparent;
   background: var(--brand-light);
   color: var(--brand-dark);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   cursor: pointer;
@@ -406,12 +450,12 @@
 .tag-filter-summary-chip {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--gray-200);
   background: var(--gray-50);
   color: var(--gray-700);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   text-align: left;
@@ -431,12 +475,12 @@ button.tag-filter-summary-chip.active {
 .tag-filter-add {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px dashed var(--gray-300);
   background: transparent;
   color: var(--gray-500);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   cursor: pointer;
@@ -450,12 +494,12 @@ button.tag-filter-summary-chip.active {
 .tag-filter-manage {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--gray-200);
   background: var(--white);
   color: var(--gray-700);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   cursor: pointer;
@@ -467,13 +511,13 @@ button.tag-filter-summary-chip.active {
   background: var(--brand-subtle);
 }
 .tag-filter-new-input {
-  min-width: 140px;
-  padding: 4px 12px;
+  min-width: 126px;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--brand);
   background: var(--white);
   color: var(--gray-900);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
   outline: none;
