@@ -2108,7 +2108,6 @@ export function CandidatesPage({
   const [unscheduledExamChargeSaving, setUnscheduledExamChargeSaving] = useState(false);
   const isDrivingExamRandevuluTab = examDateSidebar?.examType === "uygulama" && tab === "randevulu";
   const canShowUnscheduledExamChargeAction = !isDrivingExamRandevuluTab;
-  const showUnscheduledExamChargeButton = false;
   const showUnscheduledExamChargePrompt = Boolean(unscheduledExamChargePrompt) && canShowUnscheduledExamChargeAction;
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -4627,7 +4626,7 @@ export function CandidatesPage({
                             {mebbisExamResultSyncRunning ? "Sorgulanıyor" : "Sonuç Sorgulama"}
                           </button>
                         ) : null}
-                        {showUnscheduledExamChargeButton && canShowUnscheduledExamChargeAction ? (
+                        {canShowUnscheduledExamChargeAction ? (
                           <button
                             className="btn btn-secondary btn-sm"
                             disabled={
@@ -4696,21 +4695,6 @@ export function CandidatesPage({
                         >
                           {t("candidates.bulk.addTag")}
                         </button>
-                        {showUnscheduledExamChargeButton && canShowUnscheduledExamChargeAction ? (
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            disabled={
-                              selectedCount === 0 ||
-                              !canManageCandidates ||
-                              unscheduledExamChargeLoading
-                            }
-                            onClick={openUnscheduledExamChargeAction}
-                            title={!canManageCandidates ? noPermissionTitle : undefined}
-                            type="button"
-                          >
-                            {unscheduledExamChargeLoading ? "Hazırlanıyor" : "Sınav borçlandır"}
-                          </button>
-                        ) : null}
                         {showFiltersAction ? (
                           <button
                             aria-controls="cand-filters-panel"

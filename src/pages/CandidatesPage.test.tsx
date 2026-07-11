@@ -523,7 +523,7 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("hides the unscheduled exam charge action on the e-sinav candidate list", async () => {
+  it("shows the unscheduled exam charge action on the e-sinav candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -565,12 +565,15 @@ describe("CandidatesPage tabs", () => {
     renderESinavPage();
 
     await screen.findByText("Eren Test");
+    expect(screen.getByRole("button", { name: "Sınav borçlandır" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sınav borçlandır" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
+    expect(await screen.findByText("Tarihsiz e-sınav borçlandırması")).toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
-  it("hides the unscheduled exam charge action on the uygulama candidate list", async () => {
+  it("shows the unscheduled exam charge action on the uygulama candidate list", async () => {
     const candidate = {
       id: "cand-1",
       firstName: "Eren",
@@ -613,7 +616,8 @@ describe("CandidatesPage tabs", () => {
 
     await screen.findByText("Eren Test");
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
-    expect(screen.queryByRole("button", { name: "Sınav borçlandır" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
+    expect(await screen.findByText("Tarihsiz direksiyon sınav borçlandırması")).toBeInTheDocument();
     expect(createUnscheduledCandidateExamAttemptChargeMock).not.toHaveBeenCalled();
   });
 
