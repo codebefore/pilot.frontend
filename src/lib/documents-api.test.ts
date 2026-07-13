@@ -39,6 +39,42 @@ describe("documents api", () => {
     expect(String(url)).toBe("http://127.0.0.1:5090/api/catalog/document-types");
   });
 
+  it("excludes the legacy invoice type from candidate document reads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([
+        {
+          documentTypeId: "invoice-type",
+          module: "candidate",
+          key: "invoice",
+          name: "Fatura",
+          sortOrder: 12,
+          isRequired: true,
+          isActive: true,
+          metadataSchemaJson: null,
+          updatedAtUtc: "2026-07-10T00:00:00Z",
+        },
+        {
+          documentTypeId: "identity-type",
+          module: "candidate",
+          key: "identity_card",
+          name: "Kimlik Fotokopisi",
+          sortOrder: 1,
+          isRequired: true,
+          isActive: true,
+          metadataSchemaJson: null,
+          updatedAtUtc: "2026-07-10T00:00:00Z",
+        },
+      ]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const documentTypes = await getDocumentTypes({ includeInactive: true });
+
+    expect(documentTypes.map((item) => item.key)).toEqual(["identity_card"]);
+  });
+
   it("routes candidate document reads to the runtime document base url", async () => {
     applyRuntimeConfig({
       documentApiBaseUrl: "http://127.0.0.1:5092",

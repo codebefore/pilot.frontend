@@ -122,6 +122,7 @@ export function getDocumentTypes(
     catalogRequestOptions(signal)
   ).then((documentTypes) =>
     documentTypes
+      .filter((item) => !(item.module === "candidate" && item.key === "invoice"))
       .filter((item) => item.module === params.module)
       .filter((item) => params.includeInactive || item.isActive)
       .map(mapDocumentTypeSnapshot)

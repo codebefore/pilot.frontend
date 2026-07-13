@@ -17,7 +17,6 @@ import { TrainingCalendar } from "../components/training/TrainingCalendar";
 import { CandidateTagsInput } from "../components/ui/CandidateTagsInput";
 import { EditableRow } from "../components/ui/EditableRow";
 import { CustomSelect } from "../components/ui/CustomSelect";
-import { FileDropInput } from "../components/ui/FileDropInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
@@ -803,8 +802,7 @@ export function CandidateDetailPage() {
       vatRate: number;
       notes?: string | null;
     },
-    createEArchiveDraft: boolean,
-    documentFile: File | null
+    createEArchiveDraft: boolean
   ) => {
     if (!canManagePayments) return;
     if (!candidate || invoiceSaving) return;
@@ -816,22 +814,6 @@ export function CandidateDetailPage() {
             rowVersion: invoice.rowVersion,
           })
         : await createCandidateAccountingInvoice(candidate.id, payload);
-      if (documentFile) {
-        const candidateDocumentTypes = await queryClient.fetchQuery({
-          queryKey: ["documentTypes", "candidate"],
-          queryFn: ({ signal }) => getDocumentTypes({ module: "candidate", includeInactive: false }, signal),
-        });
-        const invoiceDocumentType = candidateDocumentTypes.find((item) => item.key === "invoice");
-        if (!invoiceDocumentType) {
-          throw new Error("Fatura belge türü bulunamadı.");
-        }
-        await uploadDocument({
-          candidateId: candidate.id,
-          documentTypeId: invoiceDocumentType.id,
-          file: documentFile,
-          note: `Fatura ${savedInvoice.invoiceNo}`,
-        });
-      }
       if (createEArchiveDraft) {
         try {
           await createCandidateEArchiveSubmission(candidate.id, savedInvoice.id);
@@ -1032,8 +1014,8 @@ export function CandidateDetailPage() {
                 onRefundPayment={(paymentId, amount, cashRegisterId, note) =>
                   void handleRefundPayment(paymentId, amount, cashRegisterId, note)
                 }
-                onSaveInvoice={(invoice, payload, createEArchiveDraft, documentFile) =>
-                  void handleSaveInvoice(invoice, payload, createEArchiveDraft, documentFile)
+                onSaveInvoice={(invoice, payload, createEArchiveDraft) =>
+                  void handleSaveInvoice(invoice, payload, createEArchiveDraft)
                 }
                 paymentSaving={paymentSaving}
               />
@@ -5034,8 +5016,7 @@ function AccountingTab({
       vatRate: number;
       notes?: string | null;
     },
-    createEArchiveDraft: boolean,
-    documentFile: File | null
+    createEArchiveDraft: boolean
   ) => void;
   onDeleteInvoice: (invoiceId: string) => void;
 }) {
@@ -5111,7 +5092,6 @@ function AccountingTab({
     vatRate: string;
     notes: string;
     createEArchiveDraft: boolean;
-    documentFile: File | null;
   }>({
     open: false,
     invoice: null,
@@ -5125,7 +5105,6 @@ function AccountingTab({
     vatRate: "10",
     notes: "",
     createEArchiveDraft: true,
-    documentFile: null,
   });
   const [invoiceDeleteConfirmId, setInvoiceDeleteConfirmId] = useState<string | null>(null);
   const [invoiceActionsOpenId, setInvoiceActionsOpenId] = useState<string | null>(null);
@@ -5428,7 +5407,6 @@ function AccountingTab({
       vatRate: "10",
       notes: invoice?.notes ?? "",
       createEArchiveDraft: isEDocumentIntegrationActive,
-      documentFile: null,
     });
   };
   const openRefundModal = (payment: CandidateAccountingSummaryResponse["payments"][number]) => {
@@ -6303,8 +6281,7 @@ function AccountingTab({
                     vatRate: invoiceVatRate,
                     notes: invoiceModal.notes.trim() || null,
                   },
-                  invoiceModal.createEArchiveDraft,
-                  invoiceModal.documentFile
+                  invoiceModal.createEArchiveDraft
                 );
                 setInvoiceModal((current) => ({ ...current, open: false }));
               }}
@@ -6430,22 +6407,7 @@ function AccountingTab({
             <span className="form-label">Not</span>
             <input className="form-input" disabled={!canManagePayments} onChange={(event) => setInvoiceModal((current) => ({ ...current, notes: event.target.value }))} placeholder="Fatura notu" value={invoiceModal.notes} />
           </label>
-          {!isEDocumentIntegrationActive ? (
-            <div className="form-group">
-              <span className="form-label">Belge Yükle</span>
-              <FileDropInput
-                accept="application/pdf,image/*"
-                disabled={!canManagePayments}
-                file={invoiceModal.documentFile ?? undefined}
-                hint="PDF veya görsel dosyasını buraya sürükleyin"
-                name="invoice-document"
-                onChange={(files) =>
-                  setInvoiceModal((current) => ({ ...current, documentFile: files?.[0] ?? null }))
-                }
-                onClear={() => setInvoiceModal((current) => ({ ...current, documentFile: null }))}
-              />
-            </div>
-          ) : (
+          {isEDocumentIntegrationActive ? (
             <label className="switch-toggle">
               <input
                 checked={invoiceModal.createEArchiveDraft}
@@ -6456,7 +6418,7 @@ function AccountingTab({
               <span className="switch-toggle-control" aria-hidden="true" />
               <span>e-Belge taslağı oluştur</span>
             </label>
-          )}
+          ) : null}
         </div>
       </Modal>
 
@@ -9908,6 +9870,9 @@ const PRINTABLE_DOCUMENT_TYPE_KEYS = [
   "contract_back",
   "application_form",
 ] as const;
+// Finance records are not candidate enrollment documents. Keep legacy catalog
+// entries out of this screen while older environments are being cleaned up.
+const CANDIDATE_DOCUMENT_UI_EXCLUDED_KEYS = new Set(["invoice"]);
 const MEBBIS_ONE_BY_ONE_EXCLUDED_DOCUMENT_KEYS = new Set([
   "application_form",
   "existing_license_copy",
@@ -10344,7 +10309,9 @@ function DocumentsTab({
     }
   }
 
-  const sortedTypes = [...documentTypes].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sortedTypes = documentTypes
+    .filter((type) => !CANDIDATE_DOCUMENT_UI_EXCLUDED_KEYS.has(type.key))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const hasExistingLicenseInfo =
     candidateHasExistingLicense(candidate);
   const isNotApplicable = (type: DocumentTypeResponse) =>
