@@ -35,7 +35,9 @@ import { applyMebbisInstructorInventory } from "../../lib/mebbis-instructor-impo
 import { applyMebbisLicenseClassInventory } from "../../lib/mebbis-license-class-import";
 import { applyMebbisVehicleInventory } from "../../lib/mebbis-vehicle-import";
 import { candidateKeys } from "../../lib/queries/use-candidates";
+import { groupKeys } from "../../lib/queries/use-groups";
 import { useMebbisSessionGuard } from "../../lib/queries/use-mebbis-session";
+import { termKeys } from "../../lib/queries/use-terms";
 import type { GroupResponse } from "../../lib/types";
 import { MebIcon } from "../icons";
 import { useToast } from "../ui/Toast";
@@ -264,8 +266,12 @@ export function MigrationSettingsSection() {
   };
 
   const invalidateMebbisData = () => {
+    void queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: groupKeys.details() });
+    void queryClient.invalidateQueries({ queryKey: termKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: ["groups"] });
     void queryClient.invalidateQueries({ queryKey: ["candidates"] });
+    void queryClient.invalidateQueries({ queryKey: ["training", "groups"] });
     void queryClient.invalidateQueries({ queryKey: ["mebbisJobs", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -388,6 +394,8 @@ export function MigrationSettingsSection() {
       if (completedJob?.status === "succeeded") {
         window.setTimeout(invalidateMebbisData, 3000);
         window.setTimeout(invalidateMebbisData, 8000);
+        window.setTimeout(invalidateMebbisData, 15000);
+        window.setTimeout(invalidateMebbisData, 30000);
         showToast(t("groups.mebbisImportCompleted"));
         return;
       }
