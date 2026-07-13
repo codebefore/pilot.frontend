@@ -1930,6 +1930,7 @@ type CandidatesPageProps = {
   defaultTab?: CandidateTab;
   groupColumnMode?: "group" | "term";
   examDateSidebar?: ExamDateSidebarConfig;
+  excludePenaltyPointsFromExamLists?: boolean;
   tabConfig?: {
     tabs: { key: CandidateListTabKey; label: string }[];
     defaultTab: CandidateListTabKey;
@@ -1951,6 +1952,7 @@ export function CandidatesPage({
   defaultTab = DEFAULT_TAB,
   groupColumnMode = "group",
   examDateSidebar,
+  excludePenaltyPointsFromExamLists = false,
   tabConfig,
 }: CandidatesPageProps = {}) {
   const t = useT();
@@ -2947,6 +2949,7 @@ export function CandidatesPage({
       tags: activeTags.length > 0 ? activeTags : undefined,
       ...candidateFilterParams,
       ...examDateFilterParams,
+      excludePenaltyPointsFromExamLists: excludePenaltyPointsFromExamLists || undefined,
       sortBy: sort?.field,
       sortDir: sort?.direction,
       page,
@@ -2958,6 +2961,7 @@ export function CandidatesPage({
     debouncedSearch,
     examDateTabNeutral,
     examDateFilterParams,
+    excludePenaltyPointsFromExamLists,
     isDrivingExamCodeTabActive,
     page,
     pageSize,
@@ -2978,6 +2982,7 @@ export function CandidatesPage({
       search: normalizeTextQuery(debouncedSearch),
       tags: activeTags.length > 0 ? activeTags : undefined,
       ...candidateFilterParams,
+      excludePenaltyPointsFromExamLists: excludePenaltyPointsFromExamLists || undefined,
       page: 1,
       pageSize: 1,
     };
@@ -2985,6 +2990,7 @@ export function CandidatesPage({
     activeTags,
     debouncedFilters,
     debouncedSearch,
+    excludePenaltyPointsFromExamLists,
   ]);
 
   const candidatesQuery = useCandidates(candidatesRequestParams, true);

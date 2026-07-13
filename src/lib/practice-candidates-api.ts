@@ -36,6 +36,8 @@ export type PracticeCandidateListItem = {
   attemptNumber: number;
   maxAttemptCount: number;
   attemptSlotLabel: string;
+  practiceRoundNumber: number;
+  totalAttemptNumber: number;
   completedPracticeHours: number;
   targetPracticeHours: number;
   remainingPracticeHours: number;

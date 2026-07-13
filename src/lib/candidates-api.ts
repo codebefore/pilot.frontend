@@ -56,6 +56,8 @@ export interface GetCandidatesParams extends QueryParams {
   status?: string;
   eSinavTab?: ESinavTabValue;
   drivingExamTab?: CandidateExamTabValue;
+  /** Only exam pages use this to exclude 100-CP candidates from their lists. */
+  excludePenaltyPointsFromExamLists?: boolean;
   eSinavDate?: string;
   drivingExamDate?: string;
   eSinavScheduleId?: string;

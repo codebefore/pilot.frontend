@@ -25,6 +25,7 @@ export function ExamUygulamaPage() {
         drivingExamResultStatus: "Sınav Sonucu",
       }}
       defaultVisibleColumnIds={defaultVisibleColumnIds}
+      excludePenaltyPointsFromExamLists
       examDateSidebar={{
         examType: "uygulama",
         field: "drivingExamDate",

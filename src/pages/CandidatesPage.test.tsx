@@ -445,6 +445,7 @@ describe("CandidatesPage tabs", () => {
     expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.status).toBe("active");
     expect(callArgs.candidateTab).toBeUndefined();
+    expect(callArgs.excludePenaltyPointsFromExamLists).toBeUndefined();
   });
 
   it("renders e-sinav tabs and defaults to the havuz filter", async () => {
@@ -458,6 +459,7 @@ describe("CandidatesPage tabs", () => {
     expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.eSinavTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
+    expect(callArgs.excludePenaltyPointsFromExamLists).toBe(true);
 
     expect(screen.getByRole("button", { name: "Havuz" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Başarısız" })).toBeInTheDocument();
@@ -632,6 +634,7 @@ describe("CandidatesPage tabs", () => {
     expect(callArgs).toMatchObject({ page: 1, pageSize: 100 });
     expect(callArgs.drivingExamTab).toBe("havuz");
     expect(callArgs.status).toBe("active");
+    expect(callArgs.excludePenaltyPointsFromExamLists).toBe(true);
 
     expect(screen.getByRole("button", { name: "Havuz" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Başarısız" })).toBeInTheDocument();
@@ -757,6 +760,7 @@ describe("CandidatesPage tabs", () => {
     });
     expect(codeQuery!.drivingExamTab).toBeUndefined();
     expect(codeQuery!.status).toBeUndefined();
+    expect(codeQuery!.excludePenaltyPointsFromExamLists).toBe(true);
 
     fireEvent.click(screen.getByRole("tab", { name: "Sınav Tarihleri" }));
 
@@ -1084,6 +1088,7 @@ describe("CandidatesPage tabs", () => {
     });
     const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
     expect(lastCall?.[0].eSinavTab).toBeUndefined();
+    expect(lastCall?.[0].excludePenaltyPointsFromExamLists).toBe(true);
   });
 
   it("keeps the current e-sinav tab when a past exam date is selected", async () => {

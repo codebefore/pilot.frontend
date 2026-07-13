@@ -23,6 +23,7 @@ export function ExamESinavPage() {
         eSinavScore: "Puan",
       }}
       defaultVisibleColumnIds={defaultVisibleColumnIds}
+      excludePenaltyPointsFromExamLists
       examDateSidebar={{
         examType: "e_sinav",
         field: "eSinavDate",
