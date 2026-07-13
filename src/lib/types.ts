@@ -445,6 +445,7 @@ export interface CandidateAccountingInvoiceUpsertRequest {
   taxExemptionReasonName?: string | null;
   invoiceDate: string;
   subtotal: number;
+  totalAmount?: number;
   vatRate: number;
   notes?: string | null;
   rowVersion?: number;

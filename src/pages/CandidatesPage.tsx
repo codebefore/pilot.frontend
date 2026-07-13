@@ -983,16 +983,13 @@ function latestExamAttempt(
 type CandidateExamStage = "eSinav" | "practice";
 type CandidateUnifiedExamStatus = "havuz" | "randevulu" | "basarisiz" | "basarili" | "parked" | "graduated" | "dropped";
 
-function todayISO(): string {
-  return todayLocalDateOnly();
-}
-
-function isPastIsoDate(value: string): boolean {
-  return value < todayISO();
-}
-
-function omitExamTabFilter(params: Partial<GetCandidatesParams>): Partial<GetCandidatesParams> {
-  const { eSinavTab: _eSinavTab, drivingExamTab: _drivingExamTab, ...rest } = params;
+function omitExamOperationalFilters(params: Partial<GetCandidatesParams>): Partial<GetCandidatesParams> {
+  const {
+    status: _status,
+    eSinavTab: _eSinavTab,
+    drivingExamTab: _drivingExamTab,
+    ...rest
+  } = params;
   return rest;
 }
 
@@ -2934,7 +2931,7 @@ export function CandidatesPage({
     const tabParams = isDrivingExamCodeTabActive
       ? {}
       : examDateTabNeutral
-        ? omitExamTabFilter(builtTabParams)
+        ? omitExamOperationalFilters(builtTabParams)
         : builtTabParams;
     const {
       hasPhoto: _hasPhoto,
@@ -3983,11 +3980,7 @@ export function CandidatesPage({
       setBulkExamDateValue("");
       setSelectedExamDate(assignedExamDate);
       setSelectedExamScheduleId(selectedSchedule.id);
-      const neutral = isPastIsoDate(assignedExamDate);
-      setExamDateTabNeutral(neutral);
-      if (!neutral) {
-        setTab("randevulu");
-      }
+      setExamDateTabNeutral(true);
       setPage(1);
       refreshAll();
     } catch {

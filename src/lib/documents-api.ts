@@ -130,6 +130,21 @@ export function getDocumentTypes(
   );
 }
 
+export function getCandidateInvoiceDocumentType(
+  signal?: AbortSignal
+): Promise<DocumentTypeResponse | null> {
+  return httpGet<DocumentTypeSnapshot[]>(
+    "/api/catalog/document-types",
+    undefined,
+    catalogRequestOptions(signal)
+  ).then((documentTypes) => {
+    const invoiceType = documentTypes.find(
+      (item) => item.module === "candidate" && item.key === "invoice" && item.isActive
+    );
+    return invoiceType ? normalizeDocumentType(mapDocumentTypeSnapshot(invoiceType)) : null;
+  });
+}
+
 function mapDocumentTypeSnapshot(snapshot: DocumentTypeSnapshot): DocumentTypeResponse {
   return {
     id: snapshot.documentTypeId,

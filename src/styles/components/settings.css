@@ -3360,6 +3360,11 @@
   background: var(--white);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
 }
+.candidate-accounting-invoice-actions-menu {
+  min-width: 184px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
 .candidate-accounting-action {
   width: 100%;
   min-height: 30px;
@@ -3372,6 +3377,13 @@
   font-size: 12px;
   font-weight: 700;
   text-align: left;
+}
+.candidate-accounting-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.candidate-accounting-action:disabled:hover {
+  background: transparent;
 }
 .candidate-accounting-action:hover {
   background: color-mix(in srgb, var(--gray-100) 70%, var(--white));

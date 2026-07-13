@@ -1078,7 +1078,6 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          status: "active",
           eSinavDate: "2026-06-12",
           eSinavScheduleId: "e_sinav-2026-06-12",
           page: 1,
@@ -1087,6 +1086,7 @@ describe("CandidatesPage tabs", () => {
       );
     });
     const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
+    expect(lastCall?.[0].status).toBeUndefined();
     expect(lastCall?.[0].eSinavTab).toBeUndefined();
     expect(lastCall?.[0].excludePenaltyPointsFromExamLists).toBe(true);
   });
@@ -1104,7 +1104,6 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          status: "active",
           eSinavDate: "2026-05-12",
           eSinavScheduleId: "e_sinav-2026-05-12",
           page: 1,
@@ -1113,6 +1112,7 @@ describe("CandidatesPage tabs", () => {
       );
     });
     const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
+    expect(lastCall?.[0].status).toBeUndefined();
     expect(lastCall?.[0].eSinavTab).toBeUndefined();
     expect(screen.getByRole("button", { name: "Havuz" })).not.toHaveClass("active");
     expect(screen.getByRole("button", { name: "Başarısız" })).not.toHaveClass("active");
@@ -1213,7 +1213,6 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          status: "active",
           drivingExamDate: "2026-06-13",
           drivingExamScheduleId: "uygulama-2026-06-13",
           page: 1,
@@ -1222,6 +1221,7 @@ describe("CandidatesPage tabs", () => {
       );
     });
     const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
+    expect(lastCall?.[0].status).toBeUndefined();
     expect(lastCall?.[0].drivingExamTab).toBeUndefined();
     expect(getExamScheduleOptionsMock).toHaveBeenCalledTimes(scheduleOptionCallCount);
   });
@@ -3333,7 +3333,7 @@ describe("CandidatesPage tabs", () => {
     });
   });
 
-  it("assigns selected candidates to the chosen e-sinav date in bulk", async () => {
+  it("keeps the historical roster after assigning candidates to a future e-sinav date in bulk", async () => {
     const candidates = [
       {
         id: "cand-1",
@@ -3371,24 +3371,24 @@ describe("CandidatesPage tabs", () => {
       totalPages: 1,
     });
     getExamScheduleOptionsMock.mockResolvedValue([
-      examScheduleOption("2026-06-12", {
+      examScheduleOption("2099-06-12", {
         candidateCount: 3,
         time: "09:00",
       }),
     ]);
     updateCandidateMock.mockResolvedValue({
       ...candidates[0],
-      mebExamDate: "2026-06-12",
+      mebExamDate: "2099-06-12",
     });
     createCandidateExamAttemptMock.mockResolvedValue({
       id: "attempt-1",
       candidateId: "cand-1",
       examType: "theory",
-      scheduledAt: "2026-06-12T06:00:00.000Z",
+      scheduledAt: "2099-06-12T06:00:00.000Z",
       attemptNumber: 1,
       score: null,
       expiresAt: null,
-      examScheduleId: "e_sinav-2026-06-12",
+      examScheduleId: "e_sinav-2099-06-12",
       examCode: null,
       vehicleId: null,
       vehiclePlate: null,
@@ -3416,11 +3416,11 @@ describe("CandidatesPage tabs", () => {
     const optionLabels = Array.from(bulkExamDateSelect.querySelectorAll("option")).map(
       (option) => option.textContent
     );
-    expect(optionLabels).toContain("12.06.2026 09:00");
-    expect(optionLabels).not.toContain("12.06.2026 09:00 - 3 aday");
+    expect(optionLabels).toContain("12.06.2099 09:00");
+    expect(optionLabels).not.toContain("12.06.2099 09:00 - 3 aday");
 
     fireEvent.change(screen.getByLabelText("Toplu sınav tarihi seç"), {
-      target: { value: "e_sinav-2026-06-12" },
+      target: { value: "e_sinav-2099-06-12" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
 
@@ -3428,7 +3428,7 @@ describe("CandidatesPage tabs", () => {
       expect(updateCandidateMock).toHaveBeenCalledWith(
         "cand-1",
         expect.objectContaining({
-          mebExamDate: "2026-06-12",
+          mebExamDate: "2099-06-12",
         })
       );
     });
@@ -3437,8 +3437,8 @@ describe("CandidatesPage tabs", () => {
       "cand-1",
       expect.objectContaining({
         examType: "theory",
-        scheduledAt: "2026-06-12T06:00:00.000Z",
-        examScheduleId: "e_sinav-2026-06-12",
+        scheduledAt: "2099-06-12T06:00:00.000Z",
+        examScheduleId: "e_sinav-2099-06-12",
       })
     );
     expect(await screen.findByText("Sınav borçlandırması yapılsın mı?")).toBeInTheDocument();
@@ -3451,14 +3451,15 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => {
       expect(getCandidatesMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          status: "active",
-          eSinavDate: "2026-06-12",
-          eSinavScheduleId: "e_sinav-2026-06-12",
+          eSinavDate: "2099-06-12",
+          eSinavScheduleId: "e_sinav-2099-06-12",
           page: 1,
           pageSize: 100,
         })
       );
     });
+    const selectedDateCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1];
+    expect(selectedDateCall?.[0].status).toBeUndefined();
 
     expect(screen.getByRole("button", { name: "Sınav Tarihi Belirle" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Toplu Seçim" })).not.toBeInTheDocument();

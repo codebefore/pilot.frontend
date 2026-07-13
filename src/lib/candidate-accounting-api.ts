@@ -141,6 +141,9 @@ export interface CandidateEArchiveSubmissionResponse {
   status: string;
   externalUuid: string | null;
   externalReference: string | null;
+  canModify: boolean;
+  signingStartedAtUtc?: string | null;
+  signingAcknowledgedAtUtc?: string | null;
   lastError?: string | null;
 }
 
@@ -164,6 +167,17 @@ export function getCandidateEArchiveSubmission(
     `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/e-archive-submission`,
     undefined,
     financeRequestOptions(signal)
+  );
+}
+
+export function signCandidateEArchiveDraft(
+  candidateId: string,
+  invoiceId: string
+): Promise<CandidateEArchiveSubmissionResponse> {
+  return httpPost<CandidateEArchiveSubmissionResponse>(
+    `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/e-archive-submission/sign`,
+    undefined,
+    financeRequestOptions()
   );
 }
 

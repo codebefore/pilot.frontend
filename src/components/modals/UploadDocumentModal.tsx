@@ -69,6 +69,7 @@ type UploadDocumentModalProps = {
 const ACCEPT = "image/jpeg,image/png,application/pdf";
 const MAX_BYTES = 10 * 1024 * 1024;
 const MIN_CROP_SIZE = 12;
+const BIOMETRIC_CROP_JPEG_QUALITY = 0.98;
 const HEALTH_REPORT_META_KEYS = {
   disability: "disability",
 } as const;
@@ -95,11 +96,14 @@ type CropDragMode = "move" | "nw" | "ne" | "sw" | "se";
 type CaptureSource = "camera" | "scanner" | "file";
 
 const DEFAULT_PHOTO_CROP_PERCENT = 80;
-const PHOTO_CROP_DOCUMENT_TYPE_KEYS = new Set(["biometric_photo", "webcam_photo"]);
+const PHOTO_CROP_DOCUMENT_TYPE_KEYS = new Set(["biometric_photo", "webcam_photo", "signature_sample"]);
 const BIOMETRIC_PHOTO_DOCUMENT_TYPE_KEY = "biometric_photo";
+const WEBCAM_PHOTO_DOCUMENT_TYPE_KEY = "webcam_photo";
+const SIGNATURE_SAMPLE_DOCUMENT_TYPE_KEY = "signature_sample";
 const MEBBIS_BIOMETRIC_PHOTO_WIDTH = 394;
 const MEBBIS_BIOMETRIC_PHOTO_HEIGHT = 512;
 const MEBBIS_BIOMETRIC_PHOTO_ASPECT = MEBBIS_BIOMETRIC_PHOTO_WIDTH / MEBBIS_BIOMETRIC_PHOTO_HEIGHT;
+const SIGNATURE_SAMPLE_ASPECT = 1;
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -109,9 +113,15 @@ function isBiometricPhotoDocumentType(documentTypeKey?: string | null): boolean 
   return documentTypeKey === BIOMETRIC_PHOTO_DOCUMENT_TYPE_KEY;
 }
 
-function cropPercentRatioForImage(image: HTMLImageElement | null | undefined): number | null {
+function cropPercentRatioForImage(documentTypeKey: string | null | undefined, image: HTMLImageElement | null | undefined): number | null {
   if (!image || image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
-  return MEBBIS_BIOMETRIC_PHOTO_ASPECT / (image.naturalWidth / image.naturalHeight);
+  const targetAspect = documentTypeKey === BIOMETRIC_PHOTO_DOCUMENT_TYPE_KEY || documentTypeKey === WEBCAM_PHOTO_DOCUMENT_TYPE_KEY
+    ? MEBBIS_BIOMETRIC_PHOTO_ASPECT
+    : documentTypeKey === SIGNATURE_SAMPLE_DOCUMENT_TYPE_KEY
+      ? SIGNATURE_SAMPLE_ASPECT
+      : null;
+  if (!targetAspect) return null;
+  return targetAspect / (image.naturalWidth / image.naturalHeight);
 }
 
 function centeredCropRectForRatio(percent: number, cropPercentRatio: number | null): CropRect {
@@ -136,7 +146,7 @@ function defaultCropRect(documentTypeKey?: string | null, image?: HTMLImageEleme
   if (documentTypeKey && PHOTO_CROP_DOCUMENT_TYPE_KEYS.has(documentTypeKey)) {
     return centeredCropRectForRatio(
       DEFAULT_PHOTO_CROP_PERCENT,
-      isBiometricPhotoDocumentType(documentTypeKey) ? cropPercentRatioForImage(image) : null
+      cropPercentRatioForImage(documentTypeKey, image)
     );
   }
 
@@ -259,14 +269,15 @@ function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect, docu
     return Promise.reject(new Error("invalid-crop"));
   }
 
+  const biometric = isBiometricPhotoDocumentType(documentTypeKey);
   const canvas = document.createElement("canvas");
-  const outputWidth = isBiometricPhotoDocumentType(documentTypeKey) ? MEBBIS_BIOMETRIC_PHOTO_WIDTH : sourceWidth;
-  const outputHeight = isBiometricPhotoDocumentType(documentTypeKey) ? MEBBIS_BIOMETRIC_PHOTO_HEIGHT : sourceHeight;
+  const outputWidth = biometric ? MEBBIS_BIOMETRIC_PHOTO_WIDTH : sourceWidth;
+  const outputHeight = biometric ? MEBBIS_BIOMETRIC_PHOTO_HEIGHT : sourceHeight;
   canvas.width = outputWidth;
   canvas.height = outputHeight;
   const context = canvas.getContext("2d");
   if (!context) return Promise.reject(new Error("canvas-not-supported"));
-  if (isBiometricPhotoDocumentType(documentTypeKey)) {
+  if (biometric) {
     context.fillStyle = "#fff";
     context.fillRect(0, 0, outputWidth, outputHeight);
   }
@@ -292,7 +303,7 @@ function cropImageFile(file: File, image: HTMLImageElement, crop: CropRect, docu
         resolve(new File([blob], toJpegFileName(file.name), { type: "image/jpeg" }));
       },
       "image/jpeg",
-      0.92
+      biometric ? BIOMETRIC_CROP_JPEG_QUALITY : 0.92
     );
   });
 }
@@ -569,9 +580,7 @@ export function UploadDocumentModal({
       const top = start.y;
       const right = start.x + start.width;
       const bottom = start.y + start.height;
-      const cropPercentRatio = isBiometricPhotoDocumentType(activeDocumentType?.key)
-        ? cropPercentRatioForImage(cropImageRef.current)
-        : null;
+      const cropPercentRatio = cropPercentRatioForImage(activeDocumentType?.key, cropImageRef.current);
       if (cropPercentRatio) {
         setCrop(resizeCropRectWithRatio(start, drag.mode, dx, dy, cropPercentRatio));
         return;
