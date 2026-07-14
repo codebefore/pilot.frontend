@@ -1392,6 +1392,9 @@ describe("CandidatesPage tabs", () => {
   it("hides the status column by default outside the Tümü tab but lets the user show it", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktif" }));
+
     expect(screen.queryByRole("columnheader", { name: /^Durum$/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Sütunlar"));
@@ -1410,8 +1413,6 @@ describe("CandidatesPage tabs", () => {
   it("shows the status column by default on the Tümü tab", async () => {
     renderPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
-
-    fireEvent.click(screen.getByRole("button", { name: "Tümü" }));
 
     await waitFor(() => {
       expect(screen.getByRole("columnheader", { name: /^Durum$/i })).toBeInTheDocument();
