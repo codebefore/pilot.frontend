@@ -143,7 +143,7 @@ const TAB_KEYS: CandidateTab[] = [
   "graduated",
   "dropped",
 ];
-const DEFAULT_TAB: CandidateTab = "active";
+const DEFAULT_TAB: CandidateTab = "all";
 
 const DEFAULT_PAGE_SIZE = 100;
 const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
@@ -157,7 +157,7 @@ type SortState = { field: CandidateSortField; direction: SortDirection } | null;
 type CandidateColumnPageScope = "all" | "eSinav" | "uygulama";
 
 const COLUMN_DRAG_MIME_TYPE = "application/x-pilot-candidate-column";
-const CANDIDATE_SORT_STORAGE_VERSION = "v20";
+const CANDIDATE_SORT_STORAGE_VERSION = "v21";
 const DEFAULT_CANDIDATE_SORT: SortState = { field: "groupSortCode", direction: "desc" };
 const CANDIDATE_SORT_FIELDS = new Set<CandidateSortField>([
   "createdAtUtc",
@@ -1937,7 +1937,7 @@ type CandidatesPageProps = {
 
 export function CandidatesPage({
   title,
-  columnStorageKey = "candidates.columns.v20",
+  columnStorageKey = "candidates.columns.v21",
   defaultVisibleColumnIds: defaultVisibleColumnIdsProp,
   columnLabelOverrides,
   showCreateCandidateAction = true,

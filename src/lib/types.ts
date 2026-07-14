@@ -367,6 +367,7 @@ export interface CandidateAccountingRefundResponse {
 export interface CandidateAccountingInvoiceResponse {
   id: string;
   candidateId: string;
+  originalInvoiceId?: string | null;
   invoiceNo: string;
   invoiceType: string;
   serviceDescription: string;

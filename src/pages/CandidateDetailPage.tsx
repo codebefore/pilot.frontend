@@ -45,9 +45,11 @@ import {
 } from "../lib/candidate-bulk";
 import { getExamScheduleOptions } from "../lib/exam-schedules-api";
 import {
+  cancelCandidateEArchiveInvoice,
   cancelCandidateAccountingMovement,
   cancelCandidateAccountingPayment,
   createCandidateAccountingInvoice,
+  createCandidateAccountingInvoiceFullReturn,
   createCandidateAccountingMovement,
   createCandidateAccountingMovements,
   createCandidateAccountingPayment,
@@ -4956,10 +4958,14 @@ function CandidateEArchiveCell({
 function CandidateEArchiveMenuItems({
   candidateId,
   invoiceId,
+  invoiceType,
+  hasFullReturn,
   canManagePayments,
 }: {
   candidateId: string;
   invoiceId: string;
+  invoiceType: string;
+  hasFullReturn: boolean;
   canManagePayments: boolean;
 }) {
   const t = useT();
@@ -4968,6 +4974,12 @@ function CandidateEArchiveMenuItems({
   const [pdfLoading, setPdfLoading] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signConfirmOpen, setSignConfirmOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [returning, setReturning] = useState(false);
+  const [returnConfirmOpen, setReturnConfirmOpen] = useState(false);
+  const [returnReason, setReturnReason] = useState("");
   const submissionQuery = useCandidateEArchiveSubmission(candidateId, invoiceId);
   const submission = submissionQuery.data;
 
@@ -5009,10 +5021,70 @@ function CandidateEArchiveMenuItems({
     }
   };
 
+  const cancelInvoice = async () => {
+    const reason = cancellationReason.trim();
+    if (reason.length < 3) return;
+    setCancelling(true);
+    try {
+      const cancelledSubmission = await cancelCandidateEArchiveInvoice(candidateId, invoiceId, {
+        cancellationDate: todayIsoDate(),
+        cancellationReason: reason,
+      });
+      queryClient.setQueryData(
+        ["finance", "e-archive-submission", candidateId, invoiceId],
+        cancelledSubmission
+      );
+      await queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+      setCancelConfirmOpen(false);
+      setCancellationReason("");
+      showToast("Fatura iptal edildi.");
+    } catch (error) {
+      showToast(accountingErrorMessage(error, "Fatura iptal edilemedi.", t), "error");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const refreshStatus = async () => {
     const result = await submissionQuery.refetch();
     if (!result.error) {
       await queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+    }
+  };
+
+  const createFullReturn = async () => {
+    const reason = returnReason.trim();
+    if (reason.length < 3) return;
+    setReturning(true);
+    try {
+      const returnInvoice = await createCandidateAccountingInvoiceFullReturn(candidateId, invoiceId, {
+        invoiceDate: todayIsoDate(),
+        reason,
+      });
+      try {
+        const returnSubmission = await createCandidateEArchiveSubmission(candidateId, returnInvoice.id);
+        queryClient.setQueryData(
+          ["finance", "e-archive-submission", candidateId, returnInvoice.id],
+          returnSubmission
+        );
+      } catch (error) {
+        await queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+        setReturnConfirmOpen(false);
+        setReturnReason("");
+        showToast(
+          accountingErrorMessage(error, "İade faturası kaydedildi ancak e-Belge taslağı oluşturulamadı.", t),
+          "error"
+        );
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["candidates", "accounting", candidateId] });
+      setReturnConfirmOpen(false);
+      setReturnReason("");
+      showToast("Tam iade faturası oluşturuldu.");
+    } catch (error) {
+      showToast(accountingErrorMessage(error, "Tam iade faturası oluşturulamadı.", t), "error");
+    } finally {
+      setReturning(false);
     }
   };
 
@@ -5056,6 +5128,28 @@ function CandidateEArchiveMenuItems({
           </button>
         )
       ) : null}
+      {submission?.status === "delivered" && !hasFullReturn ? (
+        <button
+          className="candidate-accounting-action"
+          disabled={!canManagePayments}
+          onClick={() => setCancelConfirmOpen(true)}
+          role="menuitem"
+          type="button"
+        >
+          İptal
+        </button>
+      ) : null}
+      {submission?.status === "delivered" && isSalesInvoiceType(invoiceType) && !hasFullReturn ? (
+        <button
+          className="candidate-accounting-action"
+          disabled={!canManagePayments}
+          onClick={() => setReturnConfirmOpen(true)}
+          role="menuitem"
+          type="button"
+        >
+          Tam iade
+        </button>
+      ) : null}
       {submission?.externalUuid ? (
         <button
           className="candidate-accounting-action"
@@ -5078,6 +5172,100 @@ function CandidateEArchiveMenuItems({
           {submissionQuery.isFetching ? "Yenileniyor..." : "Durumu yenile"}
         </button>
       ) : null}
+      <Modal
+        footer={(
+          <>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={cancelling}
+              onClick={() => {
+                setCancelConfirmOpen(false);
+                setCancellationReason("");
+              }}
+              type="button"
+            >
+              Hayır
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={cancelling || cancellationReason.trim().length < 3}
+              onClick={() => void cancelInvoice()}
+              type="button"
+            >
+              {cancelling ? "İptal ediliyor..." : "Evet, iptal et"}
+            </button>
+          </>
+        )}
+        onClose={() => {
+          if (cancelling) return;
+          setCancelConfirmOpen(false);
+          setCancellationReason("");
+        }}
+        open={cancelConfirmOpen}
+        title="Fatura iptali"
+      >
+        <div className="candidate-accounting-modal-form">
+          <p>Bu işlem MySoft ve GİB tarafına bildirilecektir.</p>
+          <label className="form-group">
+            <span className="form-label">İptal nedeni</span>
+            <textarea
+              className="form-textarea"
+              disabled={cancelling}
+              maxLength={500}
+              onChange={(event) => setCancellationReason(event.target.value)}
+              rows={3}
+              value={cancellationReason}
+            />
+          </label>
+        </div>
+      </Modal>
+      <Modal
+        footer={(
+          <>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={returning}
+              onClick={() => {
+                setReturnConfirmOpen(false);
+                setReturnReason("");
+              }}
+              type="button"
+            >
+              Hayır
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={returning || returnReason.trim().length < 3}
+              onClick={() => void createFullReturn()}
+              type="button"
+            >
+              {returning ? "İade oluşturuluyor..." : "Evet, tam iade et"}
+            </button>
+          </>
+        )}
+        onClose={() => {
+          if (returning) return;
+          setReturnConfirmOpen(false);
+          setReturnReason("");
+        }}
+        open={returnConfirmOpen}
+        title="Tam iade faturası"
+      >
+        <div className="candidate-accounting-modal-form">
+          <p>Faturanın tamamı için eski faturaya bağlı yeni bir iade e-Belge taslağı oluşturulacaktır.</p>
+          <label className="form-group">
+            <span className="form-label">İade nedeni</span>
+            <textarea
+              className="form-textarea"
+              disabled={returning}
+              maxLength={500}
+              onChange={(event) => setReturnReason(event.target.value)}
+              rows={3}
+              value={returnReason}
+            />
+          </label>
+        </div>
+      </Modal>
     </>
   );
 }
@@ -5259,7 +5447,8 @@ function AccountingTab({
       if (
         target instanceof Element &&
         (target.closest(".candidate-accounting-invoice-actions-menu") ||
-          target.closest(".candidate-accounting-invoice-actions-trigger"))
+          target.closest(".candidate-accounting-invoice-actions-trigger") ||
+          target.closest(".modal-overlay"))
       ) {
         return;
       }
@@ -6110,12 +6299,16 @@ function AccountingTab({
                               <CandidateEArchiveMenuItems
                                 candidateId={candidate.id}
                                 invoiceId={invoice.id}
+                                invoiceType={invoice.invoiceType}
+                                hasFullReturn={accounting.invoices.some(
+                                  (item) => item.originalInvoiceId === invoice.id
+                                )}
                                 canManagePayments={canManagePayments}
                               />
                               <button
                                 className="candidate-accounting-action"
                                 disabled={Boolean(
-                                  invoiceModifyPermissions[invoice.id] === false
+                                  invoiceModifyPermissions[invoice.id] === false || invoice.originalInvoiceId
                                 )}
                                 onClick={() => {
                                   setInvoiceActionsMenu(null);
@@ -6123,7 +6316,9 @@ function AccountingTab({
                                 }}
                                 role="menuitem"
                                 title={
-                                  invoiceModifyPermissions[invoice.id] === false
+                                  invoice.originalInvoiceId
+                                    ? "Tam iade faturası değiştirilemez"
+                                    : invoiceModifyPermissions[invoice.id] === false
                                     ? "İmzalanmış fatura düzenlenemez"
                                     : undefined
                                 }
@@ -6146,12 +6341,6 @@ function AccountingTab({
                                 type="button"
                               >
                                 Sil
-                              </button>
-                              <button className="candidate-accounting-action" disabled role="menuitem" title="İade akışı hazırlanıyor" type="button">
-                                İade
-                              </button>
-                              <button className="candidate-accounting-action" disabled role="menuitem" title="İptal akışı hazırlanıyor" type="button">
-                                İptal
                               </button>
                             </>
                           )}
@@ -7507,6 +7696,16 @@ function invoiceRowClassName(invoiceType: string) {
   }
 
   return "candidate-accounting-invoice-row status-sale";
+}
+
+function isSalesInvoiceType(invoiceType: string) {
+  const normalized = invoiceType.trim().toLocaleUpperCase("tr-TR");
+  return (
+    normalized === "SATIŞ" ||
+    normalized === "SATIŞ FATURASI" ||
+    normalized === "SALE" ||
+    normalized === "SATIS"
+  );
 }
 
 function renderAccountingMovementCell({

@@ -109,6 +109,18 @@ export function createCandidateAccountingInvoice(
   );
 }
 
+export function createCandidateAccountingInvoiceFullReturn(
+  candidateId: string,
+  invoiceId: string,
+  body: { invoiceDate: string; reason: string }
+): Promise<CandidateAccountingInvoiceResponse> {
+  return httpPost<CandidateAccountingInvoiceResponse>(
+    `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/full-return`,
+    body,
+    financeRequestOptions()
+  );
+}
+
 export function updateCandidateAccountingInvoice(
   candidateId: string,
   invoiceId: string,
@@ -145,6 +157,24 @@ export interface CandidateEArchiveSubmissionResponse {
   signingStartedAtUtc?: string | null;
   signingAcknowledgedAtUtc?: string | null;
   lastError?: string | null;
+  cancellationDate?: string | null;
+  cancellationReason?: string | null;
+  cancellationStartedAtUtc?: string | null;
+  cancelledAtUtc?: string | null;
+  cancelledByUserId?: string | null;
+  cancelledByName?: string | null;
+}
+
+export function cancelCandidateEArchiveInvoice(
+  candidateId: string,
+  invoiceId: string,
+  body: { cancellationDate: string; cancellationReason: string }
+): Promise<CandidateEArchiveSubmissionResponse> {
+  return httpPost<CandidateEArchiveSubmissionResponse>(
+    `/api/finance/candidates/${candidateId}/accounting/invoices/${invoiceId}/e-archive-submission/cancel`,
+    body,
+    financeRequestOptions()
+  );
 }
 
 export function createCandidateEArchiveSubmission(
