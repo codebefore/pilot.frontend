@@ -348,7 +348,7 @@ describe("PaymentsPage permissions", () => {
     expect(screen.queryByText("Silinen iade")).not.toBeInTheDocument();
   });
 
-  it("shows cash movement time when available", async () => {
+  it("shows cash movement category and related record without repeating them in description", async () => {
     const today = todayDateOnly();
 
     getPaymentsOverviewMock.mockResolvedValue({
@@ -356,13 +356,28 @@ describe("PaymentsPage permissions", () => {
       cashMovements: [
         {
           id: "cash-movement-1",
-          type: "inflow",
+          type: "outflow",
           cashRegisterId: "cash-1",
           cashRegister: paymentsOverview.cashRegisters[0],
+          categoryId: "category-fuel",
+          category: {
+            id: "category-fuel",
+            name: "Yakıt",
+            direction: "outflow",
+            referenceType: "vehicle",
+            isDescriptionRequired: false,
+            isActive: true,
+            notes: null,
+            createdAtUtc: `${today}T08:00:00Z`,
+            updatedAtUtc: `${today}T08:00:00Z`,
+            rowVersion: 1,
+          },
+          relatedEntityId: "vehicle-1",
+          relatedEntityLabel: "34 ABC 123",
           amount: 300,
           occurredDate: today,
           occurredAtUtc: `${today}T09:15:00Z`,
-          note: "Manuel kasa girişi",
+          note: "Manuel kasa çıkışı",
           transferGroupId: null,
         },
       ],
@@ -370,7 +385,10 @@ describe("PaymentsPage permissions", () => {
 
     renderCashPage();
 
-    expect(await screen.findByText("Manuel kasa girişi")).toBeInTheDocument();
+    expect(await screen.findByText("Manuel kasa çıkışı")).toBeInTheDocument();
+    expect(screen.getByText("Yakıt")).toBeInTheDocument();
+    expect(screen.getByText("34 ABC 123")).toBeInTheDocument();
+    expect(screen.queryByText("Yakıt · 34 ABC 123 · Manuel kasa çıkışı")).not.toBeInTheDocument();
     expect(screen.getByText("12:15")).toBeInTheDocument();
   });
 

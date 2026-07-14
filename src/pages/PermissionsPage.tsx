@@ -236,7 +236,7 @@ const PERMISSION_DISPLAY_ROWS: PermissionDisplayRow[] = [
   {
     id: "settingsCashRegisters",
     area: "payments",
-    labelKey: "settings.nav.cashRegisters.label",
+    labelKey: "settings.nav.finance.label",
     parentKey: "nav.settings",
   },
   {

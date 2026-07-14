@@ -23,6 +23,9 @@ import {
   enrichPaymentsOverviewWithCandidatePhotos,
   getPaymentsOverviewWithoutCandidatePhotos,
 } from "../lib/payments-api";
+import { getCashMovementCategories } from "../lib/cash-movement-categories-api";
+import { getVehicles } from "../lib/vehicles-api";
+import { getInstructors } from "../lib/instructors-api";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { useAuth } from "../lib/auth";
 import { canManageArea } from "../lib/permissions";
@@ -109,7 +112,15 @@ type CashSummaryColumnId =
   | "selectedInflow"
   | "selectedOutflow";
 type CashSummarySortField = CashSummaryColumnId;
-type CashMovementColumnId = "cashRegister" | "date" | "description" | "amount" | "operator";
+type CashMovementColumnId =
+  | "cashRegister"
+  | "type"
+  | "category"
+  | "relatedEntity"
+  | "date"
+  | "description"
+  | "amount"
+  | "operator";
 type CashMovementSortField = CashMovementColumnId;
 type InstallmentColumnId =
   | "photo"
@@ -379,6 +390,8 @@ type CashMovementRow = {
   id: string;
   type: "Giriş" | "Çıkış";
   cashRegister: string;
+  category: string;
+  relatedEntity: string;
   date: string;
   description: string;
   amount: number;
@@ -393,6 +406,9 @@ const CASH_MOVEMENT_COLUMNS: {
   sortable?: boolean;
 }[] = [
   { id: "cashRegister", labelKey: "payments.col.cashRegister", sortable: true, filterable: true },
+  { id: "type", labelKey: "payments.col.cashMovementType", sortable: true, filterable: true },
+  { id: "category", labelKey: "payments.col.movementCategory", sortable: true, filterable: true },
+  { id: "relatedEntity", labelKey: "payments.col.relatedEntity", sortable: true, filterable: true },
   { id: "amount", labelKey: "payments.col.amount", sortable: true, numeric: true },
   { id: "date", labelKey: "payments.col.date", sortable: true },
   { id: "description", labelKey: "payments.col.description", sortable: true },
@@ -1117,6 +1133,9 @@ function cashMovementSortValue(
 ): string | number {
   if (field === "amount") return row.amount;
   if (field === "cashRegister") return row.cashRegister;
+  if (field === "type") return row.type;
+  if (field === "category") return row.category;
+  if (field === "relatedEntity") return row.relatedEntity;
   if (field === "date") return row.date;
   if (field === "operator") return row.operator;
   return row.description;
@@ -1949,6 +1968,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           id: `payment:${payment.id}`,
           type: "Giriş",
           cashRegister: cashRegisterLabel(payment, t),
+          category: "Aday tahsilatı",
+          relatedEntity: payment.candidate ? paymentCandidateName(payment.candidate) : "-",
           date: payment.paidAtUtc,
           description:
             payment.note?.trim() ||
@@ -1967,6 +1988,8 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           id: `refund:${refund.id}`,
           type: "Çıkış",
           cashRegister: refundCashRegisterLabel(refund, t),
+          category: "Aday iadesi",
+          relatedEntity: refund.candidate ? paymentCandidateName(refund.candidate) : "-",
           date: refund.refundedAtUtc,
           description: refund.note?.trim() || t("payments.movement.refund"),
           amount: refund.amount,
@@ -1982,8 +2005,10 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
           id: `cash:${movement.id}`,
           type: isInflow ? "Giriş" : "Çıkış",
           cashRegister: movement.cashRegister.name,
+          category: movement.category?.name || cashMovementTypeLabel(movement.type, t),
+          relatedEntity: movement.relatedEntityLabel?.trim() || "-",
           date: movement.occurredAtUtc ?? movement.occurredDate,
-          description: movement.note?.trim() || cashMovementTypeLabel(movement.type, t),
+          description: movement.note?.trim() || "-",
           amount: movement.amount,
           operator: movement.createdByName?.trim() || "-",
         });
@@ -2743,6 +2768,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       } else if (payload.mode === "inflow") {
         await createCashInflow({
           cashRegisterId: payload.cashRegisterId,
+          categoryId: payload.categoryId,
+          relatedEntityId: payload.relatedEntityId,
+          relatedEntityLabel: payload.relatedEntityLabel,
           amount: payload.amount,
           occurredDate: payload.occurredDate,
           occurredAtUtc: payload.occurredAtUtc,
@@ -2751,6 +2779,9 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       } else if (payload.mode === "outflow") {
         await createCashOutflow({
           cashRegisterId: payload.cashRegisterId,
+          categoryId: payload.categoryId,
+          relatedEntityId: payload.relatedEntityId,
+          relatedEntityLabel: payload.relatedEntityLabel,
           amount: payload.amount,
           occurredDate: payload.occurredDate,
           occurredAtUtc: payload.occurredAtUtc,
@@ -3408,13 +3439,16 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
       });
       tables.push({
         title: "Kasa Hareketleri",
-        headers: ["Tip", ...CASH_MOVEMENT_COLUMNS.map((column) => t(column.labelKey))],
+        headers: CASH_MOVEMENT_COLUMNS.map((column) => t(column.labelKey)),
         rows: cashMovementRows.map((row) => [
-          row.type,
           row.cashRegister,
+          row.type,
+          row.category,
+          row.relatedEntity,
           row.type === "Çıkış" ? `-${money(row.amount)}` : money(row.amount),
           formatFinanceDateTimeTR(row.date),
           row.description,
+          row.operator,
         ]),
       });
       return tables;
@@ -5202,6 +5236,9 @@ type CashActionSubmitPayload =
   | {
       mode: "inflow" | "outflow";
       cashRegisterId: string;
+      categoryId: string;
+      relatedEntityId: string | null;
+      relatedEntityLabel: string | null;
       amount: number;
       occurredDate: string;
       occurredAtUtc: string;
@@ -5233,8 +5270,33 @@ function CashActionModal({
   const [cashRegisterId, setCashRegisterId] = useState("");
   const [sourceCashRegisterId, setSourceCashRegisterId] = useState("");
   const [targetCashRegisterId, setTargetCashRegisterId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [relatedEntityId, setRelatedEntityId] = useState("");
   const open = mode !== null;
   const isTransfer = mode === "transfer";
+  const movementDirection = mode === "inflow" || mode === "outflow" ? mode : undefined;
+  const categoriesQuery = useQuery({
+    enabled: open && !isTransfer,
+    queryKey: ["payments", "cash-movement-categories", movementDirection],
+    queryFn: ({ signal }) => getCashMovementCategories({
+      activity: "active",
+      direction: movementDirection,
+      page: 1,
+      pageSize: 100,
+    }, signal),
+  });
+  const categories = categoriesQuery.data?.items ?? [];
+  const selectedCategory = categories.find((item) => item.id === categoryId) ?? null;
+  const vehiclesQuery = useQuery({
+    enabled: open && selectedCategory?.referenceType === "vehicle",
+    queryKey: ["payments", "cash-movement-vehicles"],
+    queryFn: ({ signal }) => getVehicles({ activity: "active", page: 1, pageSize: 100 }, signal),
+  });
+  const personnelQuery = useQuery({
+    enabled: open && selectedCategory?.referenceType === "personnel",
+    queryKey: ["payments", "cash-movement-personnel"],
+    queryFn: ({ signal }) => getInstructors({ activity: "active", page: 1, pageSize: 100 }, signal),
+  });
   const title =
     mode === "inflow"
       ? t("payments.cashRegister.inflowTitle")
@@ -5252,7 +5314,12 @@ function CashActionModal({
       ? Boolean(sourceCashRegisterId) &&
         Boolean(targetCashRegisterId) &&
         sourceCashRegisterId !== targetCashRegisterId
-      : Boolean(cashRegisterId));
+      : Boolean(cashRegisterId) &&
+        Boolean(categoryId) &&
+        (selectedCategory?.referenceType === "vehicle" || selectedCategory?.referenceType === "personnel"
+          ? Boolean(relatedEntityId)
+          : true) &&
+        (!selectedCategory?.isDescriptionRequired || Boolean(note.trim())));
 
   useEffect(() => {
     if (!open) return;
@@ -5263,7 +5330,81 @@ function CashActionModal({
     setCashRegisterId(registers[0]?.id ?? "");
     setSourceCashRegisterId(registers[0]?.id ?? "");
     setTargetCashRegisterId(registers[1]?.id ?? registers[0]?.id ?? "");
+    setCategoryId("");
+    setRelatedEntityId("");
   }, [open, registers]);
+
+  useEffect(() => {
+    if (!open || isTransfer || categories.length === 0) return;
+    setCategoryId((current) => categories.some((item) => item.id === current) ? current : categories[0].id);
+  }, [categories, isTransfer, open]);
+
+  useEffect(() => {
+    setRelatedEntityId("");
+  }, [categoryId]);
+
+  const amountField = (
+    <div className="form-group">
+      <label className="form-label">Tutar</label>
+      <input
+        className="form-input"
+        disabled={!canManagePayments}
+        min="0"
+        onChange={(event) => setAmount(event.target.value)}
+        placeholder="0"
+        step="0.01"
+        type="number"
+        value={amount}
+      />
+    </div>
+  );
+  const dateField = (
+    <div className="form-group">
+      <label className="form-label">Tarih</label>
+      <LocalizedDateInput
+        ariaLabel="Tarih"
+        className="form-input"
+        disabled={!canManagePayments}
+        name="cash-action-date"
+        onChange={setDate}
+        value={date}
+      />
+    </div>
+  );
+  const timeField = (
+    <div className="form-group">
+      <label className="form-label">Saat</label>
+      <LocalizedTimeInput
+        ariaLabel="Saat"
+        className="form-input"
+        disabled={!canManagePayments}
+        name="cash-action-time"
+        onChange={setTime}
+        value={time}
+      />
+    </div>
+  );
+  const relatedEntityField = !isTransfer && selectedCategory?.referenceType === "vehicle" ? (
+    <div className="form-group">
+      <label className="form-label">Araç / Plaka</label>
+      <CustomSelect className="form-select" onChange={(event) => setRelatedEntityId(event.target.value)} value={relatedEntityId}>
+        <option value="">Araç seçin</option>
+        {vehiclesQuery.data?.items.map((vehicle) => (
+          <option key={vehicle.id} value={vehicle.id}>{vehicle.plateNumber} — {vehicle.brand} {vehicle.model ?? ""}</option>
+        ))}
+      </CustomSelect>
+    </div>
+  ) : !isTransfer && selectedCategory?.referenceType === "personnel" ? (
+    <div className="form-group">
+      <label className="form-label">Personel</label>
+      <CustomSelect className="form-select" onChange={(event) => setRelatedEntityId(event.target.value)} value={relatedEntityId}>
+        <option value="">Personel seçin</option>
+        {personnelQuery.data?.items.map((person) => (
+          <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>
+        ))}
+      </CustomSelect>
+    </div>
+  ) : null;
 
   return (
     <Modal
@@ -5290,9 +5431,20 @@ function CashActionModal({
                   note: note.trim() || null,
                 });
               } else {
+                const relatedEntityLabel = selectedCategory?.referenceType === "vehicle"
+                  ? vehiclesQuery.data?.items.find((item) => item.id === relatedEntityId)?.plateNumber ?? null
+                  : selectedCategory?.referenceType === "personnel"
+                    ? (() => {
+                        const person = personnelQuery.data?.items.find((item) => item.id === relatedEntityId);
+                        return person ? `${person.firstName} ${person.lastName}`.trim() : null;
+                      })()
+                    : null;
                 onSubmit({
                   mode,
                   cashRegisterId,
+                  categoryId,
+                  relatedEntityId: relatedEntityId || null,
+                  relatedEntityLabel,
                   amount: parsedAmount,
                   occurredDate: date,
                   occurredAtUtc,
@@ -5348,62 +5500,51 @@ function CashActionModal({
             </div>
           </div>
         ) : (
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Kasa</label>
-              <CustomSelect
-                className="form-select"
-                disabled={!canManagePayments}
-                onChange={(event) => setCashRegisterId(event.target.value)}
-                value={cashRegisterId}
-              >
-                {registers.map((register) => (
-                  <option key={register.id} value={register.id}>
-                    {register.label} ({register.typeLabel})
-                  </option>
-                ))}
-              </CustomSelect>
+          <>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Kasa</label>
+                <CustomSelect
+                  className="form-select"
+                  disabled={!canManagePayments}
+                  onChange={(event) => setCashRegisterId(event.target.value)}
+                  value={cashRegisterId}
+                >
+                  {registers.map((register) => (
+                    <option key={register.id} value={register.id}>
+                      {register.label} ({register.typeLabel})
+                    </option>
+                  ))}
+                </CustomSelect>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Gelir/Gider Kalemi</label>
+                <CustomSelect
+                  className="form-select"
+                  disabled={!canManagePayments || categoriesQuery.isLoading}
+                  onChange={(event) => setCategoryId(event.target.value)}
+                  value={categoryId}
+                >
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </CustomSelect>
+                {!categoriesQuery.isLoading && categories.length === 0 ? (
+                  <div className="form-error">Bu işlem yönü için aktif kalem bulunamadı.</div>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Tutar</label>
-            <input
-              className="form-input"
-              disabled={!canManagePayments}
-              min="0"
-              onChange={(event) => setAmount(event.target.value)}
-              placeholder="0"
-              step="0.01"
-              type="number"
-              value={amount}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Tarih</label>
-            <LocalizedDateInput
-              ariaLabel="Tarih"
-              className="form-input"
-              disabled={!canManagePayments}
-              name="cash-action-date"
-              onChange={setDate}
-              value={date}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Saat</label>
-            <LocalizedTimeInput
-              ariaLabel="Saat"
-              className="form-input"
-              disabled={!canManagePayments}
-              name="cash-action-time"
-              onChange={setTime}
-              value={time}
-            />
-          </div>
-        </div>
+        {!isTransfer ? (
+          <>
+            <div className="form-row">{relatedEntityField}{amountField}</div>
+            <div className="form-row">{dateField}{timeField}</div>
+          </>
+        ) : (
+          <div className="form-row">{amountField}{dateField}{timeField}</div>
+        )}
 
         <div className="form-group">
           <label className="form-label">Açıklama</label>

@@ -148,7 +148,7 @@ describe("PermissionsPage", () => {
       "Referanslar",
       "Güzergahlar",
       "Varsayılan Ücretler",
-      "Kasalar",
+      "Finans Ayarları",
     ]);
 
     const eSinavRow = Array.from(document.querySelectorAll(".permissions-row"))

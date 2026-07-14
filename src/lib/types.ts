@@ -528,11 +528,31 @@ export interface PaymentRefundMovementResponse {
 
 export type CashRegisterMovementType = "inflow" | "outflow" | "transfer_in" | "transfer_out";
 
+export type CashMovementDirection = "inflow" | "outflow";
+export type CashMovementReferenceType = "vehicle" | "personnel" | "other";
+
+export interface CashMovementCategoryResponse {
+  id: string;
+  name: string;
+  direction: CashMovementDirection;
+  referenceType: CashMovementReferenceType;
+  isDescriptionRequired: boolean;
+  isActive: boolean;
+  notes: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
 export interface CashRegisterMovementResponse {
   id: string;
   type: CashRegisterMovementType;
   cashRegisterId: string;
   cashRegister: AccountingCashRegisterSummaryResponse;
+  categoryId: string | null;
+  category: CashMovementCategoryResponse | null;
+  relatedEntityId: string | null;
+  relatedEntityLabel: string | null;
   amount: number;
   occurredDate: string;
   occurredAtUtc?: string | null;
@@ -544,6 +564,9 @@ export interface CashRegisterMovementResponse {
 
 export interface CashRegisterMovementCreateRequest {
   cashRegisterId: string;
+  categoryId?: string | null;
+  relatedEntityId?: string | null;
+  relatedEntityLabel?: string | null;
   amount: number;
   occurredDate?: string | null;
   occurredAtUtc?: string | null;
@@ -1372,6 +1395,20 @@ export interface CashRegisterListSummaryResponse {
 
 export interface CashRegisterListResponse extends PagedResponse<CashRegisterResponse> {
   summary: CashRegisterListSummaryResponse;
+}
+
+export interface CashMovementCategoryListResponse extends PagedResponse<CashMovementCategoryResponse> {
+  summary: CashRegisterListSummaryResponse;
+}
+
+export interface CashMovementCategoryUpsertRequest {
+  name: string;
+  direction: CashMovementDirection;
+  referenceType: CashMovementReferenceType;
+  isDescriptionRequired: boolean;
+  isActive: boolean;
+  notes?: string | null;
+  rowVersion?: number;
 }
 
 export interface CashRegisterUpsertRequest {

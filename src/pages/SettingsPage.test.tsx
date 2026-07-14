@@ -178,7 +178,7 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("link", { name: /Genel/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Kullanıcılar/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Evrak Türleri/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Kasalar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Finans Ayarları/i })).not.toBeInTheDocument();
   });
 
   it("allows candidate users to access reference definitions without general settings permission", async () => {

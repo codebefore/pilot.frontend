@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
-import { CashRegistersSettingsSection } from "../components/settings/CashRegistersSettingsSection";
+import { FinanceSettingsSection } from "../components/settings/FinanceSettingsSection";
 import { LicenseClassFeeMatrixSettingsSection } from "../components/settings/LicenseClassFeeMatrixSettingsSection";
 import type { FeeMatrixMode } from "../components/settings/LicenseClassFeeMatrixSettingsSection";
 import { ClassroomsSettingsSection } from "../components/settings/ClassroomsSettingsSection";
@@ -115,9 +115,9 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         superAdminOnly: true,
       },
       {
-        labelKey: "settings.nav.cashRegisters.label",
-        descriptionKey: "settings.nav.cashRegisters.description",
-        to: "/settings/definitions/cash-registers",
+        labelKey: "settings.nav.finance.label",
+        descriptionKey: "settings.nav.finance.description",
+        to: "/settings/finance/cash-registers",
         permissionAreas: ["payments"],
       },
       {
@@ -207,7 +207,9 @@ export function SettingsPage() {
                       item.to ? (
                         <NavLink
                           className={({ isActive }) =>
-                            isActive ? "settings-nav-link active" : "settings-nav-link"
+                            isActive || (item.to === "/settings/finance/cash-registers" && location.pathname.startsWith("/settings/finance/"))
+                              ? "settings-nav-link active"
+                              : "settings-nav-link"
                           }
                           end
                           key={item.labelKey}
@@ -295,8 +297,16 @@ export function SettingsPage() {
                 path="definitions/vehicles/:vehicleId"
               />
               <Route
-                element={requireSettingsPermission(["payments"], <CashRegistersSettingsSection />)}
+                element={<Navigate replace to="/settings/finance/cash-registers" />}
                 path="definitions/cash-registers"
+              />
+              <Route
+                element={requireSettingsPermission(["payments"], <FinanceSettingsSection tab="cash-registers" />)}
+                path="finance/cash-registers"
+              />
+              <Route
+                element={requireSettingsPermission(["payments"], <FinanceSettingsSection tab="movement-categories" />)}
+                path="finance/movement-categories"
               />
               <Route
                 element={requireSettingsPermission(["settings", "mebjobs"], <IntegrationsSettingsSection />)}
