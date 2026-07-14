@@ -231,7 +231,7 @@ export async function httpPostForm<T>(
 ): Promise<T> {
   const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
     method: "POST",
-    headers: buildHeaders(),
+    headers: buildHeaders(undefined, options),
     body: form,
     signal: options?.signal,
   });
