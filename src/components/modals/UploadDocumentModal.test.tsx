@@ -26,7 +26,7 @@ describe("UploadDocumentModal", () => {
   it("limits MEBBIS document metadata lengths by document type", () => {
     expect(educationCertificateMetadataMaxLength("education_certificate", "document_number")).toBe(10);
     expect(educationCertificateMetadataMaxLength("criminal_record", "document_number")).toBe(10);
-    expect(educationCertificateMetadataMaxLength("health_report", "document_number")).toBe(30);
+    expect(educationCertificateMetadataMaxLength("health_report", "document_number")).toBe(50);
     expect(educationCertificateMetadataMaxLength("criminal_record", "issuing_institution")).toBe(100);
     expect(educationCertificateMetadataMaxLength("identity_copy", "document_number")).toBeUndefined();
   });

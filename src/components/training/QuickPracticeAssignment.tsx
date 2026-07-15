@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 
 import { useT } from "../../lib/i18n";
 import type { CandidateResponse } from "../../lib/types";
@@ -55,18 +56,48 @@ export function QuickPracticeAssignment({
           const checked = c.id === candidateId;
           return (
             <li key={c.id}>
-              <label className="training-filters-item switch-toggle switch-toggle-sm">
-                <input
-                  checked={checked}
-                  disabled={isLoading}
-                  onChange={() => toggle(c.id)}
-                  type="checkbox"
-                />
-                <span className="switch-toggle-control" />
-                <span className="training-filters-name">
-                  {c.firstName} {c.lastName} ({c.licenseClass})
-                </span>
-              </label>
+              <div className="training-filters-item switch-toggle switch-toggle-sm">
+                <label className="training-filters-item-main">
+                  <input
+                    checked={checked}
+                    disabled={isLoading}
+                    onChange={() => toggle(c.id)}
+                    type="checkbox"
+                  />
+                  <span className="switch-toggle-control" />
+                  <span className="training-filters-name">
+                    {c.firstName} {c.lastName} ({c.licenseClass})
+                  </span>
+                </label>
+                <Link
+                  aria-label={t("training.picker.openCandidate", {
+                    name: `${c.firstName} ${c.lastName}`,
+                  })}
+                  className="training-filters-candidate-detail"
+                  title={t("training.picker.openCandidate", {
+                    name: `${c.firstName} ${c.lastName}`,
+                  })}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  to={`/candidates/${c.id}`}
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="none"
+                    height="14"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    width="14"
+                  >
+                    <path d="M15 3h6v6" />
+                    <path d="M10 14 21 3" />
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  </svg>
+                </Link>
+              </div>
             </li>
           );
         })}

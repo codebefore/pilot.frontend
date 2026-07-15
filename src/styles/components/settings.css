@@ -3673,6 +3673,39 @@
   gap: 6px;
   margin: 0;
 }
+.candidate-accounting-invoice-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.candidate-accounting-invoice-details-grid > div,
+.candidate-accounting-invoice-details-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--gray-50);
+}
+.candidate-accounting-invoice-details-grid span,
+.candidate-accounting-invoice-details-note > span {
+  color: var(--gray-600);
+  font-size: 12px;
+}
+.candidate-accounting-invoice-details-grid strong {
+  color: var(--gray-900);
+  overflow-wrap: anywhere;
+}
+.candidate-accounting-invoice-details-note p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+@media (max-width: 640px) {
+  .candidate-accounting-invoice-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .candidate-payment-plan-modal-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

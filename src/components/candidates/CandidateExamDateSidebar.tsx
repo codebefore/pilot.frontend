@@ -43,27 +43,35 @@ function toDateOnly(value: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function getTodayDateOnly(): string {
-  return toDateOnly(new Date());
+function toLocalMinute(value: Date): string {
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  return `${toDateOnly(value)}T${hours}:${minutes}`;
 }
 
-function getMillisecondsUntilNextDay(): number {
+function getMillisecondsUntilNextMinute(): number {
   const now = new Date();
-  const nextDay = new Date(now);
-  nextDay.setHours(24, 0, 0, 0);
-  return Math.max(nextDay.getTime() - now.getTime(), 0);
+  const nextMinute = new Date(now);
+  nextMinute.setSeconds(60, 0);
+  return Math.max(nextMinute.getTime() - now.getTime(), 0);
 }
 
-function findTodayDividerDate(
+function findCurrentDividerOptionId(
   options: ExamScheduleOption[],
-  today: string
+  now: Date,
+  includeTime: boolean
 ): string | null {
-  return (
-    options
-      .map((option) => option.date)
-      .filter((date) => date <= today)
-      .sort((left, right) => right.localeCompare(left))[0] ?? null
-  );
+  const currentKey = includeTime ? toLocalMinute(now) : toDateOnly(now);
+  const latestPastOrCurrentKey = options
+    .map((option) => includeTime ? `${option.date}T${option.time || "00:00"}` : option.date)
+    .filter((key) => key <= currentKey)
+    .sort((left, right) => right.localeCompare(left))[0];
+
+  if (!latestPastOrCurrentKey) return null;
+
+  return options.find((option) =>
+    (includeTime ? `${option.date}T${option.time || "00:00"}` : option.date) === latestPastOrCurrentKey
+  )?.id ?? null;
 }
 
 export function CandidateExamDateSidebar({
@@ -90,7 +98,7 @@ export function CandidateExamDateSidebar({
   showLicenseClassInHeader = false,
   summaryMode = "capacity",
 }: CandidateExamDateSidebarProps) {
-  const [today, setToday] = useState(getTodayDateOnly);
+  const [now, setNow] = useState(() => new Date());
   const [activeSidebarTab, setActiveSidebarTab] = useState<"dates" | "codes">("dates");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [confirmingCodeId, setConfirmingCodeId] = useState<string | null>(null);
@@ -109,9 +117,9 @@ export function CandidateExamDateSidebar({
 
     const scheduleNextUpdate = () => {
       timeoutId = window.setTimeout(() => {
-        setToday(getTodayDateOnly());
+        setNow(new Date());
         scheduleNextUpdate();
-      }, getMillisecondsUntilNextDay());
+      }, getMillisecondsUntilNextMinute());
     };
 
     scheduleNextUpdate();
@@ -184,10 +192,7 @@ export function CandidateExamDateSidebar({
   }, [editingCodeId, editingCodeLocalId]);
 
   const t = useT();
-  const todayDividerDate = findTodayDividerDate(options, today);
-  const todayDividerOptionId = todayDividerDate
-    ? options.find((option) => option.date === todayDividerDate)?.id ?? null
-    : null;
+  const todayDividerOptionId = findCurrentDividerOptionId(options, now, showTime);
   const showCodeTab = codeOptions !== undefined && onCodeSelect !== undefined;
   const noPermissionTitle = t("common.noPermission");
   const startDateEdit = (option: ExamScheduleOption) => {

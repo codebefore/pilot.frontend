@@ -8,6 +8,7 @@ function authOptions(signal?: AbortSignal) {
 export interface UserNoteResponse {
   id: string;
   createdByUserId: string;
+  createdByUserName?: string | null;
   body: string;
   isVisibleToInstitution: boolean;
   candidateId?: string | null;

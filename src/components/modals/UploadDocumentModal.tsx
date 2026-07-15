@@ -47,7 +47,7 @@ export function educationCertificateMetadataMaxLength(documentTypeKey: string | 
     return undefined;
   }
   if (fieldKey === "issuing_institution") return 100;
-  if (fieldKey === "document_number") return documentTypeKey === "health_report" ? 30 : 10;
+  if (fieldKey === "document_number") return documentTypeKey === "health_report" ? 50 : 10;
   return undefined;
 }
 

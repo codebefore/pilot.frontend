@@ -114,6 +114,12 @@ export function TasksPage() {
                 <ul className="tasks-page-list">
                   {group.notes.map((note) => {
                     const canManageNote = canManageDashboard && note.createdByUserId === user?.id;
+                    const isOwnedByAnotherUser = note.createdByUserId !== user?.id;
+                    const actionRestrictionTitle = !canManageDashboard
+                      ? noPermissionTitle
+                      : isOwnedByAnotherUser
+                        ? buildOwnerRestrictionMessage(note.createdByUserName)
+                        : undefined;
                     return (
                       <li
                         className={[
@@ -129,7 +135,7 @@ export function TasksPage() {
                           className="tasks-page-toggle"
                           disabled={!canManageNote}
                           onClick={() => void handleToggle(note)}
-                          title={!canManageNote ? noPermissionTitle : undefined}
+                          title={actionRestrictionTitle}
                           type="button"
                         >
                           {note.completedAtUtc ? <CheckIcon size={13} /> : null}
@@ -159,6 +165,12 @@ export function TasksPage() {
                                 ? t("tasks.status.overdue")
                                 : t("tasks.status.pending")}
                           </div>
+                          {note.isVisibleToInstitution && note.createdByUserName ? (
+                            <div className="tasks-page-meta">Oluşturan: {note.createdByUserName}</div>
+                          ) : null}
+                          {note.isVisibleToInstitution && isOwnedByAnotherUser ? (
+                            <div className="tasks-page-meta">Yalnızca oluşturan kişi güncelleyebilir veya silebilir.</div>
+                          ) : null}
                         </div>
                         <div className="tasks-page-actions">
                           <button
@@ -169,7 +181,7 @@ export function TasksPage() {
                               setDeleteConfirmNoteId(null);
                               setEditing(note);
                             }}
-                            title={!canManageNote ? noPermissionTitle : undefined}
+                            title={actionRestrictionTitle}
                             type="button"
                           >
                             <EditLineIcon size={14} />
@@ -179,7 +191,7 @@ export function TasksPage() {
                             className="user-notes-item-action is-danger"
                             disabled={!canManageNote}
                             onClick={() => setDeleteConfirmNoteId(note.id)}
-                            title={!canManageNote ? noPermissionTitle : undefined}
+                            title={actionRestrictionTitle}
                             type="button"
                           >
                             <XIcon size={15} />
@@ -264,6 +276,11 @@ function isOverdue(note: UserNoteResponse): boolean {
     note.reminderAtUtc !== null &&
     new Date(note.reminderAtUtc).getTime() <= Date.now()
   );
+}
+
+function buildOwnerRestrictionMessage(createdByUserName?: string | null): string {
+  const owner = createdByUserName ? `Görevi ${createdByUserName} oluşturdu. ` : "";
+  return `${owner}Yalnızca oluşturan kişi güncelleyebilir veya silebilir.`;
 }
 
 function formatDayLabel(key: string): string {

@@ -200,6 +200,12 @@ export function DashboardNotesPanel() {
   const renderNote = (note: UserNoteResponse, variant: "dated" | "undated" = "dated") => {
     const completed = note.completedAtUtc !== null;
     const canManageNote = canManageDashboard && note.createdByUserId === user?.id;
+    const isOwnedByAnotherUser = note.createdByUserId !== user?.id;
+    const actionRestrictionTitle = !canManageDashboard
+      ? noPermissionTitle
+      : isOwnedByAnotherUser
+        ? buildOwnerRestrictionMessage(note.createdByUserName)
+        : undefined;
     const reminderTime = note.reminderAtUtc ? formatReminderTime(note.reminderAtUtc) : "Tarihsiz";
     const overdue =
       !completed &&
@@ -222,7 +228,7 @@ export function DashboardNotesPanel() {
           className="user-notes-item-toggle"
           disabled={!canManageNote}
           onClick={() => void handleToggle(note)}
-          title={!canManageNote ? noPermissionTitle : undefined}
+          title={actionRestrictionTitle}
           type="button"
         >
           {completed ? <CheckIcon size={12} /> : null}
@@ -230,6 +236,12 @@ export function DashboardNotesPanel() {
         <div className="user-notes-item-time">{reminderTime}</div>
         <div className="user-notes-item-body">
           <div className="user-notes-item-text">{note.body}</div>
+          {note.isVisibleToInstitution && note.createdByUserName ? (
+            <div className="user-notes-item-meta">Oluşturan: {note.createdByUserName}</div>
+          ) : null}
+          {note.isVisibleToInstitution && isOwnedByAnotherUser ? (
+            <div className="user-notes-item-meta">Yalnızca oluşturan kişi güncelleyebilir veya silebilir.</div>
+          ) : null}
           {note.candidateId && note.candidateName ? (
             <button
               className="user-notes-item-candidate"
@@ -253,7 +265,7 @@ export function DashboardNotesPanel() {
               setDeleteConfirmNoteId(null);
               beginEdit(note);
             }}
-            title={!canManageNote ? noPermissionTitle : undefined}
+            title={actionRestrictionTitle}
             type="button"
           >
             <EditLineIcon size={14} />
@@ -263,7 +275,7 @@ export function DashboardNotesPanel() {
             className="user-notes-item-action is-danger"
             disabled={!canManageNote}
             onClick={() => setDeleteConfirmNoteId(note.id)}
-            title={!canManageNote ? noPermissionTitle : undefined}
+            title={actionRestrictionTitle}
             type="button"
           >
             <XIcon size={15} />
@@ -457,6 +469,11 @@ function getTurkeyPublicHolidayLabel(dateKey: string): string | null {
   const [, month, day] = dateKey.split("-").map(Number);
   const fixedHoliday = TURKEY_FIXED_PUBLIC_HOLIDAYS.get(`${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
   return fixedHoliday ?? TURKEY_2026_MOVABLE_PUBLIC_HOLIDAYS.get(dateKey) ?? null;
+}
+
+function buildOwnerRestrictionMessage(createdByUserName?: string | null): string {
+  const owner = createdByUserName ? `Görevi ${createdByUserName} oluşturdu. ` : "";
+  return `${owner}Yalnızca oluşturan kişi güncelleyebilir veya silebilir.`;
 }
 
 function toLocalDateKey(date: Date): string {

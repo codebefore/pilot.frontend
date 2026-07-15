@@ -2,8 +2,12 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../test/render-with-providers";
-import type { CandidateResponse, LicenseClassFeeMatrixResponse } from "../lib/types";
-import { CandidateHero } from "./CandidateDetailPage";
+import type {
+  CandidateAccountingSummaryResponse,
+  CandidateResponse,
+  LicenseClassFeeMatrixResponse,
+} from "../lib/types";
+import { AccountingMovementSection, CandidateHero } from "./CandidateDetailPage";
 
 const mocks = vi.hoisted(() => ({
   getFeeMatrix: vi.fn(),
@@ -231,5 +235,58 @@ describe("CandidateHero default fee warning", () => {
       expect(mocks.getFeeMatrix).toHaveBeenCalledTimes(1);
       expect(screen.queryByText("Ehliyet Tipi Ücret Önerileri Boş!")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("AccountingMovementSection", () => {
+  it("shows no payment date on a debt row", () => {
+    const movement: CandidateAccountingSummaryResponse["movements"][number] = {
+      id: "movement-1",
+      candidateId: "candidate-1",
+      type: "kurs",
+      number: "BR-1",
+      description: "Kurs borcu",
+      dueDate: "2026-07-20",
+      amount: 1000,
+      paidAmount: 0,
+      refundedAmount: 0,
+      remainingAmount: 1000,
+      status: "active",
+      lastPaymentMethod: null,
+      lastPaidAtUtc: null,
+      cancelledAtUtc: null,
+      cancellationReason: null,
+      createdAtUtc: "2026-07-15T10:30:00Z",
+      updatedAtUtc: "2026-07-15T10:30:00Z",
+      rowVersion: 1,
+    };
+
+    renderWithProviders(
+      <AccountingMovementSection
+        canManagePayments
+        movements={[movement]}
+        onCancelMovement={vi.fn()}
+        onCancelPayment={vi.fn()}
+        onCreateInvoice={vi.fn()}
+        onOpenReceipt={vi.fn()}
+        onOpenRefund={vi.fn()}
+        onPay={vi.fn()}
+        payments={[]}
+        refunds={[]}
+        title="Borç tarihi testi"
+      />
+    );
+
+    const table = screen.getByRole("table");
+    const headers = within(table).getAllByRole("columnheader");
+    const paymentDateColumnIndex = headers.findIndex((header) =>
+      within(header).queryByText("Ödeme Tarihi")
+    );
+    const debtRow = within(table).getAllByRole("row")[1];
+    const cells = within(debtRow).getAllByRole("cell");
+
+    expect(paymentDateColumnIndex).toBeGreaterThanOrEqual(0);
+    expect(cells[paymentDateColumnIndex]).toHaveTextContent("—");
+    expect(cells[paymentDateColumnIndex]).not.toHaveTextContent("15.07.2026");
   });
 });

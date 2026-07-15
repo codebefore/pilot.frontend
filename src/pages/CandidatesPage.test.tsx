@@ -905,9 +905,9 @@ describe("CandidatesPage tabs", () => {
     expect(sidebarButtons).not.toContain("Mebbis");
   });
 
-  it("moves the divider forward when the day changes", async () => {
+  it("moves the divider forward when the next exam time arrives", async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-05-21T23:59:58"));
+    vi.setSystemTime(new Date("2026-05-22T08:59:58"));
 
     const view = renderWithProviders(
       <CandidateExamDateSidebar
@@ -933,6 +933,29 @@ describe("CandidatesPage tabs", () => {
 
     const movedDivider = within(sidebar).getByTestId("exam-date-divider");
     expect(groups.findIndex((group) => group.contains(movedDivider))).toBe(1);
+  });
+
+  it("keeps a later exam today above the current-time divider", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T12:00:00"));
+
+    const view = renderWithProviders(
+      <CandidateExamDateSidebar
+        onSelect={vi.fn()}
+        options={[
+          examScheduleOption("2026-07-16", { id: "future-day", time: "09:00" }),
+          examScheduleOption("2026-07-15", { id: "future-today", time: "21:00" }),
+          examScheduleOption("2026-07-14", { id: "past-day", time: "09:00" }),
+        ]}
+        title="E-Sınav Tarihi"
+      />
+    );
+
+    const sidebar = view.container.querySelector(".exam-date-sidebar-list") as HTMLElement;
+    const groups = Array.from(sidebar.querySelectorAll(".exam-date-option-group"));
+    const divider = within(sidebar).getByTestId("exam-date-divider");
+
+    expect(groups.findIndex((group) => group.contains(divider))).toBe(2);
   });
 
   it("renders only one divider when multiple exam schedules share the divider date", () => {

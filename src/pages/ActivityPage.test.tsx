@@ -74,6 +74,50 @@ describe("ActivityPage", () => {
     });
   });
 
+  it("ignores impossible dates manually entered in the URL", async () => {
+    renderActivity("/activity?dateFrom=2026-02-31&dateTo=not-a-date");
+
+    await waitFor(() => {
+      expect(getDashboardActivityMock).toHaveBeenCalledWith(
+        { page: 1, pageSize: 100 },
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("applies search, category and date filters through the activity API", async () => {
+    renderActivity();
+    await waitFor(() => expect(getDashboardActivityMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Hareketlerde ara" }), {
+      target: { value: "Ayşe" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Hareket türü" }), {
+      target: { value: "documents" },
+    });
+    fireEvent.change(screen.getByLabelText("Başlangıç"), {
+      target: { value: "2026-07-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Bitiş"), {
+      target: { value: "2026-07-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Uygula" }));
+
+    await waitFor(() => {
+      expect(getDashboardActivityMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 100,
+          search: "Ayşe",
+          category: "documents",
+          fromUtc: expect.any(String),
+          toUtc: expect.any(String),
+        }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
   it("renders activities and carries return state when opening a candidate link", async () => {
     getDashboardActivityMock.mockResolvedValue({
       items: [

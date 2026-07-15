@@ -741,11 +741,8 @@
   cursor: not-allowed;
 }
 .tag-input-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  z-index: 130;
+  position: fixed;
+  z-index: 1300;
   max-height: 240px;
   overflow-y: auto;
   background: var(--white);
@@ -938,6 +935,74 @@
 
 .activity-page {
   padding: var(--page-shell-gap) var(--page-shell-gutter) 0;
+}
+.activity-filter-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+.activity-filter-search,
+.activity-filter-select,
+.activity-filter-date input {
+  height: 32px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--gray-800);
+  font: inherit;
+  font-size: 12px;
+}
+.activity-filter-search {
+  flex: 1 1 240px;
+  min-width: 180px;
+  padding: 0 10px;
+}
+.activity-filter-select {
+  flex: 0 1 180px;
+  min-width: 145px;
+  padding: 0 28px 0 9px;
+}
+.activity-filter-date {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--gray-500);
+  font-size: 10px;
+  font-weight: 600;
+}
+.activity-filter-date input {
+  width: 132px;
+  padding: 0 7px;
+}
+.activity-filter-search:focus,
+.activity-filter-select:focus,
+.activity-filter-date input:focus {
+  border-color: var(--brand);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 15%, transparent);
+}
+@media (max-width: 900px) {
+  .activity-filter-bar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .activity-filter-search {
+    flex-basis: 100%;
+  }
+  .activity-filter-select,
+  .activity-filter-date {
+    flex: 1 1 150px;
+  }
+  .activity-filter-date input {
+    width: 100%;
+  }
 }
 .activity-day-groups {
   display: flex;

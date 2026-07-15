@@ -30,8 +30,12 @@
   overflow-y: auto;
   animation: drawerIn .2s ease-out;
 }
+.detail-drawer.group-detail-drawer {
+  width: 630px;
+}
 @media (max-width: 860px) {
   .detail-drawer { width: 100%; }
+  .detail-drawer.group-detail-drawer { width: 100%; }
 }
 @keyframes drawerIn {
   from { transform: translateX(100%); }

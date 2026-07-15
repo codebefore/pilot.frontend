@@ -596,6 +596,7 @@ export interface PaymentInvoiceOverviewResponse {
   notes: string | null;
   createdByUserId?: string | null;
   createdByName?: string | null;
+  isSigned: boolean;
 }
 
 export interface PaymentInstallmentOverviewResponse {

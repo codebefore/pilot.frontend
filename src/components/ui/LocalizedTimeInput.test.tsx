@@ -1,10 +1,24 @@
 import { fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LocalizedTimeInput } from "./LocalizedTimeInput";
 import { renderWithProviders } from "../../test/render-with-providers";
 
+const originalInnerHeight = window.innerHeight;
+const originalInnerWidth = window.innerWidth;
+
 describe("LocalizedTimeInput", () => {
+  afterEach(() => {
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: originalInnerHeight,
+    });
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: originalInnerWidth,
+    });
+  });
+
   it("opens a styled time popover when focused", () => {
     renderWithProviders(
       <LocalizedTimeInput
@@ -55,6 +69,65 @@ describe("LocalizedTimeInput", () => {
 
     expect(screen.getByRole("option", { name: "09:15" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "09:05" })).not.toBeInTheDocument();
+  });
+
+  it("opens above the field when the viewport has no room below", () => {
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 600 });
+    renderWithProviders(
+      <LocalizedTimeInput
+        ariaLabel="Saat"
+        onChange={vi.fn()}
+        value="09:00"
+      />
+    );
+
+    const input = screen.getByLabelText("Saat");
+    const field = input.closest(".localized-date-field");
+    vi.spyOn(field as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      bottom: 580,
+      height: 30,
+      left: 120,
+      right: 320,
+      top: 550,
+      width: 200,
+      x: 120,
+      y: 550,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.focus(input);
+
+    const popover = screen.getByRole("dialog", { name: "Saat secimi" });
+    expect(popover).toHaveStyle({ position: "fixed", width: "200px" });
+    expect(Number.parseFloat(popover.style.top)).toBeLessThan(550);
+  });
+
+  it("keeps the popover width inside a narrow viewport", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 160 });
+    renderWithProviders(
+      <LocalizedTimeInput ariaLabel="Saat" onChange={vi.fn()} value="09:00" />
+    );
+
+    const input = screen.getByLabelText("Saat");
+    const field = input.closest(".localized-date-field");
+    vi.spyOn(field as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      bottom: 130,
+      height: 30,
+      left: 8,
+      right: 208,
+      top: 100,
+      width: 200,
+      x: 8,
+      y: 100,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.focus(input);
+
+    expect(screen.getByRole("dialog", { name: "Saat secimi" })).toHaveStyle({
+      left: "8px",
+      width: "144px",
+    });
   });
 
   it("allows manual entry when enabled", () => {

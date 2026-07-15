@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -11,6 +11,8 @@ import { getDashboardActivity } from "../lib/stats-api";
 import type { DashboardActivityResponse } from "../lib/types";
 
 const ACTIVITY_PAGE_SIZE = 100;
+const ACTIVITY_CATEGORIES = ["finance", "groups", "documents", "notes"] as const;
+type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number] | "";
 
 export function ActivityPage() {
   const t = useT();
@@ -18,10 +20,35 @@ export function ActivityPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePositiveInteger(searchParams.get("page"));
+  const search = searchParams.get("search")?.trim() ?? "";
+  const category = parseActivityCategory(searchParams.get("category"));
+  const dateFrom = parseDateInput(searchParams.get("dateFrom"));
+  const dateTo = parseDateInput(searchParams.get("dateTo"));
+  const [searchDraft, setSearchDraft] = useState(search);
+  const [categoryDraft, setCategoryDraft] = useState<ActivityCategory>(category);
+  const [dateFromDraft, setDateFromDraft] = useState(dateFrom);
+  const [dateToDraft, setDateToDraft] = useState(dateTo);
+
+  useEffect(() => setSearchDraft(search), [search]);
+  useEffect(() => setCategoryDraft(category), [category]);
+  useEffect(() => setDateFromDraft(dateFrom), [dateFrom]);
+  useEffect(() => setDateToDraft(dateTo), [dateTo]);
+
+  const activityRequest = useMemo(
+    () => ({
+      page,
+      pageSize: ACTIVITY_PAGE_SIZE,
+      ...(search ? { search } : {}),
+      ...(category ? { category } : {}),
+      ...(dateFrom ? { fromUtc: toUtcBoundary(dateFrom, false) } : {}),
+      ...(dateTo ? { toUtc: toUtcBoundary(dateTo, true) } : {}),
+    }),
+    [category, dateFrom, dateTo, page, search]
+  );
 
   const activityQuery = useQuery({
-    queryKey: ["dashboard", "activity", { page, pageSize: ACTIVITY_PAGE_SIZE }],
-    queryFn: ({ signal }) => getDashboardActivity({ page, pageSize: ACTIVITY_PAGE_SIZE }, signal),
+    queryKey: ["dashboard", "activity", activityRequest],
+    queryFn: ({ signal }) => getDashboardActivity(activityRequest, signal),
   });
 
   const items = activityQuery.data?.items ?? [];
@@ -29,8 +56,31 @@ export function ActivityPage() {
   const activityGroups = useMemo(() => groupActivitiesByDay(items), [items]);
 
   const changePage = (nextPage: number) => {
-    setSearchParams(nextPage <= 1 ? {} : { page: String(nextPage) });
+    const next = new URLSearchParams(searchParams);
+    if (nextPage <= 1) next.delete("page");
+    else next.set("page", String(nextPage));
+    setSearchParams(next);
   };
+
+  const applyFilters = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const next = new URLSearchParams();
+    setOptionalParam(next, "search", searchDraft.trim());
+    setOptionalParam(next, "category", categoryDraft);
+    setOptionalParam(next, "dateFrom", dateFromDraft);
+    setOptionalParam(next, "dateTo", dateToDraft);
+    setSearchParams(next);
+  };
+
+  const clearFilters = () => {
+    setSearchDraft("");
+    setCategoryDraft("");
+    setDateFromDraft("");
+    setDateToDraft("");
+    setSearchParams({});
+  };
+
+  const hasFilters = Boolean(search || category || dateFrom || dateTo);
 
   const openActivityLink = (activity: DashboardActivityResponse) => {
     if (!activity.linkPath) return;
@@ -54,6 +104,55 @@ export function ActivityPage() {
             {t("common.backToDashboard")}
           </button>
         </div>
+        <form className="activity-filter-bar" onSubmit={applyFilters}>
+          <input
+            aria-label={t("activity.filter.search")}
+            className="activity-filter-search"
+            onChange={(event) => setSearchDraft(event.target.value)}
+            placeholder={t("activity.filter.searchPlaceholder")}
+            maxLength={200}
+            type="search"
+            value={searchDraft}
+          />
+          <select
+            aria-label={t("activity.filter.category")}
+            className="activity-filter-select"
+            onChange={(event) => setCategoryDraft(event.target.value as ActivityCategory)}
+            value={categoryDraft}
+          >
+            <option value="">{t("activity.filter.allCategories")}</option>
+            <option value="finance">{t("activity.filter.finance")}</option>
+            <option value="groups">{t("activity.filter.groups")}</option>
+            <option value="documents">{t("activity.filter.documents")}</option>
+            <option value="notes">{t("activity.filter.notes")}</option>
+          </select>
+          <label className="activity-filter-date">
+            <span>{t("activity.filter.from")}</span>
+            <input
+              max={dateToDraft || undefined}
+              onChange={(event) => setDateFromDraft(event.target.value)}
+              type="date"
+              value={dateFromDraft}
+            />
+          </label>
+          <label className="activity-filter-date">
+            <span>{t("activity.filter.to")}</span>
+            <input
+              min={dateFromDraft || undefined}
+              onChange={(event) => setDateToDraft(event.target.value)}
+              type="date"
+              value={dateToDraft}
+            />
+          </label>
+          <button className="btn btn-primary btn-sm" type="submit">
+            {t("activity.filter.apply")}
+          </button>
+          {hasFilters ? (
+            <button className="btn btn-secondary btn-sm" onClick={clearFilters} type="button">
+              {t("common.clear")}
+            </button>
+          ) : null}
+        </form>
         {activityQuery.isLoading ? (
           <NotificationListSkeleton rows={8} />
         ) : items.length === 0 ? (
@@ -164,4 +263,29 @@ function toLocalDateKey(date: Date): string {
 function parsePositiveInteger(value: string | null): number {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseActivityCategory(value: string | null): ActivityCategory {
+  return ACTIVITY_CATEGORIES.includes(value as (typeof ACTIVITY_CATEGORIES)[number])
+    ? (value as ActivityCategory)
+    : "";
+}
+
+function parseDateInput(value: string | null): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? "")) return "";
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+    ? value
+    : "";
+}
+
+function toUtcBoundary(value: string, endExclusive: boolean): string {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day + (endExclusive ? 1 : 0));
+  return date.toISOString();
+}
+
+function setOptionalParam(params: URLSearchParams, key: string, value: string) {
+  if (value) params.set(key, value);
 }

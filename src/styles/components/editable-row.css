@@ -499,9 +499,7 @@
   pointer-events: none;
 }
 .localized-date-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
+  position: fixed;
   z-index: 1300;
   width: 296px;
   max-width: min(100vw - 32px, 296px);
@@ -597,12 +595,10 @@
   border-top: 1px solid var(--gray-100);
 }
 .localized-time-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
+  position: fixed;
   z-index: 900;
   width: 100%;
-  min-width: 172px;
+  min-width: min(172px, calc(100vw - 16px));
   background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: 8px;

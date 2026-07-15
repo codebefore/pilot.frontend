@@ -198,6 +198,38 @@ describe("DashboardNotesPanel", () => {
 
     expect(await screen.findByText("Aday detay açıldı")).toBeInTheDocument();
   });
+
+  it("shows the creator only for institution-visible tasks", async () => {
+    getUserNotesMock.mockResolvedValue({
+      items: [
+        buildNote({
+          id: "shared-note",
+          createdByUserId: "other-user",
+          body: "Paylaşılan görev",
+          reminderAtUtc: null,
+          isVisibleToInstitution: true,
+          createdByUserName: "Ayşe Demir",
+        }),
+        buildNote({
+          id: "private-note",
+          body: "Özel görev",
+          reminderAtUtc: null,
+          isVisibleToInstitution: false,
+          createdByUserName: "Mehmet Kaya",
+        }),
+      ],
+    });
+
+    renderPanel();
+
+    expect(await screen.findByText("Oluşturan: Ayşe Demir")).toBeInTheDocument();
+    expect(screen.getByText("Yalnızca oluşturan kişi güncelleyebilir veya silebilir.")).toBeInTheDocument();
+    expect(screen.getByText("Paylaşılan görev").closest("li")?.querySelector('button[aria-label="Sil"]')).toHaveAttribute(
+      "title",
+      "Görevi Ayşe Demir oluşturdu. Yalnızca oluşturan kişi güncelleyebilir veya silebilir."
+    );
+    expect(screen.queryByText("Oluşturan: Mehmet Kaya")).not.toBeInTheDocument();
+  });
 });
 
 function renderPanel(options?: Parameters<typeof renderWithProviders>[1]) {
@@ -215,6 +247,9 @@ function buildNote(overrides: {
   reminderAtUtc: string | null;
   candidateId?: string | null;
   candidateName?: string | null;
+  createdByUserId?: string;
+  createdByUserName?: string | null;
+  isVisibleToInstitution?: boolean;
 }) {
   return {
     createdByUserId: "test-user",

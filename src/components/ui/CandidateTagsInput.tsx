@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 
 import { searchCandidateTags } from "../../lib/candidates-api";
 import { useT } from "../../lib/i18n";
 import { normalizeSearchComparable, normalizeTextQuery } from "../../lib/search";
 import type { CandidateTag } from "../../lib/types";
+import { useAnchoredPopover } from "./useAnchoredPopover";
 
 type CandidateTagsInputProps = {
   value: string[];
@@ -54,12 +56,23 @@ export function CandidateTagsInput({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const { popoverRef, popoverStyle, updatePosition } = useAnchoredPopover({
+    anchorRef: rootRef,
+    fallbackWidth: 240,
+    matchAnchorWidth: true,
+    open,
+    preferredMaxHeight: 240,
+  });
 
   // Close on outside click.
   useEffect(() => {
     if (!open) return;
     const handler = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !popoverRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -135,6 +148,10 @@ export function CandidateTagsInput({
       setHighlightedIndex(Math.max(0, menuItems.length - 1));
     }
   }, [highlightedIndex, menuItems.length]);
+
+  useEffect(() => {
+    if (open) updatePosition();
+  }, [menuItems.length, open, updatePosition]);
 
   const addTag = (name: string) => {
     const next = name.trim();
@@ -287,8 +304,13 @@ export function CandidateTagsInput({
         />
       </div>
 
-      {open && !disabled && (
-        <div className="tag-input-menu" role="listbox">
+      {open && !disabled && createPortal(
+        <div
+          className="tag-input-menu"
+          ref={popoverRef}
+          role="listbox"
+          style={popoverStyle}
+        >
           {menuItems.length === 0 ? (
             <div className="tag-input-menu-empty">{emptyLabel}</div>
           ) : (
@@ -331,7 +353,8 @@ export function CandidateTagsInput({
               );
             })
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

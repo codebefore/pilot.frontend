@@ -606,7 +606,7 @@ export function GroupDrawer({ groupId, canManageGroups = true, onClose, onUpdate
 
   return (
     <>
-    <Drawer actions={actions} onClose={onClose} open title={title}>
+    <Drawer actions={actions} className="group-detail-drawer" onClose={onClose} open title={title}>
       {loading ? (
         <PanelListSkeleton rows={5} />
       ) : group ? (

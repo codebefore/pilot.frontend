@@ -36,7 +36,8 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 360px;
+  max-height: min(360px, calc(100vh - var(--header-h) - 112px));
+  max-height: min(360px, calc(100dvh - var(--header-h) - 112px));
   overflow-y: auto;
 }
 .notif-item {
@@ -222,4 +223,3 @@
   height: 1px;
   background: var(--gray-100);
 }
-

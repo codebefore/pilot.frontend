@@ -8,9 +8,11 @@ import {
   type FocusEventHandler,
   type Ref,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { CalendarIcon } from "../icons";
 import { useLanguage } from "../../lib/i18n";
+import { useAnchoredPopover } from "./useAnchoredPopover";
 
 type LocalizedDateInputProps = {
   value: string;
@@ -180,6 +182,12 @@ export function LocalizedDateInput({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
+  const { popoverRef, popoverStyle } = useAnchoredPopover({
+    anchorRef: rootRef,
+    fallbackWidth: 296,
+    open,
+    preferredMaxHeight: 420,
+  });
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => {
     const baseDate = parseIsoDate(value) ?? parseIsoDate(defaultOnOpen) ?? parseIsoDate(todayISO())!;
     return monthStart(baseDate);
@@ -200,7 +208,11 @@ export function LocalizedDateInput({
     if (!open) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !popoverRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -531,11 +543,13 @@ export function LocalizedDateInput({
         value={value}
       />
 
-      {open ? (
+      {open ? createPortal(
         <div
           aria-label={ariaLabel ? `${ariaLabel} takvimi` : "Tarih takvimi"}
           className="localized-date-popover"
+          ref={popoverRef}
           role="dialog"
+          style={popoverStyle}
         >
           <div className="localized-date-popover-header">
             <button
@@ -686,7 +700,8 @@ export function LocalizedDateInput({
                 : "Today"}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   );

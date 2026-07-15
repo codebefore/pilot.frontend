@@ -31,6 +31,7 @@ export type PracticeCandidateListItem = {
     kind: string;
   } | null;
   licenseClass: string;
+  existingLicenseType?: string | null;
   groupId: string | null;
   groupTitle: string | null;
   attemptNumber: number;

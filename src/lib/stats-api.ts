@@ -10,7 +10,14 @@ export function getDashboardOverview(signal?: AbortSignal): Promise<DashboardOve
 }
 
 export function getDashboardActivity(
-  params: { page?: number; pageSize?: number } = {},
+  params: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    category?: string;
+    fromUtc?: string;
+    toUtc?: string;
+  } = {},
   signal?: AbortSignal
 ): Promise<DashboardActivityListResponse> {
   return httpGet<DashboardActivityListResponse>("/api/stats/activity", params, {

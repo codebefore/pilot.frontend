@@ -119,6 +119,7 @@ import {
   createAuthorizedObjectUrl,
   downloadAuthorizedFile,
   fetchAuthorizedBlob,
+  openAuthorizedFile,
   printAuthorizedFile,
 } from "../lib/authorized-files";
 import {
@@ -844,6 +845,13 @@ export function CandidateDetailPage() {
             documentTypeId: invoiceDocumentType.id,
             file: documentFile,
             note: `Fatura ${savedInvoice.invoiceNo}`,
+            metadata: {
+              invoice_id: savedInvoice.id,
+              invoice_no: savedInvoice.invoiceNo,
+            },
+          });
+          await queryClient.invalidateQueries({
+            queryKey: ["candidates", "documents", candidate.id],
           });
         } catch (error) {
           await refreshAccounting();
@@ -2056,6 +2064,13 @@ function candidateExamAttemptSummaryLimit(candidate: CandidateResponse): number 
     : 4;
 }
 
+function buildExamAttemptOptions(limit: number): SelectOption[] {
+  return Array.from({ length: limit }, (_, index) => {
+    const value = String(index + 1);
+    return { value, label: `${value}/${limit}` };
+  });
+}
+
 function isReportedAttendanceStatus(status: string | null | undefined): boolean {
   return status?.trim().toLowerCase() === "reported";
 }
@@ -2308,6 +2323,9 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
   const t = useT();
   const [tagsSaving, setTagsSaving] = useState(false);
   const noPermissionTitle = t("common.noPermission");
+  const eSinavAttemptCount = candidate.eSinavAttemptCount ?? 1;
+  const drivingAttemptCount = candidate.drivingExamAttemptCount ?? 1;
+  const drivingAttemptLimit = candidateExamAttemptSummaryLimit(candidate);
   const institutionSettingsQuery = useQuery({
     queryKey: ["settings", "institution-settings"],
     queryFn: ({ signal }) => getInstitutionSettings(signal),
@@ -2415,6 +2433,24 @@ function GeneralTab({ candidate, canManageCandidates, onSaved }: {
                 label={t("candidateDetail.general.field.status")}
                 options={CANDIDATE_STATUS_OPTIONS}
                 onSave={saveCandidateStatus}
+              />
+              <EditableRow
+                disabled={!canManageCandidates}
+                disabledTitle={noPermissionTitle}
+                displayValue={`${eSinavAttemptCount}/4`}
+                inputValue={String(eSinavAttemptCount)}
+                label="E-Sınav Hakkı"
+                options={buildExamAttemptOptions(4)}
+                onSave={(value) => saveGeneralField({ eSinavAttemptCount: Number(value) })}
+              />
+              <EditableRow
+                disabled={!canManageCandidates}
+                disabledTitle={noPermissionTitle}
+                displayValue={`${drivingAttemptCount}/${drivingAttemptLimit}`}
+                inputValue={String(drivingAttemptCount)}
+                label="Direksiyon Hakkı"
+                options={buildExamAttemptOptions(drivingAttemptLimit)}
+                onSave={(value) => saveGeneralField({ drivingExamAttemptCount: Number(value) })}
               />
               {candidate.status === "dropped" ? (
                 <EditableRow
@@ -4659,8 +4695,8 @@ function documentMebbisTransferErrorMessage(error: unknown, fallback: string): s
   const validationMessage = Object.values(error.validationErrors ?? {})
     .flat()
     .find((message) => message.trim().length > 0);
-  if (validationMessage?.includes("Health report number must be at most 30 characters")) {
-    return "Sağlık raporu belge sayısı MEBBİS için en fazla 30 karakter olmalı.";
+  if (validationMessage?.includes("Health report number must be at most 50 characters")) {
+    return "Sağlık raporu belge sayısı MEBBİS için en fazla 50 karakter olmalı.";
   }
   if (validationMessage?.includes("Criminal record issuing institution is required")) {
     return "Adli sicil belge veren kurum bilgisi gerekli.";
@@ -5270,6 +5306,102 @@ function CandidateEArchiveMenuItems({
   );
 }
 
+function CandidateInvoiceDocumentMenuItems({
+  candidateId,
+  invoice,
+  document,
+}: {
+  candidateId: string;
+  invoice: CandidateAccountingInvoiceResponse;
+  document: DocumentResponse | null;
+}) {
+  const { showToast } = useToast();
+  const [pendingAction, setPendingAction] = useState<"open" | "download" | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const documentUrl = document?.hasFile
+    ? getCandidateDocumentDownloadUrl(candidateId, document.id)
+    : null;
+  const openDocument = async () => {
+    if (!documentUrl) {
+      setDetailsOpen(true);
+      return;
+    }
+    setPendingAction("open");
+    try {
+      await openAuthorizedFile(documentUrl);
+    } catch {
+      showToast("Fatura belgesi görüntülenemedi.", "error");
+    } finally {
+      setPendingAction(null);
+    }
+  };
+  const downloadDocument = async () => {
+    if (!documentUrl || !document) return;
+    setPendingAction("download");
+    try {
+      await downloadAuthorizedFile(documentUrl, document.originalFileName);
+    } catch {
+      showToast("Fatura belgesi indirilemedi.", "error");
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  return (
+    <>
+      <button
+        className="candidate-accounting-action"
+        disabled={pendingAction !== null}
+        onClick={() => void openDocument()}
+        role="menuitem"
+        type="button"
+      >
+        {pendingAction === "open" ? "Belge açılıyor..." : "Belgeyi görüntüle"}
+      </button>
+      {documentUrl ? (
+        <button
+          className="candidate-accounting-action"
+          disabled={pendingAction !== null}
+          onClick={() => void downloadDocument()}
+          role="menuitem"
+          type="button"
+        >
+          {pendingAction === "download" ? "Belge indiriliyor..." : "Belgeyi indir"}
+        </button>
+      ) : null}
+      <Modal
+        footer={(
+          <button className="btn btn-secondary btn-sm" onClick={() => setDetailsOpen(false)} type="button">
+            Kapat
+          </button>
+        )}
+        onClose={() => setDetailsOpen(false)}
+        open={detailsOpen}
+        title="Fatura bilgileri"
+      >
+        <div className="candidate-accounting-modal-form">
+          <div className="candidate-accounting-invoice-details-grid">
+            <div><span>Fatura Sayı</span><strong>{invoice.invoiceNo}</strong></div>
+            <div><span>Fatura Tarihi</span><strong>{formatDateTR(invoice.invoiceDate)}</strong></div>
+            <div><span>Fatura Tipi</span><strong>{invoice.invoiceType}</strong></div>
+            <div><span>Hizmet</span><strong>{invoice.serviceDescription}</strong></div>
+            <div><span>Matrah</span><strong>{formatCurrencyTRY(invoice.subtotal)}</strong></div>
+            <div><span>KDV Oranı</span><strong>%{invoice.vatRate}</strong></div>
+            <div><span>KDV</span><strong>{formatCurrencyTRY(invoice.vatAmount)}</strong></div>
+            <div><span>Toplam Tutar</span><strong>{formatCurrencyTRY(invoice.totalAmount)}</strong></div>
+          </div>
+          {invoice.notes?.trim() ? (
+            <div className="candidate-accounting-invoice-details-note">
+              <span>Not</span>
+              <p>{invoice.notes}</p>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 function AccountingTab({
   accounting,
   accountingLoading,
@@ -5475,6 +5607,15 @@ function AccountingTab({
   });
   const isEDocumentIntegrationActive = Boolean(
     eDocumentIntegrationQuery.data?.usesEArchive && eDocumentIntegrationQuery.data.isEnabled
+  );
+  const invoiceDocumentsQuery = useQuery({
+    queryKey: ["candidates", "documents", candidate.id],
+    queryFn: ({ signal }) => getCandidateDocuments(candidate.id, signal),
+    enabled: !isEDocumentIntegrationActive,
+    staleTime: 0,
+  });
+  const candidateInvoiceDocuments = (invoiceDocumentsQuery.data ?? []).filter(
+    (document) => document.documentTypeKey === "invoice" && document.hasFile
   );
   const eDocumentRecipientQuery = useQuery({
     queryKey: ["finance", "e-document-recipient", candidate.id],
@@ -6210,7 +6351,7 @@ function AccountingTab({
                 <th>Tutar</th>
                 <th>KDV</th>
                 <th>Toplam Tutar</th>
-                <th>e-Belge</th>
+                <th>{isEDocumentIntegrationActive ? "e-Belge" : "Belge"}</th>
                 <th>{t("candidateDetail.accounting.col.cancelledBy")}</th>
                 <th></th>
               </tr>
@@ -6225,17 +6366,27 @@ function AccountingTab({
                   <td>%{invoice.vatRate} · {formatCurrencyTRY(invoice.vatAmount)}</td>
                   <td>{formatCurrencyTRY(invoice.totalAmount)}</td>
                   <td>
-                    <CandidateEArchiveCell
-                      candidateId={candidate.id}
-                      invoiceId={invoice.id}
-                      onModifyPermissionChange={(canModify) =>
-                        setInvoiceModifyPermissions((current) =>
-                          current[invoice.id] === canModify
-                            ? current
-                            : { ...current, [invoice.id]: canModify }
-                        )
-                      }
-                    />
+                    {isEDocumentIntegrationActive ? (
+                      <CandidateEArchiveCell
+                        candidateId={candidate.id}
+                        invoiceId={invoice.id}
+                        onModifyPermissionChange={(canModify) =>
+                          setInvoiceModifyPermissions((current) =>
+                            current[invoice.id] === canModify
+                              ? current
+                              : { ...current, [invoice.id]: canModify }
+                          )
+                        }
+                      />
+                    ) : resolveCandidateInvoiceDocument(invoice, candidateInvoiceDocuments) ? (
+                      <span>Belge yüklendi</span>
+                    ) : invoiceDocumentsQuery.isLoading ? (
+                      <span>Kontrol ediliyor</span>
+                    ) : invoiceDocumentsQuery.isError ? (
+                      <span>Belge alınamadı</span>
+                    ) : (
+                      <span>Fatura bilgileri</span>
+                    )}
                   </td>
                   <td>{invoice.createdByName?.trim() || "—"}</td>
                   <td>
@@ -6296,19 +6447,31 @@ function AccountingTab({
                             </>
                           ) : (
                             <>
-                              <CandidateEArchiveMenuItems
-                                candidateId={candidate.id}
-                                invoiceId={invoice.id}
-                                invoiceType={invoice.invoiceType}
-                                hasFullReturn={accounting.invoices.some(
-                                  (item) => item.originalInvoiceId === invoice.id
-                                )}
-                                canManagePayments={canManagePayments}
-                              />
+                              {isEDocumentIntegrationActive ? (
+                                <CandidateEArchiveMenuItems
+                                  candidateId={candidate.id}
+                                  invoiceId={invoice.id}
+                                  invoiceType={invoice.invoiceType}
+                                  hasFullReturn={accounting.invoices.some(
+                                    (item) => item.originalInvoiceId === invoice.id
+                                  )}
+                                  canManagePayments={canManagePayments}
+                                />
+                              ) : (
+                                <CandidateInvoiceDocumentMenuItems
+                                  candidateId={candidate.id}
+                                  invoice={invoice}
+                                  document={resolveCandidateInvoiceDocument(
+                                    invoice,
+                                    candidateInvoiceDocuments
+                                  )}
+                                />
+                              )}
                               <button
                                 className="candidate-accounting-action"
                                 disabled={Boolean(
-                                  invoiceModifyPermissions[invoice.id] === false || invoice.originalInvoiceId
+                                  invoiceModifyPermissions[invoice.id] === false ||
+                                  invoice.originalInvoiceId
                                 )}
                                 onClick={() => {
                                   setInvoiceActionsMenu(null);
@@ -6319,8 +6482,8 @@ function AccountingTab({
                                   invoice.originalInvoiceId
                                     ? "Tam iade faturası değiştirilemez"
                                     : invoiceModifyPermissions[invoice.id] === false
-                                    ? "İmzalanmış fatura düzenlenemez"
-                                    : undefined
+                                      ? "İmzalanmış fatura düzenlenemez"
+                                      : undefined
                                 }
                                 type="button"
                               >
@@ -6353,7 +6516,9 @@ function AccountingTab({
             </tbody>
           </table>
         ) : (
-          <div className="instructor-detail-empty">{t("candidateDetail.accounting.invoicesEmpty")}</div>
+          <div className="instructor-detail-empty">
+            {t("candidateDetail.accounting.invoicesEmpty")}
+          </div>
         )}
       </section>
 
@@ -7094,7 +7259,7 @@ function CashRegisterPicker({
   );
 }
 
-function AccountingMovementSection({
+export function AccountingMovementSection({
   title,
   movements,
   payments,
@@ -7425,6 +7590,7 @@ function AccountingMovementSection({
                                 openActionMenu,
                                 toggleActionMenu,
                                 closeActionMenu,
+                                onCreateInvoice,
                                 onOpenReceipt,
                                 onOpenRefund,
                                 onCancelPayment,
@@ -7698,6 +7864,24 @@ function invoiceRowClassName(invoiceType: string) {
   return "candidate-accounting-invoice-row status-sale";
 }
 
+function resolveCandidateInvoiceDocument(
+  invoice: CandidateAccountingInvoiceResponse,
+  documents: DocumentResponse[]
+): DocumentResponse | null {
+  const expectedNote = `Fatura ${invoice.invoiceNo}`.toLocaleLowerCase("tr-TR");
+  return documents
+    .filter((document) => {
+      const linkedInvoiceId = document.metadata.invoice_id?.trim();
+      if (linkedInvoiceId) return linkedInvoiceId === invoice.id;
+
+      const linkedInvoiceNo = document.metadata.invoice_no?.trim();
+      if (linkedInvoiceNo) return linkedInvoiceNo === invoice.invoiceNo;
+
+      return document.note?.trim().toLocaleLowerCase("tr-TR") === expectedNote;
+    })
+    .sort((left, right) => Date.parse(right.uploadedAtUtc) - Date.parse(left.uploadedAtUtc))[0] ?? null;
+}
+
 function isSalesInvoiceType(invoiceType: string) {
   const normalized = invoiceType.trim().toLocaleUpperCase("tr-TR");
   return (
@@ -7766,7 +7950,7 @@ function renderAccountingMovementCell({
     return "—";
   }
   if (columnId === "paidAt") {
-    return renderFinanceDateTime(movement.createdAtUtc);
+    return "—";
   }
   if (columnId === "createdAt") return renderFinanceDateTime(movement.createdAtUtc);
   if (columnId === "cancelledBy") {
@@ -7819,6 +8003,7 @@ function renderAccountingPaymentCell({
   openActionMenu,
   toggleActionMenu,
   closeActionMenu,
+  onCreateInvoice,
   onOpenReceipt,
   onOpenRefund,
   onCancelPayment,
@@ -7832,6 +8017,7 @@ function renderAccountingPaymentCell({
   openActionMenu: { movementId: string; top: number; left: number } | null;
   toggleActionMenu: (movementId: string, event: MouseEvent<HTMLButtonElement>) => void;
   closeActionMenu: () => void;
+  onCreateInvoice: (amount: number) => void;
   onOpenReceipt: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
   onOpenRefund: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
   onCancelPayment: (payment: CandidateAccountingSummaryResponse["payments"][number]) => void;
@@ -7899,6 +8085,7 @@ function renderAccountingPaymentCell({
           style={{ left: openActionMenu.left, top: openActionMenu.top }}
         >
           <button className="candidate-accounting-action" onClick={() => { closeActionMenu(); onOpenReceipt(payment); }} type="button">{t("candidateDetail.accounting.action.receipt")}</button>
+          <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onCreateInvoice(allocation.amount); }} title={!canManagePayments ? t("common.noPermission") : undefined} type="button">{t("candidateDetail.accounting.action.invoice")}</button>
           {refundableAmount > 0 ? (
             <button className="candidate-accounting-action" disabled={!canManagePayments} onClick={() => { closeActionMenu(); onOpenRefund(payment); }} title={!canManagePayments ? t("common.noPermission") : undefined} type="button">{t("candidateDetail.accounting.action.refund")}</button>
           ) : null}
@@ -10377,7 +10564,7 @@ function educationCertificateMetadataMaxLength(documentTypeKey: string | undefin
     return undefined;
   }
   if (fieldKey === "issuing_institution") return 100;
-  if (fieldKey === "document_number") return documentTypeKey === "health_report" ? 30 : 10;
+  if (fieldKey === "document_number") return documentTypeKey === "health_report" ? 50 : 10;
   return undefined;
 }
 

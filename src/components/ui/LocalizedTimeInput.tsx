@@ -7,8 +7,10 @@ import {
   type FocusEventHandler,
   type Ref,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { ClockIcon } from "../icons";
+import { useAnchoredPopover } from "./useAnchoredPopover";
 
 type LocalizedTimeInputProps = {
   value: string;
@@ -75,6 +77,13 @@ export function LocalizedTimeInput({
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
   const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
+  const { popoverRef, popoverStyle } = useAnchoredPopover({
+    anchorRef: rootRef,
+    fallbackWidth: 172,
+    matchAnchorWidth: true,
+    open,
+    preferredMaxHeight: 300,
+  });
   const timeOptions = useMemo(
     () =>
       customTimeOptions
@@ -89,7 +98,11 @@ export function LocalizedTimeInput({
     if (!open) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !popoverRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -216,11 +229,13 @@ export function LocalizedTimeInput({
         value={value}
       />
 
-      {open ? (
+      {open ? createPortal(
         <div
           aria-label={ariaLabel ? `${ariaLabel} secimi` : "Saat secimi"}
           className="localized-time-popover"
+          ref={popoverRef}
           role="dialog"
+          style={popoverStyle}
         >
           <div className="localized-time-popover-header">
             <div className="localized-time-popover-title">Saat Sec</div>
@@ -247,7 +262,8 @@ export function LocalizedTimeInput({
               </button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   );

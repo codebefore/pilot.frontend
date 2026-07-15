@@ -296,27 +296,37 @@ function containTrainingFilterWheel(event: WheelEvent) {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
+  const sidebar = event.currentTarget;
   const scrollable = target.closest<HTMLElement>(".training-filters-list-scroll");
-  if (!scrollable) {
-    event.preventDefault();
-    event.stopPropagation();
-    return;
+  if (scrollable) {
+    const maxScrollTop = scrollable.scrollHeight - scrollable.clientHeight;
+    const canScrollDown = event.deltaY > 0 && scrollable.scrollTop < maxScrollTop;
+    const canScrollUp = event.deltaY < 0 && scrollable.scrollTop > 0;
+
+    if (canScrollDown || canScrollUp) {
+      scrollable.scrollTop = Math.max(
+        0,
+        Math.min(maxScrollTop, scrollable.scrollTop + event.deltaY)
+      );
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
   }
 
-  const maxScrollTop = scrollable.scrollHeight - scrollable.clientHeight;
-  if (maxScrollTop <= 0) {
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
+  if (sidebar instanceof HTMLElement) {
+    const maxSidebarScrollTop = sidebar.scrollHeight - sidebar.clientHeight;
+    const nextSidebarScrollTop = Math.max(
+      0,
+      Math.min(maxSidebarScrollTop, sidebar.scrollTop + event.deltaY)
+    );
 
-  const nextScrollTop = Math.max(
-    0,
-    Math.min(maxScrollTop, scrollable.scrollTop + event.deltaY)
-  );
-  scrollable.scrollTop = nextScrollTop;
-  event.preventDefault();
-  event.stopPropagation();
+    if (nextSidebarScrollTop !== sidebar.scrollTop) {
+      sidebar.scrollTop = nextSidebarScrollTop;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
 }
 
 async function fetchAllTrainingGroups(signal?: AbortSignal) {

@@ -11,8 +11,11 @@ import { useNavigate } from "react-router-dom";
 import { MebIcon } from "../icons";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { CheckboxListPopover } from "../ui/CheckboxListPopover";
+import { ColumnPicker } from "../ui/ColumnPicker";
 import { getCandidatePhotosByCandidateIds } from "../../lib/documents-api";
 import { useT, currentLocale } from "../../lib/i18n";
+import { existingLicenseTypeLabel } from "../../lib/status-maps";
+import { useColumnVisibility } from "../../lib/use-column-visibility";
 import {
   getPracticeCandidates,
   type PracticeCandidateListItem,
@@ -66,6 +69,7 @@ type PracticeCandidateColumnId =
   | "select"
   | "name"
   | "licenseClass"
+  | "existingLicenseType"
   | "group"
   | "attempt"
   | "progress"
@@ -74,8 +78,26 @@ type PracticeCandidateColumnId =
 type PracticeCandidateColumnDef = {
   id: PracticeCandidateColumnId;
   label: string;
-  sortField: PracticeCandidateSortField;
+  sortField?: PracticeCandidateSortField;
 };
+
+const PRACTICE_CANDIDATE_COLUMN_IDS: PracticeCandidateColumnId[] = [
+  "name",
+  "existingLicenseType",
+  "licenseClass",
+  "group",
+  "attempt",
+  "progress",
+  "lastLesson",
+];
+const DEFAULT_VISIBLE_PRACTICE_CANDIDATE_COLUMN_IDS: PracticeCandidateColumnId[] = [
+  "name",
+  "licenseClass",
+  "group",
+  "attempt",
+  "progress",
+  "lastLesson",
+];
 
 const emptyFilters: PracticeCandidateFilters = {
   licenseClasses: [],
@@ -162,6 +184,15 @@ export function PracticeCandidatePicker({
   const [sort, setSort] = useState<PracticeCandidateSortState>(() => readSort("all"));
   const [filters, setFilters] = useState<PracticeCandidateFilters>(emptyFilters);
   const [loading, setLoading] = useState(false);
+  const {
+    isVisible,
+    reset: resetColumns,
+    toggle: toggleColumn,
+  } = useColumnVisibility(
+    "training.practiceCandidatePicker.columns.v1",
+    PRACTICE_CANDIDATE_COLUMN_IDS,
+    DEFAULT_VISIBLE_PRACTICE_CANDIDATE_COLUMN_IDS
+  );
 
   useEffect(() => {
     const id = window.setTimeout(
@@ -273,6 +304,10 @@ export function PracticeCandidatePicker({
     () => [
       { id: "name", label: t("training.picker.col.name"), sortField: "name" },
       {
+        id: "existingLicenseType",
+        label: t("candidates.col.existingLicenseType"),
+      },
+      {
         id: "licenseClass",
         label: t("training.picker.col.licenseClass"),
         sortField: "licenseClass",
@@ -288,6 +323,14 @@ export function PracticeCandidatePicker({
     ],
     [t]
   );
+  const visibleColumns = currentColumns.filter((column) => isVisible(column.id));
+  const handleColumnToggle = (id: string) => {
+    const column = currentColumns.find((item) => item.id === id);
+    if (isVisible(id) && column?.sortField && sort?.field === column.sortField) {
+      setSort(null);
+    }
+    toggleColumn(id);
+  };
 
   const licenseClassOptions = useMemo(
     () =>
@@ -388,9 +431,19 @@ export function PracticeCandidatePicker({
     });
   };
 
-  const openCandidateFromAction = (event: MouseEvent, candidateId: string) => {
+  const openCandidateFromAction = (event: MouseEvent<HTMLAnchorElement>, candidateId: string) => {
     event.stopPropagation();
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
     openCandidate(candidateId);
+  };
+
+  const handleCandidateNameClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      event.stopPropagation();
+      return;
+    }
+    event.preventDefault();
   };
 
   const toggleCandidateSelection = (candidateId: string) => {
@@ -449,17 +502,36 @@ export function PracticeCandidatePicker({
             <thead>
               <tr>
                 <th className="practice-picker-select-th" aria-label={t("training.picker.col.select")} />
-                {currentColumns.map((column) => (
-                  <SortableTh
-                    field={column.sortField}
-                    filterControl={getColumnFilterControl(column)}
-                    key={column.id}
-                    label={column.label}
-                    onToggle={handleSortToggle}
-                    sort={sort}
-                  />
-                ))}
+                {visibleColumns.map((column) =>
+                  column.sortField ? (
+                    <SortableTh
+                      field={column.sortField}
+                      filterControl={getColumnFilterControl(column)}
+                      key={column.id}
+                      label={column.label}
+                      onToggle={handleSortToggle}
+                      sort={sort}
+                    />
+                  ) : (
+                    <th key={column.id}>{column.label}</th>
+                  )
+                )}
                 <th>{t("training.picker.col.assign")}</th>
+                <th className="col-picker-th">
+                  <ColumnPicker
+                    columns={currentColumns.map((column) => ({
+                      id: column.id,
+                      label: column.label,
+                      locked: column.id === "name",
+                    }))}
+                    isVisible={isVisible}
+                    menuTitle="Aday kolonları"
+                    onReset={resetColumns}
+                    onToggle={handleColumnToggle}
+                    resetLabel={t("candidates.resetLabel")}
+                    triggerTitle={t("candidates.columns.button")}
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -498,28 +570,48 @@ export function PracticeCandidatePicker({
                         <span className="switch-toggle-control" aria-hidden="true" />
                       </label>
                     </td>
-                    <td className="practice-picker-row-name">
-                      <CandidateAvatar
-                        candidate={avatarCandidate}
-                        className="practice-picker-avatar"
-                        previewOnClick
-                      />
-                      <span>{candidate.fullName}</span>
-                    </td>
-                    <td>
-                      <span className="license-class-badge">
-                        {formatPracticeLicenseClass(candidate.licenseClass)}
-                      </span>
-                    </td>
-                    <td className="practice-picker-row-muted">
-                      {candidate.groupTitle ?? "—"}
-                    </td>
-                    <td>
-                      <span className="practice-picker-attempt-badge">
-                        {candidate.attemptSlotLabel}
-                      </span>
-                    </td>
-                    <td>
+                    {isVisible("name") ? (
+                      <td className="practice-picker-row-name">
+                        <CandidateAvatar
+                          candidate={avatarCandidate}
+                          className="practice-picker-avatar"
+                          previewOnClick
+                        />
+                        <a
+                          className="practice-picker-candidate-link"
+                          href={`/candidates/${candidate.candidateId}`}
+                          onClick={handleCandidateNameClick}
+                        >
+                          {candidate.fullName}
+                        </a>
+                      </td>
+                    ) : null}
+                    {isVisible("existingLicenseType") ? (
+                      <td className="practice-picker-row-muted">
+                        {existingLicenseTypeLabel(candidate.existingLicenseType)}
+                      </td>
+                    ) : null}
+                    {isVisible("licenseClass") ? (
+                      <td>
+                        <span className="license-class-badge">
+                          {formatPracticeLicenseClass(candidate.licenseClass)}
+                        </span>
+                      </td>
+                    ) : null}
+                    {isVisible("group") ? (
+                      <td className="practice-picker-row-muted">
+                        {candidate.groupTitle ?? "—"}
+                      </td>
+                    ) : null}
+                    {isVisible("attempt") ? (
+                      <td>
+                        <span className="practice-picker-attempt-badge">
+                          {candidate.attemptSlotLabel}
+                        </span>
+                      </td>
+                    ) : null}
+                    {isVisible("progress") ? (
+                      <td>
                       <div className="practice-picker-row-progress">
                         <div
                           aria-hidden="true"
@@ -549,22 +641,26 @@ export function PracticeCandidatePicker({
                           {formatHours(candidate.completedPracticeHours)} / {formatHours(candidate.targetPracticeHours)}
                         </span>
                       </div>
-                    </td>
-                    <td className="practice-picker-row-muted">
-                      {formatDateTime(candidate.lastPracticeLessonAt)}
-                    </td>
+                      </td>
+                    ) : null}
+                    {isVisible("lastLesson") ? (
+                      <td className="practice-picker-row-muted">
+                        {formatDateTime(candidate.lastPracticeLessonAt)}
+                      </td>
+                    ) : null}
                     <td className="practice-picker-action-cell">
-                      <button
+                      <a
                         aria-label={t("training.picker.openCandidate", {
                           name: candidate.fullName,
                         })}
                         className="practice-picker-assign-btn"
+                        href={`/candidates/${candidate.candidateId}`}
                         onClick={(event) => openCandidateFromAction(event, candidate.candidateId)}
-                        type="button"
                       >
                         <MebIcon size={16} />
-                      </button>
+                      </a>
                     </td>
+                    <td className="col-picker-td" />
                   </tr>
                 );
               })}

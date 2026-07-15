@@ -45,7 +45,7 @@ import type {
 
 type DetailGroup = "movements" | "invoices" | "cashSummary" | "cashMovements";
 type CashActionMode = "inflow" | "outflow" | "transfer";
-type InvoiceView = "movements" | "analysis";
+type InvoiceView = "drafts" | "signed" | "analysis";
 type PaymentsPageMode =
   | "finance"
   | "balances"
@@ -1422,7 +1422,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const queryClient = useQueryClient();
   const [cashActionMode, setCashActionMode] = useState<CashActionMode | null>(null);
   const [cashActionSaving, setCashActionSaving] = useState(false);
-  const [invoiceView, setInvoiceView] = useState<InvoiceView>("movements");
+  const [invoiceView, setInvoiceView] = useState<InvoiceView>("drafts");
   const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [periodMonth, setPeriodMonth] = useState("");
   const [fromDate, setFromDate] = useState(todayDateInput);
@@ -1737,6 +1737,10 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const invoiceRows = useMemo(() => {
     const candidateQuery = normalizeSearchComparable(detailColumnFilters.candidate);
     const filteredRows = baseInvoiceRows
+      .filter((invoice) =>
+        invoiceView === "analysis" ||
+        (invoiceView === "signed" ? invoice.isSigned : !invoice.isSigned),
+      )
       .filter((invoice) => {
         if (!candidateQuery) return true;
         return normalizeSearchComparable(invoiceCandidateName(invoice)).includes(candidateQuery);
@@ -1769,6 +1773,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
     invoiceColumnFilters,
     invoiceSort.direction,
     invoiceSort.field,
+    invoiceView,
     licenseClassLabelByCode,
   ]);
 
@@ -3399,7 +3404,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
 
       const columns = withoutPhoto(invoiceColumns);
       tables.push({
-        title: "Fatura Hareketleri",
+        title: invoiceView === "signed" ? "İmzalanan Faturalar" : "Taslak Faturalar",
         headers: columns.map((column) => column.label),
         rows: invoiceRows.map((invoice) =>
           columns.map((column) => {
@@ -3991,13 +3996,22 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
                     aria-label={t("payments.aria.invoiceView")}
                   >
                     <button
-                      aria-selected={invoiceView === "movements"}
-                      className={`finance-detail-tab${invoiceView === "movements" ? " active" : ""}`}
-                      onClick={() => setInvoiceView("movements")}
+                      aria-selected={invoiceView === "drafts"}
+                      className={`finance-detail-tab${invoiceView === "drafts" ? " active" : ""}`}
+                      onClick={() => setInvoiceView("drafts")}
                       role="tab"
                       type="button"
                     >
-                      Fatura Hareketleri
+                      Taslaklar
+                    </button>
+                    <button
+                      aria-selected={invoiceView === "signed"}
+                      className={`finance-detail-tab${invoiceView === "signed" ? " active" : ""}`}
+                      onClick={() => setInvoiceView("signed")}
+                      role="tab"
+                      type="button"
+                    >
+                      İmzalananlar
                     </button>
                     <button
                       aria-selected={invoiceView === "analysis"}
@@ -4431,7 +4445,7 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
               </div>
               )
             ) : detailGroup === "invoices" ? (
-              invoiceView === "movements" ? (
+              invoiceView !== "analysis" ? (
                 <div className="finance-matrix-scroll">
                   <table className="data-table finance-payments-table finance-invoices-table">
                     <thead>

@@ -108,6 +108,7 @@ describe("GroupDrawer", () => {
     getGroupByIdMock.mockResolvedValue(buildGroup());
     renderWithProviders(<GroupDrawer groupId="group-1" onClose={() => {}} />);
     expect(await screen.findByRole("button", { name: "Aday Ekle" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveClass("group-detail-drawer");
   });
 
   it("keeps group mutation panels closed when actions are disabled", async () => {

@@ -110,8 +110,8 @@ function mebbisTransferErrorMessage(error: unknown, fallback: string): string {
   const validationMessage = Object.values(error.validationErrors ?? {})
     .flat()
     .find((message) => message.trim().length > 0);
-  if (validationMessage?.includes("Health report number must be at most 30 characters")) {
-    return "Sağlık raporu belge sayısı MEBBİS için en fazla 30 karakter olmalı.";
+  if (validationMessage?.includes("Health report number must be at most 50 characters")) {
+    return "Sağlık raporu belge sayısı MEBBİS için en fazla 50 karakter olmalı.";
   }
   if (validationMessage?.includes("Criminal record issuing institution is required")) {
     return "Adli sicil belge veren kurum bilgisi gerekli.";
