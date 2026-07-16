@@ -5192,6 +5192,48 @@
   line-height: 1;
 }
 
+.wenntec-upload-form {
+  max-width: 720px;
+}
+
+.wenntec-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 0 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--gray-100);
+  background: transparent;
+  color: var(--gray-700);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wenntec-history-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.wenntec-history-item:hover strong {
+  color: var(--primary-600);
+}
+
+.wenntec-history-item > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wenntec-history-item strong {
+  color: var(--gray-900);
+}
+
+.wenntec-history-item small {
+  color: var(--gray-500);
+}
+
 
 /* ─── GROUP CARD INNER (re-used drawer-row) ─── */
 .drawer-row {

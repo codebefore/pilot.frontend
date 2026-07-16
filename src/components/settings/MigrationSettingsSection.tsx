@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -39,8 +39,18 @@ import { groupKeys } from "../../lib/queries/use-groups";
 import { useMebbisSessionGuard } from "../../lib/queries/use-mebbis-session";
 import { termKeys } from "../../lib/queries/use-terms";
 import type { GroupResponse } from "../../lib/types";
+import {
+  buildMigrationAccessStorageKey,
+  clearMigrationAccess,
+  MIGRATION_ACCESS_STORAGE_PREFIX,
+  readMigrationAccessExpiresAt,
+  readMigrationAccessToken,
+  writeMigrationAccess,
+} from "../../lib/migration-access-storage";
+import { canViewAnyArea, canViewArea } from "../../lib/permissions";
 import { MebIcon } from "../icons";
 import { useToast } from "../ui/Toast";
+import { WenntecImportPanel } from "./WenntecImportPanel";
 
 const MIGRATION_POLL_INTERVAL_MS = 5000;
 const GROUP_IMPORT_POLL_TIMEOUT_MS = 30 * 60 * 1000;
@@ -49,7 +59,6 @@ const VEHICLE_IMPORT_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 const INSTRUCTOR_IMPORT_POLL_TIMEOUT_MS = 10 * 60 * 1000;
 const LICENSE_CLASS_IMPORT_POLL_TIMEOUT_MS = 60 * 1000;
 const INSTITUTION_IMPORT_POLL_TIMEOUT_MS = 60 * 1000;
-const MIGRATION_ACCESS_STORAGE_PREFIX = "pilot.migration.access";
 const CANDIDATE_NATIONAL_IDS_STORAGE_KEY = "pilot.mebbis.candidateNationalIds";
 const MEBBIS_SESSION_REQUIRED_ACTIONS = new Set<MigrationActionKey>([
   "general",
@@ -74,6 +83,8 @@ type MigrationActionKey =
   | "deleteCandidates"
   | "groups"
   | "theorySchedule";
+
+type MigrationSourceTab = "mebbis" | "wenntec";
 
 type MigrationAction = {
   key: MigrationActionKey;
@@ -176,29 +187,53 @@ export function MigrationSettingsSection() {
   const { showToast } = useToast();
   const mebbisSessionGuard = useMebbisSessionGuard();
   const queryClient = useQueryClient();
-  const { activeInstitution, user } = useAuth();
+  const { activeInstitution, user, permissions } = useAuth();
+  const canViewMebbisMigration = canViewAnyArea(user, permissions, ["settings", "mebjobs", "training"]);
+  const canViewWenntecMigration = canViewArea(user, permissions, "payments");
   const [runningAction, setRunningAction] = useState<MigrationActionKey | null>(null);
+  const [activeSourceTab, setActiveSourceTab] = useState<MigrationSourceTab>(
+    canViewMebbisMigration ? "mebbis" : "wenntec"
+  );
   const migrationAccessStorageKey = activeInstitution && user
-    ? `${MIGRATION_ACCESS_STORAGE_PREFIX}.${user.id}.${activeInstitution.id}`
+    ? buildMigrationAccessStorageKey(user.id, activeInstitution.id)
     : MIGRATION_ACCESS_STORAGE_PREFIX;
   const [migrationAccessExpiresAtUtc, setMigrationAccessExpiresAtUtc] = useState<string | null>(
     () => readMigrationAccessExpiresAt(migrationAccessStorageKey)
+  );
+  const [migrationAccessToken, setMigrationAccessToken] = useState<string | null>(
+    () => readMigrationAccessToken(migrationAccessStorageKey)
   );
   const [adminCode, setAdminCode] = useState("");
   const [requestingAdminCode, setRequestingAdminCode] = useState(false);
   const [verifyingAdminCode, setVerifyingAdminCode] = useState(false);
   const [candidateNationalIdsJson, setCandidateNationalIdsJson] = useState("");
   const hasMigrationAccess =
+    migrationAccessToken !== null &&
     migrationAccessExpiresAtUtc !== null &&
     new Date(migrationAccessExpiresAtUtc).getTime() > Date.now();
 
+  const handleMigrationAccessInvalid = useCallback(() => {
+    clearMigrationAccess(migrationAccessStorageKey);
+    setMigrationAccessExpiresAtUtc(null);
+    setMigrationAccessToken(null);
+  }, [migrationAccessStorageKey]);
+
   useEffect(() => {
     if (activeInstitution) {
-      clearMigrationAccessExpiresAt(`${MIGRATION_ACCESS_STORAGE_PREFIX}.${activeInstitution.id}`);
+      clearMigrationAccess(`${MIGRATION_ACCESS_STORAGE_PREFIX}.${activeInstitution.id}`);
     }
     setMigrationAccessExpiresAtUtc(readMigrationAccessExpiresAt(migrationAccessStorageKey));
+    setMigrationAccessToken(readMigrationAccessToken(migrationAccessStorageKey));
     setAdminCode("");
   }, [activeInstitution, migrationAccessStorageKey]);
+
+  useEffect(() => {
+    if (activeSourceTab === "mebbis" && !canViewMebbisMigration && canViewWenntecMigration) {
+      setActiveSourceTab("wenntec");
+    } else if (activeSourceTab === "wenntec" && !canViewWenntecMigration && canViewMebbisMigration) {
+      setActiveSourceTab("mebbis");
+    }
+  }, [activeSourceTab, canViewMebbisMigration, canViewWenntecMigration]);
 
   const handleRequestAdminCode = async () => {
     if (requestingAdminCode) return;
@@ -233,8 +268,13 @@ export function MigrationSettingsSection() {
     setVerifyingAdminCode(true);
     try {
       const result = await verifyMigrationAccessCode(code);
-      writeMigrationAccessExpiresAt(migrationAccessStorageKey, result.expiresAtUtc);
+      writeMigrationAccess(
+        migrationAccessStorageKey,
+        result.expiresAtUtc,
+        result.accessToken
+      );
       setMigrationAccessExpiresAtUtc(result.expiresAtUtc);
+      setMigrationAccessToken(result.accessToken);
       setAdminCode("");
       showToast(t("settings.migration.access.unlocked"));
     } catch (error) {
@@ -907,9 +947,28 @@ export function MigrationSettingsSection() {
     <div className="settings-section-stack">
       <div className="settings-tab-toolbar integrations-tab-toolbar">
         <div aria-label={t("settings.migration.title")} className="page-tabs" role="tablist">
-          <button aria-selected="true" className="page-tab active" role="tab" type="button">
-            {t("settings.migration.tab.mebbis")}
-          </button>
+          {canViewMebbisMigration ? (
+            <button
+              aria-selected={activeSourceTab === "mebbis"}
+              className={activeSourceTab === "mebbis" ? "page-tab active" : "page-tab"}
+              onClick={() => setActiveSourceTab("mebbis")}
+              role="tab"
+              type="button"
+            >
+              {t("settings.migration.tab.mebbis")}
+            </button>
+          ) : null}
+          {canViewWenntecMigration ? (
+            <button
+              aria-selected={activeSourceTab === "wenntec"}
+              className={activeSourceTab === "wenntec" ? "page-tab active" : "page-tab"}
+              onClick={() => setActiveSourceTab("wenntec")}
+              role="tab"
+              type="button"
+            >
+              {t("settings.migration.tab.wenntec")}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -922,8 +981,16 @@ export function MigrationSettingsSection() {
           <div className="settings-info-list">
             <div className="settings-info-item">
               <div>
-                <div className="settings-info-title">{t("settings.migration.info.title")}</div>
-                <div className="settings-info-note">{t("settings.migration.info.description")}</div>
+                <div className="settings-info-title">
+                  {activeSourceTab === "mebbis"
+                    ? t("settings.migration.info.title")
+                    : t("settings.migration.wenntec.infoTitle")}
+                </div>
+                <div className="settings-info-note">
+                  {activeSourceTab === "mebbis"
+                    ? t("settings.migration.info.description")
+                    : t("settings.migration.wenntec.infoDescription")}
+                </div>
               </div>
             </div>
           </div>
@@ -989,7 +1056,13 @@ export function MigrationSettingsSection() {
             </div>
           </div>
         </section>
-      ) : (
+      ) : activeSourceTab === "wenntec" && canViewWenntecMigration ? (
+        <WenntecImportPanel
+          key={activeInstitution?.id ?? "no-institution"}
+          migrationAccessToken={migrationAccessToken!}
+          onMigrationAccessInvalid={handleMigrationAccessInvalid}
+        />
+      ) : activeSourceTab === "mebbis" && canViewMebbisMigration ? (
         <>
           {MIGRATION_GROUPS.map((group, groupIndex) => {
             const previousActionCount = MIGRATION_GROUPS.slice(0, groupIndex).reduce(
@@ -1095,34 +1168,9 @@ export function MigrationSettingsSection() {
             </form>
           </section>
         </>
-      )}
+      ) : null}
     </div>
   );
-}
-
-function readMigrationAccessExpiresAt(storageKey: string): string | null {
-  const value = localStorage.getItem(storageKey) ?? sessionStorage.getItem(storageKey);
-  if (!value) return null;
-  const expiresAt = new Date(value).getTime();
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-    clearMigrationAccessExpiresAt(storageKey);
-    return null;
-  }
-  if (!localStorage.getItem(storageKey)) {
-    localStorage.setItem(storageKey, value);
-    sessionStorage.removeItem(storageKey);
-  }
-  return value;
-}
-
-function writeMigrationAccessExpiresAt(storageKey: string, expiresAtUtc: string): void {
-  localStorage.setItem(storageKey, expiresAtUtc);
-  sessionStorage.removeItem(storageKey);
-}
-
-function clearMigrationAccessExpiresAt(storageKey: string): void {
-  localStorage.removeItem(storageKey);
-  sessionStorage.removeItem(storageKey);
 }
 
 type CandidateNationalIdsParseResult =

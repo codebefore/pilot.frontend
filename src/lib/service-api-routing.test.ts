@@ -34,6 +34,7 @@ describe("service api routing ownership", () => {
       ["cash-registers-api.ts", "getFinanceApiBaseUrl"],
       ["license-class-fee-matrix-api.ts", "getFinanceApiBaseUrl"],
       ["payments-api.ts", "getFinanceApiBaseUrl"],
+      ["wenntec-import-api.ts", "getFinanceApiBaseUrl"],
 
       ["license-class-definitions-api.ts", "getCatalogApiBaseUrl"],
       ["training-branch-definitions-api.ts", "getCatalogApiBaseUrl"],

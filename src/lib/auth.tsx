@@ -24,6 +24,7 @@ import {
   type AuthUser,
 } from "./auth-storage";
 import { stopLocalAgentMebbisSession } from "./local-agent-api";
+import { clearAllMigrationAccess } from "./migration-access-storage";
 
 export type AuthContextValue = {
   user: AuthUser | null;
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeStoredAuthSession(session);
     } else {
       clearStoredAuthSession();
+      clearAllMigrationAccess();
     }
   }, [session]);
 

@@ -89,6 +89,7 @@ export type QueryParams = Record<string, QueryParamValue>;
 
 type RequestOptions = {
   baseUrl?: string;
+  headers?: HeadersInit;
   includeInstitutionHeader?: boolean;
   signal?: AbortSignal;
 };
@@ -295,6 +296,7 @@ export async function httpDelete<T = void>(
 
 function buildHeaders(base?: HeadersInit, options?: RequestOptions): HeadersInit {
   const headers = new Headers(base);
+  new Headers(options?.headers).forEach((value, key) => headers.set(key, value));
   const token = getStoredAccessToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);

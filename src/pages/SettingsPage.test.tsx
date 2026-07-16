@@ -199,6 +199,23 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("link", { name: /Genel/i })).not.toBeInTheDocument();
   });
 
+  it("allows payments users to access migration settings", async () => {
+    renderSettingsPage("/settings/definitions/migration", {
+      user: {
+        id: "payments-user",
+        phone: "5000000004",
+        name: "Payments User",
+        roleName: "Muhasebe",
+        isSuperAdmin: false,
+      },
+      permissions: { payments: "full" },
+    });
+
+    expect(await screen.findByText("Migration Section Mock")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Migration/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Genel/i })).not.toBeInTheDocument();
+  });
+
   it("hides document type settings from non-super-admin document users", async () => {
     renderSettingsPage("/settings/definitions/document-types", {
       user: {

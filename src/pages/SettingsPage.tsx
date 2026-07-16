@@ -130,7 +130,7 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
         labelKey: "settings.nav.migration.label",
         descriptionKey: "settings.nav.migration.description",
         to: "/settings/definitions/migration",
-        permissionAreas: ["settings", "mebjobs", "training"],
+        permissionAreas: ["settings", "mebjobs", "training", "payments"],
       },
     ],
   },
@@ -313,7 +313,7 @@ export function SettingsPage() {
                 path="definitions/integrations"
               />
               <Route
-                element={requireSettingsPermission(["settings", "mebjobs", "training"], <MigrationSettingsSection />)}
+                element={requireSettingsPermission(["settings", "mebjobs", "training", "payments"], <MigrationSettingsSection />)}
                 path="definitions/migration"
               />
               <Route

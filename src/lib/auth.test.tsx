@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider, useAuth } from "./auth";
+import { buildMigrationAccessStorageKey } from "./migration-access-storage";
 import { AUTH_STORAGE_KEY, clearStoredAuthSession, readStoredAuthSession } from "./auth-storage";
 
 const requestLoginCodeMock = vi.fn();
@@ -208,6 +209,9 @@ describe("AuthProvider", () => {
     await act(async () => {
       screen.getByText("login").click();
     });
+    const migrationAccessKey = buildMigrationAccessStorageKey("user-a", "institution-a");
+    sessionStorage.setItem(migrationAccessKey, new Date(Date.now() + 60_000).toISOString());
+    sessionStorage.setItem(`${migrationAccessKey}.token`, "migration-token");
     await act(async () => {
       screen.getByText("logout").click();
     });
@@ -216,6 +220,8 @@ describe("AuthProvider", () => {
     expect(stopLocalAgentMebbisSessionMock).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("user")).toHaveTextContent("none");
     expect(readStoredAuthSession()).toBeNull();
+    expect(sessionStorage.getItem(migrationAccessKey)).toBeNull();
+    expect(sessionStorage.getItem(`${migrationAccessKey}.token`)).toBeNull();
     expect(localStorage.getItem("pilot.lang")).toBe("tr");
     expect(localStorage.getItem("pilot.theme")).toBe("pilot");
   });

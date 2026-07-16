@@ -26,6 +26,7 @@ export type MigrationAccessCodeResponse = {
 
 export type MigrationAccessVerifyResponse = {
   expiresAtUtc: string;
+  accessToken: string;
 };
 
 type RefreshTokenRequest = {
