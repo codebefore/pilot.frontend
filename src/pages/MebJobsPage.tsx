@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { JobDrawer } from "../components/drawers/JobDrawer";
+import { WenntecImportJobsPanel } from "../components/jobs/WenntecImportJobsPanel";
 import { PlusIcon, RefreshIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { NewMebJobModal } from "../components/modals/NewMebJobModal";
@@ -33,7 +34,7 @@ import {
   type MebbisJobListResponse,
 } from "../lib/mebbis-jobs-api";
 import { buildJobsSummaryFromCounts, type MebJob } from "../lib/mebbis-jobs";
-import { canManageArea } from "../lib/permissions";
+import { canManageArea, canViewArea } from "../lib/permissions";
 import { candidateKeys } from "../lib/queries/use-candidates";
 import { groupKeys } from "../lib/queries/use-groups";
 import { useMebbisSessionGuard } from "../lib/queries/use-mebbis-session";
@@ -234,6 +235,7 @@ export function MebJobsPage() {
   const { showToast } = useToast();
   const { user, permissions } = useAuth();
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
+  const canViewPayments = canViewArea(user, permissions, "payments");
   const mebbisSessionGuard = useMebbisSessionGuard();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -574,6 +576,8 @@ export function MebJobsPage() {
           />
         ))}
       </div>
+
+      {canViewPayments && <WenntecImportJobsPanel />}
 
       <QueueHealthBand
         canRetry={canManageMebJobs}

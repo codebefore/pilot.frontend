@@ -16,6 +16,7 @@ const createCandidateLookupJobMock = vi.fn();
 const getMebbisJobQueueStatusMock = vi.fn();
 const getLocalAgentMebbisSessionMock = vi.fn();
 const ensureMebbisSessionMock = vi.fn();
+const listWenntecImportJobsMock = vi.fn();
 let mebbisSessionDisabled = false;
 
 vi.mock("../lib/candidates-api", async () => {
@@ -75,6 +76,18 @@ vi.mock("../lib/mebbis-jobs-api", async () => {
       createCandidateLookupJobMock(...args),
     getMebbisJobQueueStatus: (...args: Parameters<typeof actual.getMebbisJobQueueStatus>) =>
       getMebbisJobQueueStatusMock(...args),
+  };
+});
+
+vi.mock("../lib/wenntec-import-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/wenntec-import-api")>(
+    "../lib/wenntec-import-api"
+  );
+
+  return {
+    ...actual,
+    listWenntecImportJobs: (...args: Parameters<typeof actual.listWenntecImportJobs>) =>
+      listWenntecImportJobsMock(...args),
   };
 });
 
@@ -159,6 +172,7 @@ describe("MebJobsPage", () => {
     getMebbisJobQueueStatusMock.mockReset();
     getLocalAgentMebbisSessionMock.mockReset();
     ensureMebbisSessionMock.mockReset();
+    listWenntecImportJobsMock.mockReset();
     mebbisSessionDisabled = false;
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
@@ -227,6 +241,7 @@ describe("MebJobsPage", () => {
       healthStatus: "healthy",
       healthMessage: "healthy",
     });
+    listWenntecImportJobsMock.mockResolvedValue([]);
     cancelAllMebbisJobsMock.mockResolvedValue({
       cancelledCount: 1,
       cancelledAtUtc: "2026-05-30T10:01:00Z",
@@ -268,6 +283,84 @@ describe("MebJobsPage", () => {
     expect(cancelMebbisJobMock).not.toHaveBeenCalled();
     expect(cancelAllMebbisJobsMock).not.toHaveBeenCalled();
     expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
+  });
+
+  it("shows Wenntec import status and error to payment viewers", async () => {
+    listWenntecImportJobsMock.mockResolvedValue([
+      {
+        id: "77ea889b-ac2a-4e86-bcd8-4c4e9617061a",
+        sourceSystem: "wenntec",
+        sourceFileName: "eren.sql",
+        fileSizeBytes: 31_000_000,
+        fileSha256: "a".repeat(64),
+        status: "apply_failed",
+        summary: {
+          totalRows: 16_831,
+          activeRows: 14_711,
+          deletedRows: 862,
+          zeroAmountRows: 1_258,
+          negativeAmountRows: 1,
+          eligibleRows: 14_711,
+          candidateRows: 14_000,
+          paidCandidateRows: 10_000,
+          unpaidCandidateRows: 4_000,
+          trackingCandidateRows: 0,
+          refundReviewRows: 1,
+          incomeRows: 300,
+          expenseRows: 411,
+          matchedCandidateRows: 9_286,
+          candidateNotFoundRows: 58,
+          multipleCandidateRows: 396,
+          invalidDataRows: 1,
+          paidCandidateAmount: 1,
+          openCandidateAmount: 1,
+          trackingCandidateAmount: 0,
+          incomeAmount: 1,
+          expenseAmount: 1,
+          importedRows: 500,
+          skippedRows: 10,
+          manualReviewRows: 20,
+          importedMovementRows: 500,
+          importedPaymentRows: 400,
+          importedCashMovementRows: 100,
+          existingSourceRows: 0,
+          processedRows: 530,
+          missingCashRegisters: [],
+          errorLogs: [
+            {
+              occurredAtUtc: "2026-07-16T13:05:20Z",
+              stage: "apply",
+              attempt: 3,
+              message: "PostgreSQL 23503; constraint: FK_test.",
+            },
+          ],
+        },
+        errorMessage: "Database constraint prevented the Wenntec import from continuing.",
+        attemptCount: 3,
+        processingStartedAtUtc: null,
+        completedAtUtc: "2026-07-16T13:05:20Z",
+        fileRetainUntilUtc: null,
+        fileDeletedAtUtc: null,
+        applyRequestedAtUtc: "2026-07-16T13:00:00Z",
+        appliedByUserId: "user-1",
+        appliedByName: "Seyfettin Cam",
+        createdByUserId: "user-1",
+        createdByName: "Seyfettin Cam",
+        createdAtUtc: "2026-07-16T12:52:00Z",
+        updatedAtUtc: "2026-07-16T13:05:20Z",
+      },
+    ]);
+
+    renderPage({ mebjobs: "view", payments: "view" });
+
+    expect(await screen.findByText("Wenntec Muhasebe Aktarımları")).toBeInTheDocument();
+    expect(await screen.findByText("eren.sql")).toBeInTheDocument();
+    expect(screen.getByText("Aktarım başarısız")).toBeInTheDocument();
+    expect(screen.getByText("530 / 16.831")).toBeInTheDocument();
+    expect(screen.getByText(/Database constraint prevented/)).toBeInTheDocument();
+    expect(screen.getByText("Hata geçmişi (1)")).toBeInTheDocument();
+    expect(screen.getByText(/PostgreSQL 23503/)).toBeInTheDocument();
+    expect(listWenntecImportJobsMock).toHaveBeenCalled();
   });
 
   it("confirms and cancels all active jobs for full access users", async () => {

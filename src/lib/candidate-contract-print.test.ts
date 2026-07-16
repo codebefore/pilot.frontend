@@ -421,11 +421,39 @@ describe("candidate contract print", () => {
 
     expect(request.templateKey).toBe("k-certificate-matbu");
     expect(request.values.belgeno).toBe("K-42");
-    expect(request.values.kurumkisaadi).toBe("Pilot Kurs");
+    expect(request.values.kurskisaadi).toBe("Pilot");
+    expect(request.values.kurumkisaadi).toBe("Pilot");
     expect(request.values.kurumadresi).toBe("Kurum adresi");
     expect(request.values.kursiyerfoto).toBe("");
     expect(request.images?.kursiyerbiyometrikfotograf?.base64).toBe("abc");
     expect(request.images?.kursiyerfoto?.base64).toBe("abc");
+  });
+
+  it("uses the official institution name without repeated legal course words for K certificate short name", () => {
+    const request = buildCandidateKCertificateRenderPdfRequest({
+      candidate,
+      certificate: {
+        documentNumber: "K-42",
+        startDate: "2026-07-08",
+        expiryDate: "2026-07-15",
+        lastLessonEndDate: "2026-07-08",
+      },
+      institution: {
+        ...institution,
+        institutionOfficialName: "ÖZEL TANIDIK MOTORLU TAŞIT SÜRÜCÜLERİ KURSU",
+        institutionName: "Tanıdık Kurs",
+      },
+      managerName: "Mehmet Müdür",
+      lesson: null,
+      instructor: null,
+      vehicle: null,
+      vehicleTypeLabel: "Motosiklet",
+      routeName: "Güzergah 1",
+      templateKey: "k-certificate-matbu",
+    });
+
+    expect(request.values.kurskisaadi).toBe("TANIDIK");
+    expect(request.values.kurumkisaadi).toBe("TANIDIK");
   });
 
   it("builds PDF render request values for the driving tracking list", () => {

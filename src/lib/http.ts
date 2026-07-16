@@ -194,7 +194,7 @@ export async function httpPost<T>(
 ): Promise<T> {
   const response = await fetchWithAuthRetry(buildUrl(path, undefined, options?.baseUrl), {
     method: "POST",
-    headers: buildHeaders({ "Content-Type": "application/json" }),
+    headers: buildHeaders({ "Content-Type": "application/json" }, options),
     body: JSON.stringify(body),
     signal: options?.signal,
   });

@@ -31,6 +31,16 @@ export type WenntecImportSummary = {
   importedPaymentRows: number;
   importedCashMovementRows: number;
   existingSourceRows: number;
+  processedRows: number;
+  missingCashRegisters: string[];
+  errorLogs: WenntecImportErrorLog[];
+};
+
+export type WenntecImportErrorLog = {
+  occurredAtUtc: string;
+  stage: "analysis" | "apply" | "projection" | string;
+  attempt: number;
+  message: string;
 };
 
 export type WenntecImportBatch = {
@@ -87,6 +97,14 @@ export function listWenntecImportBatches(
     "/api/finance/imports/wenntec",
     { limit: 10 },
     financeRequestOptions(migrationAccessToken, signal)
+  );
+}
+
+export function listWenntecImportJobs(signal?: AbortSignal): Promise<WenntecImportBatch[]> {
+  return httpGet<WenntecImportBatch[]>(
+    "/api/finance/imports/wenntec/jobs",
+    { limit: 20 },
+    { baseUrl: getFinanceApiBaseUrl(), signal }
   );
 }
 

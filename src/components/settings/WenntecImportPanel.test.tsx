@@ -70,6 +70,9 @@ const batch = {
     importedPaymentRows: 0,
     importedCashMovementRows: 0,
     existingSourceRows: 0,
+    processedRows: 0,
+    missingCashRegisters: [],
+    errorLogs: [],
   },
   errorMessage: null,
   attemptCount: 1,
@@ -89,7 +92,15 @@ const batch = {
 const queuedBatch = {
   ...batch,
   status: "queued",
-  summary: Object.fromEntries(Object.keys(batch.summary).map((key) => [key, 0])) as typeof batch.summary,
+  summary: {
+    ...(Object.fromEntries(
+      Object.keys(batch.summary)
+        .filter((key) => key !== "missingCashRegisters" && key !== "errorLogs")
+        .map((key) => [key, 0])
+    ) as unknown as typeof batch.summary),
+    missingCashRegisters: [],
+    errorLogs: [],
+  },
   attemptCount: 0,
   completedAtUtc: null,
 };
@@ -151,7 +162,6 @@ describe("WenntecImportPanel", () => {
 
   it("queues the analyzed batch for background accounting import", async () => {
     listWenntecImportBatchesMock.mockResolvedValue([batch]);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     renderWithProviders(
       <WenntecImportPanel
         migrationAccessToken="migration-token"
@@ -160,11 +170,36 @@ describe("WenntecImportPanel", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "Aktarımı Başlat" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Muhasebe aktarımını başlat");
+    expect(applyWenntecImportMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Evet, Aktarımı Başlat" }));
 
     await waitFor(() =>
       expect(applyWenntecImportMock).toHaveBeenCalledWith("batch-1", "migration-token")
     );
     expect(await screen.findByText("Aktarım sırasına alındı")).toBeInTheDocument();
+  });
+
+  it("warns but allows live preflight when dry-run reports missing institution cash registers", async () => {
+    listWenntecImportBatchesMock.mockResolvedValue([
+      {
+        ...batch,
+        summary: {
+          ...batch.summary,
+          missingCashRegisters: ["FİNANSBANK (bank_transfer)", "AKBANK POS (credit_card)"],
+        },
+      },
+    ]);
+    renderWithProviders(
+      <WenntecImportPanel
+        migrationAccessToken="migration-token"
+        onMigrationAccessInvalid={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("FİNANSBANK (bank_transfer)");
+    expect(screen.getByRole("alert")).toHaveTextContent("AKBANK POS (credit_card)");
+    expect(screen.getByRole("button", { name: "Aktarımı Başlat" })).toBeInTheDocument();
   });
 
   it("shows manual review items and retries candidate matching", async () => {

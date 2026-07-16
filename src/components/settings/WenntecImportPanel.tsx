@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "../../lib/auth";
@@ -184,9 +184,6 @@ export function WenntecImportPanel({
 
   const visibleBatch = latestBatch ?? historyQuery.data?.[0] ?? null;
   const handleApply = (batchId: string) => {
-    if (!window.confirm(t("settings.migration.wenntec.applyConfirm"))) {
-      return;
-    }
     applyMutation.mutate(batchId);
   };
 
@@ -302,9 +299,12 @@ function WenntecAnalysisSummary({
   onApply: (batchId: string) => void;
 }) {
   const t = useT();
+  const [applyConfirmationOpen, setApplyConfirmationOpen] = useState(false);
   const status = getBatchStatusPresentation(batch.status, t);
   const hasAnalysis = ["analyzed", "apply_queued", "applying", "finalizing", "completed", "completed_with_review", "apply_failed"].includes(batch.status);
   const hasApplyResult = batch.status === "completed" || batch.status === "completed_with_review";
+  const missingCashRegisters = batch.summary.missingCashRegisters ?? [];
+  const hasMissingCashRegisters = missingCashRegisters.length > 0;
   return (
     <section className="settings-surface">
       <div className="settings-surface-header">
@@ -331,6 +331,11 @@ function WenntecAnalysisSummary({
                 </div>
               ))}
             </div>
+            {hasMissingCashRegisters ? (
+              <div className="settings-form-helper error" role="alert">
+                {t("settings.migration.wenntec.missingCashRegisters")}: {missingCashRegisters.join(", ")}
+              </div>
+            ) : null}
             {hasApplyResult ? (
               <>
                 <h3 className="settings-surface-title">{t("settings.migration.wenntec.applyResult")}</h3>
@@ -375,17 +380,30 @@ function WenntecAnalysisSummary({
                     : t("settings.migration.wenntec.dryRunOnly")}
                 </div>
                 {canApply ? (
-                  <div className="settings-form-actions">
+                  <div className="settings-form-actions wenntec-confirm-popover-anchor">
                     <button
                       className="btn btn-primary"
                       disabled={isApplyPending}
-                      onClick={() => onApply(batch.id)}
+                      onClick={() => setApplyConfirmationOpen(true)}
                       type="button"
                     >
                       {isApplyPending
                         ? t("settings.migration.wenntec.applyQueuing")
                         : t("settings.migration.wenntec.apply")}
                     </button>
+                    {applyConfirmationOpen ? (
+                      <WenntecConfirmPopover
+                        confirmLabel={t("settings.migration.wenntec.applyConfirmAction")}
+                        message={t("settings.migration.wenntec.applyConfirm")}
+                        onCancel={() => setApplyConfirmationOpen(false)}
+                        onConfirm={() => {
+                          setApplyConfirmationOpen(false);
+                          onApply(batch.id);
+                        }}
+                        pending={isApplyPending}
+                        title={t("settings.migration.wenntec.applyConfirmTitle")}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
               </>
@@ -445,6 +463,7 @@ function WenntecReviewItems({
   const t = useT();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const [skipConfirmationItemId, setSkipConfirmationItemId] = useState<string | null>(null);
   const queryKey = ["finance", "imports", "wenntec", batchId, "review-items"] as const;
   const itemsQuery = useQuery({
     queryKey,
@@ -507,22 +526,83 @@ function WenntecReviewItems({
                   {t("settings.migration.wenntec.review.retry")}
                 </button>
               ) : null}
-              <button
-                className="btn btn-secondary"
-                disabled={resolutionMutation.isPending}
-                onClick={() => {
-                  if (window.confirm(t("settings.migration.wenntec.review.skipConfirm"))) {
-                    resolutionMutation.mutate({ itemId: item.id, action: "skip" });
-                  }
-                }}
-                type="button"
-              >
-                {t("settings.migration.wenntec.review.skip")}
-              </button>
+              <div className="wenntec-confirm-popover-anchor">
+                <button
+                  className="btn btn-secondary"
+                  disabled={resolutionMutation.isPending}
+                  onClick={() => setSkipConfirmationItemId(item.id)}
+                  type="button"
+                >
+                  {t("settings.migration.wenntec.review.skip")}
+                </button>
+                {skipConfirmationItemId === item.id ? (
+                  <WenntecConfirmPopover
+                    confirmLabel={t("settings.migration.wenntec.review.skip")}
+                    message={t("settings.migration.wenntec.review.skipConfirm")}
+                    onCancel={() => setSkipConfirmationItemId(null)}
+                    onConfirm={() => {
+                      setSkipConfirmationItemId(null);
+                      resolutionMutation.mutate({ itemId: item.id, action: "skip" });
+                    }}
+                    pending={resolutionMutation.isPending}
+                    title={t("settings.migration.wenntec.review.skipConfirmTitle")}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function WenntecConfirmPopover({
+  title,
+  message,
+  confirmLabel,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const t = useT();
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!popoverRef.current?.contains(event.target as Node)) onCancel();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    const timer = window.setTimeout(() => document.addEventListener("mousedown", handlePointerDown), 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [onCancel]);
+
+  return (
+    <div className="wenntec-confirm-popover" ref={popoverRef} role="alertdialog">
+      <div className="wenntec-confirm-popover-title">{title}</div>
+      <p className="wenntec-confirm-popover-message">{message}</p>
+      <div className="wenntec-confirm-popover-actions">
+        <button className="btn btn-secondary btn-sm" disabled={pending} onClick={onCancel} type="button">
+          {t("common.cancel")}
+        </button>
+        <button className="btn btn-primary btn-sm" disabled={pending} onClick={onConfirm} type="button">
+          {confirmLabel}
+        </button>
+      </div>
     </div>
   );
 }

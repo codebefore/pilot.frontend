@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, httpGet, httpPostForm, normalizeApiPathForBaseUrl } from "./http";
+import { ApiError, httpGet, httpPost, httpPostForm, normalizeApiPathForBaseUrl } from "./http";
 import { clearStoredAuthSession, writeStoredAuthSession } from "./auth-storage";
 import { applyRuntimeConfig } from "./api";
 
@@ -203,6 +203,30 @@ describe("http client", () => {
     expect(headers.get("X-User-Name")).toBe("Test User");
     expect(headers.get("X-User-Name-Encoded")).toBe("Test%20User");
     expect(headers.get("Content-Type")).toBeNull();
+  });
+
+  it("preserves custom headers on JSON posts", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+
+    await expect(
+      httpPost<{ ok: boolean }>(
+        "/api/test",
+        {},
+        { headers: { "X-Migration-Access-Token": "migration-token" } }
+      )
+    ).resolves.toEqual({ ok: true });
+
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers);
+    expect(headers.get("X-Migration-Access-Token")).toBe("migration-token");
+    expect(headers.get("Content-Type")).toBe("application/json");
   });
 
   it("sends non-ASCII user names only in the encoded actor header", async () => {

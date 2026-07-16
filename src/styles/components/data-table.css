@@ -600,6 +600,60 @@
 .meb-jobs-page > .queue-health-band {
   margin-inline: var(--page-shell-gutter);
 }
+.meb-jobs-page > .wenntec-jobs-panel {
+  margin: 8px var(--page-shell-gutter) 4px;
+}
+.wenntec-jobs-table-wrap {
+  overflow-x: auto;
+}
+.wenntec-jobs-table {
+  min-width: 760px;
+}
+.wenntec-job-file {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.wenntec-job-file code {
+  color: var(--gray-500);
+  font-size: 9px;
+  font-weight: 500;
+}
+.wenntec-job-error-row td {
+  padding: 6px 8px !important;
+  background: color-mix(in srgb, var(--danger-500, #ef4444) 8%, transparent);
+  color: var(--danger-700, #b91c1c);
+  font-size: 11px;
+  white-space: normal;
+}
+.wenntec-job-error-log-row summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.wenntec-job-error-log {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.wenntec-job-error-log li span {
+  color: var(--gray-600);
+  font-size: 10px;
+}
+.wenntec-job-error-log li p {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+.wenntec-jobs-message {
+  padding: 12px;
+  color: var(--gray-600);
+  font-size: 12px;
+}
+.wenntec-jobs-message--error {
+  color: var(--danger-700, #b91c1c);
+}
 .meb-jobs-page > .table-wrap {
   padding: 4px var(--page-shell-gutter) 32px;
 }

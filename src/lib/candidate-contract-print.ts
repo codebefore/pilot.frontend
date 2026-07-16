@@ -102,6 +102,34 @@ function clean(value: string | number | null | undefined): string {
   return text || emptyValue;
 }
 
+function normalizeInstitutionNameToken(value: string): string {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c");
+}
+
+function shortInstitutionNameFromOfficialName(institution: InstitutionSettingsResponse | null): string | null {
+  const officialName = institution?.institutionOfficialName?.trim();
+  if (!officialName) return institution?.institutionName ?? null;
+
+  const removableTokens = new Set(["ozel", "motorlu", "tasit", "surucu", "suruculeri", "kursu"]);
+  const shortName = officialName
+    .split(/\s+/)
+    .filter((part) => {
+      const normalized = normalizeInstitutionNameToken(part).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+      return normalized !== "" && !removableTokens.has(normalized);
+    })
+    .join(" ")
+    .trim();
+
+  return shortName || institution?.institutionName || officialName;
+}
+
 function hasExistingLicenseValue(value: string | null | undefined): boolean {
   const normalized = value?.trim().toLocaleLowerCase("tr-TR") ?? "";
   return normalized !== "" && normalized !== "-" && normalized !== "yok" && normalized !== "none" && normalized !== "exempt";
@@ -471,6 +499,7 @@ export function buildCandidateKCertificateRenderPdfRequest({
   templateKey = "k-certificate",
 }: CandidateKCertificateRenderInput): CandidateContractRenderPdfRequest {
   const institutionName = institution?.institutionOfficialName ?? institution?.institutionName ?? null;
+  const certificateInstitutionShortName = shortInstitutionNameFromOfficialName(institution);
   const instructorNameParts = splitFullName(
     instructor
       ? `${instructor.firstName} ${instructor.lastName}`
@@ -502,7 +531,8 @@ export function buildCandidateKCertificateRenderPdfRequest({
       kursilce: clean(institution?.district),
       kursadresi: clean(institution?.institutionAddress),
       kurumadresi: clean(institution?.institutionAddress),
-      kurumkisaadi: clean(institution?.institutionName),
+      kurskisaadi: clean(certificateInstitutionShortName),
+      kurumkisaadi: clean(certificateInstitutionShortName),
       kursiyertckimlikno: clean(candidate.nationalId),
       kursiyeradi: clean(candidate.firstName),
       kursiyersoyadi: clean(candidate.lastName),
