@@ -7,8 +7,11 @@ import { currentLocale, useT, type TranslationKey } from "../../lib/i18n";
 import { canManageArea, canViewArea } from "../../lib/permissions";
 import {
   analyzeWenntecImport,
+  applyWenntecImport,
   getWenntecImportBatch,
+  listWenntecImportReviewItems,
   listWenntecImportBatches,
+  resolveWenntecImportReviewItem,
   type WenntecImportBatch,
   type WenntecImportSummary,
 } from "../../lib/wenntec-import-api";
@@ -39,6 +42,16 @@ const SUMMARY_METRICS: SummaryMetric[] = [
   { labelKey: "settings.migration.wenntec.metric.zero", value: (summary) => summary.zeroAmountRows },
   { labelKey: "settings.migration.wenntec.metric.invalid", value: (summary) => summary.invalidDataRows },
   { labelKey: "settings.migration.wenntec.metric.refund", value: (summary) => summary.refundReviewRows },
+];
+
+const APPLY_METRICS: SummaryMetric[] = [
+  { labelKey: "settings.migration.wenntec.metric.imported", value: (summary) => summary.importedRows },
+  { labelKey: "settings.migration.wenntec.metric.movements", value: (summary) => summary.importedMovementRows },
+  { labelKey: "settings.migration.wenntec.metric.payments", value: (summary) => summary.importedPaymentRows },
+  { labelKey: "settings.migration.wenntec.metric.cashMovements", value: (summary) => summary.importedCashMovementRows },
+  { labelKey: "settings.migration.wenntec.metric.skipped", value: (summary) => summary.skippedRows },
+  { labelKey: "settings.migration.wenntec.metric.manualReview", value: (summary) => summary.manualReviewRows },
+  { labelKey: "settings.migration.wenntec.metric.existingSource", value: (summary) => summary.existingSourceRows },
 ];
 
 type WenntecImportPanelProps = {
@@ -104,6 +117,24 @@ export function WenntecImportPanel({
       showToast(message, "error");
     },
   });
+  const applyMutation = useMutation({
+    mutationFn: (batchId: string) => applyWenntecImport(batchId, migrationAccessToken),
+    onSuccess: (batch) => {
+      setLatestBatch(batch);
+      void queryClient.invalidateQueries({ queryKey: historyQueryKey });
+      showToast(t("settings.migration.wenntec.applyQueued"));
+    },
+    onError: (error) => {
+      console.error(error);
+      if (isMigrationAccessError(error)) {
+        onMigrationAccessInvalid();
+      }
+      const message = error instanceof ApiError
+        ? error.problemTitle ?? t("settings.migration.wenntec.applyFailed")
+        : t("settings.migration.wenntec.applyFailed");
+      showToast(message, "error");
+    },
+  });
 
   useEffect(() => {
     if (isMigrationAccessError(historyQuery.error) || isMigrationAccessError(detailQuery.error)) {
@@ -152,6 +183,12 @@ export function WenntecImportPanel({
   };
 
   const visibleBatch = latestBatch ?? historyQuery.data?.[0] ?? null;
+  const handleApply = (batchId: string) => {
+    if (!window.confirm(t("settings.migration.wenntec.applyConfirm"))) {
+      return;
+    }
+    applyMutation.mutate(batchId);
+  };
 
   return (
     <>
@@ -199,7 +236,16 @@ export function WenntecImportPanel({
         </div>
       </section>
 
-      {visibleBatch ? <WenntecAnalysisSummary batch={visibleBatch} /> : null}
+      {visibleBatch ? (
+        <WenntecAnalysisSummary
+          batch={visibleBatch}
+          canApply={canUpload}
+          isApplyPending={applyMutation.isPending}
+          migrationAccessToken={migrationAccessToken}
+          onMigrationAccessInvalid={onMigrationAccessInvalid}
+          onApply={handleApply}
+        />
+      ) : null}
 
       {canView && (historyQuery.data?.length ?? 0) > 0 ? (
         <section className="settings-surface">
@@ -237,12 +283,28 @@ function isMigrationAccessError(error: unknown): error is ApiError {
 }
 
 function isActiveBatch(status: string): boolean {
-  return status === "queued" || status === "processing";
+  return status === "queued" || status === "processing" || status === "apply_queued" || status === "applying" || status === "finalizing";
 }
 
-function WenntecAnalysisSummary({ batch }: { batch: WenntecImportBatch }) {
+function WenntecAnalysisSummary({
+  batch,
+  canApply,
+  isApplyPending,
+  migrationAccessToken,
+  onMigrationAccessInvalid,
+  onApply,
+}: {
+  batch: WenntecImportBatch;
+  canApply: boolean;
+  isApplyPending: boolean;
+  migrationAccessToken: string;
+  onMigrationAccessInvalid: () => void;
+  onApply: (batchId: string) => void;
+}) {
   const t = useT();
   const status = getBatchStatusPresentation(batch.status, t);
+  const hasAnalysis = ["analyzed", "apply_queued", "applying", "finalizing", "completed", "completed_with_review", "apply_failed"].includes(batch.status);
+  const hasApplyResult = batch.status === "completed" || batch.status === "completed_with_review";
   return (
     <section className="settings-surface">
       <div className="settings-surface-header">
@@ -255,7 +317,7 @@ function WenntecAnalysisSummary({ batch }: { batch: WenntecImportBatch }) {
         <StatusPill label={status.label} status={status.pill} />
       </div>
       <div className="settings-surface-body">
-        {batch.status === "analyzed" ? (
+        {hasAnalysis ? (
           <>
             <div className="settings-summary-grid">
               {SUMMARY_METRICS.map((metric) => (
@@ -269,7 +331,65 @@ function WenntecAnalysisSummary({ batch }: { batch: WenntecImportBatch }) {
                 </div>
               ))}
             </div>
-            <div className="settings-info-note">{t("settings.migration.wenntec.dryRunOnly")}</div>
+            {hasApplyResult ? (
+              <>
+                <h3 className="settings-surface-title">{t("settings.migration.wenntec.applyResult")}</h3>
+                <div className="settings-summary-grid">
+                  {APPLY_METRICS.map((metric) => (
+                    <div className="settings-summary-card" key={metric.labelKey}>
+                      <span className="settings-summary-label">{t(metric.labelKey)}</span>
+                      <strong className="settings-summary-value">{formatNumber(metric.value(batch.summary))}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="settings-info-note">{t("settings.migration.wenntec.appliedMessage")}</div>
+                {batch.appliedByName ? (
+                  <div className="settings-info-note">
+                    {t("settings.migration.wenntec.appliedBy")}: {batch.appliedByName}
+                  </div>
+                ) : null}
+                {batch.applyRequestedAtUtc ? (
+                  <div className="settings-info-note">
+                    {t("settings.migration.wenntec.appliedAt")}: {formatDateTime(batch.applyRequestedAtUtc)}
+                  </div>
+                ) : null}
+                {batch.status === "completed_with_review" ? (
+                  <WenntecReviewItems
+                    batchId={batch.id}
+                    migrationAccessToken={migrationAccessToken}
+                    onMigrationAccessInvalid={onMigrationAccessInvalid}
+                  />
+                ) : null}
+              </>
+            ) : batch.status === "apply_queued" || batch.status === "applying" || batch.status === "finalizing" ? (
+              <div className="settings-info-note">
+                {batch.status === "finalizing"
+                  ? t("settings.migration.wenntec.finalizingMessage")
+                  : t("settings.migration.wenntec.applyingMessage")}
+              </div>
+            ) : (
+              <>
+                <div className="settings-info-note">
+                  {batch.status === "apply_failed"
+                    ? batch.errorMessage ?? t("settings.migration.wenntec.applyFailed")
+                    : t("settings.migration.wenntec.dryRunOnly")}
+                </div>
+                {canApply ? (
+                  <div className="settings-form-actions">
+                    <button
+                      className="btn btn-primary"
+                      disabled={isApplyPending}
+                      onClick={() => onApply(batch.id)}
+                      type="button"
+                    >
+                      {isApplyPending
+                        ? t("settings.migration.wenntec.applyQueuing")
+                        : t("settings.migration.wenntec.apply")}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            )}
           </>
         ) : (
           <div className="settings-info-note">
@@ -296,9 +416,115 @@ function getBatchStatusPresentation(
       return { label: t("settings.migration.wenntec.processing"), pill: "running" };
     case "failed":
       return { label: t("settings.migration.wenntec.failedStatus"), pill: "failed" };
+    case "apply_queued":
+      return { label: t("settings.migration.wenntec.applyQueuedStatus"), pill: "queued" };
+    case "applying":
+      return { label: t("settings.migration.wenntec.applying"), pill: "running" };
+    case "finalizing":
+      return { label: t("settings.migration.wenntec.finalizing"), pill: "running" };
+    case "apply_failed":
+      return { label: t("settings.migration.wenntec.applyFailedStatus"), pill: "failed" };
+    case "completed":
+      return { label: t("settings.migration.wenntec.completed"), pill: "success" };
+    case "completed_with_review":
+      return { label: t("settings.migration.wenntec.completedWithReview"), pill: "success" };
     default:
       return { label: t("settings.migration.wenntec.analyzed"), pill: "success" };
   }
+}
+
+function WenntecReviewItems({
+  batchId,
+  migrationAccessToken,
+  onMigrationAccessInvalid,
+}: {
+  batchId: string;
+  migrationAccessToken: string;
+  onMigrationAccessInvalid: () => void;
+}) {
+  const t = useT();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const queryKey = ["finance", "imports", "wenntec", batchId, "review-items"] as const;
+  const itemsQuery = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => listWenntecImportReviewItems(batchId, migrationAccessToken, signal),
+  });
+  const resolutionMutation = useMutation({
+    mutationFn: ({ itemId, action }: { itemId: string; action: "retry" | "skip" }) =>
+      resolveWenntecImportReviewItem(batchId, itemId, action, migrationAccessToken),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["finance", "imports", "wenntec"] });
+      void queryClient.invalidateQueries({ queryKey });
+      showToast(t("settings.migration.wenntec.review.updated"));
+    },
+    onError: (error) => {
+      if (isMigrationAccessError(error)) {
+        onMigrationAccessInvalid();
+      }
+      showToast(
+        error instanceof ApiError
+          ? error.problemTitle ?? t("settings.migration.wenntec.review.failed")
+          : t("settings.migration.wenntec.review.failed"),
+        "error"
+      );
+    },
+  });
+  useEffect(() => {
+    if (isMigrationAccessError(itemsQuery.error)) {
+      onMigrationAccessInvalid();
+    }
+  }, [itemsQuery.error, onMigrationAccessInvalid]);
+
+  if (itemsQuery.isLoading) {
+    return <div className="settings-info-note">{t("settings.migration.wenntec.review.loading")}</div>;
+  }
+  if (itemsQuery.error) {
+    return <div className="settings-info-note">{t("settings.migration.wenntec.review.failed")}</div>;
+  }
+
+  return (
+    <div className="settings-info-list">
+      <h3 className="settings-surface-title">{t("settings.migration.wenntec.review.title")}</h3>
+      {itemsQuery.data?.map((item) => {
+        const canRetry = item.status === "candidate_not_found" || item.status === "multiple_candidates_found";
+        return (
+          <div className="settings-info-item" key={item.id}>
+            <div>
+              <div className="settings-info-title">
+                #{item.sourceKey} · {item.maskedNationalId ?? "***"}
+              </div>
+              <div className="settings-info-note">{item.reason ?? item.status}</div>
+            </div>
+            <div className="settings-form-actions">
+              {canRetry ? (
+                <button
+                  className="btn btn-secondary"
+                  disabled={resolutionMutation.isPending}
+                  onClick={() => resolutionMutation.mutate({ itemId: item.id, action: "retry" })}
+                  type="button"
+                >
+                  {t("settings.migration.wenntec.review.retry")}
+                </button>
+              ) : null}
+              <button
+                className="btn btn-secondary"
+                disabled={resolutionMutation.isPending}
+                onClick={() => {
+                  if (window.confirm(t("settings.migration.wenntec.review.skipConfirm"))) {
+                    resolutionMutation.mutate({ itemId: item.id, action: "skip" });
+                  }
+                }}
+                type="button"
+              >
+                {t("settings.migration.wenntec.review.skip")}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function formatHistoryStatus(batch: WenntecImportBatch, t: ReturnType<typeof useT>): string {

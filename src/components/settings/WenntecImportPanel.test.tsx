@@ -8,6 +8,9 @@ import { WenntecImportPanel } from "./WenntecImportPanel";
 const listWenntecImportBatchesMock = vi.fn();
 const getWenntecImportBatchMock = vi.fn();
 const analyzeWenntecImportMock = vi.fn();
+const applyWenntecImportMock = vi.fn();
+const listWenntecImportReviewItemsMock = vi.fn();
+const resolveWenntecImportReviewItemMock = vi.fn();
 
 vi.mock("../../lib/wenntec-import-api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/wenntec-import-api")>(
@@ -21,6 +24,12 @@ vi.mock("../../lib/wenntec-import-api", async () => {
       getWenntecImportBatchMock(...args),
     analyzeWenntecImport: (...args: Parameters<typeof actual.analyzeWenntecImport>) =>
       analyzeWenntecImportMock(...args),
+    applyWenntecImport: (...args: Parameters<typeof actual.applyWenntecImport>) =>
+      applyWenntecImportMock(...args),
+    listWenntecImportReviewItems: (...args: Parameters<typeof actual.listWenntecImportReviewItems>) =>
+      listWenntecImportReviewItemsMock(...args),
+    resolveWenntecImportReviewItem: (...args: Parameters<typeof actual.resolveWenntecImportReviewItem>) =>
+      resolveWenntecImportReviewItemMock(...args),
   };
 });
 
@@ -54,6 +63,13 @@ const batch = {
     trackingCandidateAmount: 49760,
     incomeAmount: 498859.5,
     expenseAmount: 10108272.3,
+    importedRows: 0,
+    skippedRows: 0,
+    manualReviewRows: 0,
+    importedMovementRows: 0,
+    importedPaymentRows: 0,
+    importedCashMovementRows: 0,
+    existingSourceRows: 0,
   },
   errorMessage: null,
   attemptCount: 1,
@@ -61,6 +77,9 @@ const batch = {
   completedAtUtc: "2026-07-15T12:00:10Z",
   fileRetainUntilUtc: "2026-08-14T12:00:00Z",
   fileDeletedAtUtc: null,
+  applyRequestedAtUtc: null,
+  appliedByUserId: null,
+  appliedByName: null,
   createdByUserId: "user-1",
   createdByName: "Test User",
   createdAtUtc: "2026-07-15T12:00:00Z",
@@ -80,9 +99,15 @@ describe("WenntecImportPanel", () => {
     listWenntecImportBatchesMock.mockReset();
     getWenntecImportBatchMock.mockReset();
     analyzeWenntecImportMock.mockReset();
+    applyWenntecImportMock.mockReset();
+    listWenntecImportReviewItemsMock.mockReset();
+    resolveWenntecImportReviewItemMock.mockReset();
     listWenntecImportBatchesMock.mockResolvedValue([]);
     getWenntecImportBatchMock.mockResolvedValue(queuedBatch);
     analyzeWenntecImportMock.mockResolvedValue(batch);
+    applyWenntecImportMock.mockResolvedValue({ ...batch, status: "apply_queued" });
+    listWenntecImportReviewItemsMock.mockResolvedValue([]);
+    resolveWenntecImportReviewItemMock.mockResolvedValue(batch);
   });
 
   it("uploads a SQL file and displays its queued job status", async () => {
@@ -121,6 +146,75 @@ describe("WenntecImportPanel", () => {
     expect(screen.getByText("16.831")).toBeInTheDocument();
     expect(screen.getByText("Analiz tamamlandı")).toBeInTheDocument();
     expect(screen.getByText("Bu aşamada muhasebe kayıtlarına veri yazılmadı.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aktarımı Başlat" })).toBeInTheDocument();
+  });
+
+  it("queues the analyzed batch for background accounting import", async () => {
+    listWenntecImportBatchesMock.mockResolvedValue([batch]);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderWithProviders(
+      <WenntecImportPanel
+        migrationAccessToken="migration-token"
+        onMigrationAccessInvalid={vi.fn()}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Aktarımı Başlat" }));
+
+    await waitFor(() =>
+      expect(applyWenntecImportMock).toHaveBeenCalledWith("batch-1", "migration-token")
+    );
+    expect(await screen.findByText("Aktarım sırasına alındı")).toBeInTheDocument();
+  });
+
+  it("shows manual review items and retries candidate matching", async () => {
+    const reviewBatch = {
+      ...batch,
+      status: "completed_with_review",
+      applyRequestedAtUtc: "2026-07-16T11:00:00Z",
+      appliedByName: "Test Operator",
+      summary: { ...batch.summary, manualReviewRows: 1 },
+    };
+    listWenntecImportBatchesMock.mockResolvedValue([reviewBatch]);
+    listWenntecImportReviewItemsMock.mockResolvedValue([
+      {
+        id: "item-1",
+        importBatchId: "batch-1",
+        sourceKey: "17192",
+        sourceCourseStudentId: 8481,
+        maskedNationalId: "106*****700",
+        status: "candidate_not_found",
+        reason: "No active Pilot candidate matches the source national ID.",
+        candidateId: null,
+        normalizedJson: "{}",
+        resolutionAction: null,
+        resolvedByUserId: null,
+        resolvedByName: null,
+        resolvedAtUtc: null,
+        updatedAtUtc: "2026-07-15T12:00:00Z",
+      },
+    ]);
+    resolveWenntecImportReviewItemMock.mockResolvedValue({ ...reviewBatch, status: "apply_queued" });
+    renderWithProviders(
+      <WenntecImportPanel
+        migrationAccessToken="migration-token"
+        onMigrationAccessInvalid={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("#17192 · 106*****700")).toBeInTheDocument();
+    expect(screen.getByText("Aktarımı başlatan: Test Operator")).toBeInTheDocument();
+    expect(screen.getByText(/Aktarımın başlatıldığı zaman:/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tekrar Kontrol Et" }));
+
+    await waitFor(() =>
+      expect(resolveWenntecImportReviewItemMock).toHaveBeenCalledWith(
+        "batch-1",
+        "item-1",
+        "retry",
+        "migration-token"
+      )
+    );
   });
 
   it("polls the selected batch detail until the analysis completes", async () => {

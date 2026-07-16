@@ -1,5 +1,5 @@
 import { getFinanceApiBaseUrl } from "./api";
-import { httpGet, httpPostForm } from "./http";
+import { httpGet, httpPost, httpPostForm } from "./http";
 
 export type WenntecImportSummary = {
   totalRows: number;
@@ -24,6 +24,13 @@ export type WenntecImportSummary = {
   trackingCandidateAmount: number;
   incomeAmount: number;
   expenseAmount: number;
+  importedRows: number;
+  skippedRows: number;
+  manualReviewRows: number;
+  importedMovementRows: number;
+  importedPaymentRows: number;
+  importedCashMovementRows: number;
+  existingSourceRows: number;
 };
 
 export type WenntecImportBatch = {
@@ -40,9 +47,29 @@ export type WenntecImportBatch = {
   completedAtUtc: string | null;
   fileRetainUntilUtc: string | null;
   fileDeletedAtUtc: string | null;
+  applyRequestedAtUtc: string | null;
+  appliedByUserId: string | null;
+  appliedByName: string | null;
   createdByUserId: string | null;
   createdByName: string | null;
   createdAtUtc: string;
+  updatedAtUtc: string;
+};
+
+export type WenntecImportReviewItem = {
+  id: string;
+  importBatchId: string;
+  sourceKey: string;
+  sourceCourseStudentId: number | null;
+  maskedNationalId: string | null;
+  status: string;
+  reason: string | null;
+  candidateId: string | null;
+  normalizedJson: string;
+  resolutionAction: string | null;
+  resolvedByUserId: string | null;
+  resolvedByName: string | null;
+  resolvedAtUtc: string | null;
   updatedAtUtc: string;
 };
 
@@ -84,6 +111,42 @@ export function analyzeWenntecImport(
   return httpPostForm<WenntecImportBatch>(
     "/api/finance/imports/wenntec",
     form,
+    financeRequestOptions(migrationAccessToken)
+  );
+}
+
+export function applyWenntecImport(
+  batchId: string,
+  migrationAccessToken: string
+): Promise<WenntecImportBatch> {
+  return httpPost<WenntecImportBatch>(
+    `/api/finance/imports/wenntec/${batchId}/apply`,
+    {},
+    financeRequestOptions(migrationAccessToken)
+  );
+}
+
+export function listWenntecImportReviewItems(
+  batchId: string,
+  migrationAccessToken: string,
+  signal?: AbortSignal
+): Promise<WenntecImportReviewItem[]> {
+  return httpGet<WenntecImportReviewItem[]>(
+    `/api/finance/imports/wenntec/${batchId}/items`,
+    { limit: 500 },
+    financeRequestOptions(migrationAccessToken, signal)
+  );
+}
+
+export function resolveWenntecImportReviewItem(
+  batchId: string,
+  itemId: string,
+  action: "retry" | "skip",
+  migrationAccessToken: string
+): Promise<WenntecImportBatch> {
+  return httpPost<WenntecImportBatch>(
+    `/api/finance/imports/wenntec/${batchId}/items/${itemId}/resolve`,
+    { action },
     financeRequestOptions(migrationAccessToken)
   );
 }
