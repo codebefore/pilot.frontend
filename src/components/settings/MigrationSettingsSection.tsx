@@ -51,6 +51,7 @@ import { canViewAnyArea, canViewArea } from "../../lib/permissions";
 import { MebIcon } from "../icons";
 import { useToast } from "../ui/Toast";
 import { WenntecImportPanel } from "./WenntecImportPanel";
+import { WenntecContactImportPanel } from "./WenntecContactImportPanel";
 
 const MIGRATION_POLL_INTERVAL_MS = 5000;
 const GROUP_IMPORT_POLL_TIMEOUT_MS = 30 * 60 * 1000;
@@ -189,7 +190,9 @@ export function MigrationSettingsSection() {
   const queryClient = useQueryClient();
   const { activeInstitution, user, permissions } = useAuth();
   const canViewMebbisMigration = canViewAnyArea(user, permissions, ["settings", "mebjobs", "training"]);
-  const canViewWenntecMigration = canViewArea(user, permissions, "payments");
+  const canViewWenntecAccountingMigration = canViewArea(user, permissions, "payments");
+  const canViewWenntecContactMigration = canViewArea(user, permissions, "candidates");
+  const canViewWenntecMigration = canViewWenntecAccountingMigration || canViewWenntecContactMigration;
   const [runningAction, setRunningAction] = useState<MigrationActionKey | null>(null);
   const [activeSourceTab, setActiveSourceTab] = useState<MigrationSourceTab>(
     canViewMebbisMigration ? "mebbis" : "wenntec"
@@ -1057,11 +1060,22 @@ export function MigrationSettingsSection() {
           </div>
         </section>
       ) : activeSourceTab === "wenntec" && canViewWenntecMigration ? (
-        <WenntecImportPanel
-          key={activeInstitution?.id ?? "no-institution"}
-          migrationAccessToken={migrationAccessToken!}
-          onMigrationAccessInvalid={handleMigrationAccessInvalid}
-        />
+        <>
+          {canViewWenntecAccountingMigration ? (
+            <WenntecImportPanel
+              key={`accounting-${activeInstitution?.id ?? "no-institution"}`}
+              migrationAccessToken={migrationAccessToken!}
+              onMigrationAccessInvalid={handleMigrationAccessInvalid}
+            />
+          ) : null}
+          {canViewWenntecContactMigration ? (
+            <WenntecContactImportPanel
+              key={`contacts-${activeInstitution?.id ?? "no-institution"}`}
+              migrationAccessToken={migrationAccessToken!}
+              onMigrationAccessInvalid={handleMigrationAccessInvalid}
+            />
+          ) : null}
+        </>
       ) : activeSourceTab === "mebbis" && canViewMebbisMigration ? (
         <>
           {MIGRATION_GROUPS.map((group, groupIndex) => {

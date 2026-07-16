@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { JobDrawer } from "../components/drawers/JobDrawer";
 import { WenntecImportJobsPanel } from "../components/jobs/WenntecImportJobsPanel";
+import { WenntecContactImportJobsPanel } from "../components/jobs/WenntecContactImportJobsPanel";
 import { PlusIcon, RefreshIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { NewMebJobModal } from "../components/modals/NewMebJobModal";
@@ -236,6 +237,7 @@ export function MebJobsPage() {
   const { user, permissions } = useAuth();
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
   const canViewPayments = canViewArea(user, permissions, "payments");
+  const canViewCandidates = canViewArea(user, permissions, "candidates");
   const mebbisSessionGuard = useMebbisSessionGuard();
   const t = useT();
   const noPermissionTitle = t("common.noPermission");
@@ -578,6 +580,7 @@ export function MebJobsPage() {
       </div>
 
       {canViewPayments && <WenntecImportJobsPanel />}
+      {canViewCandidates && <WenntecContactImportJobsPanel />}
 
       <QueueHealthBand
         canRetry={canManageMebJobs}
