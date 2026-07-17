@@ -86,6 +86,7 @@ type MigrationActionKey =
   | "theorySchedule";
 
 type MigrationSourceTab = "mebbis" | "wenntec";
+type WenntecImportTab = "accounting" | "contacts";
 
 type MigrationAction = {
   key: MigrationActionKey;
@@ -197,6 +198,9 @@ export function MigrationSettingsSection() {
   const [activeSourceTab, setActiveSourceTab] = useState<MigrationSourceTab>(
     canViewMebbisMigration ? "mebbis" : "wenntec"
   );
+  const [activeWenntecTab, setActiveWenntecTab] = useState<WenntecImportTab>(
+    canViewWenntecAccountingMigration ? "accounting" : "contacts"
+  );
   const migrationAccessStorageKey = activeInstitution && user
     ? buildMigrationAccessStorageKey(user.id, activeInstitution.id)
     : MIGRATION_ACCESS_STORAGE_PREFIX;
@@ -237,6 +241,14 @@ export function MigrationSettingsSection() {
       setActiveSourceTab("mebbis");
     }
   }, [activeSourceTab, canViewMebbisMigration, canViewWenntecMigration]);
+
+  useEffect(() => {
+    if (activeWenntecTab === "accounting" && !canViewWenntecAccountingMigration && canViewWenntecContactMigration) {
+      setActiveWenntecTab("contacts");
+    } else if (activeWenntecTab === "contacts" && !canViewWenntecContactMigration && canViewWenntecAccountingMigration) {
+      setActiveWenntecTab("accounting");
+    }
+  }, [activeWenntecTab, canViewWenntecAccountingMigration, canViewWenntecContactMigration]);
 
   const handleRequestAdminCode = async () => {
     if (requestingAdminCode) return;
@@ -1061,14 +1073,52 @@ export function MigrationSettingsSection() {
         </section>
       ) : activeSourceTab === "wenntec" && canViewWenntecMigration ? (
         <>
-          {canViewWenntecAccountingMigration ? (
+          <section className="settings-surface wenntec-workspace">
+            <div className="settings-surface-header">
+              <div>
+                <h2 className="settings-surface-title">{t("settings.migration.wenntec.workspace.title")}</h2>
+                <p className="settings-info-note">{t("settings.migration.wenntec.workspace.description")}</p>
+              </div>
+            </div>
+            <div className="settings-surface-body">
+              <div aria-label={t("settings.migration.wenntec.workspace.aria")} className="wenntec-workspace-nav" role="tablist">
+                {canViewWenntecAccountingMigration ? (
+                  <button
+                    aria-selected={activeWenntecTab === "accounting"}
+                    className={activeWenntecTab === "accounting" ? "wenntec-workspace-tab active" : "wenntec-workspace-tab"}
+                    onClick={() => setActiveWenntecTab("accounting")}
+                    role="tab"
+                    type="button"
+                  >
+                    <span className="wenntec-workspace-tab-title">{t("settings.migration.wenntec.workspace.accounting.title")}</span>
+                    <span>{t("settings.migration.wenntec.workspace.accounting.description")}</span>
+                    <small>{t("settings.migration.wenntec.workspace.accounting.table")}</small>
+                  </button>
+                ) : null}
+                {canViewWenntecContactMigration ? (
+                  <button
+                    aria-selected={activeWenntecTab === "contacts"}
+                    className={activeWenntecTab === "contacts" ? "wenntec-workspace-tab active" : "wenntec-workspace-tab"}
+                    onClick={() => setActiveWenntecTab("contacts")}
+                    role="tab"
+                    type="button"
+                  >
+                    <span className="wenntec-workspace-tab-title">{t("settings.migration.wenntec.workspace.contacts.title")}</span>
+                    <span>{t("settings.migration.wenntec.workspace.contacts.description")}</span>
+                    <small>{t("settings.migration.wenntec.workspace.contacts.table")}</small>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </section>
+          {activeWenntecTab === "accounting" && canViewWenntecAccountingMigration ? (
             <WenntecImportPanel
               key={`accounting-${activeInstitution?.id ?? "no-institution"}`}
               migrationAccessToken={migrationAccessToken!}
               onMigrationAccessInvalid={handleMigrationAccessInvalid}
             />
           ) : null}
-          {canViewWenntecContactMigration ? (
+          {activeWenntecTab === "contacts" && canViewWenntecContactMigration ? (
             <WenntecContactImportPanel
               key={`contacts-${activeInstitution?.id ?? "no-institution"}`}
               migrationAccessToken={migrationAccessToken!}

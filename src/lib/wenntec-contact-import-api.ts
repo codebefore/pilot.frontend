@@ -61,6 +61,14 @@ export type WenntecContactImportReviewItem = {
   variantsJson: string;
 };
 
+export type WenntecContactImportReviewPage = {
+  items: WenntecContactImportReviewItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 const options = (migrationAccessToken: string, signal?: AbortSignal) => ({
   baseUrl: getCandidateApiBaseUrl(),
   headers: { "X-Migration-Access-Token": migrationAccessToken },
@@ -109,10 +117,31 @@ export function applyWenntecContactImport(id: string, token: string) {
   );
 }
 
-export function listWenntecContactImportReviewItems(id: string, token: string, signal?: AbortSignal) {
-  return httpGet<WenntecContactImportReviewItem[]>(
+export async function listWenntecContactImportReviewItems(
+  id: string,
+  token: string,
+  page: number,
+  pageSize: number,
+  signal?: AbortSignal,
+) {
+  const response = await httpGet<WenntecContactImportReviewPage | WenntecContactImportReviewItem[]>(
     `/api/candidates/imports/wenntec-contacts/${id}/items`,
-    { limit: 500 },
+    { page, pageSize },
     options(token, signal),
   );
+  if (!Array.isArray(response)) return response;
+
+  // During a rolling deploy an older API can still return the legacy array.
+  // Page it locally until the paginated Candidates API is available.
+  const total = response.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const offset = (currentPage - 1) * pageSize;
+  return {
+    items: response.slice(offset, offset + pageSize),
+    total,
+    page: currentPage,
+    pageSize,
+    totalPages,
+  };
 }

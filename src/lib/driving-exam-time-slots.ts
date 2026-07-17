@@ -18,3 +18,7 @@ export const DEFAULT_DRIVING_EXAM_TIME = DRIVING_EXAM_TIME_SLOTS[0]?.value ?? "0
 export const DRIVING_EXAM_TIME_SLOT_LABELS = new Map(
   DRIVING_EXAM_TIME_SLOTS.map((slot) => [slot.value, slot.label])
 );
+
+export function drivingExamTimeSlotLabel(value: string | null | undefined): string {
+  return value ? DRIVING_EXAM_TIME_SLOT_LABELS.get(value) ?? "—" : "—";
+}

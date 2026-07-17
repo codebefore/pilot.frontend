@@ -15,6 +15,7 @@ import { useAnchoredPopover } from "./useAnchoredPopover";
 type LocalizedTimeInputProps = {
   value: string;
   onChange: (value: string) => void;
+  autoOpen?: boolean;
   ariaLabel?: string;
   className?: string;
   disabled?: boolean;
@@ -60,6 +61,7 @@ function normalizeTimeOptions(options: Array<string | { value: string; label: st
 export function LocalizedTimeInput({
   value,
   onChange,
+  autoOpen = false,
   ariaLabel,
   className,
   disabled = false,
@@ -155,6 +157,12 @@ export function LocalizedTimeInput({
     if (disabled) return;
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (autoOpen && !disabled) {
+      setOpen(true);
+    }
+  }, [autoOpen, disabled]);
 
   const selectTime = (nextValue: string) => {
     onChange(nextValue);

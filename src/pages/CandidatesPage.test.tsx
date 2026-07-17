@@ -567,7 +567,10 @@ describe("CandidatesPage tabs", () => {
     renderESinavPage();
 
     await screen.findByText("Eren Test");
-    expect(screen.getByRole("button", { name: "Sınav borçlandır" })).toBeDisabled();
+    const chargeButton = screen.getByRole("button", { name: "Sınav borçlandır" });
+    const resultButton = screen.getByRole("button", { name: "Sonuç Sorgulama" });
+    expect(chargeButton.compareDocumentPosition(resultButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(chargeButton).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
     expect(screen.getByRole("button", { name: "Sınav borçlandır" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
@@ -617,6 +620,9 @@ describe("CandidatesPage tabs", () => {
     renderUygulamaPage();
 
     await screen.findByText("Eren Test");
+    const chargeButton = screen.getByRole("button", { name: "Sınav borçlandır" });
+    const resultButton = screen.getByRole("button", { name: "Sonuç Sorgulama" });
+    expect(chargeButton.compareDocumentPosition(resultButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     fireEvent.click(screen.getByRole("checkbox", { name: "Eren Test seç" }));
     fireEvent.click(screen.getByRole("button", { name: "Sınav borçlandır" }));
     expect(await screen.findByText("Tarihsiz direksiyon sınav borçlandırması")).toBeInTheDocument();
@@ -1229,6 +1235,10 @@ describe("CandidatesPage tabs", () => {
 
     const scheduleOptionCallCount = getExamScheduleOptionsMock.mock.calls.length;
 
+    expect(screen.queryByRole("columnheader", { name: "Araç Plakası" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Usta Öğretici" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Saat" })).not.toBeInTheDocument();
+
     fireEvent.click(
       await within(sidebar).findByRole("button", { name: /13\.06\.2026/i, pressed: false })
     );
@@ -1247,6 +1257,22 @@ describe("CandidatesPage tabs", () => {
     expect(lastCall?.[0].status).toBeUndefined();
     expect(lastCall?.[0].drivingExamTab).toBeUndefined();
     expect(getExamScheduleOptionsMock).toHaveBeenCalledTimes(scheduleOptionCallCount);
+    expect(screen.getByRole("columnheader", { name: "Araç Plakası" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Usta Öğretici" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Saat" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sütunlar" }));
+    const picker = document.querySelector(".column-picker-menu") as HTMLElement | null;
+    expect(picker).not.toBeNull();
+    if (!picker) {
+      throw new Error("column picker menu not found");
+    }
+    expect(within(picker).getByRole("checkbox", { name: "Araç Plakası" })).toBeChecked();
+    expect(within(picker).getByRole("checkbox", { name: "Araç Plakası" })).toBeEnabled();
+    expect(within(picker).getByRole("checkbox", { name: "Usta Öğretici" })).toBeChecked();
+    expect(within(picker).getByRole("checkbox", { name: "Usta Öğretici" })).toBeEnabled();
+    expect(within(picker).getByRole("checkbox", { name: "Saat" })).toBeChecked();
+    expect(within(picker).getByRole("checkbox", { name: "Saat" })).toBeEnabled();
   });
 
   it("clears the selected uygulama date filter when an exam tab is selected", async () => {
@@ -1293,6 +1319,9 @@ describe("CandidatesPage tabs", () => {
     const lastCall = getCandidatesMock.mock.calls[getCandidatesMock.mock.calls.length - 1]?.[0];
     expect(lastCall.drivingExamDate).toBeUndefined();
     expect(lastCall.drivingExamScheduleId).toBeUndefined();
+    expect(screen.queryByRole("columnheader", { name: "Araç Plakası" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Usta Öğretici" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Saat" })).not.toBeInTheDocument();
   });
 
   it("renders the uygulama sidebar license class beside the date without time", async () => {
@@ -1924,7 +1953,7 @@ describe("CandidatesPage tabs", () => {
     expect(within(attemptMenu).queryByRole("checkbox", { name: "Direksiyon 5/5" })).not.toBeInTheDocument();
   });
 
-  it("keeps e-sinav date hidden and attempt visible but out of the picker", async () => {
+  it("shows all e-sinav columns as configurable in the picker", async () => {
     renderESinavPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
@@ -1939,11 +1968,19 @@ describe("CandidatesPage tabs", () => {
       throw new Error("column picker menu not found");
     }
 
-    expect(within(picker).queryByText(/^Tarih$/)).not.toBeInTheDocument();
-    expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
+    const dateCheckbox = within(picker).getByRole("checkbox", { name: "E-Sınav Tarihi" });
+    expect(dateCheckbox).not.toBeChecked();
+    expect(dateCheckbox).toBeEnabled();
+
+    const attemptCheckbox = within(picker).getByRole("checkbox", { name: "Hak" });
+    expect(attemptCheckbox).toBeChecked();
+    expect(attemptCheckbox).toBeEnabled();
+
+    fireEvent.click(attemptCheckbox);
+    expect(screen.queryByRole("columnheader", { name: "Hak" })).not.toBeInTheDocument();
   });
 
-  it("keeps uygulama locked columns visible and out of the picker", async () => {
+  it("shows uygulama default columns as configurable in the picker", async () => {
     renderUygulamaPage();
     await waitFor(() => expect(getCandidatesMock).toHaveBeenCalled());
 
@@ -1961,10 +1998,14 @@ describe("CandidatesPage tabs", () => {
     }
 
     expect(within(picker).queryByText(/^Tarih$/)).not.toBeInTheDocument();
-    expect(within(picker).queryByText(/^Hak$/)).not.toBeInTheDocument();
-    expect(within(picker).queryByText(/^Sınav Durumu$/)).not.toBeInTheDocument();
-    expect(within(picker).queryByText(/^Sınav Sonucu$/)).not.toBeInTheDocument();
-    expect(within(picker).queryByText("Sınav Ücreti Durumu")).not.toBeInTheDocument();
+    for (const label of ["Hak", "Sınav Durumu", "Sınav Sonucu", "Sınav Ücreti Durumu"]) {
+      const checkbox = within(picker).getByRole("checkbox", { name: label });
+      expect(checkbox).toBeChecked();
+      expect(checkbox).toBeEnabled();
+    }
+
+    fireEvent.click(within(picker).getByRole("checkbox", { name: "Sınav Sonucu" }));
+    expect(screen.queryByRole("columnheader", { name: "Sınav Sonucu" })).not.toBeInTheDocument();
   });
 
   it("shows driving exam status columns after attempt count on the uygulama failed tab", async () => {
@@ -2925,6 +2966,8 @@ describe("CandidatesPage tabs", () => {
 
     expect(screen.getByRole("button", { name: "Yeni Aday" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "CSV İndir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Excel İndir" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "PDF İndir" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kapat" })).toBeInTheDocument();
 
     let exportedBlob: Blob | null = null;
@@ -2949,9 +2992,41 @@ describe("CandidatesPage tabs", () => {
     expect(csv).toContain("Direksiyon başarısız");
     expect(csv).not.toContain(",Başarılı,active");
 
+    exportedBlob = null;
+    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Excel İndir" }));
+
+    await waitFor(() => expect(exportedBlob).not.toBeNull());
+    expect(exportedBlob!.type).toBe("application/vnd.ms-excel;charset=utf-8");
+    const excel = await exportedBlob!.text();
+    expect(excel).toContain("<table>");
+    expect(excel).toContain("Direksiyon başarısız");
+
+    const pdfDocument = {
+      open: vi.fn(),
+      write: vi.fn(),
+      close: vi.fn(),
+    };
+    const pdfWindow = {
+      document: pdfDocument,
+      focus: vi.fn(),
+      print: vi.fn(),
+      close: vi.fn(),
+    };
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockReturnValue(pdfWindow as unknown as Window);
+
+    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
+    fireEvent.click(screen.getByRole("button", { name: "PDF İndir" }));
+
+    await waitFor(() => expect(pdfWindow.print).toHaveBeenCalled());
+    expect(pdfDocument.write).toHaveBeenCalledWith(expect.stringContaining("Direksiyon başarısız"));
+
     createObjectUrlSpy.mockRestore();
     revokeObjectUrlSpy.mockRestore();
     anchorClickSpy.mockRestore();
+    windowOpenSpy.mockRestore();
   });
 
   it("shows a toast when a bulk action is clicked without selecting a candidate", async () => {

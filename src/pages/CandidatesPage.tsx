@@ -85,8 +85,8 @@ import { getLicenseClassFeeMatrix } from "../lib/license-class-fee-matrix-api";
 import { createDrivingExamResultSyncJob, createESinavExamResultSyncJob, getMebbisJob } from "../lib/mebbis-jobs-api";
 import { ApiError, isAbortError } from "../lib/http";
 import {
-  DRIVING_EXAM_TIME_SLOT_LABELS,
   DRIVING_EXAM_TIME_SLOTS,
+  drivingExamTimeSlotLabel,
 } from "../lib/driving-exam-time-slots";
 import { useLanguage, useT } from "../lib/i18n";
 import { useAuth } from "../lib/auth";
@@ -134,6 +134,12 @@ import { candidateHasExistingLicense } from "./CandidateDetailPage.helpers";
 type CandidateTab = "all" | CandidateStatusValue;
 type BulkActionMode = "status" | "tags" | "export" | "examDate" | "group" | null;
 type CandidateListTabKey = string;
+type CandidateExportFormat = "csv" | "excel" | "pdf";
+type CandidateExportCell = string | number;
+type CandidateExportData = {
+  headers: readonly string[];
+  rows: readonly (readonly CandidateExportCell[])[];
+};
 
 const TAB_KEYS: CandidateTab[] = [
   "all",
@@ -414,8 +420,8 @@ const PRACTICE_EXAM_COLUMN_SHORT_LABELS: Record<"tr" | "en", Partial<Record<Cand
     drivingExamDate: "Tarih",
     drivingExamCode: "Kod",
     drivingExamTime: "Saat",
-    drivingExamVehiclePlate: "Plaka",
-    drivingExamInstructor: "Eğitmen",
+    drivingExamVehiclePlate: "Araç Plakası",
+    drivingExamInstructor: "Usta Öğretici",
   },
   en: {
     name: "Candidate",
@@ -703,7 +709,7 @@ function drivingExamTimeValue(value: string | null | undefined): string {
 
 function formatDrivingExamTime(value: string | null | undefined): string {
   const time = drivingExamTimeValue(value);
-  return DRIVING_EXAM_TIME_SLOT_LABELS.get(time) ?? time;
+  return drivingExamTimeSlotLabel(time);
 }
 
 function drivingExamDateTimeIso(date: string | null | undefined, time: string): string {
@@ -748,7 +754,7 @@ function DrivingExamTimeCell({
 }) {
   const t = useT();
   const value = drivingExamTimeValue(candidate.drivingExamScheduledAt);
-  const label = value === "—" ? "—" : DRIVING_EXAM_TIME_SLOT_LABELS.get(value) ?? value;
+  const label = drivingExamTimeSlotLabel(value);
   if (!candidate.drivingExamAttemptId) return "—";
   return (
     <div
@@ -759,6 +765,7 @@ function DrivingExamTimeCell({
       {editing ? (
         <LocalizedTimeInput
           ariaLabel={t("candidatesPage.aria.examTime")}
+          autoOpen
           className="cand-inline-edit-input"
           disabled={disabled}
           onBlur={onCancel}
@@ -1848,6 +1855,13 @@ const ESINAV_OPTIONAL_COLUMN_IDS: CandidateColumnId[] = [
   "totalDebt",
 ];
 
+const ESINAV_ALL_COLUMN_IDS: CandidateColumnId[] = Array.from(
+  new Set([
+    ...Object.values(ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB).flat(),
+    ...ESINAV_OPTIONAL_COLUMN_IDS,
+  ])
+);
+
 const DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId[]> = {
   havuz: [
     "photo",
@@ -1880,12 +1894,15 @@ const DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB: Record<string, CandidateColumnId
     "drivingExamAttendanceStatus",
     "drivingExamResultStatus",
     "drivingExamFeeStatus",
-    "drivingExamTime",
-    "drivingExamVehiclePlate",
-    "drivingExamInstructor",
     "drivingExamCode",
   ],
 };
+
+const DRIVING_SELECTED_DATE_COLUMN_IDS: CandidateColumnId[] = [
+  "drivingExamVehiclePlate",
+  "drivingExamInstructor",
+  "drivingExamTime",
+];
 
 const DRIVING_OPTIONAL_COLUMN_IDS: CandidateColumnId[] = [
   "existingLicenseType",
@@ -1900,8 +1917,16 @@ function eSinavLockedVisibleColumnIds(tab: CandidateListTabKey): CandidateColumn
   return ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB[tab] ?? ESINAV_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB.havuz;
 }
 
-function drivingLockedVisibleColumnIds(tab: CandidateListTabKey): CandidateColumnId[] {
-  return DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB[tab] ?? DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB.havuz;
+function drivingLockedVisibleColumnIds(
+  tab: CandidateListTabKey,
+  hasSelectedExamDate = false
+): CandidateColumnId[] {
+  const baseColumns =
+    DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB[tab] ??
+    DRIVING_LOCKED_VISIBLE_COLUMN_IDS_BY_TAB.havuz;
+  return hasSelectedExamDate
+    ? [...baseColumns, ...DRIVING_SELECTED_DATE_COLUMN_IDS]
+    : baseColumns;
 }
 
 type ExamDateSidebarConfig = {
@@ -1962,6 +1987,7 @@ export function CandidatesPage({
   const mebbisSessionGuard = useMebbisSessionGuard();
   const noPermissionTitle = t("common.noPermission");
   const { options: licenseClassOptions } = useLicenseClassFilterOptions();
+  const [selectedExamDate, setSelectedExamDate] = useState("");
   const columnPageScope: CandidateColumnPageScope =
     examDateSidebar?.field === "eSinavDate"
       ? "eSinav"
@@ -1996,9 +2022,9 @@ export function CandidatesPage({
       examDateSidebar?.field === "eSinavDate"
         ? eSinavLockedVisibleColumnIds(tab)
         : examDateSidebar?.field === "drivingExamDate"
-          ? drivingLockedVisibleColumnIds(tab)
+          ? drivingLockedVisibleColumnIds(tab, Boolean(selectedExamDate))
           : [],
-    [examDateSidebar?.field, tab]
+    [examDateSidebar?.field, selectedExamDate, tab]
   );
   const forcedVisibleColumnIds = useMemo<Set<CandidateColumnId>>(
     () =>
@@ -2022,11 +2048,14 @@ export function CandidatesPage({
     () => {
       const eSinavAllowedColumnIds =
         columnPageScope === "eSinav"
-          ? new Set([...eSinavLockedVisibleColumnIds(tab), ...ESINAV_OPTIONAL_COLUMN_IDS])
+          ? new Set(ESINAV_ALL_COLUMN_IDS)
           : null;
       const drivingAllowedColumnIds =
         columnPageScope === "uygulama"
-          ? new Set([...drivingLockedVisibleColumnIds(tab), ...DRIVING_OPTIONAL_COLUMN_IDS])
+          ? new Set([
+              ...drivingLockedVisibleColumnIds(tab, Boolean(selectedExamDate)),
+              ...DRIVING_OPTIONAL_COLUMN_IDS,
+            ])
           : null;
       const ids = CANDIDATE_COLUMNS.filter((column) => {
         if (!columnAvailableOnPage(column, columnPageScope)) return false;
@@ -2043,14 +2072,17 @@ export function CandidatesPage({
         return true;
       }).map((column) => column.id);
       if (eSinavAllowedColumnIds) {
-        return [...eSinavLockedVisibleColumnIds(tab), ...ESINAV_OPTIONAL_COLUMN_IDS].filter((id) => ids.includes(id));
+        return ESINAV_ALL_COLUMN_IDS.filter((id) => ids.includes(id));
       }
       if (drivingAllowedColumnIds) {
-        return [...drivingLockedVisibleColumnIds(tab), ...DRIVING_OPTIONAL_COLUMN_IDS].filter((id) => ids.includes(id));
+        return [
+          ...drivingLockedVisibleColumnIds(tab, Boolean(selectedExamDate)),
+          ...DRIVING_OPTIONAL_COLUMN_IDS,
+        ].filter((id) => ids.includes(id));
       }
       return ids;
     },
-    [columnPageScope, tab]
+    [columnPageScope, selectedExamDate, tab]
   );
   const defaultSort = useMemo(
     () => defaultCandidateSortForScope(columnPageScope, tab),
@@ -2128,7 +2160,6 @@ export function CandidatesPage({
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const selectedId = searchParams.get("selected");
-  const [selectedExamDate, setSelectedExamDate] = useState("");
   const [selectedExamScheduleId, setSelectedExamScheduleId] = useState("");
   const [selectedDrivingExamCode, setSelectedDrivingExamCode] = useState("");
   const [examDateTabNeutral, setExamDateTabNeutral] = useState(false);
@@ -2137,6 +2168,9 @@ export function CandidatesPage({
     candidateId: string;
     field: "time" | "vehicle" | "instructor" | "attendance" | "result";
   } | null>(null);
+  const [hiddenExamColumnIds, setHiddenExamColumnIds] = useState<Set<CandidateColumnId>>(
+    new Set()
+  );
   const [savingESinavScoreCandidateId, setSavingESinavScoreCandidateId] = useState<string | null>(null);
   const [savingPracticeCandidateId, setSavingPracticeCandidateId] = useState<string | null>(null);
   const [mebbisExamResultSyncRunning, setMebbisExamResultSyncRunning] = useState(false);
@@ -2708,8 +2742,29 @@ export function CandidatesPage({
     });
     return order;
   }, [visibleIds]);
+  const isCandidateColumnVisible = (id: CandidateColumnId): boolean =>
+    forcedVisibleColumnIds.has(id)
+      ? columnPageScope === "all" || !hiddenExamColumnIds.has(id)
+      : isVisible(id);
+  const toggleCandidateColumn = (id: string) => {
+    const columnId = id as CandidateColumnId;
+    if (columnPageScope !== "all" && forcedVisibleColumnIds.has(columnId)) {
+      setHiddenExamColumnIds((current) => {
+        const next = new Set(current);
+        if (next.has(columnId)) next.delete(columnId);
+        else next.add(columnId);
+        return next;
+      });
+      return;
+    }
+    toggleColumn(id);
+  };
+  const resetCandidateColumns = () => {
+    setHiddenExamColumnIds(new Set());
+    resetColumns();
+  };
   const visibleColumns = resolvedColumns.filter(
-    (col) => forcedVisibleColumnIds.has(col.id) || isVisible(col.id)
+    (col) => isCandidateColumnVisible(col.id)
   ).sort(
     (left, right) => {
       const leftLockedOrder = lockedVisibleColumnOrder.get(left.id);
@@ -2821,7 +2876,8 @@ export function CandidatesPage({
 
   const pickerOptions: ColumnOption[] = resolvedColumns
     .filter((col) => {
-      if (col.pickerHidden || forcedVisibleColumnIds.has(col.id)) return false;
+      if (col.pickerHidden) return false;
+      if (forcedVisibleColumnIds.has(col.id) && columnPageScope === "all") return false;
       if (columnPageScope !== "all") return true;
       return GENERAL_CANDIDATE_COLUMN_PICKER_IDS.includes(col.id);
     })
@@ -3586,7 +3642,7 @@ export function CandidatesPage({
     navigate(`/candidates/${candidate.id}?tab=documents`, { state: detailReturnState });
   };
 
-  const exportCandidatesToCsv = (rowsToExport: CandidateResponse[]) => {
+  const buildCandidateExportData = (rowsToExport: CandidateResponse[]): CandidateExportData => {
     const groupColumnHeader =
       groupColumnMode === "term" ? t("candidates.col.term") : t("candidates.col.group");
     const headers = [
@@ -3609,7 +3665,7 @@ export function CandidatesPage({
       t("candidates.col.createdAtUtc"),
     ] as const;
 
-    const rows = rowsToExport.map((candidate): readonly (string | number)[] => [
+    const rows = rowsToExport.map((candidate): readonly CandidateExportCell[] => [
       `${candidate.firstName} ${candidate.lastName}`.trim(),
       candidate.nationalId ?? "",
       formatPhoneDisplay(candidate.phoneNumber),
@@ -3631,7 +3687,24 @@ export function CandidatesPage({
       formatDateTR(candidate.createdAtUtc),
     ]);
 
-    const escapeCsvValue = (value: string | number) => {
+    return { headers, rows };
+  };
+
+  const downloadCandidateExportBlob = (blob: Blob, extension: string) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `adaylar-${formatLocalDateOnly(new Date())}.${extension}`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportCandidatesToCsv = (data: CandidateExportData) => {
+    const { headers, rows } = data;
+
+    const escapeCsvValue = (value: CandidateExportCell) => {
       const text = String(value);
       if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
         return `"${text.replace(/"/g, "\"\"")}"`;
@@ -3647,18 +3720,81 @@ export function CandidatesPage({
     const blob = new Blob(["\uFEFF" + csvLines.join("\n")], {
       type: "text/csv;charset=utf-8;",
     });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `adaylar-${formatLocalDateOnly(new Date())}.csv`;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    downloadCandidateExportBlob(blob, "csv");
   };
 
-  const downloadSelectedCandidatesCsv = async () => {
+  const escapeExportHtml = (value: CandidateExportCell) =>
+    String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const buildCandidateExportTableHtml = ({ headers, rows }: CandidateExportData) => `
+    <table>
+      <thead><tr>${headers.map((header) => `<th>${escapeExportHtml(header)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${rows
+          .map((row) => `<tr>${row.map((cell) => `<td>${escapeExportHtml(cell)}</td>`).join("")}</tr>`)
+          .join("")}
+      </tbody>
+    </table>`;
+
+  const exportCandidatesToExcel = (data: CandidateExportData) => {
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            body { font-family: Arial, sans-serif; }
+            h1 { font-size: 18px; }
+            table { border-collapse: collapse; }
+            th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 12px; }
+            th { background: #f3f4f6; font-weight: 700; }
+          </style>
+        </head>
+        <body><h1>${escapeExportHtml(title ?? t("candidates.headerTitleDefault"))}</h1>${buildCandidateExportTableHtml(data)}</body>
+      </html>`;
+    downloadCandidateExportBlob(
+      new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" }),
+      "xls"
+    );
+  };
+
+  const exportCandidatesToPdf = (data: CandidateExportData, printWindow: Window): void => {
+    const exportTitle = title ?? t("candidates.headerTitleDefault");
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeExportHtml(exportTitle)}</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm; }
+            body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
+            h1 { font-size: 16px; margin: 0 0 10px; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #d1d5db; padding: 4px 5px; font-size: 8px; text-align: left; vertical-align: top; }
+            th { background: #f3f4f6; font-weight: 700; }
+            tr { break-inside: avoid; }
+          </style>
+        </head>
+        <body><h1>${escapeExportHtml(exportTitle)}</h1>${buildCandidateExportTableHtml(data)}</body>
+      </html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const downloadSelectedCandidates = async (format: CandidateExportFormat) => {
     if (selectedCandidateIds.size === 0) {
+      return;
+    }
+
+    const printWindow = format === "pdf" ? window.open("", "_blank") : null;
+    if (format === "pdf" && !printWindow) {
+      showToast(t("candidates.toast.pdfPopupBlocked"), "error");
       return;
     }
 
@@ -3673,9 +3809,13 @@ export function CandidatesPage({
         )
       );
 
-      exportCandidatesToCsv(selectedCandidates);
+      const exportData = buildCandidateExportData(selectedCandidates);
+      if (format === "csv") exportCandidatesToCsv(exportData);
+      else if (format === "excel") exportCandidatesToExcel(exportData);
+      else if (printWindow) exportCandidatesToPdf(exportData, printWindow);
       setBulkActionMode(null);
     } catch {
+      printWindow?.close();
       showToast(t("candidates.toast.bulkExportFailed"), "error");
     } finally {
       setBulkExporting(false);
@@ -4310,10 +4450,10 @@ export function CandidatesPage({
               <th className="col-picker-th">
                 <ColumnPicker
                   columns={pickerOptions}
-                  isVisible={isVisible}
+                  isVisible={(id) => isCandidateColumnVisible(id as CandidateColumnId)}
                   menuTitle={`${currentTabLabel} kolonları`}
-                  onReset={resetColumns}
-                  onToggle={toggleColumn}
+                  onReset={resetCandidateColumns}
+                  onToggle={toggleCandidateColumn}
                   resetLabel={t("candidates.resetLabel")}
                   triggerTitle={t("candidates.columns.button")}
                 />
@@ -4513,10 +4653,26 @@ export function CandidatesPage({
                     <button
                       className="btn btn-primary btn-sm"
                       disabled={selectedCount === 0 || bulkExporting}
-                      onClick={downloadSelectedCandidatesCsv}
+                      onClick={() => downloadSelectedCandidates("csv")}
                       type="button"
                     >
                       {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
+                    </button>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={selectedCount === 0 || bulkExporting}
+                      onClick={() => downloadSelectedCandidates("excel")}
+                      type="button"
+                    >
+                      {t("candidates.bulk.exportExcel")}
+                    </button>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={selectedCount === 0 || bulkExporting}
+                      onClick={() => downloadSelectedCandidates("pdf")}
+                      type="button"
+                    >
+                      {t("candidates.bulk.exportPdf")}
                     </button>
                     <button
                       className="btn btn-secondary btn-sm"
@@ -4614,17 +4770,6 @@ export function CandidatesPage({
                         >
                           {t("candidates.bulk.setExamDate")}
                         </button>
-                        {showMebbisExamResultSyncAction ? (
-                          <button
-                            className="btn btn-primary btn-sm"
-                            disabled={!canManageMebJobs || mebbisExamResultSyncRunning || !selectedExamDate}
-                            onClick={handleSelectedExamDateMebbisResultSync}
-                            title={mebbisExamResultSyncTitle}
-                            type="button"
-                          >
-                            {mebbisExamResultSyncRunning ? "Sorgulanıyor" : "Sonuç Sorgulama"}
-                          </button>
-                        ) : null}
                         {canShowUnscheduledExamChargeAction ? (
                           <button
                             className="btn btn-secondary btn-sm"
@@ -4638,6 +4783,17 @@ export function CandidatesPage({
                             type="button"
                           >
                             {unscheduledExamChargeLoading ? "Hazırlanıyor" : "Sınav borçlandır"}
+                          </button>
+                        ) : null}
+                        {showMebbisExamResultSyncAction ? (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            disabled={!canManageMebJobs || mebbisExamResultSyncRunning || !selectedExamDate}
+                            onClick={handleSelectedExamDateMebbisResultSync}
+                            title={mebbisExamResultSyncTitle}
+                            type="button"
+                          >
+                            {mebbisExamResultSyncRunning ? "Sorgulanıyor" : "Sonuç Sorgulama"}
                           </button>
                         ) : null}
                         <button

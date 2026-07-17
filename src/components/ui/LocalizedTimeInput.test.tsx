@@ -8,6 +8,20 @@ const originalInnerHeight = window.innerHeight;
 const originalInnerWidth = window.innerWidth;
 
 describe("LocalizedTimeInput", () => {
+  it("opens the time choices immediately when autoOpen is enabled", async () => {
+    renderWithProviders(
+      <LocalizedTimeInput
+        ariaLabel="Sınav saati"
+        autoOpen
+        onChange={vi.fn()}
+        timeOptions={["08:30", "09:15"]}
+        value="08:30"
+      />
+    );
+
+    expect(await screen.findByRole("dialog", { name: "Sınav saati secimi" })).toBeInTheDocument();
+  });
+
   afterEach(() => {
     Object.defineProperty(window, "innerHeight", {
       configurable: true,

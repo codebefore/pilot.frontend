@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/http";
+import { currentLocale, useT, type TranslationKey } from "../../lib/i18n";
 import { canManageArea, canViewArea } from "../../lib/permissions";
 import {
   analyzeWenntecContactImport,
@@ -16,6 +17,7 @@ import {
 import type { JobStatus } from "../../types";
 import { StatusPill } from "../ui/StatusPill";
 import { useToast } from "../ui/Toast";
+import { Pagination } from "../ui/Pagination";
 
 const MAX_FILE_SIZE = 12 * 1024 * 1024;
 const ACTIVE = new Set(["apply_queued", "applying", "finalizing"]);
@@ -182,7 +184,12 @@ export function WenntecContactImportPanel({
               </div>
             ) : null}
             {visible.status === "completed_with_review" && (
-              <ReviewItems batch={visible} token={migrationAccessToken} />
+              <ReviewItems
+                batch={visible}
+                key={visible.id}
+                onMigrationAccessInvalid={onMigrationAccessInvalid}
+                token={migrationAccessToken}
+              />
             )}
           </div>
         </section>
@@ -205,26 +212,131 @@ export function WenntecContactImportPanel({
   );
 }
 
-function ReviewItems({ batch, token }: { batch: WenntecContactImportBatch; token: string }) {
+function ReviewItems({
+  batch,
+  token,
+  onMigrationAccessInvalid,
+}: {
+  batch: WenntecContactImportBatch;
+  token: string;
+  onMigrationAccessInvalid: () => void;
+}) {
+  const t = useT();
+  const locale = currentLocale();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const query = useQuery({
-    queryKey: ["candidate-contact-import-review", batch.id],
-    queryFn: ({ signal }) => listWenntecContactImportReviewItems(batch.id, token, signal),
+    queryKey: ["candidate-contact-import-review", batch.id, page, pageSize],
+    queryFn: ({ signal }) => listWenntecContactImportReviewItems(batch.id, token, page, pageSize, signal),
   });
+  useEffect(() => {
+    if (isAccessError(query.error)) onMigrationAccessInvalid();
+  }, [onMigrationAccessInvalid, query.error]);
+  const result = query.data;
+  const firstRow = result && result.total > 0 ? (result.page - 1) * result.pageSize + 1 : 0;
+  const lastRow = result ? Math.min(result.page * result.pageSize, result.total) : 0;
   return (
-    <div>
-      <h3 className="settings-surface-title">Manuel İnceleme ({batch.summary.manualReviewIdentities})</h3>
-      {query.isPending ? <div className="settings-info-note">Kayıtlar yükleniyor...</div> : null}
-      {query.isError ? <div className="settings-form-helper error">İnceleme kayıtları yüklenemedi.</div> : null}
-      <div className="settings-module-list">
-        {query.data?.map((item) => (
-          <div className="settings-module-item" key={item.id}>
-            <div><strong>{item.maskedNationalId}</strong><div className="settings-info-note">{item.reason ?? item.status}</div></div>
-            <div className="settings-info-note">{item.phoneNumber ?? "Telefon yok"} · {item.address ?? "Adres yok"}</div>
-          </div>
-        ))}
+    <section className="wenntec-review-section">
+      <div className="wenntec-review-header">
+        <div>
+          <h3 className="settings-surface-title">{t("settings.migration.wenntec.contact.review.title")}</h3>
+          <p className="settings-info-note">
+            {t("settings.migration.wenntec.contact.review.description")}
+          </p>
+        </div>
+        <div className="wenntec-review-count">
+          <strong>{(result?.total ?? batch.summary.manualReviewIdentities).toLocaleString(locale)}</strong>
+          <span>{t("settings.migration.wenntec.contact.review.count")}</span>
+        </div>
       </div>
-    </div>
+      {query.isPending ? <div className="wenntec-review-state">{t("settings.migration.wenntec.contact.review.loading")}</div> : null}
+      {query.isError ? <div className="settings-form-helper error">{t("settings.migration.wenntec.contact.review.failed")}</div> : null}
+      {result && result.items.length > 0 ? (
+        <>
+          <div className="wenntec-review-range">{firstRow.toLocaleString(locale)}–{lastRow.toLocaleString(locale)} / {result.total.toLocaleString(locale)}</div>
+          <div className="wenntec-review-table-wrap">
+            <table className="data-table wenntec-review-table">
+              <thead>
+                <tr>
+                  <th>{t("settings.migration.wenntec.contact.review.identity")}</th>
+                  <th>{t("settings.migration.wenntec.contact.review.status")}</th>
+                  <th>{t("settings.migration.wenntec.contact.review.phone")}</th>
+                  <th>{t("settings.migration.wenntec.contact.review.address")}</th>
+                  <th>{t("settings.migration.wenntec.contact.review.source")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.items.map((item) => {
+                  const variants = parseVariants(item.variantsJson);
+                  return (
+                    <tr key={item.id}>
+                      <td><strong className="wenntec-review-identity">{item.maskedNationalId}</strong></td>
+                      <td>
+                        <StatusPill label={t(reviewStatusKey(item.status))} status={item.status === "candidate_not_found" ? "warning" : "manual"} />
+                        <div className="wenntec-review-reason">{reviewReason(item.status, item.reason, t)}</div>
+                      </td>
+                      <td>{item.phoneNumber ?? variants.phoneNumbers[0] ?? <span className="text-muted">{t("settings.migration.wenntec.contact.review.empty")}</span>}</td>
+                      <td className="wenntec-review-address">{item.address ?? variants.addresses[0] ?? <span className="text-muted">{t("settings.migration.wenntec.contact.review.empty")}</span>}</td>
+                      <td>
+                        <span>{t("settings.migration.wenntec.contact.review.rows", { count: item.sourceRowCount.toLocaleString(locale) })}</span>
+                        {(variants.phoneNumbers.length > 1 || variants.addresses.length > 1) ? (
+                          <details className="wenntec-review-variants">
+                            <summary>{t("settings.migration.wenntec.contact.review.showVariants")}</summary>
+                            {variants.phoneNumbers.map((value) => <div key={`phone-${value}`}>{value}</div>)}
+                            {variants.addresses.map((value) => <div key={`address-${value}`}>{value}</div>)}
+                          </details>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Pagination
+            disabled={query.isFetching}
+            onChange={setPage}
+            onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+            page={result.page}
+            pageSize={result.pageSize}
+            pageSizeOptions={[10, 25, 50, 100]}
+            totalPages={result.totalPages}
+          />
+        </>
+      ) : null}
+    </section>
   );
+}
+
+function reviewStatusKey(status: string): TranslationKey {
+  if (status === "candidate_not_found") return "settings.migration.wenntec.contact.review.status.notFound";
+  if (status === "source_conflict") return "settings.migration.wenntec.contact.review.status.conflict";
+  return "settings.migration.wenntec.contact.review.status.invalid";
+}
+
+function reviewReason(
+  status: string,
+  fallback: string | null,
+  t: (key: TranslationKey) => string,
+): string {
+  if (status === "candidate_not_found") return t("settings.migration.wenntec.contact.review.reason.notFound");
+  if (status === "source_conflict") return t("settings.migration.wenntec.contact.review.reason.conflict");
+  if (status === "invalid_data") return t("settings.migration.wenntec.contact.review.reason.invalid");
+  return fallback ?? t("settings.migration.wenntec.contact.review.reason.fallback");
+}
+
+function parseVariants(value: string): { phoneNumbers: string[]; addresses: string[] } {
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const phones = parsed.phoneNumbers ?? parsed.PhoneNumbers;
+    const addresses = parsed.addresses ?? parsed.Addresses;
+    return {
+      phoneNumbers: Array.isArray(phones) ? phones.filter((item): item is string => typeof item === "string") : [],
+      addresses: Array.isArray(addresses) ? addresses.filter((item): item is string => typeof item === "string") : [],
+    };
+  } catch {
+    return { phoneNumbers: [], addresses: [] };
+  }
 }
 
 function statusOf(status: string): { label: string; status: JobStatus } {

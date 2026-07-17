@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { ActivityAvatar } from "../components/ui/ActivityAvatar";
+import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { Pagination } from "../components/ui/Pagination";
 import { NotificationListSkeleton } from "../components/ui/Skeleton";
 import { currentLocale, useT } from "../lib/i18n";
@@ -128,19 +129,21 @@ export function ActivityPage() {
           </select>
           <label className="activity-filter-date">
             <span>{t("activity.filter.from")}</span>
-            <input
-              max={dateToDraft || undefined}
-              onChange={(event) => setDateFromDraft(event.target.value)}
-              type="date"
+            <LocalizedDateInput
+              ariaLabel={t("activity.filter.from")}
+              onChange={setDateFromDraft}
+              placeholder="gg.aa.yyyy"
+              size="sm"
               value={dateFromDraft}
             />
           </label>
           <label className="activity-filter-date">
             <span>{t("activity.filter.to")}</span>
-            <input
-              min={dateFromDraft || undefined}
-              onChange={(event) => setDateToDraft(event.target.value)}
-              type="date"
+            <LocalizedDateInput
+              ariaLabel={t("activity.filter.to")}
+              onChange={setDateToDraft}
+              placeholder="gg.aa.yyyy"
+              size="sm"
               value={dateToDraft}
             />
           </label>

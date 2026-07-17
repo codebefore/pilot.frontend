@@ -89,6 +89,11 @@ describe("ActivityPage", () => {
     renderActivity();
     await waitFor(() => expect(getDashboardActivityMock).toHaveBeenCalledTimes(1));
 
+    expect(screen.getByLabelText("Başlangıç")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Bitiş")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Başlangıç")).toHaveAttribute("placeholder", "gg.aa.yyyy");
+    expect(screen.getByLabelText("Bitiş")).toHaveAttribute("placeholder", "gg.aa.yyyy");
+
     fireEvent.change(screen.getByRole("searchbox", { name: "Hareketlerde ara" }), {
       target: { value: "Ayşe" },
     });
