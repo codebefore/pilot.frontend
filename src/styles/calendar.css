@@ -339,6 +339,45 @@ body.training-page-active {
   outline-offset: 1px;
 }
 
+.training-quick-assign-candidate {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 5px;
+  cursor: default;
+}
+
+.training-quick-assign-candidate-info {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.training-quick-assign-candidate-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.training-quick-assign-candidate-info .license-class-badge {
+  flex: 0 0 auto;
+  color: var(--gray-500);
+}
+
+.training-quick-assign-candidate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.training-quick-assign-candidate-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 .training-filters-item--expired .training-filters-name {
   opacity: 0.45;
   text-decoration: line-through;
