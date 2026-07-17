@@ -1315,23 +1315,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
         }
       }
     }
-    // Simetrik: teorik tarafında, seçili grubun adaylarının uygulama
-    // dersleri hayalet olarak gösterilir. Aday'ın uygulama derslerinin
-    // saatine teorik ders koyulamayacağı için kullanıcı önceden görsün.
-    if (type === "teorik" && quickSettings.groupId) {
-      const groupCandidateIds = new Set(
-        candidates
-          .filter((c) => c.currentGroup?.groupId === quickSettings.groupId)
-          .map((c) => c.id)
-      );
-      if (groupCandidateIds.size > 0) {
-        for (const e of practiceEventsForOverlay) {
-          if (e.candidateId && groupCandidateIds.has(e.candidateId)) {
-            filtered.push({ ...e, dimmed: true });
-          }
-        }
-      }
-    }
     return filtered.map((event) => {
       if (event.preview || event.dimmed || event.busyMarker) return event;
 

@@ -29,7 +29,7 @@ import { CustomSelect } from "../ui/CustomSelect";
 import { SettingsFormSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 
-type IntegrationTab = "downloads" | "ocr" | "whatsapp" | "eInvoice";
+type IntegrationTab = "downloads" | "ocr" | "whatsapp" | "sms" | "eInvoice";
 type EInvoiceFormValues = {
   providerCode: string;
   environment: EInvoiceEnvironment;
@@ -91,6 +91,11 @@ export function IntegrationsSettingsSection() {
   const [showOcrApiKey, setShowOcrApiKey] = useState(false);
   const [whatsAppAccessToken, setWhatsAppAccessToken] = useState("");
   const [showWhatsAppAccessToken, setShowWhatsAppAccessToken] = useState(false);
+  const [smsProvider, setSmsProvider] = useState("kobikom");
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [smsSenderTitle, setSmsSenderTitle] = useState("");
+  const [smsApiToken, setSmsApiToken] = useState("");
+  const [showSmsApiToken, setShowSmsApiToken] = useState(false);
   const [eInvoiceState, setEInvoiceState] = useState<EInvoiceIntegrationResponse | null>(null);
   const [eInvoiceValues, setEInvoiceValues] = useState<EInvoiceFormValues>(EMPTY_E_INVOICE_VALUES);
   const [eInvoiceErrors, setEInvoiceErrors] = useState<EInvoiceFormErrors>({});
@@ -126,6 +131,10 @@ export function IntegrationsSettingsSection() {
     setState(integrationsQuery.data);
     setOcrApiKey(integrationsQuery.data.ocrApiKey ?? "");
     setWhatsAppAccessToken(integrationsQuery.data.whatsAppAccessToken ?? "");
+    setSmsProvider(integrationsQuery.data.smsProvider ?? "kobikom");
+    setSmsEnabled(integrationsQuery.data.smsEnabled);
+    setSmsSenderTitle(integrationsQuery.data.smsSenderTitle ?? "");
+    setSmsApiToken("");
   }, [integrationsQuery.data]);
 
   useEffect(() => {
@@ -218,6 +227,14 @@ export function IntegrationsSettingsSection() {
     }
     if (activeTab === "ocr" && !ocrApiKey.trim()) return;
     if (activeTab === "whatsapp" && !whatsAppAccessToken.trim()) return;
+    if (
+      activeTab === "sms" &&
+      smsEnabled &&
+      (!smsSenderTitle.trim() || (!state?.hasSmsApiToken && !smsApiToken.trim()))
+    ) {
+      showToast(t("settings.integrations.sms.validation.required"), "error");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -226,11 +243,20 @@ export function IntegrationsSettingsSection() {
         clearOcrApiKey: false,
         whatsAppAccessToken: whatsAppAccessToken.trim() || null,
         clearWhatsAppAccessToken: false,
+        smsProvider,
+        smsEnabled,
+        smsSenderTitle: smsSenderTitle.trim() || null,
+        smsApiToken: smsApiToken.trim() || null,
+        clearSmsApiToken: false,
         rowVersion: state?.rowVersion ?? null,
       });
       setState(response);
       setOcrApiKey(response.ocrApiKey ?? "");
       setWhatsAppAccessToken(response.whatsAppAccessToken ?? "");
+      setSmsProvider(response.smsProvider ?? "kobikom");
+      setSmsEnabled(response.smsEnabled);
+      setSmsSenderTitle(response.smsSenderTitle ?? "");
+      setSmsApiToken("");
       queryClient.setQueryData(INTEGRATIONS_QUERY_KEY, response);
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["outbox", "health"] });
@@ -474,6 +500,15 @@ export function IntegrationsSettingsSection() {
           >
             {t("settings.integrations.eInvoice.title")}
           </button>
+          <button
+            aria-selected={activeTab === "sms"}
+            className={activeTab === "sms" ? "page-tab active" : "page-tab"}
+            onClick={() => setActiveTab("sms")}
+            role="tab"
+            type="button"
+          >
+            {t("settings.integrations.sms.title")}
+          </button>
         </div>
       </div>
 
@@ -664,6 +699,146 @@ export function IntegrationsSettingsSection() {
             </div>
           </div>
         </section>
+      ) : null}
+
+      {activeTab === "sms" ? (
+        <>
+          <section className="settings-surface">
+            <div className="settings-surface-header">
+              <div>
+                <h2 className="settings-surface-title">
+                  {t("settings.integrations.sms.sectionTitle")}
+                </h2>
+                <p className="settings-form-helper">
+                  {t("settings.integrations.sms.description")}
+                </p>
+              </div>
+            </div>
+
+            <div className="settings-surface-body">
+              <div className="settings-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="sms-provider">
+                      {t("settings.integrations.sms.provider")}
+                    </label>
+                    <CustomSelect
+                      className="form-select"
+                      disabled={!canManageSettings}
+                      id="sms-provider"
+                      onChange={(event) => setSmsProvider(event.target.value)}
+                      value={smsProvider}
+                    >
+                      <option value="kobikom">Kobikom</option>
+                    </CustomSelect>
+                  </div>
+
+                  <div className="form-group">
+                    <span className="form-label">
+                      {t("settings.integrations.sms.status")}
+                    </span>
+                    <label className="switch-toggle settings-inline-status-toggle">
+                      <input
+                        checked={smsEnabled}
+                        disabled={!canManageSettings}
+                        onChange={(event) => setSmsEnabled(event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span aria-hidden="true" className="switch-toggle-control" />
+                      <span>
+                        {smsEnabled
+                          ? t("settings.integrations.sms.enabled")
+                          : t("settings.integrations.sms.disabled")}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="sms-sender-title">
+                      {t("settings.integrations.sms.senderTitle")}
+                    </label>
+                    <input
+                      autoComplete="off"
+                      className="form-input"
+                      disabled={!canManageSettings}
+                      id="sms-sender-title"
+                      maxLength={11}
+                      onChange={(event) =>
+                        setSmsSenderTitle(
+                          event.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase(),
+                        )
+                      }
+                      placeholder={t("settings.integrations.sms.senderTitlePlaceholder")}
+                      value={smsSenderTitle}
+                    />
+                    <span className="settings-form-helper">
+                      {t("settings.integrations.sms.senderTitleHelp")}
+                    </span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="sms-api-token">
+                      {t("settings.integrations.sms.apiToken")}
+                    </label>
+                    <div className="settings-secret-input">
+                      <input
+                        autoComplete="new-password"
+                        className="form-input"
+                        disabled={!canManageSettings}
+                        id="sms-api-token"
+                        maxLength={1500}
+                        onChange={(event) => setSmsApiToken(event.target.value)}
+                        placeholder={
+                          state?.hasSmsApiToken
+                            ? t("settings.integrations.sms.apiTokenPlaceholder.replace")
+                            : t("settings.integrations.sms.apiTokenPlaceholder.new")
+                        }
+                        type={showSmsApiToken ? "text" : "password"}
+                        value={smsApiToken}
+                      />
+                      <button
+                        aria-label={
+                          showSmsApiToken
+                            ? t("settings.integrations.ocrApiKey.hide")
+                            : t("settings.integrations.ocrApiKey.show")
+                        }
+                        className="settings-secret-toggle"
+                        disabled={!smsApiToken}
+                        onClick={() => setShowSmsApiToken((current) => !current)}
+                        type="button"
+                      >
+                        {showSmsApiToken ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                      </button>
+                    </div>
+                    <span className="settings-form-helper">
+                      {state?.hasSmsApiToken
+                        ? t("settings.integrations.sms.apiTokenConfigured")
+                        : t("settings.integrations.sms.apiTokenHelp")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="settings-form-actions">
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={
+                !canManageSettings ||
+                saving ||
+                (smsEnabled &&
+                  (!smsSenderTitle.trim() || (!state?.hasSmsApiToken && !smsApiToken.trim())))
+              }
+              title={!canManageSettings ? noPermissionTitle : undefined}
+              type="submit"
+            >
+              {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
+            </button>
+          </div>
+        </>
       ) : null}
 
       {activeTab === "eInvoice" ? (

@@ -89,6 +89,10 @@ describe("IntegrationsSettingsSection", () => {
       ocrApiKey: "secret-key",
       hasWhatsAppAccessToken: true,
       whatsAppAccessToken: null,
+      smsProvider: null,
+      smsEnabled: false,
+      smsSenderTitle: null,
+      hasSmsApiToken: false,
       updatedAtUtc: "2026-01-01T00:00:00Z",
       rowVersion: 4,
     });
@@ -218,6 +222,51 @@ describe("IntegrationsSettingsSection", () => {
       "urn:mail:defaultpk@institution"
     );
     expect(screen.getByText(/Kimlik bilgileri şifreli olarak kayıtlıdır/)).toBeInTheDocument();
+  });
+
+  it("configures the institution's own Kobikom SMS account", async () => {
+    upsertInstitutionIntegrationsMock.mockResolvedValue({
+      hasOcrApiKey: true,
+      ocrApiKey: "secret-key",
+      hasWhatsAppAccessToken: true,
+      whatsAppAccessToken: null,
+      smsProvider: "kobikom",
+      smsEnabled: true,
+      smsSenderTitle: "KURSUM",
+      hasSmsApiToken: true,
+      updatedAtUtc: "2026-07-17T00:00:00Z",
+      rowVersion: 5,
+    });
+
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
+
+    expect(screen.getByLabelText("SMS Sağlayıcısı")).toHaveValue("kobikom");
+    fireEvent.change(screen.getByLabelText("Gönderici Başlığı"), {
+      target: { value: "kursum" },
+    });
+    fireEvent.change(screen.getByLabelText("API Token"), {
+      target: { value: "institution-sms-token" },
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(upsertInstitutionIntegrationsMock).toHaveBeenCalledWith({
+        ocrApiKey: "secret-key",
+        clearOcrApiKey: false,
+        whatsAppAccessToken: null,
+        clearWhatsAppAccessToken: false,
+        smsProvider: "kobikom",
+        smsEnabled: true,
+        smsSenderTitle: "KURSUM",
+        smsApiToken: "institution-sms-token",
+        clearSmsApiToken: false,
+        rowVersion: 4,
+      });
+    });
+    expect(screen.getByLabelText("API Token")).toHaveValue("");
+    expect(screen.getByText(/API token kayıtlı/)).toBeInTheDocument();
   });
 
   it("shows provider fields when no integration is configured", async () => {

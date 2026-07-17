@@ -91,6 +91,10 @@ export interface InstitutionIntegrationsResponse {
   ocrApiKey: string | null;
   hasWhatsAppAccessToken: boolean;
   whatsAppAccessToken: string | null;
+  smsProvider: string | null;
+  smsEnabled: boolean;
+  smsSenderTitle: string | null;
+  hasSmsApiToken: boolean;
   updatedAtUtc: string | null;
   rowVersion: number | null;
 }
@@ -100,6 +104,11 @@ export interface InstitutionIntegrationsUpsertRequest {
   clearOcrApiKey: boolean;
   whatsAppAccessToken: string | null;
   clearWhatsAppAccessToken: boolean;
+  smsProvider: string | null;
+  smsEnabled: boolean | null;
+  smsSenderTitle: string | null;
+  smsApiToken: string | null;
+  clearSmsApiToken: boolean;
   rowVersion: number | null;
 }
 
