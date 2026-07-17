@@ -46,6 +46,7 @@ const institutionSettings = {
   buildingCapacity: 60,
   bankName: "Ziraat Bankası",
   iban: "TR000000000000000000000000",
+  receiptPrintProfile: "a4",
   logo: null,
   founder: {
     type: "real" as const,
@@ -68,6 +69,7 @@ describe("GeneralInstitutionSection", () => {
     uploadInstitutionLogoMock.mockReset();
     deleteInstitutionLogoMock.mockReset();
     getInstitutionLogoObjectUrlMock.mockReset();
+    localStorage.clear();
 
     getInstitutionSettingsMock.mockResolvedValue(institutionSettings);
     upsertInstitutionSettingsMock.mockResolvedValue({
@@ -143,6 +145,35 @@ describe("GeneralInstitutionSection", () => {
           iban: "TR111111111111111111111111",
           districtNationalEducationDirector: "Yeni İlçe Müdürü",
           districtNationalEducationBranchManager: "Yeni Şube Müdürü",
+          rowVersion: 7,
+        })
+      );
+    });
+  });
+
+  it("saves the selected receipt print profile as an institution setting", async () => {
+    renderWithProviders(<GeneralInstitutionSection />, {
+      auth: {
+        user: {
+          id: "settings-manager",
+          phone: "5073737262",
+          name: "Settings Manager",
+          roleName: "Ayar Yönetimi",
+          isSuperAdmin: false,
+        },
+        permissions: { settings: "full" },
+      },
+    });
+
+    await screen.findByPlaceholderText("Örn. Pilot Sürücü Kursu");
+    fireEvent.click(screen.getByRole("button", { name: "Diğer Bilgiler" }));
+    fireEvent.click(screen.getByRole("radio", { name: /A4 Yatay \(2 Makbuz\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+
+    await waitFor(() => {
+      expect(upsertInstitutionSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          receiptPrintProfile: "a4-landscape-2up",
           rowVersion: 7,
         })
       );

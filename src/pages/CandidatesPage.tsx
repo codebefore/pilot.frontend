@@ -3643,49 +3643,133 @@ export function CandidatesPage({
   };
 
   const buildCandidateExportData = (rowsToExport: CandidateResponse[]): CandidateExportData => {
-    const groupColumnHeader =
-      groupColumnMode === "term" ? t("candidates.col.term") : t("candidates.col.group");
-    const headers = [
-      t("candidates.col.name"),
-      t("candidates.col.nationalId"),
-      t("candidates.col.phoneNumber"),
-      t("candidates.col.birthDate"),
-      t("candidates.col.gender"),
-      t("candidates.col.licenseClass"),
-      groupColumnHeader,
-      t("candidates.col.eSinavDate"),
-      t("candidates.col.eSinavAttemptCount"),
-      t("candidates.col.drivingExamDate"),
-      t("candidates.col.drivingExamAttemptCount"),
-      t("candidates.csv.completedDocuments"),
-      t("candidates.col.missingDocuments"),
-      t("candidates.col.mebSyncStatus"),
-      t("candidates.csv.examResult"),
-      t("candidates.col.status"),
-      t("candidates.col.createdAtUtc"),
-    ] as const;
+    const exportColumns = visibleColumns.filter((column) => column.id !== "photo");
+    const headers = exportColumns.map((column) => getColumnLabel(column));
 
-    const rows = rowsToExport.map((candidate): readonly CandidateExportCell[] => [
-      `${candidate.firstName} ${candidate.lastName}`.trim(),
-      candidate.nationalId ?? "",
-      formatPhoneDisplay(candidate.phoneNumber),
-      formatDateTR(candidate.birthDate),
-      formatOptionalText(candidateGenderLabel(candidate.gender)),
-      candidate.licenseClass,
-      groupColumnMode === "term"
-        ? formatCandidateTerm(candidate, lang)
-        : formatGroupWithTerm(candidate, lang),
-      formatDateTR(candidate.mebExamDate),
-      `${candidate.eSinavAttemptCount ?? 1}/4`,
-      formatDateTR(candidate.drivingExamDate),
-      `${candidate.drivingExamAttemptCount ?? 1}/${candidateExamAttemptDisplayLimit(candidate, "practice")}`,
-      candidate.documentSummary?.completedCount ?? 0,
-      candidate.documentSummary?.missingCount ?? 0,
-      candidateMebSyncStatusLabel(candidate.mebSyncStatus),
-      candidateUnifiedExamStatusExportLabel(candidate, t),
-      candidateStatusLabel(candidate.status),
-      formatDateTR(candidate.createdAtUtc),
-    ]);
+    const exportCellValue = (
+      candidate: CandidateResponse,
+      columnId: CandidateColumnId
+    ): CandidateExportCell => {
+      switch (columnId) {
+        case "photo":
+          return "";
+        case "name":
+          return `${candidate.firstName} ${candidate.lastName}`.trim();
+        case "nationalId":
+          return formatNationalId(candidate.nationalId);
+        case "motherName":
+          return formatOptionalText(candidate.motherName);
+        case "fatherName":
+          return formatOptionalText(candidate.fatherName);
+        case "referenceName":
+          return formatOptionalText(candidate.referenceName);
+        case "phoneNumber":
+          return formatPhoneDisplay(candidate.phoneNumber);
+        case "birthDate":
+          return formatDateTR(candidate.birthDate);
+        case "gender":
+          return formatOptionalText(candidateGenderLabel(candidate.gender));
+        case "existingLicenseType":
+          return formatOptionalText(existingLicenseTypeLabel(candidate.existingLicenseType));
+        case "licenseClass":
+          return formatCandidateLicenseClass(
+            licenseClassLabelByCode.get(candidate.licenseClass) ?? candidate.licenseClass
+          );
+        case "group":
+          return groupColumnMode === "term"
+            ? formatCandidateTerm(candidate, lang)
+            : formatGroupWithTerm(candidate, lang);
+        case "groupStartDate":
+          return formatDateTR(candidate.currentGroup?.startDate);
+        case "eSinavDate":
+          return formatDateTR(candidate.mebExamDate);
+        case "eSinavAttemptCount": {
+          if (columnPageScope === "eSinav") {
+            return `${Math.min(Math.max(candidate.eSinavAttemptCount ?? 1, 1), 4)}/4`;
+          }
+          if (
+            candidate.status === "dropped" ||
+            candidate.status === "parked" ||
+            candidate.status === "graduated"
+          ) {
+            return candidateStatusLabel(candidate.status);
+          }
+          const stage = candidateUnifiedExamStage(candidate);
+          const value = stage === "practice"
+            ? candidate.drivingExamAttemptCount
+            : candidate.eSinavAttemptCount;
+          const maxAttempt = candidateExamAttemptDisplayLimit(candidate, stage);
+          const attempt = Math.min(Math.max(value ?? 1, 1), maxAttempt);
+          return `${examStageLabel(stage, t)} ${attempt}/${maxAttempt}`;
+        }
+        case "eSinavScore":
+          return candidate.eSinavScore == null ? "—" : candidate.eSinavScore;
+        case "eSinavTheoryExamFeeStatus":
+          return examFeeStatusLabel(candidate.eSinavTheoryExamFeeStatus, t);
+        case "eSinavRightsExpiryDate":
+          return formatDateTR(
+            addDaysToISODate(candidate.currentGroup?.startDate, ESINAV_RIGHTS_EXPIRY_DAYS)
+          );
+        case "eSinavPoolStatus":
+          return candidateUnifiedExamStatusExportLabel(candidate, t);
+        case "drivingExamDate":
+          return formatDateTR(candidate.drivingExamDate);
+        case "drivingExamCode":
+          return columnPageScope === "uygulama"
+            ? formatDrivingExamCodeWithCapacity(candidate, examScheduleById)
+            : formatOptionalText(candidate.drivingExamCode);
+        case "drivingExamTime":
+          return formatDrivingExamTime(candidate.drivingExamScheduledAt);
+        case "drivingExamVehiclePlate":
+          return formatOptionalText(candidate.drivingExamVehiclePlate);
+        case "drivingExamInstructor":
+          return formatOptionalText(candidate.drivingExamInstructorFullName);
+        case "drivingExamAttemptCount": {
+          const maxAttempt = candidateExamAttemptDisplayLimit(candidate, "practice");
+          const attempt = Math.min(
+            Math.max(candidate.drivingExamAttemptCount ?? 1, 1),
+            maxAttempt
+          );
+          return `${attempt}/${maxAttempt}`;
+        }
+        case "drivingExamAttendanceStatus":
+          return drivingExamAttendanceLabel(candidate.drivingExamAttendanceStatus);
+        case "drivingExamResultStatus":
+          return drivingExamResultLabel(candidate.drivingExamResultStatus, t);
+        case "drivingExamFeeStatus":
+          return examFeeStatusLabel(candidate.drivingExamFeeStatus, t);
+        case "graduationDate":
+          return formatDateTR(candidate.graduationDate);
+        case "terminationReason":
+          return formatOptionalText(candidate.terminationReason);
+        case "terminationDate":
+          return formatDateTR(candidate.terminationDate);
+        case "totalFee":
+          return formatCurrencyTRY(candidate.totalFee);
+        case "totalPaid":
+          return formatCurrencyTRY(candidate.totalPaid);
+        case "totalDebt":
+          return formatCurrencyTRY(candidate.totalDebt);
+        case "documents":
+          return candidate.documentSummary
+            ? `${candidate.documentSummary.completedCount}/${candidate.documentSummary.totalRequiredCount}`
+            : "—";
+        case "missingDocuments":
+          return candidate.documentSummary?.missingCount ?? 0;
+        case "mebSyncStatus":
+          return candidateMebSyncStatusLabel(candidate.mebSyncStatus);
+        case "status":
+          return candidateStatusLabel(candidate.status);
+        case "createdAtUtc":
+          return formatDateTR(candidate.createdAtUtc);
+        case "updatedAtUtc":
+          return formatDateTR(candidate.updatedAtUtc);
+      }
+    };
+
+    const rows = rowsToExport.map((candidate) =>
+      exportColumns.map((column) => exportCellValue(candidate, column.id))
+    );
 
     return { headers, rows };
   };

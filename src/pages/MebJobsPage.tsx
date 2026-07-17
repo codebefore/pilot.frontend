@@ -579,8 +579,8 @@ export function MebJobsPage() {
         ))}
       </div>
 
-      {canViewPayments && <WenntecImportJobsPanel />}
-      {canViewCandidates && <WenntecContactImportJobsPanel />}
+      {user?.isSuperAdmin === true && canViewPayments && <WenntecImportJobsPanel />}
+      {user?.isSuperAdmin === true && canViewCandidates && <WenntecContactImportJobsPanel />}
 
       <QueueHealthBand
         canRetry={canManageMebJobs}

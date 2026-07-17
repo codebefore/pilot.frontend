@@ -126,6 +126,7 @@ function fromResponse(response: InstitutionSettingsResponse): GeneralFormValues 
 
 function toUpsertRequest(
   values: GeneralFormValues,
+  receiptPrintProfile: ReceiptPrintProfileId,
   rowVersion: number | null,
   authorizedPersons: InstitutionSettingsResponse["authorizedPersons"] = []
 ): InstitutionSettingsUpsertRequest {
@@ -145,6 +146,7 @@ function toUpsertRequest(
       : null,
     bankName: values.bankName.trim() || null,
     iban: values.iban.trim() || null,
+    receiptPrintProfile,
     founder: {
       type: values.founderType,
       name: values.founderName.trim() || null,
@@ -236,6 +238,7 @@ export function GeneralInstitutionSection() {
     if (settingsQuery.data) {
       setServerState(settingsQuery.data);
       setValues(fromResponse(settingsQuery.data));
+      setReceiptPrintProfileId(readReceiptPrintProfileId(settingsQuery.data.receiptPrintProfile));
     } else {
       setServerState(null);
       setValues(EMPTY_VALUES);
@@ -281,10 +284,12 @@ export function GeneralInstitutionSection() {
 
   const dirty = useMemo(() => {
     if (!serverState) {
-      return JSON.stringify(values) !== JSON.stringify(EMPTY_VALUES);
+      return JSON.stringify(values) !== JSON.stringify(EMPTY_VALUES) ||
+        receiptPrintProfileId !== readReceiptPrintProfileId();
     }
-    return JSON.stringify(values) !== JSON.stringify(fromResponse(serverState));
-  }, [serverState, values]);
+    return JSON.stringify(values) !== JSON.stringify(fromResponse(serverState)) ||
+      receiptPrintProfileId !== readReceiptPrintProfileId(serverState.receiptPrintProfile);
+  }, [receiptPrintProfileId, serverState, values]);
 
   const setField = <K extends keyof GeneralFormValues>(field: K, value: GeneralFormValues[K]) => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -400,6 +405,7 @@ export function GeneralInstitutionSection() {
     try {
       const request = toUpsertRequest(
         values,
+        receiptPrintProfileId,
         serverState?.rowVersion ?? null,
         serverState?.authorizedPersons ?? []
       );
@@ -409,6 +415,7 @@ export function GeneralInstitutionSection() {
       }
       setServerState(response);
       setValues(fromResponse(response));
+      setReceiptPrintProfileId(readReceiptPrintProfileId(response.receiptPrintProfile));
       setErrors({});
       queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, response);
       void queryClient.invalidateQueries({ queryKey: ["institutions", "list"] });
@@ -424,6 +431,7 @@ export function GeneralInstitutionSection() {
           if (fresh) {
             setServerState(fresh);
             setValues(fromResponse(fresh));
+            setReceiptPrintProfileId(readReceiptPrintProfileId(fresh.receiptPrintProfile));
             queryClient.setQueryData(INSTITUTION_SETTINGS_QUERY_KEY, fresh);
           }
         } catch {
@@ -1006,9 +1014,11 @@ export function GeneralInstitutionSection() {
                   <button
                     aria-checked={active}
                     className={active ? "settings-receipt-profile-option active" : "settings-receipt-profile-option"}
+                    disabled={!canManageSettings}
                     key={option.id}
                     onClick={() => handleReceiptPrintProfileChange(option.id)}
                     role="radio"
+                    title={!canManageSettings ? noPermissionTitle : undefined}
                     type="button"
                   >
                     <span className="settings-receipt-profile-check" aria-hidden="true" />

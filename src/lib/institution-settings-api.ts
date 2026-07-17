@@ -1,6 +1,6 @@
 import { getPlatformApiBaseUrl } from "./api";
 import { getStoredAccessToken, notifyUnauthorized } from "./auth-storage";
-import { httpDelete, httpGet, httpPostForm, httpPut, normalizeApiPathForBaseUrl } from "./http";
+import { httpDelete, httpGet, httpPost, httpPostForm, httpPut, normalizeApiPathForBaseUrl } from "./http";
 
 export type FounderType = "real" | "legal";
 
@@ -43,6 +43,7 @@ export interface InstitutionSettingsResponse {
   buildingCapacity: number | null;
   bankName: string | null;
   iban: string | null;
+  receiptPrintProfile: string;
   logo: InstitutionLogoResponse | null;
   founder: InstitutionFounderResponse;
   authorizedPersons: InstitutionAuthorizedPersonResponse[];
@@ -81,6 +82,7 @@ export interface InstitutionSettingsUpsertRequest {
   buildingCapacity: number | null;
   bankName: string | null;
   iban: string | null;
+  receiptPrintProfile: string;
   founder: InstitutionFounderUpsertRequest;
   authorizedPersons: InstitutionAuthorizedPersonUpsertRequest[];
   rowVersion: number | null;
@@ -110,6 +112,74 @@ export interface InstitutionIntegrationsUpsertRequest {
   smsApiToken: string | null;
   clearSmsApiToken: boolean;
   rowVersion: number | null;
+}
+
+export interface SmsTemplateVariableResponse {
+  key: string;
+  label: string;
+  exampleValue: string;
+}
+
+export interface SmsTriggerCatalogItemResponse {
+  triggerType: string;
+  title: string;
+  description: string;
+  variables: SmsTemplateVariableResponse[];
+}
+
+export interface SmsTemplateResponse {
+  id: string;
+  triggerType: string;
+  name: string;
+  body: string;
+  enabled: boolean;
+  version: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface SmsTemplateUpsertRequest {
+  triggerType: string;
+  name: string;
+  body: string;
+  enabled: boolean;
+  rowVersion: number | null;
+}
+
+export interface SmsAutomationRuleResponse {
+  id: string;
+  triggerType: string;
+  templateId: string;
+  recipientType: string;
+  timingType: string;
+  offsetMinutes: number | null;
+  enabled: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface SmsAutomationRuleUpsertRequest {
+  templateId: string;
+  timingType: "immediate";
+  offsetMinutes: null;
+  enabled: boolean;
+  rowVersion: number | null;
+}
+
+export interface SmsTemplatePreviewResponse {
+  renderedBody: string;
+  characterCount: number;
+  estimatedSegmentCount: number;
+}
+
+export interface SmsTestSendResponse {
+  messageId: string;
+  status: string;
+  phoneMasked: string;
+  providerMessageId: string | null;
+  sentAtUtc: string;
 }
 
 export async function getInstitutionSettings(
@@ -153,6 +223,85 @@ export function upsertInstitutionIntegrations(
   return httpPut<InstitutionIntegrationsResponse>(
     "/api/institution-settings/integrations",
     body,
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function getSmsTriggerCatalog(signal?: AbortSignal): Promise<SmsTriggerCatalogItemResponse[]> {
+  return httpGet<SmsTriggerCatalogItemResponse[]>(
+    "/api/institution-settings/sms/catalog",
+    undefined,
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function getSmsTemplates(signal?: AbortSignal): Promise<SmsTemplateResponse[]> {
+  return httpGet<SmsTemplateResponse[]>(
+    "/api/institution-settings/sms/templates",
+    undefined,
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function createSmsTemplate(body: SmsTemplateUpsertRequest): Promise<SmsTemplateResponse> {
+  return httpPost<SmsTemplateResponse>("/api/institution-settings/sms/templates", body, {
+    baseUrl: getPlatformApiBaseUrl(),
+  });
+}
+
+export function updateSmsTemplate(
+  templateId: string,
+  body: SmsTemplateUpsertRequest
+): Promise<SmsTemplateResponse> {
+  return httpPut<SmsTemplateResponse>(
+    `/api/institution-settings/sms/templates/${templateId}`,
+    body,
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function deleteSmsTemplate(templateId: string, rowVersion: number): Promise<boolean> {
+  return httpDelete<boolean>(
+    `/api/institution-settings/sms/templates/${templateId}`,
+    { rowVersion },
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function getSmsAutomationRules(signal?: AbortSignal): Promise<SmsAutomationRuleResponse[]> {
+  return httpGet<SmsAutomationRuleResponse[]>(
+    "/api/institution-settings/sms/automation-rules",
+    undefined,
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function upsertSmsAutomationRule(
+  triggerType: string,
+  body: SmsAutomationRuleUpsertRequest
+): Promise<SmsAutomationRuleResponse> {
+  return httpPut<SmsAutomationRuleResponse>(
+    `/api/institution-settings/sms/automation-rules/${encodeURIComponent(triggerType)}`,
+    body,
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function previewSmsTemplate(
+  triggerType: string,
+  body: string
+): Promise<SmsTemplatePreviewResponse> {
+  return httpPost<SmsTemplatePreviewResponse>(
+    "/api/institution-settings/sms/templates/preview",
+    { triggerType, body },
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function sendTestSms(phone: string, requestId: string): Promise<SmsTestSendResponse> {
+  return httpPost<SmsTestSendResponse>(
+    "/api/institution-settings/sms/test",
+    { phone, requestId },
     { baseUrl: getPlatformApiBaseUrl() }
   );
 }

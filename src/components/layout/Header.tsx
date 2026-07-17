@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "re
 import { useQueryClient } from "@tanstack/react-query";
 
 import { getMebbisApiBaseUrl } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { useLanguage, type TranslationKey } from "../../lib/i18n";
 import type { AuthInstitution } from "../../lib/auth-storage";
 import {
@@ -50,6 +51,7 @@ export function Header({
   onSidebarToggle,
   sidebarCollapsed,
 }: HeaderProps) {
+  const { user } = useAuth();
   const { lang, setLang, t } = useLanguage();
 
   const toggleLang = () => setLang(lang === "tr" ? "en" : "tr");
@@ -86,15 +88,17 @@ export function Header({
 
       <div className="header-right">
         <HeaderMebbisConnection />
-        <button
-          aria-label={t("header.languageToggle")}
-          className="header-lang"
-          onClick={toggleLang}
-          title={t("header.languageToggle")}
-          type="button"
-        >
-          {lang === "tr" ? "EN" : "TR"}
-        </button>
+        {user?.isSuperAdmin === true && (
+          <button
+            aria-label={t("header.languageToggle")}
+            className="header-lang"
+            onClick={toggleLang}
+            title={t("header.languageToggle")}
+            type="button"
+          >
+            {lang === "tr" ? "EN" : "TR"}
+          </button>
+        )}
         <NotificationsMenu />
         <UserMenu userInitials={userInitials} />
       </div>

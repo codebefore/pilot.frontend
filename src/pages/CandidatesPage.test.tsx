@@ -2989,6 +2989,12 @@ describe("CandidatesPage tabs", () => {
     await waitFor(() => expect(createObjectUrlSpy).toHaveBeenCalled());
     expect(exportedBlob).not.toBeNull();
     const csv = await exportedBlob!.text();
+    const csvHeader = csv.replace(/^\uFEFF/, "").split("\n")[0];
+    expect(csvHeader).toContain("Ad Soyad");
+    expect(csvHeader).toContain("Ehliyet Tipi");
+    expect(csvHeader).not.toContain("Fotoğraf");
+    expect(csvHeader).not.toContain("TC Kimlik");
+    expect(csvHeader).not.toContain("Telefon");
     expect(csv).toContain("Direksiyon başarısız");
     expect(csv).not.toContain(",Başarılı,active");
 
@@ -3000,6 +3006,7 @@ describe("CandidatesPage tabs", () => {
     expect(exportedBlob!.type).toBe("application/vnd.ms-excel;charset=utf-8");
     const excel = await exportedBlob!.text();
     expect(excel).toContain("<table>");
+    expect(excel).not.toContain("TC Kimlik");
     expect(excel).toContain("Direksiyon başarısız");
 
     const pdfDocument = {
@@ -3022,6 +3029,7 @@ describe("CandidatesPage tabs", () => {
 
     await waitFor(() => expect(pdfWindow.print).toHaveBeenCalled());
     expect(pdfDocument.write).toHaveBeenCalledWith(expect.stringContaining("Direksiyon başarısız"));
+    expect(pdfDocument.write).not.toHaveBeenCalledWith(expect.stringContaining("TC Kimlik"));
 
     createObjectUrlSpy.mockRestore();
     revokeObjectUrlSpy.mockRestore();

@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../../test/render-with-providers";
@@ -6,6 +6,15 @@ import { IntegrationsSettingsSection } from "./IntegrationsSettingsSection";
 
 const getInstitutionIntegrationsMock = vi.fn();
 const upsertInstitutionIntegrationsMock = vi.fn();
+const sendTestSmsMock = vi.fn();
+const getSmsTriggerCatalogMock = vi.fn();
+const getSmsTemplatesMock = vi.fn();
+const getSmsAutomationRulesMock = vi.fn();
+const createSmsTemplateMock = vi.fn();
+const updateSmsTemplateMock = vi.fn();
+const deleteSmsTemplateMock = vi.fn();
+const previewSmsTemplateMock = vi.fn();
+const upsertSmsAutomationRuleMock = vi.fn();
 const checkLocalAgentUpdateMock = vi.fn();
 const getLocalAgentHealthMock = vi.fn();
 const getLocalAgentUpdateStatusMock = vi.fn();
@@ -46,6 +55,23 @@ vi.mock("../../lib/institution-settings-api", async () => {
     upsertInstitutionIntegrations: (
       ...args: Parameters<typeof actual.upsertInstitutionIntegrations>
     ) => upsertInstitutionIntegrationsMock(...args),
+    sendTestSms: (...args: Parameters<typeof actual.sendTestSms>) => sendTestSmsMock(...args),
+    getSmsTriggerCatalog: (...args: Parameters<typeof actual.getSmsTriggerCatalog>) =>
+      getSmsTriggerCatalogMock(...args),
+    getSmsTemplates: (...args: Parameters<typeof actual.getSmsTemplates>) =>
+      getSmsTemplatesMock(...args),
+    getSmsAutomationRules: (...args: Parameters<typeof actual.getSmsAutomationRules>) =>
+      getSmsAutomationRulesMock(...args),
+    createSmsTemplate: (...args: Parameters<typeof actual.createSmsTemplate>) =>
+      createSmsTemplateMock(...args),
+    updateSmsTemplate: (...args: Parameters<typeof actual.updateSmsTemplate>) =>
+      updateSmsTemplateMock(...args),
+    deleteSmsTemplate: (...args: Parameters<typeof actual.deleteSmsTemplate>) =>
+      deleteSmsTemplateMock(...args),
+    previewSmsTemplate: (...args: Parameters<typeof actual.previewSmsTemplate>) =>
+      previewSmsTemplateMock(...args),
+    upsertSmsAutomationRule: (...args: Parameters<typeof actual.upsertSmsAutomationRule>) =>
+      upsertSmsAutomationRuleMock(...args),
   };
 });
 
@@ -76,6 +102,15 @@ describe("IntegrationsSettingsSection", () => {
     vi.useRealTimers();
     getInstitutionIntegrationsMock.mockReset();
     upsertInstitutionIntegrationsMock.mockReset();
+    sendTestSmsMock.mockReset();
+    getSmsTriggerCatalogMock.mockReset();
+    getSmsTemplatesMock.mockReset();
+    getSmsAutomationRulesMock.mockReset();
+    createSmsTemplateMock.mockReset();
+    updateSmsTemplateMock.mockReset();
+    deleteSmsTemplateMock.mockReset();
+    previewSmsTemplateMock.mockReset();
+    upsertSmsAutomationRuleMock.mockReset();
     checkLocalAgentUpdateMock.mockReset();
     getLocalAgentHealthMock.mockReset();
     getLocalAgentUpdateStatusMock.mockReset();
@@ -95,6 +130,31 @@ describe("IntegrationsSettingsSection", () => {
       hasSmsApiToken: false,
       updatedAtUtc: "2026-01-01T00:00:00Z",
       rowVersion: 4,
+    });
+    getSmsTriggerCatalogMock.mockResolvedValue([
+      {
+        triggerType: "candidate.created",
+        title: "Aday kaydedildi",
+        description: "Yeni aday kaydı tamamlandığında çalışır.",
+        variables: [
+          { key: "candidate.fullName", label: "Aday adı soyadı", exampleValue: "Ayşe Yılmaz" },
+        ],
+      },
+      {
+        triggerType: "finance.debt.created",
+        title: "Borç eklendi",
+        description: "Adaya yeni bir borç kaydı eklendiğinde çalışır.",
+        variables: [
+          { key: "debt.amount", label: "Borç tutarı", exampleValue: "12.500,00 TL" },
+        ],
+      },
+    ]);
+    getSmsTemplatesMock.mockResolvedValue([]);
+    getSmsAutomationRulesMock.mockResolvedValue([]);
+    previewSmsTemplateMock.mockResolvedValue({
+      renderedBody: "Merhaba Ayşe Yılmaz",
+      characterCount: 20,
+      estimatedSegmentCount: 1,
     });
     pairLocalAgentInMemoryMock.mockResolvedValue({
       token: "local-agent-token",
@@ -267,6 +327,251 @@ describe("IntegrationsSettingsSection", () => {
     });
     expect(screen.getByLabelText("API Token")).toHaveValue("");
     expect(screen.getByText(/API token kayıtlı/)).toBeInTheDocument();
+  });
+
+  it("sends a test SMS from the saved institution Kobikom account", async () => {
+    getInstitutionIntegrationsMock.mockResolvedValue({
+      hasOcrApiKey: true,
+      ocrApiKey: "secret-key",
+      hasWhatsAppAccessToken: true,
+      whatsAppAccessToken: null,
+      smsProvider: "kobikom",
+      smsEnabled: true,
+      smsSenderTitle: "KURSUM",
+      hasSmsApiToken: true,
+      updatedAtUtc: "2026-07-17T00:00:00Z",
+      rowVersion: 5,
+    });
+    sendTestSmsMock.mockResolvedValue({
+      messageId: "message-1",
+      status: "sent",
+      phoneMasked: "+90 5** *** 7262",
+      providerMessageId: "provider-message-1",
+      sentAtUtc: "2026-07-17T00:00:00Z",
+    });
+
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
+    fireEvent.change(screen.getByLabelText("Test telefon numarası"), {
+      target: { value: "0507 373 72 62" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Test SMS Gönder" }));
+
+    await waitFor(() => {
+      expect(sendTestSmsMock).toHaveBeenCalledWith("0507 373 72 62", expect.any(String));
+    });
+    expect(screen.getByLabelText("Test telefon numarası")).toHaveValue("");
+  });
+
+  it("uses a new request id when retrying a definitely failed test SMS", async () => {
+    getInstitutionIntegrationsMock.mockResolvedValue({
+      hasOcrApiKey: true,
+      ocrApiKey: "secret-key",
+      hasWhatsAppAccessToken: true,
+      whatsAppAccessToken: null,
+      smsProvider: "kobikom",
+      smsEnabled: true,
+      smsSenderTitle: "KURSUM",
+      hasSmsApiToken: true,
+      updatedAtUtc: "2026-07-17T00:00:00Z",
+      rowVersion: 5,
+    });
+    sendTestSmsMock
+      .mockRejectedValueOnce({ status: 502 })
+      .mockResolvedValueOnce({
+        messageId: "message-2",
+        status: "sent",
+        phoneMasked: "+90 5** *** 7262",
+        providerMessageId: "provider-message-2",
+        sentAtUtc: "2026-07-17T00:00:00Z",
+      });
+
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
+    fireEvent.change(screen.getByLabelText("Test telefon numarası"), {
+      target: { value: "0507 373 72 62" },
+    });
+    const sendButton = screen.getByRole("button", { name: "Test SMS Gönder" });
+    fireEvent.click(sendButton);
+    await waitFor(() => expect(sendTestSmsMock).toHaveBeenCalledTimes(1));
+    const firstRequestId = sendTestSmsMock.mock.calls[0]?.[1];
+
+    fireEvent.click(sendButton);
+    await waitFor(() => expect(sendTestSmsMock).toHaveBeenCalledTimes(2));
+
+    expect(sendTestSmsMock.mock.calls[1]?.[1]).not.toBe(firstRequestId);
+  });
+
+  it("creates and previews an operational SMS template without login triggers", async () => {
+    createSmsTemplateMock.mockResolvedValue({
+      id: "template-1",
+      triggerType: "candidate.created",
+      name: "Yeni aday",
+      body: "Merhaba {{candidate.fullName}}",
+      enabled: true,
+      version: 1,
+      createdAtUtc: "2026-07-17T00:00:00Z",
+      updatedAtUtc: "2026-07-17T00:00:00Z",
+      rowVersion: 1,
+    });
+
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Mesaj Şablonları" }));
+
+    const templatesSection = (
+      await screen.findByRole("heading", { name: "Mesaj Şablonları" })
+    ).closest("section");
+    expect(templatesSection).not.toBeNull();
+    const templateUi = within(templatesSection!);
+    expect(templateUi.getByLabelText("Gönderim olayı")).toHaveValue("candidate.created");
+    expect(screen.queryByText(/login/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/OTP fallback/i)).not.toBeInTheDocument();
+
+    fireEvent.change(templateUi.getByLabelText("Şablon adı"), {
+      target: { value: "Yeni aday" },
+    });
+    fireEvent.change(templateUi.getByLabelText("Mesaj metni"), {
+      target: { value: "Merhaba {{candidate.fullName}}" },
+    });
+    fireEvent.click(templateUi.getByRole("button", { name: "Önizleme" }));
+    expect(await templateUi.findByText("Merhaba Ayşe Yılmaz")).toBeInTheDocument();
+
+    fireEvent.click(templateUi.getByRole("button", { name: "Kaydet" }));
+    await waitFor(() => {
+      expect(createSmsTemplateMock).toHaveBeenCalledWith({
+        triggerType: "candidate.created",
+        name: "Yeni aday",
+        body: "Merhaba {{candidate.fullName}}",
+        enabled: true,
+        rowVersion: null,
+      });
+    });
+  });
+
+  it("inserts a variable at the cursor in the SMS template editor", async () => {
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Mesaj Şablonları" }));
+
+    const templatesSection = (
+      await screen.findByRole("heading", { name: "Mesaj Şablonları" })
+    ).closest("section");
+    expect(templatesSection).not.toBeNull();
+    const templateUi = within(templatesSection!);
+    const editor = templateUi.getByLabelText("Mesaj metni") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "Merhaba son" } });
+    editor.setSelectionRange(8, 8);
+
+    fireEvent.click(templateUi.getByRole("button", { name: "Aday adı soyadı" }));
+
+    expect(editor).toHaveValue("Merhaba {{candidate.fullName}}son");
+  });
+
+  it("saves an SMS automation draft but keeps activation locked until phase 2B", async () => {
+    getSmsTemplatesMock.mockResolvedValue([
+      {
+        id: "template-1",
+        triggerType: "candidate.created",
+        name: "Yeni aday",
+        body: "Merhaba {{candidate.fullName}}",
+        enabled: true,
+        version: 1,
+        createdAtUtc: "2026-07-17T00:00:00Z",
+        updatedAtUtc: "2026-07-17T00:00:00Z",
+        rowVersion: 1,
+      },
+    ]);
+    upsertSmsAutomationRuleMock.mockResolvedValue({
+      id: "rule-1",
+      triggerType: "candidate.created",
+      templateId: "template-1",
+      recipientType: "candidate_primary_phone",
+      timingType: "immediate",
+      offsetMinutes: null,
+      enabled: false,
+      createdAtUtc: "2026-07-17T00:00:00Z",
+      updatedAtUtc: "2026-07-17T00:00:00Z",
+      rowVersion: 1,
+    });
+
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Otomatik Gönderimler" }));
+
+    const rulesSection = (
+      await screen.findByRole("heading", { name: "Otomatik Gönderimler" })
+    ).closest("section");
+    expect(rulesSection).not.toBeNull();
+    const ruleUi = within(rulesSection!);
+    expect(ruleUi.getByText(/Faz 2B sağlayıcısı/)).toBeInTheDocument();
+    const toggles = await ruleUi.findAllByRole("checkbox");
+    expect(toggles[0]).toBeDisabled();
+    fireEvent.click(ruleUi.getAllByRole("button", { name: "Kaydet" })[0]);
+
+    await waitFor(() => {
+      expect(upsertSmsAutomationRuleMock).toHaveBeenCalledWith("candidate.created", {
+        templateId: "template-1",
+        timingType: "immediate",
+        offsetMinutes: null,
+        enabled: false,
+        rowVersion: null,
+      });
+    });
+  });
+
+  it("keeps a passive template visible when an existing draft rule references it", async () => {
+    getSmsTemplatesMock.mockResolvedValue([
+      {
+        id: "template-passive",
+        triggerType: "candidate.created",
+        name: "Eski şablon",
+        body: "Merhaba {{candidate.fullName}}",
+        enabled: false,
+        version: 1,
+        createdAtUtc: "2026-07-17T00:00:00Z",
+        updatedAtUtc: "2026-07-17T00:00:00Z",
+        rowVersion: 2,
+      },
+    ]);
+    getSmsAutomationRulesMock.mockResolvedValue([
+      {
+        id: "rule-1",
+        triggerType: "candidate.created",
+        templateId: "template-passive",
+        recipientType: "candidate_primary_phone",
+        timingType: "immediate",
+        offsetMinutes: null,
+        enabled: false,
+        createdAtUtc: "2026-07-17T00:00:00Z",
+        updatedAtUtc: "2026-07-17T00:00:00Z",
+        rowVersion: 3,
+      },
+    ]);
+
+    renderWithProviders(<IntegrationsSettingsSection />);
+    fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Otomatik Gönderimler" }));
+
+    const rulesSection = (
+      await screen.findByRole("heading", { name: "Otomatik Gönderimler" })
+    ).closest("section");
+    expect(rulesSection).not.toBeNull();
+    const ruleUi = within(rulesSection!);
+    expect(
+      await ruleUi.findByRole("button", { name: "Eski şablon (Şablon pasif)" }),
+    ).toBeInTheDocument();
+    fireEvent.click(ruleUi.getAllByRole("button", { name: "Kaydet" })[0]);
+
+    await waitFor(() => {
+      expect(upsertSmsAutomationRuleMock).toHaveBeenCalledWith("candidate.created", {
+        templateId: "template-passive",
+        timingType: "immediate",
+        offsetMinutes: null,
+        enabled: false,
+        rowVersion: 3,
+      });
+    });
   });
 
   it("shows provider fields when no integration is configured", async () => {

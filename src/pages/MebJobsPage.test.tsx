@@ -139,7 +139,10 @@ function pagedJobsResponse(
   };
 }
 
-function renderPage(permissions: Record<string, "view" | "full"> = { mebjobs: "view" }) {
+function renderPage(
+  permissions: Record<string, "view" | "full"> = { mebjobs: "view" },
+  isSuperAdmin = false
+) {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/meb-jobs"]}>
       <MebJobsPage />
@@ -150,8 +153,8 @@ function renderPage(permissions: Record<string, "view" | "full"> = { mebjobs: "v
           id: "meb-viewer",
           phone: "5073737262",
           name: "MEB Viewer",
-          roleName: "MEB İzleme",
-          isSuperAdmin: false,
+          roleName: isSuperAdmin ? "super_admin" : "MEB İzleme",
+          isSuperAdmin,
         },
         permissions,
       },
@@ -285,7 +288,16 @@ describe("MebJobsPage", () => {
     expect(createCandidateLookupJobMock).not.toHaveBeenCalled();
   });
 
-  it("shows Wenntec import status and error to payment viewers", async () => {
+  it("hides Wenntec import panels from non-super-admin users", async () => {
+    renderPage({ mebjobs: "view", payments: "view", candidates: "view" });
+
+    expect(await screen.findByText("Aday Durum Görüntüleme")).toBeInTheDocument();
+    expect(screen.queryByText("Wenntec Muhasebe Aktarımları")).not.toBeInTheDocument();
+    expect(screen.queryByText("Wenntec Aday İletişim Aktarımları")).not.toBeInTheDocument();
+    expect(listWenntecImportJobsMock).not.toHaveBeenCalled();
+  });
+
+  it("shows Wenntec import status and error to super admins", async () => {
     listWenntecImportJobsMock.mockResolvedValue([
       {
         id: "77ea889b-ac2a-4e86-bcd8-4c4e9617061a",
@@ -351,7 +363,7 @@ describe("MebJobsPage", () => {
       },
     ]);
 
-    renderPage({ mebjobs: "view", payments: "view" });
+    renderPage({ mebjobs: "view", payments: "view" }, true);
 
     expect(await screen.findByText("Wenntec Muhasebe Aktarımları")).toBeInTheDocument();
     expect(await screen.findByText("eren.sql")).toBeInTheDocument();

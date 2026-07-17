@@ -5958,7 +5958,9 @@ function AccountingTab({
         dueDate: formatDateTR(movement.dueDate),
         amount: formatCurrencyTRY(movement.remainingAmount),
       }));
-    const profileId = readReceiptPrintProfileId();
+    const profileId = readReceiptPrintProfileId(
+      institutionSettingsQuery.data?.receiptPrintProfile
+    );
     const profile = RECEIPT_PRINT_PROFILES.find((item) => item.id === profileId) ?? RECEIPT_PRINT_PROFILES[0];
     const opened = printAccountingReceipt({
       balanceRows,
@@ -7030,6 +7032,7 @@ function AccountingTab({
         candidate={candidate}
         institutionName={activeInstitution?.name ?? null}
         institutionLogoUrl={receiptLogoUrl}
+        receiptPrintProfile={institutionSettingsQuery.data?.receiptPrintProfile ?? null}
         onClose={() => setReceiptPayment(null)}
         payment={receiptPayment}
       />
@@ -8393,6 +8396,7 @@ function AccountingReceiptModal({
   candidate,
   institutionName,
   institutionLogoUrl,
+  receiptPrintProfile,
   payment,
   onClose,
 }: {
@@ -8400,6 +8404,7 @@ function AccountingReceiptModal({
   candidate: CandidateResponse;
   institutionName: string | null;
   institutionLogoUrl: string | null;
+  receiptPrintProfile: string | null;
   payment: CandidateAccountingSummaryResponse["payments"][number] | null;
   onClose: () => void;
 }) {
@@ -8426,7 +8431,7 @@ function AccountingReceiptModal({
   const collectorName = payment.createdByName?.trim() || "—";
   const debtTypeLabel = t(accountingTypeLabelKey(payment.type));
   const printReceipt = () => {
-    const selectedProfileId = readReceiptPrintProfileId();
+    const selectedProfileId = readReceiptPrintProfileId(receiptPrintProfile);
     const profile = RECEIPT_PRINT_PROFILES.find((item) => item.id === selectedProfileId) ?? RECEIPT_PRINT_PROFILES[0];
     const opened = printAccountingReceipt({
       balanceRows,

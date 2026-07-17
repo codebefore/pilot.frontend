@@ -11,6 +11,7 @@ import {
 } from "../../lib/e-archive-api";
 import {
   getInstitutionIntegrations,
+  sendTestSms,
   upsertInstitutionIntegrations,
   type InstitutionIntegrationsResponse,
 } from "../../lib/institution-settings-api";
@@ -28,8 +29,10 @@ import { EyeIcon, EyeOffIcon } from "../icons";
 import { CustomSelect } from "../ui/CustomSelect";
 import { SettingsFormSkeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
+import { SmsAutomationSettings } from "./SmsAutomationSettings";
 
 type IntegrationTab = "downloads" | "ocr" | "whatsapp" | "sms" | "eInvoice";
+type SmsSettingsSection = "account" | "templates" | "automation";
 type EInvoiceFormValues = {
   providerCode: string;
   environment: EInvoiceEnvironment;
@@ -87,6 +90,7 @@ export function IntegrationsSettingsSection() {
     null,
   );
   const [activeTab, setActiveTab] = useState<IntegrationTab>("downloads");
+  const [smsSection, setSmsSection] = useState<SmsSettingsSection>("account");
   const [ocrApiKey, setOcrApiKey] = useState("");
   const [showOcrApiKey, setShowOcrApiKey] = useState(false);
   const [whatsAppAccessToken, setWhatsAppAccessToken] = useState("");
@@ -96,6 +100,9 @@ export function IntegrationsSettingsSection() {
   const [smsSenderTitle, setSmsSenderTitle] = useState("");
   const [smsApiToken, setSmsApiToken] = useState("");
   const [showSmsApiToken, setShowSmsApiToken] = useState(false);
+  const [testSmsPhone, setTestSmsPhone] = useState("");
+  const [sendingTestSms, setSendingTestSms] = useState(false);
+  const testSmsRequestRef = useRef<{ phone: string; requestId: string } | null>(null);
   const [eInvoiceState, setEInvoiceState] = useState<EInvoiceIntegrationResponse | null>(null);
   const [eInvoiceValues, setEInvoiceValues] = useState<EInvoiceFormValues>(EMPTY_E_INVOICE_VALUES);
   const [eInvoiceErrors, setEInvoiceErrors] = useState<EInvoiceFormErrors>({});
@@ -257,6 +264,7 @@ export function IntegrationsSettingsSection() {
       setSmsEnabled(response.smsEnabled);
       setSmsSenderTitle(response.smsSenderTitle ?? "");
       setSmsApiToken("");
+      testSmsRequestRef.current = null;
       queryClient.setQueryData(INTEGRATIONS_QUERY_KEY, response);
       void queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
       void queryClient.invalidateQueries({ queryKey: ["outbox", "health"] });
@@ -265,6 +273,29 @@ export function IntegrationsSettingsSection() {
       showToast(t("settings.integrations.toast.saveError"), "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendTestSms = async () => {
+    if (!canManageSettings || sendingTestSms || !testSmsPhone.trim()) return;
+    const phone = testSmsPhone.trim();
+    const pendingRequest = testSmsRequestRef.current?.phone === phone
+      ? testSmsRequestRef.current
+      : { phone, requestId: crypto.randomUUID() };
+    testSmsRequestRef.current = pendingRequest;
+    setSendingTestSms(true);
+    try {
+      const result = await sendTestSms(phone, pendingRequest.requestId);
+      testSmsRequestRef.current = null;
+      setTestSmsPhone("");
+      showToast(t("settings.integrations.sms.test.success", { phone: result.phoneMasked }));
+    } catch (error) {
+      if ((error as { status?: number }).status === 502) {
+        testSmsRequestRef.current = null;
+      }
+      showToast(t("settings.integrations.sms.test.error"), "error");
+    } finally {
+      setSendingTestSms(false);
     }
   };
 
@@ -703,22 +734,69 @@ export function IntegrationsSettingsSection() {
 
       {activeTab === "sms" ? (
         <>
-          <section className="settings-surface">
-            <div className="settings-surface-header">
-              <div>
-                <h2 className="settings-surface-title">
-                  {t("settings.integrations.sms.sectionTitle")}
-                </h2>
-                <p className="settings-form-helper">
-                  {t("settings.integrations.sms.description")}
-                </p>
-              </div>
-            </div>
+          <div
+            aria-label={t("settings.integrations.sms.title")}
+            className="sms-settings-subtabs"
+            role="tablist"
+          >
+            <button
+              aria-selected={smsSection === "account"}
+              className={
+                smsSection === "account"
+                  ? "sms-settings-subtab active"
+                  : "sms-settings-subtab"
+              }
+              onClick={() => setSmsSection("account")}
+              role="tab"
+              type="button"
+            >
+              {t("settings.integrations.sms.accountTab")}
+            </button>
+            <button
+              aria-selected={smsSection === "templates"}
+              className={
+                smsSection === "templates"
+                  ? "sms-settings-subtab active"
+                  : "sms-settings-subtab"
+              }
+              onClick={() => setSmsSection("templates")}
+              role="tab"
+              type="button"
+            >
+              {t("settings.integrations.sms.automation.templatesTitle")}
+            </button>
+            <button
+              aria-selected={smsSection === "automation"}
+              className={
+                smsSection === "automation"
+                  ? "sms-settings-subtab active"
+                  : "sms-settings-subtab"
+              }
+              onClick={() => setSmsSection("automation")}
+              role="tab"
+              type="button"
+            >
+              {t("settings.integrations.sms.automation.rulesTitle")}
+            </button>
+          </div>
 
-            <div className="settings-surface-body">
-              <div className="settings-form">
-                <div className="form-row">
-                  <div className="form-group">
+          {smsSection === "account" ? (
+            <section className="settings-surface">
+              <div className="settings-surface-header">
+                <div>
+                  <h2 className="settings-surface-title">
+                    {t("settings.integrations.sms.sectionTitle")}
+                  </h2>
+                  <p className="settings-form-helper">
+                    {t("settings.integrations.sms.description")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-surface-body">
+                <div className="settings-form">
+                  <div className="form-row">
+                    <div className="form-group">
                     <label className="form-label" htmlFor="sms-provider">
                       {t("settings.integrations.sms.provider")}
                     </label>
@@ -731,9 +809,9 @@ export function IntegrationsSettingsSection() {
                     >
                       <option value="kobikom">Kobikom</option>
                     </CustomSelect>
-                  </div>
+                    </div>
 
-                  <div className="form-group">
+                    <div className="form-group">
                     <span className="form-label">
                       {t("settings.integrations.sms.status")}
                     </span>
@@ -751,11 +829,11 @@ export function IntegrationsSettingsSection() {
                           : t("settings.integrations.sms.disabled")}
                       </span>
                     </label>
+                    </div>
                   </div>
-                </div>
 
-                <div className="form-row">
-                  <div className="form-group">
+                  <div className="form-row">
+                    <div className="form-group">
                     <label className="form-label" htmlFor="sms-sender-title">
                       {t("settings.integrations.sms.senderTitle")}
                     </label>
@@ -776,9 +854,9 @@ export function IntegrationsSettingsSection() {
                     <span className="settings-form-helper">
                       {t("settings.integrations.sms.senderTitleHelp")}
                     </span>
-                  </div>
+                    </div>
 
-                  <div className="form-group">
+                    <div className="form-group">
                     <label className="form-label" htmlFor="sms-api-token">
                       {t("settings.integrations.sms.apiToken")}
                     </label>
@@ -817,27 +895,87 @@ export function IntegrationsSettingsSection() {
                         ? t("settings.integrations.sms.apiTokenConfigured")
                         : t("settings.integrations.sms.apiTokenHelp")}
                     </span>
+                    </div>
+                  </div>
+
+                  <div className="sms-test-panel">
+                    <div className="sms-test-panel-copy">
+                      <strong>{t("settings.integrations.sms.test.title")}</strong>
+                      <span>{t("settings.integrations.sms.test.description")}</span>
+                    </div>
+                    <div className="sms-test-panel-controls">
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="sms-test-phone">
+                          {t("settings.integrations.sms.test.phone")}
+                        </label>
+                        <input
+                          className="form-input"
+                          disabled={!canManageSettings || sendingTestSms}
+                          id="sms-test-phone"
+                          inputMode="tel"
+                          onChange={(event) => {
+                            setTestSmsPhone(event.target.value);
+                            testSmsRequestRef.current = null;
+                          }}
+                          placeholder={t("settings.integrations.sms.test.phonePlaceholder")}
+                          type="tel"
+                          value={testSmsPhone}
+                        />
+                      </div>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={
+                          !canManageSettings ||
+                          sendingTestSms ||
+                          !testSmsPhone.trim() ||
+                          !state?.smsEnabled ||
+                          !state.hasSmsApiToken ||
+                          !state.smsSenderTitle
+                        }
+                        onClick={() => void handleSendTestSms()}
+                        title={!canManageSettings ? noPermissionTitle : undefined}
+                        type="button"
+                      >
+                        {sendingTestSms
+                          ? t("settings.integrations.sms.test.sending")
+                          : t("settings.integrations.sms.test.send")}
+                      </button>
+                    </div>
+                    {!state?.smsEnabled || !state.hasSmsApiToken || !state.smsSenderTitle ? (
+                      <span className="settings-form-helper">
+                        {t("settings.integrations.sms.test.unavailable")}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
+          ) : null}
 
-          <div className="settings-form-actions">
-            <button
-              className="btn btn-primary btn-sm"
-              disabled={
-                !canManageSettings ||
-                saving ||
-                (smsEnabled &&
-                  (!smsSenderTitle.trim() || (!state?.hasSmsApiToken && !smsApiToken.trim())))
-              }
-              title={!canManageSettings ? noPermissionTitle : undefined}
-              type="submit"
-            >
-              {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
-            </button>
-          </div>
+          {smsSection === "account" ? (
+            <div className="settings-form-actions">
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={
+                  !canManageSettings ||
+                  saving ||
+                  (smsEnabled &&
+                    (!smsSenderTitle.trim() ||
+                      (!state?.hasSmsApiToken && !smsApiToken.trim())))
+                }
+                title={!canManageSettings ? noPermissionTitle : undefined}
+                type="submit"
+              >
+                {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
+              </button>
+            </div>
+          ) : null}
+
+          <SmsAutomationSettings
+            canManage={canManageSettings}
+            noPermissionTitle={noPermissionTitle}
+            section={smsSection}
+          />
         </>
       ) : null}
 

@@ -1,5 +1,7 @@
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useState,
   type AriaAttributes,
@@ -12,6 +14,7 @@ import { MebIcon } from "../icons";
 import { CandidateAvatar } from "../ui/CandidateAvatar";
 import { CheckboxListPopover } from "../ui/CheckboxListPopover";
 import { ColumnPicker } from "../ui/ColumnPicker";
+import { useToast } from "../ui/Toast";
 import { getCandidatePhotosByCandidateIds } from "../../lib/documents-api";
 import { useT, currentLocale } from "../../lib/i18n";
 import { existingLicenseTypeLabel } from "../../lib/status-maps";
@@ -28,9 +31,23 @@ import {
 
 type PracticeCandidatePickerProps = {
   onAssign: (candidateId: string) => void;
+  onExportComplete?: () => void;
+  onExportStateChange?: (state: PracticeCandidateExportState) => void;
   onSelectionChange: (candidateIds: Set<string>) => void;
   refreshToken?: number;
   selectedCandidateIds: Set<string>;
+};
+
+export type PracticeCandidateExportFormat = "csv" | "excel" | "pdf";
+export type PracticeCandidateExportState = {
+  canExport: boolean;
+  exporting: boolean;
+};
+export type PracticeCandidatePickerHandle = {
+  exportCandidates: (
+    format: PracticeCandidateExportFormat,
+    candidateIds: ReadonlySet<string>
+  ) => void;
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -164,13 +181,141 @@ function formatPracticeLicenseClass(value: string): string {
   return normalized === "B-OTOMATIK" ? "B-OTO" : value;
 }
 
-export function PracticeCandidatePicker({
-  onAssign,
-  onSelectionChange,
-  refreshToken = 0,
-  selectedCandidateIds,
-}: PracticeCandidatePickerProps) {
+type PracticeCandidateExportCell = string | number;
+type PracticeCandidateExportData = {
+  headers: readonly string[];
+  rows: readonly (readonly PracticeCandidateExportCell[])[];
+};
+
+function escapePracticeCandidateExportHtml(value: PracticeCandidateExportCell): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildPracticeCandidateExportTableHtml(data: PracticeCandidateExportData): string {
+  return `<table>
+    <thead><tr>${data.headers
+      .map((header) => `<th>${escapePracticeCandidateExportHtml(header)}</th>`)
+      .join("")}</tr></thead>
+    <tbody>${data.rows
+      .map(
+        (row) =>
+          `<tr>${row
+            .map((cell) => `<td>${escapePracticeCandidateExportHtml(cell)}</td>`)
+            .join("")}</tr>`
+      )
+      .join("")}</tbody>
+  </table>`;
+}
+
+function practiceCandidateExportFileName(): string {
+  const now = new Date();
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
+  return `direksiyon-egitimi-aday-listesi-${date}`;
+}
+
+function downloadPracticeCandidateBlob(blob: Blob, extension: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${practiceCandidateExportFileName()}.${extension}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadPracticeCandidateCsv(data: PracticeCandidateExportData): void {
+  const escapeCsvValue = (value: PracticeCandidateExportCell): string => {
+    const text = String(value);
+    return text.includes(",") || text.includes("\"") || text.includes("\n")
+      ? `"${text.replace(/"/g, '""')}"`
+      : text;
+  };
+  const lines = [
+    data.headers.map(escapeCsvValue).join(","),
+    ...data.rows.map((row) => row.map(escapeCsvValue).join(",")),
+  ];
+  downloadPracticeCandidateBlob(
+    new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" }),
+    "csv"
+  );
+}
+
+function downloadPracticeCandidateExcel(
+  title: string,
+  data: PracticeCandidateExportData
+): void {
+  const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; }
+          h1 { font-size: 18px; }
+          table { border-collapse: collapse; }
+          th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 12px; }
+          th { background: #f3f4f6; font-weight: 700; }
+        </style>
+      </head>
+      <body><h1>${escapePracticeCandidateExportHtml(title)}</h1>${buildPracticeCandidateExportTableHtml(data)}</body>
+    </html>`;
+  const blob = new Blob(["\ufeff", html], {
+    type: "application/vnd.ms-excel;charset=utf-8",
+  });
+  downloadPracticeCandidateBlob(blob, "xls");
+}
+
+function printPracticeCandidatePdf(
+  printWindow: Window,
+  title: string,
+  data: PracticeCandidateExportData
+): void {
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapePracticeCandidateExportHtml(title)}</title>
+        <style>
+          @page { size: A4 landscape; margin: 10mm; }
+          body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
+          h1 { font-size: 16px; margin: 0 0 10px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #d1d5db; padding: 4px 5px; font-size: 8px; text-align: left; vertical-align: top; }
+          th { background: #f3f4f6; font-weight: 700; }
+          tr { break-inside: avoid; }
+        </style>
+      </head>
+      <body><h1>${escapePracticeCandidateExportHtml(title)}</h1>${buildPracticeCandidateExportTableHtml(data)}</body>
+    </html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
+export const PracticeCandidatePicker = forwardRef<
+  PracticeCandidatePickerHandle,
+  PracticeCandidatePickerProps
+>(function PracticeCandidatePicker(
+  {
+    onAssign,
+    onExportComplete,
+    onExportStateChange,
+    onSelectionChange,
+    refreshToken = 0,
+    selectedCandidateIds,
+  },
+  ref
+) {
   const t = useT();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -184,6 +329,7 @@ export function PracticeCandidatePicker({
   const [sort, setSort] = useState<PracticeCandidateSortState>(() => readSort("all"));
   const [filters, setFilters] = useState<PracticeCandidateFilters>(emptyFilters);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const {
     isVisible,
     reset: resetColumns,
@@ -453,6 +599,18 @@ export function PracticeCandidatePicker({
     onSelectionChange(next);
   };
 
+  const allVisibleCandidatesSelected =
+    items.length > 0 && items.every((candidate) => selectedCandidateIds.has(candidate.candidateId));
+
+  const toggleVisibleCandidateSelection = () => {
+    const next = new Set(selectedCandidateIds);
+    for (const candidate of items) {
+      if (allVisibleCandidatesSelected) next.delete(candidate.candidateId);
+      else next.add(candidate.candidateId);
+    }
+    onSelectionChange(next);
+  };
+
   const formatHours = (value: number) => {
     const numericValue = Number(value);
     if (!Number.isFinite(numericValue)) return String(value);
@@ -462,6 +620,98 @@ export function PracticeCandidatePicker({
       minimumFractionDigits: 0,
     });
   };
+
+  const loadAllCandidatesForExport = async (): Promise<PracticeCandidateListItem[]> => {
+    const params = {
+      tab: "all" as const,
+      pageSize: PAGE_SIZE,
+    };
+    const firstPage = await getPracticeCandidates({ ...params, page: 1 });
+    const pageCount = firstPage.totalPages ?? 1;
+    if (pageCount <= 1) return firstPage.items;
+    const remainingPages = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, index) =>
+        getPracticeCandidates({ ...params, page: index + 2 })
+      )
+    );
+    return [firstPage, ...remainingPages].flatMap((response) => response.items);
+  };
+
+  const practiceCandidateExportCell = (
+    candidate: PracticeCandidateListItem,
+    columnId: PracticeCandidateColumnId
+  ): PracticeCandidateExportCell => {
+    if (columnId === "name") return candidate.fullName;
+    if (columnId === "existingLicenseType") {
+      return existingLicenseTypeLabel(candidate.existingLicenseType);
+    }
+    if (columnId === "licenseClass") {
+      return formatPracticeLicenseClass(candidate.licenseClass);
+    }
+    if (columnId === "group") return candidate.groupTitle ?? "—";
+    if (columnId === "attempt") return candidate.attemptSlotLabel;
+    if (columnId === "progress") {
+      return `${formatHours(candidate.completedPracticeHours)} / ${formatHours(candidate.targetPracticeHours)}`;
+    }
+    if (columnId === "lastLesson") return formatDateTime(candidate.lastPracticeLessonAt);
+    return "";
+  };
+
+  const buildExportData = (
+    candidates: PracticeCandidateListItem[]
+  ): PracticeCandidateExportData => ({
+    headers: visibleColumns.map((column) => column.label),
+    rows: candidates.map((candidate) =>
+      visibleColumns.map((column) => practiceCandidateExportCell(candidate, column.id))
+    ),
+  });
+
+  const handleExport = async (
+    format: PracticeCandidateExportFormat,
+    candidateIds: ReadonlySet<string>
+  ) => {
+    const printWindow = format === "pdf" ? window.open("", "_blank") : null;
+    if (format === "pdf" && !printWindow) {
+      showToast(t("candidates.toast.pdfPopupBlocked"), "error");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const candidates = (await loadAllCandidatesForExport()).filter((candidate) =>
+        candidateIds.has(candidate.candidateId)
+      );
+      if (candidates.length === 0) {
+        printWindow?.close();
+        showToast("Dışa aktarılacak aday bulunamadı.", "error");
+        return;
+      }
+      const title = "Direksiyon Eğitimi Aday Listesi";
+      const data = buildExportData(candidates);
+      if (format === "csv") downloadPracticeCandidateCsv(data);
+      else if (format === "excel") downloadPracticeCandidateExcel(title, data);
+      else if (printWindow) printPracticeCandidatePdf(printWindow, title, data);
+      onExportComplete?.();
+    } catch {
+      printWindow?.close();
+      showToast(t("candidates.toast.bulkExportFailed"), "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    exportCandidates: (format, candidateIds) => {
+      void handleExport(format, candidateIds);
+    },
+  }));
+
+  useEffect(() => {
+    onExportStateChange?.({
+      canExport: !loading && items.length > 0,
+      exporting,
+    });
+  }, [exporting, items.length, loading, onExportStateChange]);
 
   return (
     <section className="practice-picker">
@@ -501,7 +751,17 @@ export function PracticeCandidatePicker({
           <table className="practice-picker-table">
             <thead>
               <tr>
-                <th className="practice-picker-select-th" aria-label={t("training.picker.col.select")} />
+                <th className="practice-picker-select-th">
+                  <label className="practice-picker-select-control switch-toggle">
+                    <input
+                      aria-label={t("candidates.aria.selectAllOnPage")}
+                      checked={allVisibleCandidatesSelected}
+                      onChange={toggleVisibleCandidateSelection}
+                      type="checkbox"
+                    />
+                    <span className="switch-toggle-control" aria-hidden="true" />
+                  </label>
+                </th>
                 {visibleColumns.map((column) =>
                   column.sortField ? (
                     <SortableTh
@@ -692,7 +952,7 @@ export function PracticeCandidatePicker({
       ) : null}
     </section>
   );
-}
+});
 
 type SortableThProps = {
   field: PracticeCandidateSortField;

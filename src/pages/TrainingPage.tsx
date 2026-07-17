@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
@@ -21,7 +21,11 @@ import {
   QuickLessonAssignment,
 } from "../components/training/QuickLessonAssignment";
 import { QuickPracticeAssignment } from "../components/training/QuickPracticeAssignment";
-import { PracticeCandidatePicker } from "../components/training/PracticeCandidatePicker";
+import {
+  PracticeCandidatePicker,
+  type PracticeCandidateExportState,
+  type PracticeCandidatePickerHandle,
+} from "../components/training/PracticeCandidatePicker";
 import { useToast } from "../components/ui/Toast";
 import { Modal } from "../components/ui/Modal";
 import { BranchPickerPopover } from "../components/training/BranchPickerPopover";
@@ -71,6 +75,8 @@ import { canManageArea } from "../lib/permissions";
 
 import { buildBranchHelpers } from "../lib/training-branches";
 import { buildTermLabel } from "../lib/term-label";
+import { instructorSupportsLicenseClass } from "../lib/training-instructors";
+import { vehicleSupportsLicenseClass } from "../lib/training-vehicles";
 
 type TrainingPageProps = {
   type: "teorik" | "uygulama";
@@ -410,6 +416,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const t = useT();
   const filtersSidebarRef = useRef<HTMLElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const practiceCandidatePickerRef = useRef<PracticeCandidatePickerHandle | null>(null);
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
@@ -495,11 +502,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
     () => new Set(vehicles.filter((vehicle) => vehicle.isSimulator).map((vehicle) => vehicle.id)),
     [vehicles]
   );
-  const activeVehicleFilterKeys = useMemo(
-    () => new Set(vehicles.filter((vehicle) => vehicle.isActive).map(vehicleFilterKey)),
-    [vehicles]
-  );
-
   const classroomsQuery = useQuery({
     queryKey: ["training", "classrooms"],
     queryFn: ({ signal }) => getClassrooms({ activity: "active", page: 1, pageSize: 100 }, signal),
@@ -527,6 +529,19 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [practiceCandidateExportMode, setPracticeCandidateExportMode] = useState(false);
+  const [practiceCandidateExportState, setPracticeCandidateExportState] =
+    useState<PracticeCandidateExportState>({ canExport: false, exporting: false });
+  const handlePracticeCandidateExportStateChange = useCallback(
+    (next: PracticeCandidateExportState) => {
+      setPracticeCandidateExportState((current) =>
+        current.canExport === next.canExport && current.exporting === next.exporting
+          ? current
+          : next
+      );
+    },
+    []
+  );
 
   useEffect(() => {
     document.documentElement.classList.add("training-page-active");
@@ -559,6 +574,52 @@ export function TrainingPage({ type }: TrainingPageProps) {
     candidateId: string;
     vehicleId: string;
   }>({ instructorId: "", groupId: "", classroomId: "", candidateId: "", vehicleId: "" });
+
+  const selectedPracticeCandidateForResourceFilter = useMemo(
+    () =>
+      type === "uygulama" && quickSettings.candidateId
+        ? candidates.find((candidate) => candidate.id === quickSettings.candidateId) ?? null
+        : null,
+    [candidates, quickSettings.candidateId, type]
+  );
+  const practiceVehicleCatalog = useMemo(() => {
+    if (type !== "uygulama" || !quickSettings.candidateId) return vehicles;
+    if (!selectedPracticeCandidateForResourceFilter) return vehicles;
+    return vehicles.filter((vehicle) =>
+      vehicleSupportsLicenseClass(vehicle, selectedPracticeCandidateForResourceFilter.licenseClass)
+    );
+  }, [quickSettings.candidateId, selectedPracticeCandidateForResourceFilter, type, vehicles]);
+  const practiceInstructorCatalog = useMemo(() => {
+    if (type !== "uygulama" || !quickSettings.candidateId) return instructors;
+    if (!selectedPracticeCandidateForResourceFilter) return instructors;
+    return instructors.filter((instructor) =>
+      instructorSupportsLicenseClass(
+        instructor,
+        selectedPracticeCandidateForResourceFilter.licenseClass
+      )
+    );
+  }, [instructors, quickSettings.candidateId, selectedPracticeCandidateForResourceFilter, type]);
+  const activeVehicleFilterKeys = useMemo(
+    () =>
+      new Set(
+        practiceVehicleCatalog
+          .filter((vehicle) => vehicle.isActive)
+          .map(vehicleFilterKey)
+      ),
+    [practiceVehicleCatalog]
+  );
+  const availablePracticeInstructorIds = useMemo(
+    () =>
+      new Set(
+        practiceInstructorCatalog
+          .filter(
+            (instructor) =>
+              instructor.isActive && instructor.branches.includes("practice")
+          )
+          .map((instructor) => instructor.id)
+      ),
+    [practiceInstructorCatalog]
+  );
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -769,11 +830,10 @@ export function TrainingPage({ type }: TrainingPageProps) {
   // kullanılır; kullanıcı sidebar'da görmek istediği eğitmenleri
   // manuel toggle eder.
 
-  // Aday seçimi sidebar filter state'ini ETKİLEMEZ — teorik tarafta
-  // grup seçince eğitmen filter'ına dokunmadığımız gibi, uygulama'da
-  // da aday seçince araç/eğitmen filter'larına dokunulmaz. Görünürlük
-  // visibleEvents tarafında "aday seçiliyse filter yok say" kuralıyla
-  // sağlanır. Filter listeleri yalnızca slot tıklarken anlamlı.
+  // Aday seçimi takvim görünürlüğünü doğrudan adayın derslerine daraltır.
+  // Araç listesi de adayın ehliyet sınıfıyla uyumlu araçlara iner;
+  // aşağıdaki aktif araç effect'i listeden çıkan eski seçimleri temizler.
+  // Eğitmen filtresine dokunulmaz.
   const prevQuickCandidateRef = useRef<string>("");
   useEffect(() => {
     if (type !== "uygulama") return;
@@ -797,12 +857,38 @@ export function TrainingPage({ type }: TrainingPageProps) {
       return next.size === prev.size ? prev : next;
     });
     setQuickSettings((prev) => {
-      if (!prev.vehicleId || vehicles.some((vehicle) => vehicle.id === prev.vehicleId && vehicle.isActive)) {
+      if (
+        !prev.vehicleId ||
+        practiceVehicleCatalog.some(
+          (vehicle) => vehicle.id === prev.vehicleId && vehicle.isActive
+        )
+      ) {
         return prev;
       }
       return { ...prev, vehicleId: "" };
     });
-  }, [activeVehicleFilterKeys, type, vehicles]);
+  }, [activeVehicleFilterKeys, practiceVehicleCatalog, type]);
+
+  useEffect(() => {
+    if (type !== "uygulama") return;
+    setVisibleInstructors((prev) => {
+      const next = new Set(
+        [...prev].filter((instructorId) =>
+          availablePracticeInstructorIds.has(instructorId)
+        )
+      );
+      return next.size === prev.size ? prev : next;
+    });
+    setQuickSettings((prev) => {
+      if (
+        !prev.instructorId ||
+        availablePracticeInstructorIds.has(prev.instructorId)
+      ) {
+        return prev;
+      }
+      return { ...prev, instructorId: "" };
+    });
+  }, [availablePracticeInstructorIds, type]);
 
   // Backend'den gelen event.groupName ile groups state'indeki group.title
   // genelde aynı olmalı; ama tutarsızlık olursa groupId üzerinden de eşleştir.
@@ -2732,6 +2818,48 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   ) : null}
                 </div>
               ) : null}
+              {type === "uygulama" && !quickSettings.candidateId && practiceCandidateExportMode ? (
+                <>
+                  <span className="candidate-bulk-count">
+                    {t("candidates.selectedCount", {
+                      count: selectedPracticeImportCandidateCount,
+                    })}
+                  </span>
+                  {(["csv", "excel", "pdf"] as const).map((format) => (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={
+                        selectedPracticeImportCandidateCount === 0 ||
+                        practiceCandidateExportState.exporting
+                      }
+                      key={format}
+                      onClick={() =>
+                        practiceCandidatePickerRef.current?.exportCandidates(
+                          format,
+                          selectedPracticeCandidateIds
+                        )
+                      }
+                      type="button"
+                    >
+                      {format === "csv"
+                        ? practiceCandidateExportState.exporting
+                          ? t("candidates.bulk.exporting")
+                          : t("candidates.bulk.exportCsv")
+                        : format === "excel"
+                          ? t("candidates.bulk.exportExcel")
+                          : t("candidates.bulk.exportPdf")}
+                    </button>
+                  ))}
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={practiceCandidateExportState.exporting}
+                    onClick={() => setPracticeCandidateExportMode(false)}
+                    type="button"
+                  >
+                    {t("candidates.bulk.close")}
+                  </button>
+                </>
+              ) : null}
               {selectedPracticeCandidate ? (
                 <>
                   <span className="candidate-bulk-count">
@@ -2813,7 +2941,9 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   </button>
                 </>
               ) : null}
-              {!selectedPracticeCandidate && selectedPracticeImportCandidateCount > 0 ? (
+              {!practiceCandidateExportMode &&
+              !selectedPracticeCandidate &&
+              selectedPracticeImportCandidateCount > 0 ? (
                 <>
                   <span className="candidate-bulk-count">
                     {t("training.mebbis.practiceImportSelectedCount", {
@@ -2851,6 +2981,24 @@ export function TrainingPage({ type }: TrainingPageProps) {
                       : t("training.mebbis.import")}
                   </button>
                 </>
+              ) : null}
+              {type === "uygulama" &&
+              !quickSettings.candidateId &&
+              !practiceCandidateExportMode ? (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    if (selectedPracticeImportCandidateCount === 0) {
+                      showToast(t("candidates.toast.selectAtLeastOne"), "error");
+                      return;
+                    }
+                    setPracticeCandidateExportMode(true);
+                  }}
+                  type="button"
+                >
+                  <DownloadIcon size={14} />
+                  {t("candidates.bulk.export")}
+                </button>
               ) : null}
               {showBackToCandidateList ? (
                 <button
@@ -2913,8 +3061,8 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 />
               )}
               <TrainingFilters
-                allInstructors={instructors}
-                allVehiclesCatalog={vehicles}
+                allInstructors={practiceInstructorCatalog}
+                allVehiclesCatalog={practiceVehicleCatalog}
                 events={events}
                 kind={type}
                 onSetGroupsVisibility={setGroupsVisibility}
@@ -2938,9 +3086,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
             </aside>
             {type === "uygulama" && !quickSettings.candidateId ? (
               <PracticeCandidatePicker
+                ref={practiceCandidatePickerRef}
                 onAssign={(id) => {
                   setQuickSettings((prev) => ({ ...prev, candidateId: id }));
                 }}
+                onExportComplete={() => setPracticeCandidateExportMode(false)}
+                onExportStateChange={handlePracticeCandidateExportStateChange}
                 onSelectionChange={setSelectedPracticeCandidateIds}
                 refreshToken={practiceCandidatePickerRefreshToken}
                 selectedCandidateIds={selectedPracticeCandidateIds}

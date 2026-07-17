@@ -79,6 +79,7 @@ export async function applyMebbisInstitutionInventory(
   const saved = await upsertInstitutionSettings(
     toUpsertRequest(
       importedValues,
+      currentSettings?.receiptPrintProfile ?? "a4",
       currentSettings?.rowVersion ?? null,
       currentSettings?.authorizedPersons ?? []
     )
@@ -143,6 +144,7 @@ function fromResponse(response: InstitutionSettingsResponse): InstitutionImportV
 
 function toUpsertRequest(
   values: InstitutionImportValues,
+  receiptPrintProfile: string,
   rowVersion: number | null,
   authorizedPersons: InstitutionSettingsResponse["authorizedPersons"] = []
 ): InstitutionSettingsUpsertRequest {
@@ -160,6 +162,7 @@ function toUpsertRequest(
     buildingCapacity: values.buildingCapacity,
     bankName: values.bankName.trim() || null,
     iban: values.iban.trim() || null,
+    receiptPrintProfile,
     founder: {
       type: values.founderType,
       name: values.founderName.trim() || null,

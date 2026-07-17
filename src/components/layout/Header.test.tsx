@@ -74,7 +74,10 @@ function mebbisSession(
   };
 }
 
-function renderHeader(onInstitutionChange = vi.fn().mockResolvedValue(undefined)) {
+function renderHeader(
+  onInstitutionChange = vi.fn().mockResolvedValue(undefined),
+  isSuperAdmin = true
+) {
   renderWithProviders(
     <MemoryRouter>
       <Header
@@ -89,6 +92,13 @@ function renderHeader(onInstitutionChange = vi.fn().mockResolvedValue(undefined)
     </MemoryRouter>,
     {
       auth: {
+        user: {
+          id: "header-user",
+          phone: "5000000000",
+          name: "Header User",
+          roleName: isSuperAdmin ? "super_admin" : "Kurum Kullanıcısı",
+          isSuperAdmin,
+        },
         institutions,
         activeInstitution: institutions[0],
         selectInstitution: onInstitutionChange,
@@ -134,6 +144,20 @@ describe("Header tenant selector", () => {
     fireEvent.click(screen.getByRole("button", { name: /İkinci Kurum.*Personel/i }));
 
     await waitFor(() => expect(onInstitutionChange).toHaveBeenCalledWith("i2"));
+  });
+});
+
+describe("Header language toggle", () => {
+  it("shows the language toggle to super admins", () => {
+    renderHeader();
+
+    expect(screen.getByRole("button", { name: "Dili değiştir" })).toBeInTheDocument();
+  });
+
+  it("hides the language toggle from non-super-admin users", () => {
+    renderHeader(vi.fn().mockResolvedValue(undefined), false);
+
+    expect(screen.queryByRole("button", { name: "Dili değiştir" })).not.toBeInTheDocument();
   });
 });
 

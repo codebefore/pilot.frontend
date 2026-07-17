@@ -34,7 +34,12 @@ export function isReceiptPrintProfileId(value: string | null | undefined): value
   return RECEIPT_PRINT_PROFILE_OPTIONS.some((option) => option.id === value);
 }
 
-export function readReceiptPrintProfileId(): ReceiptPrintProfileId {
+export function readReceiptPrintProfileId(
+  institutionProfile?: string | null
+): ReceiptPrintProfileId {
+  if (isReceiptPrintProfileId(institutionProfile)) {
+    return institutionProfile;
+  }
   try {
     const stored = window.localStorage.getItem(RECEIPT_PRINT_PROFILE_STORAGE_KEY);
     return isReceiptPrintProfileId(stored) ? stored : DEFAULT_RECEIPT_PRINT_PROFILE_ID;
