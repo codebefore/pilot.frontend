@@ -1765,6 +1765,8 @@ export const en: Record<TranslationKey, string> = {
   "settings.integrations.sms.automation.rulesTitle": "Automatic Sending",
   "settings.integrations.sms.automation.rulesDescription": "Prepare which active template will be used for each event.",
   "settings.integrations.sms.automation.activationLocked": "Templates and rules can be saved; automatic SMS sending stays disabled until the phase 2B provider is operational.",
+  "settings.integrations.sms.automation.activationStatus": "Candidate registration automation is available. Other triggers will be enabled in their own phases.",
+  "settings.integrations.sms.automation.triggerLocked": "This automatic delivery trigger is not available yet.",
   "settings.integrations.sms.automation.newTemplate": "New template",
   "settings.integrations.sms.automation.existingTemplate": "Template",
   "settings.integrations.sms.automation.trigger": "Sending event",

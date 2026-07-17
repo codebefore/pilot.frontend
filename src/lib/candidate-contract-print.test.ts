@@ -423,6 +423,8 @@ describe("candidate contract print", () => {
     expect(request.values.belgeno).toBe("K-42");
     expect(request.values.kurskisaadi).toBe("Pilot");
     expect(request.values.kurumkisaadi).toBe("Pilot");
+    expect(request.values.kurumil).toBe("İstanbul");
+    expect(request.values.kurumilcesi).toBe("Kadıköy");
     expect(request.values.kurumadresi).toBe("Kurum adresi");
     expect(request.values.kursiyerfoto).toBe("");
     expect(request.images?.kursiyerbiyometrikfotograf?.base64).toBe("abc");

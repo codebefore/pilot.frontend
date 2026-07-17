@@ -45,7 +45,7 @@ export function TasksPage() {
   };
 
   const handleToggle = async (note: UserNoteResponse) => {
-    if (!canManageDashboard || note.createdByUserId !== user?.id) return;
+    if (!canManageDashboard) return;
     try {
       setDeleteConfirmNoteId(null);
       await setUserNoteCompletion(note.id, note.completedAtUtc === null);
@@ -113,13 +113,8 @@ export function TasksPage() {
                 </div>
                 <ul className="tasks-page-list">
                   {group.notes.map((note) => {
-                    const canManageNote = canManageDashboard && note.createdByUserId === user?.id;
+                    const canEditNote = canManageDashboard && note.createdByUserId === user?.id;
                     const isOwnedByAnotherUser = note.createdByUserId !== user?.id;
-                    const actionRestrictionTitle = !canManageDashboard
-                      ? noPermissionTitle
-                      : isOwnedByAnotherUser
-                        ? buildOwnerRestrictionMessage(note.createdByUserName)
-                        : undefined;
                     return (
                       <li
                         className={[
@@ -133,9 +128,9 @@ export function TasksPage() {
                         <button
                           aria-label={note.completedAtUtc ? t("notesPanel.aria.uncomplete") : t("notesPanel.aria.complete")}
                           className="tasks-page-toggle"
-                          disabled={!canManageNote}
+                          disabled={!canManageDashboard}
                           onClick={() => void handleToggle(note)}
-                          title={actionRestrictionTitle}
+                          title={!canManageDashboard ? noPermissionTitle : undefined}
                           type="button"
                         >
                           {note.completedAtUtc ? <CheckIcon size={13} /> : null}
@@ -168,20 +163,18 @@ export function TasksPage() {
                           {note.isVisibleToInstitution && note.createdByUserName ? (
                             <div className="tasks-page-meta">Oluşturan: {note.createdByUserName}</div>
                           ) : null}
-                          {note.isVisibleToInstitution && isOwnedByAnotherUser ? (
-                            <div className="tasks-page-meta">Yalnızca oluşturan kişi güncelleyebilir veya silebilir.</div>
-                          ) : null}
                         </div>
-                        <div className="tasks-page-actions">
+                        {!isOwnedByAnotherUser ? (
+                          <div className="tasks-page-actions">
                           <button
                             aria-label={t("common.edit")}
                             className="user-notes-item-action"
-                            disabled={!canManageNote}
+                            disabled={!canEditNote}
                             onClick={() => {
                               setDeleteConfirmNoteId(null);
                               setEditing(note);
                             }}
-                            title={actionRestrictionTitle}
+                            title={!canManageDashboard ? noPermissionTitle : undefined}
                             type="button"
                           >
                             <EditLineIcon size={14} />
@@ -189,9 +182,9 @@ export function TasksPage() {
                           <button
                             aria-label="Sil"
                             className="user-notes-item-action is-danger"
-                            disabled={!canManageNote}
+                            disabled={!canEditNote}
                             onClick={() => setDeleteConfirmNoteId(note.id)}
-                            title={actionRestrictionTitle}
+                            title={!canManageDashboard ? noPermissionTitle : undefined}
                             type="button"
                           >
                             <XIcon size={15} />
@@ -210,7 +203,8 @@ export function TasksPage() {
                               </div>
                             </div>
                           ) : null}
-                        </div>
+                          </div>
+                        ) : null}
                       </li>
                     );
                   })}
@@ -278,10 +272,6 @@ function isOverdue(note: UserNoteResponse): boolean {
   );
 }
 
-function buildOwnerRestrictionMessage(createdByUserName?: string | null): string {
-  const owner = createdByUserName ? `Görevi ${createdByUserName} oluşturdu. ` : "";
-  return `${owner}Yalnızca oluşturan kişi güncelleyebilir veya silebilir.`;
-}
 
 function formatDayLabel(key: string): string {
   const [year, month, day] = key.split("-").map(Number);

@@ -112,7 +112,7 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
         );
         next[trigger.triggerType] = {
           templateId: rule?.templateId ?? next[trigger.triggerType]?.templateId ?? available[0]?.id ?? "",
-          enabled: false,
+          enabled: rule?.enabled ?? false,
         };
       }
       return next;
@@ -213,7 +213,7 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
         templateId: draft.templateId,
         timingType: "immediate",
         offsetMinutes: null,
-        enabled: false,
+        enabled: draft.enabled,
         rowVersion: currentRule?.rowVersion ?? null,
       });
       await refresh();
@@ -412,7 +412,7 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
               {t("settings.integrations.sms.automation.rulesDescription")}
             </p>
             <p className="settings-form-helper">
-              {t("settings.integrations.sms.automation.activationLocked")}
+              {t("settings.integrations.sms.automation.activationStatus")}
             </p>
           </div>
         </div>
@@ -421,6 +421,7 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
             {catalog.map((trigger) => {
               const draft = ruleDrafts[trigger.triggerType] ?? { templateId: "", enabled: false };
               const rule = rules.find((item) => item.triggerType === trigger.triggerType);
+              const activationAvailable = trigger.triggerType === "candidate.created";
               const availableTemplates = templates.filter(
                 (template) =>
                   template.triggerType === trigger.triggerType &&
@@ -437,9 +438,14 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
                     </span>
                     <label className="switch-toggle settings-inline-status-toggle">
                       <input
-                        checked={false}
-                        disabled
-                        onChange={() => undefined}
+                        checked={draft.enabled}
+                        disabled={!canManage || !activationAvailable || !draft.templateId}
+                        onChange={(event) =>
+                          setRuleDrafts((current) => ({
+                            ...current,
+                            [trigger.triggerType]: { ...draft, enabled: event.target.checked },
+                          }))
+                        }
                         type="checkbox"
                       />
                       <span aria-hidden="true" className="switch-toggle-control" />
@@ -449,6 +455,11 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
                           : t("settings.integrations.sms.automation.automaticPassive")}
                       </span>
                     </label>
+                    {!activationAvailable ? (
+                      <span className="settings-form-helper">
+                        {t("settings.integrations.sms.automation.triggerLocked")}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="form-group">
                     <label className="form-label" htmlFor={`sms-rule-template-${trigger.triggerType}`}>

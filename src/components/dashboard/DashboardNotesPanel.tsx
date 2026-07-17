@@ -128,7 +128,7 @@ export function DashboardNotesPanel() {
   };
 
   const handleToggle = async (note: UserNoteResponse) => {
-    if (!canManageDashboard || note.createdByUserId !== user?.id) return;
+    if (!canManageDashboard) return;
 
     try {
       setDeleteConfirmNoteId(null);
@@ -199,13 +199,8 @@ export function DashboardNotesPanel() {
 
   const renderNote = (note: UserNoteResponse, variant: "dated" | "undated" = "dated") => {
     const completed = note.completedAtUtc !== null;
-    const canManageNote = canManageDashboard && note.createdByUserId === user?.id;
+    const canEditNote = canManageDashboard && note.createdByUserId === user?.id;
     const isOwnedByAnotherUser = note.createdByUserId !== user?.id;
-    const actionRestrictionTitle = !canManageDashboard
-      ? noPermissionTitle
-      : isOwnedByAnotherUser
-        ? buildOwnerRestrictionMessage(note.createdByUserName)
-        : undefined;
     const reminderTime = note.reminderAtUtc ? formatReminderTime(note.reminderAtUtc) : "Tarihsiz";
     const overdue =
       !completed &&
@@ -226,9 +221,9 @@ export function DashboardNotesPanel() {
         <button
           aria-label={completed ? t("notesPanel.aria.uncomplete") : t("notesPanel.aria.complete")}
           className="user-notes-item-toggle"
-          disabled={!canManageNote}
+          disabled={!canManageDashboard}
           onClick={() => void handleToggle(note)}
-          title={actionRestrictionTitle}
+          title={!canManageDashboard ? noPermissionTitle : undefined}
           type="button"
         >
           {completed ? <CheckIcon size={12} /> : null}
@@ -238,9 +233,6 @@ export function DashboardNotesPanel() {
           <div className="user-notes-item-text">{note.body}</div>
           {note.isVisibleToInstitution && note.createdByUserName ? (
             <div className="user-notes-item-meta">Oluşturan: {note.createdByUserName}</div>
-          ) : null}
-          {note.isVisibleToInstitution && isOwnedByAnotherUser ? (
-            <div className="user-notes-item-meta">Yalnızca oluşturan kişi güncelleyebilir veya silebilir.</div>
           ) : null}
           {note.candidateId && note.candidateName ? (
             <button
@@ -256,16 +248,17 @@ export function DashboardNotesPanel() {
             </button>
           ) : null}
         </div>
-        <div className="user-notes-item-actions">
+        {!isOwnedByAnotherUser ? (
+          <div className="user-notes-item-actions">
           <button
             aria-label={t("common.edit")}
             className="user-notes-item-action"
-            disabled={!canManageNote}
+            disabled={!canEditNote}
             onClick={() => {
               setDeleteConfirmNoteId(null);
               beginEdit(note);
             }}
-            title={actionRestrictionTitle}
+            title={!canManageDashboard ? noPermissionTitle : undefined}
             type="button"
           >
             <EditLineIcon size={14} />
@@ -273,9 +266,9 @@ export function DashboardNotesPanel() {
           <button
             aria-label="Sil"
             className="user-notes-item-action is-danger"
-            disabled={!canManageNote}
+            disabled={!canEditNote}
             onClick={() => setDeleteConfirmNoteId(note.id)}
-            title={actionRestrictionTitle}
+            title={!canManageDashboard ? noPermissionTitle : undefined}
             type="button"
           >
             <XIcon size={15} />
@@ -294,7 +287,8 @@ export function DashboardNotesPanel() {
               </div>
             </div>
           ) : null}
-        </div>
+          </div>
+        ) : null}
       </li>
     );
   };
@@ -471,10 +465,6 @@ function getTurkeyPublicHolidayLabel(dateKey: string): string | null {
   return fixedHoliday ?? TURKEY_2026_MOVABLE_PUBLIC_HOLIDAYS.get(dateKey) ?? null;
 }
 
-function buildOwnerRestrictionMessage(createdByUserName?: string | null): string {
-  const owner = createdByUserName ? `Görevi ${createdByUserName} oluşturdu. ` : "";
-  return `${owner}Yalnızca oluşturan kişi güncelleyebilir veya silebilir.`;
-}
 
 function toLocalDateKey(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

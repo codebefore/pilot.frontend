@@ -468,7 +468,7 @@ describe("IntegrationsSettingsSection", () => {
     expect(editor).toHaveValue("Merhaba {{candidate.fullName}}son");
   });
 
-  it("saves an SMS automation draft but keeps activation locked until phase 2B", async () => {
+  it("enables candidate-created SMS automation", async () => {
     getSmsTemplatesMock.mockResolvedValue([
       {
         id: "template-1",
@@ -489,7 +489,7 @@ describe("IntegrationsSettingsSection", () => {
       recipientType: "candidate_primary_phone",
       timingType: "immediate",
       offsetMinutes: null,
-      enabled: false,
+      enabled: true,
       createdAtUtc: "2026-07-17T00:00:00Z",
       updatedAtUtc: "2026-07-17T00:00:00Z",
       rowVersion: 1,
@@ -504,9 +504,10 @@ describe("IntegrationsSettingsSection", () => {
     ).closest("section");
     expect(rulesSection).not.toBeNull();
     const ruleUi = within(rulesSection!);
-    expect(ruleUi.getByText(/Faz 2B sağlayıcısı/)).toBeInTheDocument();
+    expect(ruleUi.getByText(/Aday kaydı otomasyonu kullanılabilir/)).toBeInTheDocument();
     const toggles = await ruleUi.findAllByRole("checkbox");
-    expect(toggles[0]).toBeDisabled();
+    expect(toggles[0]).toBeEnabled();
+    fireEvent.click(toggles[0]);
     fireEvent.click(ruleUi.getAllByRole("button", { name: "Kaydet" })[0]);
 
     await waitFor(() => {
@@ -514,7 +515,7 @@ describe("IntegrationsSettingsSection", () => {
         templateId: "template-1",
         timingType: "immediate",
         offsetMinutes: null,
-        enabled: false,
+        enabled: true,
         rowVersion: null,
       });
     });

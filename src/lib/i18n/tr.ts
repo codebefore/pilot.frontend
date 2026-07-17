@@ -1763,6 +1763,8 @@ export const tr = {
   "settings.integrations.sms.automation.rulesTitle": "Otomatik Gönderimler",
   "settings.integrations.sms.automation.rulesDescription": "Hangi olayda hangi aktif şablonun kullanılacağını şimdiden hazırlayın.",
   "settings.integrations.sms.automation.activationLocked": "Şablonlar ve kurallar kaydedilebilir; otomatik SMS gönderimi Faz 2B sağlayıcısı devreye alınana kadar kapalıdır.",
+  "settings.integrations.sms.automation.activationStatus": "Aday kaydı otomasyonu kullanılabilir. Diğer tetikleyiciler kendi fazlarında açılacaktır.",
+  "settings.integrations.sms.automation.triggerLocked": "Bu otomatik gönderim henüz kullanıma açılmadı.",
   "settings.integrations.sms.automation.newTemplate": "Yeni şablon",
   "settings.integrations.sms.automation.existingTemplate": "Şablon",
   "settings.integrations.sms.automation.trigger": "Gönderim olayı",

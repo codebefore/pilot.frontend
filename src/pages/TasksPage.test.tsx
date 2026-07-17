@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +6,7 @@ import { renderWithProviders } from "../test/render-with-providers";
 import { TasksPage } from "./TasksPage";
 
 const getUserNotesMock = vi.fn();
+const setUserNoteCompletionMock = vi.fn();
 
 vi.mock("../lib/user-notes-api", async () => {
   const actual = await vi.importActual<typeof import("../lib/user-notes-api")>(
@@ -15,15 +16,18 @@ vi.mock("../lib/user-notes-api", async () => {
     ...actual,
     getUserNotes: (...args: Parameters<typeof actual.getUserNotes>) =>
       getUserNotesMock(...args),
+    setUserNoteCompletion: (...args: Parameters<typeof actual.setUserNoteCompletion>) =>
+      setUserNoteCompletionMock(...args),
   };
 });
 
 describe("TasksPage", () => {
   beforeEach(() => {
     getUserNotesMock.mockReset();
+    setUserNoteCompletionMock.mockReset();
   });
 
-  it("shows the creator only for institution-visible tasks", async () => {
+  it("lets managers complete institution-visible tasks created by another user", async () => {
     getUserNotesMock.mockResolvedValue({
       items: [
         buildNote({
@@ -49,11 +53,16 @@ describe("TasksPage", () => {
     );
 
     expect(await screen.findByText("Oluşturan: Ayşe Demir")).toBeInTheDocument();
-    expect(screen.getByText("Yalnızca oluşturan kişi güncelleyebilir veya silebilir.")).toBeInTheDocument();
-    expect(screen.getByText("Paylaşılan görev").closest("li")?.querySelector('button[aria-label="Sil"]')).toHaveAttribute(
-      "title",
-      "Görevi Ayşe Demir oluşturdu. Yalnızca oluşturan kişi güncelleyebilir veya silebilir."
+    const sharedNote = screen.getByText("Paylaşılan görev").closest("li");
+    expect(screen.queryByText("Yalnızca oluşturan kişi düzenleyebilir veya silebilir.")).not.toBeInTheDocument();
+    expect(sharedNote?.querySelector('button[aria-label="Düzenle"]')).not.toBeInTheDocument();
+    expect(sharedNote?.querySelector('button[aria-label="Sil"]')).not.toBeInTheDocument();
+    const sharedToggle = sharedNote?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Tamamlandı olarak işaretle"]'
     );
+    expect(sharedToggle).toBeEnabled();
+    fireEvent.click(sharedToggle!);
+    await waitFor(() => expect(setUserNoteCompletionMock).toHaveBeenCalledWith("shared-note", true));
     expect(screen.queryByText("Oluşturan: Mehmet Kaya")).not.toBeInTheDocument();
   });
 });

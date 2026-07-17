@@ -199,7 +199,7 @@ describe("DashboardNotesPanel", () => {
     expect(await screen.findByText("Aday detay açıldı")).toBeInTheDocument();
   });
 
-  it("shows the creator only for institution-visible tasks", async () => {
+  it("lets managers complete institution-visible tasks created by another user", async () => {
     getUserNotesMock.mockResolvedValue({
       items: [
         buildNote({
@@ -223,11 +223,16 @@ describe("DashboardNotesPanel", () => {
     renderPanel();
 
     expect(await screen.findByText("Oluşturan: Ayşe Demir")).toBeInTheDocument();
-    expect(screen.getByText("Yalnızca oluşturan kişi güncelleyebilir veya silebilir.")).toBeInTheDocument();
-    expect(screen.getByText("Paylaşılan görev").closest("li")?.querySelector('button[aria-label="Sil"]')).toHaveAttribute(
-      "title",
-      "Görevi Ayşe Demir oluşturdu. Yalnızca oluşturan kişi güncelleyebilir veya silebilir."
+    const sharedNote = screen.getByText("Paylaşılan görev").closest("li");
+    expect(screen.queryByText("Yalnızca oluşturan kişi düzenleyebilir veya silebilir.")).not.toBeInTheDocument();
+    expect(sharedNote?.querySelector('button[aria-label="Düzenle"]')).not.toBeInTheDocument();
+    expect(sharedNote?.querySelector('button[aria-label="Sil"]')).not.toBeInTheDocument();
+    const sharedToggle = sharedNote?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Tamamlandı olarak işaretle"]'
     );
+    expect(sharedToggle).toBeEnabled();
+    fireEvent.click(sharedToggle!);
+    await waitFor(() => expect(setUserNoteCompletionMock).toHaveBeenCalledWith("shared-note", true));
     expect(screen.queryByText("Oluşturan: Mehmet Kaya")).not.toBeInTheDocument();
   });
 });
