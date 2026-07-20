@@ -5,17 +5,14 @@ import { useAuth } from "../../lib/auth";
 import { useT } from "../../lib/i18n";
 import {
   createSmsTemplate,
-  deleteSmsTemplate,
   getSmsAutomationRules,
   getSmsTemplates,
   getSmsTriggerCatalog,
   previewSmsTemplate,
   updateSmsTemplate,
   upsertSmsAutomationRule,
-  type SmsAutomationRuleResponse,
   type SmsTemplateVariableResponse,
   type SmsTemplatePreviewResponse,
-  type SmsTemplateResponse,
 } from "../../lib/institution-settings-api";
 import { CustomSelect } from "../ui/CustomSelect";
 import { SettingsFormSkeleton } from "../ui/Skeleton";
@@ -61,45 +58,24 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
   });
 
   const [selectedTrigger, setSelectedTrigger] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("new");
-  const [templateName, setTemplateName] = useState("");
   const [templateBody, setTemplateBody] = useState("");
-  const [templateEnabled, setTemplateEnabled] = useState(true);
   const [preview, setPreview] = useState<SmsTemplatePreviewResponse | null>(null);
   const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [savingRule, setSavingRule] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
   const templates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data]);
   const rules = useMemo(() => rulesQuery.data ?? [], [rulesQuery.data]);
-  const currentTrigger = catalog.find((item) => item.triggerType === selectedTrigger) ?? null;
-  const currentTemplate = templates.find((item) => item.id === selectedTemplateId) ?? null;
+  const effectiveSelectedTrigger = selectedTrigger || catalog[0]?.triggerType || "";
+  const currentTrigger = catalog.find((item) => item.triggerType === effectiveSelectedTrigger) ?? null;
+  const currentTemplate = templates.find((item) => item.triggerType === effectiveSelectedTrigger) ?? null;
 
   useEffect(() => {
-    if (!selectedTrigger && catalog.length > 0) {
-      setSelectedTrigger(catalog[0].triggerType);
-    }
-  }, [catalog, selectedTrigger]);
-
-  useEffect(() => {
-    if (selectedTemplateId === "new") {
-      setTemplateName("");
-      setTemplateBody("");
-      setTemplateEnabled(true);
-      setPreview(null);
-      return;
-    }
-    if (currentTemplate) {
-      setSelectedTrigger(currentTemplate.triggerType);
-      setTemplateName(currentTemplate.name);
-      setTemplateBody(currentTemplate.body);
-      setTemplateEnabled(currentTemplate.enabled);
-      setPreview(null);
-    }
-  }, [currentTemplate, selectedTemplateId]);
+    setTemplateBody(currentTemplate?.body ?? "");
+    setPreview(null);
+  }, [currentTemplate, effectiveSelectedTrigger]);
 
   useEffect(() => {
     if (catalog.length === 0) return;
@@ -107,11 +83,9 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
       const next = { ...current };
       for (const trigger of catalog) {
         const rule = rules.find((item) => item.triggerType === trigger.triggerType);
-        const available = templates.filter(
-          (item) => item.triggerType === trigger.triggerType && item.enabled,
-        );
+        const template = templates.find((item) => item.triggerType === trigger.triggerType);
         next[trigger.triggerType] = {
-          templateId: rule?.templateId ?? next[trigger.triggerType]?.templateId ?? available[0]?.id ?? "",
+          templateId: template?.id ?? "",
           enabled: rule?.enabled ?? false,
         };
       }
@@ -125,14 +99,6 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
     }
   }, [catalogQuery.isError, rulesQuery.isError, showToast, t, templatesQuery.isError]);
 
-  const resetTemplateForm = () => {
-    setSelectedTemplateId("new");
-    setTemplateName("");
-    setTemplateBody("");
-    setTemplateEnabled(true);
-    setPreview(null);
-  };
-
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [...queryPrefix, "templates"] }),
@@ -141,7 +107,7 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
   };
 
   const handleTemplateSave = async () => {
-    if (!selectedTrigger || !templateName.trim() || !templateBody.trim()) {
+    if (!effectiveSelectedTrigger || !currentTrigger || !templateBody.trim()) {
       showToast(t("settings.integrations.sms.automation.templateRequired"), "error");
       return;
     }
@@ -149,20 +115,17 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
     setSavingTemplate(true);
     try {
       const body = {
-        triggerType: selectedTrigger,
-        name: templateName.trim(),
+        triggerType: effectiveSelectedTrigger,
+        name: getTriggerTitle(currentTrigger.triggerType, currentTrigger.title, t),
         body: templateBody.trim(),
-        enabled: templateEnabled,
+        enabled: true,
         rowVersion: currentTemplate?.rowVersion ?? null,
       };
       const saved = currentTemplate
         ? await updateSmsTemplate(currentTemplate.id, body)
         : await createSmsTemplate(body);
       await refresh();
-      setSelectedTemplateId(saved.id);
-      setTemplateName(saved.name);
       setTemplateBody(saved.body);
-      setTemplateEnabled(saved.enabled);
       showToast(t("settings.integrations.sms.automation.templateSaved"));
     } catch {
       showToast(t("settings.integrations.sms.automation.templateSaveError"), "error");
@@ -172,31 +135,14 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
   };
 
   const handlePreview = async () => {
-    if (!selectedTrigger || !templateBody.trim()) return;
+    if (!effectiveSelectedTrigger || !templateBody.trim()) return;
     setPreviewing(true);
     try {
-      setPreview(await previewSmsTemplate(selectedTrigger, templateBody.trim()));
+      setPreview(await previewSmsTemplate(effectiveSelectedTrigger, templateBody.trim()));
     } catch {
       showToast(t("settings.integrations.sms.automation.previewError"), "error");
     } finally {
       setPreviewing(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!currentTemplate || !window.confirm(t("settings.integrations.sms.automation.deleteConfirm"))) {
-      return;
-    }
-    setDeleting(true);
-    try {
-      await deleteSmsTemplate(currentTemplate.id, currentTemplate.rowVersion);
-      resetTemplateForm();
-      await refresh();
-      showToast(t("settings.integrations.sms.automation.templateDeleted"));
-    } catch {
-      showToast(t("settings.integrations.sms.automation.templateDeleteError"), "error");
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -246,50 +192,22 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
               {t("settings.integrations.sms.automation.templatesDescription")}
             </p>
           </div>
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={!canManage}
-            onClick={resetTemplateForm}
-            title={!canManage ? noPermissionTitle : undefined}
-            type="button"
-          >
-            {t("settings.integrations.sms.automation.newTemplate")}
-          </button>
         </div>
         <div className="settings-surface-body">
           <div className="settings-form">
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label" htmlFor="sms-template-existing">
-                  {t("settings.integrations.sms.automation.existingTemplate")}
-                </label>
-                <CustomSelect
-                  className="form-select"
-                  id="sms-template-existing"
-                  onChange={(event) => setSelectedTemplateId(event.target.value)}
-                  value={selectedTemplateId}
-                >
-                  <option value="new">{t("settings.integrations.sms.automation.newTemplate")}</option>
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </CustomSelect>
-              </div>
-              <div className="form-group">
+            <div className="form-group">
                 <label className="form-label" htmlFor="sms-template-trigger">
                   {t("settings.integrations.sms.automation.trigger")}
                 </label>
                 <CustomSelect
                   className="form-select"
-                  disabled={!canManage || currentTemplate !== null}
+                  disabled={!canManage}
                   id="sms-template-trigger"
                   onChange={(event) => {
                     setSelectedTrigger(event.target.value);
                     setPreview(null);
                   }}
-                  value={selectedTrigger}
+                  value={effectiveSelectedTrigger}
                 >
                   {catalog.map((trigger) => (
                     <option key={trigger.triggerType} value={trigger.triggerType}>
@@ -302,39 +220,6 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
                     {getTriggerDescription(currentTrigger.triggerType, currentTrigger.description, t)}
                   </span>
                 ) : null}
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label" htmlFor="sms-template-name">
-                  {t("settings.integrations.sms.automation.templateName")}
-                </label>
-                <input
-                  className="form-input"
-                  disabled={!canManage}
-                  id="sms-template-name"
-                  maxLength={120}
-                  onChange={(event) => setTemplateName(event.target.value)}
-                  value={templateName}
-                />
-              </div>
-              <div className="form-group">
-                <span className="form-label">{t("settings.integrations.sms.status")}</span>
-                <label className="switch-toggle settings-inline-status-toggle">
-                  <input
-                    checked={templateEnabled}
-                    disabled={!canManage}
-                    onChange={(event) => setTemplateEnabled(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span aria-hidden="true" className="switch-toggle-control" />
-                  <span>
-                    {templateEnabled
-                      ? t("settings.integrations.sms.automation.templateActive")
-                      : t("settings.integrations.sms.automation.templatePassive")}
-                  </span>
-                </label>
-              </div>
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="sms-template-body">
@@ -375,20 +260,9 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
                   ? t("settings.integrations.sms.automation.previewing")
                   : t("settings.integrations.sms.automation.preview")}
               </button>
-              {currentTemplate ? (
-                <button
-                  className="btn btn-danger btn-sm"
-                  disabled={!canManage || deleting}
-                  onClick={() => void handleDelete()}
-                  title={!canManage ? noPermissionTitle : undefined}
-                  type="button"
-                >
-                  {t("common.delete")}
-                </button>
-              ) : null}
               <button
                 className="btn btn-primary btn-sm"
-                disabled={!canManage || savingTemplate || !templateName.trim() || !templateBody.trim()}
+                disabled={!canManage || savingTemplate || !templateBody.trim()}
                 onClick={() => void handleTemplateSave()}
                 title={!canManage ? noPermissionTitle : undefined}
                 type="button"
@@ -420,13 +294,8 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
           <div className="settings-form">
             {catalog.map((trigger) => {
               const draft = ruleDrafts[trigger.triggerType] ?? { templateId: "", enabled: false };
-              const rule = rules.find((item) => item.triggerType === trigger.triggerType);
+              const template = templates.find((item) => item.triggerType === trigger.triggerType);
               const activationAvailable = trigger.triggerType === "candidate.created";
-              const availableTemplates = templates.filter(
-                (template) =>
-                  template.triggerType === trigger.triggerType &&
-                  (template.enabled || template.id === rule?.templateId),
-              );
               return (
                 <div className="form-row" key={trigger.triggerType}>
                   <div className="form-group">
@@ -439,7 +308,12 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
                     <label className="switch-toggle settings-inline-status-toggle">
                       <input
                         checked={draft.enabled}
-                        disabled={!canManage || !activationAvailable || !draft.templateId}
+                        disabled={
+                          !canManage ||
+                          !activationAvailable ||
+                          !draft.templateId ||
+                          !template?.enabled
+                        }
                         onChange={(event) =>
                           setRuleDrafts((current) => ({
                             ...current,
@@ -462,38 +336,16 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
                     ) : null}
                   </div>
                   <div className="form-group">
-                    <label className="form-label" htmlFor={`sms-rule-template-${trigger.triggerType}`}>
+                    <span className="form-label">
                       {t("settings.integrations.sms.automation.template")}
-                    </label>
-                    <CustomSelect
-                      className="form-select"
-                      disabled={!canManage || availableTemplates.length === 0}
-                      id={`sms-rule-template-${trigger.triggerType}`}
-                      onChange={(event) =>
-                        setRuleDrafts((current) => ({
-                          ...current,
-                          [trigger.triggerType]: { ...draft, templateId: event.target.value },
-                        }))
-                      }
-                      value={draft.templateId}
-                    >
-                      <option value="">
-                        {t("settings.integrations.sms.automation.selectTemplate")}
-                      </option>
-                      {availableTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                          {!template.enabled
-                            ? ` (${t("settings.integrations.sms.automation.templatePassive")})`
-                            : ""}
-                        </option>
-                      ))}
-                    </CustomSelect>
-                    {availableTemplates.length === 0 ? (
-                      <span className="settings-form-helper">
-                        {t("settings.integrations.sms.automation.noActiveTemplate")}
-                      </span>
-                    ) : null}
+                    </span>
+                    <span className="settings-form-helper">
+                      {!template
+                        ? t("settings.integrations.sms.automation.noActiveTemplate")
+                        : !template.enabled
+                          ? t("settings.integrations.sms.automation.templatePassiveHelp")
+                          : t("settings.integrations.sms.automation.singleTemplateReady")}
+                    </span>
                     <div className="settings-form-actions">
                       <button
                         className="btn btn-primary btn-sm"
@@ -598,20 +450,6 @@ function SmsTemplateEditor({
       </aside>
     </div>
   );
-}
-
-export function findSmsRule(
-  rules: SmsAutomationRuleResponse[],
-  triggerType: string,
-): SmsAutomationRuleResponse | undefined {
-  return rules.find((item) => item.triggerType === triggerType);
-}
-
-export function findSmsTemplate(
-  templates: SmsTemplateResponse[],
-  templateId: string,
-): SmsTemplateResponse | undefined {
-  return templates.find((item) => item.id === templateId);
 }
 
 type Translate = ReturnType<typeof useT>;

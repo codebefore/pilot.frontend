@@ -402,7 +402,7 @@ describe("IntegrationsSettingsSection", () => {
     expect(sendTestSmsMock.mock.calls[1]?.[1]).not.toBe(firstRequestId);
   });
 
-  it("creates and previews an operational SMS template without login triggers", async () => {
+  it("creates and previews the single automatic SMS template without login triggers", async () => {
     createSmsTemplateMock.mockResolvedValue({
       id: "template-1",
       triggerType: "candidate.created",
@@ -428,9 +428,6 @@ describe("IntegrationsSettingsSection", () => {
     expect(screen.queryByText(/login/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/OTP fallback/i)).not.toBeInTheDocument();
 
-    fireEvent.change(templateUi.getByLabelText("Şablon adı"), {
-      target: { value: "Yeni aday" },
-    });
     fireEvent.change(templateUi.getByLabelText("Mesaj metni"), {
       target: { value: "Merhaba {{candidate.fullName}}" },
     });
@@ -441,7 +438,7 @@ describe("IntegrationsSettingsSection", () => {
     await waitFor(() => {
       expect(createSmsTemplateMock).toHaveBeenCalledWith({
         triggerType: "candidate.created",
-        name: "Yeni aday",
+        name: "Aday kaydedildi",
         body: "Merhaba {{candidate.fullName}}",
         enabled: true,
         rowVersion: null,
@@ -521,7 +518,7 @@ describe("IntegrationsSettingsSection", () => {
     });
   });
 
-  it("keeps a passive template visible when an existing draft rule references it", async () => {
+  it("keeps the single passive template linked to its automation rule", async () => {
     getSmsTemplatesMock.mockResolvedValue([
       {
         id: "template-passive",
@@ -560,7 +557,7 @@ describe("IntegrationsSettingsSection", () => {
     expect(rulesSection).not.toBeNull();
     const ruleUi = within(rulesSection!);
     expect(
-      await ruleUi.findByRole("button", { name: "Eski şablon (Şablon pasif)" }),
+      await ruleUi.findByText(/Mesaj Şablonları sekmesinde kaydederek aktif edin/),
     ).toBeInTheDocument();
     fireEvent.click(ruleUi.getAllByRole("button", { name: "Kaydet" })[0]);
 
