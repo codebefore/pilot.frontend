@@ -32,7 +32,7 @@ import { useToast } from "../ui/Toast";
 import { SmsAutomationSettings } from "./SmsAutomationSettings";
 
 type IntegrationTab = "downloads" | "ocr" | "whatsapp" | "sms" | "eInvoice";
-type SmsSettingsSection = "account" | "templates" | "automation";
+type SmsSettingsSection = "account" | "automation";
 type EInvoiceFormValues = {
   providerCode: string;
   environment: EInvoiceEnvironment;
@@ -751,19 +751,6 @@ export function IntegrationsSettingsSection() {
               type="button"
             >
               {t("settings.integrations.sms.accountTab")}
-            </button>
-            <button
-              aria-selected={smsSection === "templates"}
-              className={
-                smsSection === "templates"
-                  ? "sms-settings-subtab active"
-                  : "sms-settings-subtab"
-              }
-              onClick={() => setSmsSection("templates")}
-              role="tab"
-              type="button"
-            >
-              {t("settings.integrations.sms.automation.templatesTitle")}
             </button>
             <button
               aria-selected={smsSection === "automation"}

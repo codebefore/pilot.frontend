@@ -28,7 +28,7 @@ type RuleDraft = {
 type Props = {
   canManage: boolean;
   noPermissionTitle: string;
-  section: "account" | "templates" | "automation";
+  section: "account" | "automation";
 };
 
 export function SmsAutomationSettings({ canManage, noPermissionTitle, section }: Props) {
@@ -61,8 +61,7 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
   const [templateBody, setTemplateBody] = useState("");
   const [preview, setPreview] = useState<SmsTemplatePreviewResponse | null>(null);
   const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({});
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [savingRule, setSavingRule] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
 
   const catalog = useMemo(() => catalogQuery.data ?? [], [catalogQuery.data]);
@@ -106,13 +105,18 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
     ]);
   };
 
-  const handleTemplateSave = async () => {
+  const handleAutomaticSave = async () => {
     if (!effectiveSelectedTrigger || !currentTrigger || !templateBody.trim()) {
       showToast(t("settings.integrations.sms.automation.templateRequired"), "error");
       return;
     }
 
-    setSavingTemplate(true);
+    const draft = ruleDrafts[effectiveSelectedTrigger] ?? {
+      templateId: currentTemplate?.id ?? "",
+      enabled: false,
+    };
+    const currentRule = rules.find((item) => item.triggerType === effectiveSelectedTrigger);
+    setSaving(true);
     try {
       const body = {
         triggerType: effectiveSelectedTrigger,
@@ -124,13 +128,20 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
       const saved = currentTemplate
         ? await updateSmsTemplate(currentTemplate.id, body)
         : await createSmsTemplate(body);
+      await upsertSmsAutomationRule(effectiveSelectedTrigger, {
+        templateId: saved.id,
+        timingType: "immediate",
+        offsetMinutes: null,
+        enabled: draft.enabled,
+        rowVersion: currentRule?.rowVersion ?? null,
+      });
       await refresh();
       setTemplateBody(saved.body);
-      showToast(t("settings.integrations.sms.automation.templateSaved"));
+      showToast(t("settings.integrations.sms.automation.automaticSaved"));
     } catch {
-      showToast(t("settings.integrations.sms.automation.templateSaveError"), "error");
+      showToast(t("settings.integrations.sms.automation.automaticSaveError"), "error");
     } finally {
-      setSavingTemplate(false);
+      setSaving(false);
     }
   };
 
@@ -146,31 +157,6 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
     }
   };
 
-  const handleRuleSave = async (triggerType: string) => {
-    const draft = ruleDrafts[triggerType];
-    if (!draft?.templateId) {
-      showToast(t("settings.integrations.sms.automation.ruleTemplateRequired"), "error");
-      return;
-    }
-    const currentRule = rules.find((item) => item.triggerType === triggerType);
-    setSavingRule(triggerType);
-    try {
-      await upsertSmsAutomationRule(triggerType, {
-        templateId: draft.templateId,
-        timingType: "immediate",
-        offsetMinutes: null,
-        enabled: draft.enabled,
-        rowVersion: currentRule?.rowVersion ?? null,
-      });
-      await refresh();
-      showToast(t("settings.integrations.sms.automation.ruleSaved"));
-    } catch {
-      showToast(t("settings.integrations.sms.automation.ruleSaveError"), "error");
-    } finally {
-      setSavingRule(null);
-    }
-  };
-
   if (section === "account") {
     return null;
   }
@@ -179,195 +165,135 @@ export function SmsAutomationSettings({ canManage, noPermissionTitle, section }:
     return <SettingsFormSkeleton rows={6} />;
   }
 
-  return (
-    <>
-      {section === "templates" ? (
-        <section className="settings-surface">
-        <div className="settings-surface-header">
-          <div>
-            <h2 className="settings-surface-title">
-              {t("settings.integrations.sms.automation.templatesTitle")}
-            </h2>
-            <p className="settings-form-helper">
-              {t("settings.integrations.sms.automation.templatesDescription")}
-            </p>
-          </div>
-        </div>
-        <div className="settings-surface-body">
-          <div className="settings-form">
-            <div className="form-group">
-                <label className="form-label" htmlFor="sms-template-trigger">
-                  {t("settings.integrations.sms.automation.trigger")}
-                </label>
-                <CustomSelect
-                  className="form-select"
-                  disabled={!canManage}
-                  id="sms-template-trigger"
-                  onChange={(event) => {
-                    setSelectedTrigger(event.target.value);
-                    setPreview(null);
-                  }}
-                  value={effectiveSelectedTrigger}
-                >
-                  {catalog.map((trigger) => (
-                    <option key={trigger.triggerType} value={trigger.triggerType}>
-                      {getTriggerTitle(trigger.triggerType, trigger.title, t)}
-                    </option>
-                  ))}
-                </CustomSelect>
-                {currentTrigger ? (
-                  <span className="settings-form-helper">
-                    {getTriggerDescription(currentTrigger.triggerType, currentTrigger.description, t)}
-                  </span>
-                ) : null}
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="sms-template-body">
-                {t("settings.integrations.sms.automation.message")}
-              </label>
-              <SmsTemplateEditor
-                disabled={!canManage}
-                id="sms-template-body"
-                maxLength={1000}
-                onChange={(value) => {
-                  setTemplateBody(value);
-                  setPreview(null);
-                }}
-                value={templateBody}
-                variables={currentTrigger?.variables ?? []}
-              />
-            </div>
-            {preview ? (
-              <div className="settings-panel-note">
-                <strong>{t("settings.integrations.sms.automation.preview")}</strong>
-                <p>{preview.renderedBody}</p>
-                <span>
-                  {t("settings.integrations.sms.automation.previewMeta", {
-                    characters: preview.characterCount,
-                    segments: preview.estimatedSegmentCount,
-                  })}
-                </span>
-              </div>
-            ) : null}
-            <div className="settings-form-actions">
-              <button
-                className="btn btn-secondary btn-sm"
-                disabled={!templateBody.trim() || previewing}
-                onClick={() => void handlePreview()}
-                type="button"
-              >
-                {previewing
-                  ? t("settings.integrations.sms.automation.previewing")
-                  : t("settings.integrations.sms.automation.preview")}
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                disabled={!canManage || savingTemplate || !templateBody.trim()}
-                onClick={() => void handleTemplateSave()}
-                title={!canManage ? noPermissionTitle : undefined}
-                type="button"
-              >
-                {savingTemplate ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
-              </button>
-            </div>
-          </div>
-        </div>
-        </section>
-      ) : null}
+  const draft = ruleDrafts[effectiveSelectedTrigger] ?? {
+    templateId: currentTemplate?.id ?? "",
+    enabled: false,
+  };
+  const activationAvailable = effectiveSelectedTrigger === "candidate.created";
 
-      {section === "automation" ? (
-        <section className="settings-surface">
-        <div className="settings-surface-header">
-          <div>
-            <h2 className="settings-surface-title">
-              {t("settings.integrations.sms.automation.rulesTitle")}
-            </h2>
-            <p className="settings-form-helper">
-              {t("settings.integrations.sms.automation.rulesDescription")}
-            </p>
-            <p className="settings-form-helper">
-              {t("settings.integrations.sms.automation.activationStatus")}
-            </p>
+  return (
+    <section className="settings-surface">
+      <div className="settings-surface-header">
+        <div>
+          <h2 className="settings-surface-title">
+            {t("settings.integrations.sms.automation.rulesTitle")}
+          </h2>
+          <p className="settings-form-helper">
+            {t("settings.integrations.sms.automation.combinedDescription")}
+          </p>
+        </div>
+      </div>
+      <div className="settings-surface-body">
+        <div className="settings-form">
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor="sms-template-trigger">
+                {t("settings.integrations.sms.automation.trigger")}
+              </label>
+              <CustomSelect
+                className="form-select"
+                disabled={!canManage}
+                id="sms-template-trigger"
+                onChange={(event) => setSelectedTrigger(event.target.value)}
+                value={effectiveSelectedTrigger}
+              >
+                {catalog.map((trigger) => (
+                  <option key={trigger.triggerType} value={trigger.triggerType}>
+                    {getTriggerTitle(trigger.triggerType, trigger.title, t)}
+                  </option>
+                ))}
+              </CustomSelect>
+              {currentTrigger ? (
+                <span className="settings-form-helper">
+                  {getTriggerDescription(currentTrigger.triggerType, currentTrigger.description, t)}
+                </span>
+              ) : null}
+            </div>
+            <div className="form-group">
+              <span className="form-label">
+                {t("settings.integrations.sms.status")}
+              </span>
+              <label className="switch-toggle settings-inline-status-toggle">
+                <input
+                  checked={draft.enabled}
+                  disabled={!canManage || !activationAvailable}
+                  onChange={(event) =>
+                    setRuleDrafts((current) => ({
+                      ...current,
+                      [effectiveSelectedTrigger]: {
+                        ...draft,
+                        enabled: event.target.checked,
+                      },
+                    }))
+                  }
+                  type="checkbox"
+                />
+                <span aria-hidden="true" className="switch-toggle-control" />
+                <span>
+                  {draft.enabled
+                    ? t("settings.integrations.sms.automation.automaticActive")
+                    : t("settings.integrations.sms.automation.automaticPassive")}
+                </span>
+              </label>
+              {!activationAvailable ? (
+                <span className="settings-form-helper">
+                  {t("settings.integrations.sms.automation.triggerLocked")}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="sms-template-body">
+              {t("settings.integrations.sms.automation.message")}
+            </label>
+            <SmsTemplateEditor
+              disabled={!canManage}
+              id="sms-template-body"
+              maxLength={1000}
+              onChange={(value) => {
+                setTemplateBody(value);
+                setPreview(null);
+              }}
+              value={templateBody}
+              variables={currentTrigger?.variables ?? []}
+            />
+          </div>
+          {preview ? (
+            <div className="settings-panel-note">
+              <strong>{t("settings.integrations.sms.automation.preview")}</strong>
+              <p>{preview.renderedBody}</p>
+              <span>
+                {t("settings.integrations.sms.automation.previewMeta", {
+                  characters: preview.characterCount,
+                  segments: preview.estimatedSegmentCount,
+                })}
+              </span>
+            </div>
+          ) : null}
+          <div className="settings-form-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={!templateBody.trim() || previewing}
+              onClick={() => void handlePreview()}
+              type="button"
+            >
+              {previewing
+                ? t("settings.integrations.sms.automation.previewing")
+                : t("settings.integrations.sms.automation.preview")}
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={!canManage || saving || !templateBody.trim()}
+              onClick={() => void handleAutomaticSave()}
+              title={!canManage ? noPermissionTitle : undefined}
+              type="button"
+            >
+              {saving ? t("settings.toolbar.saving") : t("settings.toolbar.save")}
+            </button>
           </div>
         </div>
-        <div className="settings-surface-body">
-          <div className="settings-form">
-            {catalog.map((trigger) => {
-              const draft = ruleDrafts[trigger.triggerType] ?? { templateId: "", enabled: false };
-              const template = templates.find((item) => item.triggerType === trigger.triggerType);
-              const activationAvailable = trigger.triggerType === "candidate.created";
-              return (
-                <div className="form-row" key={trigger.triggerType}>
-                  <div className="form-group">
-                    <span className="form-label">
-                      {getTriggerTitle(trigger.triggerType, trigger.title, t)}
-                    </span>
-                    <span className="settings-form-helper">
-                      {getTriggerDescription(trigger.triggerType, trigger.description, t)}
-                    </span>
-                    <label className="switch-toggle settings-inline-status-toggle">
-                      <input
-                        checked={draft.enabled}
-                        disabled={
-                          !canManage ||
-                          !activationAvailable ||
-                          !draft.templateId ||
-                          !template?.enabled
-                        }
-                        onChange={(event) =>
-                          setRuleDrafts((current) => ({
-                            ...current,
-                            [trigger.triggerType]: { ...draft, enabled: event.target.checked },
-                          }))
-                        }
-                        type="checkbox"
-                      />
-                      <span aria-hidden="true" className="switch-toggle-control" />
-                      <span>
-                        {draft.enabled
-                          ? t("settings.integrations.sms.automation.automaticActive")
-                          : t("settings.integrations.sms.automation.automaticPassive")}
-                      </span>
-                    </label>
-                    {!activationAvailable ? (
-                      <span className="settings-form-helper">
-                        {t("settings.integrations.sms.automation.triggerLocked")}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="form-group">
-                    <span className="form-label">
-                      {t("settings.integrations.sms.automation.template")}
-                    </span>
-                    <span className="settings-form-helper">
-                      {!template
-                        ? t("settings.integrations.sms.automation.noActiveTemplate")
-                        : !template.enabled
-                          ? t("settings.integrations.sms.automation.templatePassiveHelp")
-                          : t("settings.integrations.sms.automation.singleTemplateReady")}
-                    </span>
-                    <div className="settings-form-actions">
-                      <button
-                        className="btn btn-primary btn-sm"
-                        disabled={!canManage || !draft.templateId || savingRule === trigger.triggerType}
-                        onClick={() => void handleRuleSave(trigger.triggerType)}
-                        title={!canManage ? noPermissionTitle : undefined}
-                        type="button"
-                      >
-                        {savingRule === trigger.triggerType
-                          ? t("settings.toolbar.saving")
-                          : t("settings.toolbar.save")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        </section>
-      ) : null}
-    </>
+      </div>
+    </section>
   );
 }
 

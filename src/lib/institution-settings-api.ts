@@ -182,6 +182,28 @@ export interface SmsTestSendResponse {
   sentAtUtc: string;
 }
 
+export interface SmsBulkTemplateResponse {
+  id: string;
+  name: string;
+  body: string;
+  version: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  rowVersion: number;
+}
+
+export interface SmsBulkCatalogResponse {
+  variables: SmsTemplateVariableResponse[];
+}
+
+export interface SmsBulkSendResponse {
+  requestId: string;
+  requestedCount: number;
+  queuedCount: number;
+  skippedCount: number;
+  alreadyQueued: boolean;
+}
+
 export async function getInstitutionSettings(
   signal?: AbortSignal
 ): Promise<InstitutionSettingsResponse | null> {
@@ -302,6 +324,71 @@ export function sendTestSms(phone: string, requestId: string): Promise<SmsTestSe
   return httpPost<SmsTestSendResponse>(
     "/api/institution-settings/sms/test",
     { phone, requestId },
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function getSmsBulkCatalog(signal?: AbortSignal): Promise<SmsBulkCatalogResponse> {
+  return httpGet<SmsBulkCatalogResponse>(
+    "/api/institution-settings/sms/bulk/catalog",
+    undefined,
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function getSmsBulkTemplates(signal?: AbortSignal): Promise<SmsBulkTemplateResponse[]> {
+  return httpGet<SmsBulkTemplateResponse[]>(
+    "/api/institution-settings/sms/bulk/templates",
+    undefined,
+    { baseUrl: getPlatformApiBaseUrl(), signal }
+  );
+}
+
+export function createSmsBulkTemplate(name: string, body: string): Promise<SmsBulkTemplateResponse> {
+  return httpPost<SmsBulkTemplateResponse>(
+    "/api/institution-settings/sms/bulk/templates",
+    { name, body, rowVersion: null },
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function updateSmsBulkTemplate(
+  templateId: string,
+  name: string,
+  body: string,
+  rowVersion: number
+): Promise<SmsBulkTemplateResponse> {
+  return httpPut<SmsBulkTemplateResponse>(
+    `/api/institution-settings/sms/bulk/templates/${templateId}`,
+    { name, body, rowVersion },
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function deleteSmsBulkTemplate(templateId: string, rowVersion: number): Promise<boolean> {
+  return httpDelete<boolean>(
+    `/api/institution-settings/sms/bulk/templates/${templateId}`,
+    { rowVersion },
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function previewSmsBulkTemplate(name: string, body: string): Promise<SmsTemplatePreviewResponse> {
+  return httpPost<SmsTemplatePreviewResponse>(
+    "/api/institution-settings/sms/bulk/templates/preview",
+    { name, body, rowVersion: null },
+    { baseUrl: getPlatformApiBaseUrl() }
+  );
+}
+
+export function sendSmsBulk(
+  candidateIds: string[],
+  templateId: string,
+  requestId: string
+): Promise<SmsBulkSendResponse> {
+  return httpPost<SmsBulkSendResponse>(
+    "/api/institution-settings/sms/bulk/send",
+    { candidateIds, templateId, requestId },
     { baseUrl: getPlatformApiBaseUrl() }
   );
 }

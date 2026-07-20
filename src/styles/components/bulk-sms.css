@@ -1,0 +1,56 @@
+.candidate-bulk-sms-button {
+  border: 1px solid var(--warning-500);
+  background: var(--warning-500);
+  color: #422006;
+}
+
+.candidate-bulk-sms-button:hover:not(:disabled) {
+  border-color: var(--warning-700);
+  background: color-mix(in srgb, var(--warning-500) 86%, black);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--warning-500) 28%, transparent);
+}
+
+.candidate-bulk-sms-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--warning-500) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.bulk-sms-modal {
+  width: 100%;
+  min-width: 0;
+}
+
+.bulk-sms-template-row {
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 16px;
+}
+
+.bulk-sms-template-row .form-group,
+.bulk-sms-message-field {
+  min-width: 0;
+}
+
+.bulk-sms-message-field {
+  gap: 6px;
+}
+
+.bulk-sms-template-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bulk-sms-preview {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.bulk-sms-preview p {
+  margin: 6px 0 0;
+}
+
+@media (max-width: 760px) {
+  .bulk-sms-template-row { grid-template-columns: 1fr; }
+}

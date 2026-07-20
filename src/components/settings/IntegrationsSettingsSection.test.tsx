@@ -417,10 +417,11 @@ describe("IntegrationsSettingsSection", () => {
 
     renderWithProviders(<IntegrationsSettingsSection />);
     fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Mesaj Şablonları" }));
+    expect(screen.queryByRole("tab", { name: "Mesaj Şablonları" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Otomatik Gönderimler" }));
 
     const templatesSection = (
-      await screen.findByRole("heading", { name: "Mesaj Şablonları" })
+      await screen.findByRole("heading", { name: "Otomatik Gönderimler" })
     ).closest("section");
     expect(templatesSection).not.toBeNull();
     const templateUi = within(templatesSection!);
@@ -443,16 +444,23 @@ describe("IntegrationsSettingsSection", () => {
         enabled: true,
         rowVersion: null,
       });
+      expect(upsertSmsAutomationRuleMock).toHaveBeenCalledWith("candidate.created", {
+        templateId: "template-1",
+        timingType: "immediate",
+        offsetMinutes: null,
+        enabled: false,
+        rowVersion: null,
+      });
     });
   });
 
   it("inserts a variable at the cursor in the SMS template editor", async () => {
     renderWithProviders(<IntegrationsSettingsSection />);
     fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Mesaj Şablonları" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Otomatik Gönderimler" }));
 
     const templatesSection = (
-      await screen.findByRole("heading", { name: "Mesaj Şablonları" })
+      await screen.findByRole("heading", { name: "Otomatik Gönderimler" })
     ).closest("section");
     expect(templatesSection).not.toBeNull();
     const templateUi = within(templatesSection!);
@@ -479,6 +487,17 @@ describe("IntegrationsSettingsSection", () => {
         rowVersion: 1,
       },
     ]);
+    updateSmsTemplateMock.mockResolvedValue({
+      id: "template-1",
+      triggerType: "candidate.created",
+      name: "Aday kaydedildi",
+      body: "Merhaba {{candidate.fullName}}",
+      enabled: true,
+      version: 1,
+      createdAtUtc: "2026-07-17T00:00:00Z",
+      updatedAtUtc: "2026-07-20T00:00:00Z",
+      rowVersion: 2,
+    });
     upsertSmsAutomationRuleMock.mockResolvedValue({
       id: "rule-1",
       triggerType: "candidate.created",
@@ -501,13 +520,20 @@ describe("IntegrationsSettingsSection", () => {
     ).closest("section");
     expect(rulesSection).not.toBeNull();
     const ruleUi = within(rulesSection!);
-    expect(ruleUi.getByText(/Aday kaydı otomasyonu kullanılabilir/)).toBeInTheDocument();
+    expect(ruleUi.getByText(/aynı ekrandan yönetin/)).toBeInTheDocument();
     const toggles = await ruleUi.findAllByRole("checkbox");
     expect(toggles[0]).toBeEnabled();
     fireEvent.click(toggles[0]);
     fireEvent.click(ruleUi.getAllByRole("button", { name: "Kaydet" })[0]);
 
     await waitFor(() => {
+      expect(updateSmsTemplateMock).toHaveBeenCalledWith("template-1", {
+        triggerType: "candidate.created",
+        name: "Aday kaydedildi",
+        body: "Merhaba {{candidate.fullName}}",
+        enabled: true,
+        rowVersion: 1,
+      });
       expect(upsertSmsAutomationRuleMock).toHaveBeenCalledWith("candidate.created", {
         templateId: "template-1",
         timingType: "immediate",
@@ -546,6 +572,17 @@ describe("IntegrationsSettingsSection", () => {
         rowVersion: 3,
       },
     ]);
+    updateSmsTemplateMock.mockResolvedValue({
+      id: "template-passive",
+      triggerType: "candidate.created",
+      name: "Aday kaydedildi",
+      body: "Merhaba {{candidate.fullName}}",
+      enabled: true,
+      version: 1,
+      createdAtUtc: "2026-07-17T00:00:00Z",
+      updatedAtUtc: "2026-07-20T00:00:00Z",
+      rowVersion: 3,
+    });
 
     renderWithProviders(<IntegrationsSettingsSection />);
     fireEvent.click(await screen.findByRole("tab", { name: "SMS" }));
@@ -556,12 +593,19 @@ describe("IntegrationsSettingsSection", () => {
     ).closest("section");
     expect(rulesSection).not.toBeNull();
     const ruleUi = within(rulesSection!);
-    expect(
-      await ruleUi.findByText(/Mesaj Şablonları sekmesinde kaydederek aktif edin/),
-    ).toBeInTheDocument();
+    expect(ruleUi.getByLabelText("Mesaj metni")).toHaveValue(
+      "Merhaba {{candidate.fullName}}",
+    );
     fireEvent.click(ruleUi.getAllByRole("button", { name: "Kaydet" })[0]);
 
     await waitFor(() => {
+      expect(updateSmsTemplateMock).toHaveBeenCalledWith("template-passive", {
+        triggerType: "candidate.created",
+        name: "Aday kaydedildi",
+        body: "Merhaba {{candidate.fullName}}",
+        enabled: true,
+        rowVersion: 2,
+      });
       expect(upsertSmsAutomationRuleMock).toHaveBeenCalledWith("candidate.created", {
         templateId: "template-passive",
         timingType: "immediate",

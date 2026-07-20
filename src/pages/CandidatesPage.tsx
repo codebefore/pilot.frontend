@@ -9,6 +9,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { CandidateExamDateSidebar } from "../components/candidates/CandidateExamDateSidebar";
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
+import { BulkSmsModal } from "../components/candidates/BulkSmsModal";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
 import { DownloadIcon, FilterIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
@@ -2130,6 +2131,7 @@ export function CandidatesPage({
   const [bulkGroupLoading, setBulkGroupLoading] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [bulkSmsOpen, setBulkSmsOpen] = useState(false);
   const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
   const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
   const [examChargeSaving, setExamChargeSaving] = useState(false);
@@ -3957,6 +3959,15 @@ export function CandidatesPage({
     setBulkActionMode("export");
   };
 
+  const openBulkSms = () => {
+    if (!canManageCandidates) return;
+    if (selectedCandidateIds.size === 0) {
+      showToast(t("candidates.toast.selectAtLeastOne"), "error");
+      return;
+    }
+    setBulkSmsOpen(true);
+  };
+
   const prepareUnscheduledExamChargePrompt = async (examType: CandidateExamType) => {
     if (!canManageCandidates) return;
     if (isDrivingExamRandevuluTab) return;
@@ -4843,6 +4854,15 @@ export function CandidatesPage({
                   </>
                 ) : (
                   <>
+                    <button
+                      className="btn btn-sm candidate-bulk-sms-button"
+                      disabled={selectedCount === 0 || !canManageCandidates}
+                      onClick={openBulkSms}
+                      title={!canManageCandidates ? noPermissionTitle : undefined}
+                      type="button"
+                    >
+                      {t("candidates.bulkSms.button")}
+                    </button>
                     {examDateSidebar ? (
                       <>
                         <button
@@ -5067,6 +5087,15 @@ export function CandidatesPage({
         onRenamed={handleTagRenamed}
         open={tagManagerOpen}
         tags={allTags}
+      />
+      <BulkSmsModal
+        candidateIds={Array.from(selectedCandidateIds)}
+        onClose={() => setBulkSmsOpen(false)}
+        onSent={(queuedCount, skippedCount) => {
+          setBulkSmsOpen(false);
+          showToast(t("candidates.bulkSms.queued", { queuedCount, skippedCount }), "success");
+        }}
+        open={bulkSmsOpen}
       />
       <Modal
         footer={

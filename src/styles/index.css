@@ -5,6 +5,7 @@
 @import "./components/drawer.css";
 @import "./components/editable-row.css";
 @import "./components/candidate-filters.css";
+@import "./components/bulk-sms.css";
 @import "./components/candidate-table.css";
 @import "./components/pagination-search.css";
 @import "./components/menus.css";
