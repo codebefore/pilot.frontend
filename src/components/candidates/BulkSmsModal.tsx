@@ -17,9 +17,11 @@ import { Modal } from "../ui/Modal";
 
 type BulkSmsModalProps = {
   candidateIds: string[];
+  institutionName?: string;
   onClose: () => void;
   onSent: (queuedCount: number, skippedCount: number) => void;
   open: boolean;
+  previewCandidateName?: string;
 };
 
 const defaultBulkSmsVariables: SmsTemplateVariableResponse[] = [
@@ -35,7 +37,14 @@ const defaultBulkSmsVariables: SmsTemplateVariableResponse[] = [
   },
 ];
 
-export function BulkSmsModal({ candidateIds, onClose, onSent, open }: BulkSmsModalProps) {
+export function BulkSmsModal({
+  candidateIds,
+  institutionName,
+  onClose,
+  onSent,
+  open,
+  previewCandidateName,
+}: BulkSmsModalProps) {
   const t = useT();
   const templateId = useId();
   const templateNameId = useId();
@@ -57,6 +66,12 @@ export function BulkSmsModal({ candidateIds, onClose, onSent, open }: BulkSmsMod
     () => templates.find((template) => template.id === selectedId) ?? null,
     [selectedId, templates]
   );
+  const previewValues = useMemo(() => {
+    const values = new Map(variables.map((variable) => [variable.key, variable.exampleValue]));
+    if (previewCandidateName?.trim()) values.set("candidate.fullName", previewCandidateName.trim());
+    if (institutionName?.trim()) values.set("institution.name", institutionName.trim());
+    return values;
+  }, [institutionName, previewCandidateName, variables]);
 
   useEffect(() => {
     if (!open) return;
@@ -94,11 +109,11 @@ export function BulkSmsModal({ candidateIds, onClose, onSent, open }: BulkSmsMod
     }
     const timer = window.setTimeout(() => {
       previewSmsBulkTemplate(name || "Preview", body)
-        .then((result) => setPreview(result.renderedBody))
+        .then(() => setPreview(renderBulkSmsPreview(body, previewValues)))
         .catch(() => setPreview(""));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [body, name]);
+  }, [body, name, previewValues]);
 
   const selectTemplate = (templateId: string) => {
     setSelectedId(templateId);
@@ -267,5 +282,11 @@ export function BulkSmsModal({ candidateIds, onClose, onSent, open }: BulkSmsMod
         )}
       </div>
     </Modal>
+  );
+}
+
+function renderBulkSmsPreview(body: string, values: ReadonlyMap<string, string>): string {
+  return body.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (token, key: string) =>
+    values.get(key.trim()) ?? token
   );
 }

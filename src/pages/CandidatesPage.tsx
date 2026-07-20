@@ -1981,7 +1981,7 @@ export function CandidatesPage({
   const t = useT();
   const location = useLocation();
   const { lang } = useLanguage();
-  const { user, permissions } = useAuth();
+  const { user, permissions, activeInstitution } = useAuth();
   const canManageCandidates = canManageArea(user, permissions, "candidates");
   const canManageGroups = canManageArea(user, permissions, "groups");
   const canManageMebJobs = canManageArea(user, permissions, "mebjobs");
@@ -2132,6 +2132,7 @@ export function CandidatesPage({
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [bulkSmsOpen, setBulkSmsOpen] = useState(false);
+  const [bulkSmsPreviewCandidateName, setBulkSmsPreviewCandidateName] = useState("");
   const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
   const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
   const [examChargeSaving, setExamChargeSaving] = useState(false);
@@ -3965,6 +3966,19 @@ export function CandidatesPage({
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
+    const firstSelectedId = selectedCandidateIds.values().next().value as string;
+    const visibleCandidate = candidates.find((candidate) => candidate.id === firstSelectedId);
+    const setPreviewName = (candidate: CandidateResponse) => {
+      setBulkSmsPreviewCandidateName(
+        [candidate.firstName, candidate.lastName].filter(Boolean).join(" ").trim()
+      );
+    };
+    if (visibleCandidate) {
+      setPreviewName(visibleCandidate);
+    } else {
+      setBulkSmsPreviewCandidateName("");
+      void getCandidateById(firstSelectedId).then(setPreviewName).catch(() => undefined);
+    }
     setBulkSmsOpen(true);
   };
 
@@ -5090,12 +5104,14 @@ export function CandidatesPage({
       />
       <BulkSmsModal
         candidateIds={Array.from(selectedCandidateIds)}
+        institutionName={activeInstitution?.name}
         onClose={() => setBulkSmsOpen(false)}
         onSent={(queuedCount, skippedCount) => {
           setBulkSmsOpen(false);
           showToast(t("candidates.bulkSms.queued", { queuedCount, skippedCount }), "success");
         }}
         open={bulkSmsOpen}
+        previewCandidateName={bulkSmsPreviewCandidateName}
       />
       <Modal
         footer={

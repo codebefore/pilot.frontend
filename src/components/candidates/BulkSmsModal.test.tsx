@@ -116,6 +116,25 @@ describe("BulkSmsModal", () => {
     expect(screen.getByRole("button", { name: /Kurum adı/ })).toBeInTheDocument();
   });
 
+  it("renders the first selected candidate and active institution in the preview", async () => {
+    renderWithProviders(
+      <BulkSmsModal
+        candidateIds={["candidate-1", "candidate-2"]}
+        institutionName="Pilot Sürücü Kursu"
+        onClose={() => {}}
+        onSent={() => {}}
+        open
+        previewCandidateName="Ali Yılmaz"
+      />
+    );
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Mesaj" }), {
+      target: { value: "Sayın {{candidate.fullName}}, {{institution.name}} duyurusudur." },
+    });
+
+    expect(await screen.findByText("Sayın Ali Yılmaz, Pilot Sürücü Kursu duyurusudur.")).toBeInTheDocument();
+  });
+
   it("reuses the request id when a send response fails", async () => {
     getTemplatesMock.mockResolvedValue([{
       id: "template-1",
