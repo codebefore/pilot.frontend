@@ -1307,6 +1307,7 @@ export const en: Record<TranslationKey, string> = {
   "documentScanner.format.colorJpeg": "Color JPEG",
   "documentScanner.status.ready": "Ready",
   "documentScanner.jobStatus.pending": "Pending",
+  "documentScanner.jobStatus.preparing": "Preparing scanner",
   "documentScanner.jobStatus.scanning": "Scanning",
   "documentScanner.jobStatus.completed": "Completed",
   "documentScanner.jobStatus.failed": "Failed",

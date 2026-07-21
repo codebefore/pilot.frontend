@@ -40,7 +40,7 @@ export type LocalAgentScannerListResponse = {
   scanners: LocalAgentScannerResponse[];
 };
 
-export type LocalAgentScanJobStatus = "pending" | "scanning" | "completed" | "failed";
+export type LocalAgentScanJobStatus = "pending" | "preparing" | "scanning" | "completed" | "failed";
 
 export type LocalAgentScanJobResponse = {
   jobId: string;

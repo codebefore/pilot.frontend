@@ -153,6 +153,8 @@ function resolveScanStatus(
   switch (job.status) {
     case "pending":
       return { tone: "pending", labelKey: "documentScanner.jobStatus.pending" };
+    case "preparing":
+      return { tone: "pending", labelKey: "documentScanner.jobStatus.preparing" };
     case "scanning":
       return { tone: "scanning", labelKey: "documentScanner.jobStatus.scanning" };
     case "completed":
@@ -301,7 +303,7 @@ export function DocumentScannerModal({ open, onClose, onScanned }: DocumentScann
 
       let job = await getLocalAgentScanJob(created.jobId, controller.signal);
       setScanJob(job);
-      while (job.status === "pending" || job.status === "scanning") {
+      while (job.status === "pending" || job.status === "preparing" || job.status === "scanning") {
         await delay(POLL_DELAY_MS, controller.signal);
         job = await getLocalAgentScanJob(created.jobId, controller.signal);
         setScanJob(job);

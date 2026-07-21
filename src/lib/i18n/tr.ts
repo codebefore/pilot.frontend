@@ -1305,6 +1305,7 @@ export const tr = {
   "documentScanner.format.colorJpeg": "Renkli JPEG",
   "documentScanner.status.ready": "Hazır",
   "documentScanner.jobStatus.pending": "Bekliyor",
+  "documentScanner.jobStatus.preparing": "Tarayıcı hazırlanıyor",
   "documentScanner.jobStatus.scanning": "Taranıyor",
   "documentScanner.jobStatus.completed": "Tamamlandı",
   "documentScanner.jobStatus.failed": "Başarısız",
