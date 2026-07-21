@@ -114,6 +114,7 @@ export interface CandidateResponse {
   hasReportedPracticeAttempt?: boolean;
   isTheoryExempt?: boolean;
   isFree?: boolean;
+  courseFee?: number;
   totalFee: number;
   totalPaid: number;
   totalDebt: number;

@@ -17,11 +17,10 @@ import { Modal } from "../ui/Modal";
 
 type BulkSmsModalProps = {
   candidateIds: string[];
-  institutionName?: string;
   onClose: () => void;
   onSent: (queuedCount: number, skippedCount: number) => void;
   open: boolean;
-  previewCandidateName?: string;
+  previewValues?: Readonly<Record<string, string>>;
 };
 
 const defaultBulkSmsVariables: SmsTemplateVariableResponse[] = [
@@ -31,19 +30,43 @@ const defaultBulkSmsVariables: SmsTemplateVariableResponse[] = [
     exampleValue: "Ayşe Yılmaz",
   },
   {
+    key: "candidate.nationalId",
+    label: "Aday TC",
+    exampleValue: "12345678901",
+  },
+  {
+    key: "candidate.term",
+    label: "Aday dönemi",
+    exampleValue: "2026 MAYIS",
+  },
+  {
     key: "institution.name",
     label: "Kurum adı",
     exampleValue: "Örnek Sürücü Kursu",
+  },
+  {
+    key: "candidate.licenseClass",
+    label: "Ehliyet tipi",
+    exampleValue: "B",
+  },
+  {
+    key: "candidate.courseFee",
+    label: "Kurs ücreti",
+    exampleValue: "25.000,00 TL",
+  },
+  {
+    key: "candidate.remainingDebt",
+    label: "Kalan borç",
+    exampleValue: "7.500,00 TL",
   },
 ];
 
 export function BulkSmsModal({
   candidateIds,
-  institutionName,
   onClose,
   onSent,
   open,
-  previewCandidateName,
+  previewValues: suppliedPreviewValues,
 }: BulkSmsModalProps) {
   const t = useT();
   const templateId = useId();
@@ -68,10 +91,11 @@ export function BulkSmsModal({
   );
   const previewValues = useMemo(() => {
     const values = new Map(variables.map((variable) => [variable.key, variable.exampleValue]));
-    if (previewCandidateName?.trim()) values.set("candidate.fullName", previewCandidateName.trim());
-    if (institutionName?.trim()) values.set("institution.name", institutionName.trim());
+    for (const [key, value] of Object.entries(suppliedPreviewValues ?? {})) {
+      if (value.trim()) values.set(key, value.trim());
+    }
     return values;
-  }, [institutionName, previewCandidateName, variables]);
+  }, [suppliedPreviewValues, variables]);
 
   useEffect(() => {
     if (!open) return;

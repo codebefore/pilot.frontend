@@ -475,6 +475,27 @@ function formatCurrencyTRY(amount: number | null | undefined): string {
   }).format(amount ?? 0);
 }
 
+function formatBulkSmsCurrency(amount: number | null | undefined): string {
+  return `${new Intl.NumberFormat("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount ?? 0)} TL`;
+}
+
+function formatBulkSmsTerm(candidate: CandidateResponse): string {
+  const term = candidate.currentGroup?.term;
+  if (!term?.monthDate) return "-";
+  const [year, month] = term.monthDate.slice(0, 10).split("-");
+  const months = [
+    "OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN",
+    "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK",
+  ];
+  const monthName = months[Number(month) - 1];
+  if (!year || !monthName) return "-";
+  const value = `${year} ${monthName}`;
+  return term.sequence > 1 ? `${value} / ${term.sequence}` : value;
+}
+
 type ExamChargeCandidateRow = {
   candidate: CandidateResponse;
   attempt: CandidateExamAttemptResponse;
@@ -2132,7 +2153,8 @@ export function CandidatesPage({
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [bulkSmsOpen, setBulkSmsOpen] = useState(false);
-  const [bulkSmsPreviewCandidateName, setBulkSmsPreviewCandidateName] = useState("");
+  const [bulkSmsPreviewCandidate, setBulkSmsPreviewCandidate] = useState<CandidateResponse | null>(null);
+  const bulkSmsPreviewRequestRef = useRef(0);
   const [examChargePrompt, setExamChargePrompt] = useState<ExamChargePromptState | null>(null);
   const [examChargeModalOpen, setExamChargeModalOpen] = useState(false);
   const [examChargeSaving, setExamChargeSaving] = useState(false);
@@ -3124,6 +3146,22 @@ export function CandidatesPage({
         : candidate;
     });
   }, [baseCandidates, candidateDocumentOverviewQuery.data?.items]);
+  const bulkSmsPreviewValues = useMemo<Readonly<Record<string, string>>>(() => {
+    const values: Record<string, string> = {
+      "institution.name": activeInstitution?.name?.trim() || "Kurumunuz",
+    };
+    if (!bulkSmsPreviewCandidate) return values;
+    values["candidate.fullName"] = [
+      bulkSmsPreviewCandidate.firstName,
+      bulkSmsPreviewCandidate.lastName,
+    ].filter(Boolean).join(" ").trim();
+    values["candidate.nationalId"] = bulkSmsPreviewCandidate.nationalId?.trim() || "-";
+    values["candidate.term"] = formatBulkSmsTerm(bulkSmsPreviewCandidate);
+    values["candidate.licenseClass"] = bulkSmsPreviewCandidate.licenseClass?.trim() || "-";
+    values["candidate.courseFee"] = formatBulkSmsCurrency(bulkSmsPreviewCandidate.courseFee ?? 0);
+    values["candidate.remainingDebt"] = formatBulkSmsCurrency(bulkSmsPreviewCandidate.totalDebt);
+    return values;
+  }, [activeInstitution?.name, bulkSmsPreviewCandidate]);
   const totalPages =
     candidatesQuery.data?.totalPages ??
     Math.max(1, Math.ceil((candidatesQuery.data?.totalCount ?? 0) / (candidatesQuery.data?.pageSize || pageSize)));
@@ -3966,18 +4004,20 @@ export function CandidatesPage({
       showToast(t("candidates.toast.selectAtLeastOne"), "error");
       return;
     }
+    const requestId = ++bulkSmsPreviewRequestRef.current;
     const firstSelectedId = selectedCandidateIds.values().next().value as string;
     const visibleCandidate = candidates.find((candidate) => candidate.id === firstSelectedId);
-    const setPreviewName = (candidate: CandidateResponse) => {
-      setBulkSmsPreviewCandidateName(
-        [candidate.firstName, candidate.lastName].filter(Boolean).join(" ").trim()
-      );
-    };
     if (visibleCandidate) {
-      setPreviewName(visibleCandidate);
+      setBulkSmsPreviewCandidate(visibleCandidate);
     } else {
-      setBulkSmsPreviewCandidateName("");
-      void getCandidateById(firstSelectedId).then(setPreviewName).catch(() => undefined);
+      setBulkSmsPreviewCandidate(null);
+      void getCandidateById(firstSelectedId)
+        .then((candidate) => {
+          if (bulkSmsPreviewRequestRef.current === requestId) {
+            setBulkSmsPreviewCandidate(candidate);
+          }
+        })
+        .catch(() => undefined);
     }
     setBulkSmsOpen(true);
   };
@@ -5104,14 +5144,17 @@ export function CandidatesPage({
       />
       <BulkSmsModal
         candidateIds={Array.from(selectedCandidateIds)}
-        institutionName={activeInstitution?.name}
-        onClose={() => setBulkSmsOpen(false)}
+        onClose={() => {
+          bulkSmsPreviewRequestRef.current += 1;
+          setBulkSmsOpen(false);
+        }}
         onSent={(queuedCount, skippedCount) => {
+          bulkSmsPreviewRequestRef.current += 1;
           setBulkSmsOpen(false);
           showToast(t("candidates.bulkSms.queued", { queuedCount, skippedCount }), "success");
         }}
         open={bulkSmsOpen}
-        previewCandidateName={bulkSmsPreviewCandidateName}
+        previewValues={bulkSmsPreviewValues}
       />
       <Modal
         footer={

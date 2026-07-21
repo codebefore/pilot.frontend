@@ -113,18 +113,25 @@ describe("BulkSmsModal", () => {
     );
 
     expect(await screen.findByRole("button", { name: /Aday adı soyadı/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Aday TC/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Aday dönemi/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Kurum adı/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ehliyet tipi/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Kurs ücreti/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Kalan borç/ })).toBeInTheDocument();
   });
 
   it("renders the first selected candidate and active institution in the preview", async () => {
     renderWithProviders(
       <BulkSmsModal
         candidateIds={["candidate-1", "candidate-2"]}
-        institutionName="Pilot Sürücü Kursu"
         onClose={() => {}}
         onSent={() => {}}
         open
-        previewCandidateName="Ali Yılmaz"
+        previewValues={{
+          "candidate.fullName": "Ali Yılmaz",
+          "institution.name": "Pilot Sürücü Kursu",
+        }}
       />
     );
 
