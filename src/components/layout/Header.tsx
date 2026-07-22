@@ -198,12 +198,34 @@ function HeaderMebbisConnection() {
     }
   }
 
-  function handleLiveViewToggle(event: MouseEvent<HTMLButtonElement>) {
+  async function handleLiveViewToggle(event: MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     event.stopPropagation();
+    if (!beginOperation()) return;
+
     const next = !liveViewEnabled;
     setLiveViewEnabled(next);
     writeMebbisLiveViewEnabled(next);
+
+    try {
+      const nextSession = await startLocalAgentMebbisSession({
+        apiBaseUrl: getMebbisApiBaseUrl(),
+        extensionToken: null,
+        debugVisible: next,
+      });
+      latestSession.current = nextSession;
+      setSession(nextSession);
+      setError(null);
+      refreshMebbisSessionStatusSoon();
+      if (nextSession.status === "waiting_verification" || nextSession.requiresVerificationCode) {
+        setPopoverOpen(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("header.mebbis.unavailable"));
+      setPopoverOpen(true);
+    } finally {
+      endOperation();
+    }
   }
 
   function beginOperation() {
@@ -265,7 +287,9 @@ function HeaderMebbisConnection() {
       const startInput: { apiBaseUrl: string; extensionToken?: string | null; debugVisible: boolean } = {
         apiBaseUrl: getMebbisApiBaseUrl(),
         extensionToken: null,
-        debugVisible: window.localStorage.getItem(MEBBIS_DEBUG_VISIBLE_STORAGE_KEY) === "true",
+        debugVisible:
+          readMebbisLiveViewEnabled() ||
+          window.localStorage.getItem(MEBBIS_DEBUG_VISIBLE_STORAGE_KEY) === "true",
       };
       const pair = await pairMebbisExtensionClient(`Pilot LocalAgent - ${health.machineName}`);
       startInput.extensionToken = pair.apiToken;
@@ -419,6 +443,7 @@ function HeaderMebbisConnection() {
         <button
           aria-pressed={liveViewEnabled}
           className="header-mebbis-live-view"
+          disabled={transitionLocked}
           onClick={handleLiveViewToggle}
           title={t("header.mebbis.liveViewHint")}
           type="button"
