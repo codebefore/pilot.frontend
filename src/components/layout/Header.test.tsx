@@ -14,6 +14,7 @@ const localAgentMocks = vi.hoisted(() => ({
   openLocalAgentMebbisHomeView: vi.fn(),
   pairLocalAgent: vi.fn(),
   readStoredLocalAgentToken: vi.fn(),
+  setLocalAgentMebbisBrowserVisibility: vi.fn(),
   startLocalAgentMebbisSession: vi.fn(),
   stopLocalAgentMebbisSession: vi.fn(),
   submitLocalAgentMebbisVerificationCode: vi.fn(),
@@ -124,6 +125,12 @@ beforeEach(() => {
     token: "local-agent-token",
     machineName: "Test Machine",
   });
+  localAgentMocks.setLocalAgentMebbisBrowserVisibility.mockResolvedValue({
+    visible: true,
+    supported: true,
+    status: "connected",
+    message: "MEBBİS penceresi gösterildi.",
+  });
   localAgentMocks.startLocalAgentMebbisSession.mockResolvedValue(mebbisSession("waiting_verification"));
   localAgentMocks.stopLocalAgentMebbisSession.mockResolvedValue(mebbisSession("inactive"));
   localAgentMocks.submitLocalAgentMebbisVerificationCode.mockResolvedValue(mebbisSession("connected"));
@@ -202,8 +209,38 @@ describe("Header MEBBİS connection", () => {
 
     fireEvent.click(screen.getByTitle("MEBBİS aç"));
 
+    await waitFor(() =>
+      expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenCalledWith(true)
+    );
     await waitFor(() => expect(localAgentMocks.openLocalAgentMebbisHomeView).toHaveBeenCalledTimes(1));
     expect(localAgentMocks.startLocalAgentMebbisSession).not.toHaveBeenCalled();
+    expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBe("true");
+  });
+
+  it("makes the active MEBBİS job visible before requesting the home page", async () => {
+    let resolveVisibility: (() => void) | undefined;
+    localAgentMocks.setLocalAgentMebbisBrowserVisibility.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveVisibility = () => resolve({
+          visible: true,
+          supported: true,
+          status: "connected",
+          message: "MEBBİS penceresi gösterildi.",
+        });
+      })
+    );
+    renderHeader();
+
+    fireEvent.click(screen.getByTitle("MEBBİS aç"));
+
+    await waitFor(() =>
+      expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenCalledWith(true)
+    );
+    expect(localAgentMocks.openLocalAgentMebbisHomeView).not.toHaveBeenCalled();
+
+    resolveVisibility?.();
+
+    await waitFor(() => expect(localAgentMocks.openLocalAgentMebbisHomeView).toHaveBeenCalledTimes(1));
   });
 
   it("hides the live view toggle until MEBBİS is connected", async () => {
@@ -216,10 +253,9 @@ describe("Header MEBBİS connection", () => {
     expect(screen.queryByRole("button", { name: "Canlı İzle" })).not.toBeInTheDocument();
   });
 
-  it("restarts the primary MEBBİS browser in the selected live view mode", async () => {
+  it("changes primary MEBBİS browser visibility without restarting the session", async () => {
     localAgentMocks.readStoredLocalAgentToken.mockReturnValue("local-agent-token");
     localAgentMocks.getLocalAgentMebbisSession.mockResolvedValue(mebbisSession("connected"));
-    localAgentMocks.startLocalAgentMebbisSession.mockResolvedValue(mebbisSession("connected"));
     renderHeader();
 
     const liveViewToggle = await screen.findByRole("button", { name: "Canlı İzle" });
@@ -229,11 +265,8 @@ describe("Header MEBBİS connection", () => {
 
     await waitFor(() => expect(liveViewToggle).toHaveAttribute("aria-pressed", "true"));
     expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBe("true");
-    expect(localAgentMocks.startLocalAgentMebbisSession).toHaveBeenLastCalledWith({
-      apiBaseUrl: expect.any(String),
-      extensionToken: null,
-      debugVisible: true,
-    });
+    expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenLastCalledWith(true);
+    expect(localAgentMocks.startLocalAgentMebbisSession).not.toHaveBeenCalled();
 
     await waitFor(() => expect(liveViewToggle).not.toBeDisabled());
 
@@ -241,10 +274,7 @@ describe("Header MEBBİS connection", () => {
 
     await waitFor(() => expect(liveViewToggle).toHaveAttribute("aria-pressed", "false"));
     expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBe("false");
-    expect(localAgentMocks.startLocalAgentMebbisSession).toHaveBeenLastCalledWith({
-      apiBaseUrl: expect.any(String),
-      extensionToken: null,
-      debugVisible: false,
-    });
+    expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenLastCalledWith(false);
+    expect(localAgentMocks.startLocalAgentMebbisSession).not.toHaveBeenCalled();
   });
 });

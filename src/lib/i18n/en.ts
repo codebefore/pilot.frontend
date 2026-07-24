@@ -1502,6 +1502,7 @@ export const en: Record<TranslationKey, string> = {
   "header.mebbis.submitCode": "Verify",
   "header.mebbis.stop": "Stop",
   "header.mebbis.unavailable": "LocalAgent is unavailable.",
+  "header.mebbis.visibilityUpdateRequired": "Live view requires LocalAgent version 1.0.34 or newer.",
   "header.mebbis.stopFailed": "MEBBIS session could not be stopped.",
   "header.mebbis.codeFailed": "Verification code could not be submitted.",
 

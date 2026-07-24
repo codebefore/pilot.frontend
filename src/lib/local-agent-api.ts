@@ -107,6 +107,14 @@ export type LocalAgentMebbisPageViewResponse = {
   error?: string | null;
 };
 
+export type LocalAgentMebbisBrowserVisibilityResponse = {
+  visible: boolean;
+  supported: boolean;
+  status: string;
+  message: string;
+  error?: string | null;
+};
+
 export type LocalAgentMebbisPageViewSelection = {
   termValue?: string | null;
   termLabel?: string | null;
@@ -253,6 +261,19 @@ export async function stopLocalAgentMebbisSession(
     signal,
   });
   return handleLocalAgentJson<LocalAgentMebbisSessionResponse>(response);
+}
+
+export async function setLocalAgentMebbisBrowserVisibility(
+  visible: boolean,
+  signal?: AbortSignal
+): Promise<LocalAgentMebbisBrowserVisibilityResponse> {
+  const response = await requestLocalAgent("/mebbis/browser/visibility", {
+    method: "POST",
+    headers: buildLocalAgentHeaders(true),
+    body: JSON.stringify({ visible }),
+    signal,
+  });
+  return handleLocalAgentJson<LocalAgentMebbisBrowserVisibilityResponse>(response);
 }
 
 export async function openLocalAgentMebbisCandidateStatusView(

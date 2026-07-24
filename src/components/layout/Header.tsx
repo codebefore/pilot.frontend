@@ -11,6 +11,7 @@ import {
   openLocalAgentMebbisHomeView,
   pairLocalAgent,
   readStoredLocalAgentToken,
+  setLocalAgentMebbisBrowserVisibility,
   startLocalAgentMebbisSession,
   stopLocalAgentMebbisSession,
   submitLocalAgentMebbisVerificationCode,
@@ -27,7 +28,6 @@ import { NotificationsMenu } from "./NotificationsMenu";
 import { UserMenu } from "./UserMenu";
 
 const BRAND_LOGO_SRC = "/pilot.png?v=20260605";
-const MEBBIS_DEBUG_VISIBLE_STORAGE_KEY = "pilot.localAgent.mebbisDebugVisible";
 const MEBBIS_SESSION_ACTIVE_POLL_MS = 5_000;
 const MEBBIS_SESSION_CONNECTED_POLL_MS = 30_000;
 const MEBBIS_SESSION_IDLE_POLL_MS = 15_000;
@@ -184,14 +184,21 @@ function HeaderMebbisConnection() {
     if (openingMebbisHome) return;
     setOpeningMebbisHome(true);
     try {
+      await setLocalAgentMebbisBrowserVisibility(true);
+      setLiveViewEnabled(true);
+      writeMebbisLiveViewEnabled(true);
       const result = await openLocalAgentMebbisHomeView();
       showToast(result.message || t("dashboard.toast.mebbisOpened"));
     } catch (err) {
-      const message = err instanceof LocalAgentError && err.status === 401
-        ? t("dashboard.toast.mebbisLocalAgentNotPaired")
+      const message = err instanceof LocalAgentError
+        ? err.status === 401
+          ? t("dashboard.toast.mebbisLocalAgentNotPaired")
+          : err.status === 404
+            ? t("header.mebbis.visibilityUpdateRequired")
+            : err.message
         : err instanceof Error
-          ? err.message
-          : t("dashboard.toast.mebbisOpenFailed");
+            ? err.message
+            : t("dashboard.toast.mebbisOpenFailed");
       showToast(message, "error");
     } finally {
       setOpeningMebbisHome(false);
@@ -203,25 +210,20 @@ function HeaderMebbisConnection() {
     event.stopPropagation();
     if (!beginOperation()) return;
 
-    const next = !liveViewEnabled;
-    setLiveViewEnabled(next);
-    writeMebbisLiveViewEnabled(next);
-
     try {
-      const nextSession = await startLocalAgentMebbisSession({
-        apiBaseUrl: getMebbisApiBaseUrl(),
-        extensionToken: null,
-        debugVisible: next,
-      });
-      latestSession.current = nextSession;
-      setSession(nextSession);
+      const next = !liveViewEnabled;
+      await setLocalAgentMebbisBrowserVisibility(next);
+      setLiveViewEnabled(next);
+      writeMebbisLiveViewEnabled(next);
       setError(null);
-      refreshMebbisSessionStatusSoon();
-      if (nextSession.status === "waiting_verification" || nextSession.requiresVerificationCode) {
-        setPopoverOpen(true);
-      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("header.mebbis.unavailable"));
+      setError(
+        err instanceof LocalAgentError && err.status === 404
+          ? t("header.mebbis.visibilityUpdateRequired")
+          : err instanceof Error
+            ? err.message
+            : t("header.mebbis.unavailable")
+      );
       setPopoverOpen(true);
     } finally {
       endOperation();
@@ -287,9 +289,7 @@ function HeaderMebbisConnection() {
       const startInput: { apiBaseUrl: string; extensionToken?: string | null; debugVisible: boolean } = {
         apiBaseUrl: getMebbisApiBaseUrl(),
         extensionToken: null,
-        debugVisible:
-          readMebbisLiveViewEnabled() ||
-          window.localStorage.getItem(MEBBIS_DEBUG_VISIBLE_STORAGE_KEY) === "true",
+        debugVisible: readMebbisLiveViewEnabled(),
       };
       const pair = await pairMebbisExtensionClient(`Pilot LocalAgent - ${health.machineName}`);
       startInput.extensionToken = pair.apiToken;

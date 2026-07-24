@@ -1500,6 +1500,7 @@ export const tr = {
   "header.mebbis.submitCode": "Doğrula",
   "header.mebbis.stop": "Kapat",
   "header.mebbis.unavailable": "LocalAgent'a ulaşılamadı.",
+  "header.mebbis.visibilityUpdateRequired": "Canlı İzle için LocalAgent 1.0.34 veya daha yeni bir sürüme güncellenmelidir.",
   "header.mebbis.stopFailed": "MEBBİS oturumu kapatılamadı.",
   "header.mebbis.codeFailed": "Doğrulama kodu gönderilemedi.",
 
