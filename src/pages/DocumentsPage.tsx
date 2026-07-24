@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
-import { CheckIcon, DownloadIcon, XIcon } from "../components/icons";
+import { CheckIcon, XIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { ManageDocumentModal } from "../components/modals/ManageDocumentModal";
@@ -12,6 +12,7 @@ import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTagsInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
+import { ExportDropdown } from "../components/ui/ExportDropdown";
 import { Pagination } from "../components/ui/Pagination";
 import { SearchInput } from "../components/ui/SearchInput";
 import { CheckboxListPopover } from "../components/ui/CheckboxListPopover";
@@ -73,7 +74,7 @@ type SortState = { field: DocumentSortField; direction: SortDirection } | null;
 type DocumentsTab = "all" | "missing" | "complete";
 const DEFAULT_TAB: DocumentsTab = "all";
 
-type BulkActionMode = "status" | "tags" | "export" | "group" | null;
+type BulkActionMode = "status" | "tags" | "group" | null;
 
 type UploadTarget = {
   candidateId?: string;
@@ -586,15 +587,6 @@ export function DocumentsPage() {
     setBulkActionMode("status");
   };
 
-  const openBulkExportAction = () => {
-    if (selectedCount === 0) {
-      showToast(t("candidates.toast.selectAtLeastOne"), "error");
-      return;
-    }
-
-    setBulkActionMode("export");
-  };
-
   const openBulkGroupAction = () => {
     if (!canManageGroups) return;
     if (selectedCount === 0) {
@@ -654,7 +646,7 @@ export function DocumentsPage() {
     }
   };
 
-  const exportDocumentRowsToCsv = (rowsToExport: DocumentChecklistEntry[]) => {
+  const buildDocumentExportData = (rowsToExport: DocumentChecklistEntry[]) => {
     const headers = [
       t("documents.col.candidate"),
       t("candidates.col.phoneNumber"),
@@ -677,40 +669,85 @@ export function DocumentsPage() {
       entry.missingDocumentNames.join("; "),
     ]);
 
-    const escapeCsvValue = (value: string | number) => {
-      const text = String(value);
-      if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
-        return `"${text.replace(/"/g, "\"\"")}"`;
-      }
-      return text;
-    };
+    return { headers, rows };
+  };
 
-    const csvLines = [
-      headers.join(","),
-      ...rows.map((row) => row.map((value) => escapeCsvValue(value)).join(",")),
-    ];
-    const blob = new Blob(["\uFEFF" + csvLines.join("\n")], {
-      type: "text/csv;charset=utf-8;",
+  const escapeDocumentExportHtml = (value: string | number) =>
+    String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const buildDocumentExportTableHtml = (rowsToExport: DocumentChecklistEntry[]) => {
+    const { headers, rows } = buildDocumentExportData(rowsToExport);
+    return `<table>
+      <thead><tr>${headers.map((header) => `<th>${escapeDocumentExportHtml(header)}</th>`).join("")}</tr></thead>
+      <tbody>${rows
+        .map((row) => `<tr>${row.map((cell) => `<td>${escapeDocumentExportHtml(cell)}</td>`).join("")}</tr>`)
+        .join("")}</tbody>
+    </table>`;
+  };
+
+  const exportDocumentRowsToExcel = (rowsToExport: DocumentChecklistEntry[]) => {
+    const html = `<!doctype html>
+      <html><head><meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; }
+          h1 { font-size: 18px; }
+          table { border-collapse: collapse; }
+          th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 12px; }
+          th { background: #f3f4f6; font-weight: 700; }
+        </style>
+      </head><body><h1>Evrak Kontrol</h1>${buildDocumentExportTableHtml(rowsToExport)}</body></html>`;
+    const blob = new Blob(["\ufeff", html], {
+      type: "application/vnd.ms-excel;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `evrak-kontrol-${formatLocalDateOnly(new Date())}.csv`;
+    anchor.download = `evrak-kontrol-${formatLocalDateOnly(new Date())}.xls`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
   };
 
-  const downloadSelectedDocumentsCsv = async () => {
+  const exportDocumentRowsToPdf = (rowsToExport: DocumentChecklistEntry[], printWindow: Window) => {
+    printWindow.document.write(`<!doctype html>
+      <html><head><meta charset="utf-8" /><title>Evrak Kontrol</title>
+        <style>
+          @page { size: A4 landscape; margin: 12mm; }
+          body { color: #111827; font-family: Arial, sans-serif; margin: 0; }
+          h1 { font-size: 18px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #d1d5db; padding: 5px 6px; font-size: 10px; text-align: left; }
+          th { background: #f3f4f6; font-weight: 700; }
+          tr { break-inside: avoid; }
+        </style>
+      </head><body><h1>Evrak Kontrol</h1>${buildDocumentExportTableHtml(rowsToExport)}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const downloadSelectedDocuments = async (format: "excel" | "pdf") => {
     if (selectedCount === 0) return;
+    const printWindow = format === "pdf" ? window.open("", "_blank") : null;
+    if (format === "pdf" && !printWindow) {
+      showToast("PDF çıktısı için açılır pencereye izin verin.", "error");
+      return;
+    }
     setBulkExporting(true);
     try {
       const selectedIds = Array.from(selectedCandidateIds);
       const rows = await getDocumentChecklistByCandidateIds(selectedIds);
-      exportDocumentRowsToCsv(rows);
+      if (format === "excel") exportDocumentRowsToExcel(rows);
+      else if (printWindow) exportDocumentRowsToPdf(rows, printWindow);
       setBulkActionMode(null);
     } catch {
+      printWindow?.close();
       showToast(t("candidates.toast.bulkExportFailed"), "error");
     } finally {
       setBulkExporting(false);
@@ -923,25 +960,6 @@ export function DocumentsPage() {
                     {t("candidates.bulk.cancel")}
                   </button>
                 </>
-              ) : bulkActionMode === "export" ? (
-                <>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={selectedCount === 0 || bulkExporting}
-                    onClick={downloadSelectedDocumentsCsv}
-                    type="button"
-                  >
-                    {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    disabled={bulkExporting}
-                    onClick={cancelBulkAction}
-                    type="button"
-                  >
-                    {t("candidates.bulk.close")}
-                  </button>
-                </>
               ) : bulkActionMode === "group" ? (
                 <>
                   <CustomSelect
@@ -1022,14 +1040,11 @@ export function DocumentsPage() {
                       <span className="cand-filters-badge">{activeFilterCount}</span>
                     )}
                   </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={openBulkExportAction}
-                    type="button"
-                  >
-                    <DownloadIcon size={14} />
-                    {t("candidates.bulk.export")}
-                  </button>
+                  <ExportDropdown
+                    disabled={selectedCount === 0 || bulkExporting}
+                    onExcel={() => downloadSelectedDocuments("excel")}
+                    onPdf={() => downloadSelectedDocuments("pdf")}
+                  />
                 </>
               )}
             </div>

@@ -2907,7 +2907,7 @@ describe("CandidatesPage tabs", () => {
     expect(screen.queryByText("0 seçili")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Etiket Ekle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Durum Değiştir" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dışa aktar" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Toplu durum seç")).not.toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", { name: "Bu sayfadaki tüm adayları seç" })
@@ -2952,23 +2952,16 @@ describe("CandidatesPage tabs", () => {
     renderPage();
 
     await screen.findByText("Ayse Demir");
-    expect(screen.getByRole("button", { name: "Dışa Aktar" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
-
-    expect(await screen.findByText("Önce en az bir aday seç")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dışa aktar" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
 
     showBulkSelection();
     fireEvent.click(screen.getByRole("checkbox", { name: "Ayse Demir seç" }));
-    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
 
     expect(screen.getByRole("button", { name: "Yeni Aday" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "CSV İndir" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Excel İndir" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "PDF İndir" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Kapat" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dışa aktar" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "SMS Gönder" })).toBeInTheDocument();
 
     let exportedBlob: Blob | null = null;
     const createObjectUrlSpy = vi
@@ -2984,23 +2977,9 @@ describe("CandidatesPage tabs", () => {
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => undefined);
 
-    fireEvent.click(screen.getByRole("button", { name: "CSV İndir" }));
-
-    await waitFor(() => expect(createObjectUrlSpy).toHaveBeenCalled());
-    expect(exportedBlob).not.toBeNull();
-    const csv = await exportedBlob!.text();
-    const csvHeader = csv.replace(/^\uFEFF/, "").split("\n")[0];
-    expect(csvHeader).toContain("Ad Soyad");
-    expect(csvHeader).toContain("Ehliyet Tipi");
-    expect(csvHeader).not.toContain("Fotoğraf");
-    expect(csvHeader).not.toContain("TC Kimlik");
-    expect(csvHeader).not.toContain("Telefon");
-    expect(csv).toContain("Direksiyon başarısız");
-    expect(csv).not.toContain(",Başarılı,active");
-
-    exportedBlob = null;
-    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
-    fireEvent.click(screen.getByRole("button", { name: "Excel İndir" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dışa aktar" }));
+    expect(screen.queryByRole("button", { name: "CSV İndir" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "EXCEL" }));
 
     await waitFor(() => expect(exportedBlob).not.toBeNull());
     expect(exportedBlob!.type).toBe("application/vnd.ms-excel;charset=utf-8");
@@ -3024,8 +3003,8 @@ describe("CandidatesPage tabs", () => {
       .spyOn(window, "open")
       .mockReturnValue(pdfWindow as unknown as Window);
 
-    fireEvent.click(screen.getByRole("button", { name: "Dışa Aktar" }));
-    fireEvent.click(screen.getByRole("button", { name: "PDF İndir" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dışa aktar" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
 
     await waitFor(() => expect(pdfWindow.print).toHaveBeenCalled());
     expect(pdfDocument.write).toHaveBeenCalledWith(expect.stringContaining("Direksiyon başarısız"));

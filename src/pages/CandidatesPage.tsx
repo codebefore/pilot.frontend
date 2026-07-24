@@ -11,7 +11,7 @@ import { CandidateExamDateSidebar } from "../components/candidates/CandidateExam
 import { CandidateFilterPanel } from "../components/candidates/CandidateFilterPanel";
 import { BulkSmsModal } from "../components/candidates/BulkSmsModal";
 import { CandidateDrawer } from "../components/drawers/CandidateDrawer";
-import { DownloadIcon, FilterIcon, PlusIcon } from "../components/icons";
+import { FilterIcon, PlusIcon } from "../components/icons";
 import { PageTabs, PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateTagManagerModal } from "../components/modals/CandidateTagManagerModal";
 import { NewCandidateModal } from "../components/modals/NewCandidateModal";
@@ -22,6 +22,7 @@ import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { CandidateTagsInput, tagColorIndex } from "../components/ui/CandidateTagsInput";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
 import { CustomSelect } from "../components/ui/CustomSelect";
+import { ExportDropdown } from "../components/ui/ExportDropdown";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
 import { Modal } from "../components/ui/Modal";
@@ -133,7 +134,7 @@ import { useColumnVisibility } from "../lib/use-column-visibility";
 import { candidateHasExistingLicense } from "./CandidateDetailPage.helpers";
 
 type CandidateTab = "all" | CandidateStatusValue;
-type BulkActionMode = "status" | "tags" | "export" | "examDate" | "group" | null;
+type BulkActionMode = "status" | "tags" | "examDate" | "group" | null;
 type CandidateListTabKey = string;
 type CandidateExportFormat = "csv" | "excel" | "pdf";
 type CandidateExportCell = string | number;
@@ -3990,14 +3991,6 @@ export function CandidatesPage({
     setBulkActionMode("tags");
   };
 
-  const openBulkExportAction = () => {
-    if (selectedCandidateIds.size === 0) {
-      showToast(t("candidates.toast.selectAtLeastOne"), "error");
-      return;
-    }
-    setBulkActionMode("export");
-  };
-
   const openBulkSms = () => {
     if (!canManageCandidates) return;
     if (selectedCandidateIds.size === 0) {
@@ -4797,40 +4790,6 @@ export function CandidatesPage({
                       {t("candidates.bulk.cancel")}
                     </button>
                   </>
-                ) : bulkActionMode === "export" ? (
-                  <>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      disabled={selectedCount === 0 || bulkExporting}
-                      onClick={() => downloadSelectedCandidates("csv")}
-                      type="button"
-                    >
-                      {bulkExporting ? t("candidates.bulk.exporting") : t("candidates.bulk.exportCsv")}
-                    </button>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      disabled={selectedCount === 0 || bulkExporting}
-                      onClick={() => downloadSelectedCandidates("excel")}
-                      type="button"
-                    >
-                      {t("candidates.bulk.exportExcel")}
-                    </button>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      disabled={selectedCount === 0 || bulkExporting}
-                      onClick={() => downloadSelectedCandidates("pdf")}
-                      type="button"
-                    >
-                      {t("candidates.bulk.exportPdf")}
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => setBulkActionMode(null)}
-                      type="button"
-                    >
-                      {t("candidates.bulk.close")}
-                    </button>
-                  </>
                 ) : bulkActionMode === "examDate" ? (
                   <>
                     <CustomSelect
@@ -5024,14 +4983,11 @@ export function CandidatesPage({
                         ) : null}
                       </>
                     )}
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={openBulkExportAction}
-                      type="button"
-                    >
-                      <DownloadIcon size={14} />
-                      {t("candidates.bulk.export")}
-                    </button>
+                    <ExportDropdown
+                      disabled={selectedCount === 0 || bulkExporting}
+                      onExcel={() => downloadSelectedCandidates("excel")}
+                      onPdf={() => downloadSelectedCandidates("pdf")}
+                    />
                   </>
                 )}
               </div>

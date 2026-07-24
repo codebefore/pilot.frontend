@@ -7,7 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useT, currentLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/i18n";
 import { PageToolbar } from "../components/layout/PageToolbar";
-import { DownloadIcon, MebIcon } from "../components/icons";
+import { MebIcon } from "../components/icons";
 import {
   NewTrainingPlanModal,
   type TrainingLessonSubmitValues,
@@ -28,6 +28,7 @@ import {
 } from "../components/training/PracticeCandidatePicker";
 import { useToast } from "../components/ui/Toast";
 import { Modal } from "../components/ui/Modal";
+import { ExportDropdown } from "../components/ui/ExportDropdown";
 import { BranchPickerPopover } from "../components/training/BranchPickerPopover";
 import { PracticeEducationPopover } from "../components/training/PracticeEducationPopover";
 import { PageSkeleton } from "../components/ui/Skeleton";
@@ -415,7 +416,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const { showToast } = useToast();
   const t = useT();
   const filtersSidebarRef = useRef<HTMLElement | null>(null);
-  const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const practiceCandidatePickerRef = useRef<PracticeCandidatePickerHandle | null>(null);
   const { user, permissions } = useAuth();
   const canManageTraining = canManageArea(user, permissions, "training");
@@ -528,8 +528,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
   const [bulkDeleteGroup, setBulkDeleteGroup] = useState<GroupResponse | null>(null);
   const [bulkDeleteCandidate, setBulkDeleteCandidate] = useState<CandidateResponse | null>(null);
   const [isBulkDeleteLoading, setIsBulkDeleteLoading] = useState(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [practiceCandidateExportMode, setPracticeCandidateExportMode] = useState(false);
   const [practiceCandidateExportState, setPracticeCandidateExportState] =
     useState<PracticeCandidateExportState>({ canExport: false, exporting: false });
   const handlePracticeCandidateExportStateChange = useCallback(
@@ -718,22 +716,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
     window.addEventListener("mouseup", handler, true);
     return () => window.removeEventListener("mouseup", handler, true);
   }, []);
-
-  useEffect(() => {
-    if (!exportMenuOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && exportMenuRef.current?.contains(target)) {
-        return;
-      }
-
-      setExportMenuOpen(false);
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown, true);
-    return () => window.removeEventListener("pointerdown", handlePointerDown, true);
-  }, [exportMenuOpen]);
 
   useEffect(() => {
     return () => {
@@ -2780,85 +2762,12 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 </button>
               ) : null}
               {type === "teorik" ? (
-                <div className="payments-export-menu-wrap" ref={exportMenuRef}>
-                  <button
-                    aria-expanded={exportMenuOpen}
-                    className="btn btn-secondary btn-sm payments-filter-export"
-                    disabled={!canExportTheoryLessons}
-                    onClick={() => setExportMenuOpen((open) => !open)}
-                    title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}
-                    type="button"
-                  >
-                    <DownloadIcon size={14} />
-                    Dışa aktar
-                  </button>
-                  {exportMenuOpen && canExportTheoryLessons ? (
-                    <div className="payments-export-menu" role="menu">
-                      <button
-                        onClick={() => {
-                          setExportMenuOpen(false);
-                          handleExportTheoryLessonsExcel();
-                        }}
-                        role="menuitem"
-                        type="button"
-                      >
-                        Excel
-                      </button>
-                      <button
-                        onClick={() => {
-                          setExportMenuOpen(false);
-                          handlePrintTheoryLessonsPdf();
-                        }}
-                        role="menuitem"
-                        type="button"
-                      >
-                        PDF
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              {type === "uygulama" && !quickSettings.candidateId && practiceCandidateExportMode ? (
-                <>
-                  <span className="candidate-bulk-count">
-                    {t("candidates.selectedCount", {
-                      count: selectedPracticeImportCandidateCount,
-                    })}
-                  </span>
-                  {(["csv", "excel", "pdf"] as const).map((format) => (
-                    <button
-                      className="btn btn-primary btn-sm"
-                      disabled={
-                        selectedPracticeImportCandidateCount === 0 ||
-                        practiceCandidateExportState.exporting
-                      }
-                      key={format}
-                      onClick={() =>
-                        practiceCandidatePickerRef.current?.exportCandidates(
-                          format,
-                          selectedPracticeCandidateIds
-                        )
-                      }
-                      type="button"
-                    >
-                      {format === "csv"
-                        ? practiceCandidateExportState.exporting
-                          ? t("candidates.bulk.exporting")
-                          : t("candidates.bulk.exportCsv")
-                        : format === "excel"
-                          ? t("candidates.bulk.exportExcel")
-                          : t("candidates.bulk.exportPdf")}
-                    </button>
-                  ))}
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    disabled={practiceCandidateExportState.exporting}
-                    onClick={() => setPracticeCandidateExportMode(false)}
-                    type="button"
-                  >
-                    {t("candidates.bulk.close")}
-                  </button>
-                </>
+                <ExportDropdown
+                  disabled={!canExportTheoryLessons}
+                  onExcel={handleExportTheoryLessonsExcel}
+                  onPdf={handlePrintTheoryLessonsPdf}
+                  title={!selectedTheoryGroup ? "Çıktı için önce grup seçin." : undefined}
+                />
               ) : null}
               {selectedPracticeCandidate ? (
                 <>
@@ -2941,8 +2850,7 @@ export function TrainingPage({ type }: TrainingPageProps) {
                   </button>
                 </>
               ) : null}
-              {!practiceCandidateExportMode &&
-              !selectedPracticeCandidate &&
+              {!selectedPracticeCandidate &&
               selectedPracticeImportCandidateCount > 0 ? (
                 <>
                   <span className="candidate-bulk-count">
@@ -2983,22 +2891,25 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 </>
               ) : null}
               {type === "uygulama" &&
-              !quickSettings.candidateId &&
-              !practiceCandidateExportMode ? (
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    if (selectedPracticeImportCandidateCount === 0) {
-                      showToast(t("candidates.toast.selectAtLeastOne"), "error");
-                      return;
-                    }
-                    setPracticeCandidateExportMode(true);
-                  }}
-                  type="button"
-                >
-                  <DownloadIcon size={14} />
-                  {t("candidates.bulk.export")}
-                </button>
+              !quickSettings.candidateId ? (
+                <ExportDropdown
+                  disabled={
+                    selectedPracticeImportCandidateCount === 0 ||
+                    practiceCandidateExportState.exporting
+                  }
+                  onExcel={() =>
+                    practiceCandidatePickerRef.current?.exportCandidates(
+                      "excel",
+                      selectedPracticeCandidateIds
+                    )
+                  }
+                  onPdf={() =>
+                    practiceCandidatePickerRef.current?.exportCandidates(
+                      "pdf",
+                      selectedPracticeCandidateIds
+                    )
+                  }
+                />
               ) : null}
               {showBackToCandidateList ? (
                 <button
@@ -3090,7 +3001,6 @@ export function TrainingPage({ type }: TrainingPageProps) {
                 onAssign={(id) => {
                   setQuickSettings((prev) => ({ ...prev, candidateId: id }));
                 }}
-                onExportComplete={() => setPracticeCandidateExportMode(false)}
                 onExportStateChange={handlePracticeCandidateExportStateChange}
                 onSelectionChange={setSelectedPracticeCandidateIds}
                 refreshToken={practiceCandidatePickerRefreshToken}

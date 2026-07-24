@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 
-import { DownloadIcon } from "../components/icons";
 import { PageToolbar } from "../components/layout/PageToolbar";
 import { CandidateAvatar } from "../components/ui/CandidateAvatar";
 import { ColumnPicker, type ColumnOption } from "../components/ui/ColumnPicker";
@@ -10,6 +9,7 @@ import { CustomSelect } from "../components/ui/CustomSelect";
 import { LocalizedDateInput } from "../components/ui/LocalizedDateInput";
 import { LocalizedTimeInput } from "../components/ui/LocalizedTimeInput";
 import { Modal } from "../components/ui/Modal";
+import { ExportDropdown } from "../components/ui/ExportDropdown";
 import { PageLoadError } from "../components/ui/PageLoadError";
 import { PageSkeleton } from "../components/ui/Skeleton";
 import {
@@ -1430,7 +1430,6 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const [statsMonth, setStatsMonth] = useState("");
   const [statsFromDate, setStatsFromDate] = useState("");
   const [statsToDate, setStatsToDate] = useState("");
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [detailGroup, setDetailGroup] = useState<DetailGroup>(
     isCashPage ? "cashSummary" : "movements",
   );
@@ -3559,7 +3558,6 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   const hasFinanceExportTables = financeExportTables.length > 0;
 
   const handleFinanceExport = (format: FinanceExportFormat) => {
-    setExportMenuOpen(false);
     if (!hasFinanceExportTables) {
       showToast("Dışa aktarılacak kayıt bulunamadı.", "error");
       return;
@@ -3577,35 +3575,11 @@ export function PaymentsPage({ mode = "finance" }: PaymentsPageProps) {
   };
 
   const exportButton = (
-    <div className="payments-export-menu-wrap">
-      <button
-        className="btn btn-secondary payments-filter-export"
-        disabled={!hasFinanceExportTables}
-        onClick={() => setExportMenuOpen((current) => !current)}
-        type="button"
-      >
-        <DownloadIcon size={14} />
-        Dışa aktar
-      </button>
-      {exportMenuOpen ? (
-        <div className="payments-export-menu" role="menu">
-          <button
-            onClick={() => handleFinanceExport("excel")}
-            role="menuitem"
-            type="button"
-          >
-            Excel
-          </button>
-          <button
-            onClick={() => handleFinanceExport("pdf")}
-            role="menuitem"
-            type="button"
-          >
-            PDF
-          </button>
-        </div>
-      ) : null}
-    </div>
+    <ExportDropdown
+      disabled={!hasFinanceExportTables}
+      onExcel={() => handleFinanceExport("excel")}
+      onPdf={() => handleFinanceExport("pdf")}
+    />
   );
 
   if (loadError) {

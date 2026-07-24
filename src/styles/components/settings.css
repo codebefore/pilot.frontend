@@ -5893,18 +5893,15 @@
   position: relative;
 }
 
-.payments-filter-export {
-  height: 32px;
-  padding: 4px 9px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.payments-export-menu-wrap {
+.export-dropdown {
   position: relative;
 }
 
-.payments-export-menu {
+.export-dropdown-trigger {
+  white-space: nowrap;
+}
+
+.export-dropdown-menu {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
@@ -5920,7 +5917,7 @@
   box-shadow: var(--shadow-lg);
 }
 
-.payments-export-menu button {
+.export-dropdown-menu button {
   padding: 7px 9px;
   border-radius: 6px;
   color: var(--gray-700);
@@ -5928,7 +5925,7 @@
   text-align: left;
 }
 
-.payments-export-menu button:hover {
+.export-dropdown-menu button:hover {
   background: var(--gray-50);
   color: var(--gray-900);
 }
@@ -6384,7 +6381,7 @@
   }
 
   .payments-filter-actions .btn,
-  .payments-export-menu-wrap {
+  .payments-filter-actions .export-dropdown {
     width: 100%;
   }
 }
