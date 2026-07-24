@@ -169,6 +169,21 @@ describe("Header language toggle", () => {
 });
 
 describe("Header MEBBİS connection", () => {
+  it("always starts a new MEBBİS verification session with live view disabled", async () => {
+    localStorage.setItem(MEBBIS_LIVE_VIEW_STORAGE_KEY, "true");
+
+    renderHeader();
+
+    fireEvent.click(screen.getByRole("button", { name: "MEBBİS bağlantısı" }));
+
+    await waitFor(() =>
+      expect(localAgentMocks.startLocalAgentMebbisSession).toHaveBeenCalledWith(
+        expect.objectContaining({ debugVisible: false })
+      )
+    );
+    expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBe("false");
+  });
+
   it("ignores repeated toggle clicks while a start operation is in progress", async () => {
     let resolveStart: (value: LocalAgentMebbisSessionResponse) => void = () => {};
     localAgentMocks.startLocalAgentMebbisSession.mockImplementation(
@@ -204,17 +219,20 @@ describe("Header MEBBİS connection", () => {
     expect(screen.getByRole("dialog", { name: "MEBBİS doğrulama kodu" })).toBeInTheDocument();
   });
 
-  it("opens MEBBİS from the inline icon without toggling the connection", async () => {
+  it("opens MEBBİS from the inline icon without changing the live view preference", async () => {
     renderHeader();
 
     fireEvent.click(screen.getByTitle("MEBBİS aç"));
 
     await waitFor(() =>
-      expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenCalledWith(true)
+      expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenCalledWith(
+        true,
+        { persistPreference: false }
+      )
     );
     await waitFor(() => expect(localAgentMocks.openLocalAgentMebbisHomeView).toHaveBeenCalledTimes(1));
     expect(localAgentMocks.startLocalAgentMebbisSession).not.toHaveBeenCalled();
-    expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBe("true");
+    expect(localStorage.getItem(MEBBIS_LIVE_VIEW_STORAGE_KEY)).toBeNull();
   });
 
   it("makes the active MEBBİS job visible before requesting the home page", async () => {
@@ -234,7 +252,10 @@ describe("Header MEBBİS connection", () => {
     fireEvent.click(screen.getByTitle("MEBBİS aç"));
 
     await waitFor(() =>
-      expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenCalledWith(true)
+      expect(localAgentMocks.setLocalAgentMebbisBrowserVisibility).toHaveBeenCalledWith(
+        true,
+        { persistPreference: false }
+      )
     );
     expect(localAgentMocks.openLocalAgentMebbisHomeView).not.toHaveBeenCalled();
 
