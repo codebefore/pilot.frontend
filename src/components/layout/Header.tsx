@@ -184,9 +184,7 @@ function HeaderMebbisConnection() {
     if (openingMebbisHome) return;
     setOpeningMebbisHome(true);
     try {
-      await setLocalAgentMebbisBrowserVisibility(true);
-      setLiveViewEnabled(true);
-      writeMebbisLiveViewEnabled(true);
+      await setLocalAgentMebbisBrowserVisibility(true, { persistPreference: false });
       const result = await openLocalAgentMebbisHomeView();
       showToast(result.message || t("dashboard.toast.mebbisOpened"));
     } catch (err) {
@@ -267,6 +265,8 @@ function HeaderMebbisConnection() {
 
   async function startSession() {
     if (!beginOperation()) return;
+    setLiveViewEnabled(false);
+    writeMebbisLiveViewEnabled(false);
     setError(null);
     const startingSession = {
       status: "starting",
@@ -289,7 +289,7 @@ function HeaderMebbisConnection() {
       const startInput: { apiBaseUrl: string; extensionToken?: string | null; debugVisible: boolean } = {
         apiBaseUrl: getMebbisApiBaseUrl(),
         extensionToken: null,
-        debugVisible: readMebbisLiveViewEnabled(),
+        debugVisible: false,
       };
       const pair = await pairMebbisExtensionClient(`Pilot LocalAgent - ${health.machineName}`);
       startInput.extensionToken = pair.apiToken;

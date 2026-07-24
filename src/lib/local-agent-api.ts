@@ -154,6 +154,9 @@ export class LocalAgentError extends Error {
 }
 
 export const LOCAL_AGENT_UNAVAILABLE_MESSAGE = "MEBBİS uygulaması kapalıdır.";
+const TRANSIENT_MEBBIS_VIEW_MIN_VERSION = "1.0.37";
+const TRANSIENT_MEBBIS_VIEW_UPDATE_MESSAGE =
+  "MEBBİS sayfasını Canlı İzle tercihini değiştirmeden açmak için LocalAgent 1.0.37 veya daha yeni olmalıdır.";
 
 export function getLocalAgentUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -265,13 +268,23 @@ export async function stopLocalAgentMebbisSession(
 
 export async function setLocalAgentMebbisBrowserVisibility(
   visible: boolean,
-  signal?: AbortSignal
+  options: {
+    persistPreference?: boolean;
+    signal?: AbortSignal;
+  } = {}
 ): Promise<LocalAgentMebbisBrowserVisibilityResponse> {
+  if (options.persistPreference === false) {
+    await ensureTransientMebbisViewSupported(options.signal);
+  }
+
   const response = await requestLocalAgent("/mebbis/browser/visibility", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
-    body: JSON.stringify({ visible }),
-    signal,
+    body: JSON.stringify({
+      visible,
+      persistPreference: options.persistPreference ?? true,
+    }),
+    signal: options.signal,
   });
   return handleLocalAgentJson<LocalAgentMebbisBrowserVisibilityResponse>(response);
 }
@@ -308,6 +321,8 @@ export async function openLocalAgentMebbisPageView(
   selection?: LocalAgentMebbisPageViewSelection,
   signal?: AbortSignal
 ): Promise<LocalAgentMebbisPageViewResponse> {
+  await ensureTransientMebbisViewSupported(signal);
+
   const response = await requestLocalAgent("/mebbis/page/view", {
     method: "POST",
     headers: buildLocalAgentHeaders(true),
@@ -316,6 +331,28 @@ export async function openLocalAgentMebbisPageView(
   });
   const body = await handleLocalAgentJson<Record<string, unknown>>(response);
   return normalizeMebbisPageViewResponse(body);
+}
+
+async function ensureTransientMebbisViewSupported(signal?: AbortSignal): Promise<void> {
+  const health = await getLocalAgentHealth(signal);
+  if (compareNumericVersions(health.version, TRANSIENT_MEBBIS_VIEW_MIN_VERSION) < 0) {
+    throw new LocalAgentError(TRANSIENT_MEBBIS_VIEW_UPDATE_MESSAGE, 426);
+  }
+}
+
+function compareNumericVersions(left: string, right: string): number {
+  const leftParts = readNumericVersionParts(left);
+  const rightParts = readNumericVersionParts(right);
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+function readNumericVersionParts(version: string): number[] {
+  const match = version.trim().match(/^(\d+)\.(\d+)\.(\d+)/);
+  return match ? match.slice(1).map(Number) : [0];
 }
 
 export async function listLocalAgentScanners(signal?: AbortSignal): Promise<LocalAgentScannerResponse[]> {
